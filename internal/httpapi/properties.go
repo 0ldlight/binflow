@@ -39,6 +39,14 @@ import (
 // the split runs on the RAW query string before decoding — the encoding
 // semantics section 15.3.3 pins for tech-writer documentation.
 //
+// Semicolons are NOT part of this plane's grammar (T-447's contract note,
+// pinned as wire behavior by T-493 / FR-157④): the ';' matrix spelling is
+// a PATH-plane deploy concern only. An encoded %3B inside a value is plain
+// content; a RAW ';' in the raw query value additionally drops the whole
+// pair out of net/url's query parsing (Go refuses ';' as a separator), so
+// the arm never engages for that spelling — GET answers the plain item
+// body, the mutating verbs the family's unknown-spelling 404.
+//
 // Permissions: reads ride the item-info gate (the service's own read ACL,
 // storageNode); writes demand the path's `a` (annotate) through the SAME
 // Authorizer the content plane consults — the M16 verb split (T-444 /

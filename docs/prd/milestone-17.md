@@ -304,7 +304,7 @@ Builds 面 OSS 档可用性 + Release Bundle 商业档位 = 规格票活体核�
 | LC-104 | 洞察报表聚合快照层 + 图表族 | Artifactory Insights 系独立商业产品无 OSS 对位——BinFlow 自有实现；dep K69 统计单源 | **C（自有——呈现沿 dashboard 既有形态）** | P1（候 Q0） | K75 | L55 |
 | LC-105 | configJSON 四域 round-trip + 行为联动 + Stage 域 | M16 T-439 漂移钉 tripwire + K73 + 7.161 更名 | A | P1 | K73 落定 | L56 |
 | LC-106 | Any Local/Any Remote 通配桶 BE 语义（Any Distribution 同场） | M16 B-2.16（FE 不伪造候裁在案） | A | P1 | 与 FR-153 同场 | L56 |
-| LC-107 | 契约漂移勘误族——url 前缀 / downloadUri / System Logs 端点 / ?properties 注记 / useAsync 双计 | M16 未纳入项登记族七条（M1 既有 url 行） | **A（勘误归位）** | P1 | downloadUri 二选一票内裁 | L57 |
+| LC-107 | 契约漂移勘误族——url 前缀 / downloadUri / System Logs 端点 / ?properties 注记 / useAsync 双计 | M16 未纳入项登记族七条（M1 既有 url 行） | **A（勘误归位）** | P1 | **T-493 票内裁留痕（2026-09-07）：downloadUri 二选一 = ①下载语义 URI 归位**（uri=api/storage 视图 / downloadUri=直取 `/binflow/<repo>/<path>`——官方 FileInfo 示例 + 上传 201 体内核佐证；rest-compat-matrix D01 行 1 登记）；System Logs 端点形态 = BinFlow 形 GET `/api/v1/system/logs`（C 层——limit/filter/download 三臂，system:read 门；rest-compat-matrix D06 行 13 ◐）；url 前缀与 ?properties wire 断言同票落地，useAsync 双计 + FE 数据源切换归 T-494，文档面归 T-518 | L57 |
 | LC-108 | gc-cron-gap 三载体 + 枚举 TTL wire 可调 | ADR-0044 消费面扩列（M16 诚实缺位登记解除） | A | P2 | — | L58 |
 | LC-109 | Replay/outbox 行级 REST（死信重放） | M13 登记（T-364/T-366）+ outbox 引擎既有 | **A（子集注记）** | P1 | — | L52 |
 | LC-110 | webhook 触发源裁剪出口（dormant 家族处置） | ADR-0041 决策 7 翻转路径（M16 Q11 承接） | **待裁（Q5——终裁归 A/C）** | P1 | Q5 | L52 |

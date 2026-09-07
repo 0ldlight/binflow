@@ -1,11 +1,13 @@
 package httpapi
 
 // GET/PUT /binflow/api/v1/system/maintenance — the maintenance plane's cron
-// configuration face (M16 T-450, FR-150.3 / ADR-0044 decision 7①): the
-// three maintenance cron slots of the Artifactory maintenance page
+// configuration face (M16 T-450, FR-150.3 / ADR-0044 decision 7①): the six
+// maintenance cron slots of the Artifactory maintenance page
 // (console-ui.md §3.9 — Garbage Collection / Cleanup Unused Cached
-// Artifacts / Cleanup Virtual Repositories), each backed by one row of the
-// 021 schedules ledger under domain='maintenance'.
+// Artifacts / Cleanup Virtual Repositories, plus the M17 T-495 gc-cron-gap
+// three: Quota / Compress Internal Database / Prune Unreferenced Data),
+// each backed by one row of the 021 schedules ledger under
+// domain='maintenance'.
 //
 // BinFlow's honest mapping of the two cleanup families is the ADR-0044
 // decision-8① closed set: "Cleanup 两族全量 pass (RunOnce)" — the
@@ -15,12 +17,19 @@ package httpapi
 // (BinFlow virtual repositories aggregate; they hold no cache of their own
 // to clean) — a registered C-layer difference, not a fabricated one.
 //
+// The T-495 three (FR-158): the quota / compress / prune slots ride the
+// carrier kernels in maintenance_carriers.go — quota is the threshold
+// check + alert trail (the per-repo quotaBytes ceilings the storage-quota
+// page owns; enforcement is out of scope here), compress is the metadata VACUUM
+// rebuild, prune is the gc engine's dry-run form. The Artifactory page's
+// instance-level quota percentage pair has no BinFlow carrier and stays
+// uncarried (T-462's FE note registered the thresholds' home as the
+// storage-quota page — this slot schedules the check, it does not add a
+// second threshold source).
+//
 // The manual faces stay exactly as they are (the AC's "手动 dry-run/apply
 // 并存维持"): POST /api/v1/system/gc and POST/GET /api/v1/system/cleanup
-// are untouched; "Run Now" IS those routes. Quota percentages and the
-// Compress/Prune instant buttons of the Artifactory page have no BinFlow
-// backend carrier and are therefore absent here (no data source, nothing
-// fabricated — the FE face's posture is T-462's concern).
+// are untouched; "Run Now" IS those routes.
 
 import (
 	"net/http"
@@ -33,11 +42,19 @@ import (
 
 // maintenanceSlots is the maintenance slot closed set (the 021 ledger's
 // in-domain keys, ADR-0044 decision 2's DDL comment), in the order the GET
-// projection renders.
+// projection renders. The T-495 extension (quota/compress/prune) is the
+// carrier-set erratum registered in the ticket's report: ADR-0044
+// decision 1's incremental-registration discipline (a new consumer is a
+// Register/dispatch arm plus this list edit — never a schema change; the
+// ADR-0046 K75 insights 4th-domain precedent lifted onto in-domain
+// carriers), so the 021 CHECK and the ledger schema are untouched.
 var maintenanceSlots = []string{
 	"gc",
 	"cleanup-unused-cache",
 	"cleanup-virtual",
+	"quota",
+	"compress",
+	"prune",
 }
 
 // maintenanceSlotStatus is one slot's GET projection: the ledger row's
@@ -65,11 +82,15 @@ type maintenancePutSlotBody struct {
 }
 
 // maintenancePutBody is the PUT body: every slot is optional; an absent
-// slot is untouched. The shape is closed over the three maintenance slots.
+// slot is untouched. The shape is closed over the six maintenance slots —
+// the T-450 three plus the T-495 gc-cron-gap carriers.
 type maintenancePutBody struct {
 	GC                 *maintenancePutSlotBody `json:"gc"`
 	CleanupUnusedCache *maintenancePutSlotBody `json:"cleanup-unused-cache"`
 	CleanupVirtual     *maintenancePutSlotBody `json:"cleanup-virtual"`
+	Quota              *maintenancePutSlotBody `json:"quota"`
+	Compress           *maintenancePutSlotBody `json:"compress"`
+	Prune              *maintenancePutSlotBody `json:"prune"`
 }
 
 // maintenanceProjection renders every slot's state — the GET body and the
@@ -129,6 +150,9 @@ func (s *Server) handleSystemMaintenancePUT(w http.ResponseWriter, r *http.Reque
 		"gc":                   body.GC,
 		"cleanup-unused-cache": body.CleanupUnusedCache,
 		"cleanup-virtual":      body.CleanupVirtual,
+		"quota":                body.Quota,
+		"compress":             body.Compress,
+		"prune":                body.Prune,
 	}
 	// All arms validate BEFORE any lands: a two-arm PUT with one bad
 	// expression must not half-land (the backup face's law, applied to the
@@ -172,7 +196,7 @@ func (s *Server) handleSystemMaintenancePUT(w http.ResponseWriter, r *http.Reque
 	}
 	if touched == 0 {
 		writeError(w, http.StatusBadRequest,
-			"maintenance body carries no slot arm (gc, cleanup-unused-cache, cleanup-virtual)")
+			"maintenance body carries no slot arm (gc, cleanup-unused-cache, cleanup-virtual, quota, compress, prune)")
 		return
 	}
 	slots, err := s.maintenanceProjection(r)

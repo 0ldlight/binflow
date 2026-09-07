@@ -160,7 +160,11 @@ test('setmeup grid: package types = union of existing repos; back link returns t
   await seedRepos(m8Client(), [{ key }, { key: `${key}-npmpkg`, packageType: 'npm' }])
 
   await loginAs(page, 'admin')
-  await page.goto('/binflow/ui/artifacts')
+  // T-492（B-3.2）：/artifacts 进入即自动选中首仓库——无仓库上下文的根态
+  // （步 0 药丸的前提）经「带选中进入 → 侧栏导航回根」重建（回根不重复
+  // 自动选中）
+  await page.goto(`/binflow/ui/artifacts/${key}`)
+  await page.click('[data-testid="app-nav"] a.nav-item:text-is("制品")')
   await page.click('[data-testid="tree-setmeup"]')
 
   await expect(page.locator('[data-testid="smu-grid"]')).toBeVisible()
@@ -414,8 +418,11 @@ test('axe: setmeup drawer (pills + main) clean in both themes; deploy dialog cle
   // 不到抽屉态，抽屉的 serious=0 门在本 spec 承载）
   for (const theme of ['light', 'dark'] as const) {
     await page.evaluate((t) => localStorage.setItem('binflow-console-theme', t), theme)
-    await page.goto('/binflow/ui/artifacts')
+    // T-492（B-3.2）：/artifacts 进入即自动选中首仓库——无仓库上下文的根态
+    // （步 0 药丸前提）经「带选中进入 → 侧栏导航回根」重建
+    await page.goto(`/binflow/ui/artifacts/${key}`)
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+    await page.click('[data-testid="app-nav"] a.nav-item:text-is("制品")')
 
     // 药丸态（步 0）
     await page.click('[data-testid="tree-setmeup"]')

@@ -116,6 +116,20 @@ one-to-one when the dialect lands):
   property-write gate was `w`); can_write keeps its name and code (deploy/
   cache stay one merged column — the wire word write -> deploy-cache is
   presentation only). Statements are dialect-common.
+- 024_build_info: the build-info table family (M17 T-507, FR-152.1 /
+  ADR-0045 decision 2 + Errata) — builds, build_modules, build_artifacts,
+  build_dependencies, build_promotions, build_properties. Run identity is
+  the four-tuple (build_name, build_number, started, build_repo) carried as
+  the primary key (same name+number with a different started is a different
+  run; build_repo defaults to 'artifactory-build-info' and requires no
+  repositories row). build_artifacts links builds to nodes with a real
+  composite FK ON DELETE SET NULL (NULL = record-only artifact, the
+  historical row outlives the node); dependencies never touch nodes;
+  promotions are append-only with a FREE-string status (no CHECK). The
+  original build info JSON is archived in builds.payload. Statements are
+  dialect-common (booleans as 0/1 on the sqlite side, INTEGER here per the
+  001 convention this column family uses; nullable TEXT for the nodes
+  association in both dialects — MATCH SIMPLE exempts NULL from the FK).
 
 The migrator currently embeds `migrations/sqlite/*.sql` only
 (see ../migrate.go).

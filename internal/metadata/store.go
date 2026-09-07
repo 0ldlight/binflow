@@ -307,6 +307,10 @@ func (s *sqliteStore) Backups() BackupStore {
 	return &backupStore{db: s.db}
 }
 
+func (s *sqliteStore) Builds() BuildStore {
+	return &buildStore{db: s.db}
+}
+
 func (s *sqliteStore) Ping(ctx context.Context) error {
 	if err := s.db.PingContext(ctx); err != nil {
 		return fmt.Errorf("metadata: ping: %w", err)

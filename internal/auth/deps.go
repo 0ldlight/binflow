@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
@@ -308,12 +309,42 @@ func NewUserCreator(store metadata.UserStore) UserCreator {
 	return userCreatorAdapter{s: store}
 }
 
+// repoClassAdapter adapts metadata.RepoStore onto the repoClassSource seam
+// (T-491, FR-156.2): the repositories table's type column is the class
+// answer the wildcard buckets key on. Unknown keys are the ordinary case
+// (Can evaluates paths whose repository may not exist — every pre-M17
+// unit fixture runs on keys with no row) and answer "no class" silently;
+// any OTHER failure logs and also answers "no class" — the bucket never
+// applies on a doubt (fail closed, wildcard.go's posture).
+type repoClassAdapter struct{ s metadata.RepoStore }
+
+func (a repoClassAdapter) RepoClass(ctx context.Context, repoKey string) (RepoClass, bool) {
+	row, err := a.s.Get(ctx, repoKey)
+	if err != nil {
+		if !isNotFound(err, metadata.ErrRepoNotFound) {
+			slog.ErrorContext(ctx, "auth: repository class lookup failed, bucket inert",
+				slog.String("repo", repoKey), slog.String("error", err.Error()))
+		}
+		return "", false
+	}
+	switch RepoClass(row.Type) {
+	case RepoClassLocal, RepoClassRemote:
+		return RepoClass(row.Type), true
+	default:
+		// virtual and anything the metadata layer may grow: no bucket
+		// names the class (BucketForClass's "" arm).
+		return "", false
+	}
+}
+
 // NewFromStore wires Service over a metadata.Store. anonymousRead is
 // config.Security.AnonymousAccess. The browser-session arm (M4, ADR-0014)
 // and the group-membership fill (M4, T-97) are wired unconditionally:
 // metadata.Open always carries the 004 web_sessions/groups tables, so every
 // store-backed service is also the console's SessionRegistry and carries
-// SE-07's union semantics.
+// SE-07's union semantics. The wildcard-bucket class source (T-491) rides
+// the same unconditional wiring — every store-backed service carries the
+// repositories table too.
 //
 // The OIDC Bearer arm (M6, ADR-0020) is NOT wired by default — it requires
 // an IdentityProvider implementation (T-154). Call WithOIDC after this
@@ -327,6 +358,7 @@ func NewFromStore(st metadata.Store, anonymousRead bool) *Service {
 		permissionStoreAdapter{s: st.Permissions()},
 		anonymousRead,
 	).WithSessions(st.WebSessions()).WithGroups(groups)
+	svc.repoClass = repoClassAdapter{s: st.Repos()}
 	// Wire the userCreator so OIDC and LDAP auto-create paths work when the
 	// service is backed by a real store. Callers that want a different
 	// creator (e.g. tests) can still override it via WithOIDC.

@@ -21,7 +21,7 @@ import { formatBytes } from '../../lib/format'
 import { getRepoDetail } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
 import { DOWNLOAD_COPY, EMPTY_VALUE, NO_SOURCE_HINTS, REPO_FIELD_LABELS, REMOTE_COPY, STATS_HINTS, STATS_LABELS } from './detailCopy'
-import { contentFileURL, getItem, getItemPermissions, getNodeStats, getRepoUsageCounts } from './lib'
+import { contentFileURL, getItemForDetail, getItemPermissions, getNodeStats, getRepoUsageCounts } from './lib'
 import type { ChildNode, ItemInfo } from './lib'
 import PropertiesTab from './PropertiesTab'
 import { tr } from '../../i18n'
@@ -123,8 +123,23 @@ export default function NodeDetail({
 
   // 节点元数据（文件/目录）在顶层取——下载伴随菜单的对账源
   // （checksums.sha256）与常规 Tab 共用一次请求。
+  //
+  // T-494 / FR-157（useAsync 双计修正）：详情读走 getItemForDetail——file
+  // 行改道零计数的搜索投影面（getItem 的 item-info GET 经内容面 Get 落点
+  // as-built 即 +1 下载计数，纯浏览在喂计数器；folder/远端派生行维持直读
+  // ——前者结构性不计数，后者就是回源 pull-through 本体）。useAsync 本身
+  // 的 deps 是 primitives（React 逐元素比较，数组恒新引用不触发 effect 重
+  // 跑——T-461 §6-3 的诊断就此勘误：多计的真身是计数面，不是发射次数；
+  // 重复发射在非计数面下也无害）。K69 单源契约不破：计数唯一真相源仍是
+  // 真实内容面 GET，?stats 读面不计数。
   const nodeItem = useAsync(
-    () => (target.kind === 'node' ? getItem(target.repoKey, target.node.path) : Promise.resolve(null)),
+    () => (target.kind === 'node'
+      ? getItemForDetail(target.repoKey, target.node.path, {
+        sha256: target.node.sha256,
+        remote: target.node.remote,
+        folder: target.node.folder,
+      })
+      : Promise.resolve(null)),
     [target.kind, target.kind === 'node' ? target.repoKey : '', target.kind === 'node' ? target.node.path : ''],
   )
   const item: ItemInfo | null = target.kind === 'node' && nodeItem.status === 'ok' ? nodeItem.data : null

@@ -5,6 +5,17 @@ import { registerEn } from '../../index'
 
 registerEn('monitoring', {
   "——服务进程日志（slog 文件）暂无 REST 端点，未列入可选源（契约缺口已登记）。服务端精过滤 （仓库 / 操作者 / 动作 / 时间窗）在审计日志页。": "— there is no REST endpoint yet for service process logs (slog files), so they are not offered as a source (contract gap registered). Server-side precise filtering (repository / user / action / time window) is on the Audit Log page.",
+  "——超出环形容量的更早日志已淘汰；下载为服务端附件（binflow-service.log）。": "— lines beyond the ring capacity have been evicted; the download is a server-side attachment (binflow-service.log).",
+  "（环形 {v1} 行，取最近 {v2}）": " (ring holds {v1} lines, showing the latest {v2})",
+  "（过滤命中 {v1}）": " ({v1} filter matches)",
+  "「{v1}」未命中当前尾随窗口——过滤在服务端对最近窗口做子串匹配；更长历史可调大窗口行数。": "“{v1}” not found in the current tail window — filtering is a server-side substring match over the latest window; widen the window lines for longer history.",
+  "下载日志文件": "Download log file",
+  "过滤日志行（服务端子串）": "Filter log lines (server-side substring)",
+  "进程日志端点不可用（HTTP 404），已回落审计跟踪数据源（T-459 形态延续）。": "Process log endpoint unavailable (HTTP 404); fell back to the audit-trail source (the T-459 posture continues).",
+  "日志源（服务进程日志端点 GET /api/v1/system/logs）为管理员视图（仅 admin / readonly_admin）。": "The log source (the process log endpoint GET /api/v1/system/logs) is an admin view (admin / readonly_admin only).",
+  "实例运行中的进程日志（访问记录、调度与存储事件）进入尾随窗口——发生操作后回到本页或等待自动刷新。": "Process logs of the running instance (access records, scheduler and storage events) feed the tail window — come back to this page or wait for the auto-refresh after activity.",
+  "服务进程日志（GET /api/v1/system/logs，slog 环形尾随，最早 → 最新）": "Service process logs (GET /api/v1/system/logs, slog ring tail, oldest → newest)",
+  "环形已满，更早日志已被淘汰": "Ring full; older log lines have been evicted",
   "，串行）…": ", serially)…",
   "：仓库数较多（": ": many repositories (",
   "（窗口 {v1} 行，过滤命中 {v2}）": " (window of {v1} lines, {v2} filter matches)",

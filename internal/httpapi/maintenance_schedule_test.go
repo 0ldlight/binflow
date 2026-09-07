@@ -32,8 +32,8 @@ func maintBody(t *testing.T, resp *http.Response) map[string]map[string]any {
 	if err := json.Unmarshal(raw, &body); err != nil {
 		t.Fatalf("decode maintenance body %s: %v", raw, err)
 	}
-	if len(body.Slots) != 3 {
-		t.Fatalf("slots = %d (%s), want the three maintenance slots", len(body.Slots), raw)
+	if len(body.Slots) != 6 {
+		t.Fatalf("slots = %d (%s), want the six maintenance slots", len(body.Slots), raw)
 	}
 	out := map[string]map[string]any{}
 	for _, s := range body.Slots {
@@ -51,7 +51,7 @@ func TestMaintenanceScheduleSlotsLifecycle(t *testing.T) {
 		t.Fatalf("GET = %d, want 200", resp.StatusCode)
 	}
 	slots := maintBody(t, resp)
-	for _, key := range []string{"gc", "cleanup-unused-cache", "cleanup-virtual"} {
+	for _, key := range []string{"gc", "cleanup-unused-cache", "cleanup-virtual", "quota", "compress", "prune"} {
 		s := slots[key]
 		if s["cronExp"] != "" || s["enabled"] != false || s["nextRun"] != "" {
 			t.Errorf("fresh slot %s = %v, want the unscheduled default", key, s)
@@ -178,6 +178,14 @@ func TestMaintenanceScheduleCapabilityGates(t *testing.T) {
 		[]byte(`{"gc": {"cronExp": "0 0 /4 * * ?"}}`), nil)
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("readonly PUT = %d, want 403", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+	// T-495: the probe holds over the widened six-slot set — the new
+	// carrier arms ride the same system:write gate, not a softer one.
+	resp = h.do(http.MethodPut, "/binflow/api/v1/system/maintenance", "roat", "roat-pw",
+		[]byte(`{"quota": {"cronExp": "0 15 3 * * ?"}, "compress": {"cronExp": "0 0 4 ? * SUN"}, "prune": {"cronExp": "0 30 1 * * ?"}}`), nil)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("readonly PUT gap slots = %d, want 403", resp.StatusCode)
 	}
 	_ = resp.Body.Close()
 

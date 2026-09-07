@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -424,5 +425,85 @@ func TestFolderMarkerSHAContract(t *testing.T) {
 	// ever collide with the exclusion.
 	if empty := shaFor(""); empty == metadata.FolderMarkerSHA {
 		t.Fatal("sha256(\"\") equals the folder marker sentinel — the no-collision premise is broken")
+	}
+}
+
+// TestVacuumReclaimsAndKeepsStoreServing pins the live rebuild face (T-495,
+// FR-158 — the maintenance compress carrier's seam): a churned database
+// (rows grown then deleted leave free pages) comes back smaller after
+// Vacuum, the store keeps serving through the rebuilt file, and a second
+// rebuild is an idempotent no-op success. The consumer-side assertion
+// mirrors the way the httpapi kernel reaches the face (the metadataSnapshotter
+// precedent — the interface lives with the carrier, not the store).
+func TestVacuumReclaimsAndKeepsStoreServing(t *testing.T) {
+	dir := t.TempDir()
+	ctx := context.Background()
+	md, err := metadata.Open(ctx, metadata.Options{
+		Driver: "sqlite", DSN: filepath.Join(dir, "binflow.db"), AdminPassword: "pw",
+	})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer func() { _ = md.Close() }()
+
+	// Churn: a few hundred fat upload-session rows (the opaque State blob
+	// is engine-owned and unbound — the fattest FK-free row the store
+	// serves), then all deleted — the classic free-page shape a metadata
+	// DB accumulates between rebuilds.
+	blob := strings.Repeat("x", 2048)
+	const rows = 300
+	for i := 0; i < rows; i++ {
+		s := &metadata.UploadSession{
+			ID:        fmt.Sprintf("churn-%06d", i),
+			State:     blob,
+			CreatedAt: time.Now().UTC().Format(time.RFC3339),
+			ExpiresAt: time.Now().UTC().Add(time.Hour).Format(time.RFC3339),
+		}
+		if err := md.UploadSessions().Create(ctx, s); err != nil {
+			t.Fatalf("upload session %d: %v", i, err)
+		}
+	}
+	for i := 0; i < rows; i++ {
+		if err := md.UploadSessions().Delete(ctx, fmt.Sprintf("churn-%06d", i)); err != nil {
+			t.Fatalf("upload session delete %d: %v", i, err)
+		}
+	}
+
+	vac, ok := md.(interface {
+		Vacuum(ctx context.Context) (before, after int64, err error)
+	})
+	if !ok {
+		t.Fatal("the sqlite store does not carry the Vacuum face")
+	}
+	before, after, err := vac.Vacuum(ctx)
+	if err != nil {
+		t.Fatalf("Vacuum: %v", err)
+	}
+	if before <= 0 || after <= 0 {
+		t.Fatalf("sizes before/after = %d/%d, want positive page-count products", before, after)
+	}
+	if after >= before {
+		t.Fatalf("rebuilt size %d not smaller than %d after %d deleted fat rows", after, before, rows)
+	}
+
+	// The rebuilt file still serves: the store answers Ping and a plain
+	// write+read round trip, and a second rebuild succeeds idempotently.
+	if err := md.Ping(ctx); err != nil {
+		t.Fatalf("ping after vacuum: %v", err)
+	}
+	hash, err := metadata.HashPassword("pw-vacuum")
+	if err != nil {
+		t.Fatalf("hash: %v", err)
+	}
+	if err := md.Users().Create(ctx, &metadata.User{
+		Username: "vac-survivor", PasswordHash: hash, IsAdmin: false, Enabled: true,
+	}); err != nil {
+		t.Fatalf("user create after vacuum: %v", err)
+	}
+	if _, err := md.Users().Get(ctx, "vac-survivor"); err != nil {
+		t.Fatalf("user get after vacuum: %v", err)
+	}
+	if _, _, err := vac.Vacuum(ctx); err != nil {
+		t.Fatalf("second Vacuum: %v (want idempotent success)", err)
 	}
 }

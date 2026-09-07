@@ -120,8 +120,9 @@ func TestSearchGavcMavenCoordinates(t *testing.T) {
 		})
 	}
 
-	// The E-09 envelope rides the family's shared shape: uri/downloadUri
-	// address the storage plane, the checksums carry the ledger triple.
+	// The E-09 envelope rides the family's shared shape: uri addresses the
+	// storage plane, downloadUri the direct content plane (T-493, FR-157②),
+	// the checksums carry the ledger triple.
 	resp := h.do(http.MethodGet, "/binflow/api/search/gavc?g=com.acme&a=demo-app&v=1.0.0&c=sources",
 		adminUser, adminPass, nil, nil)
 	defer func() { _ = resp.Body.Close() }()
@@ -133,7 +134,8 @@ func TestSearchGavcMavenCoordinates(t *testing.T) {
 	if hit.URI != h.srv.URL+"/binflow/api/storage/maven-local/com/acme/demo-app/1.0.0/demo-app-1.0.0-sources.jar" {
 		t.Fatalf("uri = %q", hit.URI)
 	}
-	if hit.DownloadURI != hit.URI || hit.Repo != "maven-local" || hit.MimeType == "" || hit.Size == "" {
+	if hit.DownloadURI != h.srv.URL+"/binflow/maven-local/com/acme/demo-app/1.0.0/demo-app-1.0.0-sources.jar" ||
+		hit.Repo != "maven-local" || hit.MimeType == "" || hit.Size == "" {
 		t.Fatalf("FileInfo shape degraded: %+v", hit)
 	}
 

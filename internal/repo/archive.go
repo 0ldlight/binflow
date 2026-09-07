@@ -1058,8 +1058,14 @@ func (s *service) ExplodeArchive(ctx context.Context, p *Principal, req ExplodeR
 	// The write plane's repository resolution (the Put contract): an
 	// un-routed virtual answers its 405 here, a routed one lands in the
 	// member, a remote answers RE-05.
-	repoKey, _, err := s.resolveWriteRepo(ctx, req.RepoKey)
+	repoKey, targetRow, err := s.resolveWriteRepo(ctx, req.RepoKey)
 	if err != nil {
+		return nil, err
+	}
+	// blackedOut (FR-156.1/T-490): the exploded upload is a deploy — the
+	// blackout arm refuses it before the permission pre-check below
+	// (repo-semantics section 2's step order).
+	if err := refuseBlackedOut(targetRow, req.Path); err != nil {
 		return nil, err
 	}
 

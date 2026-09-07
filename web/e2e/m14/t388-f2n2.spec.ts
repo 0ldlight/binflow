@@ -86,9 +86,10 @@ test('N2: first-level nav entries carry 16px mono icons (identity closed set, cu
     page.locator('a.nav-item.active [data-testid="nav-icon"][data-icon="history"]'),
   ).toBeVisible()
 
-  // 应用域 2 条目同档（dashboard / account_tree）
+  // 应用域 2 条目同档（dashboard / account_tree）；T-492（B-3.2）：应用模式
+  // 落点随即自动选中首仓库——前缀断言（/artifacts 或 /artifacts/<repo>）
   await page.click('[data-testid="nav-mode-switch"]')
-  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts$/)
+  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
   await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(2)
   await expect(nav.locator('[data-testid="nav-icon"][data-icon="dashboard"]')).toBeVisible()
   await expect(nav.locator('[data-testid="nav-icon"][data-icon="account_tree"]')).toBeVisible()

@@ -78,6 +78,10 @@ type Service struct {
 	// first-login auto-create. nil keeps the static ADR-0020 wiring
 	// byte-for-byte.
 	hot ConfigHotSource
+	// repoClass backs the preset wildcard buckets' repository-class answer
+	// (T-491, FR-156.2; see wildcard.go). nil = bucket semantics inert —
+	// every Can evaluation is exact-key matching, the pre-T-491 behavior.
+	repoClass repoClassSource
 }
 
 // ConfigHotSource is the ConfigManager facet the arms consume per

@@ -55,12 +55,12 @@ BinFlow 158 ops 全部落位：**直接对位 119 / 路径别名变体 19**（gc
 
 | # | 方法+路径（Artifactory） | 官方锚点 / 既有规格 | BinFlow op | 态 | 差异要点 / 备注 | 层 | 置信度 | 优先级 |
 |---|---|---|---|---|---|---|---|---|
-| 1 | GET `/api/storage/{repoKey}/{path}`（无参形态：FileInfo/FolderInfo） | Get Storage Item Information + rest-api.md §3 | storageItemInfo / storageList | ✅ | 字段集对齐（size 字符串、children 排序、remoteUrl 仅 remote-cache）已按规格实现 | A | 高 | — |
+| 1 | GET `/api/storage/{repoKey}/{path}`（无参形态：FileInfo/FolderInfo） | Get Storage Item Information + rest-api.md §3 | storageItemInfo / storageList | ✅ | 字段集对齐（size 字符串、children 排序、remoteUrl 仅 remote-cache）已按规格实现；**downloadUri 处置（T-493/FR-157②，LC-107 二选一=归位，2026-09-07）**：uri=元数据视图（`/binflow/api/storage/...`）、downloadUri=直取下载 URI（`/binflow/<repo>/<path>`）——官方 FileInfo 示例语义 + generic/maven 上传 201 体内核同形佐证；FolderInfo 维持无 downloadUri 的 as-built（官方 folder 示例同形） | A | 高 | — |
 | 2 | ↳ `?properties` / `?list` / `?stats` / `?permissions` 四臂 | 同上 + gap-endpoints §5.3 / K69 | properties.go / storage.go | ✅ | 五臂互斥语义对齐；?permissions 键值方向按 T-113 勘误形态 | A | 高 | — |
 | 3 | ↳ `?propertiesXml` 臂 | 同上 | —（501 显式拒绝） | ◐ | BinFlow 有意不实现 XML 形态（storage.go:116 notImplemented）——XML 客户端面缺位，修复或留痕归带② | A | 中 | P0 |
 | 4 | ↳ `?lastModified` 臂 | 同上 | —（501） | ◐ | 同上；官方语义=目录内最新修改项 + Last-Modified 头 | A | 中 | P0 |
 | 5 | ↳ `?list` 参数族 `deep/depth/listFolders/mdTimestamps/includeRootPath/includePropertiesMd5` | 同上 | 部分（list 基础臂） | ◐ | BinFlow 实现 list 主臂；深列表/元数据时间戳参数子集待核对（带②核对行） | A | 中 | P0 |
-| 6 | PUT `/api/storage/{repoKey}/{path}?properties=k=v&recursive&atomic`（Set） | Set Item Properties | storagePropertiesPut | ✅ | matrix 分号语法=路径语法注记（T-447 契约注记：REST 只认逗号配对） | A | 高 | — |
+| 6 | PUT `/api/storage/{repoKey}/{path}?properties=k=v&recursive&atomic`（Set） | Set Item Properties | storagePropertiesPut | ✅ | matrix 分号语法=路径语法注记（T-447 契约注记：REST 只认逗号配对——T-493 wire 断言钉死：%3B=值内容；raw ';' 使整对从 net/url 解析中脱落〔GET 落 plain item、写动词 E-26 404〕，分号永不作配对分隔） | A | 高 | — |
 | 7 | DELETE 同路径 `?properties=k1,k2&recursive`（Delete） | Delete Item Properties | storagePropertiesDelete | ✅ | — | A | 高 | — |
 | 8 | POST 同路径 `?recursive&atomic`（Update，6.1.0 增量改属性） | Update Item Properties | — | ❌ | 三动词缺一；扩张候选（带②） | A | 高 | P1 |
 | 9 | PUT `/{repoKey}/{path}`（Deploy / 尾斜杠建目录 / matrix 属性 / checksum 三头 / X-Checksum-Deploy） | Deploy Artifact or Create Directory + Deploy by Checksum + rest-api.md §1.2–1.3 | artifactUpload | ✅ | 校验链/405+Allow/409 文案已按规格；checksum 文件旁车（.sha1 上传）在位 | A | 高 | — |
@@ -98,7 +98,7 @@ BinFlow 158 ops 全部落位：**直接对位 119 / 路径别名变体 19**（gc
 
 | # | 方法+路径 | 官方锚点 / 既有规格 | BinFlow op | 态 | 差异要点 | 层 | 置信度 | 优先级 |
 |---|---|---|---|---|---|---|---|---|
-| 1 | GET `/api/repositories?type=&packageType=&project=` | Get Repositories by Type and Project + gap-endpoints §5.1 | repoList | ◐ | ① `url` 缺 `/binflow` 上下文前缀（FR-157①——带①行）；② `project` 参数缺位（BinFlow 无 projects 域——参数容忍语义待定：Artifactory 对 project 过滤，BinFlow 应按忽略或空集裁定）；③ type/packageType 过滤已实现（ListReposFiltered） | A | 高 | P0 |
+| 1 | GET `/api/repositories?type=&packageType=&project=` | Get Repositories by Type and Project + gap-endpoints §5.1 | repoList | ◐ | ① `url` 已含 `/binflow` 上下文前缀（**T-493/FR-157① 已落，2026-09-07**——rest-api.md §2 `<contextUrl>/<key>`；单仓 GET 回显同族对齐）；② `project` 参数缺位（BinFlow 无 projects 域——参数容忍语义待定：Artifactory 对 project 过滤，BinFlow 应按忽略或空集裁定）；③ type/packageType 过滤已实现（ListReposFiltered） | A | 高 | P0 |
 | 2 | GET `/api/repositories/{key}` | Get Repository Configuration + rest-api.md §2 | repoGet | ✅ | 404 纯文本 vs envelope：BinFlow 保留 envelope（E-01 既有裁——差异留痕）；回显域差异随行 3 一并（FR-156①） | A | 高 | P0 |
 | 3 | PUT `/api/repositories/{key}`（创建，200 纯文本） | Create Repository | repoPut | ◐ | **configJSON 四域静默丢弃**（maxUniqueSnapshots/repoLayoutRef/blackedOut/archiveBrowsingEnabled）——FR-156① round-trip 收口（带①差异修复行）；key 冲突 400/409 语义已对齐 | A | 高 | P0 |
 | 4 | POST `/api/repositories/{key}`（更新） | Update Repository Configuration | repoPost | ◐ | 同行 3（同一 round-trip 缺口） | A | 高 | P0 |
@@ -226,7 +226,7 @@ BinFlow 158 ops 全部落位：**直接对位 119 / 路径别名变体 19**（gc
 | 10 | Reverse proxy 族 ×4（get/update/snippet/possible-values） | Get/Update Reverse Proxy Configuration 等 + inv-2 §H（nginx.ftl 模板） | — | ❌ | 反代片段生成；P2（部署文档已有自有 Caddy 路径——候裁价值） | A | 高 | P2 |
 | 11 | SHA256 迁移族 ×2（start/stop） | Start/Stop SHA256 Migration Task | — | ⛔ | BinFlow 原生 sha256——无迁移面（物理不适用） | D | 高 | — |
 | 12 | POST `/api/system/metadata_server/reindex` | Re-index Paths on Metadata Server | — | ⛔ | JCR/企业 metadata server 组件依赖——候裁 | A | 中 | — |
-| 13 | 日志族：GET/PUT/DELETE logger levels + `/api/system/logs`（tail） | Set/Delete/Get Logger Debug Levels + inv-2 §H | —（System Logs 页现走审计承载） | ❌ | **FR-157③ System Logs 真身端点**（进程日志尾随/过滤）——P1 已有归属票 | A | 高 | P1* |
+| 13 | 日志族：GET/PUT/DELETE logger levels + `/api/system/logs`（tail） | Set/Delete/Get Logger Debug Levels + inv-2 §H（live-logs 内部面 `system/logs/config\|data` 另见 inv-1-core「Live Logs」——中置信） | systemLogsGet（**BinFlow 形 GET `/api/v1/system/logs`**：`?limit=` 1..1000 尾随 + `?filter=` 服务端子串 + `?download=1` 附件——T-493/FR-157③；system:read 门；源=进程自身日志流的环形缓冲〔internal/console/logtail.go〕，12-factor stderr 无日志文件场景下的诚实读面） | ◐ | **进程日志尾随/过滤/下载真身已落（T-493，2026-09-07）**——T-459「审计承载+端点缺位」契约漂移解除（FE 消费切换归 T-494，文档注记反转归 T-518）；残余：① logger levels GET/PUT/DELETE 三动词缺位；② A 层路径 `/api/system/logs` 别名未挂（BinFlow 走 v1 系统面惯例——与行 17/18 backups/maintenance 的别名缺位同族，归带① T-504 核定）；③ Artifactory live-logs 的 config/data 两面与 Service/Node/LogFile 选择器形态不复刻（内部 UI 面、中置信） | A/C | 高 | P1* |
 | 14 | GET `/api/system/service_id` | Get Service ID | — | ❌ | 低优 | A | 中 | P3 |
 | 15 | POST `/api/system/configuration/baseUrl`（custom URL base） | Update Custom URL Base | — | ❌ | baseUrl 配置面（BinFlow env 化 T-478 联动——形态候裁） | A | 中 | P3 |
 | 16 | 导入导出族：POST `/api/import/system|repo`、`/api/export/system|repo`（含 metadata） | Full System Import / Export System / Import·Export Repository Content + import-export-api.md | —（bf-migrate CLI 自有载体） | ❌ | REST 化导入导出面缺位（CLI 已有等价能力）——P2 候 | A | 高 | P2 |
@@ -441,3 +441,4 @@ BinFlow 158 ops 全部落位：**直接对位 119 / 路径别名变体 19**（gc
 | 日期 | 变更 | 票 |
 |---|---|---|
 | 2026-09-06 | 初版建册：205 行四态对账 + 三带行集冻结 v1 + backlog registry + T-488 零重复对账 | T-503 |
+| 2026-09-07 | FR-157 勘误族三行翻新：D02 行 1（url 前缀已落①）+ D01 行 1（downloadUri 处置=归位）+ D06 行 13（❌→◐ System Logs 进程日志端点真身）——带① 1-1 行的 R 型差异项①由 T-493 清偿，project 参数等余项仍归 T-504 | T-493 |

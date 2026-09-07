@@ -257,6 +257,34 @@ const (
 	ActionReplicationScheduleSet  = "replication.schedule.set"
 	ActionReplicationScheduleRun  = "replication.schedule.run"
 	ActionReplicationScheduleFail = "replication.schedule.fail"
+
+	// The gc-cron-gap three-carrier words (M17 T-495, FR-158 / ADR-0044
+	// decision 10's layered-trail posture): the quota / compress / prune
+	// maintenance slots' own carrier trails, beside the engine's
+	// maintenance.schedule.run/fail view of the same fire. Unlike gc.run
+	// and cleanup.run (families that predate the cron ledger), these three
+	// have no vocabulary family of their own — the maintenance.* family IS
+	// their home. quota is a CHECK, not a run: the carrier measures and
+	// alerts, it does not mutate (real enforcement is a later ticket's face,
+	// out of scope); prune rides the gc engine's dry-run form and reports
+	// the unreferenced magnitude without deleting (the gc slot stays the
+	// deletion surface); compress rebuilds the metadata database file.
+	ActionMaintenanceQuotaCheck  = "maintenance.quota.check"
+	ActionMaintenanceCompressRun = "maintenance.compress.run"
+	ActionMaintenancePruneRun    = "maintenance.prune.run"
+
+	// The build-info domain's five words (M17 T-509, FR-152.2 / ADR-0045
+	// decision 10 — the T-508-registered +5, landed with the write faces
+	// that emit them): upload/append on the publish faces, promote on the
+	// promotion verb, retention on the window application plus one
+	// build.delete row per discarded run (the PRD's per-build deletion
+	// detail). The words live here — the vocabulary's home — and
+	// internal/build references them through its audit facet.
+	ActionBuildUpload    = "build.upload"
+	ActionBuildAppend    = "build.append"
+	ActionBuildDelete    = "build.delete"
+	ActionBuildPromote   = "build.promote"
+	ActionBuildRetention = "build.retention"
 )
 
 // Actions returns the full action vocabulary (GE-02 + the T-346 sweep):
@@ -299,6 +327,11 @@ func Actions() []string {
 		ActionMaintenanceScheduleSet, ActionMaintenanceScheduleRun, ActionMaintenanceScheduleFail,
 		ActionBackupScheduleSet, ActionBackupScheduleRun, ActionBackupScheduleFail,
 		ActionReplicationScheduleSet, ActionReplicationScheduleRun, ActionReplicationScheduleFail,
+		// M17 T-495 (FR-158): the gc-cron-gap three carriers' words.
+		ActionMaintenanceQuotaCheck, ActionMaintenanceCompressRun, ActionMaintenancePruneRun,
+		// M17 T-509 (FR-152.2 / ADR-0045 decision 10): the build-info
+		// domain's five words.
+		ActionBuildUpload, ActionBuildAppend, ActionBuildDelete, ActionBuildPromote, ActionBuildRetention,
 	}
 }
 

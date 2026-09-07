@@ -458,15 +458,15 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemSettings)
 
 	// ---- /api/v1/system/maintenance (M16 T-450, FR-150.3 / ADR-0044
-	// decision 7①) ----
-	// The maintenance plane's three cron slots (gc / cleanup-unused-cache /
-	// cleanup-virtual), each one 021 ledger row under domain='maintenance'.
-	// GET reads the projection (cron + next-run + last-run), PUT writes one
-	// or more slot arms. Gate = system:read / system:write (the GC/cleanup
-	// family's posture — readonly_admin reads, never writes, T-214①). The
-	// manual faces (POST /system/gc, /system/cleanup) are untouched —
-	// "Run Now" stays those routes. Every other spelling falls to the E-26
-	// 404.
+	// decision 7①; the M17 T-495 gc-cron-gap three joined) ----
+	// The maintenance plane's six cron slots (gc / cleanup-unused-cache /
+	// cleanup-virtual / quota / compress / prune), each one 021 ledger row
+	// under domain='maintenance'. GET reads the projection (cron +
+	// next-run + last-run), PUT writes one or more slot arms. Gate =
+	// system:read / system:write (the GC/cleanup family's posture —
+	// readonly_admin reads, never writes, T-214①). The manual faces (POST
+	// /system/gc, /system/cleanup) are untouched — "Run Now" stays those
+	// routes. Every other spelling falls to the E-26 404.
 	case rest == "v1/system/maintenance" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemMaintenanceGET)
 	case rest == "v1/system/maintenance" && r.Method == http.MethodPut:
@@ -503,6 +503,19 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	// config faces. Gate = system:read (the addons-plane posture).
 	case rest == "v1/system/schedules" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemSchedulesGET)
+
+	// ---- /api/v1/system/logs (M17 T-493, FR-157③ / rest-compat-matrix D06
+	// row 13) ----
+	// The System Logs process-log tail: the service's own log stream, last
+	// ?limit= lines (1..1000, default 200) optionally ?filter=-narrowed
+	// (substring before the window cut), with ?download=1 serving the same
+	// window as a text/plain attachment (system_logs.go). The gate is
+	// system:read — the audit read's posture (readonly_admin may read the
+	// process log, a plain user 403s; anonymous meets the 401 challenge).
+	// BinFlow-native C-layer spelling (the settings/schedules precedent);
+	// every other verb on the path falls to the E-26 404.
+	case rest == "v1/system/logs" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemLogsGet)
 
 	// ---- /api/v1/system/query_rate_limiter (M16 T-452, FR-148.2 / aql.md
 	// §14.4; K72's admin REST over the DB-query rate plane) ----
@@ -1042,6 +1055,100 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		// M16 T-452: the pair's second door (dateFields CSV over the closed
 		// four-name set).
 		s.enforce(w, r, routeAuth{}, s.handleSearchDates)
+
+	// ---- /api/build* (M17 T-508/T-509, FR-152.2 / ADR-0045 decision 6 +
+	// Errata ①) ----
+	// The build-info REST family: the BODY-carried upload PUT /api/build
+	// (the pre-errata path-segment skeleton is VOIDED — PUT /api/build/
+	// {name}/{number} keeps the E-26 404), the names/numbers/detail GET
+	// ladder (build.go's handlers; started '' resolves the latest run), the
+	// module-array append POST whose success is 204 empty, and the T-509
+	// verbs: promote POST /api/build/promote/{name}/{number} (200 + the
+	// messages[] stream) and retention POST /api/build/retention/{name}
+	// (?async= default true). Routes demand authentication only (the
+	// official RolesAllowed admin,user posture): every face's real gate is
+	// the build-domain allow() mirror on (buildRepo, buildName) — body- or
+	// path-dependent, so the handlers own the verdict (the permissions
+	// family-4 precedent). The DELETE batch family and POST /api/build/
+	// delete stay UNROUTED (outside the T-509 AC; the E-26 404 answers).
+	case rest == "build" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true}, s.handleBuildUpload)
+	case rest == "build" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true}, s.handleBuildList)
+	case strings.HasPrefix(rest, "build/append/"):
+		if r.Method != http.MethodPost {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		name, number, routed, err := splitBuildCoords(rest, "build/append/")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "build path segment could not be decoded: "+err.Error())
+			return
+		}
+		if !routed {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleBuildAppend(w, r, name, number)
+		})
+	case strings.HasPrefix(rest, "build/promote/"):
+		if r.Method != http.MethodPost {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		name, number, routed, err := splitBuildCoords(rest, "build/promote/")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "build path segment could not be decoded: "+err.Error())
+			return
+		}
+		if !routed || number == "" {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleBuildPromote(w, r, name, number)
+		})
+	case strings.HasPrefix(rest, "build/retention/"):
+		if r.Method != http.MethodPost {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		name, number, routed, err := splitBuildCoords(rest, "build/retention/")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "build path segment could not be decoded: "+err.Error())
+			return
+		}
+		if !routed || number != "" {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleBuildRetention(w, r, name)
+		})
+	case strings.HasPrefix(rest, "build/"):
+		if r.Method != http.MethodGet {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		name, number, routed, err := splitBuildCoords(rest, "build/")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "build path segment could not be decoded: "+err.Error())
+			return
+		}
+		if !routed {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		if number == "" {
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleBuildNumbers(w, r, name)
+			})
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleBuildGet(w, r, name, number)
+		})
 
 	// ---- /api/{artifactsearch,stashResults,packagesSearch,syntax-search}
 	// (M16 T-452, FR-148.3 / aql.md §14.5 — the UI search family, re-homed

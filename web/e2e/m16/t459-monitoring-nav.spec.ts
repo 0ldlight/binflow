@@ -10,9 +10,12 @@ import { loginAs } from '../m8/support/roles'
 //      版本对账（/api/system/version 同源）+ 调度台账节（schedules 投影）
 //      ——零新端点（AC4「对位既有 metrics/health 端点」）；普通 user 深链
 //      L2 收敛。
-//   ② System Logs 查看器：日志行与 /api/v1/audit 对账 + 尾随刷新（自动
-//      重取——请求计数）+ Pause 停拍 + 过滤（客户端窗口窄化）+ 下载
-//      （download 事件）；普通 user 403 → L2 + 尾随自动停。
+//   ② System Logs 查看器（T-494 / FR-157 数据源切换——T-459「审计承载」
+//      缺位解除）：日志行与 GET /api/v1/system/logs 对账（T-493 进程日志
+//      真身——slog 环形尾随）+ 尾随刷新（自动重取——请求计数）+ Pause
+//      停拍 + 过滤（服务端子串——?filter 臂）+ 下载（服务端附件臂
+//      binflow-service.log）；普通 user 403 → L2 + 尾随自动停。降级路径
+//      （端点 404 → 审计承载延续）归 t494 spec 的降级腿。
 //   ③ 导航分组（B-2.18）：监控组六页（存储/服务状态/系统日志/系统信息/
 //      维护/备份）+ Webhooks 归常规组 + 四条旧深链 replace 折入新址。
 //   ④ 侧栏 Search Admin Resources 过滤框：过滤生效（条目窄化 + 整组隐藏
@@ -110,41 +113,44 @@ test('service status: plain user deep link converges L2 (health is admin-plane)'
 // ② System Logs：行对账 + 尾随刷新 + Pause + 过滤 + 下载 + user 403
 // ---------------------------------------------------------------------------
 
-test('system logs: lines reconcile with audit API; tail refreshes; pause stops polling', async ({ page }) => {
-  await loginAs(page, 'admin') // login.success 即审计事件——净实例也有日志行
+test('system logs: lines reconcile with the process-log API; tail refreshes; pause stops polling', async ({ page }) => {
+  // 行对账数据源 = 页面自己消费的那枚响应（并行 worker 的请求持续进环，
+  // 事后再读 API 快照会滑窗——对账点应是「行内容忠实渲染了某枚真实响应」）
+  let sawBody: { lines: string[] } | null = null
+  page.on('response', async (res) => {
+    if (!res.url().includes('/api/v1/system/logs?') || res.url().includes('download=1')) return
+    try {
+      sawBody = (await res.json()) as { lines: string[] }
+    } catch {
+      // 非 JSON 忽略
+    }
+  })
+  await loginAs(page, 'admin') // 本会话的每个请求（含本腿 fetch）都进进程日志环
   await page.goto('/binflow/ui/admin/monitoring/logs')
   await expect(page.locator('[data-testid="logs-page"]')).toBeVisible()
 
-  // 源说明行（7.161 三选择器的单源如实降形——不伪造源）
-  await expect(page.locator('[data-testid="logs-source"]')).toContainText('GET /api/v1/audit')
+  // 源说明行（T-494 切换：进程日志真身——不再是审计承载）
+  await expect(page.locator('[data-testid="logs-source"]')).toContainText('GET /api/v1/system/logs')
 
-  // 行对账（并发写容忍口径——T-268 storage 页同款放宽）：默认并发下其他
-  // worker 的登录/建仓在「页面取数 → 本腿 API 读」之间落审计行，newest-first
-  // 的 line-0 精确索引对齐结构性不可达。改为：line-0 内容 = API 快照头部
-  // 窗口内的某条真实事件（行内容忠实渲染才是对账点）+ 行数 ≤ API 快照数
-  //（页面只可能比后读的快照旧）。
-  const audit = await page.evaluate(
-    async () => await (await fetch('/binflow/api/v1/audit?limit=100')).json(),
-  )
-  const events = (audit as { events: { action: string; actor: string }[] }).events
+  // 行对账：line-0 ∈ 页面消费的响应体（快照滑窗免疫）
   const pane = page.locator('[data-testid="logs-pane"]')
   await expect(pane).toBeVisible()
   const line0 = page.locator('[data-testid="logs-line-0"]')
   await expect(line0).toBeVisible()
-  const line0Text = (await line0.textContent()) ?? ''
-  const head = events.slice(0, 8) // 容忍窗口：并行 worker 在两读之间写入的行
-  const matched = head.some((e) => line0Text.includes(e.action) && line0Text.includes(e.actor))
-  expect(matched, `line-0 应命中 API 快照头部事件：${line0Text}`).toBe(true)
+  const line0Text = ((await line0.textContent()) ?? '').trimEnd() // 行 span 含渲染换行
+  expect(sawBody, '应已捕获页面消费的 system/logs 响应').not.toBeNull()
+  expect(sawBody!.lines.length).toBeGreaterThan(0)
+  expect(sawBody!.lines).toContain(line0Text)
   const lineCount = await page.locator('[data-testid^="logs-line-"]').count()
   expect(lineCount).toBeGreaterThan(0)
-  expect(lineCount).toBeLessThanOrEqual(events.length)
+  expect(lineCount).toBeLessThanOrEqual(sawBody!.lines.length)
 
   // 尾随刷新：倒计时在场；12s 窗口内至少一次自动重取（7s 周期 + 共租负载
   // 的 interval 节流余量）
   await expect(page.locator('[data-testid="logs-countdown"]')).toContainText(/秒后自动刷新/)
   let polls = 0
   page.on('request', (req) => {
-    if (req.url().includes('/api/v1/audit')) polls++
+    if (req.url().includes('/api/v1/system/logs?')) polls++
   })
   await page.waitForTimeout(12_000)
   expect(polls).toBeGreaterThanOrEqual(1) // 7s 周期至少触发一次自动重取
@@ -164,45 +170,41 @@ test('system logs: lines reconcile with audit API; tail refreshes; pause stops p
   expect(polls).toBe(beforeManual + 1)
 })
 
-test('system logs: client filter narrows the window; download fires a .log file', async ({ page }) => {
+test('system logs: server-side filter narrows the tail window; download carries the attachment arm', async ({ page }) => {
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/admin/monitoring/logs')
   await expect(page.locator('[data-testid="logs-line-0"]')).toBeVisible()
-  // 先停尾随——本腿的计数断言要稳定窗口（并行 worker 的登录会进审计流，
-  // 自动重取会移动行数；停拍后窗口只在手动刷新时变化）
+  // 先停尾随——本腿的计数断言要稳定窗口（自动重取会滑窗）
   await page.click('[data-testid="logs-pause"]')
   await expect(page.locator('[data-testid="logs-countdown"]')).toHaveText('已暂停尾随')
-  const total = await page.locator('[data-testid^="logs-line-"]').count()
-  expect(total).toBeGreaterThan(0)
 
-  // 过滤：窗口内子串窄化（admin 的 login.success 必在——本会话刚登录）
-  await page.fill('[data-testid="logs-filter"]', 'login.success')
-  await expect(page.locator('[data-testid^="logs-line-"]')).not.toHaveCount(total)
+  // 过滤（T-494 起服务端 ?filter 子串——本页自身的取数就是 access 行，
+  // 'msg=access' 必命中；去抖后重取，窗内全部命中行）
+  await page.fill('[data-testid="logs-filter"]', 'msg=access')
+  await expect(page.locator('[data-testid="logs-pane"]')).toContainText('过滤命中', { timeout: 10_000 })
   const hits = await page.locator('[data-testid^="logs-line-"]').count()
   expect(hits).toBeGreaterThan(0)
-  expect(hits).toBeLessThan(total + 1)
-  await expect(page.locator('[data-testid="logs-pane"]')).toContainText(`过滤命中 ${hits}`)
+  for (let i = 0; i < Math.min(hits, 5); i++) {
+    await expect(page.locator(`[data-testid="logs-line-${i}"]`)).toContainText('msg=access')
+  }
 
-  // 无匹配子串：过滤空态 + 清除过滤
+  // 无匹配子串：过滤空态 + 清除过滤（行集恢复）
   await page.fill('[data-testid="logs-filter"]', 'zzz-no-such-token')
-  await expect(page.locator('[data-testid="logs-filter-empty"]')).toBeVisible()
+  await expect(page.locator('[data-testid="logs-filter-empty"]')).toBeVisible({ timeout: 10_000 })
   await page.click('[data-testid="logs-filter-empty"] button')
-  await expect(page.locator('[data-testid^="logs-line-"]')).toHaveCount(total)
+  await expect(page.locator('[data-testid^="logs-line-"]')).not.toHaveCount(0)
 
-  // 下载：当前窗口导出 .log（Blob 落盘——download 事件 + 文件名前缀/后缀；
-  // toMatch(^prefix-) 形态会对账器制造伪 broken——锚前缀正则同形，用
-  // startsWith/endsWith 断言）
+  // 下载：服务端附件臂（T-493 download=1——Content-Disposition 定名）
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     page.click('[data-testid="logs-download"]'),
   ])
-  const fname = download.suggestedFilename()
-  expect(fname.startsWith('binflow-system-log-') && fname.endsWith('.log')).toBe(true)
+  expect(download.suggestedFilename()).toBe('binflow-service.log')
 
   // 窗口行数选择器：换档 → 按新 limit 重取（请求对账）+ 视图更新行刷新
   let sawLimit = false
   const onReq = (req: Request) => {
-    if (req.url().includes('/api/v1/audit?') && req.url().includes('limit=200')) sawLimit = true
+    if (req.url().includes('/api/v1/system/logs?') && req.url().includes('limit=200')) sawLimit = true
   }
   page.on('request', onReq)
   await page.selectOption('[data-testid="logs-limit"]', '200')

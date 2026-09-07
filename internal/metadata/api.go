@@ -56,6 +56,10 @@ var ErrGroupNotFound = errors.New("metadata: group not found")
 // web_sessions rows.
 var ErrWebSessionNotFound = errors.New("metadata: web session not found")
 
+// ErrBuildNotFound is returned by BuildStore Get/Delete for missing build
+// runs (the four-tuple lookup found no row).
+var ErrBuildNotFound = errors.New("metadata: build not found")
+
 // ErrScheduleNotFound is returned by ScheduleStore Get/Delete for missing
 // schedules rows (the "no row = not scheduled" single-state semantics of
 // ADR-0044 decision 2: absence is the unscheduled state, callers render it
@@ -481,8 +485,8 @@ type AuditQuery struct {
 // database/sql pool serialization, see store.go).
 type Store interface {
 	// Repos/Nodes/Blobs/Users/Tokens/Permissions/Audits/Docker/Remote/Virtual/
-	// Groups/WebSessions return the sub-stores sharing the same underlying
-	// handle.
+	// Groups/WebSessions/Builds return the sub-stores sharing the same
+	// underlying handle.
 	Repos() RepoStore
 	Nodes() NodeStore
 	Blobs() BlobStore
@@ -503,6 +507,7 @@ type Store interface {
 	GpgKeypairs() GpgKeypairStore
 	Schedules() ScheduleStore
 	Backups() BackupStore
+	Builds() BuildStore
 	// IsReferenced reports whether any node row or docker ref row currently
 	// points at sha256 ([M9] ADR-0031 mechanism A): the single-point Live
 	// oracle behind the GC sweep's pre-delete recheck. It spans two sub-stores
@@ -1086,4 +1091,186 @@ type BackupStore interface {
 	Delete(ctx context.Context, key string) error
 	// List returns every row ordered by key.
 	List(ctx context.Context) ([]*Backup, error)
+}
+
+// DefaultBuildRepo is the build_repo logical key's default spelling (024,
+// M17 T-507 / ADR-0045 Errata ②: product schema DDL DEFAULT + webhook.md
+// section 3.4 sample + getPreferredBuildRepo fallback, triple-sourced). It
+// is an AUTHORIZATION-domain key, not a repository: no repositories row is
+// required and none is ever auto-created; a real repository of the same
+// key does not interfere (build data bypasses nodes). BuildStore writes
+// normalize an empty Repo to this value.
+const DefaultBuildRepo = "artifactory-build-info"
+
+// Build is one build run header row of builds (024, M17 T-507 /
+// ADR-0045 decision 2): the CI-reported RECORD of one run — name, number,
+// started stamp, owning build_repo and the archived original document.
+// The wire fields beyond this header (buildAgent, agent, vcs, issues,
+// licenseControl, url, durationMillis, ...) live in Payload verbatim; the
+// normalized child tables carry only the queryable segments (modules,
+// artifacts, dependencies, properties).
+type Build struct {
+	Name    string // build_name
+	Number  string // build_number, CI free form ("51", "1.0.0", special chars allowed)
+	Started string // wire literal yyyy-MM-dd'T'HH:mm:ss.SSSZ; run identity element 3
+	Repo    string // build_repo logical ACL key; '' normalizes to DefaultBuildRepo on write
+	Type    string // wire `type` (MAVEN|GRADLE|ANT|IVY|GENERIC); '' allowed
+	// Payload is the archived original build info JSON ('' = none). It is
+	// the GET face's echo source and stays byte-for-byte what arrived.
+	Payload   string
+	CreatedBy string
+	CreatedAt string
+	UpdatedBy string
+	UpdatedAt string
+}
+
+// BuildName is one row of the names projection: the latest run's started
+// stamp per (build_name, build_repo) — the GET /api/build face's source.
+type BuildName struct {
+	Name        string
+	Repo        string
+	LastStarted string // MAX(started) of the group, wire literal
+}
+
+// BuildNumber is one row of the numbers projection: every run of one
+// build name, newest first — the GET /api/build/{name} face's source.
+type BuildNumber struct {
+	Number  string
+	Started string // wire literal
+	Repo    string
+}
+
+// BuildModule is one row of build_modules with its nested segment rows.
+// ID is the Module ID field (T-512's consumption): the append face's merge
+// key ("same id = same module") and the "<child-name>/<child-number>"
+// reference form of aggregate builds. Artifacts and Dependencies keep the
+// wire array order in Seq.
+type BuildModule struct {
+	ID   string // module_id
+	Type string
+	// Artifacts are the module's produced artifacts; a row with empty
+	// RepoKey/Path is record-only (no nodes association).
+	Artifacts []*BuildArtifact
+	// Dependencies are the module's consumed inputs; they never resolve to
+	// nodes (dependencies are not artifacts).
+	Dependencies []*BuildDependency
+}
+
+// BuildArtifact is one row of build_artifacts. The wire fields (name,
+// type, sha1, sha256, md5) are stored verbatim; the nodes association is
+// the (RepoKey, Path) pair — the wire `path`'s repo segment split — and is
+// REAL: the FK to nodes(repo_key, path) holds it. Empty RepoKey/Path means
+// no association (stored NULL): the artifact line without a resolvable
+// checksum/node link is a record, and the record outlives the node (ON
+// DELETE SET NULL keeps the row when the node leaves).
+type BuildArtifact struct {
+	Seq    int64 // wire array order
+	Name   string
+	Type   string
+	Sha1   string
+	Sha256 string
+	Md5    string
+	// RepoKey/Path are the resolved nodes association ('' = record-only).
+	RepoKey string
+	Path    string
+}
+
+// BuildDependency is one row of build_dependencies. ID is the wire `id`
+// whole coordinate ("g:a:v:c" et al — no name/version split, the layouts
+// disagree and the payload keeps the full document); Scopes is the wire
+// scopes[] joined with ','. Checksums are stored but never resolve to
+// nodes: a dependency names what a build CONSUMED, existence is not
+// required (inv-4 D1).
+type BuildDependency struct {
+	Seq    int64
+	ID     string
+	Type   string
+	Scopes string
+	Sha1   string
+	Sha256 string
+	Md5    string
+}
+
+// BuildPromotion is one row of build_promotions: the append-only history
+// of a run's promotions (six-tuple status/timestamp/comment/repository/
+// ciUser/user plus the archived request). Status is a FREE string — no
+// closed set, staged/rolled-up/released are convention not protocol
+// (ADR-0045 Errata ②); the run's current status is the newest row
+// (max promoted_at). The writer mints ID (uuid).
+type BuildPromotion struct {
+	ID         string
+	Name       string // build_name
+	Number     string // build_number
+	Started    string // run identity element 3
+	Repo       string // build_repo
+	Status     string // free string
+	TargetRepo string // the promotion's target repository
+	CiUser     string
+	Comment    string
+	DryRun     bool
+	ParamsJSON string // archived promotion request
+	PromotedBy string
+	PromotedAt string // RFC3339 UTC
+}
+
+// BuildProperty is one row of build_properties: map semantics, one value
+// per name (the wire `properties` object's entries).
+type BuildProperty struct {
+	Name  string
+	Value string
+}
+
+// BuildStore is the build-info table family's persistence seam (024, M17
+// T-507 / ADR-0045 decision 2): a dumb ledger in the ScheduleStore
+// tradition — the store validates nothing beyond the schema's own
+// constraints (FKs, CHECKs, the four-tuple key); coordinate legality,
+// started-format parsing and the overwrite/merge laws are the consuming
+// build service's (T-508/T-509). All reads and writes address a run by
+// the four-tuple; an empty started in GetBuild means "the latest run of
+// (name, number, repo)" and an empty repo normalizes to DefaultBuildRepo.
+// Implementations must be safe for concurrent use.
+type BuildStore interface {
+	// PutBuild upserts one run header by the four-tuple: an existing row
+	// keeps its created_at/created_by, every other column (type, payload,
+	// updated_*) is replaced. Child segments are untouched — PutModules/
+	// PutProperties own theirs.
+	PutBuild(ctx context.Context, b *Build) error
+	// GetBuild returns the run row. started = '' resolves the LATEST run
+	// of (name, number, repo) by started DESC (the single-build GET face's
+	// default); otherwise the exact run. Wraps ErrBuildNotFound.
+	GetBuild(ctx context.Context, name, number, started, repo string) (*Build, error)
+	// DeleteBuild removes the exact run and cascades its whole segment
+	// (modules, artifacts, dependencies, properties, promotions). The
+	// started coordinate is REQUIRED — no latest-run resolution on a
+	// delete. Wraps ErrBuildNotFound when absent.
+	DeleteBuild(ctx context.Context, name, number, started, repo string) error
+	// ListBuildNames returns one row per (build_name, build_repo) with the
+	// group's MAX(started), ordered by (name, repo). repo = '' spans every
+	// build_repo; otherwise only that key's builds.
+	ListBuildNames(ctx context.Context, repo string) ([]*BuildName, error)
+	// ListBuildNumbers returns every run of one build name ordered by
+	// started DESC (newest first — the "latest = take first" ruling), then
+	// number DESC for determinism. repo = '' spans every build_repo.
+	ListBuildNumbers(ctx context.Context, name, repo string) ([]*BuildNumber, error)
+	// PutModules atomically replaces the run's module segment (modules,
+	// their artifacts and their dependencies — one transaction, the
+	// previous segment leaves by cascade). The parent run row must exist:
+	// the FK rejects an orphan segment, the caller maps that to its
+	// not-found semantics.
+	PutModules(ctx context.Context, name, number, started, repo string, modules []*BuildModule) error
+	// ListModules returns the run's module segment — modules ordered by
+	// module_id, artifacts and dependencies by seq.
+	ListModules(ctx context.Context, name, number, started, repo string) ([]*BuildModule, error)
+	// PutProperties atomically replaces the run's property set (set
+	// semantics: the previous set leaves whole).
+	PutProperties(ctx context.Context, name, number, started, repo string, props []*BuildProperty) error
+	// ListProperties returns the run's properties ordered by name.
+	ListProperties(ctx context.Context, name, number, started, repo string) ([]*BuildProperty, error)
+	// AppendPromotion appends one history row. There is deliberately NO
+	// update or delete face: the history is append-only and the current
+	// status is ListPromotions' first row.
+	AppendPromotion(ctx context.Context, p *BuildPromotion) error
+	// ListPromotions returns the run's history ordered by promoted_at DESC
+	// (then id DESC for determinism) — the current status is row one.
+	ListPromotions(ctx context.Context, name, number, started, repo string) ([]*BuildPromotion, error)
 }

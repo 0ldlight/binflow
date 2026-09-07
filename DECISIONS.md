@@ -49,6 +49,7 @@
 - 背景: 产品要求架构与 Artifactory 一致，便于迁移与文档类推。
 - 决策: 仓库三型 local / remote / virtual；checksum 寻址的文件存储（sha256 主键，sha1/md5 附属校验）；元数据库内嵌 SQLite（默认、零依赖）+ Postgres（可选）；users/groups/permissions/tokens 权限体系；REST 兼容 Artifactory 高频子集 + 自有 `/api/v1`。
 - 后果: API 与配置命名沿用 Artifactory 术语（repo key、node、checksum…）；元数据 schema 需在 M1 由 architect 定稿。
+- 勘误（2026-09-06，T-490 / FR-156.1 落地时票内裁定，追加式留痕，决策本体不变）: ① **K73 repoLayoutRef 落定 = 出口②「钉协议默认值」**：local 配置面全量承接该字段（configJSON 转发 + 落库 + GET 回显，verbatim），但**不接线布局引擎**——路径解析恒由协议 adapter 固定布局（maven 即 maven-2 形），存储值是呈现性元数据（presentation-only），不构成解析开关；值域不设门（PRD scenario D 迁移容忍：Artifactory 组织可携自定义布局名，按名拒收会破迁移脚本整包投递），按 `unusedArtifactsCleanupPeriodHours`/`statisticsEnabled` 的 field-only 先例登记；T-439 FE 预留位 hint 的口径（「布局由协议固定」）与此一致，转正归 T-519。② **Stage 域 wire 键定案**：`environments` 为 canonical 拼写（JFrog 官方 REST 文档记载的仓配置字段——clean-room 铁律「有公开规范的以官方文档为准」；本地参照实例 :8082 当日离线，官方文档为唯一对拍面），`stages` 为 7.161 时代输入别名（docs/reverse/webhook.md 同期 wire 键 `stages`/`selectedEnvironments` 并存佐证 7.161 双拼写生态）；两拼写均承接入库、verbatim 回显、**非空分歧 400**（`resolveRemoteAlias` 同款 alias-disagreement 姿态，规则单点在 repo.validateLocalConfig）。③ **blackedOut 行为联动**：`true` 拒写面（内容 PUT/MPU 落地/docker blob+manifest push/爆档上传，404 + 规格文案——rest-api.md §1.2 步 6、repo-semantics.md §2，均中置信度、以测试固化）；读/删面不动（读侧 listing-404 注记规格待验证，未实现）。四域 + Stage 承接面限定 **local 配置臂**（remote/virtual canonical 形按既有未知键容忍丢弃——迁移容忍姿态不变）。
 
 ## ADR-0004: 部署矩阵（多元化部署）
 - 状态: Accepted（用户指定基线，release-engineer 落地）

@@ -117,6 +117,12 @@ var (
 	// values); this sentinel is its cause so callers can branch without
 	// string matching.
 	ErrQuotaExceeded = errors.New("quota exceeded")
+	// ErrBlackedOut: the repository's blackedOut mark refused the write
+	// (FR-156.1/T-490, rest-api.md section 1.2 row 6 + repo-semantics
+	// section 2 step 2: BlackedOutException rides RepoRejectException's
+	// default 404). The concrete refusal is a *StatusError carrying the
+	// spec's exact message; this sentinel is its cause.
+	ErrBlackedOut = errors.New("repository is blacked out")
 	// ErrPackageTypeNotAvailable: the package type's addon slot is registered
 	// but not unlocked on this instance (M10 T-283, ADR-0032's D3: an
 	// insufficient license tier, an allowlist that does not name it, or the

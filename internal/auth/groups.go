@@ -122,15 +122,29 @@ type PrincipalBits struct {
 // convention (a trailing '/' addresses a folder), so pattern semantics
 // (folder prefix rule, exclude priority) mirror authorization precisely.
 //
+// T-491 (FR-156.2): the wildcard buckets ride the same widening Can
+// applies — targets listing the bucket that covers repoKey join the row
+// walk and the coverage predicates see the bucket — so the view can never
+// disagree with the authorization decision on what a target covers (the
+// SE-08 invariant, extended to the bucket plane).
+//
 // Malformed target rows are skipped with a log line (Can's posture); a
 // permission-source failure is returned for the caller to answer 500. The
 // maps are never nil: an item no target covers answers empty views.
 func (s *Service) ItemPrincipals(ctx context.Context, repoKey, path string) (users, groups map[string]PrincipalBits, err error) {
 	users = map[string]PrincipalBits{}
 	groups = map[string]PrincipalBits{}
+	bucket := s.bucketFor(ctx, repoKey)
 	rows, err := s.permissions.PrincipalsFor(ctx, repoKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("auth: permission lookup: %w", err)
+	}
+	if bucket != "" {
+		brows, err := s.permissions.PrincipalsFor(ctx, bucket)
+		if err != nil {
+			return nil, nil, fmt.Errorf("auth: wildcard bucket lookup %s: %w", bucket, err)
+		}
+		rows = append(rows, brows...)
 	}
 	if len(rows) == 0 {
 		return users, groups, nil
@@ -160,7 +174,7 @@ func (s *Service) ItemPrincipals(ctx context.Context, repoKey, path string) (use
 		if !ok {
 			continue
 		}
-		covers, err := targetCovers(t, repoKey, path)
+		covers, err := targetCovers(t, repoKey, bucket, path)
 		if err != nil {
 			slog.ErrorContext(ctx, "auth: malformed permission target, skipping",
 				slog.String("target", t.Name), slog.String("error", err.Error()))
@@ -175,9 +189,10 @@ func (s *Service) ItemPrincipals(ctx context.Context, repoKey, path string) (use
 		}
 		// Manage is repo-scoped (M7, ADR-0026): it shows on the view when
 		// the row carries it and the target lists the repo — independent of
-		// the path plane above, mirroring Can's m evaluation exactly.
+		// the path plane above, mirroring Can's m evaluation exactly (the
+		// wildcard bucket widens both arms identically, T-491).
 		if row.CanManage {
-			lists, err := targetListsRepo(t, repoKey)
+			lists, err := targetListsRepo(t, repoKey, bucket)
 			if err != nil {
 				slog.ErrorContext(ctx, "auth: malformed permission target, skipping manage",
 					slog.String("target", t.Name), slog.String("error", err.Error()))

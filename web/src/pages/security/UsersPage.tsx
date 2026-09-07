@@ -40,8 +40,12 @@ const t = tr('security')
 //
 // 列集：Name │ Email │ Groups（计数 | 明细，Artifactory "1 | readers" 形态）
 // │ Role（三值 badge）│ **Status**（E2 enabled 真值——禁用徽章形态；T-237
-// 期的「暂缺（无回显不伪造列）」随 E2 落地退役）│ 操作（admin）。Realm/
-// Last Login/Admin 布尔列不建（§6.9[1]）。
+// 期的「暂缺（无回显不伪造列）」随 E2 落地退役）│ **Last Login**（T-492 /
+// FR-156.4：T-454 投影消费——GET users 列表项 lastLoggedIn，缺席 = 从未
+// 登录如实呈现「—（尚未登录）」；B-3.18 翻正腿）│ 操作（admin）。Realm
+// 列维持不建（B-3.18 stay-out：本地实例单值域——wire 实有 realm 字段但恒
+// internal，列信息密度趋零，差异登记）；Admin 布尔列不建（Role 三值 badge
+// 是其语义超集——§6.9[1] 维持）。
 //
 // 数据源 = **单请求** GET /security/users（E2 列表项已含 email/adminRole/
 // enabled/groups——T-251）。T-237 期的「listUsers + 逐用户 getUser」
@@ -56,11 +60,13 @@ const t = tr('security')
 // 403 收敛（§3.6）：L2——列表 403 呈现无权限卡；L4——创建/删除按钮仅
 // admin 渲染。readonly_admin：读面全通 + users-readonly-note（M7 §7.3）。
 
-type UserSortKey = 'name' | 'email' | 'groups' | 'role' | 'status'
+type UserSortKey = 'name' | 'email' | 'groups' | 'role' | 'status' | 'lastLogin'
 
 /** T-414（FR-135.2，T-387 spec 形态复用）：列选器列集 = **既有全部列**闭集
- * （「无端点列不伪造」——§6.9[1] 明示不建 Realm/Last Login/Admin 布尔列）；
- * label 与表头一致；anchor = 菜单项锚（anchor-audit 的 anchor: 属性形态）。
+ * （「无端点列不伪造」——无 wire 承载的列不进闭集：Realm/Admin 布尔维持
+ * 不建〔B-3.18 stay-out + Role 三值超集〕；Last Login 自 T-454 投影上 wire
+ * 后入集——T-492 / FR-156.4）；label 与表头一致；anchor = 菜单项锚
+ * （anchor-audit 的 anchor: 属性形态）。
  * 操作列仅 admin 在场（L4 写面预收敛）——非 admin 视图该列不存在，菜单项
  * 同步不呈现（不伪造空控制）。 */
 const COLUMNS: ColumnDef[] = [
@@ -69,6 +75,7 @@ const COLUMNS: ColumnDef[] = [
   { id: 'groups', label: t('组'), anchor: 'users-columns-item-groups' },
   { id: 'role', label: t('角色'), anchor: 'users-columns-item-role' },
   { id: 'status', label: 'Status', anchor: 'users-columns-item-status' },
+  { id: 'lastLogin', label: t('最近登录'), anchor: 'users-columns-item-lastlogin' },
   { id: 'actions', label: t('操作'), anchor: 'users-columns-item-actions' },
 ]
 const COLUMN_IDS = COLUMNS.map((c) => c.id)
@@ -120,6 +127,10 @@ export default function UsersPage() {
         return normalizeAdminRole(r.adminRole, false)
       case 'status':
         return r.enabled ? 1 : 0
+      case 'lastLogin':
+        // RFC3339 UTC 字典序 = 时间序（T-454 投影恒 UTC）；缺席 = ''
+        // （applySort 空值口径与 email 同——asc 沉首、desc 沉底）
+        return r.lastLoggedIn ?? ''
       default:
         return r.name
     }
@@ -237,6 +248,15 @@ export default function UsersPage() {
                   {cols.isVisible('status') && (
                     <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} testid="users-sort-status" />
                   )}
+                  {cols.isVisible('lastLogin') && (
+                    <SortTh
+                      label={t('最近登录')}
+                      sortKey="lastLogin"
+                      sort={sort}
+                      onToggle={toggle}
+                      testid="users-sort-lastlogin"
+                    />
+                  )}
                   {admin && cols.isVisible('actions') && <TableCell component="th" scope="col">{t('操作')}</TableCell>}
                 </TableRow>
               </TableHead>
@@ -296,6 +316,21 @@ export default function UsersPage() {
                       {cols.isVisible('status') && (
                         <TableCell>
                           <StatusLabel enabled={r.enabled} name={r.name} />
+                        </TableCell>
+                      )}
+                      {cols.isVisible('lastLogin') && (
+                        <TableCell
+                          className="mono"
+                          // title = 原始 RFC3339 全值（表体呈现截断到秒；缺席无 title）
+                          title={r.lastLoggedIn || undefined}
+                        >
+                          {r.lastLoggedIn ? (
+                            r.lastLoggedIn.replace('T', ' ').slice(0, 19)
+                          ) : (
+                            // T-454 omitempty：整键缺席 = 从未登录——如实呈现
+                            // （复用详情页同键，不伪造「从未」以外的语义）
+                            <span className="text-muted">{t('—（尚未登录）')}</span>
+                          )}
                         </TableCell>
                       )}
                       {admin && cols.isVisible('actions') && (

@@ -316,6 +316,10 @@ export default function ArtifactsBrowser() {
   const focusFile = fileSelected ? lastSeg : null
   /** 选中文件的树路径（与 ChildNode.path 同构：根层文件无前导斜杠） */
   const focusPath = focusFile !== null ? (dir !== '' ? `${dir}/${focusFile}` : focusFile) : null
+  /** 末段分类未决（父 listing 在途）——装载/展开两 effect 的分类门
+   *  （T-494：未决期不按目录赌装末段，见装载链 effect 注）。定义前置 =
+   *  两 effect 的 deps 数组在渲染期求值需要它。 */
+  const curUncertain = pathSegs.length > 0 && !parentSettled
 
   // 展开链 = 分类后 dir 的祖先（含自身）；装载链 = 乐观全路径的祖先（含自身）
   const chain = useMemo(() => ancestorDirs(dir), [dir])
@@ -372,18 +376,39 @@ export default function ArtifactsBrowser() {
     // 全部 rclass 同形（原 effect 以 !repoKey 早退，expanded 集被一并跳过）；
     // 修复为「选中仓的根 + 祖先链 ∪ 手动展开集」，行为只增不改。
     // T-434：装载链取乐观全路径（末段判别前就并行拉满——目录深链免瀑布）。
+    //
+    // T-494（useAsync 双计修正的装载链腿）：乐观赌装对**文件末段**是双计
+    // 真身——listFolder 对文件路径发 FolderInfo GET + ?list 两枚请求，均经
+    // 内容面 Get 落点 as-built 各 +1 下载计数（T-461 实测「单次选中计
+    // 2~3」的 2 就来自这里）。修正 = 末段先问父 listing 分类再决定装载：
+    // 文件段零装载（结果本就无人消费——树上文件叶子来自父层 listing）；
+    // 分类未决不赌（目录深链末段改随父就绪装载，+1 RTT 换计数零污染）；
+    // 父就绪而段缺席（路径已不存在）维持装载——404 形态与既有乐观装载
+    // 一致。K69 单源契约不破：浏览路径零计数面请求。
     const wanted = new Set<string>(expanded)
     if (repoKey) {
       wanted.add(ck(repoKey, ''))
-      for (const d of loadChainKey === '' ? [] : loadChainKey.split('\n')) wanted.add(ck(repoKey, d))
+      for (const d of loadChainKey === '' ? [] : loadChainKey.split('\n')) {
+        if (d === fullDir && pathSegs.length > 0) {
+          if (!parentSettled) continue // 分类未决：不赌末段
+          if (fileSelected) continue // 文件段：永不按目录装载
+        }
+        wanted.add(ck(repoKey, d))
+      }
+      // 兜底：展开集里混入的末段赌装（下方展开 effect 在分类未决期的
+      // 乐观 dir 形态加入的历史路径）同样不装载——文件段零计数面请求的
+      // 双保险（与上面的门同判定）。
+      if (pathSegs.length > 0 && (!parentSettled || fileSelected)) {
+        wanted.delete(ck(repoKey, fullDir))
+      }
     }
     if (wanted.size === 0) return
     for (const key of wanted) {
       const sep = key.indexOf('\n')
       loadDir(key.slice(0, sep), key.slice(sep + 1))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- chain/expanded 以 join key 刻画
-  }, [repoKey, loadChainKey, expandedKey, tick, loadDir])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chain/expanded 以 join key 刻画；parentSettled/fileSelected 是分类门（T-494）
+  }, [repoKey, loadChainKey, expandedKey, tick, loadDir, parentSettled, fileSelected])
 
   const refresh = useCallback(() => {
     cacheRef.current.clear()
@@ -400,7 +425,11 @@ export default function ArtifactsBrowser() {
   // Artifactory 同形）。展开态只增不减（用户手动展开不因导航被收起）。
   useEffect(() => {
     if (!repoKey) return
-    if (dir !== '') {
+    if (dir !== '' && !curUncertain) {
+      // T-494：分类未决期不把乐观末段（可能是文件）加进展开集——dir 在
+      // 父 listing 就绪前取乐观全路径，此时入集 = 文件段被当目录展开装载
+      //（计数面请求）。就绪后 dir 已翻正（文件 → 父目录形态），chainKey
+      // 变化驱动本 effect 重跑，正确的目录链照常入集。
       setExpanded((prev) => {
         const next = new Set(prev)
         next.add(ck(repoKey, ''))
@@ -409,8 +438,8 @@ export default function ArtifactsBrowser() {
       })
     }
     setVisible(PAGE)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- dir/repo 变化即重置
-  }, [dir, repoKey, chainKey])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dir/repo 变化即重置；curUncertain 是分类门（T-494）
+  }, [dir, repoKey, chainKey, curUncertain])
 
   // 深链滚动定位：祖先链全部就绪后把当前节点（目录/文件叶子/仓库行）滚进可视区
   const chainSettled = !!repoKey && chain.every((d) => dirState[ck(repoKey, d)]?.status === 'ok')
@@ -504,9 +533,8 @@ export default function ArtifactsBrowser() {
   }, [repoKey])
 
   const cur = repoKey ? dirState[ck(repoKey, dir)] : undefined
-  // 末段分类未决（父 listing 在途）：children 表与详情都骨架呈现——不闪
-  // 目录形态再翻文件形态（错形态期间点页签会产生错误路径的请求）
-  const curUncertain = pathSegs.length > 0 && !parentSettled
+  // curUncertain 已上移至分类块（T-494 装载/展开 effect 的 deps 需要）——
+  // 未决期 children 表与详情都骨架呈现，不闪目录形态再翻文件形态
   const rows = useMemo(() => {
     const nodes = cur?.status === 'ok' ? cur.nodes : []
     const f = filter.trim().toLowerCase()
@@ -690,6 +718,36 @@ export default function ArtifactsBrowser() {
       .filter((r) => (favOnly ? favorites.has(r.key) : true))
     return [...out].sort((a, b) => compareRepos(a, b, sortBy))
   }, [repoNodes, repoFilter, pkgFacets, rclassFacets, favOnly, favorites, sortBy])
+
+  // ---- B-3.2 初始态（T-492 / FR-156.4）：进入即首仓库自动选中 ---------------
+  // parity §12 B-3.2 翻正（Artifactory 同形）：跨仓根 + 仓库清单就绪 → 首仓库
+  // （当前 Sort-by 序第一行）自动选中，右侧 item view 即刻呈现——原「无选中 +
+  // 静态引导卡」初始态退役（引导卡保留为边界态/回根态）。边界与让位：
+  // - 空实例（0 仓）：不选——空实例引导卡（emptyInstance 分支）承载；
+  // - 普通用户清单 403：不选（status !== 'ok'）——L2 无权限卡承载，URL 原地；
+  // - 用户已在树头接管（过滤词 / 包型·rclass facet / My Favorites 在场）：
+  //   让位不选——过滤中的首行不是「实例首仓库」，且选中会连带清掉过滤词
+  //   （跨仓复位语义）与用户意图相抵；
+  // - legacy 规范形重定向在途（目标 ≠ 当前路径）：先等重定向落定（其目标
+  //   必含仓）；同路径的 ?focus= 残参（无承载面）不阻塞——选中导航顺带清掉；
+  // - 曾选中过仓库后回到跨仓根（SPA 内导航回根）：不重复自动选中——根态是
+  //   用户主动回到的跨仓视图（工具带过滤语境），hadSelection 钉一次即让位；
+  //   全新挂载（登录落点 / 模块进入 / 深链前的 /artifacts）则正常自动选中。
+  // URL 形态 = replace 规范化（不占历史栈——回退回到进入前的位置）。
+  const hadSelectionRef = useRef(false)
+  useEffect(() => {
+    if (repoKey !== '') {
+      hadSelectionRef.current = true
+      return
+    }
+    if (hadSelectionRef.current) return
+    if (legacyTarget !== null && location.pathname !== legacyTarget) return
+    if (reposQuery.status !== 'ok') return
+    if (repoFilter.trim() !== '' || pkgFacets.size > 0 || rclassFacets.size > 0 || favOnly) return
+    const first = filteredRepos[0]?.key
+    if (!first) return
+    navigate(buildTreeUrl(tab, first, []), { replace: true })
+  }, [repoKey, legacyTarget, location.pathname, reposQuery.status, repoFilter, pkgFacets, rclassFacets, favOnly, filteredRepos, tab, navigate])
 
   // ---- 渲染 ----
   const emptyInstance = reposQuery.status === 'ok' && repos.length === 0 && !repoKey && !onboardSkipped

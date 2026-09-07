@@ -118,7 +118,10 @@ test('setmeup pills carry brand marks; geometric glyph icons retired', async ({ 
   await seedRepos(m8Client(), [{ key }, { key: `${key}-npmpkg`, packageType: 'npm' }])
 
   await loginAs(page, 'admin')
-  await page.goto('/binflow/ui/artifacts')
+  // T-492（B-3.2）：/artifacts 进入即自动选中首仓库——无仓库上下文的根态
+  // （步 0 药丸前提）经「带选中进入 → 侧栏导航回根」重建
+  await page.goto(`/binflow/ui/artifacts/${key}`)
+  await page.click('[data-testid="app-nav"] a.nav-item:text-is("制品")')
   await page.click('[data-testid="tree-setmeup"]')
   await expect(page.locator('[data-testid="smu-grid"]')).toBeVisible()
 

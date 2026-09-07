@@ -87,6 +87,12 @@ func TestCurlCompatReposAndStorage(t *testing.T) {
 		if code != 0 || !strings.Contains(out, `"generic-local"`) {
 			t.Fatalf("list = %q (exit %d)", out, code)
 		}
+		// T-493 (FR-157①, the L57 acceptance arm): jq '.[0].url' carries
+		// the /binflow context prefix — the M1 as-built drift corrected.
+		wantURL := `"url": "` + h.srv.URL + `/binflow/generic-local"`
+		if !strings.Contains(out, wantURL) {
+			t.Fatalf("list url missing %s: %s", wantURL, out)
+		}
 	})
 
 	t.Run("C06 single repo config", func(t *testing.T) {
@@ -122,6 +128,15 @@ func TestCurlCompatReposAndStorage(t *testing.T) {
 		}
 		if want := fmt.Sprintf(`"size": "%d"`, len(body)); !strings.Contains(out, want) {
 			t.Fatalf("size not the string form of %d: %s", len(body), out)
+		}
+		// T-493 (FR-157②): uri addresses the metadata view, downloadUri
+		// the DIRECT content plane — the direct-download semantics the
+		// L57 acceptance line pins for the errata family.
+		if want := `"downloadUri": "` + h.srv.URL + `/binflow/generic-local/acme/artifact.bin"`; !strings.Contains(out, want) {
+			t.Fatalf("downloadUri missing %s: %s", want, out)
+		}
+		if want := `"uri": "` + h.srv.URL + `/binflow/api/storage/generic-local/acme/artifact.bin"`; !strings.Contains(out, want) {
+			t.Fatalf("uri missing %s: %s", want, out)
 		}
 	})
 

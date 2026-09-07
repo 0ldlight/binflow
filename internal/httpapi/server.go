@@ -13,6 +13,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/addons"
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
+	"github.com/lzwzzy/binflow/internal/build"
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/docs"
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -182,6 +183,14 @@ type Deps struct {
 	// metadata database, gate from the license manager, cipher from the
 	// instance master key).
 	Webhooks WebhookPlane
+	// ServiceLog is the System Logs reading seam behind
+	// GET /api/v1/system/logs (M17 T-493, FR-157③). Nil self-assembles in
+	// New: a console.LogRing is created and the incoming logger wrapped so
+	// the process stream feeds it (system_logs.go's assembleServiceLog —
+	// the qrl precedent, cmd's wiring untouched). Tests may inject their
+	// own ring; a future cmd-side wiring can widen the capture past
+	// assembly-time boot lines by handing the ring to newLogger instead.
+	ServiceLog SystemLogTail
 	// Addons is the assembled addon registry (M10 T-282, ADR-0033): the
 	// compile-time literal slice cmd builds. Nil keeps GET /api/v1/addons
 	// at an honest empty array and the repo-create plane on repo.Service's
@@ -266,7 +275,16 @@ type Server struct {
 	// disabled, a pure bypass, so wiring it costs nothing; the engine takes
 	// it only when the engine itself assembles.
 	qrl *search.QueryRateLimiter
-	srv *http.Server
+	// serviceLog is the System Logs tail (M17 T-493, FR-157③): the ring
+	// the process stream feeds (New wraps s.log with the fan-out when
+	// Deps.ServiceLog is nil). Never nil — self-assembled like qrl.
+	serviceLog SystemLogTail
+	// builds is the build-info domain service (M17 T-508, FR-152.2): the
+	// upload/append/query orchestration over the 024 BuildStore seam,
+	// ACL'd by the same-source allow() mirror. nil — a metadata-less unit
+	// stack — keeps the whole /api/build family at the honest 503.
+	builds *build.Service
+	srv    *http.Server
 }
 
 // New assembles the server. deps.Console may be nil (a bare console
@@ -324,6 +342,11 @@ func New(deps Deps, log *slog.Logger) *Server {
 		}
 	}
 	s := &Server{deps: deps, log: log, adapters: adapters, mgmt: mgmt, uploads: newMPURegistry()}
+	// The System Logs tail (M17 T-493, FR-157③) attaches BEFORE anything
+	// else could log through s.log: the wrap fans every subsequent record
+	// into the ring (assembleServiceLog's Deps seam note), so the first
+	// request's access line is already inside the capture window.
+	s.log, s.serviceLog = assembleServiceLog(log, deps.ServiceLog)
 	// Instrumentation (T-163) attaches before route() runs below — the
 	// mounted /metrics handler and the base chain both read s.metrics.
 	if deps.Metrics != nil {
@@ -383,6 +406,40 @@ func New(deps Deps, log *slog.Logger) *Server {
 	// (disabled — a pure bypass), shared by the admin REST face and the
 	// engine below.
 	s.qrl = search.NewQueryRateLimiter(nil)
+	// The build-info domain service (M17 T-508/T-509, FR-152.2): assembled
+	// HERE from the already-wired Deps (the aql precedent — httpapi is the
+	// sole assembly point of build × metadata × authz × repo, cmd's wiring
+	// untouched). The Authorizer is the SAME auth.Service instance every
+	// other domain consults (it rides Deps.Authz), so the allow() mirror is
+	// same-source by construction; the node-resolution seam feeds the
+	// artifact association; the T-509 seams ride the same assembly — the
+	// repository carrier (the CopyOrMove/docker faces of the ONE repo.Service
+	// the stack holds, ADR-0045 decision 9's reuse ruling), the docker index
+	// and property stores, and the audit recorder the +5 words write through
+	// (s.audit is already resolved above — the same best-effort chain every
+	// audited surface uses). A metadata-less unit stack leaves the family at
+	// the 503; a stack without ReposSvc keeps only the carrier-less faces
+	// (the promote verb then answers its own honest 503).
+	if deps.Metadata != nil {
+		opts := []build.Option{
+			build.WithNodes(deps.Metadata.Nodes()),
+			build.WithDocker(deps.Metadata.Docker()),
+			build.WithProps(deps.Metadata.NodeProps()),
+		}
+		// The carrier: the operations family's own capability-face discovery
+		// (CopyOrMove deliberately rides CopyMoveService, not the big
+		// Service interface — the hand-written test-fake rule; httpapi
+		// reaches it by assertion, the operations.go precedent).
+		if deps.ReposSvc != nil {
+			if carrier, ok := deps.ReposSvc.(build.Carrier); ok {
+				opts = append(opts, build.WithCarrier(carrier))
+			}
+		}
+		// s.audit is always resolved by now (BestEffort or the no-op
+		// fallback) — the audit-off instance records nothing, honestly.
+		opts = append(opts, build.WithAudit(s.audit))
+		s.builds = build.New(deps.Metadata.Builds(), deps.Authz, opts...)
+	}
 	// The AQL engine (M15 T-415, FR-133.3 / ADR-0043 §24.1: httpapi is the
 	// sole assembly point of search x repo x metadata — the session/permView
 	// facet precedent, so cmd's Deps wiring stays untouched). Requires the

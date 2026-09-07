@@ -239,6 +239,15 @@ type coverageRowsSource interface {
 // (Can denies m for the role), so its coverage is the empty, non-universe
 // set — CanManageRepo's write arm denies it exactly the same way.
 //
+// T-491 note (wildcard buckets): a target listing a bucket literal
+// contributes the LITERAL to the set — coverage["ANY LOCAL"] — and Can's
+// widened m evaluation makes that holder CanManageRepo-true on every local
+// repository. The set is NOT expanded to the repository universe: family-4
+// subset tests stay literal-key (a holder of m through ANY LOCAL can name
+// the bucket itself in a target it edits, but naming an explicit local key
+// stays denied — the E6 filtered list hides such targets accordingly).
+// Fail-closed direction; expansion, if ever ruled, is a separate ticket.
+//
 // Failure posture mirrors Can: store errors log and deny — the empty,
 // non-universe set — because a broken permission table must never widen
 // access. The cost is O(targets+rows) over exactly two store reads per

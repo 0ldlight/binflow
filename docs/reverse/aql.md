@@ -498,7 +498,7 @@ BinFlow 基座（architecture §15.3 + migrations 001/013）：`nodes(repo_key, 
 ## 15.4 `/api/search/buildArtifacts`·`dependency` wire 锚（§8.2 两行的展开）
 
 **`POST /api/search/buildArtifacts`**（RolesAllowed user/admin；Consumes `application/vnd.org.jfrog.artifactory.build.BuildArtifactsRequest+json` 与裸 json）：
-- body：`{buildName*, buildNumber XOR buildStatus}`（二者互斥）。
+- body：`{buildName*, buildNumber XOR buildStatus, repos[]?, mappings[]?}`（二者互斥；`buildNumber` 支持 **`LATEST`** 哨兵——官方 BuildArtifactsRequest schema〔archive 端点页〕补全，高）。
 - 逐字错误文案（反编译，中置信——文案单源；OSS 400 Pro 门为 t226 活体高）：
   - 缺名 → 400 `Cannot search without build name.`
   - 号/状态双缺 → 400 `Cannot search without build number or build status.`
@@ -518,7 +518,7 @@ BinFlow 基座（architecture §15.3 + migrations 001/013）：`nodes(repo_key, 
 | V-p | builds 域默认输出全集（九字段）的活体回显（官方例证仅五字段子集） | 高（枚举）/中（活体） | 活体恢复后 `builds.find({"name":{"$match":"*"}})` 观测默认回显列 |
 | V-q | build 域 admin-only 门的非 admin 实弹（403 形态/文案） | 高（官方声明）/低（形态） | 活体恢复后非 admin token 探针 |
 | V-r | `buildsNumbers` 排序保证（§1 build-info.md 待验证 #4 同源） | 中 | 活体恢复后多 run 语料观测 |
-| V-s | buildArtifacts 搜索 body 是否收 `transitive` 等额外字段（请求模型在外部库未反编译） | 低 | 活体恢复后 body 探针（错误臂可测：非法字段观察 400 容忍度） |
+| V-s | ~~buildArtifacts 搜索 body 额外字段~~ **已解**（官方 BuildArtifactsRequest schema：`repos[]`/`mappings[]`（input 正则+output 组 token）/`LATEST` 哨兵；无 transitive 字段）——低→高闭环 | 高 | — |
 | V-t | `artifacts(build)` 入口在 pro 档（7.161）的独立可用性（与 builds 入口是否同门） | 中（枚举在场）/—（未活体） | pro 基线修复后探针 |
 
 ## 15.6 增量段取证锚点（2026-09-06 会话）

@@ -164,7 +164,11 @@ export async function listFolder(
   const dockerTags = folder.dockerTags ?? {}
   const kids = folder.children ?? []
   let files: { uri: string; size: number; lastModified: string; sha2?: string; folder: boolean }[] = []
-  if (dir !== '') {
+  // T-494 双保险：FolderInfo 体无 children = 目标是文件（FileInfo 形）——
+  // ?list 对文件路径 400（且其 storageNode 解析经内容面 Get 落点会 +1 计
+  // 数），跳过。装载链的分类门（ArtifactsBrowser）已不再对文件段调本函数，
+  // 此处守任何残余调用面。
+  if (dir !== '' && folder.children !== undefined) {
     // 根目录 ?list 400（"Cannot list files of root."）；非根用 depth=1 补
     // 直接子文件的 size/mtime/sha。失败不致命：降级为无元数据列。
     try {
@@ -212,6 +216,88 @@ function sortChildren(nodes: ChildNode[]): void {
 /** 节点详情（file 全字段 / folder 为 FolderInfo） */
 export function getItem(repoKey: string, path: string, signal?: AbortSignal): Promise<ItemInfo> {
   return apiJSON<ItemInfo>(storagePath(repoKey, path), { signal })
+}
+
+// ---- 纯浏览的非计数详情读（T-494 / FR-157——useAsync 双计修正的缝）------
+//
+// 缝的本体：item-info GET 经 storageNode → 内容面 Get 落点，as-built 即
+// +1 下载计数（K69「探针面计数继承」，T-438 §3-2 登记——计数与 audit 行
+// 同址，BE 侧 de-probe 归「audit 面整理票」）。NodeDetail 的 useAsync 每次
+// 选中都发这枚 GET ⇒ 纯浏览（只选中不下载）也在喂计数器。修正 = 把详情
+// 读改道到**零 markDownload 的同构投影面**（fileInfoOf 的两处共享方——
+// /api/search/checksum 与 /api/search/artifact，SearchResult 全字段集与
+// item face 逐字段一致），浏览不再触计数；下载计数回到唯一真相源 = 真
+// 实内容面 GET（K69 单源契约不破——FE 零第二计数通道，?stats 读面本就
+// 不计数）。
+//
+// 改道阶梯（getItemForDetail）：
+// 1. folder → item face 直读（Get 的 folder 分支先于埋点返回，结构性
+//    不计数，零变化）；
+// 2. 远端派生行（remote 且无 sha256）→ item face 直读——那枚 GET 就是
+//    T-461 的回源 pull-through 本体（K69 arm 3 计数语义，e2e 断言锚）；
+// 3. 已知 sha256（list 合并值——嵌套文件/virtual 成员行/远端已缓存行）
+//    → checksum 搜索（digest 精确，同 path 多仓同路径不同字节也能对上
+//    真身行）；仓内点名 miss（virtual 选中——行落在成员仓）→ 全仓再搜
+//    按精确 path 拣回；
+// 4. 无 sha256 的非派生行（根层文件——root ?list 400 无合并值）→
+//    artifact 名搜索（路径子串）+ 客户端精确 path 匹配；
+// 5. 两搜索面都 miss（行刚被替换/GC 的竞态）或搜索面不可用（500）→
+//    回落 item face（计数照落——罕见竞态如实继承 as-built，不吞错）。
+
+/** SearchResult 行的 ItemInfo 视图（fileInfoOf 同一投影——两搜索面共用） */
+type SearchRow = ItemInfo
+
+/** 精确行拣回：path 逐字匹配（搜索是子串/大小写不敏感，拣回是精确论域）；
+ *  同 path 多行（virtual 语境的同名路径）优先本仓名。miss = null。 */
+function pickExactRow(rows: SearchRow[] | undefined, repoKey: string, path: string): SearchRow | null {
+  if (!Array.isArray(rows)) return null
+  const want = `/${path}`
+  const exact = rows.filter((r) => r.path === want)
+  if (exact.length === 0) return null
+  return exact.find((r) => r.repo === repoKey) ?? exact[0]
+}
+
+/** 详情页的 item 读（T-494 语义分流——见块注释的改道阶梯） */
+export async function getItemForDetail(
+  repoKey: string,
+  path: string,
+  known: { sha256: string; remote?: boolean; folder: boolean },
+  signal?: AbortSignal,
+): Promise<ItemInfo> {
+  if (known.folder || known.remote) return getItem(repoKey, path, signal)
+  try {
+    if (known.sha256) {
+      const named = await apiJSON<{ results?: SearchRow[] }>(
+        `/search/checksum?sha256=${encodeURIComponent(known.sha256)}&repos=${encodeURIComponent(repoKey)}`,
+        { signal },
+      )
+      const hit = pickExactRow(named.results, repoKey, path)
+      if (hit) return hit
+      // virtual 选中：行落在成员仓，仓内点名必然空集——全仓按 digest 再搜
+      // （digest 即字节身份，同名路径不同字节不会错配）。
+      if (named.results && named.results.length === 0) {
+        const any = await apiJSON<{ results?: SearchRow[] }>(
+          `/search/checksum?sha256=${encodeURIComponent(known.sha256)}`,
+          { signal },
+        )
+        const wider = pickExactRow(any.results, repoKey, path)
+        if (wider) return wider
+      }
+    } else {
+      // 根层文件（无 list 合并 digest）：名搜索的路径子串 + 客户端精确匹配
+      const byName = await apiJSON<{ results?: SearchRow[] }>(
+        `/search/artifact?name=${encodeURIComponent(path)}`,
+        { signal },
+      )
+      const hit = pickExactRow(byName.results, repoKey, path)
+      if (hit) return hit
+    }
+  } catch (err) {
+    // 搜索面 4xx/5xx（无权限档被行过滤、store 无搜索缝的 500）不是终裁：
+    // 详情可见性走 item face 的内容面判定（403 → forbidden 态照常呈现）。
+    if (err instanceof ApiError && err.status === 401) throw err
+  }
+  return getItem(repoKey, path, signal)
 }
 
 /** ?permissions（admin）；非 admin 403 → 调用方按 §3.6.3 隐藏 */
