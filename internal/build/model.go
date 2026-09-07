@@ -52,7 +52,9 @@ var ErrInvalidCoordinate = errors.New("build: invalid build coordinate")
 // '/', no control characters, sane lengths. Started may be empty (the
 // latest-run address); when present it must be control-free — full
 // yyyy-MM-dd'T'HH:mm:ss.SSSZ format parsing is the T-508 wire gate's job,
-// the store never interprets the literal.
+// the store never interprets the literal. The repo key (T-508's ?buildRepo=
+// carrier) is control-free too — wire hygiene, the ACL match stays
+// verbatim.
 func (c Coordinate) Validate() error {
 	if err := ValidateBuildName(c.Name); err != nil {
 		return err
@@ -68,6 +70,9 @@ func (c Coordinate) Validate() error {
 	}
 	if hasControl(c.Started) {
 		return fmt.Errorf("build started %q contains control characters: %w", c.Started, ErrInvalidCoordinate)
+	}
+	if hasControl(c.Repo) {
+		return fmt.Errorf("build repo %q contains control characters: %w", c.Repo, ErrInvalidCoordinate)
 	}
 	return nil
 }

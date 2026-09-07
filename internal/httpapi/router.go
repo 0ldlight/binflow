@@ -1056,6 +1056,65 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		// four-name set).
 		s.enforce(w, r, routeAuth{}, s.handleSearchDates)
 
+	// ---- /api/build* (M17 T-508, FR-152.2 / ADR-0045 decision 6 + Errata ①)
+	// ----
+	// The build-info REST family's upload/append/query half: the BODY-
+	// carried upload PUT /api/build (the pre-errata path-segment skeleton is
+	// VOIDED — PUT /api/build/{name}/{number} keeps the E-26 404), the
+	// names/numbers/detail GET ladder (build.go's handlers; started ''
+	// resolves the latest run), and the module-array append POST whose
+	// success is 204 empty. Routes demand authentication only (the official
+	// RolesAllowed admin,user posture): every face's real gate is the
+	// build-domain allow() mirror on (buildRepo, buildName) — body- or
+	// path-dependent, so the handlers own the verdict (the permissions
+	// family-4 precedent). The T-509 verbs (DELETE family, promote,
+	// retention, the POST /api/build/delete batch face) join this block in
+	// their own ticket; every other spelling keeps the E-26 404.
+	case rest == "build" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true}, s.handleBuildUpload)
+	case rest == "build" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true}, s.handleBuildList)
+	case strings.HasPrefix(rest, "build/append/"):
+		if r.Method != http.MethodPost {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		name, number, routed, err := splitBuildCoords(rest, "build/append/")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "build path segment could not be decoded: "+err.Error())
+			return
+		}
+		if !routed {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleBuildAppend(w, r, name, number)
+		})
+	case strings.HasPrefix(rest, "build/"):
+		if r.Method != http.MethodGet {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		name, number, routed, err := splitBuildCoords(rest, "build/")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "build path segment could not be decoded: "+err.Error())
+			return
+		}
+		if !routed {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		if number == "" {
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleBuildNumbers(w, r, name)
+			})
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleBuildGet(w, r, name, number)
+		})
+
 	// ---- /api/{artifactsearch,stashResults,packagesSearch,syntax-search}
 	// (M16 T-452, FR-148.3 / aql.md §14.5 — the UI search family, re-homed
 	// onto the api tree: the SAML key family precedent; BinFlow has no

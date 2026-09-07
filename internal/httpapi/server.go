@@ -13,6 +13,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/addons"
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
+	"github.com/lzwzzy/binflow/internal/build"
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/docs"
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -278,7 +279,12 @@ type Server struct {
 	// the process stream feeds (New wraps s.log with the fan-out when
 	// Deps.ServiceLog is nil). Never nil — self-assembled like qrl.
 	serviceLog SystemLogTail
-	srv        *http.Server
+	// builds is the build-info domain service (M17 T-508, FR-152.2): the
+	// upload/append/query orchestration over the 024 BuildStore seam,
+	// ACL'd by the same-source allow() mirror. nil — a metadata-less unit
+	// stack — keeps the whole /api/build family at the honest 503.
+	builds *build.Service
+	srv    *http.Server
 }
 
 // New assembles the server. deps.Console may be nil (a bare console
@@ -400,6 +406,17 @@ func New(deps Deps, log *slog.Logger) *Server {
 	// (disabled — a pure bypass), shared by the admin REST face and the
 	// engine below.
 	s.qrl = search.NewQueryRateLimiter(nil)
+	// The build-info domain service (M17 T-508, FR-152.2): assembled HERE
+	// from the already-wired Deps (the aql precedent — httpapi is the sole
+	// assembly point of build × metadata × authz, cmd's wiring untouched).
+	// The Authorizer is the SAME auth.Service instance every other domain
+	// consults (it rides Deps.Authz), so the allow() mirror is same-source
+	// by construction; the node-resolution seam feeds the artifact
+	// association. A metadata-less unit stack leaves the family at the 503.
+	if deps.Metadata != nil {
+		s.builds = build.New(deps.Metadata.Builds(), deps.Authz,
+			build.WithNodes(deps.Metadata.Nodes()))
+	}
 	// The AQL engine (M15 T-415, FR-133.3 / ADR-0043 §24.1: httpapi is the
 	// sole assembly point of search x repo x metadata — the session/permView
 	// facet precedent, so cmd's Deps wiring stays untouched). Requires the

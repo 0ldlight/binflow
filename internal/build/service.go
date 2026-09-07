@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -32,22 +33,36 @@ type Authorizer interface {
 // httpapi layer maps it to 403 (NFR-S80's first arm).
 var ErrForbidden = errors.New("build: forbidden")
 
-// Service is the build domain's ACL face (T-507, FR-152.1): the allow()
-// mirror, the CanRead projection and the server-side visible-set filter
-// the read faces run — the write faces (upload/append, T-508) and the
-// promote/retention faces (T-509) weave onto the same mirror, so every
-// verb of the domain flows through one decision point.
+// Service is the build domain's ACL face (T-507, FR-152.1) and, since
+// T-508, its write orchestration: the allow() mirror, the CanRead
+// projection and the server-side visible-set filter the read faces run —
+// the upload/append faces (T-508) and the promote/retention faces (T-509)
+// weave onto the same mirror, so every verb of the domain flows through
+// one decision point.
 type Service struct {
 	store Store
 	az    Authorizer
+	// nodes resolves the artifact association against the live nodes table
+	// (upload.go's NodeChecker; nil = every artifact lands record-only).
+	nodes NodeChecker
+	// mergeMu serializes the append face's read-modify-write (two
+	// concurrent appends must both land — a stale-base last-writer-wins
+	// would silently drop a whole merge; CI-frequency traffic makes the
+	// global lock free).
+	mergeMu sync.Mutex
 }
 
 // New wires the service over the BuildStore seam with the SAME
 // auth.Service instance the rest of the platform holds (passing a
 // different authorizer here is an assembly bug, not a capability; nil is
-// the fail-closed build).
-func New(store Store, az Authorizer) *Service {
-	return &Service{store: store, az: az}
+// the fail-closed build). The optional seams (node resolution) ride the
+// options — the two-argument call every T-507 face makes is unchanged.
+func New(store Store, az Authorizer, opts ...Option) *Service {
+	s := &Service{store: store, az: az}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // allow mirrors repo/service.go's allow shape for shape (ADR-0045

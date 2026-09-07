@@ -89,6 +89,14 @@ const (
 	metricQRLSlowdown       = "binflow_qrl_slowed_down_millis"
 	metricQRLSlowdownByTime = "binflow_qrl_slowed_down_by_time_millis"
 	metricQRLCharged        = "binflow_qrl_charged_query_time_millis"
+	// The build family (M17 T-508, FR-152.2 / ADR-0045 decision 10 — the
+	// put/get half; promote's counter and histogram land with T-509): the
+	// write counter by operation and outcome, the read counter by face,
+	// and the upload/append duration histogram. The ticket's
+	// builds.put/builds.get family, on the Prometheus naming rule.
+	metricBuildsPutTotal   = "binflow_builds_put_total"
+	metricBuildsGetTotal   = "binflow_builds_get_total"
+	metricBuildsPutSeconds = "binflow_builds_put_duration_seconds"
 )
 
 // metricsContentType is the Prometheus text exposition format version 0.0.4
@@ -149,6 +157,11 @@ type instrumentation struct {
 	qrlSlowdown       *metrics.Gauge
 	qrlSlowdownByTime *metrics.Gauge
 	qrlCharged        *metrics.Gauge
+	// builds* are the build family's write/read counters and the write
+	// duration histogram (M17 T-508).
+	buildsPut    *metrics.Counter
+	buildsGet    *metrics.Counter
+	buildsPutDur *metrics.Histogram
 }
 
 // newInstrumentation registers the four families on reg and pre-seeds the
@@ -241,6 +254,24 @@ func newInstrumentation(deps Deps) *instrumentation {
 		ins.qrlSlowdown.Set(0, "type", t)
 		ins.qrlSlowdownByTime.Set(0, "type", t)
 		ins.qrlCharged.Set(0, "type", t)
+	}
+
+	// The build family (M17 T-508): pre-seeded per operation/outcome and
+	// per read face so the exposition shows the family before the first CI
+	// publish — upload's two arms, append's merge arm, and the three GET
+	// faces (names, numbers, detail).
+	ins.buildsPut = mustCounter(reg, metricBuildsPutTotal,
+		"Build-info write operations (PUT upload and POST append) by operation and outcome.")
+	ins.buildsGet = mustCounter(reg, metricBuildsGetTotal,
+		"Build-info read operations by face (names list, numbers list, single-run detail).")
+	ins.buildsPutDur = mustHistogram(reg, metricBuildsPutSeconds,
+		"Build-info write operation duration in seconds by operation.", metrics.DefaultBuckets)
+	for _, outcome := range []string{"created", "replaced"} {
+		ins.buildsPut.Add(0, "operation", "upload", "outcome", outcome)
+	}
+	ins.buildsPut.Add(0, "operation", "append", "outcome", "merged")
+	for _, face := range []string{"names", "numbers", "detail"} {
+		ins.buildsGet.Add(0, "face", face)
 	}
 
 	if deps.Replication != nil {
@@ -365,6 +396,27 @@ func (s *Server) countAddonGate(id, decision string) {
 		return
 	}
 	s.metrics.addonGates.Inc("addon", id, "decision", decision)
+}
+
+// observeBuildsPut records one successful build-info write (M17 T-508): the
+// operation/outcome counter family and the duration histogram. Failures are
+// the HTTP request counter's status series, not this family's — the
+// counter answers "how many publishes landed, and which arm", matching the
+// ticket's upload-count-and-duration wording.
+func (s *Server) observeBuildsPut(operation, outcome string, d time.Duration) {
+	if s.metrics == nil {
+		return
+	}
+	s.metrics.buildsPut.Inc("operation", operation, "outcome", outcome)
+	s.metrics.buildsPutDur.Observe(d.Seconds(), "operation", operation)
+}
+
+// countBuildsGet records one successful build-info read by face (M17 T-508).
+func (s *Server) countBuildsGet(face string) {
+	if s.metrics == nil {
+		return
+	}
+	s.metrics.buildsGet.Inc("face", face)
 }
 
 // metricsHandler assembles GET /metrics (root level, the /healthz-family
@@ -683,6 +735,12 @@ func normalizeAPIPath(segs []string) string {
 		return tail(2, ":name")
 	case segs[0] == "v1" && len(segs) > 3 && segs[1] == "storage" && segs[2] == "usage":
 		return tail(3, ":repo")
+	case segs[0] == "build" && len(segs) > 1:
+		// The build family's variable tails (names list, numbers, detail,
+		// append) collapse to one template — build names and numbers are
+		// CI free-form strings (the highest-cardinality identifiers this
+		// family carries).
+		return tail(1, ":name/:number")
 	}
 	if len(segs) > 3 {
 		return tail(2, ":rest")
