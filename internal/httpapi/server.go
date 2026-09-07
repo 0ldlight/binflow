@@ -14,6 +14,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/build"
+	"github.com/lzwzzy/binflow/internal/bundle"
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/docs"
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -284,7 +285,14 @@ type Server struct {
 	// ACL'd by the same-source allow() mirror. nil — a metadata-less unit
 	// stack — keeps the whole /api/build family at the honest 503.
 	builds *build.Service
-	srv    *http.Server
+	// bundles is the release-bundle domain service (M17 T-513, FR-153.1):
+	// the create/query orchestration over the 025 BundleStore seam, gated
+	// by the capability arms plus the Any Distribution channel, with the
+	// feature slot's verdict wired as its data-plane seam. nil — a
+	// metadata-less unit stack — keeps the /api/release family at the
+	// honest 503.
+	bundles *bundle.Service
+	srv     *http.Server
 }
 
 // New assembles the server. deps.Console may be nil (a bare console
@@ -438,7 +446,40 @@ func New(deps Deps, log *slog.Logger) *Server {
 		// s.audit is always resolved by now (BestEffort or the no-op
 		// fallback) — the audit-off instance records nothing, honestly.
 		opts = append(opts, build.WithAudit(s.audit))
+		// The webhook Emit facet (M17 T-510, ADR-0045 decision 7): the
+		// build domain's mutation tails emit through the SAME unified-event
+		// bus the repository domain does — the import-ban boundary keeps
+		// the seam injected (build.emit's func type), this adapter is the
+		// one-liner. A plane-less stack (unit builds) keeps the tails at
+		// the pre-T-510 no-op, byte-identical.
+		if deps.Webhooks != nil {
+			opts = append(opts, build.WithEmitter(buildWebhookEmitter(deps.Webhooks)))
+		}
 		s.builds = build.New(deps.Metadata.Builds(), deps.Authz, opts...)
+	}
+	// The release-bundle domain service (M17 T-513, FR-153.1 / ADR-0046):
+	// self-assembled beside builds — the node seam snapshots the manifest,
+	// the SAME auth.Service instance feeds both gates (the channel seam via
+	// deps.Authz, the capability seam via assertion on deps.Auth — the
+	// userDelete facet precedent: a unit fake without CanManage keeps the
+	// capability arms fail-closed), the audit recorder writes the
+	// bundle.create rows, and the feature slot's verdict rides the
+	// data-plane seam as a closure over the SAME addonAllowed evaluation
+	// the REST gate consults (one verdict source; nil facet = the community
+	// floor, which denies the pro slot — honest everywhere).
+	if deps.Metadata != nil {
+		opts := []bundle.Option{
+			bundle.WithNodes(deps.Metadata.Nodes()),
+			bundle.WithAudit(s.audit),
+			bundle.WithFeatureGate(func(ctx context.Context) bool {
+				return s.addonAllowed(ctx, BundleAddonID, bundleFeatureMinTier(deps))
+			}),
+		}
+		var caps bundle.CapabilitySource
+		if cm, ok := deps.Auth.(bundle.CapabilitySource); ok {
+			caps = cm
+		}
+		s.bundles = bundle.New(deps.Metadata.Bundles(), deps.Authz, caps, opts...)
 	}
 	// The AQL engine (M15 T-415, FR-133.3 / ADR-0043 §24.1: httpapi is the
 	// sole assembly point of search x repo x metadata — the session/permView

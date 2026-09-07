@@ -19,7 +19,8 @@ func TestT362EventClosedSet(t *testing.T) {
 		t.Fatalf("domain count = %d, want 13", got)
 	}
 	// The registry's total is asserted through one domain's legal set plus
-	// the pair lookups below; the wired nine are the contract AC-2 pins.
+	// the pair lookups below; the wired twelve are the contract AC-2 pins
+	// (M13's nine + the build domain's three, T-510).
 	wired := map[[2]string]bool{}
 	for _, d := range webhook.Domains() {
 		for _, et := range webhook.EventTypesOfDomain(d) {
@@ -32,14 +33,15 @@ func TestT362EventClosedSet(t *testing.T) {
 			}
 		}
 	}
-	if len(wired) != 9 {
-		t.Fatalf("wired pair count = %d, want 9: %v", len(wired), wired)
+	if len(wired) != 12 {
+		t.Fatalf("wired pair count = %d, want 12: %v", len(wired), wired)
 	}
 	for _, pair := range [][2]string{
 		{"artifact", "deployed"}, {"artifact", "deleted"}, {"artifact", "moved"},
 		{"artifact", "copied"}, {"artifact", "cached"},
 		{"artifact_property", "added"}, {"artifact_property", "deleted"},
 		{"docker", "pushed"}, {"docker", "deleted"},
+		{"build", "uploaded"}, {"build", "deleted"}, {"build", "promoted"},
 	} {
 		if !wired[pair] {
 			t.Errorf("pair %v must be wired", pair)
@@ -54,7 +56,7 @@ func TestT362EventClosedSet(t *testing.T) {
 	}
 	// Dormant coverage claims that must stay subscribable-but-silent.
 	for _, pair := range [][2]string{
-		{"docker", "promoted"}, {"build", "uploaded"},
+		{"docker", "promoted"}, {"release_bundle", "created"},
 		{"distribution", "delete_failed"}, {"destination", "delete_failed"},
 		{"user", "locked"}, {"xray_scan_status", "not_supported"},
 		{"app_trust", "release_started"},

@@ -256,15 +256,18 @@ func TestT362EmitGateAndDormantDrops(t *testing.T) {
 		t.Fatalf("nil gate enqueued %d rows, want 0", n)
 	}
 
-	// Dormant types never enqueue even with the gate open.
+	// Dormant types never enqueue even with the gate open; a WIRED type
+	// with no matching subscription (the build domain since T-510) is the
+	// same silent outcome on the matching arm.
 	open, err := webhook.NewBus(webhook.BusOptions{Store: store, Gate: allowGate()})
 	if err != nil {
 		t.Fatalf("NewBus: %v", err)
 	}
-	open.Emit(ctx, webhook.Event{Domain: webhook.DomainBuild, Type: "promoted"})
+	open.Emit(ctx, webhook.Event{Domain: webhook.DomainDocker, Type: "promoted"})
+	open.Emit(ctx, webhook.Event{Domain: webhook.DomainBuild, Type: webhook.TypeBuildPromoted})
 	open.Emit(ctx, webhook.Event{Domain: "no-such-domain", Type: "x"})
 	if n, _ := open.PendingCount(ctx); n != 0 {
-		t.Fatalf("dormant/unknown emits enqueued %d rows, want 0", n)
+		t.Fatalf("dormant/wired-unsubscribed/unknown emits enqueued %d rows, want 0", n)
 	}
 }
 

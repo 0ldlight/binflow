@@ -36,6 +36,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/build"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
+	"github.com/lzwzzy/binflow/internal/webhook"
 )
 
 // buildMaxBodyBytes caps the upload/append document (the family's wire-size
@@ -43,6 +44,40 @@ import (
 // ceiling exists precisely because an unbounded JSON body is a DoS, and a
 // document this large is malformed in spirit).
 const buildMaxBodyBytes = 32 << 20
+
+// buildWebhookEmitter adapts the build domain's Emit facet (build.emit,
+// T-510 / ADR-0045 decision 7) onto the unified-event bus: the four
+// payload facts ride their webhook.Event carriers (Name/Repo the base,
+// Number/Started the build extras) and the principal projects onto the
+// envelope's userContext the same way the repository domain's
+// hookActorOf does. The plane is the ONE bus instance the assembly
+// holds — same-source by construction.
+func buildWebhookEmitter(plane WebhookPlane) build.WebhookEmitter {
+	return func(ctx context.Context, e build.WebhookEvent) {
+		plane.Emit(ctx, webhook.Event{
+			Domain: webhook.DomainBuild, Type: e.Type,
+			Name: e.Name, Repo: e.Repo,
+			BuildNumber:  e.Number,
+			BuildStarted: e.Started,
+			Actor:        buildHookActorOf(e.Principal),
+		})
+	}
+}
+
+// buildHookActorOf projects a build-domain principal onto the outbound
+// envelope's userContext triple (repo/api.go's hookActorOf shape — the
+// anonymous fallback included; duplicated because that helper is
+// deliberately unexported on the repository domain's file).
+func buildHookActorOf(p *build.Principal) webhook.Actor {
+	if p == nil {
+		return webhook.Actor{ID: "anonymous", Realm: webhook.RealmFor("")}
+	}
+	return webhook.Actor{
+		ID:      p.Name,
+		IsToken: p.TokenID > 0,
+		Realm:   webhook.RealmFor(string(p.Source)),
+	}
+}
 
 // buildDetailURI is the family's self-addressing prefix (relative URIs, the
 // official echo form).

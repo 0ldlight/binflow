@@ -47,8 +47,9 @@ const (
 	DomainAppTrust                 = "app_trust"
 )
 
-// The nine wired event types (BinFlow M13 coverage, webhook.md 0's
-// "9 个有本体触发源" ruling): artifact 5 + artifact_property 2 + docker 2.
+// The twelve wired event types: webhook.md 0's "9 个有本体触发源" M13
+// ruling (artifact 5 + artifact_property 2 + docker 2) plus the build
+// domain's three (M17 T-510, ADR-0045 decision 7 — the build body landed).
 const (
 	TypeArtifactDeployed = "deployed"
 	TypeArtifactDeleted  = "deleted"
@@ -59,6 +60,9 @@ const (
 	TypePropDeleted      = "deleted"
 	TypeDockerPushed     = "pushed"
 	TypeDockerDeleted    = "deleted"
+	TypeBuildUploaded    = "uploaded"
+	TypeBuildDeleted     = "deleted"
+	TypeBuildPromoted    = "promoted"
 )
 
 // eventType is one closed-set entry.
@@ -86,10 +90,12 @@ var eventTypes = []eventType{
 	{TypeDockerPushed, DomainDocker, SourceWired},
 	{TypeDockerDeleted, DomainDocker, SourceWired},
 	{"promoted", DomainDocker, SourceDormant},
-	// build (3) — dormant, Build-info domain M14+ (webhook.md 3.4).
-	{"uploaded", DomainBuild, SourceDormant},
-	{"deleted", DomainBuild, SourceDormant},
-	{"promoted", DomainBuild, SourceDormant},
+	// build (3) — all wired (M17 T-510, ADR-0045 decision 7: upload/append
+	// → uploaded, retention's discard arm → deleted, promote → promoted;
+	// webhook.md 3.4).
+	{TypeBuildUploaded, DomainBuild, SourceWired},
+	{TypeBuildDeleted, DomainBuild, SourceWired},
+	{TypeBuildPromoted, DomainBuild, SourceWired},
 	// release_bundle (3) — dormant, RBv1 not built (webhook.md 3.5).
 	{"created", DomainReleaseBundle, SourceDormant},
 	{"signed", DomainReleaseBundle, SourceDormant},

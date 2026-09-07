@@ -234,12 +234,18 @@ func (s *Service) Upload(ctx context.Context, p *Principal, raw []byte, buildRep
 	}
 	// The upload's audit row (ADR-0045 decision 10's build.upload — the
 	// T-509 landing of the +5 words; same-address best-effort as the
-	// promote/retention faces).
+	// promote/retention faces), then the webhook uploaded event at the
+	// same tail (T-510, ADR-0045 decision 7: every successful publication
+	// — first upload and overwrite alike — fires build/uploaded).
 	s.recordAudit(ctx, audit.Event{
 		Actor: actor, Action: audit.ActionBuildUpload,
 		Repo: c.Repo, Path: c.Name,
 		Detail: fmt.Sprintf(`{"number":%q,"created":%t,"modules":%d}`,
 			c.Number, created, len(modules)),
+	})
+	s.emitWebhook(ctx, WebhookEvent{
+		Type: EventUploaded, Name: c.Name, Number: c.Number,
+		Started: c.Started, Repo: c.Repo, Principal: p,
 	})
 	return &UploadResult{Created: created, Started: c.Started, Repo: c.Repo}, nil
 }
@@ -308,12 +314,19 @@ func (s *Service) Append(ctx context.Context, p *Principal, c Coordinate, raw []
 		return nil, fmt.Errorf("build %s#%s append write: %w", c.Name, c.Number, err)
 	}
 	// The append's audit row (decision 10's build.append — one row per
-	// successful merge, the modules merged as the detail).
+	// successful merge, the modules merged as the detail), then the
+	// webhook uploaded event on the SAME tail (T-510: an append is a
+	// publication of the run it merged into — the resolved parent's
+	// coordinates, not the caller's looser addressing).
 	s.recordAudit(ctx, audit.Event{
 		Actor: actorOf(p), Action: audit.ActionBuildAppend,
 		Repo: c.Repo, Path: c.Name,
 		Detail: fmt.Sprintf(`{"number":%q,"modules_in":%d,"modules_total":%d}`,
 			c.Number, len(incoming), len(merged)),
+	})
+	s.emitWebhook(ctx, WebhookEvent{
+		Type: EventUploaded, Name: parent.Name, Number: parent.Number,
+		Started: parent.Started, Repo: parent.Repo, Principal: p,
 	})
 	return parent, nil
 }

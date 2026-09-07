@@ -46,6 +46,12 @@ type Event struct {
 	PropertyKey    string
 	PropertyValues []string
 
+	// build extras (webhook.md 3.4): Name carries build_name, Repo carries
+	// build_repo; Number and Started ride their own fields (Started is the
+	// canonical 1970-01-01T00:00:00.000+0000-form literal the run stores).
+	BuildNumber  string
+	BuildStarted string
+
 	// Actor is the envelope's userContext (webhook.md section 4).
 	Actor Actor
 }
@@ -297,11 +303,16 @@ func (b *Bus) enqueueFailed(ctx context.Context, ev Event, err error) {
 
 // criteriaAdmit runs the criteria filter: repository selection (exact
 // repoKeys or the anyLocal/anyRemote class families — the class lookup is
-// lazy, only when a class arm could match) then the path patterns.
+// lazy, only when a class arm could match) then the path patterns. The
+// build domain runs its OWN scope instead (webhook.md 2.2's build row:
+// anyBuild/selectedBuilds over the build name, then the pattern pair).
 func (b *Bus) criteriaAdmit(ctx context.Context, sub *Subscription, ev Event) bool {
 	f := sub.Parsed
 	if f == nil {
 		return false // unparseable stored criteria: admit nothing, loudly
+	}
+	if ev.Domain == DomainBuild {
+		return f.MatchesBuild(ev.Name)
 	}
 	if !f.MatchesRepo(ev.Repo, b.repoClass(ctx, ev.Repo, f)) {
 		return false
@@ -355,6 +366,16 @@ func (b *Bus) envelopeFor(sub *Subscription, ev Event) ([]byte, error) {
 // verbatim field names; no timestamp on the artifact family — "不要发明
 // 字段").
 func dataFor(ev Event) map[string]any {
+	if ev.Domain == DomainBuild {
+		// webhook.md 3.4: the build payload is its own four-field set —
+		// none of the artifact family's base fields ride.
+		return map[string]any{
+			"build_name":    ev.Name,
+			"build_number":  ev.BuildNumber,
+			"build_started": ev.BuildStarted,
+			"build_repo":    ev.Repo,
+		}
+	}
 	name := ev.Name
 	if name == "" {
 		name = path.Base(strings.TrimSuffix(ev.Path, "/"))
