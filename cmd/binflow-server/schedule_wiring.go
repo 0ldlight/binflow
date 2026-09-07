@@ -1,13 +1,16 @@
 package main
 
 // The cron scheduler's assembly (M16 T-450, FR-150.3/.4 / ADR-0044 decision
-// 6): build the engine over the 021 ledger, register the three consuming
-// domains' carriers, run the loop for the server's lifetime. The carriers
-// are the SAME ones the manual faces ride — maintenance/gc is the REST gc
-// kernel (httpapi.Server.RunGC), the cleanup slots are CleanupEngine.RunOnce,
-// backup is the export kernel the CLI shares (exportSnapshot), replication
-// is TriggerFullSync through the domain's ScheduleRunner — never a second
-// executor anywhere (the ADR's one-carrier law).
+// 6; the M17 T-495 carriers joined the maintenance domain): build the
+// engine over the 021 ledger, register the consuming domains' carriers,
+// run the loop for the server's lifetime. The carriers are the SAME ones
+// the manual faces ride — maintenance/gc is the REST gc kernel
+// (httpapi.Server.RunGC), the cleanup slots are CleanupEngine.RunOnce, the
+// T-495 three are the maintenance-carrier kernels (httpapi.RunQuotaCheck /
+// RunMetadataCompress / RunPruneSweep), backup is the export kernel the
+// CLI shares (exportSnapshot), replication is TriggerFullSync through the
+// domain's ScheduleRunner — never a second executor anywhere (the ADR's
+// one-carrier law).
 
 import (
 	"context"
@@ -42,6 +45,19 @@ type maintenanceRunner struct {
 
 // Run implements the scheduler's Runner contract (structurally — cmd hands
 // this to Register; the interface lives with its consumer).
+//
+// T-495 (FR-158) — the Runner registration closed set's erratum, on the
+// record: ADR-0044 decision 6's carrier table grew from three to six
+// maintenance slots, the same incremental-registration discipline the
+// ADR-0046 K75 insights 4th domain opened (a dispatch arm per new carrier,
+// the 021 domain CHECK and ledger schema untouched). The three additions:
+//   - quota: the storage-quota threshold check + alert trail
+//     (httpapi.RunQuotaCheck — read-only, enforcement is out of scope here);
+//   - compress: the metadata VACUUM rebuild (httpapi.RunMetadataCompress,
+//     the store's own sqlite face; postgres lands with its own form);
+//   - prune: the unreferenced-blob sweep in the gc engine's DRY-RUN form
+//     (httpapi.RunPruneSweep — it reports, the gc slot stays the deletion
+//     surface).
 func (m *maintenanceRunner) Run(ctx context.Context, key string) error {
 	switch key {
 	case "gc":
@@ -70,10 +86,35 @@ func (m *maintenanceRunner) Run(ctx context.Context, key string) error {
 		}
 		m.log.InfoContext(ctx, "scheduled cleanup complete", "slot", key, "repos", len(rep.Repos))
 		return nil
+	case "quota":
+		res, err := m.srv.RunQuotaCheck(ctx, httpapi.QuotaCheckRequest{Actor: schedulerActor})
+		if err != nil {
+			return fmt.Errorf("scheduled quota check: %w", err)
+		}
+		m.log.InfoContext(ctx, "scheduled quota check complete",
+			"repos", res.ReposChecked, "over_quota", len(res.OverQuota))
+		return nil
+	case "compress":
+		res, err := m.srv.RunMetadataCompress(ctx, httpapi.CompressRequest{Actor: schedulerActor})
+		if err != nil {
+			return fmt.Errorf("scheduled metadata compress: %w", err)
+		}
+		m.log.InfoContext(ctx, "scheduled metadata compress complete",
+			"before_bytes", res.BeforeBytes, "after_bytes", res.AfterBytes,
+			"reclaimed_bytes", res.ReclaimedBytes)
+		return nil
+	case "prune":
+		res, err := m.srv.RunPruneSweep(ctx, httpapi.PruneRunRequest{Actor: schedulerActor})
+		if err != nil {
+			return fmt.Errorf("scheduled prune dry-run: %w", err)
+		}
+		m.log.InfoContext(ctx, "scheduled prune dry-run complete",
+			"candidates", res.CandidateCount, "candidate_bytes", res.CandidateBytes)
+		return nil
 	default:
 		// An unknown key cannot be created through the REST face (the slot
 		// set is closed there); this is the hand-written-row guard.
-		return fmt.Errorf("maintenance: no carrier for slot %q (closed set: gc, cleanup-unused-cache, cleanup-virtual)", key)
+		return fmt.Errorf("maintenance: no carrier for slot %q (closed set: gc, cleanup-unused-cache, cleanup-virtual, quota, compress, prune)", key)
 	}
 }
 

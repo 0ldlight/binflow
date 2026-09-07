@@ -373,4 +373,13 @@ func TestVocabularyQueryable(t *testing.T) {
 			t.Fatalf("T-446 action %q missing from Actions()", a)
 		}
 	}
+	// M17 T-495 (FR-158): the gc-cron-gap three carriers' words — the
+	// quota check, the metadata compress run and the prune dry-run.
+	for _, a := range []string{
+		audit.ActionMaintenanceQuotaCheck, audit.ActionMaintenanceCompressRun, audit.ActionMaintenancePruneRun,
+	} {
+		if !seen[a] {
+			t.Fatalf("T-495 action %q missing from Actions()", a)
+		}
+	}
 }

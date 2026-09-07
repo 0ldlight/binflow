@@ -103,6 +103,20 @@ type repoConfig struct {
 	HardFail                       *bool  `json:"hardFail,omitempty"`
 	AllowPrivateUpstream           *bool  `json:"allowPrivateUpstream,omitempty"`
 
+	// ---- T-495 (FR-158): the metadata TTL wire knob ----
+	//
+	// metadataRetrievalCachePeriodSecs is the window the remote
+	// enumeration snapshot AND the pull-through metadata cache rows are
+	// held for (remote-browsing.md §1's "cached per the Metadata Retrieval
+	// Cache Period" semantics). It was a 600s hardwired constant until
+	// T-495 — T-461's registered leftover ("枚举快照 TTL 非 wire 可调": the
+	// degraded e2e had to swap the upstream URL to invalidate the snapshot
+	// signature, because no PUT could shrink the window). POINTER per the
+	// family posture (absent keeps the stored value, an explicit 0 keeps
+	// the 600s product default, a negative value is repo.Service's by-name
+	// 400), REMOTE arm only, typing rides the decode.
+	MetadataRetrievalCachePeriodSecs *int64 `json:"metadataRetrievalCachePeriodSecs,omitempty"`
+
 	// ---- D-T456-1 remote-browsing optional档 transport (T-448, FR-147.2;
 	// remote-browsing.md section 1 / repo-semantics 7.1) ----
 	//
@@ -298,6 +312,7 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 		setI64(m, "socketTimeoutMs", c.SocketTimeoutMs)
 		setI64(m, "socketTimeoutMillis", c.SocketTimeoutMillis)
 		setI64(m, "metadataRetrievalTimeoutSecs", c.MetadataRetrievalTimeoutSecs)
+		setI64(m, "metadataRetrievalCachePeriodSecs", c.MetadataRetrievalCachePeriodSecs)
 		setI64(m, "missRetrievalCachePeriodSecs", c.MissRetrievalCachePeriodSecs)
 		setI64(m, "unusedArtifactsCleanupPeriodHours", c.UnusedArtifactsCleanupPeriodHours)
 		setRawJSON(m, "enableTokenAuthentication", c.EnableTokenAuthentication)

@@ -32,9 +32,11 @@ const (
 	defaultSocketTimeoutSecs              int64 = 15
 	defaultAssumedOfflinePeriodSecs       int64 = 300
 	// defaultMetadataTTLSeconds is the metadata cache TTL written into
-	// remote_configs.metadata_ttl_seconds. It has no create-API field in M3
-	// (ADR-0012's dual-TTL split is fetcher bookkeeping, not a user knob), so
-	// the product value is a constant, not an input.
+	// remote_configs.metadata_ttl_seconds when a config blob carries no
+	// explicit metadataRetrievalCachePeriodSecs (T-495 made the TTL a wire
+	// knob — the remote-browsing snapshot and the pull-through metadata
+	// cache rows both read this column; the DDL's 600 default and this
+	// constant stay the same value).
 	defaultMetadataTTLSeconds int64 = 600
 	// defaultMetadataRetrievalTimeoutSecs is the T-290 (FR-90.2) default of
 	// the per-repository metadata singleflight wait cap (repo-semantics 7.1,
@@ -66,6 +68,15 @@ type remoteConfig struct {
 	HardFail                       bool   `json:"hardFail"`
 	AllowPrivateUpstream           bool   `json:"allowPrivateUpstream"`
 	PriorityResolution             bool   `json:"priorityResolution"`
+	// MetadataRetrievalCachePeriodSecs is the metadata cache TTL (T-495,
+	// FR-158 — the "cached per the Metadata Retrieval Cache Period"
+	// semantics remote-browsing.md §1 anchors): the window the remote
+	// enumeration snapshot AND the pull-through metadata cache rows are
+	// held for, mirrored into remote_configs.metadata_ttl_seconds. A wire
+	// knob since T-495 (T-461's "枚举快照 TTL 非 wire 可调" leftover
+	// closed); the canonical echo always carries it, like every default
+	// the remote config owns.
+	MetadataRetrievalCachePeriodSecs int64 `json:"metadataRetrievalCachePeriodSecs"`
 	// T-317 (FR-101.1 / K37): the smart remote replication fields, effective
 	// since M11 — enableTokenAuthentication switches the fetcher's upstream
 	// credential to a Bearer token (repo-semantics 7.1 "切 token 头"), and
@@ -185,6 +196,12 @@ type remoteConfigInput struct {
 	ContentSynchronisation            *json.RawMessage `json:"contentSynchronisation"`
 	ChartsBaseURL                     *string          `json:"chartsBaseUrl"`
 	ListRemoteFolderItems             *bool            `json:"listRemoteFolderItems"`
+	// MetadataRetrievalCachePeriodSecs is the metadata TTL knob (T-495):
+	// the same spelling the canonical form echoes, the family's rules —
+	// pointer so absent keeps the stored value on update, an explicit 0
+	// counts as absent (keeps the 600s product default), a negative value
+	// refuses by name with a 400.
+	MetadataRetrievalCachePeriodSecs *int64 `json:"metadataRetrievalCachePeriodSecs"`
 }
 
 // validateRemoteConfigShape is the strict single-JSON-value gate of the
@@ -326,18 +343,19 @@ func parseRemoteConfig(config, packageType string) (remoteConfig, string, error)
 	}
 
 	out := remoteConfig{
-		URL:                            strings.TrimRight(u.String(), "/"),
-		Username:                       in.Username,
-		RetrievalCachePeriodSecs:       defaultRetrievalCachePeriodSecs,
-		MissedRetrievalCachePeriodSecs: defaultMissedRetrievalCachePeriodSecs,
-		SocketTimeoutMillis:            defaultSocketTimeoutSecs * 1000,
-		SocketTimeoutSecs:              defaultSocketTimeoutSecs,
-		MetadataRetrievalTimeoutSecs:   defaultMetadataRetrievalTimeoutSecs,
-		UnusedCleanupPeriodHours:       0, // off (repo-semantics 7.1)
-		AssumedOfflinePeriodSecs:       defaultAssumedOfflinePeriodSecs,
-		HardFail:                       false,
-		AllowPrivateUpstream:           false,
-		PriorityResolution:             false,
+		URL:                              strings.TrimRight(u.String(), "/"),
+		Username:                         in.Username,
+		RetrievalCachePeriodSecs:         defaultRetrievalCachePeriodSecs,
+		MissedRetrievalCachePeriodSecs:   defaultMissedRetrievalCachePeriodSecs,
+		SocketTimeoutMillis:              defaultSocketTimeoutSecs * 1000,
+		SocketTimeoutSecs:                defaultSocketTimeoutSecs,
+		MetadataRetrievalTimeoutSecs:     defaultMetadataRetrievalTimeoutSecs,
+		UnusedCleanupPeriodHours:         0, // off (repo-semantics 7.1)
+		AssumedOfflinePeriodSecs:         defaultAssumedOfflinePeriodSecs,
+		HardFail:                         false,
+		AllowPrivateUpstream:             false,
+		PriorityResolution:               false,
+		MetadataRetrievalCachePeriodSecs: defaultMetadataTTLSeconds,
 	}
 
 	// missRetrievalCachePeriodSecs alias (T-290): one knob, two spellings;
@@ -378,6 +396,7 @@ func parseRemoteConfig(config, packageType string) (remoteConfig, string, error)
 		{"socketTimeoutMillis", socketMs != nil, derefInt64(socketMs)},
 		{"socketTimeoutSecs", socketMs == nil && in.SocketTimeoutSecs != nil, derefInt64(in.SocketTimeoutSecs)},
 		{"metadataRetrievalTimeoutSecs", in.MetadataRetrievalTimeoutSecs != nil, derefInt64(in.MetadataRetrievalTimeoutSecs)},
+		{"metadataRetrievalCachePeriodSecs", in.MetadataRetrievalCachePeriodSecs != nil, derefInt64(in.MetadataRetrievalCachePeriodSecs)},
 		{"unusedArtifactsCleanupPeriodHours", in.UnusedArtifactsCleanupPeriodHours != nil, derefInt64(in.UnusedArtifactsCleanupPeriodHours)},
 		{"assumedOfflinePeriodSecs", in.AssumedOfflinePeriodSecs != nil, derefInt64(in.AssumedOfflinePeriodSecs)},
 	} {
@@ -399,6 +418,8 @@ func parseRemoteConfig(config, packageType string) (remoteConfig, string, error)
 			out.SocketTimeoutMillis = f.value * 1000
 		case "metadataRetrievalTimeoutSecs":
 			out.MetadataRetrievalTimeoutSecs = f.value
+		case "metadataRetrievalCachePeriodSecs":
+			out.MetadataRetrievalCachePeriodSecs = f.value
 		case "unusedArtifactsCleanupPeriodHours":
 			out.UnusedCleanupPeriodHours = f.value
 		case "assumedOfflinePeriodSecs":

@@ -41,6 +41,57 @@ func (s *sqliteStore) VacuumInto(ctx context.Context, dst string) error {
 	return nil
 }
 
+// Vacuum rebuilds the live database file in place, reclaiming free pages
+// and defragmenting the B-tree — the maintenance face's "compress the
+// internal database" carrier (M17 T-495, FR-158; the console-ui.md §3.9
+// instant-button family's scheduled form). It returns the main database
+// file's byte size before and after the rebuild (page_count * page_size —
+// the WAL companions are transient runtime state, never the compressed
+// artifact), so the carrier's log and audit row report what was actually
+// reclaimed instead of a bare success.
+//
+// Concurrency posture: VACUUM runs on one pooled connection in autocommit
+// (never inside a transaction, per SQLite's own contract) and needs the
+// database's exclusive write lock while it rebuilds — concurrent writers
+// block on the store's busy_timeout and surface IsStoreBusy to their
+// callers for the rebuild's duration. That is the same family of
+// operational cost Artifactory's off-hours "Compress the Internal
+// Database" job carries; the cron cadence is the operator's control. The
+// data-directory maintenance lock is deliberately NOT taken: that lock
+// serializes the blobs tree and export snapshot ordering, while this
+// rebuild contends only on the metadata database itself, whose engine
+// locking is exactly the serialization this operation needs.
+//
+// This is the SQLite face of the seam; the consumer-side interface lives
+// with the carrier (httpapi's metadataCompressor, the cmd export kernel's
+// metadataSnapshotter precedent). A future postgres store satisfies the
+// same interface with its own form (VACUUM ANALYZE) and never touches the
+// caller.
+func (s *sqliteStore) Vacuum(ctx context.Context) (before, after int64, err error) {
+	size := func() (int64, error) {
+		var pages, pageSize int64
+		if err := s.db.QueryRowContext(ctx, "PRAGMA page_count").Scan(&pages); err != nil {
+			return 0, fmt.Errorf("metadata: vacuum: page_count: %w", err)
+		}
+		if err := s.db.QueryRowContext(ctx, "PRAGMA page_size").Scan(&pageSize); err != nil {
+			return 0, fmt.Errorf("metadata: vacuum: page_size: %w", err)
+		}
+		return pages * pageSize, nil
+	}
+	before, err = size()
+	if err != nil {
+		return 0, 0, err
+	}
+	if _, err := s.db.ExecContext(ctx, "VACUUM"); err != nil {
+		return before, 0, fmt.Errorf("metadata: vacuum: %w", err)
+	}
+	after, err = size()
+	if err != nil {
+		return before, 0, err
+	}
+	return before, after, nil
+}
+
 // dsnSnapshotRO builds the read-only DSN for inspecting a snapshot file.
 // mode=ro is honored by SQLite's own URI parser (the driver opens with
 // SQLITE_OPEN_URI), so the connection is read-only at the file level — an

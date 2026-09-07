@@ -2260,9 +2260,11 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			Password: s.sealPassword(ctx, r.RepoKey, remotePassword),
 			// The product default (7200, PRD C4/ADR-0012 errata two) — the
 			// DDL's 86400 is a schema-level fallback for rows created
-			// outside this service.
+			// outside this service. The metadata TTL mirrors the canonical
+			// config (T-495: the wire knob's stored half — parseRemoteConfig
+			// defaults it to 600 when the body carries no explicit value).
 			ContentTTLSeconds:    remote.RetrievalCachePeriodSecs,
-			MetadataTTLSeconds:   defaultMetadataTTLSeconds,
+			MetadataTTLSeconds:   remote.MetadataRetrievalCachePeriodSecs,
 			AllowPrivateUpstream: remote.AllowPrivateUpstream,
 			// T-290 (FR-90.2): the smart remote effective columns mirror the
 			// canonical JSON the same way content_ttl_seconds mirrors
@@ -2628,7 +2630,7 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			// one; a body without a password clears it.
 			Password:             s.sealPassword(ctx, r.RepoKey, remotePassword),
 			ContentTTLSeconds:    remote.RetrievalCachePeriodSecs,
-			MetadataTTLSeconds:   defaultMetadataTTLSeconds,
+			MetadataTTLSeconds:   remote.MetadataRetrievalCachePeriodSecs,
 			AllowPrivateUpstream: remote.AllowPrivateUpstream,
 			// T-290 (FR-90.2): same mirror contract as the create arm above.
 			SocketTimeoutMs:              remote.SocketTimeoutMillis,
