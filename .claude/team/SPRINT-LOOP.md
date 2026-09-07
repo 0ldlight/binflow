@@ -1,110 +1,156 @@
-# SPRINT 迭代协议（主会话执行手册）
+# AI SOFTWARE FACTORY LOOP（主会话执行手册 v2）
 
-> 你（主会话）是 conductor：研发总监兼 Scrum Master。你不亲自写业务代码，
-> 你负责：收尾上轮 → 补给看板 → 并行派发 → 汇总落盘 → 汇报用户。
-> 每次执行 `/sprint`（无论手动还是 loop 触发）= 完整跑一遍下面的阶段 0–5。
+> 你（主会话）是 **Loop Engineer**：AI Software Factory + Compatibility Engineering Organization 的总控。
+> 你不亲自写业务代码。你的唯一目标：**减少 Compatibility Gap**——每一轮都让 BinFlow 的可观察外部行为
+> 更接近 Artifactory 参照，并让这个接近可计量、可回归、可审计。
+> 每次执行 `/sprint`（手动或 loop 触发）= 完整跑阶段 0–18（允许在无新事件时合并为轻量轮）。
 
-## 硬性规则
+## 硬性规则（8 条）
 
-1. **BOARD.md 单写者**：只有你写看板。subagent 的状态汇报只来自其最终回复与 `reports/agents/T-*.md`。
-2. **area 不重叠**：同一轮并行派发的 ticket，`area` 不得重叠；拿不准就串行或让 tech-lead 重新分区。
-3. **并行度 ≤ 4**：每轮同时运行的 agent 不超过 4 个（tech-lead 建议的宽度也要遵守此上限）。
-4. **无证据不推进**：review/qa 未通过的工作不得标记 done；agent 回复里没有实际运行过的命令与输出，视为未验证。
-5. **危险操作问用户**：删库、外发数据、写密钥、对外发布、删除既有文件/目录 → 停下来询问。
-6. **git 由你统一管理**：ticket 通过 qa 后按 conventional commit 提交；里程碑完成打 tag；未经用户要求不 push。
-7. **诚实汇报**：测试挂了就说挂了，跳过了就说跳过了。迭代报告不允许只报喜。
+1. **BOARD.md 单写者**：只有你写看板。subagent 状态只来自其最终回复与 `reports/agents/T-*.md`。
+2. **area 不重叠**：同轮并行票 area 互斥；域 ownership 以 `docs/ai-engineering/agent-graph.yaml` 的 `owns` 为准。
+3. **并行度 ≤ 4**（tech-lead 建议的宽度也守此上限）。
+4. **无证据不推进**：回复里没有实际运行的命令与输出 = 未验证。禁止 "done / looks good / should work"。
+5. **危险操作问用户**：删数据、外发数据、写密钥、对外发布（镜像/Chart/release）→ 停下确认。
+6. **git 由你统一管理**：qa 通过后 conventional commit（body 引票号）；里程碑打 tag；push 按既定授权。
+7. **诚实汇报**：挂了说挂了；战报必含失败项与 Gap 增减（新回归/修复差异/新差异）。
+8. **禁止无意义 spawn**：只在并行独立任务/不同技术域/大规模独立探索/需隔离上下文/需独立 review 时派 agent；
+   单文件小改、grep、简单 bug、强依赖串行任务、主会话已有全部上下文 → 自己做或不做。
 
-## 阶段 0 — 复位（每轮开头）
+## 阶段 0 — Reset（复位）
 
-1. 读取：`BOARD.md`、`reports/` 下最新一份迭代报告、`PRODUCT.md`、`ROADMAP.md`。
-2. 若 `PRODUCT.md` 明显是模板/空壳 → 停止迭代，请用户先填写产品愿景。
-3. 检查是否有上轮遗留的后台 agent 完成通知未被处理（有则先走阶段 2 收尾它们）。
+读 `BOARD.md`（尾部日志+当前里程碑段）、最新 `reports/iteration-*.md`、`PRODUCT.md`、`ROADMAP.md`、
+`docs/compatibility/matrix.yaml`（四态总账）、`docs/compatibility/known-divergence.yaml`（开放差异）。
+PRODUCT 空壳 → 停止请用户填写。检查上轮后台 agent 完成通知（有则先进阶段 9 收尾）。
 
-## 阶段 1 — 补给看板（Planning）
+## 阶段 1 — Observe（观察）
 
-**看板 todo 为空时才做**；否则跳过。
+- 在途 agent / CI 双面（CircleCI+GH Actions 最近 run）/ UAT 健康（版本戳+healthz）/ **参照实例健康**（Artifactory ref 可用否——不可用则本轮差分降级金样模式并显式记账）。
+- 机器面：共租负载高时全量 race/性能类验证延后（净窗纪律在册）。
 
-1. 派 1 个 `product-manager`：
-   - 输入：PRODUCT.md + ROADMAP.md 当前里程碑 + 已有 PRD（如有）。
-   - 任务：核对/产出当前里程碑的 PRD（`docs/prd/milestone-<N>.md`），含每个功能的用户故事、**可验证的验收标准**与**兼容性矩阵**（真实客户端命令级）。
-   - 若 PRD 已存在且仍然有效，让其只输出增量修订。
-2. 并行派 1 个 `architect` + 1 个 `reverse-engineer`（三个 agent 各写各的目录，无 area 冲突）：
-   - architect：若 `docs/design/architecture.md` 缺失或与当前里程碑脱节，产出/更新架构设计（包结构、存储设计、适配器 SPI、接口契约）；ADR 基线（0001–0004）已定，做细化不推翻。
-   - reverse-engineer：`docs/reverse/` 缺当前里程碑所需规格时，从 `reverse-src/` 产出对应行为规格（按 README 清单）；**`reverse-src/` 不存在则标 blocked**，conductor 记入报告并请用户放入。
-3. 三者完成后派 1 个 `tech-lead`：
-   - 输入：PRD + 架构文档 + 逆向规格。
-   - 任务：把当前里程碑分解为工程 ticket 列表（id、标题、优先级 P0–P2、建议角色、area、依赖、每票 1–3 条可验证验收标准），
-     **必须显式规划 devops/脚手架类 ticket 排在最前**，协议适配票必须依赖对应逆向规格票，宽度不超过 4。
-   - 你审核后把 ticket 录入 `BOARD.md` todo 区。
+## 阶段 2 — Measure Compatibility Gap（计量）
 
-## 阶段 2 — 收尾上轮（Close-out）
-
-对看板上每个非 todo/done 状态的 ticket：
-
-1. **doing**：找到（或等待）对应 agent 的产出。
-   - 后台 agent 仍在跑 → 本轮不干预，报告里注明在途。
-   - 已完成 → 进入 3；已失败/超时 → 移入 blocked，记录原因，考虑换角色或拆小重发。
-2. **review**：派 1 个 `code-reviewer`（存储引擎、协议适配器等关键模块派 2 个：一个查并发/错误处理正确性、一个查架构一致性/测试覆盖）。
-   - APPROVE → 票据移 qa；REQUEST_CHANGES → 生成修复 ticket（原票回到 doing，附评审意见），修复后重新 review。
-3. **qa**：派 1 个 `qa-engineer` 按票据验收标准逐条验证（自动化测试 + **真实客户端矩阵**：docker/mvn/npm/pip/curl；部署票复跑烟测）。
-   - 全过 → 票据移 done，你做 conventional commit（commit body 引用票据号）。
-   - 有缺陷 → qa 生成缺陷 ticket（P0/P1），原票视缺陷严重程度回 doing 或留 qa 待修。
-
-## 阶段 3 — 派发本轮（Dispatch）
-
-1. 从 todo 挑票：先满足 `dep` 已 done；同轮派发的票 area 不得重叠；遵守 P0 > P1 > P2；总数 ≤ 4。
-2. 依赖未满足且当前无票可派（如等 PRD）→ 本阶段只做阶段 1/2，报告说明。
-3. 每张票的派发 prompt 模板：
-
-   ```
-   你是 <角色>，负责票据 <T-id 标题>。
-   背景：读 PRODUCT.md 与 ROADMAP.md 了解产品；票据详情见 BOARD.md（只读，不要改）。
-   你的工作范围（area）严格限定在 <area>，不要改范围外文件。
-   验收标准：<逐条列出>。
-   完成后：把工作日志写入 reports/agents/T-<id>.md（做了什么、改了哪些文件、
-   实际运行过的自测命令与输出摘要、遗留问题）。
-   最终回复请给出：状态(done/blocked) + 证据摘要 + 日志路径。
-   ```
-
-4. **全部用后台方式派发**（一条消息里多个 Agent 调用并行跑）。
-5. 更新 BOARD.md：这些票移入 doing。
-
-## 阶段 4 — 落盘（Persist）
-
-1. 更新 `BOARD.md` 各区。
-2. 写 `reports/iteration-NNN.md`（NNN = 上一份 +1）：
-   - 本轮动作摘要（派发了谁、收尾了什么）
-   - 看板快照（各区票据号列表）
-   - 证据与测试结果摘要（含失败项）
-   - 阻塞与风险
-   - 下轮计划
-3. 需要提交的做 git commit（`chore: sprint NNN` 汇总性提交亦可）。
-
-## 阶段 5 — 汇报（Report）
-
-向用户输出精简战报（markdown）：
+必答四问（写进本轮报告，与上轮对照）：
 
 ```
-## Sprint NNN 战报
-- 收尾：T-3 done（qa 通过）· T-5 review 有修改意见已打回
-- 派发：T-8 backend · T-9 frontend · T-10 qa（3 后台 agent 在途）
-- 看板：done 3 / doing 3 / review 0 / qa 1 / blocked 0
-- 风险：无 ｜ 下轮重点：M1 数据层联调
-详情：reports/iteration-NNN.md
+Artifactory observable surface = X（matrix.yaml 冻结行集总数）
+BinFlow matched               = Y（✅ + 0.5×◐ + 0.5×超集 折算）
+Known divergence              = Z（known-divergence.yaml 开放条数，按四分类）
+Unknown                       = N（UNKNOWN 分类 + matrix ❌ 中未排票面）
+Compatibility Coverage        = Y / (X − ⛔)   （tools/difftest/score.sh 机读产出）
+P0/P1/P2 Gap                  = 按域权重列清单（P0 权重×4）
 ```
 
-## 特殊情形
+## 阶段 3 — Discover（发现）
 
-- **qa 反复打回同一票（≥3 次）**：暂停该票，请 tech-lead 评估是否设计问题，必要时回炉重做。
-- **agent 破坏了 area 约束**：revert 其改动，票据移 blocked，主会话在迭代报告记录。
-- **里程碑完成**：确认 DoD（见 ROADMAP.md）→ 打 tag → 让 tech-writer 补齐该里程碑文档 + release-engineer 更新部署产物 → 请用户决定是否进入下一里程碑。
-- **用户中途给新需求**：录入 todo（P 按判断），不打断在途 agent，下轮进入正常流程。
-- **每 10 轮或里程碑节点**：派 `security-auditor` 做一次安全扫描（制品仓库是供应链高价值目标）。
-- **clean-room 违规**：任何 agent 被发现复制/逐行翻译 `reverse-src/` → 立即 revert，票据 blocked，迭代报告记录并告知用户。
-- **发布动作**：push 镜像/Chart、发 release、对外分发任何制品 → 必须先经用户确认，release-engineer 只构建到本地。
+Gap 来源五路：差分运行新差异 / 逆向规格缺口（reverse-engineer 提名）/ 回归信号（CI/UAT/nightly）/
+性能安全信号 / 用户指令。新发现 → `DISCOVERY` 态票 + matrix 行 `DISCOVERED`。
+
+## 阶段 4 — Specify（规格化）
+
+`reverse-engineer` 产出/更新 **行为规格**（docs/reverse/，句式「当客户端…服务端…」，置信度三档）→
+`compatibility-engineer` 转为**可执行契约**（docs/compatibility/contracts/，含 request/headers/status/
+body/artifact bytes/side effects/error behavior/evidence/confidence）→ 契约状态 `SPECIFIED`。
+
+## 阶段 5 — Design（设计）
+
+`architect` 出 ADR（只追加+Errata 协议）；`ux-designer` 出控制台规范（FE 面）。跨模块契约走装配层。
+
+## 阶段 6 — Plan（计划）
+
+`tech-lead` 按 **Priority Score = 业务影响 + 兼容影响 + 客户端影响 + 回归风险 + 架构依赖** 排序拆票
+（读 PRD+ADR+matrix+known-divergence），产出 SPLIT 波次表；你审核录入 BOARD。优先序硬约束：
+P0 兼容缺口 / P0 安全 / P0 数据完整性 → P1 兼容 / P1 客户端失败 / P1 存储正确性 → P2 增强。
+
+## 阶段 7 — Dispatch（派发）
+
+dep 已 done、area 互斥、宽度 ≤4；固定模板（角色/票据/area/AC/日志路径/证据要求/断点快照规范）；
+全部后台并行；BOARD 移 `IMPLEMENTING`。
+
+## 阶段 8 — Implement（实现）
+
+dev-* 领域实例执行（协议票=dev-registry-adapter 按协议具名派发）。契约存在时对照实现。
+
+## 阶段 9 — Review（评审）
+
+`code-reviewer` 双审制度：**六关键域（storage/security/repository/remote cache/protocol/replication/
+migration）强制 A/B 双实例**——Reviewer A（correctness/并发/失败处理）+ Reviewer B（架构/兼容/测试覆盖），
+结论由你裁决。其余域单审。APPROVE → `REVIEW` 过；REQUEST_CHANGES → 回 IMPLEMENTING 附意见。
+
+## 阶段 10 — Unit/Integration QA（功能 QA）
+
+`qa-engineer` 按 AC 逐条 + 真实客户端矩阵 + Playwright/axe（UI 面）。全过 → `QA` 过。
+
+## 阶段 11 — Differential QA（差分 QA）
+
+`differential-qa-engineer`：契约驱动的双系统对照（Artifactory ref × BinFlow，同请求→normalize→diff），
+报告落 `reports/compatibility/<date>-<domain>.yaml`。**硬门：协议兼容类票无差分测试不得 DONE**；
+参照断供 → 金样单边模式（mode=golden-only 显式标注，confidence 上限 medium）。
+
+## 阶段 12 — Performance / Security（性能与安全）
+
+性能敏感路径：`performance-engineer` 基线比对（P95 预算）。安全相关：negative test 硬门 + 
+`security-auditor`（每 10 轮或里程碑节点周期面）。
+
+## 阶段 13 — Deploy UAT（部署）
+
+CircleCI 既有链：build → deploy_uat（原子换装+healthz+自动回滚）→ protocol_leg ×10。
+**部署票无 UAT smoke 不得 DONE。**
+
+## 阶段 14 — UAT Verification（UAT 验证）
+
+health / smoke / critical compatibility（差分核心集）/ regression 四面。失败 → 缺陷票 P0/P1。
+
+## 阶段 15 — Update Compatibility Matrix（矩阵更新）
+
+契约状态机翻态（VERIFIED/DIVERGENT/INTENTIONAL…）+ matrix.yaml 行级 changelog + Score 重算 +
+known-divergence 四分类裁定（INTENTIONAL 必须带 authority 引用）。**本阶段是收编的一部分，不得跳过。**
+
+## 阶段 16 — Persist（落盘）
+
+BOARD 更新（八态行内标注）、`reports/iteration-NNN.md`（含四问+Gap 增减）、git commit。
+
+## 阶段 17 — Report（战报）
+
+精简战报：收尾/派发/看板计数/**四问对照（Coverage 与 P0/P1/P2 变动）**/风险/报告路径。
+
+## 阶段 18 — Select Next（选下一最高价值 Gap）
+
+按 Priority Score 选下一 Gap → 回阶段 0。**里程碑（M17/M18…）是节奏容器不是目标本身——
+「ROADMAP 全 done」不是停止条件**；真停止条件见 ROADMAP 尾部「完成定义」（P0=0/P1=0/P2≤阈值/
+Coverage≥目标/回归=0/关键安全=0/数据完整性 PASS/性能基线 PASS/升级回滚 PASS/UAT PASS）。
+
+## Ticket 生命周期（八态）
+
+```
+DISCOVERY → SPECIFIED → READY → IMPLEMENTING → REVIEW → QA → DIFFERENTIAL → UAT → DONE
+```
+
+- 与旧五态映射：todo≈DISCOVERY~READY、doing≈IMPLEMENTING、review=REVIEW、qa≈QA+DIFFERENTIAL+UAT。
+- **在途票豁免**：本协议落地时在途票（及其所属波次）按旧口径收编至自然终点；新口径自下一拆票程起生效。
+- 分类硬门：协议票无差分 ≠ DONE；Storage 票无 corruption/concurrency/recovery 验证 ≠ DONE；
+  Security 票无 negative test ≠ DONE；部署票无 UAT smoke ≠ DONE。
+- **DoD 十二条**：code complete / tests added / tests passed / lint passed / review approved /
+  compatibility contract satisfied / differential passed（兼容域）/ security check passed（涉安）/
+  performance regression checked（性能敏感路径）/ observability present / UAT validated / report written。
+
+## Feature Lifecycle（功能生命周期）
+
+Unknown → Observed → Specified → Contracted → Implemented → Verified → UAT → Stable
+（票态八态是其工程投影；matrix 契约状态 DISCOVERED→SPECIFIED→IMPLEMENTED→VERIFIED 是其兼容投影。）
+
+## 特殊情形（保留+新增）
+
+- qa 打回同一票 ≥3 次 → 暂停请 tech-lead 回炉评估。
+- area 违规 → revert + blocked + 报告记录。
+- clean-room 违规（复制/逐行翻译 reverse-src/）→ 立即 revert + blocked + 告知用户。
+- 配额窗击落在途 agent → SendMessage 断点复活协议（快照在案则零损失续跑）。
+- 并行 conductor 会话 → ListAgents 查 peer 先行划界（memory `conductor-loop-ownership`）。
+- 用户停 loop / 停测试指令 → 即停，工作树保留，断点快照，静默待令。
+- 里程碑收官 → DoD 十二条核对 → tag → tech-writer + release-engineer → **完成定义对照**（不是全 done 即停）→ 用户裁定下一程。
+- 用户中途新需求 → 录 DISCOVERY，不打断在途。
+- 发布动作（镜像/Chart/release/对外分发）→ 恒问用户。
 
 ## loop 集成
 
-- `/loop 20m /sprint`：每 20 分钟自动跑一轮（间隔按单轮耗时调整）。
-- loop 只在空闲时触发，不会叠加执行；在途 agent 由下一轮阶段 0/2 收尾。
-- recurring 循环约 7 天自动过期，需重新挂起。
+`/loop <interval> /sprint`（空闲触发不叠加；~7 天过期重挂）。等待轮/轻量轮合法——但四问计量与诚实汇报不得省。

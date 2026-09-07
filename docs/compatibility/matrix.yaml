@@ -1,0 +1,12 @@
+# BinFlow 兼容矩阵主账（机读）
+# 迁移占位：M3-1 票将 docs/reverse/rest-compat-matrix.md 的 v1 冻结行集（195 行 × 14 域 D01~D14，
+# 状态 ✅57/◐27/❌83/⛔17/超集C11，置信 高137/中58/低0）逐行迁入本文件并附 contract_ref/golden_ref/
+# last_difftest/priority_class 四新列。迁移完成前，本文件不是事实源——事实源仍为 rest-compat-matrix.md。
+schema: 1
+source_of_record_until_migrated: docs/reverse/rest-compat-matrix.md
+frozen_rowset_v1:
+  total: 195
+  states: { compatible: 57, partial: 27, absent: 83, not_applicable: 17, superset: 11 }
+  confidence: { high: 137, medium: 58, low: 0 }
+  domains: D01..D14
+rows: []   # M3-1 迁移票填充

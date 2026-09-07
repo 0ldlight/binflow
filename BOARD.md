@@ -1,7 +1,9 @@
 # 任务看板（BOARD）
 
-> 唯一事实来源。**只有主会话（conductor）可以写本文件**，所有 subagent 只读。
-> ticket 由 tech-lead 生成、主会话录入。当前里程碑：**M6+（展望/规划阶段）**。M1~M5 已完成，tag m1-done / m2-done / m3-done / m4-done / m5-done（2026-08-21）。
+> 唯一事实来源。**只有主会话（conductor / Loop Engineer）可以写本文件**，所有 subagent 只读。
+> ticket 由 tech-lead 生成、主会话录入。**实态以里程碑分节 + 票行内状态标注 + 尾部时序日志承载**（头部分区仅索引）。
+> 当前里程碑：**M17（产品域扩张专程，16/35，W8 双票在途暂停候令）**。M1~M16 已完成（m16-done 2026-09-06）。
+> 状态流（二代八态，2026-09-08 起）：`DISCOVERY → SPECIFIED → READY → IMPLEMENTING → REVIEW → QA → DIFFERENTIAL → UAT → done`，异常 `blocked`；**在途票豁免条款**：M17 存量波次按旧五态口径收编，新八态自下一拆票程生效。
 
 ## 票据格式
 

@@ -88,8 +88,8 @@ agents:
     depends_on: [conductor]        # 每 10 轮或里程碑节点旁路
     can_parallel_with: [全部实现域]  # 只读
     owns: [reports/security/]
-    reads: [internal/, web/, deploy/, charts/]
-    writes: [reports/security/]
+    reads: [internal/, web/, deploy/, charts/, docs/design/architecture.md, .circleci/, .github/workflows/, go.sum, web/package-lock.json]   # 供应链面输入（CI 劫持/锁文件）；审计取证期全仓只读
+    writes: [reports/security/, reports/agents/T-<id>.md]   # T-<id>.md = 工作日志（同 qa-engineer/code-reviewer 口径）
     forbidden: [产品码写入（只发现不改码）]
 
   # ---------- Frontend (K) ----------
@@ -103,10 +103,10 @@ agents:
   # ---------- QA / Differential (L) ----------
   qa-engineer:
     depends_on: [tech-lead]
-    can_parallel_with: [code-reviewer, differential-qa-engineer]
+    can_parallel_with: [code-reviewer, differential-qa-engineer, performance-engineer]   # performance-engineer 为双向声明（对方条目已含本角色）
     owns: [reports/qa/]            # 单实例验证（功能 AC 面）
     reads: [BOARD.md, docs/compatibility/contracts/, internal/]
-    writes: [reports/qa/, reports/agents/T-<id>-qa.md]
+    writes: [reports/qa/, reports/agents/T-<id>-qa.md, web/e2e/]   # web/e2e/ = ticket 级例外（2026-08-29 用户指令）：票 AC 缺 UI 覆盖时自补 Playwright spec；owns 仍归 dev-frontend
 
   differential-qa-engineer:        # [新增] §五
     depends_on: [compatibility-engineer]
