@@ -325,8 +325,10 @@ func TestUISyntaxSearch(t *testing.T) {
 	}
 
 	// An unsupported domain: the honest 400 (the family's shared engine).
+	// T-511 assertion inversion ⑥: the three build-family entries went
+	// query green — the example rides a domain that still refuses.
 	status, body = uiDo(t, h, http.MethodPost, "syntax-search", adminUser, adminPass,
-		[]byte(`builds.find({"name":"x"})`))
+		[]byte(`releases.find({"name":"x"})`))
 	if status != http.StatusBadRequest {
 		t.Fatalf("unsupported domain = %d %s, want 400", status, body)
 	}

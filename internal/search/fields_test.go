@@ -103,16 +103,25 @@ func TestLookupDottedPaths(t *testing.T) {
 }
 
 func TestUnsupportedDomainsCatalog(t *testing.T) {
-	// The 12 non-items entry domains from aql.md §2.1 (decompiled RootElement
-	// set minus items) each carry a rejection hint.
+	// The non-items entry domains from aql.md §2.1 (decompiled RootElement
+	// set minus items) each carry a rejection hint. T-511 assertion
+	// inversion ⑥ (aql.md §15.3): builds/modules/dependencies LEFT the
+	// catalog — the three entries query green; the remaining nine keep
+	// their 400 with the flip point named (sensitive joins as the
+	// field-level-domain spelling the reference carries).
 	want := []string{
-		"builds", "build.properties", "build.promotions", "modules",
-		"module.properties", "dependencies", "artifacts", "releases",
-		"release_artifacts", "statistics", "properties", "item.infos",
+		"build.properties", "build.promotions",
+		"module.properties", "artifacts", "releases",
+		"release_artifacts", "sensitive", "statistics", "properties", "item.infos",
 	}
 	for _, d := range want {
 		if _, ok := unsupportedDomains[d]; !ok {
 			t.Errorf("domain %q missing from unsupportedDomains", d)
+		}
+	}
+	for _, d := range []string{"builds", "modules", "dependencies"} {
+		if _, ok := unsupportedDomains[d]; ok {
+			t.Errorf("domain %q must not be in unsupportedDomains (T-511 opened the entry)", d)
 		}
 	}
 }

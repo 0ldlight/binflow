@@ -49,3 +49,39 @@ func LikePattern(pattern string) string {
 func HasWildcard(pattern string) bool {
 	return strings.ContainsAny(pattern, "*?")
 }
+
+// MatchesPattern is the in-Go executor of the SAME wildcard semantics
+// LikePattern translates for SQL (T-511: the build-family domains evaluate
+// predicates row-side over materialized rows, so $match/$nmatch need the
+// Go-side half of the one kernel — '*' any sequence, '?' exactly one rune,
+// everything else literal; the match is WHOLE-value, no implicit
+// surrounding '*'). Byte-wise like the translation: multi-byte UTF-8
+// passes through, and '?' consumes ONE byte — matching the SQL '_'
+// semantics the item domain runs (a multi-byte character is several '_'
+// positions there too).
+func MatchesPattern(pattern, s string) bool {
+	// Iterative two-pointer match with backtracking on the last '*'.
+	pi, si := 0, 0
+	star, mark := -1, -1
+	for si < len(s) {
+		switch {
+		case pi < len(pattern) && (pattern[pi] == '?' || pattern[pi] == s[si]):
+			pi++
+			si++
+		case pi < len(pattern) && pattern[pi] == '*':
+			star = pi
+			mark = si
+			pi++
+		case star >= 0:
+			pi = star + 1
+			mark++
+			si = mark
+		default:
+			return false
+		}
+	}
+	for pi < len(pattern) && pattern[pi] == '*' {
+		pi++
+	}
+	return pi == len(pattern)
+}

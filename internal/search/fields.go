@@ -17,17 +17,24 @@ package search
 // This file is pure data: no IO, no database, no dependencies outside stdlib.
 
 // Domain is the AQL entity domain a field belongs to. The M15 query entry is
-// the item domain only ("items.find"); property and statistics fields attach
-// to items queries via @key / property.* / stat.* paths (aql.md §2.1).
+// the item domain ("items.find"); property and statistics fields attach to
+// items queries via @key / property.* / stat.* paths, and the M17 build
+// family adds three own-entry domains (aql.md §2.1/§15.1).
 type Domain string
 
 // DomainItem, DomainProperty and DomainStatistics are the AQL entity domains
 // (aql.md §2.1: the query entry is items; property/statistics attach via
-// @key / stat.* field paths).
+// @key / stat.* field paths). DomainBuild/DomainModule/DomainDependency are
+// the build-family entity domains (aql.md §15.1, M17 T-511): each owns its
+// own query ENTRY (builds/modules/dependencies — the plural spellings are
+// the wire forms, the singular ones the Field.Domain tags).
 const (
 	DomainItem       Domain = "item"
 	DomainProperty   Domain = "property"
 	DomainStatistics Domain = "statistics"
+	DomainBuild      Domain = "build"
+	DomainModule     Domain = "module"
+	DomainDependency Domain = "dependency"
 )
 
 // FieldID identifies a registry field independent of how it was written
@@ -72,6 +79,30 @@ const (
 	FieldStatRemoteDownloadedBy FieldID = "stat.remote_downloaded_by"
 	FieldStatRemoteOrigin       FieldID = "stat.remote_origin"
 	FieldStatRemotePath         FieldID = "stat.remote_path"
+	// The build-family fields (aql.md §15.1, M17 T-511): the builds entry's
+	// nine default-output members plus the internal id, the modules entry's
+	// name, the dependencies entry's five members plus its internal id. The
+	// builds.* spellings are distinct FieldIDs from the item-domain fields
+	// of the same wire name — the entry domain decides which registry a
+	// name resolves against.
+	FieldBuildURL        FieldID = "builds.url"
+	FieldBuildName       FieldID = "builds.name"
+	FieldBuildNumber     FieldID = "builds.number"
+	FieldBuildStarted    FieldID = "builds.started"
+	FieldBuildRepo       FieldID = "builds.repo"
+	FieldBuildCreated    FieldID = "builds.created"
+	FieldBuildCreatedBy  FieldID = "builds.created_by"
+	FieldBuildModified   FieldID = "builds.modified"
+	FieldBuildModifiedBy FieldID = "builds.modified_by"
+	FieldBuildID         FieldID = "builds.id"
+	FieldModuleName      FieldID = "modules.name"
+	FieldModuleID        FieldID = "modules.id"
+	FieldDepName         FieldID = "dependencies.name"
+	FieldDepScope        FieldID = "dependencies.scope"
+	FieldDepType         FieldID = "dependencies.type"
+	FieldDepSha1         FieldID = "dependencies.sha1"
+	FieldDepMd5          FieldID = "dependencies.md5"
+	FieldDepID           FieldID = "dependencies.id"
 )
 
 // FieldKind is the value kind of a field, mirroring the official field table
@@ -191,17 +222,24 @@ func isStatStubField(id FieldID) bool {
 
 // unsupportedDomains carries the query-entry domains Artifactory accepts that
 // BinFlow rejects, each with the reason surfaced in the error message
-// (aql.md §2.1 subset table; C-layer enhanced copy sanctioned there).
+// (aql.md §2.1 subset table + §15.3 flip-point ledger; C-layer enhanced copy
+// sanctioned there). The builds/modules/dependencies entries LEFT this map in
+// T-511 (assertion inversion ⑥ — aql.md §15.3): the data plane (024 table
+// family, T-507~T-509) backs them, the entries query green. Every remaining
+// build-family entry keeps its 400 WITH the flip point named — the promotion
+// rows already sit in build_promotions; what is missing is the query entry,
+// an M18+ decision (aql.md §15.3, ADR-0045 pt 8).
 var unsupportedDomains = map[string]string{
-	"builds":            "build-info domains are not implemented",
-	"build.properties":  "build-info domains are not implemented",
-	"build.promotions":  "build-info domains are not implemented",
-	"modules":           "build-info domains are not implemented",
-	"module.properties": "build-info domains are not implemented",
-	"dependencies":      "build-info domains are not implemented",
-	"artifacts":         "build-info domains are not implemented",
-	"releases":          "release-bundle domains are not implemented",
-	"release_artifacts": "release-bundle domains are not implemented",
+	"build.properties":  "build properties are stored (build_properties) but the query entry is not open yet (M18+ flip point)",
+	"build.promotions":  "promotion history is stored (build_promotions) but the query entry is not open yet (M18+ flip point)",
+	"module.properties": "module properties stay in the payload archive; the query entry is not open yet (M18+ flip point)",
+	"artifacts":         "build artifacts are stored (build_artifacts) but the artifacts(build) query entry is not open yet (M18+ flip point)",
+	"releases":          "release-bundle domains keep query entries closed (the M17 minimal face, ADR-0046 pt 2)",
+	"release_artifacts": "release-bundle domains keep query entries closed (the M17 minimal face, ADR-0046 pt 2)",
+	// sensitive is a field-level data domain in the reference (inv-1 §E),
+	// not a query entry: naming it as one is the honest unsupported-domain
+	// refusal, not a feature gate.
+	"sensitive": "sensitive is a field-level domain, not a query entry",
 	// The statistics ENTRY domain stays closed (the M15/M16 query entry is
 	// items); the field family itself is open through stat.* paths.
 	"statistics": `query statistics through items.find with {"stat.<field>": value} criteria`,
@@ -374,4 +412,86 @@ func init() {
 			Kind: KindLong, Unsupported: "internal field, not exposed",
 		}
 	}
+}
+
+// ---- the build-family entry domains (aql.md §15.1, M17 T-511) ----
+//
+// The three entries carry their OWN registries, separate from the item
+// registry above: wire names collide by design ("name" is an item field in
+// items.find and a builds field in builds.find), so resolution is
+// entry-scoped — lookupBuildField answers for builds/modules/dependencies,
+// lookupField for everything else. Field sets are frozen verbatim from the
+// §15.1 table (reverse enum + official field table, dual-sourced); the
+// default-output flags of that table become the three default*Output lists.
+
+// buildEntryDomains are the build-family query entry spellings.
+var buildEntryDomains = map[string]bool{
+	"builds": true, "modules": true, "dependencies": true,
+}
+
+// isBuildEntry reports whether domain is one of the three build-family
+// query entries.
+func isBuildEntry(domain string) bool { return buildEntryDomains[domain] }
+
+// buildFieldRegistry maps entry domain -> wire name -> field. Kinds and op
+// sets follow the item-domain conventions (aql.md §2.4); the two special
+// members: builds.url is output-only (BinFlow keeps the CI URL in the
+// archived payload document, not a column — rendered from the payload,
+// never a criteria or sort key, the virtual_repos precedent), and the three
+// internal ids keep the honest unsupported refusal.
+var buildFieldRegistry = map[string]map[string]Field{
+	"builds": {
+		"url":         {ID: FieldBuildURL, Name: "url", Domain: DomainBuild, Kind: KindString, Projectable: true},
+		"name":        {ID: FieldBuildName, Name: "name", Domain: DomainBuild, Kind: KindString, Ops: stringOps, Sortable: true, Projectable: true},
+		"number":      {ID: FieldBuildNumber, Name: "number", Domain: DomainBuild, Kind: KindString, Ops: stringOps, Sortable: true, Projectable: true},
+		"started":     {ID: FieldBuildStarted, Name: "started", Domain: DomainBuild, Kind: KindDate, Ops: dateOps, Sortable: true, Projectable: true},
+		"repo":        {ID: FieldBuildRepo, Name: "repo", Domain: DomainBuild, Kind: KindString, Ops: stringOps, Sortable: true, Projectable: true},
+		"created":     {ID: FieldBuildCreated, Name: "created", Domain: DomainBuild, Kind: KindDate, Ops: dateOps, Sortable: true, Projectable: true},
+		"created_by":  {ID: FieldBuildCreatedBy, Name: "created_by", Domain: DomainBuild, Kind: KindString, Ops: stringOps, Sortable: true, Projectable: true},
+		"modified":    {ID: FieldBuildModified, Name: "modified", Domain: DomainBuild, Kind: KindDate, Ops: dateOps, Sortable: true, Projectable: true},
+		"modified_by": {ID: FieldBuildModifiedBy, Name: "modified_by", Domain: DomainBuild, Kind: KindString, Ops: stringOps, Sortable: true, Projectable: true},
+		"id":          {ID: FieldBuildID, Name: "id", Domain: DomainBuild, Kind: KindLong, Unsupported: "internal field, not exposed"},
+	},
+	"modules": {
+		"name": {ID: FieldModuleName, Name: "name", Domain: DomainModule, Kind: KindString, Ops: stringOps, Sortable: true, Projectable: true},
+		"id":   {ID: FieldModuleID, Name: "id", Domain: DomainModule, Kind: KindLong, Unsupported: "internal field, not exposed"},
+	},
+	"dependencies": {
+		"name":  {ID: FieldDepName, Name: "name", Domain: DomainDependency, Kind: KindString, Ops: stringOps, Sortable: true, Projectable: true},
+		"scope": {ID: FieldDepScope, Name: "scope", Domain: DomainDependency, Kind: KindString, Ops: stringOps, Sortable: true, Projectable: true},
+		"type":  {ID: FieldDepType, Name: "type", Domain: DomainDependency, Kind: KindString, Ops: stringOps, Sortable: true, Projectable: true},
+		"sha1":  {ID: FieldDepSha1, Name: "sha1", Domain: DomainDependency, Kind: KindString, Ops: stringOps, Sortable: true, Projectable: true},
+		"md5":   {ID: FieldDepMd5, Name: "md5", Domain: DomainDependency, Kind: KindString, Ops: stringOps, Sortable: true, Projectable: true},
+		"id":    {ID: FieldDepID, Name: "id", Domain: DomainDependency, Kind: KindLong, Unsupported: "internal field, not exposed"},
+	},
+}
+
+// lookupBuildField resolves a wire name inside one build-family entry
+// domain. An unknown entry answers false (the caller falls back to the
+// generic unsupported-domain refusal).
+func lookupBuildField(entry, name string) (Field, bool) {
+	reg, ok := buildFieldRegistry[entry]
+	if !ok {
+		return Field{}, false
+	}
+	f, ok := reg[name]
+	return f, ok
+}
+
+// buildDefaultOutput is each entry's default projection (aql.md §15.1's
+// default-output flags, in table order) — the set an include()-less query
+// renders and the sort validator treats as result fields.
+var buildDefaultOutput = map[string][]string{
+	"builds":       {"url", "name", "number", "started", "repo", "created", "created_by", "modified", "modified_by"},
+	"modules":      {"name"},
+	"dependencies": {"name", "scope", "type"},
+}
+
+// buildStarOutput is each entry's include("*") set: every projectable
+// member in §15.1 table order (the internal ids stay out — unsupported
+// fields never silently enter a projection).
+var buildStarOutput = map[string][]string{
+	"builds":       {"url", "name", "number", "started", "repo", "created", "created_by", "modified", "modified_by"},
+	"modules":      {"name"},
+	"dependencies": {"name", "scope", "type", "sha1", "md5"},
 }

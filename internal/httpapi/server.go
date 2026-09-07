@@ -490,11 +490,23 @@ func New(deps Deps, log *slog.Logger) *Server {
 	if deps.Metadata != nil && deps.ReposSvc != nil {
 		if q, ok := deps.Metadata.Nodes().(metadata.NodeQueryer); ok {
 			s.aqlVirtual = newVirtualIndex(deps.Metadata)
+			// The build-family facet (M17 T-511, aql.md §15): the same
+			// assembly mounts the BuildSearcher adapter (the record plane
+			// + the build domain's ACL mirror — search_build.go) so the
+			// builds/modules/dependencies entries execute against the 024
+			// table family. A stack without the build service (none today
+			// — s.builds assembles whenever Metadata does) keeps the three
+			// entries at the engine's honest ErrBuildSearchUnavailable.
+			var buildSearcher search.BuildSearcher
+			if s.builds != nil {
+				buildSearcher = newBuildSearchAdapter(deps.Metadata.Builds(), s.builds)
+			}
 			s.aql = search.NewEngine(search.EngineOptions{
 				Nodes:   q,
 				ACL:     deps.ReposSvc,
 				Virtual: s.aqlVirtual,
 				QRL:     s.qrl,
+				Builds:  buildSearcher,
 			})
 		}
 	}

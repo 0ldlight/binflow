@@ -1055,6 +1055,16 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		// M16 T-452: the pair's second door (dateFields CSV over the closed
 		// four-name set).
 		s.enforce(w, r, routeAuth{}, s.handleSearchDates)
+	case rest == "search/buildArtifacts" && r.Method == http.MethodPost:
+		// M17 T-511 (FR-152.3 / aql.md §15.4): the build-artifacts search —
+		// the POST member the official family registers (GET answers the
+		// E-26 404, the OSS live matrix's 405 arm). Privileged
+		// non-anonymous face: the handler owns the 401 challenge.
+		s.enforce(w, r, routeAuth{}, s.handleSearchBuildArtifacts)
+	case rest == "search/dependency" && r.Method == http.MethodGet:
+		// M17 T-511: the checksum reverse lookup (which builds depend on
+		// this artifact) — same handler-gated posture.
+		s.enforce(w, r, routeAuth{}, s.handleSearchDependency)
 
 	// ---- /api/build* (M17 T-508/T-509, FR-152.2 / ADR-0045 decision 6 +
 	// Errata ①) ----

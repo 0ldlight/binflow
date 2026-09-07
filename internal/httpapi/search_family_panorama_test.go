@@ -96,8 +96,14 @@ func TestSearchPanoramaM16Rows(t *testing.T) {
 // TestSearchPanoramaDeferredRows pins the table's M16+/远期 rows: every
 // member there keeps the E-26 404 with the not-implemented wording (the
 // audit's "维持 404" half — badChecksum / versions / latestVersion /
-// license / dependency / buildArtifacts plus the two out-of-SearchResource
-// extras archive / latestVersionByProperties).
+// license / buildArtifacts plus the two out-of-SearchResource extras
+// archive / latestVersionByProperties).
+//
+// T-511 assertion inversion ⑥ (FR-152.3 / aql.md §15.4): GET /api/search/
+// dependency LEFT this table — the member ROUTES now (its 400 family and
+// positive halves live in search_build_test.go). buildArtifacts stays in
+// its GET arm only: the official member is POST (the OSS live matrix's
+// GET-405 arm), which search_build_test.go owns.
 func TestSearchPanoramaDeferredRows(t *testing.T) {
 	h := newHarness(t)
 	for _, path := range []string{
@@ -105,7 +111,6 @@ func TestSearchPanoramaDeferredRows(t *testing.T) {
 		"search/versions?g=com.acme&a=app",
 		"search/latestVersion?g=com.acme&a=app",
 		"search/license?name=apache",
-		"search/dependency?g=com.acme",
 		"search/buildArtifacts",
 		"search/archive?name=lib",
 		"search/latestVersionByProperties?os=linux",
