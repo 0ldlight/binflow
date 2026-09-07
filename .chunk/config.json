@@ -1,0 +1,25 @@
+{
+  "commands": [
+    {
+      "name": "install",
+      "run": "npm ci --prefix web"
+    },
+    {
+      "name": "test",
+      "run": "make test",
+      "role": "gate",
+      "timeout": 300
+    },
+    {
+      "name": "lint",
+      "run": "make lint",
+      "role": "gate",
+      "timeout": 60
+    }
+  ],
+  "vcs": {
+    "org": "0ldlight",
+    "repo": "binflow"
+  },
+  "orgID": "09100b6c-711a-45f3-8975-2a10164d653d"
+}
