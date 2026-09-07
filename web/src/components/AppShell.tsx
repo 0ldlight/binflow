@@ -97,13 +97,20 @@ interface NavGroup {
   entries: NavEntry[]
 }
 
-/** 应用模式侧栏（console-m8 §1.3 全图：应用分组 2 条目） */
+/** 应用模式侧栏（console-m8 §1.3 全图：应用分组 2 条目；T-514 起第三
+ * 条目 = Release Bundles——Artifactory 应用域 /ui/repobundles 的 BinFlow
+ * 对位〔console-ui §1.1 应用域族；官方归属 Artifactory 应用域，OSS 7.84
+ * 册无 Distribution 不列——BinFlow M17 域已落地故入册〕；专域名词对位
+ * Access Tokens / Webhooks 先例不译） */
 const APP_NAV: NavGroup[] = [
   {
     title: tt('应用'),
     entries: [
       { label: tt('仪表盘'), to: '/dashboard', icon: 'dashboard', end: true },
       { label: tt('制品'), to: '/artifacts', icon: 'account_tree' },
+      // T-514（FR-153.3）：bundle 列表/详情只读查询面（读门 = 系统读权限
+      // ∨ Any Distribution 通道——普通用户 200 空集可见空态，服务端零泄漏）
+      { label: 'Release Bundles', to: '/bundles', icon: 'bundle' },
     ],
   },
 ]
@@ -270,6 +277,7 @@ function appTitle(pathname: string): string {
   if (pathname.startsWith('/dashboard')) return tt('仪表盘')
   if (pathname.startsWith('/search')) return tt('搜索制品')
   if (pathname.startsWith('/profile')) return tt('编辑档案')
+  if (pathname.startsWith('/bundles')) return 'Release Bundles'
   return 'BinFlow'
 }
 

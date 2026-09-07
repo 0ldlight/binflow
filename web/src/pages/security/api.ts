@@ -244,6 +244,28 @@ export interface PermPrincipals {
   groups: Record<string, WireAction[]>
 }
 
+// ---- 通配桶三预置（T-491 wire 语义 / T-514 勾选腿——B-2.16 缺位解除） ----
+//
+// wire 字面闭集（internal/auth/wildcard.go，大小写敏感）：repos[] 收三字面
+// （服务端跳过存在性检查；第四桶 ANY 不收——spec-pending）。UI 预置行展示
+// 名 = console-ui §3.8 活体拼写（Any Local / Any Remote / Any Distribution）。
+// 语义：ANY LOCAL / ANY REMOTE 按 class 覆盖全部（含授权后新建）仓库——
+// virtual 无桶（fail-closed）；ANY DISTRIBUTION = bundle 域伪键通道
+// （Can 的 repoKey 位承桶值、path 位 = bundle 名；include/exclude 按名生效）。
+// ANY 家族互不隐式覆盖（一 target 同列多桶合法、各自独立生效）。
+
+/** 预置桶（wire 字面 → 展示名）——两步资源对话框的可勾选预置行 */
+export const WILDCARD_BUCKETS: readonly { wire: string; label: string }[] = [
+  { wire: 'ANY LOCAL', label: 'Any Local' },
+  { wire: 'ANY REMOTE', label: 'Any Remote' },
+  { wire: 'ANY DISTRIBUTION', label: 'Any Distribution' },
+]
+
+/** 桶字面判定（chips/回显处的区分位——非桶值即真仓键） */
+export function isWildcardBucket(repo: string): boolean {
+  return WILDCARD_BUCKETS.some((b) => b.wire === repo)
+}
+
 export interface PermissionTarget {
   name: string
   repos: string[]

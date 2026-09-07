@@ -30,7 +30,7 @@ import { ApiError, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole
 import { monoInputSx } from '../../lib/muiAtoms'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
-import { PERM_ACTIONS, deletePermissionTarget, listGroups, listPermissionTargets, listPermissionTargetsManaged, listUsers, normalizePermActions, savePermissionTarget, wireActions } from './api'
+import { PERM_ACTIONS, WILDCARD_BUCKETS, deletePermissionTarget, isWildcardBucket, listGroups, listPermissionTargets, listPermissionTargetsManaged, listUsers, normalizePermActions, savePermissionTarget, wireActions } from './api'
 import type { PermAction } from './api'
 import { evaluatePath } from './pathmatch'
 import { buildTargetDiff, sameSnapshot } from './targetdiff'
@@ -54,8 +54,9 @@ const tt = tr('security')
 //       ——水合归一/保存序列化收口在 api.ts 两函数，见 normalizePermActions
 //   [5] 保存 = 变更摘要 diff 确认（§4.9[4] BinFlow 保留）→ POST create-or-replace
 // 两步资源对话框（§3.3 C6 / §4.5，对齐 reverse §3.8「Edit Repositories」）：
-//   ① 选择仓库（双列穿梭；Any Local/Any Remote 通配桶不建——BinFlow 契约
-//      repos[] 必须是现存仓库名，服务端 400 unknown repository，无 ** 约定）
+//   ① 选择仓库（双列穿梭；Any Local / Any Remote / Any Distribution 三预置
+//      桶同场可勾选〔T-514——B-2.16 缺位解除；wire 字面 ANY LOCAL / ANY
+//      REMOTE / ANY DISTRIBUTION，T-491 BE 语义已承接〕，与具体仓库可混选）
 //   ② 设置模式（可选；include/exclude 逐行 chip）→ 确定 回填
 // 危险区：删除 target（连带全部授权行，单事务）。
 //
@@ -77,6 +78,19 @@ const tt = tr('security')
 // 写端点 403——服务端是唯一守门，UI 只呈现）。
 
 type PrincipalMap = Record<string, PermAction[]>
+
+// 预置桶穿梭条目（T-514 / B-2.16 缺位解除——console-ui §3.8 活体：选仓步
+// 预置 Any Local / Any Remote / Any Distribution 三行与仓库同场可勾选；
+// 键 = wire 字面〔T-491 闭集〕，展示 = 活体拼写，note = 覆盖语义一行注）
+const PRESET_TRANSFER_ITEMS = WILDCARD_BUCKETS.map((b) => ({
+  name: b.wire,
+  label: b.label,
+  note: b.wire === 'ANY DISTRIBUTION'
+    ? tt('bundle 域通道（按 bundle 名生效）')
+    : b.wire === 'ANY LOCAL'
+      ? tt('覆盖全部 local 仓库（含授权后新建）')
+      : tt('覆盖全部 remote 仓库（含授权后新建）'),
+}))
 
 interface EditorState {
   name: string
@@ -333,10 +347,15 @@ function ResourceDialog({
                 <p className="field-hint">{tt('仓库列表加载中…')}</p>
               ) : reposStatus === 'forbidden' ? (
                 // m-holder（§14.1.6「E6 + 手动录入」）：仓库目录 403——已选
-                // 仓可摘除（穿梭右列），新增走手动录入，服务端终裁
+                // 仓可摘除（穿梭右列），新增走手动录入，服务端终裁。三预置
+                // 桶照常可勾选（桶字面是客户端常量，不依赖被 403 的目录端点；
+                // 服务端收词 + 覆盖集终裁——桶字面进覆盖集按字面键判定）
                 <>
                   <TransferBox
-                    items={[...new Set(repos)].map((k) => ({ name: k }))}
+                    items={[
+                      ...PRESET_TRANSFER_ITEMS,
+                      ...[...new Set(repos)].filter((k) => !isWildcardBucket(k)).map((k) => ({ name: k })),
+                    ]}
                     selected={repos}
                     onToggle={(k, next) => setRepos((p) => (next ? [...p, k] : p.filter((x) => x !== k)))}
                     availableLabel={tt('可选仓库')}
@@ -368,25 +387,25 @@ function ResourceDialog({
                     <Button
                       variant="outlined"
                       size="small"
-                     
+
                       disabled={repoEntry.trim() === ''}
                       onClick={addRepoEntry}
                       data-testid="perm-repo-entry-add"
                     >{tt('添加仓库')}                    </Button>
                   </div>
-                  <p className="admin-note">{tt('ⓘ 仓库目录是管理面读端点（本会话 403）——无法浏览候选仓库；手动录入仓库名加入，服务端终裁 （unknown repository → 400；覆盖集外保存 → 403）。Artifactory 的 Any Local / Any Remote 通配桶不建： repos[] 必须逐个指名现存仓库。')}                  </p>
+                  <p className="admin-note" data-testid="perm-buckets-note">{tt('ⓘ 仓库目录是管理面读端点（本会话 403）——无法浏览候选仓库；手动录入仓库名加入，服务端终裁 （unknown repository → 400；覆盖集外保存 → 403）。三预置桶不依赖目录端点、照常可勾选：Any Local / Any Remote 按 class 覆盖全部（含授权后新建）仓库，Any Distribution 覆盖 Release Bundle 域（模式作用于 bundle 名）；桶按字面进 manage 覆盖集判定。')}                  </p>
                 </>
               ) : (
                 <>
                   <TransferBox
-                    items={repoKeys.map((k) => ({ name: k }))}
+                    items={[...PRESET_TRANSFER_ITEMS, ...repoKeys.map((k) => ({ name: k }))]}
                     selected={repos}
                     onToggle={(k, next) => setRepos((p) => (next ? [...p, k] : p.filter((x) => x !== k)))}
                     availableLabel={tt('可选仓库')}
                     selectedLabel={tt('已选仓库')}
                     itemTestid={(k) => `perm-repo-pick-${k}`}
                   />
-                  <p className="admin-note">{tt('ⓘ Artifactory 的 Any Local / Any Remote 通配桶不建：BinFlow 契约 repos[] 必须逐个指名现存仓库 （服务端校验 unknown repository 即 400）。')}                  </p>
+                  <p className="admin-note" data-testid="perm-buckets-note">{tt('ⓘ 预置桶与具体仓库同场可勾选：Any Local / Any Remote 按 class 覆盖全部（含授权后新建）仓库〔virtual 无桶〕，Any Distribution 覆盖 Release Bundle 域〔第 2 步模式作用于 bundle 名——include/exclude 的路径位语义〕；桶与具体仓各自独立生效，ANY 家族互不隐式覆盖。')}                  </p>
                 </>
               )}
             </div>
@@ -823,7 +842,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
             <div className="sec-chips" style={{ marginBottom: 8 }} data-testid="perm-repos">
               {f.repos.map((r) => (
                 <span key={r} className="pattern-chip" style={{ marginBottom: 0 }}>
-                  <span className="val" lang="en">
+                  <span className="val" lang="en" title={isWildcardBucket(r) ? tt('通配桶（wire 字面）——语义见「添加/编辑仓库」对话框注记') : undefined}>
                     {r}
                   </span>
                   <button
