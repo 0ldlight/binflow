@@ -1,0 +1,177 @@
+# BinFlow AI Engineering Organization — Agent Dependency Graph
+# 重组总令 §二十四。语义：
+#   depends_on        — 派发前置（上游产出是下游输入）
+#   can_parallel_with — 可同轮并行的域（area 排他前提下）
+#   owns              — 唯一写入域（Domain Ownership，§二十五；两 agent 不得声称同一 owns）
+#   reads             — 常规读取域
+#   writes            — 允许写入域（含 ticket 级临时授权例外）
+# 注：model 字段一律 inherit（§二十：当前环境不支持 agent 级模型选择，不造不存在的配置）。
+
+version: 1
+generated: 2026-09-08
+source_of_truth: docs/ai-engineering/target-state.md
+
+agents:
+  # ---------- Product / Program (A) ----------
+  product-manager:
+    depends_on: [conductor]
+    can_parallel_with: [architect, reverse-engineer, ux-designer]
+    owns: [PRODUCT.md, ROADMAP.md, docs/prd/]
+    reads: [BOARD.md, docs/reverse/rest-compat-matrix.md, docs/compatibility/matrix.yaml]
+    writes: [docs/prd/]
+
+  ux-designer:
+    depends_on: [product-manager]
+    can_parallel_with: [architect, reverse-engineer]
+    owns: [docs/design/console-ux.md, docs/design/brand/]
+    reads: [docs/prd/, docs/reverse/console-ui.md]
+    writes: [docs/design/]
+
+  # ---------- Architecture (B) ----------
+  architect:
+    depends_on: [product-manager, reverse-engineer]
+    can_parallel_with: [product-manager, ux-designer, compatibility-engineer]
+    owns: [DECISIONS.md, docs/design/architecture.md]
+    reads: [docs/reverse/, docs/compatibility/contracts/, internal/]
+    writes: [docs/design/]
+
+  tech-lead:
+    depends_on: [product-manager, architect, compatibility-engineer]
+    can_parallel_with: []   # 拆票是串行焦点步
+    owns: [docs/M<N>-SPLIT.md]
+    reads: [BOARD.md, docs/prd/, DECISIONS.md, docs/compatibility/matrix.yaml, docs/compatibility/known-divergence.yaml]
+    writes: [docs/M<N>-SPLIT.md]
+
+  # ---------- Reverse Engineering (C) ----------
+  reverse-engineer:
+    depends_on: [conductor]
+    can_parallel_with: [product-manager, architect, compatibility-engineer]
+    owns: [docs/reverse/]
+    reads: [reverse-src/]          # clean-room 只读铁律不变
+    writes: [docs/reverse/]
+
+  # ---------- Compatibility Engineering (D) [新增] ----------
+  compatibility-engineer:
+    depends_on: [reverse-engineer]
+    can_parallel_with: [architect, reverse-engineer, differential-qa-engineer]
+    owns: [docs/compatibility/]    # contracts/ probes/ fixtures/ diffs/ golden/ matrix.yaml known-divergence.yaml protocol/
+    reads: [docs/reverse/, internal/httpapi/, web/src/lib/, UAT]
+    writes: [docs/compatibility/]
+    forbidden: [internal/storage/, internal/security/]   # §十二示例：契约面不越权写产品码
+
+  # ---------- Backend / Storage / Distributed (E,F,J) ----------
+  dev-go-core:
+    depends_on: [architect, tech-lead]
+    can_parallel_with: [dev-go-storage, dev-frontend, dev-registry-adapter, devops-engineer]
+    owns: [internal/repo/, internal/metadata/, internal/auth/, internal/httpapi/]
+    reads: [docs/reverse/, docs/compatibility/contracts/]
+    writes: [internal/{repo,metadata,auth,httpapi}/]
+
+  dev-go-storage:
+    depends_on: [architect, tech-lead]
+    can_parallel_with: [dev-go-core, dev-frontend, dev-registry-adapter]
+    owns: [internal/storage/, internal/remote/]
+    reads: [docs/reverse/storage-layout.md, docs/reverse/s3-storage-layout.md]
+    writes: [internal/{storage,remote}/]
+
+  # ---------- Remote / Cache (G) · Package Protocol (H) ----------
+  dev-registry-adapter:
+    depends_on: [architect, reverse-engineer, compatibility-engineer]
+    can_parallel_with: [dev-go-core, dev-go-storage, dev-frontend]   # 每协议一实例（领域实例）
+    owns: [internal/adapter/]
+    reads: [docs/reverse/<proto>.md, docs/compatibility/protocol/]
+    writes: [internal/adapter/]
+    instances: per-protocol   # dev-package-maven/npm/pypi/docker/... 由同一定义派生（§二 Role Type + Domain Instance）
+
+  # ---------- Security / Identity (I) ----------
+  security-auditor:
+    depends_on: [conductor]        # 每 10 轮或里程碑节点旁路
+    can_parallel_with: [全部实现域]  # 只读
+    owns: [reports/security/]
+    reads: [internal/, web/, deploy/, charts/]
+    writes: [reports/security/]
+    forbidden: [产品码写入（只发现不改码）]
+
+  # ---------- Frontend (K) ----------
+  dev-frontend:
+    depends_on: [ux-designer, tech-lead]
+    can_parallel_with: [dev-go-core, dev-go-storage, dev-registry-adapter, devops-engineer]
+    owns: [web/src/, web/e2e/]
+    reads: [docs/design/, docs/reverse/console-ui.md, docs/compatibility/contracts/]
+    writes: [web/]
+
+  # ---------- QA / Differential (L) ----------
+  qa-engineer:
+    depends_on: [tech-lead]
+    can_parallel_with: [code-reviewer, differential-qa-engineer]
+    owns: [reports/qa/]            # 单实例验证（功能 AC 面）
+    reads: [BOARD.md, docs/compatibility/contracts/, internal/]
+    writes: [reports/qa/, reports/agents/T-<id>-qa.md]
+
+  differential-qa-engineer:        # [新增] §五
+    depends_on: [compatibility-engineer]
+    can_parallel_with: [qa-engineer, code-reviewer]
+    owns: [tools/difftest/, reports/compatibility/]
+    reads: [docs/compatibility/, UAT, ARTIFACTORY_REF]
+    writes: [tools/difftest/, reports/compatibility/]
+
+  code-reviewer:
+    depends_on: [tech-lead]
+    can_parallel_with: [qa-engineer, differential-qa-engineer]   # 关键模块 A/B 双实例（§十三）
+    owns: []                       # 只读评审，无 owns
+    reads: [internal/, web/, cmd/]
+    writes: [reports/agents/T-<id>-review*.md]
+
+  # ---------- Performance (M) / Observability (N) [新增×2] ----------
+  performance-engineer:
+    depends_on: [tech-lead]
+    can_parallel_with: [observability-engineer, qa-engineer]
+    owns: [bench/, docs/performance/]
+    reads: [internal/, UAT, scripts/*-perf.sh]
+    writes: [bench/, docs/performance/, reports/perf/]
+
+  observability-engineer:
+    depends_on: [architect]
+    can_parallel_with: [performance-engineer]
+    owns: [internal/metrics/, docs/design/observability.md]
+    reads: [internal/, deploy/, UAT]
+    writes: [internal/metrics/, docs/design/observability.md]
+
+  # ---------- DevOps / CI/CD / Release (O,P,Q) ----------
+  devops-engineer:
+    depends_on: [tech-lead]
+    can_parallel_with: [dev-go-core, dev-frontend]
+    owns: [.circleci/, .github/workflows/, ci/, Makefile, .golangci.yml]
+    reads: [internal/, deploy/]
+    writes: [.circleci/, .github/, ci/, Makefile]
+
+  release-engineer:
+    depends_on: [devops-engineer, qa-engineer]
+    can_parallel_with: []           # 收口串行
+    owns: [deploy/, charts/, contrib/systemd/]
+    reads: [internal/, UAT]
+    writes: [deploy/, charts/]
+    note: 对外发布（镜像/Chart/二进制）恒为红线——必须先经用户确认
+
+  # ---------- Documentation (R) / Security Review (S) ----------
+  tech-writer:
+    depends_on: [tech-lead]
+    can_parallel_with: [dev-go-core, dev-frontend]
+    owns: [docs/user/, fern/]
+    reads: [docs/compatibility/matrix.yaml, internal/httpapi/]
+    writes: [docs/user/, fern/]
+
+  # ---------- Loop Engineer（conductor 本体，§六） ----------
+  conductor:
+    depends_on: []
+    can_parallel_with: []           # 总控串行焦点；派发面并行由上述 agents 承载
+    owns: [BOARD.md, reports/iteration-*.md, .claude/team/SPRINT-LOOP.md, CLAUDE.md, TEAM.md]
+    reads: [全仓]
+    writes: [BOARD.md, reports/, 治理文件]
+    note: 不写业务码；每轮回答 Compatibility 四问（surface/matched/divergence/unknown）并计量 Coverage
+
+# ---------- 关键依赖边摘要（渲染用） ----------
+# reverse-engineer → compatibility-engineer → {tech-lead, differential-qa-engineer}
+# architect → {dev-go-core, dev-go-storage, dev-registry-adapter, observability-engineer}
+# devops-engineer → release-engineer
+# compatibility-engineer 的 contract 是 qa/differential-qa/review 的共同输入
