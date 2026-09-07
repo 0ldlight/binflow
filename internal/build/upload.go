@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
@@ -231,6 +232,15 @@ func (s *Service) Upload(ctx context.Context, p *Principal, raw []byte, buildRep
 	if err := s.store.PutProperties(ctx, c.Name, c.Number, c.Started, c.Repo, props); err != nil {
 		return nil, fmt.Errorf("build %s#%s properties: %w", c.Name, c.Number, err)
 	}
+	// The upload's audit row (ADR-0045 decision 10's build.upload — the
+	// T-509 landing of the +5 words; same-address best-effort as the
+	// promote/retention faces).
+	s.recordAudit(ctx, audit.Event{
+		Actor: actor, Action: audit.ActionBuildUpload,
+		Repo: c.Repo, Path: c.Name,
+		Detail: fmt.Sprintf(`{"number":%q,"created":%t,"modules":%d}`,
+			c.Number, created, len(modules)),
+	})
 	return &UploadResult{Created: created, Started: c.Started, Repo: c.Repo}, nil
 }
 
@@ -297,7 +307,24 @@ func (s *Service) Append(ctx context.Context, p *Principal, c Coordinate, raw []
 	if err := s.store.PutModules(ctx, c.Name, c.Number, parent.Started, c.Repo, merged); err != nil {
 		return nil, fmt.Errorf("build %s#%s append write: %w", c.Name, c.Number, err)
 	}
+	// The append's audit row (decision 10's build.append — one row per
+	// successful merge, the modules merged as the detail).
+	s.recordAudit(ctx, audit.Event{
+		Actor: actorOf(p), Action: audit.ActionBuildAppend,
+		Repo: c.Repo, Path: c.Name,
+		Detail: fmt.Sprintf(`{"number":%q,"modules_in":%d,"modules_total":%d}`,
+			c.Number, len(incoming), len(merged)),
+	})
 	return parent, nil
+}
+
+// actorOf renders the audit actor of a principal ("" = anonymous; the
+// recorder stamps its own default).
+func actorOf(p *Principal) string {
+	if p == nil {
+		return ""
+	}
+	return p.Name
 }
 
 // mergeModules folds incoming into existing by module id: same id appends

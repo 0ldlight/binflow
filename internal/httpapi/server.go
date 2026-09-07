@@ -406,16 +406,39 @@ func New(deps Deps, log *slog.Logger) *Server {
 	// (disabled — a pure bypass), shared by the admin REST face and the
 	// engine below.
 	s.qrl = search.NewQueryRateLimiter(nil)
-	// The build-info domain service (M17 T-508, FR-152.2): assembled HERE
-	// from the already-wired Deps (the aql precedent — httpapi is the sole
-	// assembly point of build × metadata × authz, cmd's wiring untouched).
-	// The Authorizer is the SAME auth.Service instance every other domain
-	// consults (it rides Deps.Authz), so the allow() mirror is same-source
-	// by construction; the node-resolution seam feeds the artifact
-	// association. A metadata-less unit stack leaves the family at the 503.
+	// The build-info domain service (M17 T-508/T-509, FR-152.2): assembled
+	// HERE from the already-wired Deps (the aql precedent — httpapi is the
+	// sole assembly point of build × metadata × authz × repo, cmd's wiring
+	// untouched). The Authorizer is the SAME auth.Service instance every
+	// other domain consults (it rides Deps.Authz), so the allow() mirror is
+	// same-source by construction; the node-resolution seam feeds the
+	// artifact association; the T-509 seams ride the same assembly — the
+	// repository carrier (the CopyOrMove/docker faces of the ONE repo.Service
+	// the stack holds, ADR-0045 decision 9's reuse ruling), the docker index
+	// and property stores, and the audit recorder the +5 words write through
+	// (s.audit is already resolved above — the same best-effort chain every
+	// audited surface uses). A metadata-less unit stack leaves the family at
+	// the 503; a stack without ReposSvc keeps only the carrier-less faces
+	// (the promote verb then answers its own honest 503).
 	if deps.Metadata != nil {
-		s.builds = build.New(deps.Metadata.Builds(), deps.Authz,
-			build.WithNodes(deps.Metadata.Nodes()))
+		opts := []build.Option{
+			build.WithNodes(deps.Metadata.Nodes()),
+			build.WithDocker(deps.Metadata.Docker()),
+			build.WithProps(deps.Metadata.NodeProps()),
+		}
+		// The carrier: the operations family's own capability-face discovery
+		// (CopyOrMove deliberately rides CopyMoveService, not the big
+		// Service interface — the hand-written test-fake rule; httpapi
+		// reaches it by assertion, the operations.go precedent).
+		if deps.ReposSvc != nil {
+			if carrier, ok := deps.ReposSvc.(build.Carrier); ok {
+				opts = append(opts, build.WithCarrier(carrier))
+			}
+		}
+		// s.audit is always resolved by now (BestEffort or the no-op
+		// fallback) — the audit-off instance records nothing, honestly.
+		opts = append(opts, build.WithAudit(s.audit))
+		s.builds = build.New(deps.Metadata.Builds(), deps.Authz, opts...)
 	}
 	// The AQL engine (M15 T-415, FR-133.3 / ADR-0043 §24.1: httpapi is the
 	// sole assembly point of search x repo x metadata — the session/permView

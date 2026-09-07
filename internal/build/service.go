@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
@@ -45,6 +46,17 @@ type Service struct {
 	// nodes resolves the artifact association against the live nodes table
 	// (upload.go's NodeChecker; nil = every artifact lands record-only).
 	nodes NodeChecker
+	// carrier is the repository-domain migration face promote/retention
+	// consume (T-509's Carrier; nil keeps those faces at the honest
+	// ErrPromoteUnavailable).
+	carrier Carrier
+	// docker is the docker index read face of the promotion closure walk.
+	docker DockerIndex
+	// props is the node-property merge seam of the promotion properties arm.
+	props PropsWriter
+	// auditRec records the domain's audit rows best-effort (T-509 landing
+	// of ADR-0045 decision 10's +5 words; nil = the bare unit stack).
+	auditRec audit.Recorder
 	// mergeMu serializes the append face's read-modify-write (two
 	// concurrent appends must both land — a stale-base last-writer-wins
 	// would silently drop a whole merge; CI-frequency traffic makes the

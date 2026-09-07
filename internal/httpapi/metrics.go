@@ -89,14 +89,17 @@ const (
 	metricQRLSlowdown       = "binflow_qrl_slowed_down_millis"
 	metricQRLSlowdownByTime = "binflow_qrl_slowed_down_by_time_millis"
 	metricQRLCharged        = "binflow_qrl_charged_query_time_millis"
-	// The build family (M17 T-508, FR-152.2 / ADR-0045 decision 10 — the
-	// put/get half; promote's counter and histogram land with T-509): the
-	// write counter by operation and outcome, the read counter by face,
-	// and the upload/append duration histogram. The ticket's
-	// builds.put/builds.get family, on the Prometheus naming rule.
-	metricBuildsPutTotal   = "binflow_builds_put_total"
-	metricBuildsGetTotal   = "binflow_builds_get_total"
-	metricBuildsPutSeconds = "binflow_builds_put_duration_seconds"
+	// The build family (M17 T-508/T-509, FR-152.2 / ADR-0045 decision 10):
+	// the write counter by operation and outcome, the read counter by face,
+	// the upload/append duration histogram, and T-509's promote half — a
+	// counter by outcome (promoted / dry-run / status-only) plus the promote
+	// duration histogram (decision 10's second half, the NFR-P80
+	// observability arm). All on the Prometheus naming rule.
+	metricBuildsPutTotal       = "binflow_builds_put_total"
+	metricBuildsGetTotal       = "binflow_builds_get_total"
+	metricBuildsPutSeconds     = "binflow_builds_put_duration_seconds"
+	metricBuildsPromoteTotal   = "binflow_builds_promote_total"
+	metricBuildsPromoteSeconds = "binflow_builds_promote_duration_seconds"
 )
 
 // metricsContentType is the Prometheus text exposition format version 0.0.4
@@ -157,11 +160,13 @@ type instrumentation struct {
 	qrlSlowdown       *metrics.Gauge
 	qrlSlowdownByTime *metrics.Gauge
 	qrlCharged        *metrics.Gauge
-	// builds* are the build family's write/read counters and the write
-	// duration histogram (M17 T-508).
-	buildsPut    *metrics.Counter
-	buildsGet    *metrics.Counter
-	buildsPutDur *metrics.Histogram
+	// builds* are the build family's write/read counters, the write duration
+	// histogram (M17 T-508) and the promote counter/histogram pair (T-509).
+	buildsPut        *metrics.Counter
+	buildsGet        *metrics.Counter
+	buildsPutDur     *metrics.Histogram
+	buildsPromote    *metrics.Counter
+	buildsPromoteDur *metrics.Histogram
 }
 
 // newInstrumentation registers the four families on reg and pre-seeds the
@@ -272,6 +277,15 @@ func newInstrumentation(deps Deps) *instrumentation {
 	ins.buildsPut.Add(0, "operation", "append", "outcome", "merged")
 	for _, face := range []string{"names", "numbers", "detail"} {
 		ins.buildsGet.Add(0, "face", face)
+	}
+	// T-509's promote half: pre-seeded per outcome so the family exposes
+	// itself before the first promotion (the restart-kindness rule above).
+	ins.buildsPromote = mustCounter(reg, metricBuildsPromoteTotal,
+		"Build promotions by outcome (promoted, dry-run, status-only).")
+	ins.buildsPromoteDur = mustHistogram(reg, metricBuildsPromoteSeconds,
+		"Build promotion duration in seconds.", metrics.DefaultBuckets)
+	for _, outcome := range []string{"promoted", "dry-run", "status-only"} {
+		ins.buildsPromote.Add(0, "outcome", outcome)
 	}
 
 	if deps.Replication != nil {
@@ -417,6 +431,18 @@ func (s *Server) countBuildsGet(face string) {
 		return
 	}
 	s.metrics.buildsGet.Inc("face", face)
+}
+
+// observeBuildsPromote records one successful promotion (M17 T-509): the
+// outcome counter (promoted / dry-run / status-only — failures stay the HTTP
+// status series) and the duration histogram (NFR-P80's observability arm:
+// the large-build migration budget reads off this family).
+func (s *Server) observeBuildsPromote(outcome string, d time.Duration) {
+	if s.metrics == nil {
+		return
+	}
+	s.metrics.buildsPromote.Inc("outcome", outcome)
+	s.metrics.buildsPromoteDur.Observe(d.Seconds())
 }
 
 // metricsHandler assembles GET /metrics (root level, the /healthz-family

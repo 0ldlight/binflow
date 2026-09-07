@@ -23,6 +23,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -34,6 +35,7 @@ import (
 
 	"github.com/lzwzzy/binflow/internal/build"
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/repo"
 )
 
 // buildMaxBodyBytes caps the upload/append document (the family's wire-size
@@ -77,8 +79,15 @@ func readBuildBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 // forbidden text (operations.go's passthrough posture), 404 the spec's
 // verbatim "Build-Info not found" (the one frozen wording — uniform across
 // the family so the numbers face's zero-leak 404 and the detail face's
-// absent-run 404 read identically).
+// absent-run 404 read identically). A *repo.StatusError renders VERBATIM
+// first (the promote faces' carrier refusals — the four-adapter seam
+// posture) and the promote 503 arm answers the carrier-less unit stack.
 func (s *Server) writeBuildError(w http.ResponseWriter, err error) {
+	var se *repo.StatusError
+	if errors.As(err, &se) {
+		writeError(w, se.Code, se.Message)
+		return
+	}
 	switch {
 	case errors.Is(err, build.ErrForbidden):
 		writeError(w, http.StatusForbidden, err.Error())
@@ -86,6 +95,8 @@ func (s *Server) writeBuildError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, metadata.ErrBuildNotFound):
 		writeError(w, http.StatusNotFound, "Build-Info not found")
+	case errors.Is(err, build.ErrPromoteUnavailable):
+		writeError(w, http.StatusServiceUnavailable, "build promotion is not available on this instance")
 	default:
 		s.log.Error("httpapi: build operation failed", "error", err.Error())
 		writeError(w, http.StatusInternalServerError, "build operation failed")
@@ -266,6 +277,115 @@ func (s *Server) buildsUnavailable(w http.ResponseWriter) bool {
 		return true
 	}
 	return false
+}
+
+// handleBuildPromote serves POST /api/build/promote/{buildName}/
+// {buildNumber} (M17 T-509, FR-152.2 — build-info.md §1/§2.4): 200 with the
+// messages[] stream ({level: error|warning|info, message} — partial failures
+// under failFast=false ride the same 200), the promotion history row behind
+// it, and the promote metric family's outcome arm. ?started= disambiguates
+// same-name-same-number runs like every run-addressed face.
+func (s *Server) handleBuildPromote(w http.ResponseWriter, r *http.Request, name, number string) {
+	if s.buildsUnavailable(w) {
+		return
+	}
+	if refuseBuildProjects(w, r) {
+		return
+	}
+	raw, ok := readBuildBody(w, r)
+	if !ok {
+		return
+	}
+	q := r.URL.Query()
+	start := time.Now()
+	res, err := s.builds.Promote(r.Context(), principalFrom(r.Context()), build.Coordinate{
+		Name: name, Number: number,
+		Started: q.Get("started"), Repo: q.Get("buildRepo"),
+	}, raw)
+	if err != nil {
+		s.writeBuildError(w, err)
+		return
+	}
+	outcome := "promoted"
+	switch {
+	case res.DryRun:
+		outcome = "dry-run"
+	case res.StatusOnly:
+		outcome = "status-only"
+	}
+	s.observeBuildsPromote(outcome, time.Since(start))
+	if res.Messages == nil {
+		res.Messages = []build.PromotionMessage{}
+	}
+	writeJSONBody(w, http.StatusOK, struct {
+		Messages []build.PromotionMessage `json:"messages"`
+	}{Messages: res.Messages})
+}
+
+// handleBuildRetention serves POST /api/build/retention/{buildName}
+// (build-info.md §1/§2.5): the four-field window body, ?async= (default
+// TRUE — the official posture; the execution moves off the request path, the
+// 200 answers from the VALIDATED plan). async=false runs the window inline:
+// the ladder (403/404/400) answers synchronously, a mid-execution store
+// fault answers the honest 500 — success stays the official bare 200.
+func (s *Server) handleBuildRetention(w http.ResponseWriter, r *http.Request, name string) {
+	if s.buildsUnavailable(w) {
+		return
+	}
+	if refuseBuildProjects(w, r) {
+		return
+	}
+	raw, ok := readBuildBody(w, r)
+	if !ok {
+		return
+	}
+	var req build.RetentionRequest
+	if err := json.Unmarshal(raw, &req); err != nil {
+		writeError(w, http.StatusBadRequest,
+			"retention body is not valid JSON: "+err.Error())
+		return
+	}
+	q := r.URL.Query()
+	p := principalFrom(r.Context())
+	plan, err := s.builds.PrepareRetention(r.Context(), p, name, q.Get("buildRepo"), req)
+	if err != nil {
+		s.writeBuildError(w, err)
+		return
+	}
+	async := true
+	if v := q.Get("async"); v != "" {
+		if b, perr := strconv.ParseBool(v); perr == nil {
+			async = b
+		} else {
+			writeError(w, http.StatusBadRequest,
+				"the async parameter must be a boolean (true/false), got "+strconv.Quote(v))
+			return
+		}
+	}
+	if async {
+		// The official default: the window runs detached (validation already
+		// answered; a background failure is logged, never a silent loss).
+		detached := context.WithoutCancel(r.Context())
+		go func() {
+			defer func() {
+				if v := recover(); v != nil {
+					s.log.Error("httpapi: build retention panicked",
+						"build", name, "panic", v)
+				}
+			}()
+			if _, err := plan.Execute(detached, s.builds, p); err != nil {
+				s.log.Error("httpapi: build retention execution failed",
+					"build", name, "error", err.Error())
+			}
+		}()
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if _, err := plan.Execute(r.Context(), s.builds, p); err != nil {
+		s.writeBuildError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusOK) // empty body, the undocumented official success form
 }
 
 // splitBuildCoords splits the /api/build family's tail after prefix into
