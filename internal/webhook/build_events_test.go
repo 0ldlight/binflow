@@ -128,16 +128,14 @@ func TestBuildEventsFireSubscriptions(t *testing.T) {
 }
 
 // TestBuildDomainRegistryAudit: the registry's wired/dormant marking AFTER
-// the flip, asserted per domain (the zero-fake audit: exactly the four
-// domains with BinFlow trigger sources carry wired types — artifact 5,
-// artifact_property 2, docker 2, build 3 — every other domain stays fully
-// dormant, honestly presented, never a fabricated trigger).
+// the flip and the M17-Q5 closed-domain ruling, asserted per domain (the
+// zero-fake audit: exactly the four domains with BinFlow trigger sources
+// are registered — artifact 5 wired, artifact_property 2, docker 2 wired
+// + promoted dormant, build 3 — every sourceless domain is DEREGISTERED,
+// never a fabricated trigger and never a subscribable ghost).
 func TestBuildDomainRegistryAudit(t *testing.T) {
 	wantWired := map[string]int{
 		"artifact": 5, "artifact_property": 2, "docker": 2, "build": 3,
-		"release_bundle": 0, "release_bundle_v2": 0, "release_bundle_v2_promotion": 0,
-		"distribution": 0, "destination": 0, "curation": 0, "user": 0,
-		"xray_scan_status": 0, "app_trust": 0,
 	}
 	gotWired := map[string]int{}
 	total := 0
@@ -150,8 +148,8 @@ func TestBuildDomainRegistryAudit(t *testing.T) {
 			}
 		}
 	}
-	if total != 66 {
-		t.Fatalf("registry total = %d, want 66 (13 domains x documented counts)", total)
+	if total != 13 {
+		t.Fatalf("registry total = %d, want 13 (4 sourced domains)", total)
 	}
 	if len(webhook.Domains()) != len(wantWired) {
 		t.Fatalf("domain count = %d, want %d", len(webhook.Domains()), len(wantWired))
@@ -159,6 +157,16 @@ func TestBuildDomainRegistryAudit(t *testing.T) {
 	for d, want := range wantWired {
 		if gotWired[d] != want {
 			t.Errorf("domain %s carries %d wired types, want %d (zero-fake audit)", d, gotWired[d], want)
+		}
+	}
+	// The M17-Q5 裁① arm: the nine sourceless domains are gone from the
+	// registration face entirely — no dormant ghost rows left to audit.
+	for _, d := range webhook.DeregisteredDomains() {
+		if webhook.ValidDomain(d) {
+			t.Errorf("deregistered domain %q must not be a registered domain", d)
+		}
+		if got := len(webhook.EventTypesOfDomain(d)); got != 0 {
+			t.Errorf("deregistered domain %q carries %d types, want 0", d, got)
 		}
 	}
 }

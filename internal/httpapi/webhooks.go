@@ -54,9 +54,9 @@ const (
 
 // WebhookPlane is the consumer-side seam the assembled webhook.Bus
 // satisfies: the subscription CRUD face, the synchronous test send, the
-// troubleshooting read and the Emit seam the domain handlers share. nil in
-// Deps keeps all seven endpoints at the honest 503 (unit stacks only;
-// every assembled server wires the Bus).
+// troubleshooting read, the outbox row-level face (FR-159.2) and the Emit
+// seam the domain handlers share. nil in Deps keeps the endpoints at the
+// honest 503 (unit stacks only; every assembled server wires the Bus).
 type WebhookPlane interface {
 	Create(ctx context.Context, req *webhook.SubscriptionRequest, actor string) (*webhook.Subscription, error)
 	Get(ctx context.Context, key string) (*webhook.Subscription, error)
@@ -65,6 +65,8 @@ type WebhookPlane interface {
 	Delete(ctx context.Context, key string) error
 	Test(ctx context.Context, req *webhook.SubscriptionRequest, actor webhook.Actor) (*webhook.TestOutcome, error)
 	Troubleshooting(ctx context.Context, q webhook.TroubleshootQuery) ([]webhook.TroubleshootingRecord, error)
+	Outbox(ctx context.Context, f webhook.OutboxFilter) (*webhook.OutboxPage, error)
+	Replay(ctx context.Context, deliveryID string) (*webhook.OutboxRow, error)
 	Emit(ctx context.Context, ev webhook.Event)
 }
 

@@ -44,6 +44,11 @@ type Store interface {
 	// ListDeliveries returns the outbox rows of one subscription, newest
 	// first (the console's "recent deliveries" window and AC assertions).
 	ListDeliveries(ctx context.Context, subscriptionID string, limit int) ([]*Delivery, error)
+	// QueryOutbox is the row-level read the FR-159.2 REST face drives:
+	// one filtered, keyset-paginated page of EVERY subscription's rows,
+	// newest first, each joined with its subscription's wire key. A
+	// cursor the store never issued answers metadata.ErrInvalidCursor.
+	QueryOutbox(ctx context.Context, f OutboxFilter) (*OutboxPage, error)
 
 	// ---- the dispatcher seams (T-364, ADR-0041 decision 4) ----
 	// The dispatcher owns every status transition past T-362's pending
@@ -382,6 +387,133 @@ func (s *SQLiteStore) ListDeliveries(ctx context.Context, subscriptionID string,
 		out = append(out, d)
 	}
 	return out, wrapStoreErr("list deliveries rows", subscriptionID, rows.Err())
+}
+
+// ---- the outbox row-level read (FR-159.2) ----
+
+// outboxCursorSeparator joins the keyset tuple "<created_at>|<id>" — the
+// audit read's cursor scheme (RFC3339Nano UTC stamps never contain '|',
+// and the delivery id is a uuid that never does either).
+const outboxCursorSeparator = "|"
+
+// parseOutboxCursor decodes the opaque keyset cursor. The empty cursor
+// (first page) decodes to ok=false; anything that does not match the
+// shape is metadata.ErrInvalidCursor — a cursor this store never issued
+// is client input, answered as 400 by the REST plane.
+func parseOutboxCursor(cursor string) (createdAt, id string, ok bool, err error) {
+	if cursor == "" {
+		return "", "", false, nil
+	}
+	timePart, idPart, found := strings.Cut(cursor, outboxCursorSeparator)
+	if !found || timePart == "" || idPart == "" {
+		return "", "", false, fmt.Errorf("webhook: outbox cursor %q: %w", cursor, metadata.ErrInvalidCursor)
+	}
+	return timePart, idPart, true, nil
+}
+
+// cursorOfOutbox renders a row's keyset position as the next page's
+// opaque cursor.
+func cursorOfOutbox(r *OutboxRow) string {
+	return r.CreatedAt + outboxCursorSeparator + r.ID
+}
+
+// outboxColumns is the row-level projection: the delivery columns plus
+// the joined subscription key (LEFT JOIN, not INNER: a read racing the
+// cascade must answer "" rather than 500 — the FK keeps orphans out in
+// steady state, this is the mid-delete snapshot defense).
+const outboxColumns = `d.id, d.subscription_id, d.event_type, d.payload, d.status, d.attempts,
+	d.next_attempt_at, d.last_error, d.last_status_code, d.created_at, d.delivered_at, s.key`
+
+// scanOutboxRow reads one joined row (payload scanned and discarded — the
+// row-level face never echoes the delivery bytes).
+func scanOutboxRow(row interface{ Scan(...any) error }) (*OutboxRow, error) {
+	out := &OutboxRow{}
+	var payload string
+	var lastStatus sql.NullInt64
+	var delivered sql.NullString
+	if err := row.Scan(&out.ID, &out.SubscriptionID, &out.EventType, &payload, &out.Status,
+		&out.Attempts, &out.NextAttemptAt, &out.LastError, &lastStatus, &out.CreatedAt,
+		&delivered, &out.SubscriptionKey); err != nil {
+		return nil, err
+	}
+	if lastStatus.Valid {
+		v := lastStatus.Int64
+		out.LastStatusCode = &v
+	}
+	if delivered.Valid {
+		v := delivered.String
+		out.DeliveredAt = &v
+	}
+	return out, nil
+}
+
+// QueryOutbox implements Store: filters over the closed-set status, the
+// joined subscription key and the bare event_type column, ordered
+// (created_at DESC, id DESC) — ListDeliveries' order — and paged by the
+// keyset cursor with the limit+1 has-more probe (the audit Query
+// posture: a page that exactly fills the limit is still distinguishable
+// from a terminal one).
+func (s *SQLiteStore) QueryOutbox(ctx context.Context, f OutboxFilter) (*OutboxPage, error) {
+	limit := f.Limit
+	if limit <= 0 {
+		limit = OutboxLimitDefault
+	}
+	if limit > OutboxLimitMax {
+		limit = OutboxLimitMax
+	}
+	cursorTime, cursorID, hasCursor, err := parseOutboxCursor(f.Cursor)
+	if err != nil {
+		return nil, err
+	}
+	query := `SELECT ` + outboxColumns + `
+		FROM webhook_deliveries d LEFT JOIN webhook_subscriptions s ON s.id = d.subscription_id`
+	var conds []string
+	var args []any
+	if f.SubscriptionKey != "" {
+		conds = append(conds, "s.key = ?")
+		args = append(args, f.SubscriptionKey)
+	}
+	if f.Status != "" {
+		conds = append(conds, "d.status = ?")
+		args = append(args, f.Status)
+	}
+	if f.EventType != "" {
+		conds = append(conds, "d.event_type = ?")
+		args = append(args, f.EventType)
+	}
+	if hasCursor {
+		// Keyset predicate: everything strictly after the cursor row in
+		// (created_at DESC, id DESC) order.
+		conds = append(conds, "(d.created_at < ? OR (d.created_at = ? AND d.id < ?))")
+		args = append(args, cursorTime, cursorTime, cursorID)
+	}
+	if len(conds) > 0 {
+		query += " WHERE " + strings.Join(conds, " AND ") //nolint:gosec // conds are static literals, values are bound args
+	}
+	query += " ORDER BY d.created_at DESC, d.id DESC LIMIT ?"
+	args = append(args, limit+1)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, wrapStoreErr("outbox query", f.SubscriptionKey, err)
+	}
+	defer func() { _ = rows.Close() }()
+	page := &OutboxPage{Rows: make([]*OutboxRow, 0, limit)}
+	for rows.Next() {
+		r, err := scanOutboxRow(rows)
+		if err != nil {
+			return nil, wrapStoreErr("outbox query scan", f.SubscriptionKey, err)
+		}
+		page.Rows = append(page.Rows, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, wrapStoreErr("outbox query rows", f.SubscriptionKey, err)
+	}
+	if len(page.Rows) > limit {
+		page.Rows = page.Rows[:limit]
+		page.NextCursor = cursorOfOutbox(page.Rows[limit-1])
+	}
+	return page, nil
 }
 
 // ---- the dispatcher seams ----

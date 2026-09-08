@@ -551,6 +551,29 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
 			s.handleReplicationGlobalBlockSet(false))
 
+	// ---- /api/v1/webhooks/outbox (M17 T-496, FR-159.2 / LC-109 — the
+	// BinFlow-native C-layer row-level face; Artifactory has no public
+	// counterpart) ----
+	// GET pages the outbox rows (?subscription/?status/?event_type
+	// filters, ?limit/?cursor pagination); POST /{id}/replay resets one
+	// dead row and wakes the engine (webhook_outbox.go). Gates: reads
+	// system:read (readonly_admin sees the delivery history — the FR-115.5
+	// posture); the replay write system:write plus the webhook feature
+	// gate inside the handler (ADR-0041 decision 8 seam 1). The query
+	// skips the feature gate deliberately — D1's "configured plane stays
+	// visible on a locked instance" ruling extends to its dead letters.
+	// Every other verb or spelling falls to the E-26 404.
+	case rest == "v1/webhooks/outbox" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleWebhookOutboxList)
+	case strings.HasPrefix(rest, "v1/webhooks/outbox/") && r.Method == http.MethodPost:
+		idRaw, tail := splitAPIName(rest, "v1/webhooks/outbox/")
+		if idRaw != "" && tail == "replay" {
+			s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
+				func(w http.ResponseWriter, r *http.Request) { s.handleWebhookOutboxReplay(w, r, idRaw) })
+			return
+		}
+		notImplemented(w, "/binflow/api/"+rest)
+
 	// ---- /api/v1/storage/migration (T-164) ----
 	case rest == "v1/storage/migration" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleMigrationStatus)
