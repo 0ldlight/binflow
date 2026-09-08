@@ -40,6 +40,7 @@ export type NavIconName =
   | 'pulse'
   | 'article'
   | 'bundle'
+  | 'build'
 
 /** Material 图标 path 几何（24×24 viewBox；Apache-2.0，逐枚 16px 槽校型） */
 const PATHS: Record<NavIconName, string> = {
@@ -86,6 +87,10 @@ const PATHS: Record<NavIconName, string> = {
   // T-514 Release Bundles 应用域条目：两层抽屉堆叠（自绘轴对齐厚描边
   // 同款纪律——无 Material 单 path 逐字对照，非复刻第三方资产）。
   bundle: 'M3 3h18v7H3V3zm7 3h4v1.5h-4zM3 14h18v7H3v-7zm7 3h4v1.5h-4z',
+  // T-512 Builds 应用域条目：Material「build」扳手标准几何（Apache-2.0，
+  // 逐字对照 material-icons build）——CI 构建语义。
+  build:
+    'M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z',
 }
 
 /**

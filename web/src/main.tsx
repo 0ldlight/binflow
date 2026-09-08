@@ -50,6 +50,10 @@ const SearchPage = lazy(() => import('./pages/search/SearchPage'))
 // 三视图一组件（ArtifactsBrowser 先例：/bundles → /bundles/:name →
 // /bundles/:name/:version，URL 即状态）；消费 T-513 查询族端点
 const BundlesPage = lazy(() => import('./pages/bundles/BundlesPage'))
+// Builds（M17 T-512，FR-152.3）：build 域只读查询面——三视图一组件
+// （BundlesPage 先例：/builds → /builds/:name → /builds/:name/:number，
+// URL 即状态；?started= 消歧同名同号多 run）；消费 T-508 查询族端点
+const BuildsPage = lazy(() => import('./pages/builds/BuildsPage'))
 // 安全组（T-101 形态原样；页面重排归 T-237/T-241）
 const UsersPage = lazy(() => import('./pages/security/UsersPage'))
 const UserDetailPage = lazy(() => import('./pages/security/UserDetailPage'))
@@ -146,6 +150,13 @@ initI18n().then(() => {
                     <Route path="artifacts/:tab/:key/*" element={<ArtifactsBrowser />} />
                     <Route path="artifacts/:key/*" element={<ArtifactsBrowser />} />
                     <Route path="search" element={<SearchPage />} />
+                    {/* Builds（T-512）：三视图一组件——名单 / run 号单
+                        （:name）/ run 详情（:name/:number，?started= 消歧）。
+                        只读查询面（读门 = r(buildRepo, buildName) 镜像；名单
+                        面服务端可见集过滤，页面自身不设门） */}
+                    <Route path="builds" element={<BuildsPage />} />
+                    <Route path="builds/:name" element={<BuildsPage />} />
+                    <Route path="builds/:name/:number" element={<BuildsPage />} />
                     {/* Release Bundles（T-514）：三视图一组件——名单 / 版本单
                         （:name）/ 描述符（:name/:version）。应用域只读查询面
                         （读门 = 系统读权限 ∨ Any Distribution 通道；普通用户

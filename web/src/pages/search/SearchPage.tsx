@@ -1,11 +1,17 @@
 import { useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import Button from '@mui/material/Button'
 import Divider from '@mui/material/Divider'
 import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
+import Paper from '@mui/material/Paper'
 import MuiSkeleton from '@mui/material/Skeleton'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
 import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 
@@ -15,9 +21,11 @@ import { apiJSON } from '../../lib/api'
 import { useColumnPrefs } from '../../lib/columnPrefs'
 import type { ColumnDef, ColumnPrefs } from '../../lib/columnPrefs'
 import { useAsync } from '../../lib/useAsync'
+import type { AsyncState } from '../../lib/useAsync'
 
 import { AqlPanel } from './AqlPanel'
-import { semanticOf } from './aql'
+import { formatStamp, runAQL, semanticOf } from './aql'
+import type { AQLResult, AQLRow } from './aql'
 import { ResultsTable } from './ResultsTable'
 import type { ResultRow } from './ResultsTable'
 
@@ -108,6 +116,30 @@ function toRow(r: SearchResult): ResultRow {
 
 type SearchMode = 'basic' | 'aql'
 
+/** 搜索范围（T-512 / FR-152.3——§9A-S7 缺位解除③）：制品（默认，规范形
+ *  省略 scope 段）| Builds（build 域）。Packages 无 BinFlow 域不列（登记
+ *  不伪造）。scope 只作用于基本模式——AQL 模式的域在查询文本里（用户
+ *  手写 items.find / builds.find），页签在 AQL 模式下不渲染。 */
+type SearchScope = 'artifacts' | 'builds'
+
+/** 基本模式 Builds 范围的查询合成（零新端点——AQL builds 入口〔T-511〕）：
+ *  名/号 $match 子串（$or 双臂——号可查），started 倒序，页窗 100。词中
+ *  的 * / ? 按 $match 通配符原样透传（高级用法），其余字符 JSON 转义。 */
+function buildsQueryFor(term: string): string {
+  const pat = JSON.stringify(`*${term}*`)
+  return `builds.find({"$or":[{"name":{"$match":${pat}}},{"number":{"$match":${pat}}}]}).include("name","number","started","repo").sort({"$desc":["started"]}).limit(100)`
+}
+
+/** AQL builds 行 → 结果行（投影四字段；缺省字段如实 — 不伪造） */
+function buildRowOf(r: AQLRow): { name: string; number: string; started: string; repo: string } {
+  return {
+    name: typeof r.name === 'string' ? r.name : '',
+    number: String(r.number ?? ''),
+    started: typeof r.started === 'string' ? r.started : '',
+    repo: typeof r.repo === 'string' ? r.repo : '',
+  }
+}
+
 /** 列选器（T-414 交付面；T-449 起复位 = 恢复默认列集非全显）——两模式
  *  共用一份壳（同一时刻仅一模式在场，页内锚唯一）。 */
 function ColumnsMenu({ cols }: { cols: ColumnPrefs }) {
@@ -173,11 +205,12 @@ function ColumnsMenu({ cols }: { cols: ColumnPrefs }) {
 
 export default function SearchPage() {
   const navigate = useNavigate()
-  // URL 即查询态（顶栏 Enter 写入 ?q=；?mode=aql 切 AQL）——本页零本地
-  // 查询状态，replaceState 写回环退役
+  // URL 即查询态（顶栏 Enter 写入 ?q=；?mode=aql 切 AQL；?scope=builds 切
+  // Builds 范围——T-512）——本页零本地查询状态，replaceState 写回环退役
   const [params] = useSearchParams()
   const q = (params.get('q') ?? '').trim()
   const mode: SearchMode = params.get('mode') === 'aql' ? 'aql' : 'basic'
+  const scope: SearchScope = params.get('scope') === 'builds' ? 'builds' : 'artifacts'
   const abortRef = useRef<AbortController | null>(null)
 
   // T-414（FR-135.2）+ T-449 断言反转②：列显隐偏好（defaultHidden =
@@ -186,14 +219,28 @@ export default function SearchPage() {
 
   const results = useAsync(() => {
     abortRef.current?.abort()
-    if (mode === 'aql' || q === '') return Promise.resolve(null)
+    if (mode === 'aql' || scope !== 'artifacts' || q === '') return Promise.resolve(null)
     const ctrl = new AbortController()
     abortRef.current = ctrl
     return searchArtifacts(q, ctrl.signal)
-  }, [q, mode])
+  }, [q, mode, scope])
+
+  // T-512：Builds 范围的基本查询（AQL builds 入口合成——见 buildsQueryFor）
+  const buildResults = useAsync(() => {
+    abortRef.current?.abort()
+    if (mode === 'aql' || scope !== 'builds' || q === '') return Promise.resolve(null)
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
+    return runAQL(buildsQueryFor(q), ctrl.signal)
+  }, [q, mode, scope])
 
   const rows = useMemo(() => (results.data?.results ?? []).map(toRow), [results.data])
   const count = results.data?.results.length ?? 0
+  const buildRows = useMemo(
+    () => (buildResults.data?.results ?? []).map(buildRowOf),
+    [buildResults.data],
+  )
+  const buildCount = buildRows.length
 
   const switchMode = (next: SearchMode) => {
     if (next === mode) return
@@ -202,9 +249,42 @@ export default function SearchPage() {
     navigate(next === 'aql' ? '/search?mode=aql' : '/search', { replace: true })
   }
 
+  const switchScope = (next: SearchScope) => {
+    if (next === scope) return
+    // 范围切换 = URL 重写（replace）：规范形省略 scope 段（artifacts 是
+    // 默认档不占段——K67-3 TAB 省略规范形同款纪律）；切范围不续跑旧 q
+    //（顶栏驻留词还在，Enter 即在新区重查——与切模式同语义）
+    navigate(next === 'builds' ? '/search?scope=builds' : '/search', { replace: true })
+  }
+
   return (
     <div data-testid="search-page">
-      <h2 className="search-headline">{t('搜索制品')}</h2>
+      <h2 className="search-headline">{scope === 'builds' ? t('搜索构建') : t('搜索制品')}</h2>
+      <div style={{ display: 'flex', gap: 'var(--bf-sp-3)', marginBottom: 'var(--bf-sp-4)', flexWrap: 'wrap' }}>
+      {/* T-512（FR-152.3）：搜索范围页签——§9A-S7 缺位解除③（Builds 页签
+          出现 + 可查询）。BinFlow 承载裁定（票内留痕）：快搜 253px 紧凑
+          形态（B-2.14 裁定）之下范围页签落结果页（快搜的结果面），URL
+          ?scope= 承载（顶栏在 /search 上 Enter 沿当前 scope——AppShell）；
+          Packages 无 BinFlow 域不列。仅基本模式渲染：AQL 模式的域在查询
+          文本里（items.find / builds.find——T-511 四入口），页签面与其正交 */}
+      {mode === 'basic' && (
+        <ToggleButtonGroup
+          exclusive
+          size="small"
+          value={scope}
+          onChange={(_, v) => {
+            if (v !== null) switchScope(v)
+          }}
+          aria-label={t('搜索范围')}
+          data-testid="search-scope"
+          sx={{
+            '& .MuiToggleButton-root:not(.Mui-selected)': { color: 'text.primary' },
+          }}
+        >
+          <ToggleButton value="artifacts" data-testid="search-scope-artifacts">{t('制品')}</ToggleButton>
+          <ToggleButton value="builds" data-testid="search-scope-builds">Builds</ToggleButton>
+        </ToggleButtonGroup>
+      )}
       {/* T-419（FR-135.1）：模式切换——基本（顶栏驻留查询 + 结果网格）↔
           AQL 编辑器；切模式不丢 AQL 侧已写查询（组件卸载/重挂的 T-419
           行为维持：编辑器文本不跨切换保留，深链 ?mode=aql 是重入通道） */}
@@ -218,7 +298,6 @@ export default function SearchPage() {
         aria-label={t('搜索模式')}
         data-testid="search-mode"
         sx={{
-          mb: 2,
           // MUI 未选中档位文字默认 54% 黑（亮主题 #f3f5f7 底上 ≈4.2:1 <
           // AA）——钉 text.primary（选中态走 MUI 原生主色对比面，不碰）
           '& .MuiToggleButton-root:not(.Mui-selected)': { color: 'text.primary' },
@@ -229,9 +308,12 @@ export default function SearchPage() {
           AQL
         </ToggleButton>
       </ToggleButtonGroup>
+      </div>
 
       {mode === 'aql' ? (
         <AqlPanel columns={COLUMNS} cols={cols} toolbar={<ColumnsMenu cols={cols} />} />
+      ) : scope === 'builds' ? (
+        <BuildsScopePanel q={q} results={buildResults} count={buildCount} />
       ) : (
         <>
           {q !== '' && results.status === 'ok' && (
@@ -284,5 +366,98 @@ export default function SearchPage() {
         </>
       )}
     </div>
+  )
+}
+
+// ---- T-512：Builds 范围面板（基本模式 ?scope=builds 的结果面） ----------------
+//
+// 四态与制品范围同构（loading 骨架 / ErrorCard + 重试 / 空态 / 结果表）；
+// 行 = AQL builds 入口的 run 投影（name/number/started/repo——服务端
+// started 倒序），行导航 = 构建名/run 号深链进 Builds 页 run 详情（?started=
+// 消歧）。结果按 r(buildRepo, buildName) 行级过滤（服务端可见集——
+// build_engine 的 CanReadBuild 织入）。列集无列选器（四列固定——build
+// 行投影面窄，无偏好面需求；制品范围的列选器是其网格的从属）。
+
+function BuildsScopePanel({
+  q,
+  results,
+  count,
+}: {
+  q: string
+  results: AsyncState<AQLResult | null>
+  count: number
+}) {
+  const rows = (results.data?.results ?? []).map(buildRowOf)
+  return (
+    <>
+      {q !== '' && results.status === 'ok' && (
+        <p className="search-count" data-testid="search-count">{t('搜索结果 –')} {count} {t('项')}            </p>
+      )}
+      {q === '' && (
+        <p className="text-2 search-sub">{t('Builds 范围：顶栏输入构建名或 run 号子串并 Enter——结果为 build run 行（按你的 build 读权限过滤），点击行进 run 详情。')}        </p>
+      )}
+      {q === '' ? (
+        <EmptyState
+          illustration
+          message={t('在顶栏输入关键词开始搜索')}
+          hint={t('顶栏搜索框（⌘K）输入构建名/run 号子串（如 myapp、42）后回车——空关键词不发起查询；AQL 模式可手写 builds.find 查询全字段。')}
+        />
+      ) : results.status === 'loading' ? (
+        <div data-testid="skeleton" aria-hidden="true" style={{ paddingTop: 8 }}>
+          {Array.from({ length: 8 }, (_, i) => (
+            <MuiSkeleton key={i} variant="text" width={`${88 - i * 6}%`} sx={{ my: 0.5 }} />
+          ))}
+        </div>
+      ) : (results.status === 'error' || results.status === 'forbidden') && results.error ? (
+        <ErrorCard error={results.error} onRetry={results.reload} />
+      ) : count === 0 ? (
+        <EmptyState
+          illustration
+          message={t('没有匹配「{q}」的构建', { q: q })}
+          hint={t('检查拼写或换更短的子串；结果按你的 build 读权限过滤（r(buildRepo, buildName)）。')}
+        />
+      ) : (
+        <Paper component="section" className="card section" elevation={1} data-testid="search-builds-results">
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell component="th" scope="col">{t('构建名')}</TableCell>
+                <TableCell component="th" scope="col">{t('run 号')}</TableCell>
+                <TableCell component="th" scope="col">{t('启动时间')}</TableCell>
+                <TableCell component="th" scope="col">{t('构建仓')}</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {rows.map((r, i) => (
+                <TableRow key={`${r.name}|${r.number}|${r.started}|${i}`} hover data-testid={`search-builds-row-${i}`}>
+                  <TableCell>
+                    <Link
+                      className="row-link mono"
+                      lang="en"
+                      to={`/builds/${encodeURIComponent(r.name)}/${encodeURIComponent(r.number)}${r.started ? `?started=${encodeURIComponent(r.started)}` : ''}`}
+                    >
+                      {r.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <Link
+                      className="row-link mono"
+                      lang="en"
+                      to={`/builds/${encodeURIComponent(r.name)}/${encodeURIComponent(r.number)}${r.started ? `?started=${encodeURIComponent(r.started)}` : ''}`}
+                    >
+                      {r.number}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <span className="mono" lang="en" title={r.started}>{formatStamp(r.started) ?? r.started ?? '—'}</span>
+                  </TableCell>
+                  <TableCell className="mono" lang="en">{r.repo || '—'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Paper>
+      )}
+    </>
   )
 }

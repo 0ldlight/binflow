@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 
 const WEB = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 const SRC = join(WEB, 'src')
-const DOMAINS = ['console', 'repositories', 'artifacts', 'bundles', 'search', 'security', 'governance', 'monitoring', 'webhooks', 'admin', 'common']
+const DOMAINS = ['console', 'repositories', 'artifacts', 'bundles', 'builds', 'search', 'security', 'governance', 'monitoring', 'webhooks', 'admin', 'common']
 
 function walk(d) {
   const out = []
