@@ -79,20 +79,34 @@ func (p *parser) next() token { t := p.toks[p.i]; p.i++; return t }
 
 // run parses the whole query into p.result.
 func (p *parser) run() *QueryError {
-	// Domain: one bare identifier; anything other than "items" is an honest
-	// unsupported-domain rejection naming what was written.
+	// Domain: one bare identifier. items is the M15 entry; the three
+	// build-family entries (builds/modules/dependencies, aql.md §15.1)
+	// joined in T-511 — their fields resolve against the entry-scoped
+	// build registry. Everything else is an honest unsupported-domain
+	// rejection naming what was written.
 	dt := p.cur()
 	if dt.kind != tkIdent {
 		return p.syntaxErr(dt.pos)
 	}
 	p.domain = dt.text
-	if dt.text != "items" {
-		msg := "AQL domain not supported: " + dt.text + " (BinFlow AQL supports: items"
-		if hint, ok := unsupportedDomains[dt.text]; ok {
+	if dt.text != "items" && !isBuildEntry(dt.text) {
+		// The dotted entry domains (build.promotions, module.properties,
+		// ...) arrive as ident "." ident — peek one segment so the
+		// rejection names the domain the query actually wrote. The action
+		// word is not a segment: build.find stays "build".
+		name := dt.text
+		if p.i+2 < len(p.toks) && p.toks[p.i+1].isPunct(".") &&
+			p.toks[p.i+2].kind == tkIdent && !p.toks[p.i+2].isWord("find") {
+			name = dt.text + "." + p.toks[p.i+2].text
+		}
+		msg := "AQL domain not supported: " + name + " (BinFlow AQL supports: items, builds, modules, dependencies"
+		if hint, ok := unsupportedDomains[name]; ok {
+			msg += "; " + hint
+		} else if hint, ok := unsupportedDomains[dt.text]; ok {
 			msg += "; " + hint
 		}
 		msg += ")"
-		return p.queryErr(ErrUnsupportedDomain, dt.text, "", dt.pos, "%s", msg)
+		return p.queryErr(ErrUnsupportedDomain, name, "", dt.pos, "%s", msg)
 	}
 	p.next()
 	if e := p.expectPunct("."); e != nil {
@@ -115,7 +129,7 @@ func (p *parser) run() *QueryError {
 	if e := p.expectPunct(")"); e != nil {
 		return e
 	}
-	p.result = &Query{Domain: "items", Criteria: crit}
+	p.result = &Query{Domain: dt.text, Criteria: crit}
 	for p.cur().isPunct(".") {
 		if err := p.parseSuffix(); err != nil {
 			return err
@@ -133,6 +147,17 @@ func (p *parser) expectPunct(c string) *QueryError {
 		return nil
 	}
 	return p.syntaxErr(p.cur().pos)
+}
+
+// lookup resolves a field name against the query's entry domain: the three
+// build-family entries carry their own registry (aql.md §15.1 — wire names
+// collide with item fields by design, so "name" means builds.name inside
+// builds.find), everything else resolves through the shared registry.
+func (p *parser) lookup(name string) (Field, bool) {
+	if isBuildEntry(p.domain) {
+		return lookupBuildField(p.domain, name)
+	}
+	return lookupField(name)
 }
 
 // suffixRank enforces the chain order include → sort → offset → limit
@@ -358,6 +383,14 @@ func (p *parser) parseAtPair(key token) (Criteria, *QueryError) {
 // propPair builds the PropMatch node for an @key pair (key already consumed)
 // and parses its value side.
 func (p *parser) propPair(propName string, pos int) (Criteria, *QueryError) {
+	if isBuildEntry(p.domain) {
+		// Build properties attach through the build.properties/module.properties
+		// subdomains, whose query entries stay closed in M17 (aql.md §15.3) —
+		// an @key arm inside a build-family entry is refused honestly, never
+		// silently matched against nothing.
+		return nil, p.queryErr(ErrUnsupportedField, p.domain, "@"+propName, pos,
+			"AQL property criteria are not part of the build-family subset: @%s (property entries stay closed, aql.md section 15.3)", propName)
+	}
 	if propName == "" {
 		return nil, p.queryErr(ErrUnknownField, p.domain, "@", pos,
 			"Unknown AQL property key: @")
@@ -403,7 +436,7 @@ func (p *parser) parseFieldPair(key token, propertyOnly bool) (Criteria, *QueryE
 			return nil, p.syntaxErr(p.cur().pos)
 		}
 	}
-	f, ok := lookupField(name)
+	f, ok := p.lookup(name)
 	if !ok {
 		return nil, p.queryErr(ErrUnknownField, p.domain, name, key.pos,
 			"Unknown AQL field: %s", name)
@@ -698,7 +731,7 @@ func (p *parser) parseIncludeField() (IncludeField, *QueryError) {
 	case len(raw) > 0 && raw[0] == '@':
 		return p.makePropInclude(raw, raw[1:], t.pos)
 	}
-	f, ok := lookupField(raw)
+	f, ok := p.lookup(raw)
 	if !ok {
 		return IncludeField{}, p.queryErr(ErrUnknownField, p.domain, raw, t.pos,
 			"Unknown AQL field: %s", raw)
@@ -711,7 +744,12 @@ func (p *parser) parseIncludeField() (IncludeField, *QueryError) {
 		return IncludeField{}, p.queryErr(ErrUnsupportedField, string(f.Domain), raw, t.pos,
 			"AQL field cannot be used in include: %s", raw)
 	}
-	if f.Domain == DomainItem {
+	if isBuildEntry(p.domain) {
+		// Every field of a build-family entry is a main-domain field: the
+		// first one include names replaces the entry's default output set
+		// (aql.md §2.5, the same override rule the item domain runs).
+		p.includeItemSeen = true
+	} else if f.Domain == DomainItem {
 		// First item-domain field in include replaces the domain's default
 		// output set (aql.md §2.5) — recorded for the sort validator.
 		p.includeItemSeen = true
@@ -725,6 +763,15 @@ func (p *parser) parseIncludeField() (IncludeField, *QueryError) {
 }
 
 func (p *parser) makePropInclude(raw, key string, pos int) (IncludeField, *QueryError) {
+	if isBuildEntry(p.domain) {
+		// The projection twin of the criteria arm (propPair): build
+		// properties attach through the closed property entries (aql.md
+		// §15.3) — an @key projection inside a build-family entry refuses
+		// honestly too, never renders an empty shell. Both the bare @ and
+		// the quoted "@key" spellings route here.
+		return IncludeField{}, p.queryErr(ErrUnsupportedField, p.domain, raw, pos,
+			"AQL property projections are not part of the build-family subset: %s (property entries stay closed, aql.md section 15.3)", raw)
+	}
 	if key == "" {
 		return IncludeField{}, p.queryErr(ErrUnknownField, p.domain, raw, pos,
 			"Unknown AQL property projection: %s", raw)
@@ -766,7 +813,7 @@ func (p *parser) parseSort() *QueryError {
 			return p.syntaxErr(t.pos)
 		}
 		p.next()
-		f, ok := lookupField(t.text)
+		f, ok := p.lookup(t.text)
 		if !ok {
 			return p.queryErr(ErrUnknownField, p.domain, t.text, t.pos,
 				"Unknown AQL field: %s", t.text)
@@ -809,10 +856,28 @@ func (p *parser) parseSort() *QueryError {
 
 // isResultField reports whether f belongs to the effective output set:
 // the include() item fields (or the domain defaults when include named no
-// item field), plus every non-item field include pulled in.
+// item field), plus every non-item field include pulled in. The
+// build-family entries run the same rule against their own defaults
+// (aql.md §15.1) — every field of such an entry is a main-domain field.
 func (p *parser) isResultField(f Field) bool {
 	if p.includeStar {
 		return true
+	}
+	if isBuildEntry(p.domain) {
+		if !p.includeItemSeen {
+			for _, n := range buildDefaultOutput[p.domain] {
+				if n == f.Name {
+					return true
+				}
+			}
+			return false
+		}
+		for _, inc := range p.result.Include {
+			if inc.Field.Name == f.Name {
+				return true
+			}
+		}
+		return false
 	}
 	if f.Domain != DomainItem {
 		for _, n := range p.includeExtra {

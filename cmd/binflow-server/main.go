@@ -706,6 +706,13 @@ func addonManifest() *addons.Registry {
 		// visible with their M11+ reservation notes.
 		addons.Properties(), addons.RepoOperations(), addons.Trashcan(), addons.HA(), addons.XrayIntegration(),
 		addons.Webhook(),
+		// The release-bundle feature slot (M17 T-513, FR-153.1 / ADR-0046
+		// decision 4 — the 20th slot): MinTier=pro interim (the Enterprise+
+		// truth and its two flip points are pinned in the ADR's Errata ③).
+		// The REST plane and the service's data-plane seam self-assemble in
+		// httpapi.New over this slot's verdict (the builds precedent — cmd's
+		// only line is the manifest entry).
+		addons.ReleaseBundle(),
 	)
 }
 

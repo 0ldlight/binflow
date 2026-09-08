@@ -363,7 +363,10 @@ func TestSearchAQLRejections(t *testing.T) {
 	}{
 		{"syntax error: E1 verbatim (v1c)", v1c, http.StatusBadRequest, v1cCopy, ""},
 		{"truncated syntax: E1 shape", `items.find({"repo":`, http.StatusBadRequest, "", "Failed to parse query:"},
-		{"unsupported domain names itself", `builds.find({})`, http.StatusBadRequest, "", "builds"},
+		// T-511 assertion inversion ⑥: builds/modules/dependencies query
+		// green now — the "names itself" example moved to a domain that
+		// still refuses (the M18+ flip-point face).
+		{"unsupported domain names itself", `releases.find({})`, http.StatusBadRequest, "", "releases"},
 		{"unsupported domain via dotted entry", `build.promotions.find({})`, http.StatusBadRequest, "", "build"},
 		{"statistics internal id named", `items.find({"stat.id":{"$eq":1}})`, http.StatusBadRequest, "", "stat.id"},
 		{"unknown field named", `items.find({"repossss":"x"})`, http.StatusBadRequest, "", "repossss"},

@@ -57,6 +57,9 @@ type Service struct {
 	// auditRec records the domain's audit rows best-effort (T-509 landing
 	// of ADR-0045 decision 10's +5 words; nil = the bare unit stack).
 	auditRec audit.Recorder
+	// emitter is the webhook Emit facet (T-510, ADR-0045 decision 7 —
+	// emit.go's WebhookEmitter func type; nil = no weaving).
+	emitter WebhookEmitter
 	// mergeMu serializes the append face's read-modify-write (two
 	// concurrent appends must both land — a stale-base last-writer-wins
 	// would silently drop a whole merge; CI-frequency traffic makes the

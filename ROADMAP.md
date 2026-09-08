@@ -346,3 +346,17 @@
 3. release-engineer 对已交付的部署方式完成烟测（M2 起）
 4. tech-writer 已产出该里程碑新增能力的用户文档
 5. 主会话完成 git tag（`m<N>-done`）；对外发布任何制品先经用户确认
+
+## 目标版本完成定义（Completion Standard，2026-09-08 重组总令 §十九——里程碑 DoD 之上的一级停止条件）
+
+> 里程碑（M17/M18…）是**节奏容器不是目标本身**：「ROADMAP 全部 done」不是项目完成条件。
+> 声明目标版本完成，当且仅当以下全部成立（依 docs/compatibility/matrix.yaml 与 known-divergence.yaml 机读计量）：
+
+1. 定义范围内 **P0 Gap = 0**、**P1 Gap = 0**、**P2 Gap ≤ 约定阈值**（阈值由用户随范围裁定）
+2. **Compatibility Coverage ≥ 目标值**（Score 公式见 docs/ai-engineering/compatibility-engineering.md §7）
+3. **Regression = 0**（金样回归 + 差分核心集 + e2e + 协议十腿全绿）
+4. **Critical Security = 0**（security-auditor 全局面无 Critical/High 开放）
+5. **Data Integrity = PASS**（corruption/concurrency/recovery 三验全绿）
+6. **Performance baseline = PASS**（性能敏感路径 P95 预算全绿）
+7. **Upgrade/rollback = PASS**（升级+回滚演练绿）
+8. **UAT = PASS**（health/smoke/critical compatibility/regression 四面绿）

@@ -201,6 +201,12 @@ func (s *Server) writeAQLRunError(w http.ResponseWriter, r *http.Request, err er
 // one), the truncation surfaces on BOTH layers (the C-layer header and the
 // official range.notification copy, ADR-0043 Errata 6).
 func (s *Server) writeAQLResult(w http.ResponseWriter, r *http.Request, res *search.Result, expanded []string, compact bool) {
+	if res.EntryDomain != "" && res.EntryDomain != "items" {
+		// The build-family entries (T-511): rows render through the build
+		// field registry — same envelope, same range contract.
+		s.writeAQLBuildResult(w, res, compact)
+		return
+	}
 	fields := res.Plan.Output
 	virtualQueried := len(expanded) > 0
 	for _, f := range fields {

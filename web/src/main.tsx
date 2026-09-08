@@ -46,6 +46,10 @@ const RepoDetailPage = lazy(() => import('./pages/repositories/RepoDetailPage'))
 // （路由结构 T-235 已定，本票只换占位挂载）。
 const ArtifactsBrowser = lazy(() => import('./pages/artifacts/ArtifactsBrowser'))
 const SearchPage = lazy(() => import('./pages/search/SearchPage'))
+// Release Bundles（M17 T-514，FR-153.3）：bundle 列表/详情只读查询面——
+// 三视图一组件（ArtifactsBrowser 先例：/bundles → /bundles/:name →
+// /bundles/:name/:version，URL 即状态）；消费 T-513 查询族端点
+const BundlesPage = lazy(() => import('./pages/bundles/BundlesPage'))
 // 安全组（T-101 形态原样；页面重排归 T-237/T-241）
 const UsersPage = lazy(() => import('./pages/security/UsersPage'))
 const UserDetailPage = lazy(() => import('./pages/security/UserDetailPage'))
@@ -142,6 +146,13 @@ initI18n().then(() => {
                     <Route path="artifacts/:tab/:key/*" element={<ArtifactsBrowser />} />
                     <Route path="artifacts/:key/*" element={<ArtifactsBrowser />} />
                     <Route path="search" element={<SearchPage />} />
+                    {/* Release Bundles（T-514）：三视图一组件——名单 / 版本单
+                        （:name）/ 描述符（:name/:version）。应用域只读查询面
+                        （读门 = 系统读权限 ∨ Any Distribution 通道；普通用户
+                        名单 200 空集走空态——服务端可见集过滤，页面自身不设门） */}
+                    <Route path="bundles" element={<BundlesPage />} />
+                    <Route path="bundles/:name" element={<BundlesPage />} />
+                    <Route path="bundles/:name/:version" element={<BundlesPage />} />
                     {/* 编辑档案（T-239 拆分落位：改密 + API Token；§6.5） */}
                     <Route path="profile" element={<ProfilePage />} />
 

@@ -155,6 +155,13 @@ func (s *service) filterVisible(ctx context.Context, p *Principal, nodes []*meta
 // the closed-instance arm) — take the universe without consulting the
 // permission tables, mirroring the decision order of auth.Can.
 //
+// A target's repos[] may name one of the T-491 wildcard buckets: the walk
+// expands ANY LOCAL/ANY REMOTE onto the repository population the bucket
+// names (the same class coverage repoListed evaluates per key — one
+// disjunction, two shapes), so the scope and the per-row Can decision
+// cannot disagree. ANY DISTRIBUTION names no repository and expands to
+// nothing here.
+//
 // Failure posture: store errors propagate (the engine maps them to the
 // 500 class — an honest failure, never a widened scope); a malformed
 // target row is skipped fail-closed, exactly the posture auth.Can takes.
@@ -198,9 +205,38 @@ func (s *service) SearchScope(ctx context.Context, p *Principal) ([]ReadScope, e
 		}
 		free := len(includes) == 0 && len(excludes) == 0
 		for _, key := range repoKeys {
-			covered[key] = true
-			if free {
-				patternFree[key] = true
+			mark := func(repoKey string) {
+				covered[repoKey] = true
+				if free {
+					patternFree[repoKey] = true
+				}
+			}
+			switch key {
+			case auth.BucketAnyLocal, auth.BucketAnyRemote:
+				// The wildcard buckets expand onto the repository
+				// population they name (T-491's class coverage, the
+				// SearchScope leg it left open): a read grant through ANY
+				// LOCAL puts every local repository in scope — virtual
+				// stays out (no preset names the virtual class) and so
+				// does the node plane's ANY DISTRIBUTION (the bundle
+				// pseudo-key channel covers no repository). Without this
+				// expansion the literal key matched no real repo and the
+				// user's AQL scope under-reported — fail-closed, the
+				// T-491 ledger's leave-behind, closed by T-511.
+				want := TypeLocal
+				if key == auth.BucketAnyRemote {
+					want = TypeRemote
+				}
+				for _, r := range repos {
+					if r.Type == want {
+						mark(r.RepoKey)
+					}
+				}
+			case auth.BucketAnyDistribution:
+				// Covers no repository row: the pseudo-key grants the
+				// bundle domain only.
+			default:
+				mark(key)
 			}
 		}
 	}

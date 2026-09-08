@@ -66,12 +66,13 @@ test('admin: app-mode sidebar (2 entries) -> admin mode (5 groups / 18 entries) 
   await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
   const nav = page.locator('[data-testid="app-nav"]')
   await expect(nav.locator('.nav-group-label', { hasText: '应用' })).toBeVisible()
-  // 2 条目 + 模式切换项（button.nav-item）
-  await expect(nav.locator('.nav-item')).toHaveCount(3)
+  // 3 条目（T-514 起 + Release Bundles 应用域第三条目）+ 模式切换项（button.nav-item）
+  await expect(nav.locator('.nav-item')).toHaveCount(4)
   await expect(nav.locator('a.nav-item', { hasText: '仪表盘' })).toBeVisible()
   await expect(nav.locator('a.nav-item', { hasText: '制品' })).toBeVisible()
-  // 应用域一级条目图标（T-388 N2/V5：2/2）
-  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(2)
+  await expect(nav.locator('a.nav-item', { hasText: 'Release Bundles' })).toBeVisible()
+  // 应用域一级条目图标（T-388 N2/V5：3/3——T-514 bundle 图标入列）
+  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(3)
   // 应用模式无管理分组（无影子入口）
   for (const g of ADMIN_GROUPS) {
     await expect(nav.locator('.nav-group-label', { hasText: g })).toHaveCount(0)

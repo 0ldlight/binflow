@@ -1,0 +1,14 @@
+# 已知差异台账（四分类：BUG | INTENTIONAL_DIFFERENCE | UNSUPPORTED_FEATURE | UNKNOWN）
+# 规则（docs/ai-engineering/compatibility-engineering.md §4）：
+#   BUG/UNSUPPORTED 由差分证据+contract 判定；INTENTIONAL 必须 authority（用户裁决/ADR/规格票）；
+#   UNKNOWN 限期（默认两程）内必须升级分类。
+# 种子期：M3-2 票将各票「契约漂移登记」与 ADR Errata 差异条款收编为条目。
+schema: 1
+entries: []
+# 条目模式（M3-2 落地）：
+# - id: rest/build-batch-delete-date-range
+#   surface: POST /api/build/delete
+#   classification: INTENTIONAL_DIFFERENCE
+#   rationale: ADR-0045 Errata 定案——批删无 dateRange
+#   authority: { type: adr, ref: DECISIONS.md#adr-0045-e3 }
+#   review_gate: M18+

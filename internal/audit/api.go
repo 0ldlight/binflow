@@ -285,6 +285,17 @@ const (
 	ActionBuildDelete    = "build.delete"
 	ActionBuildPromote   = "build.promote"
 	ActionBuildRetention = "build.retention"
+
+	// The release-bundle domain's two words (M17 T-513, FR-153.1 /
+	// ADR-0046 decision 12 — the +3 candidate's final shape: query is not
+	// audited, the read face records nothing by the family's standing
+	// convention). bundle.create fires on BOTH arms of the conflict
+	// tri-state (created and resumed — the detail's outcome field carries
+	// the arm); bundle.delete is registered vocabulary only in M17: the
+	// minimal face ships no delete endpoint, so no row ever carries it
+	// until a later ticket routes one.
+	ActionBundleCreate = "bundle.create"
+	ActionBundleDelete = "bundle.delete"
 )
 
 // Actions returns the full action vocabulary (GE-02 + the T-346 sweep):
@@ -332,6 +343,9 @@ func Actions() []string {
 		// M17 T-509 (FR-152.2 / ADR-0045 decision 10): the build-info
 		// domain's five words.
 		ActionBuildUpload, ActionBuildAppend, ActionBuildDelete, ActionBuildPromote, ActionBuildRetention,
+		// M17 T-513 (FR-153.1 / ADR-0046 decision 12): the
+		// release-bundle domain's two words.
+		ActionBundleCreate, ActionBundleDelete,
 	}
 }
 

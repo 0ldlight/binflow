@@ -295,3 +295,24 @@ func Webhook() Addon {
 		Description: "Unified-event webhooks: subscribe to artifact, property and docker events over the /event/api/v1 plane with criteria filters, HMAC-signed delivery and a delivery outbox.",
 	}
 }
+
+// ReleaseBundle is the release-bundle feature slot (M17 T-513, FR-153.1 /
+// ADR-0046 decision 4 — the 20th slot). The tier is the ADR's INTERIM pro
+// ruling, deliberately below the reference truth: the official page puts
+// release bundles at Enterprise+ ("available to Enterprise+ customers
+// using JFrog Distribution", release-bundle.md section 6), but BinFlow's
+// M17 minimal face is the record domain only — the enterprise-grade
+// signing chain (v2 JWS/GPG) and the Distribution service integration are
+// the registered exit-② flip face, and with them the tier. Two flip
+// points are pinned in ADR-0046 Errata ③: aligning with the Enterprise+
+// truth is a one-line change here; opening exit ② raises it by new ADR.
+// Kind=KindFeature — no third kind (the webhook slot's closed-set ruling).
+func ReleaseBundle() Addon {
+	return Addon{
+		ID:          "release-bundle",
+		Kind:        KindFeature,
+		MinTier:     license.TierPro,
+		DisplayName: "Release Bundles",
+		Description: "Versioned release records: explicit artifact manifests snapshotted against live repositories, the /api/release query family and the Any Distribution permission channel; v2 signing and Distribution integration are future faces.",
+	}
+}

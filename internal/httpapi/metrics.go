@@ -100,6 +100,15 @@ const (
 	metricBuildsPutSeconds     = "binflow_builds_put_duration_seconds"
 	metricBuildsPromoteTotal   = "binflow_builds_promote_total"
 	metricBuildsPromoteSeconds = "binflow_builds_promote_duration_seconds"
+
+	// bundle* are the release-bundle family's counters (M17 T-513,
+	// FR-153.1 / ADR-0046 decision 12): the create counter by outcome —
+	// created / resumed, the conflict tri-state's two success arms (409
+	// stays the HTTP status series, like every family's failures) — and
+	// the read counter by face. No duration histogram: the create is a
+	// bounded record write, not a migration.
+	metricBundleCreatesTotal = "binflow_bundle_creates_total"
+	metricBundleGetsTotal    = "binflow_bundle_gets_total"
 )
 
 // metricsContentType is the Prometheus text exposition format version 0.0.4
@@ -167,6 +176,10 @@ type instrumentation struct {
 	buildsPutDur     *metrics.Histogram
 	buildsPromote    *metrics.Counter
 	buildsPromoteDur *metrics.Histogram
+	// bundle* are the release-bundle family's create/read counters (M17
+	// T-513).
+	bundleCreates *metrics.Counter
+	bundleGets    *metrics.Counter
 }
 
 // newInstrumentation registers the four families on reg and pre-seeds the
@@ -286,6 +299,19 @@ func newInstrumentation(deps Deps) *instrumentation {
 		"Build promotion duration in seconds.", metrics.DefaultBuckets)
 	for _, outcome := range []string{"promoted", "dry-run", "status-only"} {
 		ins.buildsPromote.Add(0, "outcome", outcome)
+	}
+
+	// The release-bundle family (M17 T-513): pre-seeded per outcome and
+	// face so the exposition shows the family before the first create.
+	ins.bundleCreates = mustCounter(reg, metricBundleCreatesTotal,
+		"Release-bundle create operations by outcome (created, resumed — conflicts stay the HTTP status series).")
+	ins.bundleGets = mustCounter(reg, metricBundleGetsTotal,
+		"Release-bundle read operations by face (names list, versions list, single descriptor, status).")
+	for _, outcome := range []string{"created", "resumed"} {
+		ins.bundleCreates.Add(0, "outcome", outcome)
+	}
+	for _, face := range []string{"names", "versions", "detail", "status"} {
+		ins.bundleGets.Add(0, "face", face)
 	}
 
 	if deps.Replication != nil {
@@ -443,6 +469,25 @@ func (s *Server) observeBuildsPromote(outcome string, d time.Duration) {
 	}
 	s.metrics.buildsPromote.Inc("outcome", outcome)
 	s.metrics.buildsPromoteDur.Observe(d.Seconds())
+}
+
+// observeBundleCreate records one successful release-bundle create (M17
+// T-513): the outcome counter (created / resumed — the conflict arm's 409
+// stays the HTTP status series, matching every family's failure posture).
+func (s *Server) observeBundleCreate(outcome string) {
+	if s.metrics == nil {
+		return
+	}
+	s.metrics.bundleCreates.Inc("outcome", outcome)
+}
+
+// countBundleGet records one successful release-bundle read by face
+// (M17 T-513).
+func (s *Server) countBundleGet(face string) {
+	if s.metrics == nil {
+		return
+	}
+	s.metrics.bundleGets.Inc("face", face)
 }
 
 // metricsHandler assembles GET /metrics (root level, the /healthz-family

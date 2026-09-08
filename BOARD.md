@@ -1,7 +1,9 @@
 # 任务看板（BOARD）
 
-> 唯一事实来源。**只有主会话（conductor）可以写本文件**，所有 subagent 只读。
-> ticket 由 tech-lead 生成、主会话录入。当前里程碑：**M6+（展望/规划阶段）**。M1~M5 已完成，tag m1-done / m2-done / m3-done / m4-done / m5-done（2026-08-21）。
+> 唯一事实来源。**只有主会话（conductor / Loop Engineer）可以写本文件**，所有 subagent 只读。
+> ticket 由 tech-lead 生成、主会话录入。**实态以里程碑分节 + 票行内状态标注 + 尾部时序日志承载**（头部分区仅索引）。
+> 当前里程碑：**M17（产品域扩张专程，16/35，W8 双票在途暂停候令）**。M1~M16 已完成（m16-done 2026-09-06）。
+> 状态流（二代八态，2026-09-08 起）：`DISCOVERY → SPECIFIED → READY → IMPLEMENTING → REVIEW → QA → DIFFERENTIAL → UAT → done`，异常 `blocked`；**在途票豁免条款**：M17 存量波次按旧五态口径收编，新八态自下一拆票程生效。
 
 ## 票据格式
 
@@ -2021,3 +2023,17 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **T-509 → done 2026-09-07 12:4x（`62eeaf30`，11 文件 +2,621/−45）——M17 12/35（W5 票①：promotion + retention + docker promote——P0 主轴第三环）**：**promote 编排**（w(target)∧r(buildRepo) 门+properties 臂 a(target)；generic=CopyOrMove / docker=manifest 闭包重放〔PutManifest 承节点+index+tag+refs，move 臂 DeleteManifest 清源〕+ 逐节点 sha256 对账 + failFast 悬空律）+ **retention 两段窗**（minimumBuildDate ISO/count/豁免/deleteBuildArtifacts）。**docker 真实腿铁证**（真 CLI 全链：push→promote→pull 成功→rmi→**复拉成功**；sha256 表 manifest 字节恒等/config 442B/layer 122B 逐项同值+源 tag 404；dind 方案零动用户 Docker）。14 测试（服务 9+wire 5 含多架构全链）+ audit +5 词（越界留痕裁定：ADR 明文 mandate 纯增量）+ builds_promote_total 指标。**登记**：DELETE 批删族未路由（词就位候小票）/retention 持久化候 025/manifest 源属性不随迁 divergence。日志 reports/agents/T-509.md。**W5 齐（12/35）——主轴链解锁 T-510（webhook wired）。**
 
 **W6 开波（2026-09-07 12:5x，双 lane）**：**T-510 → doing**（dev-go-core：webhook build 域三事件 wired——断言反转④；发射点=Upload/Append/promote/retention，T-509 auditRec 同址模式）；**T-513 → doing**（dev-go-core：bundle BE 最小面——internal/bundle 新包 + 025 三表族 + 冲突三态 + Any Distribution 通道消费 + 第 20 槽）。
+
+**T-510 → done 2026-09-07 15:3x（`7b1d5777`，15 文件 +1,133/−17）——M17 13/35（W6 票①：webhook build 域 wired——断言反转④）**：三型翻 wired（9→12）+ Event +BuildNumber/BuildStarted + dataFor build 四字段逐字（§3.4 高置信）+ MatchesBuild 三维（anyBuild/selectedBuilds/include-exclude 按名求值——中置信测试固化）+ **emit 缝**（func 类型+recover 护体——ADR-0045 决策 12 形）+ Upload/Append→uploaded / Promote→promoted（dryRun 零发）/ retention→deleted。全栈三事件 + openssl 验签逐字（二进制本体执行）+ 注册表逐域审计 + criteria 九腿；M13 e2e 零回归（t366 11/11+8/8 真二进制）。登记：FE 静态镜像 dormant 标注未同步（3 行候 conductor）/docker-promoted 维持 dormant/DELETE 批删路由欠发射。日志 reports/agents/T-510.md。
+
+**T-513 → done 2026-09-07 20:2x（`e6941f26`+`577a6aed` 收尾骑士，24 文件 +3,160）——M17 14/35（W6 票②：Release Bundle BE 最小面）**：**internal/bundle 纯新包**（命名法/摘要/双门〔CapSystemRead∨Any Distribution 通道+CapSystemWrite〕/三态 create+resume）+ 025 两表+一索引（**派单「三表」与 ADR DDL 不一致——按 ADR 实现留痕，第三表候 architect**）+ POST /api/release/bundle 显式清单子集 + 查询族 + **409 体逐字**（三态 202/200/409）+ includes/excludes by-name + 第 20 槽 release-bundle（pro 暂行）+ manage-gate pin 76→77 + audit bundle.create/delete 词 + 两指标族 + 24 测试 + 边界证明。race 逐包绿（bundle 31.5s/metadata 369s/httpapi 895s）。深出面（v2 signing/Distribution）按 Q2 维持面外。日志 reports/agents/T-513.md。**W6 齐（14/35）——主轴链解锁 T-511（AQL build 域）+ T-514（bundle FE）。**
+
+**W7 开波（2026-09-07 20:3x，双 lane）**：**T-511 → doing**（dev-go-core：AQL build/module/dependency 三域 + buildArtifacts·dependency 端点——断言反转⑥；SearchScope 桶展开缺位顺路修）；**T-514 → doing**（dev-frontend：BundlesPage 新建 + Any Distribution 预置勾选——缺位解除③并腿，B-2.16 同口径收口）。
+
+**T-514 → done 2026-09-07 22:2x（`003907f4`，24 文件 +1,118/−49）——M17 15/35（W7 票②：FE bundle 面 + Any Distribution 预置勾选——B-2.16 缺位解除③并腿）**：**BundlesPage 三视图**（名单/版本/描述符+HEAD 校验和）+ 导航应用组第三条目 + **三预置桶同场勾选**（两「不建」注记退役——与 Any Local/Remote 同口径，B-2.16 闭环）+ TransferBox label 槽。i18n 新 bundles 域 22 键+security 增量（en 全填，闸过 2641/2008）。**契约漂移登记**：T-513 报告 §1.4「空可见集 404」与实态不符（无读门 403——canRead 拒绝即答案；FE 按实态分立 forbidden/not-found；勘误归 conductor）。四门 + 新 spec 4 腿（自铸 pro license 装/卸）+ 回归全绿 + SPA +5.1KB（en 包 +4.2KB 单独登记）。锚册 v1.47 + parity B-2.16 解除/S8 部分解禁。遗留五条（漂移回写/创建面候后续票/A1 残留 4 锚候顺腿/E-26 夹具长留痕/活体复测候窗口）。日志 reports/agents/T-514.md。
+
+**T-511 → done 2026-09-08 01:2x（`478c401b`，21 文件 +3,103/−54）——M17 16/35（W7 票①：AQL build/module/dependency 三域 + 两搜索端点——断言反转⑥；配额窗㉑击落复活后收口）**：build 域注册表（撞名按域路由）+ 入口分发（@key 双拒/点段预读）+ **unsupportedDomains 翻转**（三入口 400→绿——反转⑥兑现；promotion/releasebundle 具名 400 留 M18+ 翻转点）+ Builds 缝/executeBuild（ACL memoize+脱敏+窗口+cap，K63 共门 runBounded 重构）+ 谓词镜像语义 + **MatchesPattern 单内核执行器**（防三译者）+ 两端点逐字文案（含 'your' 拼写）。**SearchScope 通配桶展开顺路修**（T-491 遗留——矩阵与真 auth.Can 互证）。探针：越权行零出现（含点名查询）/K63 恰 1 个 429/P95 32-108ms（预算 300 测试内固化）。五包 race 绿（search 366.7s/repo 1040.2s）。低置信四裁定留痕候活体。日志 reports/agents/T-511.md。**W7 齐（16/35）——Build-info 域全栈闭环（模型→REST→promote→webhook→AQL）。**
+
+**W8 开波（2026-09-08 01:3x，双 lane）**：**T-512 → doing**（dev-frontend：Builds 页 + 搜索范围页签 + Module ID 字段——缺位解除③；promote 入口候 ux 核定未定则只读先行）；**T-496 → doing**（dev-go-core：Replay/outbox 行级 REST + **Q5 conductor 前置小裁=裁①仅注册有源域**〔build 域 wired 基准〕+ ADR-0041 决策 7 勘误）。
+
+**用户重组总令 intake（2026-09-08 01:4x，32 节）：组织升级为「AI Software Factory + Compatibility Engineering Organization」**。第一阶段铁律=先审计后改动。Phase 1 已开：三路并行审计（治理与角色 / 技术资产与 CI·UAT / 流程现实与债务）→ 产出 docs/ai-engineering/current-state.md（14 项）+ GAPS/TARGET/MIGRATION。Phase 2 候批：15 agent 二代 prompt 升级 + 新增 compatibility-engineer/differential-qa-engineer/performance-engineer/observability-engineer + 8 命令 + SPRINT-LOOP 重写（AI Software Factory Loop 18 阶段）+ Ticket 生命周期八态 + DoD 12 条 + Compatibility Gap Driven Planning。**W8 双票（T-512/T-496）不受扰继续**；改造走兼容迁移不粗暴删除。任务账 #32~#35。

@@ -4,6 +4,7 @@
 import './console'
 import './repositories'
 import './artifacts'
+import './bundles'
 import './search'
 import './security'
 import './governance'

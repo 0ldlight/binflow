@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "_comment": "chunk init 生成后于 2026-09-08 重组期修正：npm ci 腿原本指仓库根（无 package.json，恒错）；make test 腿与用户停测试指令冲突且重复 CI 门；保留 git commit 时的 make lint 快闸（60s）。chunk validate 侧的 install/test 由 .chunk/config.json 承载（已钉 --prefix web）。",
+  "permissions": {
+    "allow": [
+      "Bash(chunk:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git commit*)",
+            "command": "cd ${CLAUDE_PROJECT_DIR:-.} && make lint",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "Stop": []
+  }
+}

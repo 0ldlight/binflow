@@ -28,7 +28,8 @@ package search
 
 // Query is one parsed items.find query with its suffix chain.
 type Query struct {
-	// Domain is the query entry domain; only "items" parses successfully.
+	// Domain is the query entry domain: "items" (M15) or one of the three
+	// build-family entries builds/modules/dependencies (M17 T-511).
 	Domain string
 	// Criteria is the find() predicate tree (never nil; &And{} for {}).
 	Criteria Criteria

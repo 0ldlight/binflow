@@ -31,14 +31,19 @@ func TestParseErrors(t *testing.T) {
 		msg    string
 	}{
 		// Unsupported domains (AC2 names build.find / statistics fields).
+		// T-511 assertion inversion ⑥ (aql.md §15.3): builds/modules/
+		// dependencies LEFT this table — the three entries parse green
+		// (build_domain_test.go owns the positive halves); the promoted
+		// row flips from "builds" to "build.promotions", the closed face
+		// whose data plane is already loaded (the M18+ flip point).
 		{"domain-build", `build.find({})`, ErrUnsupportedDomain, "build", "",
-			"AQL domain not supported: build (BinFlow AQL supports: items)"},
-		{"domain-builds-hint", `builds.find({})`, ErrUnsupportedDomain, "builds", "",
-			"AQL domain not supported: builds (BinFlow AQL supports: items; build-info domains are not implemented)"},
+			"AQL domain not supported: build (BinFlow AQL supports: items, builds, modules, dependencies)"},
+		{"domain-build-promotions-hint", `build.promotions.find({})`, ErrUnsupportedDomain, "build.promotions", "",
+			"AQL domain not supported: build.promotions (BinFlow AQL supports: items, builds, modules, dependencies; promotion history is stored (build_promotions) but the query entry is not open yet (M18+ flip point))"},
 		{"domain-properties-hint", `properties.find({})`, ErrUnsupportedDomain, "properties", "",
-			`AQL domain not supported: properties (BinFlow AQL supports: items; query properties through items.find with {"@key": value} criteria)`},
+			`AQL domain not supported: properties (BinFlow AQL supports: items, builds, modules, dependencies; query properties through items.find with {"@key": value} criteria)`},
 		{"domain-statistics", `statistics.find({})`, ErrUnsupportedDomain, "statistics", "",
-			`AQL domain not supported: statistics (BinFlow AQL supports: items; query statistics through items.find with {"stat.<field>": value} criteria)`},
+			`AQL domain not supported: statistics (BinFlow AQL supports: items, builds, modules, dependencies; query statistics through items.find with {"stat.<field>": value} criteria)`},
 
 		// Fields: unknown (evidence v15 names repossss), known-but-no-source.
 		{"unknown-field", `items.find({"repossss":"x"})`, ErrUnknownField, "items", "repossss",

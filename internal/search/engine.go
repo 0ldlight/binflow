@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -101,6 +102,11 @@ type EngineOptions struct {
 	// factory-disabled limiter is itself a no-op, so wiring the shared
 	// instance is free).
 	QRL *QueryRateLimiter
+	// Builds is the build-family record-plane facet (M17 T-511, aql.md
+	// §15): the builds/modules/dependencies entries execute against it.
+	// nil keeps the three entries at the honest ErrBuildSearchUnavailable
+	// — items queries are unaffected.
+	Builds BuildSearcher
 	// Now is the clock $last/$before resolve against; nil means time.Now.
 	Now func() time.Time
 }
@@ -112,6 +118,7 @@ type Engine struct {
 	acl     ACL
 	virtual VirtualResolver
 	qrl     *QueryRateLimiter
+	builds  BuildSearcher
 	nowFn   func() time.Time
 	gate    *gate
 	// timeout is the per-query deadline; the field exists so tests can
@@ -129,6 +136,7 @@ func NewEngine(opt EngineOptions) *Engine {
 		acl:     opt.ACL,
 		virtual: opt.Virtual,
 		qrl:     opt.QRL,
+		builds:  opt.Builds,
 		gate:    newGate(maxConcurrent),
 		timeout: queryTimeout,
 	}
@@ -143,6 +151,12 @@ func NewEngine(opt EngineOptions) *Engine {
 // query failure): the honest 500-class refusal.
 var ErrQueryUnavailable = errors.New("AQL query engine has no query executor wired")
 
+// ErrBuildSearchUnavailable is the nil-BuildSearcher posture of the three
+// build-family entries (builds/modules/dependencies): the engine is
+// assembled but the build record plane is not wired — the honest 503-class
+// refusal, never a pseudo-empty 200.
+var ErrBuildSearchUnavailable = errors.New("AQL build-domain query engine has no build searcher wired")
+
 // Result is one executed query. T-415 renders rows through Plan.Output
 // (the projection echo list) and builds the range object from the window
 // echoes: start_pos = Offset, end_pos/total = len(Rows) (the streaming
@@ -153,11 +167,22 @@ var ErrQueryUnavailable = errors.New("AQL query engine has no query executor wir
 // package keeps its zero-IO contract).
 type Result struct {
 	// Plan is the compiled query (IR + projection echo list + window).
+	// A build-family query fills only the projection/window echoes — its
+	// Query stays zero (the entry executes through the build plane, never
+	// the node IR).
 	Plan *Plan
 	// Rows are the visible rows, already truncated to the effective window
 	// and re-checked against the path-scoped ACL; created_by is obfuscated
 	// for non-admin callers.
 	Rows []*metadata.NodeQueryRow
+	// EntryDomain echoes the query's entry domain: "" (or "items") for an
+	// items query, builds/modules/dependencies for the build family —
+	// T-415 branches the row rendering on it.
+	EntryDomain string
+	// BuildRows carries the build-family rows (nil for an items query):
+	// already ACL-filtered, obfuscated, sorted and windowed exactly like
+	// Rows.
+	BuildRows []*BuildRow
 	// Truncated reports the cap+1 probe saw more raw rows past the window
 	// — the honest upper bound on the raw row sequence (ADR-0043 pt 4's
 	// paging semantics: offset/limit walk the RAW row order, per-page
@@ -190,19 +215,34 @@ func (e *Engine) Run(ctx context.Context, p *repo.Principal, query string) (*Res
 	if err != nil {
 		return nil, err // *QueryError — already the final copy
 	}
+	if isBuildEntry(ast.Domain) {
+		return e.runBounded(ctx, func(qctx context.Context) (*Result, error) {
+			return e.executeBuild(qctx, p, ast)
+		})
+	}
 	return e.runAST(ctx, p, ast)
 }
 
-// runAST is the shared execution segment behind Run, RunUsage and the
-// dates/creation templates: the non-blocking gate, the QRL delay plane, the
-// deadline and the bounded segment. Every entrance is the SAME query plane
-// — one concurrency ceiling, one timeout, one row cap (K63 zero-exemption
-// posture: a fixed-template caller buys no relief a hand-written query does
-// not get). The QRL slot sits strictly AFTER the K63 gate (a 429 rejection
-// never occupies rate budget) and strictly INSIDE the deadline (a throttled
-// wait is bounded by the same 10s ceiling — the anchor's "delay, never
-// reject" posture, aql.md §14.4).
+// runAST is the items-family entrance of the bounded segment.
 func (e *Engine) runAST(ctx context.Context, p *repo.Principal, ast *Query) (*Result, error) {
+	return e.runBounded(ctx, func(qctx context.Context) (*Result, error) {
+		return e.execute(qctx, p, ast)
+	})
+}
+
+// runBounded is the shared execution segment behind Run (both families),
+// RunUsage and the dates/creation templates: the non-blocking gate, the
+// QRL delay plane, the deadline and the bounded segment. Every entrance is
+// the SAME query plane — one concurrency ceiling, one timeout, one row cap
+// (K63 zero-exemption posture: a fixed-template caller buys no relief a
+// hand-written query does not get — the build-family entries joined the
+// same plane in T-511, no second gate to slip past). The QRL slot sits
+// strictly AFTER the K63 gate (a 429 rejection never occupies rate budget)
+// and strictly INSIDE the deadline (a throttled wait is bounded by the same
+// 10s ceiling — the anchor's "delay, never reject" posture, aql.md §14.4).
+// The principal rides the exec closure — the segment itself is
+// identity-blind.
+func (e *Engine) runBounded(ctx context.Context, exec func(context.Context) (*Result, error)) (*Result, error) {
 	if !e.gate.tryAcquire() {
 		return nil, ErrResourceBusy
 	}
@@ -225,7 +265,7 @@ func (e *Engine) runAST(ctx context.Context, p *repo.Principal, ast *Query) (*Re
 	}
 
 	start := e.nowFn()
-	res, err := e.execute(qctx, p, ast)
+	res, err := exec(qctx)
 	if e.qrl != nil {
 		e.qrl.Charge(QRLTypeDefault, e.nowFn().Sub(start))
 	}
@@ -479,4 +519,153 @@ func obfuscateRows(p *repo.Principal, rows []*metadata.NodeQueryRow) {
 func isQueryError(err error) bool {
 	var qe *QueryError
 	return errors.As(err, &qe)
+}
+
+// ---- the build-family execution segment (M17 T-511, aql.md §15) ----
+
+// executeBuild runs one builds/modules/dependencies query: plan →
+// enumerate (the searcher's complete, unfiltered plane) → criteria
+// evaluation → the row-level ACL weave → obfuscation → sort → window →
+// cap. Every stage mirrors its items-path twin so the two families share
+// one posture: visible rows only, bounded windows, masked identities, one
+// truncation rule.
+func (e *Engine) executeBuild(ctx context.Context, p *repo.Principal, ast *Query) (*Result, error) {
+	if e.builds == nil {
+		return nil, ErrBuildSearchUnavailable
+	}
+	plan, err := PlanBuildQuery(ast, PlanOptions{Now: e.nowFn()})
+	if err != nil {
+		return nil, fmt.Errorf("engine: compiling build query: %w", err)
+	}
+	res := &Result{
+		Plan: &Plan{
+			Output: plan.Output,
+			Offset: plan.Offset, HasOffset: plan.HasOffset,
+			Limit: plan.Limit, HasLimit: plan.HasLimit,
+		},
+		EntryDomain: plan.Entry,
+		Offset:      plan.Offset, HasOffset: plan.HasOffset,
+		Limit: plan.Limit, HasLimit: plan.HasLimit,
+	}
+
+	var rows []*BuildRow
+	switch plan.Entry {
+	case "builds":
+		runs, err := e.builds.Runs(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("engine: enumerating build runs: %w", err)
+		}
+		rows = buildRowsFromRuns(runs)
+	case "modules":
+		mods, err := e.builds.Modules(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("engine: enumerating build modules: %w", err)
+		}
+		rows = buildRowsFromModules(mods)
+	case "dependencies":
+		mods, err := e.builds.Modules(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("engine: enumerating build dependencies: %w", err)
+		}
+		rows = buildRowsFromDependencies(mods)
+	default:
+		return nil, fmt.Errorf("engine: unknown build entry %q", plan.Entry)
+	}
+
+	if plan.Where != nil {
+		kept := make([]*BuildRow, 0, len(rows))
+		for _, r := range rows {
+			if plan.Where(r) {
+				kept = append(kept, r)
+			}
+		}
+		rows = kept
+	}
+	rows = e.filterBuildRows(ctx, p, rows)
+	obfuscateBuildRows(p, rows)
+	sortBuildRows(rows, plan.Sort)
+
+	// The window: the query's own offset first, then the effective limit
+	// (its own limit when tighter than the cap, the cap otherwise — the
+	// same effectiveLimit rule the items path runs); rows past the window
+	// set Truncated, the cap+1 probe's structural equivalent over a fully
+	// materialized plane.
+	off := int64(0)
+	if plan.HasOffset {
+		off = plan.Offset
+	}
+	if off > int64(len(rows)) {
+		off = int64(len(rows))
+	}
+	rows = rows[off:]
+	eff := int64(ResultCap)
+	if plan.HasLimit && plan.Limit < eff {
+		eff = plan.Limit
+	}
+	if int64(len(rows)) > eff {
+		rows = rows[:eff]
+		res.Truncated = true
+	}
+	res.BuildRows = rows
+	return res, nil
+}
+
+// filterBuildRows is the build family's read weave (aql.md §6 + §15.2):
+// every row is re-checked against r(buildRepo, buildName) — the SAME
+// allow() mirror the build read faces run, injected as the searcher's
+// CanReadBuild. Decisions are memoized per (repo, name): a run's rows
+// share one verdict, and a build with a hundred dependencies costs one
+// evaluation, not a hundred.
+func (e *Engine) filterBuildRows(ctx context.Context, p *repo.Principal, rows []*BuildRow) []*BuildRow {
+	verdicts := make(map[string]bool, 8)
+	out := make([]*BuildRow, 0, len(rows))
+	for _, r := range rows {
+		key := r.Repo + "\x00" + r.Name
+		visible, seen := verdicts[key]
+		if !seen {
+			visible = e.builds.CanReadBuild(ctx, p, r.Repo, r.Name)
+			verdicts[key] = visible
+		}
+		if visible {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// obfuscateBuildRows applies the non-admin identity masking to the build
+// family (aql.md §6 — created_by/modified_by join the masked set; the
+// builds entry projects both by default, §15.1).
+func obfuscateBuildRows(p *repo.Principal, rows []*BuildRow) {
+	if p != nil && p.Admin {
+		return
+	}
+	for _, r := range rows {
+		r.CreatedBy = obfuscatedUser
+		r.UpdatedBy = obfuscatedUser
+	}
+}
+
+// sortBuildRows orders the rows by the query's sort keys (stable — the
+// natural materialization index is the deterministic tiebreak, the same
+// (repo, path) role the items compiler's trailing order plays).
+func sortBuildRows(rows []*BuildRow, keys []buildSortKey) {
+	if len(keys) == 0 {
+		return
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		a, b := rows[i], rows[j]
+		for _, k := range keys {
+			av := buildSortableValue(a, k.Field)
+			bv := buildSortableValue(b, k.Field)
+			if av == bv {
+				continue
+			}
+			if av < bv {
+				return k.Asc
+			}
+			return !k.Asc
+		}
+		return a.order < b.order
+	})
 }

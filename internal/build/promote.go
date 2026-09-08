@@ -299,6 +299,13 @@ func (s *Service) Promote(ctx context.Context, p *Principal, c Coordinate, raw [
 		Detail: fmt.Sprintf(`{"build":%q,"number":%q,"target":%q,"status":%q,"dry":%t,"artifacts":%d}`,
 			b.Name, b.Number, req.TargetRepo, req.Status, req.DryRun, res.Artifacts),
 	})
+	// The webhook promoted event on the same success tail (T-510, dryRun
+	// returned above — zero side effects means zero events; the payload's
+	// build_repo is the RUN's own repo, never the migration target).
+	s.emitWebhook(ctx, WebhookEvent{
+		Type: EventPromoted, Name: b.Name, Number: b.Number,
+		Started: b.Started, Repo: b.Repo, Principal: p,
+	})
 	return res, nil
 }
 
@@ -820,6 +827,13 @@ func (plan *RetentionPlan) Execute(ctx context.Context, s *Service, p *Principal
 			Repo: plan.repo, Path: plan.name,
 			Detail: fmt.Sprintf(`{"number":%q,"started":%q,"artifacts":%t}`,
 				run.Number, run.Started, plan.req.DeleteBuildArtifacts),
+		})
+		// The webhook deleted event per discarded run, same address as the
+		// audit row (T-510 — the retention arm IS the build domain's
+		// delete face; no standalone DELETE route exists yet).
+		s.emitWebhook(ctx, WebhookEvent{
+			Type: EventDeleted, Name: plan.name, Number: run.Number,
+			Started: run.Started, Repo: plan.repo, Principal: p,
 		})
 	}
 	s.recordAudit(ctx, audit.Event{

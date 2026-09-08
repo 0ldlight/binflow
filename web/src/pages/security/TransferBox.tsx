@@ -23,6 +23,9 @@ const t = tr('security')
 export interface TransferItem {
   /** 条目键（用户/组名——锚与提交体都用它） */
   name: string
+  /** 展示名（键 ≠ 展示时用——T-514 通配桶：键 = wire 字面 ANY LOCAL、
+   * 展示 = Any Local〔console-ui §3.8 预置行拼写〕；缺省展示 name） */
+  label?: string
   /** 附加说明行（如组描述/用户 email）；可空 */
   note?: string
 }
@@ -70,7 +73,7 @@ export function TransferBox({
       label={
         <>
           <span className="mono" lang="en">
-            {item.name}
+            {item.label ?? item.name}
           </span>
           {note(item)}
         </>

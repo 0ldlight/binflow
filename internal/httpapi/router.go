@@ -1055,6 +1055,16 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		// M16 T-452: the pair's second door (dateFields CSV over the closed
 		// four-name set).
 		s.enforce(w, r, routeAuth{}, s.handleSearchDates)
+	case rest == "search/buildArtifacts" && r.Method == http.MethodPost:
+		// M17 T-511 (FR-152.3 / aql.md §15.4): the build-artifacts search —
+		// the POST member the official family registers (GET answers the
+		// E-26 404, the OSS live matrix's 405 arm). Privileged
+		// non-anonymous face: the handler owns the 401 challenge.
+		s.enforce(w, r, routeAuth{}, s.handleSearchBuildArtifacts)
+	case rest == "search/dependency" && r.Method == http.MethodGet:
+		// M17 T-511: the checksum reverse lookup (which builds depend on
+		// this artifact) — same handler-gated posture.
+		s.enforce(w, r, routeAuth{}, s.handleSearchDependency)
 
 	// ---- /api/build* (M17 T-508/T-509, FR-152.2 / ADR-0045 decision 6 +
 	// Errata ①) ----
@@ -1149,6 +1159,68 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
 			s.handleBuildGet(w, r, name, number)
 		})
+
+	// ---- /api/release/* (M17 T-513, FR-153.1 / ADR-0046 decision 2 +
+	// Errata ① E5, wire frozen by release-bundle.md §1) ----
+	// The release-bundle minimal face: the create POST /api/release/bundle
+	// (the AQL-assembly body degraded to the explicit-manifest subset,
+	// soft-seam ⑥) and the source-side query family — names, versions,
+	// the descriptor with its HEAD checksum probe and the status string.
+	// Route doors: create rides CapSystemWrite (decision 3's write gate),
+	// the read faces demand authentication only — their real decision is
+	// the path-dependent dual gate (CapSystemRead ∨ the Any Distribution
+	// channel over the bundle name), which the handlers own (the
+	// permissions family-4 precedent). The create's FEATURE gate is the
+	// handler's first line (RequireAddon — D4; reads never consult it,
+	// D1). UNROUTED on purpose: the transaction/store/config/fat_manifest
+	// families (v2 signing and the Distribution plane — exit ②) and DELETE
+	// (no minimal-face delete verb) — the E-26 404 answers each.
+	case rest == "release/bundle" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleBundleCreate)
+	case rest == "release/bundles/config":
+		// The official bundles-config face (GET/PUT incompleteCleanupPeriodHours)
+		// is face-out: the literal stays RESERVED so a client hitting the
+		// official path meets the honest E-26 404, not a "bundle named
+		// config" 404 that names the wrong missing thing (a bundle may
+		// legally be named "config"; its versions face is unreachable
+		// through this reserved URI — the official endpoint owns the path).
+		notImplemented(w, "/binflow/api/"+rest)
+	case rest == "release/bundles" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true}, s.handleBundleList)
+	case strings.HasPrefix(rest, "release/bundles/"):
+		segs, routed, err := splitBundlePath(rest, "release/bundles/")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "release bundle path segment could not be decoded: "+err.Error())
+			return
+		}
+		if !routed {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		switch {
+		case len(segs) == 1 && r.Method == http.MethodGet:
+			name := segs[0]
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleBundleVersions(w, r, name)
+			})
+		case len(segs) == 2 && r.Method == http.MethodGet:
+			name, version := segs[0], segs[1]
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleBundleGet(w, r, name, version)
+			})
+		case len(segs) == 2 && r.Method == http.MethodHead:
+			name, version := segs[0], segs[1]
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleBundleHead(w, r, name, version)
+			})
+		case len(segs) == 3 && r.Method == http.MethodGet:
+			name, version := segs[0], segs[1]
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleBundleStatus(w, r, name, version)
+			})
+		default:
+			notImplemented(w, "/binflow/api/"+rest)
+		}
 
 	// ---- /api/{artifactsearch,stashResults,packagesSearch,syntax-search}
 	// (M16 T-452, FR-148.3 / aql.md §14.5 — the UI search family, re-homed

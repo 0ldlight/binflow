@@ -347,6 +347,10 @@ const STOP = new Set([
   // 豁免口标记（i18n-allow——硬编码闸机制名非锚）/ 本票新 spec 文件名段
   // （t464-i18n-bilingual），均非 testid 锚
   'i18n-allow', 't464-i18n-bilingual',
+  // v1.47（T-514 行文假阳性）：bundle 批的标识符引用——T-513 登记态用词
+  // （spec-pending——契约待核清单机制名非锚）/ 本票新 spec 文件名段
+  // （t514-bundles-presets），均非 testid 锚
+  'spec-pending', 't514-bundles-presets',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

@@ -115,6 +115,29 @@ func (f *CriteriaFilter) MatchesRepo(repoKey, class string) bool {
 	return false
 }
 
+// MatchesBuild runs the build domain's scope (webhook.md 2.2's build row:
+// anyBuild, selectedBuilds, include/excludePatterns — repoKeys and the
+// anyLocal/anyRemote class families are NOT consumed by this domain).
+// anyBuild admits every build; otherwise selectedBuilds must carry the
+// build's NAME (a selected name matches every run of the name — the
+// global-scope semantics). The pattern pair then runs over the build name.
+// With NOTHING selected the filter admits nothing (the family's law).
+func (f *CriteriaFilter) MatchesBuild(name string) bool {
+	if !f.AnyBuild {
+		hit := false
+		for _, s := range f.SelectedBuilds {
+			if s == name {
+				hit = true
+				break
+			}
+		}
+		if !hit {
+			return false
+		}
+	}
+	return f.MatchesPath(name)
+}
+
 // matchesPath runs the include/exclude pair over the repo-relative path:
 // excludes first and winning, then a non-empty include set must match
 // (Ant-style two-level wildcards — '**' spans segments, '*' one segment;

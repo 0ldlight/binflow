@@ -39,6 +39,7 @@ export type NavIconName =
   | 'card_membership'
   | 'pulse'
   | 'article'
+  | 'bundle'
 
 /** Material 图标 path 几何（24×24 viewBox；Apache-2.0，逐枚 16px 槽校型） */
 const PATHS: Record<NavIconName, string> = {
@@ -82,6 +83,9 @@ const PATHS: Record<NavIconName, string> = {
     'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z',
   pulse:
     'M2 12 H5 V5 H7 V17 H9 V12 H12 V9 H14 V12 H22 V14 H14 V11 H12 V14 H9 V19 H7 V7 H5 V14 H2 Z',
+  // T-514 Release Bundles 应用域条目：两层抽屉堆叠（自绘轴对齐厚描边
+  // 同款纪律——无 Material 单 path 逐字对照，非复刻第三方资产）。
+  bundle: 'M3 3h18v7H3V3zm7 3h4v1.5h-4zM3 14h18v7H3v-7zm7 3h4v1.5h-4z',
 }
 
 /**
