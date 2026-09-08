@@ -2046,3 +2046,5 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **两票按 web/ 重写总令并入基线**——欠账面在重写新架构下重开或豁免，归重写 Phase 裁定。
 
 **FE-Rewrite Phase 0 完成（2026-09-08 04:4x，`2863cb29`）**：三件套落库——frontend-rewrite-audit.md（四路审计 92KB 实证+十项矛盾裁决表）/ frontend-capability-matrix.md（28 能力×三面对账+处置标记）/ frontend-rewrite-architecture.md（技术栈裁定含 AG Grid 社区版约束与 Monaco worker relink 扩展、四层结构、七条不可变契约、数据层四段式、五阶段验收门、R1~R8 风险登记）。关键定谳：**解锁面池**（copy/move UI/auth-methods/keypair/outbox/builds 写面/settings/QRL/MPU）、**fern 回填债 D1~D4**、盲区裁定（dev proxy 补全/assistant-ui mock-only/5MB 预算分解）。**Phase 1 基座已派**（dev-frontend 在途：依赖装配+Tailwind 桥接+shadcn primitives×18+app 骨架+lib 三件+五仓+构建链适配——旧应用全程共存可跑）。
+
+**参照资产升级 intake（2026-09-08）**：用户提供 **Artifactory Pro 7.161.24 全量反编译**（/Users/lzw/workspace/artifactory-decompiled；reverse-src/artifactory 已切软链，旧 7.161.20 部分反编译保留为 -partial）。构成：backend 569 模块 14,702 java（CFR）+ backend-go 12 服务 Ghidra 伪码 + **frontend source-map 还原 661 文件（Vue2 微前端）**。影响面：① reverse-engineer/compatibility-engineer 的规格与契约取证源升版（与 :8082 活体 7.161.20 差一档——标注版本来源）；② **FE 重写 P2+ 的行为/IA 参照金矿**（clean-room：只读参考禁拷贝）；③ memory 在案。
