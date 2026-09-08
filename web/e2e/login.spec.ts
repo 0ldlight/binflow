@@ -42,17 +42,24 @@ interface SessionReply {
 interface MockOpts {
   /** POST /v1/session 应答（缺省恒 401 invalid credentials） */
   postSession?: (body: { username?: string; password?: string }) => SessionReply
-  /** GET /v1/oidc/login 第 n 次（从 1 起）调用的应答（缺省恒 404 = 未启用） */
+  /** GET /v1/oidc/login 第 n 次（从 1 起）调用的应答（缺省恒 404 = 未启用）。
+   *  FE-P2（B1 契约漂移修正）：登录页 SSO 探测已迁 GET /api/v1/auth/methods
+   *  ——本 mock 仅保留顶层导航腿的 /oidc/login 路由应答。 */
   oidc?: (call: number) => OIDCReply
+  /** GET /api/v1/auth/methods 第 n 次（从 1 起）调用的 oidc 位（缺省恒 false）；
+   *  ldap/password 位缺省 true。null 应答 = 能力面 5xx/不可达（fetch 失败
+   *  走同一保守分支）。 */
+  methodsOidc?: (call: number) => boolean | null
 }
 
 /** 安装全部 mock；返回 { oidc 端点命中数, 其中顶层导航(document)次数 } */
 async function installMocks(
   page: import('@playwright/test').Page,
   opts: MockOpts = {},
-): Promise<{ oidcCalls: () => number; documentNavs: () => number }> {
+): Promise<{ oidcCalls: () => number; documentNavs: () => number; methodsCalls: () => number }> {
   let oidcCalls = 0
   let documentNavs = 0
+  let methodsCalls = 0
 
   // 兜底先注册（Playwright 后注册者优先）：未覆盖的 API 一律 404，
   // 防止任何请求漏到真实网络
@@ -80,6 +87,23 @@ async function installMocks(
       status: 401,
       contentType: 'application/json',
       body: JSON.stringify({ errors: [{ message: 'unauthorized' }] }),
+    })
+  })
+  await page.route('**/binflow/api/v1/auth/methods', (route) => {
+    methodsCalls += 1
+    const raw = opts.methodsOidc?.(methodsCalls)
+    const oidc = raw === undefined ? false : raw
+    if (oidc === null) {
+      return route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ errors: [{ message: 'methods unavailable' }] }),
+      })
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ password: true, oidc, ldap: true }),
     })
   })
   await page.route('**/binflow/api/system/version', (route) =>
@@ -125,19 +149,19 @@ async function installMocks(
   })
   await page.route('**/binflow/ui/**', (route) => route.fulfill({ path: join(DIST, 'index.html') }))
 
-  return { oidcCalls: () => oidcCalls, documentNavs: () => documentNavs }
+  return { oidcCalls: () => oidcCalls, documentNavs: () => documentNavs, methodsCalls: () => methodsCalls }
 }
 
 // ---------------------------------------------------------------------------
 // ① oidc disabled（404）：SSO 按钮不可见，密码表单完好
 // ---------------------------------------------------------------------------
 
-test('oidc disabled (404) keeps the SSO button hidden; password form intact', async ({ page }) => {
-  const { oidcCalls } = await installMocks(page) // 缺省恒 404
+test('oidc disabled (methods.oidc=false) keeps the SSO button hidden; password form intact', async ({ page }) => {
+  const { methodsCalls } = await installMocks(page) // 缺省 methods.oidc=false
   await page.goto('/binflow/ui/login')
 
-  // 探测确实发生后再断言隐藏（避免「初始渲染本来就没有」的假通过）
-  await expect.poll(oidcCalls, 'mount probe should hit the oidc login route').toBeGreaterThanOrEqual(1)
+  // 能力面确实读过后再断言隐藏（避免「初始渲染本来就没有」的假通过）
+  await expect.poll(methodsCalls, 'mount probe should hit GET /api/v1/auth/methods').toBeGreaterThanOrEqual(1)
   await expect(page.locator('[data-testid="login-sso"]')).toHaveCount(0)
   await expect(page.locator('.login-divider')).toHaveCount(0)
   await expect(page.locator('[data-testid="login-username"]')).toBeVisible()
@@ -149,13 +173,16 @@ test('oidc disabled (404) keeps the SSO button hidden; password form intact', as
 // ---------------------------------------------------------------------------
 
 test('SSO click issues a top-level GET on /oidc/login and leaves the SPA for the IdP', async ({ page }) => {
-  const { oidcCalls, documentNavs } = await installMocks(page, { oidc: () => ({ status: 302 }) })
+  const { oidcCalls, methodsCalls, documentNavs } = await installMocks(page, {
+    oidc: () => ({ status: 302 }), // 顶层导航命中 SSO 入口的应答
+    methodsOidc: () => true, // 能力面恒启用（挂载探测 + 点击复核）
+  })
   await page.goto('/binflow/ui/login')
 
   const sso = page.locator('[data-testid="login-sso"]')
   await expect(sso).toBeVisible()
   await expect(sso).toHaveText('使用 SSO 登录')
-  // 挂载探测是 fetch（redirect:'manual'），不会导航离开登录页
+  // 能力面探测是 fetch，不会导航离开登录页
   await expect(page).toHaveURL(/\/binflow\/ui\/login/)
   expect(documentNavs()).toBe(0)
 
@@ -165,8 +192,9 @@ test('SSO click issues a top-level GET on /oidc/login and leaves the SPA for the
   await expect(page.locator('h1')).toHaveText('Mock IdP')
   await expect(page).toHaveURL(/\/binflow\/api\/v1\/oidc\/login$/)
   expect(documentNavs()).toBe(1)
-  // 挂载探测 + 点击复核两次 fetch 也都命中该路由
-  expect(oidcCalls()).toBeGreaterThanOrEqual(3)
+  // 挂载探测 + 点击复核两次能力面读取
+  expect(methodsCalls()).toBeGreaterThanOrEqual(2)
+  expect(oidcCalls()).toBeGreaterThanOrEqual(1)
 })
 
 // ---------------------------------------------------------------------------
@@ -175,7 +203,7 @@ test('SSO click issues a top-level GET on /oidc/login and leaves the SPA for the
 
 test('SSO recheck finds the endpoint gone (404): inline error, button collapses', async ({ page }) => {
   await installMocks(page, {
-    oidc: (call) => (call === 1 ? { status: 302 } : { status: 404 }),
+    methodsOidc: (call) => call === 1, // 挂载时启用；点击复核时已被关
   })
   await page.goto('/binflow/ui/login')
 
@@ -196,7 +224,7 @@ test('SSO recheck finds the endpoint gone (404): inline error, button collapses'
 
 test('SSO recheck hits 5xx: inline error, button stays for retry', async ({ page }) => {
   await installMocks(page, {
-    oidc: (call) => (call === 1 ? { status: 302 } : { status: 503 }),
+    methodsOidc: (call) => (call === 1 ? true : null), // 复核时能力面不可达
   })
   await page.goto('/binflow/ui/login')
 

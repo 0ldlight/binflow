@@ -25,20 +25,48 @@ export interface ConfirmOptions {
   cancelLabel?: string
 }
 
-interface ConfirmContextValue {
-  confirm: (options: ConfirmOptions) => Promise<boolean>
+export interface PromptOptions {
+  title: string
+  description?: string
+  /** 输入框占位 */
+  placeholder?: string
+  /** 初值 */
+  initial?: string
+  /** 行内校验（返回错误文案 = 确认禁用 + 行内呈现；null = 通过） */
+  validate?: (value: string) => string | null
+  confirmLabel?: string
+  cancelLabel?: string
+  danger?: boolean
+  /** 输入框 testid（调用方锚——如 tree-mkdir-input） */
+  inputTestid?: string
+  /** mono 输入（路径/键位族） */
+  mono?: boolean
 }
 
-const ConfirmContext = createContext<ConfirmContextValue>({ confirm: async () => false })
+interface ConfirmContextValue {
+  confirm: (options: ConfirmOptions) => Promise<boolean>
+  /** 带输入框的确认（mkdir / 命名族——旧 ConfirmDialog body-input 语义
+   *  的新栈对位：validate 即 confirmDisabled 门） */
+  prompt: (options: PromptOptions) => Promise<string | null>
+}
+
+const ConfirmContext = createContext<ConfirmContextValue>({ confirm: async () => false, prompt: async () => null })
 
 interface PendingConfirm {
   options: ConfirmOptions
   resolve: (ok: boolean) => void
 }
 
+interface PendingPrompt {
+  options: PromptOptions
+  resolve: (value: string | null) => void
+}
+
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<PendingConfirm | null>(null)
   const [typed, setTyped] = useState('')
+  const [promptPending, setPromptPending] = useState<PendingPrompt | null>(null)
+  const [promptValue, setPromptValue] = useState('')
   // 打开即聚焦取消钮（回调 ref——危险动作默认路径是放弃）
   const cancelRef = useRef<HTMLButtonElement>(null)
   const cancelRefCb = useCallback((el: HTMLButtonElement | null) => {
@@ -59,12 +87,69 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const prompt = useCallback((options: PromptOptions) => {
+    return new Promise<string | null>((resolve) => {
+      setPromptPending({ options, resolve })
+      setPromptValue(options.initial ?? '')
+    })
+  }, [])
+
+  const settlePrompt = (value: string | null) => {
+    promptPending?.resolve(value)
+    setPromptPending(null)
+    setPromptValue('')
+  }
+
   const phraseGate = pending?.options.confirmPhrase
   const phraseOk = !phraseGate || typed.trim() === phraseGate
 
   return (
-    <ConfirmContext.Provider value={{ confirm }}>
+    <ConfirmContext.Provider value={{ confirm, prompt }}>
       {children}
+      <Dialog
+        open={promptPending !== null}
+        onOpenChange={(open) => { if (!open) settlePrompt(null) }}
+      >
+        {promptPending && (
+          <DialogContent
+            className={promptPending.options.danger ? 'border-destructive' : undefined}
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
+            <DialogHeader>
+              <DialogTitle>{promptPending.options.title}</DialogTitle>
+              {promptPending.options.description && (
+                <DialogDescription>{promptPending.options.description}</DialogDescription>
+              )}
+            </DialogHeader>
+            <input
+              data-testid={promptPending.options.inputTestid}
+              className={`h-8 w-full rounded-sm border border-input bg-surface-3 px-2.5 text-dense outline-none focus-visible:border-ring ${promptPending.options.mono ? 'font-mono' : ''}`}
+              value={promptValue}
+              autoComplete="off"
+              placeholder={promptPending.options.placeholder}
+              onChange={(e) => setPromptValue(e.target.value)}
+            />
+            {promptPending.options.validate && promptValue !== '' && promptPending.options.validate(promptValue.trim()) && (
+              <p className="field-error text-aux text-destructive" role="alert">
+                {promptPending.options.validate!(promptValue.trim())}
+              </p>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => settlePrompt(null)}>
+                {promptPending.options.cancelLabel ?? 'Cancel'}
+              </Button>
+              <Button
+                variant={promptPending.options.danger ? 'destructive' : 'default'}
+                disabled={promptValue.trim() === '' || (promptPending.options.validate?.(promptValue.trim()) ?? null) !== null}
+                data-testid="confirm-accept"
+                onClick={() => settlePrompt(promptValue.trim())}
+              >
+                {promptPending.options.confirmLabel ?? 'Confirm'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
       <Dialog open={pending !== null} onOpenChange={(open) => { if (!open) settle(false) }}>
         {pending && (
           <DialogContent

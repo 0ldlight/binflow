@@ -281,7 +281,6 @@ registerEn('governance', {
   "执行 GC（apply）": "Run GC (apply)",
   "执行结果（apply）": "Result (apply)",
   "执行垃圾回收（apply）": "Run garbage collection (apply)",
-  "执行中…": "Running…",
   "止（不含）": "Until (exclusive)",
   "只读管理员：定时配置是 system:write（服务端 403 兜底）": "Read-only admin: schedule configuration is system:write (server-side 403 fallback)",
   "只读管理员：配额写是管理面写操作（服务端 403 兜底）": "Read-only admin: quota writes are admin-plane write operations (server-side 403 fallback)",

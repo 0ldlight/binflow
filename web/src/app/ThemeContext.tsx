@@ -23,7 +23,11 @@ function initialTheme(): Theme {
   return 'light'
 }
 
-const ThemeContext = createContext<{ theme: Theme; toggle: () => void }>({
+// 前端重写 P2（frontend-rewrite-architecture §1）：context 导出 = 过渡期
+// 桥接位——legacy-bridge 以新栈 ThemeProvider 的真值注入本 context
+// （MuiProvider 消费 useTheme 不改），保证过渡期 <html data-theme> 单一
+// 真值。MUI 终验（MUI=0 门）时本文件随 legacy 树整体退役。
+export const ThemeContext = createContext<{ theme: Theme; toggle: () => void }>({
   theme: 'light',
   toggle: () => {},
 })

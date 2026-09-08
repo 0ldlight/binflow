@@ -2722,3 +2722,13 @@ src 侧变量模板形态的补收均载于 `web/scripts/anchor-audit.mjs` 头�
 退役并在 T-265 日志补记）；② `--ledger` 通过是 qa 硬门（蕴含 unregistered /
 broken 双零与退役表一致）；③ 死锚处置随大版本回归进行——零消费锚要么补 spec
 消费、要么进退役总表，**不得静默删除、不得长期滞留**（A3/A4 断言兜底）。
+
+### §10.7 重写期锚账批次（FE-Rewrite P2 收编批 + T-512 补账批，conductor 2026-09-08）
+
+**T-512 补账批（builds 域 23 族 + 散件——收编时欠账，本批补入册）**：`builds-page` / `builds-table` / `builds-row-*` / `builds-empty` / `build-runs-page` / `build-runs-table` / `build-run-row-*` / `build-detail-page` / `build-detail-info` / `build-modules` / `build-module-row-*` / `build-artifacts` / `build-artifact-row-*` / `build-dependencies` / `build-dependency-row-*` / `build-statuses` / `build-status-row-*` / `build-status-current` / `build-timeline` / `build-timeline-row-*` / `build-promote-note` / `build-denied` / `build-not-found`（载体 web/src/pages/builds/BuildsPage.tsx；消费 m17/t512-builds-page.spec.ts）。散件：`node-module-id`（NodeDetail，Module ID 行）/ `search-builds-results` `search-builds-row-*` `search-scope` `search-scope-artifacts` `search-scope-builds`（旧 SearchPage——**LegacyBridge 期双实现并存注记**：新 SearchPageV2 承 `search-scope-*` 模板族，旧 SearchPage 静态族随 P3 搜索域收口退役入 §10.6）/ `users-columns-item-lastlogin` / `logs-degraded` / `gc-cron-last-*` / `group-form-readonly-note` / `groups-sort-name` / `pager-size-*`（共享 Pager 档位项——P2 起新旧双载体，终验归新）。
+
+**P2 批（FE-Rewrite 12 族）**：Explorer 批量动作 `tree-bulk-copy` `tree-bulk-move` `tree-bulk-delete`（ChildrenGrid 多选工具条——**解锁面**：api/copy|move 首次 UI 化）；CopyMoveDialog 族 `copy-move-dialog` `copy-move-target-repo` `copy-move-target-path` `copy-move-dry` `copy-move-dry-run` `copy-move-error` `copy-move-run` `copy-move-cancel`（干跑预演+执行+取消——消费 e2e/p2/core-flow.spec.ts）；`topbar-help-menu`（新壳 Topbar——7.161 帮助菜单形态迁移）；`repo-activity-row-*`（RepoDetail Activity Tab 八 Tab 架构成）；`confirm-phrase-input`（新 Confirm 层——四态缺省锚语义延续，消费 core-flow typed 确认腿）。
+
+**退役登记（§10.6 增补 2 条）**：`nav-mode-switch`（应用⇄管理模式切换——P2 四分组 IA 裁撤该概念，权限可见性替代）；`tree-load-more`（客户端 load-more——TanStack Virtual 虚拟化替代，滚动即载）。
+
+**broken 处置（tree-children）**：m17/t512 spec 的宽容选择器回退遮蔽了断链——P2 Explorer 的 ChildrenGrid 容器补挂 `data-testid="tree-children"`（锚延续律：换栈零锚改名），本批修断。
