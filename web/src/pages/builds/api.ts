@@ -157,13 +157,9 @@ export interface BuildTimelineEvent {
 const RUN_ACTIONS = new Set(['build.upload', 'build.append', 'build.promote', 'build.delete'])
 
 async function auditPage(query: string): Promise<AuditEvent[]> {
-  try {
-    const page = await apiJSON<{ events: AuditEvent[]; nextCursor: string }>(`/v1/audit?${query}`)
-    return page.events ?? []
-  } catch (err) {
-    // 403 = 非 admin：上抛由调用方隐藏整段（区分于可重试错误）
-    throw err
-  }
+  // 403 = 非 admin：上抛由调用方隐藏整段（区分于可重试错误）——不吞异常
+  const page = await apiJSON<{ events: AuditEvent[]; nextCursor: string }>(`/v1/audit?${query}`)
+  return page.events ?? []
 }
 
 /** 单 build run 的事件时间线（两查询 + 客户端过滤；admin 面） */

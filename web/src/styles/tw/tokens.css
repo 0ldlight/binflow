@@ -1,0 +1,142 @@
+/*
+ * 新栈设计 token（frontend-rewrite-architecture §3：唯一色值层）。
+ *
+ * 双主题取值自现役 src/styles/tokens.css **原样迁移**（值零改动——
+ * 两文件在 MUI 退役终验前并行服役，不同页加载、互不污染；终验删旧
+ * 文件后本文件成为唯一事实源）。机制保持：
+ *   - 亮色默认挂 :root（ADR-0029 Q2 终裁），暗色经 [data-theme='dark']
+ *     整组覆盖——ThemeContext/新 ThemeProvider 切的都是
+ *     document.documentElement 上的 data-theme 属性；
+ *   - 三阶纵深（§5.1 灰阶节奏）：侧栏最暗（--bf-sidebar 系）< 内容底
+ *     （--bf-bg）< 卡片/表格（--bf-surface-1）；亮色主题下侧栏仍是深底，
+ *     侧栏内文字走 --bf-sidebar-text 系；
+ *   - 组件层只消费语义名（经 tailwind.css @theme 桥接为 Tailwind 工具
+ *     类），禁止具体色值（scripts/assert-tokens.mjs 编译期断言——本文件
+ *     与 styles/tw/ 桥接层同属 token 定义层豁免）。
+ */
+
+:root {
+  /* ---------- 色板（§5.1，亮色 = 默认，Q2 终裁） ---------- */
+
+  /* 侧栏（三阶最暗层；亮色主题下同为深底，配套自有 fg token） */
+  --bf-sidebar: #1b2430;
+  --bf-sidebar-2: #242f3e; /* 侧栏悬停行 */
+  --bf-sidebar-3: #2c3949; /* 侧栏 active 行 */
+  --bf-sidebar-border: #293545; /* 侧栏分隔线/右缘 */
+  --bf-sidebar-text: #eef2f7; /* 侧栏文字（深底） */
+  --bf-sidebar-text-2: #a3b1c2; /* 侧栏次要文字 */
+
+  --bf-bg: #f3f5f7; /* 内容底 */
+  --bf-surface-1: #ffffff; /* 卡片/表格（三阶最亮） */
+  --bf-surface-2: #e9edf1; /* 悬停行/次级面板 */
+  --bf-surface-3: #dfe5ec; /* 输入框/drop zone */
+  --bf-border: #d3dae2; /* 分隔线/表格线 */
+  --bf-border-strong: #9aa6b4; /* 悬停边框 */
+  --bf-text: #1d232c; /* 正文（≥12:1） */
+  --bf-text-2: #55606e; /* 次要（≥4.5:1） */
+  /* 弱化（时间戳等）。取值随 T-234 对比度上调（bg 4.7 / surface-1 5.1）。 */
+  --bf-text-muted: #646f7b;
+  --bf-accent: #0b6bcb; /* 主操作/链接/焦点 */
+  --bf-accent-fg: #ffffff; /* accent 上文字 */
+  --bf-success: #157f3d;
+  --bf-warning: #946200;
+  --bf-danger: #c9372f;
+  --bf-danger-fg: #ffffff; /* danger 实底按钮上文字 */
+  --bf-info: #0b6bcb;
+
+  /* modal 背板遮罩（增补运营 token：组件层零色值断言的承接位） */
+  --bf-scrim: rgb(9 14 20 / 45%);
+
+  /* ---------- 间距（4px 基数，§5.2；双主题共用） ---------- */
+
+  --bf-sp-1: 4px;
+  --bf-sp-2: 8px;
+  --bf-sp-3: 12px;
+  --bf-sp-4: 16px;
+  --bf-sp-5: 24px;
+  --bf-sp-6: 32px;
+  --bf-sp-7: 48px;
+
+  /* ---------- 字号 / 行高 ---------- */
+
+  --bf-fs-aux: 12px; /* 辅助列/标签 */
+  --bf-fs-body: 13px; /* 表格正文·密度主字号 */
+  --bf-fs-form: 14px; /* 表单/段落 */
+  --bf-fs-h3: 16px; /* 卡片标题/tab */
+  --bf-fs-h2: 20px; /* 页面标题 */
+  --bf-fs-h1: 24px; /* 登录品牌 */
+
+  /* ---------- 圆角 ---------- */
+
+  --bf-r-sm: 4px; /* 输入/badge */
+  --bf-r-md: 6px; /* 按钮/卡片 */
+  --bf-r-lg: 8px; /* modal/drop zone */
+
+  /* ---------- 阴影（§5.2：暗色弱影 + 边框补偿；亮色实影） ---------- */
+
+  --bf-shadow-1: 0 1px 2px rgb(0 0 0 / 35%); /* 卡片/下拉锚定 */
+  --bf-shadow-2: 0 4px 12px rgb(0 0 0 / 45%); /* 下拉/浮层/右键菜单 */
+  --bf-shadow-3: 0 12px 32px rgb(0 0 0 / 55%); /* modal/向导 */
+
+  /* ---------- 层级 ---------- */
+
+  --bf-z-nav-sticky: 70;
+  --bf-z-dropdown: 80;
+  --bf-z-modal: 90;
+  --bf-z-toast: 100;
+
+  /* ---------- 字体栈（console-ux §7；sans 与 MuiProvider FONT_STACK 同源） ---------- */
+
+  --bf-font-sans: system-ui, -apple-system, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --bf-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas,
+    'Liberation Mono', monospace;
+
+  color-scheme: light;
+}
+
+/* ---------- 暗色（§5.1 右列取值整组换入，纯换值） ---------- */
+
+[data-theme='dark'] {
+  --bf-sidebar: #0b0e13;
+  --bf-sidebar-2: #151b25;
+  --bf-sidebar-3: #1d2532;
+  --bf-sidebar-border: #1e2634;
+  --bf-sidebar-text: #e9edf3;
+  --bf-sidebar-text-2: #9aa4b2;
+
+  --bf-bg: #12161d;
+  --bf-surface-1: #1a202a;
+  --bf-surface-2: #202834;
+  --bf-surface-3: #262f3d;
+  --bf-border: #2b3442;
+  --bf-border-strong: #414c5e;
+  --bf-text: #e9edf3;
+  --bf-text-2: #9aa4b2;
+  /* 弱化：同亮色调理由，上调至 surface-1 4.8:1 / bg 5.2:1。 */
+  --bf-text-muted: #7f8a99;
+  --bf-accent: #4aa3ff;
+  --bf-accent-fg: #0b0e13;
+  --bf-success: #3fbf6f;
+  --bf-warning: #d9a23a;
+  --bf-danger: #f0605d;
+  --bf-danger-fg: #0b0e13;
+  --bf-info: #6cb2ff;
+
+  --bf-scrim: rgb(0 0 0 / 60%);
+
+  /* 包型图标 brand 暗色档（T-390 / K61，登记 package-icons/README §4）：
+   * 与旧 tokens.css 同源迁入——若重开资产级暗色版，本组整体退役。 */
+  --bf-pkgicon-deb: #f5226d;
+  --bf-pkgicon-docker-deep: #1481e5;
+  --bf-pkgicon-generic: #0d7ff2;
+  --bf-pkgicon-helm: #6b73ef;
+  --bf-pkgicon-helmoci: #118cae;
+  --bf-pkgicon-maven: #e2494f;
+  --bf-pkgicon-npm: #d35857;
+  --bf-pkgicon-nuget: #0083e9;
+  --bf-pkgicon-pypi: #3d85c1;
+  --bf-pkgicon-trashcan: #748294;
+
+  color-scheme: dark;
+}
