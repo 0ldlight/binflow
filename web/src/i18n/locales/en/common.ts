@@ -58,6 +58,7 @@ registerEn('common', {
   "服务暂不可用": "Service temporarily unavailable",
   "服务状态": "Service Status",
   "复制": "Replication",
+  "构建名": "Build name",
   "关闭": "Close",
   "还没有仓库": "No repositories yet",
   "回收站": "Trash Can",
@@ -75,6 +76,7 @@ registerEn('common', {
   "目录": "Folder",
   "配额": "Quota",
   "配置": "Configuration",
+  "启动时间": "Started",
   "启用": "Enabled",
   "签发失败（HTTP": "Mint failed (HTTP ",
   "清除": "Clear",
@@ -151,5 +153,6 @@ registerEn('common', {
   "状态": "Status",
   "自定义显示列（偏好保存在本浏览器）": "Customize visible columns (preference stored in this browser)",
   "组": "Groups",
+  "run 号": "Run number",
   "SSO（OIDC）会话签发令牌需到身份提供方重新认证一次。完整的「跳转 IdP 重认证 → 自动续铸」链在 Set Me Up 接入向导内：从制品树任意仓库的 Set Me Up 进入并生成 （上下文会被记住，完成后自动续铸）；或联系管理员评估 auth.token_step_up 配置。": "SSO (OIDC) sessions must re-authenticate with the identity provider once before a token can be minted. The full “redirect to IdP re-authentication → automatic resume” flow lives in the Set Me Up wizard: open Set Me Up from any repository in the artifact tree and generate there (the context is remembered and minting resumes automatically on completion); alternatively, ask an administrator to review the auth.token_step_up configuration.",
 })

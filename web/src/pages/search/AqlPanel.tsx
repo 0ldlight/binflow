@@ -119,7 +119,7 @@ function errorHeadline(err: ApiError): string {
 
 function errorHint(err: ApiError): string | null {
   if (err.status === 400)
-    return tt('文案为服务端逐字回显——检查字段/操作符/域（BinFlow 子集：items + property 域，$not 与 builds/statistics 等域不支持）与链序 include→sort→offset→limit。')
+    return tt('文案为服务端逐字回显——检查字段/操作符/域（BinFlow 子集：items + property 域 + build 族三入口 builds/modules/dependencies〔T-511〕，$not 与 statistics/build.promotions/releasebundle 等域不支持）与链序 include→sort→offset→limit。')
   if (err.status === 408) return tt('查询超过执行上限（10s）——收窄条件或加 .limit()。')
   if (err.status === 429) return tt('并发查询已达上限（4），稍后重试（服务端随 429 下发 Retry-After）。')
   return null
@@ -231,7 +231,7 @@ export function AqlPanel({
           <span className="mono" lang="en">
             &quot;@key&quot;:&quot;value&quot;
           </span>
-          {'}'}{tt('）；操作符 $eq/$ne/$gt/$gte/$lt/$lte/$match/$nmatch/$and/$or/$msp/$last/$before。 未支持域（builds/statistics…）与语法错 → 400 逐字文案。分页/排序由查询的')}          <span className="mono" lang="en">
+          {'}'}{tt('）+ build 族三入口 builds/modules/dependencies（T-511 起）；操作符 $eq/$ne/$gt/$gte/$lt/$lte/$match/$nmatch/$and/$or/$msp/$last/$before。 未支持域（statistics/build.promotions/releasebundle…）与语法错 → 400 逐字文案。分页/排序由查询的')}          <span className="mono" lang="en">
             {' '}
             .sort()/.offset()/.limit()
           </span>{' '}{tt('尾缀承载——表头排序与分页控件（页码/每页行数）会改写查询文本。')}        </p>

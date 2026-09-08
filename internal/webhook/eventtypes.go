@@ -2,21 +2,32 @@ package webhook
 
 import "fmt"
 
-// The event-type closed set (webhook.md section 3: 13 domains, 66 event
-// types; ADR-0041 decision 7's single source of truth). Every type carries
-// its domain and its Source: wired types have BinFlow trigger sources (the
-// nine M13织入点 — the Emit seams in internal/repo and httpapi's property
-// family), dormant types are subscribable, validate green and NEVER fire
-// (their domains have no BinFlow body yet; flipping one to wired is adding
-// an Emit line, never a schema change — event_type is a string column).
+// The event-type closed set — ADR-0041 decision 7's single source of
+// truth, as amended by its own "翻转路径" clause through the M17-Q5
+// ruling (裁①: register only sourced domains — see the ADR's decision 7
+// errata). The registration face is CLOSED-DOMAIN: a domain enters the
+// set only when BinFlow carries a trigger source for at least one of its
+// types, and it leaves the set the moment that ceases to be true.
+//
+// As of the ruling (build wired in T-510), four domains qualify —
+// artifact (5 wired), artifact_property (2), docker (2 wired + promoted
+// dormant), build (3) — 13 registered types, 12 of them wired. The nine
+// sourceless domains the M13 interim posture carried as dormant
+// (release_bundle, release_bundle_v2, release_bundle_v2_promotion,
+// distribution, destination, curation, user, xray_scan_status, app_trust)
+// are DEREGISTERED: unknown domain 400s on create/update, their stored
+// legacy subscriptions stay readable and never fire, and no trigger is
+// ever fabricated for them. Re-registering one is a new ruling plus its
+// wired trigger seam (the dormant→wired path, schema-zero as ever).
+//
+// Every type still carries its Source: wired types have BinFlow trigger
+// sources (the Emit seams in internal/repo, internal/build and httpapi's
+// property family); docker's promoted stays dormant — subscribable,
+// validation-green, never fired (the promotion REST has no BinFlow body;
+// flipping it is adding an Emit line, never a schema change).
 //
 // Spellings are the official event_type literals verbatim (webhook.md 3,
-// high confidence). Two documented quirks are honored exactly as the spec
-// pins them: distribution uses delete_* (the payload spelling, not the
-// page's deletion_* section titles — webhook.md 10.2), and curation's four
-// types are the page's title spellings because that is the only form the
-// official doc registers (webhook.md 3.10, mid confidence; dormant either
-// way, so the wire never carries them).
+// high confidence).
 
 // Source is one event type's BinFlow trigger-source coverage.
 type Source string
@@ -30,22 +41,27 @@ const (
 	SourceDormant Source = "dormant"
 )
 
-// Event domains (webhook.md section 3's thirteen).
+// Event domains — the closed-domain set (M17-Q5 裁①): only domains with
+// BinFlow trigger sources. The deregistered nine live in
+// deregisteredDomains for the honest migration posture (readable legacy
+// rows, refused writes), not as subscribable choices.
 const (
-	DomainArtifact                 = "artifact"
-	DomainArtifactProperty         = "artifact_property"
-	DomainDocker                   = "docker"
-	DomainBuild                    = "build"
-	DomainReleaseBundle            = "release_bundle"
-	DomainReleaseBundleV2          = "release_bundle_v2"
-	DomainReleaseBundleV2Promotion = "release_bundle_v2_promotion"
-	DomainDistribution             = "distribution"
-	DomainDestination              = "destination"
-	DomainCuration                 = "curation"
-	DomainUser                     = "user"
-	DomainXrayScanStatus           = "xray_scan_status"
-	DomainAppTrust                 = "app_trust"
+	DomainArtifact         = "artifact"
+	DomainArtifactProperty = "artifact_property"
+	DomainDocker           = "docker"
+	DomainBuild            = "build"
 )
+
+// deregisteredDomains lists the nine sourceless domains the M13 interim
+// posture registered as dormant and the M17-Q5 ruling (裁①) removed. The
+// list is documentation plus the legacy-row posture's vocabulary — it is
+// deliberately NOT part of Domains(), so validation, matching and the
+// REST error messages all answer "unknown domain" for these names.
+var deregisteredDomains = []string{
+	"release_bundle", "release_bundle_v2", "release_bundle_v2_promotion",
+	"distribution", "destination", "curation", "user",
+	"xray_scan_status", "app_trust",
+}
 
 // The twelve wired event types: webhook.md 0's "9 个有本体触发源" M13
 // ruling (artifact 5 + artifact_property 2 + docker 2) plus the build
@@ -72,9 +88,10 @@ type eventType struct {
 	Source Source
 }
 
-// eventTypes is the full 66-entry registry. The count is asserted at init
-// (TestT362EventClosedSet pins it too) so a typo'd edit cannot silently
-// shrink the subscribable surface.
+// eventTypes is the closed-domain registry. The count is asserted in
+// tests (TestT362EventClosedSet, TestBuildDomainRegistryAudit,
+// closed_domain_registry_test.go) so a typo'd edit cannot silently
+// reshape the subscribable surface.
 var eventTypes = []eventType{
 	// artifact (5) — all wired (webhook.md 3.1).
 	{TypeArtifactDeployed, DomainArtifact, SourceWired},
@@ -96,71 +113,6 @@ var eventTypes = []eventType{
 	{TypeBuildUploaded, DomainBuild, SourceWired},
 	{TypeBuildDeleted, DomainBuild, SourceWired},
 	{TypeBuildPromoted, DomainBuild, SourceWired},
-	// release_bundle (3) — dormant, RBv1 not built (webhook.md 3.5).
-	{"created", DomainReleaseBundle, SourceDormant},
-	{"signed", DomainReleaseBundle, SourceDormant},
-	{"deleted", DomainReleaseBundle, SourceDormant},
-	// release_bundle_v2 (3) — dormant (webhook.md 3.6).
-	{"release_bundle_v2_started", DomainReleaseBundleV2, SourceDormant},
-	{"release_bundle_v2_failed", DomainReleaseBundleV2, SourceDormant},
-	{"release_bundle_v2_completed", DomainReleaseBundleV2, SourceDormant},
-	// release_bundle_v2_promotion (3) — dormant (webhook.md 3.7).
-	{"release_bundle_v2_promotion_started", DomainReleaseBundleV2Promotion, SourceDormant},
-	{"release_bundle_v2_promotion_failed", DomainReleaseBundleV2Promotion, SourceDormant},
-	{"release_bundle_v2_promotion_completed", DomainReleaseBundleV2Promotion, SourceDormant},
-	// distribution (7) — dormant; delete_* is the payload spelling
-	// (webhook.md 3.8 / 10.2).
-	{"distribute_started", DomainDistribution, SourceDormant},
-	{"distribute_completed", DomainDistribution, SourceDormant},
-	{"distribute_aborted", DomainDistribution, SourceDormant},
-	{"distribute_failed", DomainDistribution, SourceDormant},
-	{"delete_started", DomainDistribution, SourceDormant},
-	{"delete_completed", DomainDistribution, SourceDormant},
-	{"delete_failed", DomainDistribution, SourceDormant},
-	// destination (4) — dormant, Edge nodes not built (webhook.md 3.9).
-	{"received", DomainDestination, SourceDormant},
-	{"delete_started", DomainDestination, SourceDormant},
-	{"delete_completed", DomainDestination, SourceDormant},
-	{"delete_failed", DomainDestination, SourceDormant},
-	// curation (4) — dormant; the page's title spellings are the only
-	// registered form (webhook.md 3.10, mid confidence).
-	{"Package was blocked by Curation", DomainCuration, SourceDormant},
-	{"Curation Waiver Request Created", DomainCuration, SourceDormant},
-	{"Curation Waiver Request Updated", DomainCuration, SourceDormant},
-	{"Curation Policy Changed", DomainCuration, SourceDormant},
-	// user (1) — dormant, no failed-login lockout body (webhook.md 3.11).
-	{"locked", DomainUser, SourceDormant},
-	// xray_scan_status (4) — dormant, Xray is a product non-goal
-	// (webhook.md 3.12).
-	{"done", DomainXrayScanStatus, SourceDormant},
-	{"failed", DomainXrayScanStatus, SourceDormant},
-	{"partial", DomainXrayScanStatus, SourceDormant},
-	{"not_supported", DomainXrayScanStatus, SourceDormant},
-	// app_trust (24) — dormant, external product (webhook.md 3.13).
-	{"entry_gate_evaluation_started", DomainAppTrust, SourceDormant},
-	{"entry_gate_evaluation_validation_passed", DomainAppTrust, SourceDormant},
-	{"entry_gate_evaluation_validation_failed", DomainAppTrust, SourceDormant},
-	{"exit_gate_evaluation_started", DomainAppTrust, SourceDormant},
-	{"exit_gate_evaluation_validation_passed", DomainAppTrust, SourceDormant},
-	{"exit_gate_evaluation_validation_failed", DomainAppTrust, SourceDormant},
-	{"application_creation_started", DomainAppTrust, SourceDormant},
-	{"application_creation_completed", DomainAppTrust, SourceDormant},
-	{"application_creation_failed", DomainAppTrust, SourceDormant},
-	{"application_update_started", DomainAppTrust, SourceDormant},
-	{"application_update_completed", DomainAppTrust, SourceDormant},
-	{"application_update_failed", DomainAppTrust, SourceDormant},
-	{"application_deletion_started", DomainAppTrust, SourceDormant},
-	{"application_deletion_completed", DomainAppTrust, SourceDormant},
-	{"application_deletion_failed", DomainAppTrust, SourceDormant},
-	{"version_creation_started", DomainAppTrust, SourceDormant},
-	{"version_creation_completed", DomainAppTrust, SourceDormant},
-	{"version_creation_failed", DomainAppTrust, SourceDormant},
-	{"version_promotion_started", DomainAppTrust, SourceDormant},
-	{"version_promotion_completed", DomainAppTrust, SourceDormant},
-	{"version_promotion_failed", DomainAppTrust, SourceDormant},
-	{"release_started", DomainAppTrust, SourceDormant},
-	{"release_completed", DomainAppTrust, SourceDormant},
-	{"release_failed", DomainAppTrust, SourceDormant},
 }
 
 // lookup indexes the registry by the (domain, event_type) pair — names
@@ -175,7 +127,7 @@ var lookup = func() map[[2]string]eventType {
 	return m
 }()
 
-// domains is the thirteen-domain closed set in registry order.
+// domains is the closed-domain set in registry order.
 var domains = func() []string {
 	seen := map[string]bool{}
 	var out []string
@@ -189,8 +141,14 @@ var domains = func() []string {
 }()
 
 // Domains returns the domain closed set (subscription validation's first
-// 400 gate).
+// 400 gate — the sourced four, M17-Q5 裁①).
 func Domains() []string { return append([]string(nil), domains...) }
+
+// DeregisteredDomains lists the sourceless domains the M13 interim
+// posture registered as dormant and the M17-Q5 ruling (裁①) removed: the
+// honest migration posture's vocabulary (legacy rows stay readable,
+// writes 400) and the console/docs face — never a subscribable choice.
+func DeregisteredDomains() []string { return append([]string(nil), deregisteredDomains...) }
 
 // Lookup resolves one (domain, event_type) pair. ok is false for an
 // unknown pair — the caller's 400.

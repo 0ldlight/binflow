@@ -1,10 +1,11 @@
 package webhook_test
 
 // T-362's closed-set, criteria, signature and request-shape legs: the
-// 66-type registry's shape (13 domains, 9 wired), strict criteria parsing,
-// the Ant matcher's two-level wildcards, the openssl-compatible HMAC
-// vector, and the subscription request validation table (webhook.md
-// section 2's OpenAPI constraints, one 400 per row).
+// closed-domain registry's shape (4 sourced domains, 12 wired types —
+// M17-Q5 裁①), strict criteria parsing, the Ant matcher's two-level
+// wildcards, the openssl-compatible HMAC vector, and the subscription
+// request validation table (webhook.md section 2's OpenAPI constraints,
+// one 400 per row).
 
 import (
 	"encoding/json"
@@ -15,8 +16,13 @@ import (
 )
 
 func TestT362EventClosedSet(t *testing.T) {
-	if got := len(webhook.Domains()); got != 13 {
-		t.Fatalf("domain count = %d, want 13", got)
+	// The closed-DOMAIN set (M17-Q5 裁①, ADR-0041 decision 7 errata): the
+	// four domains with BinFlow trigger sources. The M13 interim posture
+	// (13 domains, dormant labeling) was replaced by the ruling — the
+	// sourceless nine are deregistered, asserted below and in
+	// closed_domain_registry_test.go.
+	if got := len(webhook.Domains()); got != 4 {
+		t.Fatalf("domain count = %d, want 4", got)
 	}
 	// The registry's total is asserted through one domain's legal set plus
 	// the pair lookups below; the wired twelve are the contract AC-2 pins
@@ -54,27 +60,42 @@ func TestT362EventClosedSet(t *testing.T) {
 	if _, ok := webhook.Lookup("artifact", "pushed"); ok {
 		t.Error("artifact/pushed must NOT resolve (pushed is docker's)")
 	}
-	// Dormant coverage claims that must stay subscribable-but-silent.
+	// The one dormant survivor: docker/promoted stays subscribable-but-
+	// silent inside a sourced domain (the promotion REST has no body).
+	if _, ok := webhook.Lookup("docker", "promoted"); !ok {
+		t.Error("docker/promoted must stay registered (dormant)")
+	}
+	if webhook.Wired("docker", "promoted") {
+		t.Error("docker/promoted must be dormant")
+	}
+	// The deregistered nine: not domains, not pairs — unknown on every
+	// validation face.
+	for _, d := range webhook.DeregisteredDomains() {
+		if webhook.ValidDomain(d) {
+			t.Errorf("deregistered domain %q must not validate", d)
+		}
+	}
 	for _, pair := range [][2]string{
-		{"docker", "promoted"}, {"release_bundle", "created"},
+		{"release_bundle", "created"},
 		{"distribution", "delete_failed"}, {"destination", "delete_failed"},
 		{"user", "locked"}, {"xray_scan_status", "not_supported"},
 		{"app_trust", "release_started"},
 		{"curation", "Package was blocked by Curation"},
 	} {
+		if _, ok := webhook.Lookup(pair[0], pair[1]); ok {
+			t.Errorf("deregistered pair %v must not resolve", pair)
+		}
 		if webhook.Wired(pair[0], pair[1]) {
-			t.Errorf("pair %v must be dormant", pair)
+			t.Errorf("deregistered pair %v must never report wired", pair)
 		}
 	}
 }
 
 func TestT362RegistryTotal(t *testing.T) {
-	// 13 domains x their documented counts = 66 (webhook.md section 3).
+	// The closed-domain registry: 4 domains x their counts = 13 types
+	// (M17-Q5 裁①; the nine sourceless domains left the set).
 	want := map[string]int{
 		"artifact": 5, "artifact_property": 2, "docker": 3, "build": 3,
-		"release_bundle": 3, "release_bundle_v2": 3,
-		"release_bundle_v2_promotion": 3, "distribution": 7, "destination": 4,
-		"curation": 4, "user": 1, "xray_scan_status": 4, "app_trust": 24,
 	}
 	total := 0
 	for d, n := range want {
@@ -83,8 +104,11 @@ func TestT362RegistryTotal(t *testing.T) {
 		}
 		total += n
 	}
-	if total != 66 {
-		t.Fatalf("total event types = %d, want 66", total)
+	if total != 13 {
+		t.Fatalf("total event types = %d, want 13", total)
+	}
+	if got := len(webhook.Domains()); got != len(want) {
+		t.Fatalf("domain count = %d, want %d", got, len(want))
 	}
 }
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { MouseEvent as ReactMouseEvent } from 'react'
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 
 import { Link } from 'react-router-dom'
 
@@ -17,9 +17,11 @@ import Typography from '@mui/material/Typography'
 import { useAuth } from '../../app/AuthContext'
 import { CopyButton } from '../../components/CopyButton'
 import { Skeleton } from '../../components/Skeleton'
+import { getNodeProperties } from '../../lib/api'
 import { formatBytes } from '../../lib/format'
 import { getRepoDetail } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
+import { buildAssocOf, getBuildRun, moduleIdsOf } from '../builds/api'
 import { DOWNLOAD_COPY, EMPTY_VALUE, NO_SOURCE_HINTS, REPO_FIELD_LABELS, REMOTE_COPY, STATS_HINTS, STATS_LABELS } from './detailCopy'
 import { contentFileURL, getItemForDetail, getItemPermissions, getNodeStats, getRepoUsageCounts } from './lib'
 import type { ChildNode, ItemInfo } from './lib'
@@ -55,8 +57,10 @@ const tt = tr('artifacts')
 //   '—' + title 登记——不伪造）。**T-447 / Q9 终裁消化**：mimeType/
 //   Checksums 徽标块/下载校验块自 General 页收进下载伴随菜单（见
 //   FileDownloadActions）；General 页保留的类型/tags 为已裁维持项。
-// - **缺位登记（不伪造）**：Module ID 不建（dep Build-info，§9A-S8——
-//   M17 解禁）；Package Information / Dependency Declaration /
+// - **缺位登记（不伪造）**：~~Module ID 不建（dep Build-info，§9A-S8）~~
+//   **T-512 解禁**（FR-152.3）：Module ID 字段落地——File URL 之后、部署者
+//   之前（reverse console-ui §3.2 字段序），承载见 ModuleIdRow 块注释；
+//   Package Information / Dependency Declaration /
 //   Virtual Repository Associations / Included Repositories 块不建
 //   （BinFlow 无包信息域/无 virtual↔file 关联面——块级缺位，登记待域
 //   落地）；仓视图的 Show 懒展开不建（usage counts 面本就廉价，直接
@@ -481,7 +485,7 @@ function RepoGeneral({ repoKey }: { repoKey: string }) {
 // ---- 常规 Tab：目录 / 文件形态 ----------------------------------------------
 
 // 字段序（T-445 / FR-144.2/.3）：Name → Repository Path → File URL（B-2.4
-// 目录视图同样补齐）→〔Module ID 不建——Build-info stay-out〕→ 部署者 →
+// 目录视图同样补齐）→ Module ID（T-512 解禁——file 形态）→ 部署者 →
 // 大小 → Created → 修改时间 → 下载统计族（file 形态）→ BinFlow 自有
 // 增强（类型/tags——T-447/Q9 后仅存两项；mimeType 与 Checksums 块已收进
 // 下载伴随菜单）。
@@ -543,6 +547,9 @@ function NodeGeneral({
             {fileURL} <CopyButton value={fileURL} label="File URL" />
           </span>
         </div>
+        {/* Module ID（T-512 / FR-152.3——B-2.3·§9A-S8 stay-out 解除）：
+            file 形态在场，目录/仓形态无（Artifactory item view 同位口径） */}
+        {!node.folder && <ModuleIdRow repoKey={repoKey} path={node.path} />}
         <div className="kv">
           <span className="k">{tt('部署者')}</span>
           <span lang="en">{item.createdBy || EMPTY_VALUE}</span>
@@ -618,6 +625,116 @@ function NodeGeneral({
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ---- Module ID 行（T-512 / FR-152.3——制品详情页的 build module 关联呈现）----
+//
+// 数据面裁定（票内留痕）：**无 node→module 反查端点**——build_artifacts 的
+// 反向查询面 = aql.md §15.3 登记 artifacts(build) 入口（M18+ 翻译点），
+// GET 查询族（T-508）只有正向三跳。FE 的诚实承载 = 官方 BuildConstants
+// 属性三键（build.name / build.number / build.timestamp——build-info.md
+// §2.2「制品↔build 关联标记的机制本体」，CI 以矩阵参数部署时写入本节点）：
+//
+//   节点 ?properties（1 请求，?stats 同款的详情伴随读）
+//     → build.name+build.number 双在场 → run 详情探测（至多 1 请求；
+//       build.timestamp〔epoch 毫秒〕→ RFC3339 作 ?started= 消歧字面）
+//     → modules[].artifacts[].path（关联形 "<repo>/<path>"，record-only
+//       行无 path）精确匹配本制品坐标 → Module ID + run 深链。
+//
+// 无 build 关联（属性族缺席）、属性指向的 run 不可达（403 无该 build 读门
+// / 404 run 不在）或模块不含本制品（同名同号多 run / 关联已失）——一律
+// 如实空态 —，不伪造（完整反查面归 M18+ 翻转点，登记遗留）。
+function ModuleIdRow({ repoKey, path }: { repoKey: string; path: string }) {
+  // 属性读失败（内容面读门外的属性面差异态罕见）不阻断详情页——按
+  // 「不可得」呈现，title 带状态码
+  const props = useAsync(() => getNodeProperties(repoKey, path), [repoKey, path])
+  const probeTitle = tt('制品的 build module 关联：节点 build.name/build.number/build.timestamp 属性三键（CI 矩阵参数部署时写入）→ run 详情的 modules[].artifacts[] 路径精确匹配；无反查端点（artifacts(build) AQL 入口为 M18+ 翻转点）。')
+
+  if (props.status === 'loading') {
+    return (
+      <div className="kv">
+        <span className="k">Module ID</span>
+        <span className="mono" data-testid="node-module-id">{STATS_HINTS.loading}</span>
+      </div>
+    )
+  }
+  if (props.status !== 'ok') {
+    const errTitle = `${tt('module 关联探测不可用（HTTP')} ${props.error?.status ?? 0}${tt('）')}`
+    return (
+      <div className="kv">
+        <span className="k">Module ID</span>
+        <span className="mono" data-testid="node-module-id" title={errTitle}>{EMPTY_VALUE}</span>
+      </div>
+    )
+  }
+  const assoc = buildAssocOf(props.data ?? {})
+  if (!assoc) {
+    return (
+      <div className="kv">
+        <span className="k">Module ID</span>
+        <span className="mono" data-testid="node-module-id" title={tt('无 build 关联——节点未携带 build.* 属性族（CI 以矩阵参数部署时写入 build.name/build.number/build.timestamp）。')}>{EMPTY_VALUE}</span>
+      </div>
+    )
+  }
+  return <ModuleIdProbe repoKey={repoKey} path={path} assoc={assoc} probeTitle={probeTitle} />
+}
+
+/** 属性三键在场后的 run 详情探测（独立组件承载条件请求——hook 不可条件化） */
+function ModuleIdProbe({
+  repoKey,
+  path,
+  assoc,
+  probeTitle,
+}: {
+  repoKey: string
+  path: string
+  assoc: { name: string; number: string; startedISO?: string }
+  probeTitle: string
+}) {
+  const run = useAsync(
+    () => getBuildRun(assoc.name, assoc.number, { started: assoc.startedISO }),
+    [assoc.name, assoc.number, assoc.startedISO ?? ''],
+  )
+
+  let body: ReactNode
+  if (run.status === 'loading') {
+    body = <span>{STATS_HINTS.loading}</span>
+  } else if (run.status !== 'ok' || !run.data) {
+    const errTitle = `${tt('build.* 属性指向的 run 不可达（HTTP')} ${run.error?.status ?? 0}${tt('）——403 = 无该 build 读门 / 404 = run 不在本实例；不伪造关联。')}`
+    body = <span title={errTitle}>{EMPTY_VALUE}</span>
+  } else {
+    const ids = moduleIdsOf(run.data.buildInfo, repoKey, path)
+    if (ids.length === 0) {
+      body = (
+        <span title={tt('build.* 属性指向的 run 模块不含本制品（同名同号多 run 或关联已失）——不伪造。')}>{EMPTY_VALUE}</span>
+      )
+    } else {
+      const to = `/builds/${encodeURIComponent(assoc.name)}/${encodeURIComponent(assoc.number)}${
+        run.data.buildInfo.started ? `?started=${encodeURIComponent(run.data.buildInfo.started)}` : ''
+      }`
+      body = (
+        <>
+          {ids.map((id, i) => (
+            <span key={id}>
+              {i > 0 && ' '}
+              <Link className="row-link mono" lang="en" to={to} title={probeTitle} data-testid="node-module-id">
+                {id}
+              </Link>
+            </span>
+          ))}
+          <span className="text-2" style={{ marginLeft: 'var(--bf-sp-2)' }} lang="en">
+            {assoc.name}#{assoc.number}
+          </span>
+        </>
+      )
+    }
+  }
+  return (
+    <div className="kv">
+      <span className="k" title={probeTitle}>Module ID</span>
+      <span className="mono" title={probeTitle}>{body}</span>
     </div>
   )
 }

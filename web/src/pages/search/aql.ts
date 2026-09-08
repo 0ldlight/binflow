@@ -35,6 +35,11 @@ export interface AQLRow {
   virtual_repos?: string[]
   /** property 投影聚合的嵌套成员（aql.md §3.3） */
   properties?: { key: string; value: string }[]
+  /** build 族入口（T-511：builds/modules/dependencies）的投影成员——
+   *  builds.find 的 run 行（name/number/started/repo 等，全 string；
+   *  搜索页 Builds 范围〔T-512〕消费，缺省成员如实缺席） */
+  number?: string
+  started?: string
 }
 
 /** range 尾对象（aql.md §3.2——流式语义：end_pos/total = 本页行数，

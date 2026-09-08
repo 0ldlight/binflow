@@ -1,0 +1,95 @@
+/*
+ * 新栈 Tailwind 入口（frontend-rewrite-architecture §3）。
+ *
+ * - 色值唯一事实源 = 同目录 tokens.css（--bf-* 双主题变量）；本文件只做
+ *   @theme 桥接（--color 与 --font 与 --radius 三族 → var(--bf-*)），零
+ *   色值字面量——assert-tokens.mjs 把 styles/tw 整层视为 token 定义层
+ *   豁免，闸对层外 CSS 的语义不降。
+ * - dark 变体绑 [data-theme="dark"]（selector 策略，非 .dark class）——
+ *   与现 ThemeContext / localStorage 'binflow-console-theme' 的
+ *   <html data-theme> 机制零迁移成本（architecture §3）。
+ * - @theme inline：工具类直取 var(--bf-*)，不落 --color-* 中间变量，
+ *   data-theme 整组覆盖对每个工具类即时生效。
+ * - preflight 随 tailwindcss 引入（新应用整页换栈后生效；P1 共存期本
+ *   文件不进旧应用模块图——见 app/foundation.ts 冒烟说明）。
+ * - 与旧 CSS 共存纪律：本层独立于 styles/{base,pages,governance}.css，
+ *   零选择器交集（仅 :root/[data-theme] 变量声明，同名同值不冲突）。
+ */
+@import 'tailwindcss';
+@import './tokens.css';
+
+/* 暗色变体：跟随 <html data-theme="dark">（ADR-0029 Q2：亮色为默认主题） */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme inline {
+  /* ---- shadcn 语义色板（消费面 = components/ui primitives）---- */
+  --color-background: var(--bf-bg);
+  --color-foreground: var(--bf-text);
+  --color-card: var(--bf-surface-1);
+  --color-card-foreground: var(--bf-text);
+  --color-popover: var(--bf-surface-1);
+  --color-popover-foreground: var(--bf-text);
+  --color-primary: var(--bf-accent);
+  --color-primary-foreground: var(--bf-accent-fg);
+  --color-secondary: var(--bf-surface-2);
+  --color-secondary-foreground: var(--bf-text);
+  --color-muted: var(--bf-surface-2);
+  --color-muted-foreground: var(--bf-text-2);
+  /* shadcn 的 accent = 悬停底色语义（非品牌主色）——映射 surface-2 */
+  --color-accent: var(--bf-surface-2);
+  --color-accent-foreground: var(--bf-text);
+  --color-destructive: var(--bf-danger);
+  --color-destructive-foreground: var(--bf-danger-fg);
+  --color-border: var(--bf-border);
+  --color-input: var(--bf-border);
+  --color-ring: var(--bf-accent);
+
+  /* ---- 状态色（BinFlow 自有：徽章/状态灯消费面）---- */
+  --color-success: var(--bf-success);
+  --color-success-foreground: var(--bf-surface-1);
+  --color-warning: var(--bf-warning);
+  --color-warning-foreground: var(--bf-surface-1);
+  --color-info: var(--bf-info);
+  --color-info-foreground: var(--bf-surface-1);
+
+  /* ---- 三阶纵深 + 弱化文字（§5.1 灰阶节奏）---- */
+  --color-surface-1: var(--bf-surface-1);
+  --color-surface-2: var(--bf-surface-2);
+  --color-surface-3: var(--bf-surface-3);
+  --color-subtle: var(--bf-text-muted);
+  --color-scrim: var(--bf-scrim);
+
+  /* ---- 侧栏身份（亮色主题下同为深底，§4.1 例外语义）---- */
+  --color-sidebar: var(--bf-sidebar);
+  --color-sidebar-hover: var(--bf-sidebar-2);
+  --color-sidebar-active: var(--bf-sidebar-3);
+  --color-sidebar-border: var(--bf-sidebar-border);
+  --color-sidebar-foreground: var(--bf-sidebar-text);
+  --color-sidebar-muted-foreground: var(--bf-sidebar-text-2);
+
+  /* ---- 字体（sans 与 MuiProvider FONT_STACK 同源迁入）---- */
+  --font-sans: var(--bf-font-sans);
+  --font-mono: var(--bf-mono);
+
+  /* ---- 密度字号（总令 §二十四 dense：13px 表格主档 / 12px 辅助）---- */
+  --text-dense: var(--bf-fs-body);
+  --text-dense--line-height: 1.45;
+  --text-aux: var(--bf-fs-aux);
+  --text-aux--line-height: 1.4;
+  --text-form: var(--bf-fs-form);
+  --text-form--line-height: 1.5;
+  --text-h3: var(--bf-fs-h3);
+  --text-h3--line-height: 1.4;
+  --text-h2: var(--bf-fs-h2);
+  --text-h2--line-height: 1.3;
+
+  /* ---- 圆角（覆盖 Tailwind 默认档为本仓 token）---- */
+  --radius-sm: var(--bf-r-sm);
+  --radius-md: var(--bf-r-md);
+  --radius-lg: var(--bf-r-lg);
+
+  /* ---- 阴影（浮层三档）---- */
+  --shadow-flat: var(--bf-shadow-1);
+  --shadow-overlay: var(--bf-shadow-2);
+  --shadow-modal: var(--bf-shadow-3);
+}

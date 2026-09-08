@@ -24,7 +24,7 @@ const WEB = dirname(dirname(fileURLToPath(import.meta.url)))
 const SRC = join(WEB, 'src')
 const STATS = process.argv.includes('--stats')
 const CJK = /[\u3000-\u303F\u3290-\u329F\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\uFF01-\uFFE6]/
-const DOMAINS = ['console', 'repositories', 'artifacts', 'bundles', 'search', 'security', 'governance', 'monitoring', 'webhooks', 'admin', 'common']
+const DOMAINS = ['console', 'repositories', 'artifacts', 'bundles', 'builds', 'search', 'security', 'governance', 'monitoring', 'webhooks', 'admin', 'common']
 
 const violations = []
 

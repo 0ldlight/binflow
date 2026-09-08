@@ -101,13 +101,19 @@ interface NavGroup {
  * 条目 = Release Bundles——Artifactory 应用域 /ui/repobundles 的 BinFlow
  * 对位〔console-ui §1.1 应用域族；官方归属 Artifactory 应用域，OSS 7.84
  * 册无 Distribution 不列——BinFlow M17 域已落地故入册〕；专域名词对位
- * Access Tokens / Webhooks 先例不译） */
+ * Access Tokens / Webhooks 先例不译。T-512 起第四条目 = Builds〔制品
+ * 之后、Release Bundles 之前——Artifactory 应用域族 Packages/Builds/
+ * Artifacts/Release Bundles 的相对序，BinFlow 无 Packages 域跳过；nav
+ * 项在 OSS 在场系 build-info.md §6 高置信档位锚〕） */
 const APP_NAV: NavGroup[] = [
   {
     title: tt('应用'),
     entries: [
       { label: tt('仪表盘'), to: '/dashboard', icon: 'dashboard', end: true },
       { label: tt('制品'), to: '/artifacts', icon: 'account_tree' },
+      // T-512（FR-152.3）：Builds 列表/run 号/详情只读查询面（读门 =
+      // r(buildRepo, buildName) 镜像——名单面服务端可见集过滤零泄漏）
+      { label: 'Builds', to: '/builds', icon: 'build' },
       // T-514（FR-153.3）：bundle 列表/详情只读查询面（读门 = 系统读权限
       // ∨ Any Distribution 通道——普通用户 200 空集可见空态，服务端零泄漏）
       { label: 'Release Bundles', to: '/bundles', icon: 'bundle' },
@@ -277,6 +283,7 @@ function appTitle(pathname: string): string {
   if (pathname.startsWith('/dashboard')) return tt('仪表盘')
   if (pathname.startsWith('/search')) return tt('搜索制品')
   if (pathname.startsWith('/profile')) return tt('编辑档案')
+  if (pathname.startsWith('/builds')) return 'Builds'
   if (pathname.startsWith('/bundles')) return 'Release Bundles'
   return 'BinFlow'
 }
@@ -359,7 +366,12 @@ export default function AppShell() {
     setRecent(commitRecentSearch(term))
     setDraft({ key: location.key, term })
     const onSearch = location.pathname === '/search'
-    navigate(`/search?q=${encodeURIComponent(term)}`, { replace: onSearch })
+    // T-512（FR-152.3）：搜索范围页签——已在 /search 时沿当前 scope
+    //（?scope=builds 的细化查询不静默弹回制品 scope；scope 是搜索页的
+    // 会话态随 URL 走，非 /search 场景的提交 = 默认制品 scope）
+    const scope = onSearch ? new URLSearchParams(location.search).get('scope') : null
+    const scopeSeg = scope === 'builds' ? '&scope=builds' : ''
+    navigate(`/search?q=${encodeURIComponent(term)}${scopeSeg}`, { replace: onSearch })
   }
 
   const onTopbarSearchKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
