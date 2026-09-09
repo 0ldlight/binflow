@@ -41,8 +41,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useAuth } from '@/app/AuthContext'
-import { toast } from 'sonner'
-import { LegacyMount } from '@/app/router/legacy-bridge'
+import { toast } from '@/lib/toast'
+import { LegacyMount } from '@/components/layout/legacy-host'
 import { PkgIcon } from '@/components/PkgIcon'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { ApiError, canAdminWrite, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole } from '@/lib/api'
@@ -104,6 +104,8 @@ import {
   SAVE_CLEAN_HINT,
 } from '@/pages/repositories/formCopy'
 import { tr } from '@/i18n'
+// 仓库管理域样式（pages/repositories 支撑模块族共享——旧页面退役后由新页直挂）
+import '@/pages/repositories/repositories.css'
 import { lazy } from 'react'
 
 const t = tr('repositories')

@@ -1,65 +1,40 @@
+// Access Tokens 页（M14 T-386——P3 新栈重写）。
+// [零新端点纪律] 消费面 = 既有 token REST 两端点：
+//   - POST /api/security/token（E-17，JSON 投影 + silent401）——mint/step-up
+//     链（ADR-0027：非 admin web session 臂在 auth.token_step_up 开启时
+//     401 step_up_required → 内联口令框；OIDC 臂诚实降级引导，不私建链路）；
+//   - POST /api/security/token/revoke（E-18，form 体 token_id）。
+// 服务端只存指纹、无令牌清单端点（console-ux §9-R6）——台账 = 本会话经此页
+// 签发的内存态（刷新即空）；历史令牌吊销走「按 token_id 吊销」。指纹 =
+// sha256 前 8 hex（与审计 token.issue 事件同 digest）。
+// [四态] 表格无取数（无 GET 端点）→ 不伪造骨架/错误态；空态 = 台账空。
+// [角色臂] admin 全量；readonly_admin 吊销禁用 + 注记（自铸不受限）；
+// 普通 user = L2 无权限卡。
+// 锚族原样：tokens-page/token-create(-empty)?/token-table/token-row-<id>/
+// token-fingerprint-<id>/token-status-<id>/token-revoke-<id>/token-revoke-byid
+// /token-revoke-id/token-revoke-byid-go/tokens-count/tokens-empty/
+// tokens-readonly-note/tokens-ledger-note/token-dialog/token-plaintext/
+// token-value/token-plaintext-done/token-stepup/token-password(-error)?/
+// token-password-submit/token-cancel/token-form-subject/token-form-ttl/
+// token-submit/token-mint-error。
 import { useEffect, useRef, useState } from 'react'
-import type { ComponentPropsWithoutRef } from 'react'
 
-import Alert from '@mui/material/Alert'
-import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import Chip from '@mui/material/Chip'
-import Dialog from '@mui/material/Dialog'
-import DialogActions from '@mui/material/DialogActions'
-import DialogContent from '@mui/material/DialogContent'
-import DialogTitle from '@mui/material/DialogTitle'
-import Divider from '@mui/material/Divider'
-import Paper from '@mui/material/Paper'
-import Select from '@mui/material/Select'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
-import TextField from '@mui/material/TextField'
-import Tooltip from '@mui/material/Tooltip'
-import Typography from '@mui/material/Typography'
-
-import { useAuth } from '../../app/AuthContext'
-import { useToast } from '../../app/ToastContext'
-import { useConfirm } from '../../components/ConfirmDialog'
-import { CopyButton } from '../../components/CopyButton'
-import { EmptyState } from '../../components/EmptyState'
-import { Pager, useClientPager } from '../../components/Pager'
-import { ApiError, apiJSON, apiText, canAdminWrite, errText, isReadOnlyAdmin } from '../../lib/api'
-import { monoInputSx } from '../../lib/muiAtoms'
-import { tr, getLocale } from '../../i18n'
+import { useAuth } from '@/app/AuthContext'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Badge, AlertBox } from '@/components/layout/bits'
+import { CopyButton } from '@/components/layout/copy-button'
+import { EmptyState } from '@/components/layout/states'
+import { Pager, useClientPager } from '@/components/layout/pager'
+import { TextInput, NativeSelect } from '@/components/layout/fields'
+import { useConfirm } from '@/app/providers'
+import { toast } from '@/lib/toast'
+import { ApiError, apiJSON, apiText, canAdminWrite, errText, isReadOnlyAdmin } from '@/lib/api'
+import { tr, getLocale } from '@/i18n'
 
 const t = tr('security')
 
-// Access Tokens 页真身（M14 T-386，FR-125.1——parity §3 M3；占位页载体
-// 退役）。参照形态 = T-381 V6 实测：Artifactory token 面 = 生成区 + Identity
-// Tokens 表（4 列 + 列选器）；V6c 生成表单字段集因 profile 密码门降级未核验
-// （Q4 终裁未开）——本页以暂行字段集起步（有效期/签发对象/scope 只读说明），
-// 票内留痕 reports/agents/T-386.md，终裁后随 T-395/K58 回写。
-//
-// [零新端点纪律]（AC2）消费面 = 既有 token REST 两端点，仅此两枚：
-//   - POST /api/security/token（E-17，JSON 投影 + silent401）——mint/step-up
-//     链与 SetMeUpDialog 同源同引擎（ADR-0027：非 admin web session 臂在
-//     auth.token_step_up 开启时 401 step_up_required → 内联口令框；OIDC 臂
-//     本页无重认证回跳承载——诚实降级为引导，不私建链路）；
-//   - POST /api/security/token/revoke（E-18，form 体 token_id）。
-// 服务端只存指纹、无令牌清单端点（console-ux §9-R6）——「Identity Tokens
-// 表」如实降形为本会话经此页签发的台账（内存态，刷新即空；与明文一次性
-// 语义同源），历史令牌吊销走「按 token_id 吊销」。行内指纹 = sha256 前
-// 8 hex（与审计 token.issue 事件的 fingerprint 同digest，可对账）。
-//
-// [四态] 表格无取数（无 GET 端点）→ 不伪造骨架/错误态（T-387「无端点列
-// 不伪造」同款纪律）；空态 = 会话台账空；错误态 = mint/吊销就地内联 + toast。
-//
-// [角色臂] admin 全量；readonly_admin 只读臂（L06）＝吊销禁用（服务端
-// CapSecurityWrite 403 兜底）+ 只读注记——自铸不受限（Q11：mint 是
-// required-only 自助面，与 Set Me Up 同门）；普通 user = L2 无权限卡
-// （导航隐藏；自助铸币走 Set Me Up / REST——提示语指向）。
-
-/** 有效期预设（秒）。closed set——不发明语义；「永不过期」仅 admin 可选
- *  （Q11 护栏 2：非 admin 只能有限 TTL 且 ≤ auth.token_nonadmin_max_ttl）。 */
+/** 有效期预设（秒）。closed set——「永不过期」仅 admin 可选（Q11 护栏 2） */
 const TTL_PRESETS: { label: string; seconds: number }[] = [
   { label: t('1 小时'), seconds: 3600 },
   { label: t('24 小时'), seconds: 24 * 3600 },
@@ -79,8 +54,7 @@ interface MintResponse {
   expires_in?: number
 }
 
-/** mint 请求体（E-17 JSON 投影——SetMeUpDialog.mintToken 同源形态；同源
- * 引擎页内副本：SetMeUpDialog 是锚冻结载体，不为此票改动） */
+/** mint 请求体（E-17 JSON 投影——SetMeUpDialog.mintToken 同源形态） */
 function mintToken(opts: {
   expiresIn: number
   username?: string
@@ -94,13 +68,12 @@ function mintToken(opts: {
       ...(opts.username ? { username: opts.username } : {}),
       ...(opts.stepUpPassword ? { step_up_password: opts.stepUpPassword } : {}),
     },
-    // step-up 的 401 是对话分支（ADR-0027 决策 5 的 OAuth 形错误体），
-    // 不触发全局「会话过期」监听
+    // step-up 的 401 是对话分支（OAuth 形错误体），不触发全局会话过期监听
     silent401: true,
   })
 }
 
-/** 从 ApiError.raw 提取 OAuth 形错误体（SetMeUpDialog 同源形态） */
+/** 从 ApiError.raw 提取 OAuth 形错误体 */
 function oauthErrorOf(err: unknown): { code: string; description: string } | null {
   if (!(err instanceof ApiError) || !err.raw) return null
   try {
@@ -116,7 +89,7 @@ function oauthErrorOf(err: unknown): { code: string; description: string } | nul
 }
 
 /** sha256 前 8 hex——与服务端 auth.TokenFingerprint / 审计 detail 同 digest
- * （非安全上下文 crypto.subtle 缺席 → 空串，不伪造） */
+ *  （非安全上下文 crypto.subtle 缺席 → 空串，不伪造） */
 async function fingerprintOf(plaintext: string): Promise<string> {
   try {
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(plaintext))
@@ -156,7 +129,6 @@ type MintState =
 
 export default function TokensPage() {
   const { session } = useAuth()
-  const toast = useToast()
   const confirm = useConfirm()
   const readOnly = isReadOnlyAdmin(session)
   const adminWrite = canAdminWrite(session)
@@ -164,8 +136,6 @@ export default function TokensPage() {
 
   // 会话台账 + 创建 modal（明文只活在 modal 态——关闭即卸载丢弃）
   const [rows, setRows] = useState<TokenRow[]>([])
-  // T-451（E2 翻案）：客户端页窗（会话台账行集——吊销翻态不改行数，
-  // 字符串键口径下不丢页位）
   const pager = useClientPager(rows.length, `ledger|${rows.length}`)
   const pageRows = pager.slice(rows)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -197,9 +167,9 @@ export default function TokensPage() {
   }
 
   const doRevokeRow = async (row: TokenRow) => {
-    const ok = await confirm({
+    const ok = await confirm.confirm({
       title: t('吊销令牌 #{v1}', { v1: row.tokenId }),
-      body: t('吊销后所有以该令牌认证的客户端（docker/maven/npm/pip、CI 流水线）立即失效。此操作不可撤销（{v1} 主体，有效期 {v2}）。', { v1: row.subject, v2: humanTtl(row.expiresIn) }),
+      description: t('吊销后所有以该令牌认证的客户端（docker/maven/npm/pip、CI 流水线）立即失效。此操作不可撤销（{v1} 主体，有效期 {v2}）。', { v1: row.subject, v2: humanTtl(row.expiresIn) }),
       confirmLabel: t('吊销'),
       danger: true,
     })
@@ -213,9 +183,9 @@ export default function TokensPage() {
     const raw = revokeIdInput.trim()
     if (!/^\d+$/.test(raw)) return
     const tokenId = Number(raw)
-    const ok = await confirm({
+    const ok = await confirm.confirm({
       title: t('吊销令牌 #{tokenId}', { tokenId: tokenId }),
-      body: t('按 token_id 吊销一条历史令牌（不在本会话台账内）。吊销后该令牌立即失效，此操作不可撤销。'),
+      description: t('按 token_id 吊销一条历史令牌（不在本会话台账内）。吊销后该令牌立即失效，此操作不可撤销。'),
       confirmLabel: t('吊销'),
       danger: true,
     })
@@ -230,7 +200,7 @@ export default function TokensPage() {
     return (
       <div data-testid="tokens-page">
         <div className="page-header">
-          <h2>Access Tokens</h2>
+          <h2 className="text-lg font-semibold">Access Tokens</h2>
         </div>
         <EmptyState
           message={t('无权限访问 Access Tokens')}
@@ -242,20 +212,22 @@ export default function TokensPage() {
 
   return (
     <div data-testid="tokens-page">
-      <div className="page-header">
-        <h2>Access Tokens</h2>
-        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{t('自铸 / 吊销 API 令牌（E-17 / E-18；scope 恒 api:*——携带主体全部权限）')}        </span>
+      <div className="page-header flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold">Access Tokens</h2>
+        <span className="text-aux text-2">{t('自铸 / 吊销 API 令牌（E-17 / E-18；scope 恒 api:*——携带主体全部权限）')}</span>
+        <Button size="sm" className="ml-auto" data-testid="token-create" onClick={() => setDialogOpen(true)}>
+          {t('生成令牌')}
+        </Button>
       </div>
 
-      <Box sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center' }}>
-        <Box sx={{ flexGrow: 1 }} />
-        <Button variant="contained" data-testid="token-create" onClick={() => setDialogOpen(true)}>{t('生成令牌')}        </Button>
-      </Box>
-
       {readOnly && (
-        <Alert severity="info" data-testid="tokens-readonly-note" sx={{ mb: 1 }}>{t('只读管理员：吊销是管理面写动作（服务端以 403 兜底）——已禁用；自铸不受限（Q11 自助面，仅本人 + 有限期）。')}        </Alert>
+        <AlertBox severity="info" testid="tokens-readonly-note">
+          {t('只读管理员：吊销是管理面写动作（服务端以 403 兜底）——已禁用；自铸不受限（Q11 自助面，仅本人 + 有限期）。')}
+        </AlertBox>
       )}
-      <Alert severity="info" data-testid="tokens-ledger-note" sx={{ mb: 1 }}>{t('下表是')}<b>{t('本会话经此页签发')}</b>{t('的令牌台账——服务端只存指纹、无令牌清单端点（console-ux §9-R6），刷新后表格即空、 明文不可再取。历史令牌的吊销走下方「按 token_id 吊销」；签发/吊销事件可到审计日志以指纹对账。')}      </Alert>
+      <AlertBox severity="info" testid="tokens-ledger-note">
+        {t('下表是')}<b>{t('本会话经此页签发')}</b>{t('的令牌台账——服务端只存指纹、无令牌清单端点（console-ux §9-R6），刷新后表格即空、 明文不可再取。历史令牌的吊销走下方「按 token_id 吊销」；签发/吊销事件可到审计日志以指纹对账。')}
+      </AlertBox>
 
       {rows.length === 0 ? (
         <EmptyState
@@ -264,75 +236,67 @@ export default function TokensPage() {
           hint={t('生成后在创建面板一次性展示明文（关闭即不可再取）；本页无服务端清单可回看。')}
           testid="tokens-empty"
           action={
-            <Button variant="contained" data-testid="token-create-empty" onClick={() => setDialogOpen(true)}>{t('生成第一个令牌')}            </Button>
+            <Button size="sm" data-testid="token-create-empty" onClick={() => setDialogOpen(true)}>
+              {t('生成第一个令牌')}
+            </Button>
           }
         />
       ) : (
-        <Paper variant="outlined">
-          <Table size="small" data-testid="token-table">
-            <TableHead>
-              <TableRow>
-                <TableCell component="th" scope="col">token_id</TableCell>
-                <TableCell component="th" scope="col">{t('指纹')}</TableCell>
-                <TableCell component="th" scope="col">{t('主体')}</TableCell>
-                <TableCell component="th" scope="col">{t('有效期')}</TableCell>
-                <TableCell component="th" scope="col">{t('状态')}</TableCell>
-                <TableCell component="th" scope="col" align="right">{t('操作')}</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
+        <div className="overflow-x-auto rounded-md border border-border">
+          <table className="w-full text-dense" data-testid="token-table">
+            <thead>
+              <tr className="border-b border-border text-left text-aux text-muted-foreground">
+                <th scope="col" className="px-3 py-2 font-medium">token_id</th>
+                <th scope="col" className="px-3 py-2 font-medium">{t('指纹')}</th>
+                <th scope="col" className="px-3 py-2 font-medium">{t('主体')}</th>
+                <th scope="col" className="px-3 py-2 font-medium">{t('有效期')}</th>
+                <th scope="col" className="px-3 py-2 font-medium">{t('状态')}</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">{t('操作')}</th>
+              </tr>
+            </thead>
+            <tbody>
               {pageRows.map((row) => (
-                <TableRow key={row.tokenId} data-testid={`token-row-${row.tokenId}`} hover>
-                  <TableCell className="mono" lang="en">
-                    #{row.tokenId}
-                  </TableCell>
-                  <TableCell className="mono" lang="en" data-testid={`token-fingerprint-${row.tokenId}`}>
+                <tr key={row.tokenId} data-testid={`token-row-${row.tokenId}`} className="border-b border-border/60 hover:bg-accent">
+                  <td className="px-3 py-1.5 font-mono" lang="en">#{row.tokenId}</td>
+                  <td className="px-3 py-1.5 font-mono" lang="en" data-testid={`token-fingerprint-${row.tokenId}`}>
                     {row.fingerprint || '—'}{' '}
                     {row.fingerprint && <CopyButton value={row.fingerprint} label={t('指纹 #{v1}', { v1: row.tokenId })} />}
-                  </TableCell>
-                  <TableCell className="mono" lang="en">
-                    {row.subject}
-                  </TableCell>
-                  <TableCell>
+                  </td>
+                  <td className="px-3 py-1.5 font-mono" lang="en">{row.subject}</td>
+                  <td className="px-3 py-1.5">
                     {humanTtl(row.expiresIn)}
-                    <Typography component="div" variant="caption" color="text.secondary">
+                    <div className="text-aux text-muted-foreground">
                       {new Date(row.mintedAt).toLocaleTimeString(getLocale() === 'en' ? 'en-US' : 'zh-CN')}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      color={row.revoked ? 'default' : 'success'}
-                      variant={row.revoked ? 'outlined' : 'filled'}
-                      label={row.revoked ? t('已吊销') : t('有效')}
-                      data-testid={`token-status-${row.tokenId}`}
-                    />
-                  </TableCell>
-                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    <Tooltip title={row.revoked ? t('已吊销') : t('吊销（danger 确认）')}>
-                      <span>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="error"
-                          data-testid={`token-revoke-${row.tokenId}`}
-                          disabled={readOnly || row.revoked || busyId === row.tokenId}
-                          onClick={() => void doRevokeRow(row)}
-                          sx={monoBtnSx}
-                        >
-                          {busyId === row.tokenId ? t('吊销中…') : t('吊销')}
-                        </Button>
-                      </span>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
+                    </div>
+                  </td>
+                  <td className="px-3 py-1.5">
+                    {row.revoked ? (
+                      <span data-testid={`token-status-${row.tokenId}`}>{t('已吊销')}</span>
+                    ) : (
+                      <Badge variant="success" testid={`token-status-${row.tokenId}`}>{t('有效')}</Badge>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-1.5 text-right">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 border-destructive/50 text-destructive hover:bg-destructive/10"
+                      data-testid={`token-revoke-${row.tokenId}`}
+                      disabled={readOnly || row.revoked || busyId === row.tokenId}
+                      title={row.revoked ? t('已吊销') : t('吊销（danger 确认）')}
+                      onClick={() => void doRevokeRow(row)}
+                    >
+                      {busyId === row.tokenId ? t('吊销中…') : t('吊销')}
+                    </Button>
+                  </td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
-        </Paper>
+            </tbody>
+          </table>
+        </div>
       )}
       {rows.length > 0 && (
-        <Box sx={{ mt: 1 }} data-testid="tokens-count">
+        <div className="mt-1" data-testid="tokens-count">
           <Pager
             page={pager.page}
             pageCount={pager.pageCount}
@@ -344,14 +308,15 @@ export default function TokensPage() {
             pageSize={pager.size}
             onPageSizeChange={pager.setSize}
           />
-        </Box>
+        </div>
       )}
 
       {adminWrite && (
-        <Box component={Paper} variant="outlined" sx={{ mt: 2, p: 1.5, display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }} data-testid="token-revoke-byid">
-          <TextField
-            size="small"
-            label={t('按 token_id 吊销（历史令牌）')}
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-md border border-border p-2" data-testid="token-revoke-byid">
+          <TextInput
+            mono
+            lang="en"
+            inputMode="numeric"
             placeholder={t('如 42')}
             value={revokeIdInput}
             onChange={(e) => setRevokeIdInput(e.target.value)}
@@ -361,20 +326,24 @@ export default function TokensPage() {
                 void doRevokeById()
               }
             }}
-            sx={{ ...monoInputSx, minWidth: 240 }}
-            slotProps={{ htmlInput: { 'data-testid': 'token-revoke-id', lang: 'en', inputMode: 'numeric' } }}
+            className="min-w-[240px]"
+            aria-label={t('按 token_id 吊销（历史令牌）')}
+            data-testid="token-revoke-id"
           />
           <Button
-            variant="outlined"
-            color="error"
+            variant="outline"
+            size="sm"
+            className="border-destructive/50 text-destructive hover:bg-destructive/10"
             data-testid="token-revoke-byid-go"
             disabled={byidBusy || !/^\d+$/.test(revokeIdInput.trim())}
             onClick={() => void doRevokeById()}
           >
             {byidBusy ? t('吊销中…') : t('吊销')}
           </Button>
-          <Typography variant="caption" color="text.secondary">{t('台账外的历史令牌以 id 吊销（console-ux §9-R6 的既有出口；token_id 见审计日志 token.issue 事件）')}          </Typography>
-        </Box>
+          <span className="text-aux text-muted-foreground">
+            {t('台账外的历史令牌以 id 吊销（console-ux §9-R6 的既有出口；token_id 见审计日志 token.issue 事件）')}
+          </span>
+        </div>
       )}
 
       {dialogOpen && (
@@ -390,13 +359,9 @@ export default function TokensPage() {
   )
 }
 
-/** 表格行内小按钮的布局配方（cellBtnSx 的 Button 版形态——cellBtnSx 本体
- * 面向 outlined 小钮同形，这里直引即可省——保留局部别名便于 sx 组合） */
-const monoBtnSx = { minWidth: 0, minHeight: 24 } as const
-
-/** 创建 modal（Dialog sm——FR-125.1）。明文只在 done 面板存活，组件随
- * modal 卸载即丢弃——「仅展示一次 / 刷新不可再取」由态机保证：无任何
- * 持久层持有明文。step-up 口令腿 = smu-stepup 同形态（内联、不弹第二层）。 */
+/** 创建 modal。明文只在 done 面板存活，组件随 modal 卸载即丢弃——
+ *  「仅展示一次 / 刷新不可再取」由态机保证：无任何持久层持有明文。
+ *  step-up 口令腿 = smu-stepup 同形态（内联、不弹第二层）。 */
 function CreateTokenDialog({
   adminWrite,
   oidcLeg,
@@ -410,7 +375,6 @@ function CreateTokenDialog({
   onClose: () => void
   onMinted: (row: TokenRow) => void
 }) {
-  const toast = useToast()
   const [ttl, setTtl] = useState(DEFAULT_TTL)
   const [subject, setSubject] = useState('')
   const [password, setPassword] = useState('')
@@ -454,9 +418,7 @@ function CreateTokenDialog({
       if (err instanceof ApiError && err.status === 401 && oauth) {
         if (oauth.code === 'step_up_required') {
           if (oidcLeg) {
-            // OIDC 臂（ADR-0027 决策 8）：无本地口令。重认证回跳 + 续铸的
-            // 承载在 Set Me Up（AppShell resume 链）——本页不私建第二条链，
-            // 诚实降级为引导（见下方面板文案）
+            // OIDC 臂：重认证回跳 + 续铸承载在 Set Me Up——不私建第二条链
             setMint({ phase: 'oidc-stepup', raw: err.raw })
           } else {
             setMint({ phase: 'need-password', error: null, raw: err.raw, submitting: false })
@@ -478,173 +440,158 @@ function CreateTokenDialog({
   }
 
   return (
-    <Dialog open onClose={onClose} maxWidth="sm" fullWidth data-testid="token-dialog" aria-labelledby="token-dialog-title">
-      {mint.phase === 'done' ? (
-        <>
-          <DialogTitle id="token-dialog-title">{t('令牌已生成（仅此一次展示）')}</DialogTitle>
-          <DialogContent dividers>
-            <Paper
-              variant="outlined"
-              data-testid="token-plaintext"
-              sx={{ p: 1.5, borderColor: 'success.light', bgcolor: 'background.default' }}
-            >
-              <Typography variant="body2" sx={{ mb: 1 }}>{t('以')} <span className="mono" lang="en">{subject.trim() && adminWrite ? subject.trim() : username}</span>{' '}{t('身份签发（token_id')} <span className="mono" lang="en">#{mint.tokenId}</span>{t('，有效期')} {humanTtl(mint.expiresIn)}{t('）：')}              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                <Typography
-                  component="code"
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="sm:max-w-[560px]" data-testid="token-dialog">
+        <DialogHeader>
+          <DialogTitle>
+            {mint.phase === 'done'
+              ? t('令牌已生成（仅此一次展示）')
+              : mint.phase === 'need-password'
+                ? t('需要二次口令（step-up）')
+                : mint.phase === 'oidc-stepup'
+                  ? t('需要重新认证（step-up）')
+                  : t('生成 Access Token')}
+          </DialogTitle>
+        </DialogHeader>
+        {mint.phase === 'done' ? (
+          <>
+            <div className="rounded-md border border-success/40 bg-surface-2 p-3" data-testid="token-plaintext">
+              <p className="mb-1 text-dense">
+                {t('以')} <span className="font-mono" lang="en">{subject.trim() && adminWrite ? subject.trim() : username}</span>{' '}
+                {t('身份签发（token_id')} <span className="font-mono" lang="en">#{mint.tokenId}</span>{t('，有效期')} {humanTtl(mint.expiresIn)}{t('）：')}
+              </p>
+              <div className="mb-1 flex items-start gap-2">
+                <code
                   lang="en"
                   data-testid="token-value"
-                  sx={{ fontFamily: 'var(--bf-mono)', fontSize: 'var(--bf-fs-aux)', wordBreak: 'break-all', flex: 1 }}
+                  className="flex-1 break-all font-mono text-aux"
                 >
                   {mint.token}
-                </Typography>
+                </code>
                 <CopyButton value={mint.token} label="API Token" />
-              </Box>
-              <Typography variant="caption" color="text.secondary">{t('关闭本面板后不可再查看（服务端只存指纹）。CI 与脚本请使用此令牌，不要用控制台口令—— docker login / curl -u / settings.xml / .pypirc 的口令位都填它。')}              </Typography>
-            </Paper>
-          </DialogContent>
-          <DialogActions>
-            <Box sx={{ flexGrow: 1 }} />
-            <Button variant="contained" data-testid="token-plaintext-done" onClick={onClose}>{t('我已保存，关闭')}            </Button>
-          </DialogActions>
-        </>
-      ) : mint.phase === 'need-password' ? (
-        <>
-          <DialogTitle id="token-dialog-title">{t('需要二次口令（step-up）')}</DialogTitle>
-          <DialogContent dividers>
-            <Alert severity="warning" data-testid="token-stepup" sx={{ mb: 1 }}>{t('实例开启 auth.token_step_up——非 admin 会话签发令牌需输入当前账号口令后继续（ADR-0027）。')}            </Alert>
-            <TextField
-              label={t('当前账号口令')}
-              type="password"
-              autoFocus
-              inputRef={passwordRef}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  void runMint({ password })
-                }
-              }}
-              fullWidth
-              slotProps={{ htmlInput: { 'data-testid': 'token-password', autoComplete: 'current-password' } }}
-            />
-            {mint.error && (
-              <Alert severity="error" data-testid="token-password-error" role="alert" sx={{ mt: 1 }} lang="en">
-                {mint.error}
-              </Alert>
-            )}
-            <Box sx={{ mt: 1 }}>
-              <details>
-                <summary>
-                  <Typography variant="caption" color="text.secondary" component="span">{t('服务端原文')}                  </Typography>
-                </summary>
-                <Typography
-                  component="pre"
-                  lang="en"
-                  sx={{ fontFamily: 'var(--bf-mono)', fontSize: 'var(--bf-fs-aux)', color: 'text.secondary', wordBreak: 'break-all', m: 0 }}
-                >
-                  {mint.raw ?? ''}
-                </Typography>
-              </details>
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={onClose} data-testid="token-cancel">{t('取消')}            </Button>
-            <Button
-              variant="contained"
-              data-testid="token-password-submit"
-              disabled={mint.submitting || password === ''}
-              onClick={() => void runMint({ password })}
-            >
-              {mint.submitting ? t('验证中…') : t('验证并生成令牌')}
-            </Button>
-          </DialogActions>
-        </>
-      ) : mint.phase === 'oidc-stepup' ? (
-        <>
-          <DialogTitle id="token-dialog-title">{t('需要重新认证（step-up）')}</DialogTitle>
-          <DialogContent dividers>
-            <Alert severity="warning" sx={{ mb: 1 }}>{t('SSO（OIDC）会话签发令牌需到身份提供方重新认证一次。完整的「跳转 IdP 重认证 → 自动续铸」链在 Set Me Up 接入向导内：从制品树任意仓库的 Set Me Up 进入并生成 （上下文会被记住，完成后自动续铸）；或联系管理员评估 auth.token_step_up 配置。')}            </Alert>
-            <details>
-              <summary>
-                <Typography variant="caption" color="text.secondary" component="span">{t('服务端原文')}                </Typography>
-              </summary>
-              <Typography
-                component="pre"
-                lang="en"
-                sx={{ fontFamily: 'var(--bf-mono)', fontSize: 'var(--bf-fs-aux)', color: 'text.secondary', wordBreak: 'break-all', m: 0 }}
-              >
-                {mint.raw ?? ''}
-              </Typography>
-            </details>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={onClose} data-testid="token-cancel">{t('关闭')}            </Button>
-          </DialogActions>
-        </>
-      ) : (
-        <>
-          <DialogTitle id="token-dialog-title">{t('生成 Access Token')}</DialogTitle>
-          <DialogContent dividers sx={{ display: 'grid', gap: 2, pt: 1 }}>
-            {adminWrite && (
-              <TextField
-                label={t('签发对象（可选——代人签发）')}
-                placeholder={username}
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                helperText={t('留空 = 为自己签发；填其他用户名 = 以该用户主体签发（admin 专属，Q11）')}
-                sx={monoInputSx}
-                slotProps={{ htmlInput: { 'data-testid': 'token-form-subject', lang: 'en' } }}
+              </div>
+              <p className="text-aux text-muted-foreground">
+                {t('关闭本面板后不可再查看（服务端只存指纹）。CI 与脚本请使用此令牌，不要用控制台口令—— docker login / curl -u / settings.xml / .pypirc 的口令位都填它。')}
+              </p>
+            </div>
+            <DialogFooter className="justify-end">
+              <Button data-testid="token-plaintext-done" onClick={onClose}>{t('我已保存，关闭')}</Button>
+            </DialogFooter>
+          </>
+        ) : mint.phase === 'need-password' ? (
+          <>
+            <AlertBox severity="warning" testid="token-stepup">
+              {t('实例开启 auth.token_step_up——非 admin 会话签发令牌需输入当前账号口令后继续（ADR-0027）。')}
+            </AlertBox>
+            <div className="field">
+              <label htmlFor="token-pass">{t('当前账号口令')}</label>
+              <TextInput
+                id="token-pass"
+                type="password"
+                ref={passwordRef}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    void runMint({ password })
+                  }
+                }}
+                autoComplete="current-password"
+                data-testid="token-password"
               />
+            </div>
+            {mint.error && (
+              <AlertBox severity="error" testid="token-password-error" className="mt-1 [word-break:break-word]" >
+                <span lang="en">{mint.error}</span>
+              </AlertBox>
             )}
-            <TextField
-              label={t('有效期')}
-              select
-              value={String(ttl)}
-              onChange={(e) => setTtl(Number(e.target.value))}
-              helperText={
-                adminWrite
-                  ? t('「永不过期」仅管理员可选；非 admin 主体有限期且受 auth.token_nonadmin_max_ttl 上限约束')
-                  : t('非 admin 签发为有限期（Q11 护栏：≤ auth.token_nonadmin_max_ttl，默认 365 天）')
-              }
-              slotProps={{
-                select: {
-                  native: true,
-                  inputProps: { 'data-testid': 'token-form-ttl' } as ComponentPropsWithoutRef<'select'>,
-                } as ComponentPropsWithoutRef<typeof Select>,
-              }}
-            >
-              {presets.map((p) => (
-                <option key={p.seconds} value={String(p.seconds)}>
-                  {p.label}
-                </option>
-              ))}
-            </TextField>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Chip size="small" variant="outlined" label="api:*" lang="en" />
-              <Typography variant="caption" color="text.secondary">{t('scope 固定（只读说明）：令牌携带主体全部权限——scope 参数仅经校验、不收窄权限域，故不设选项（端点亦无描述字段，token_id 即标识）')}              </Typography>
-            </Box>
-            <Divider />
-            <Typography variant="caption" color="text.secondary">{t('生成后明文只在结果面板展示一次（关闭即不可再取——服务端只存指纹）；签发动作记入审计日志。')}            </Typography>
-            {mint.phase === 'error' && (
-              <Alert severity="error" role="alert" data-testid="token-mint-error">{t('签发失败（HTTP')} {mint.status}{t('）：')}{mint.message}
-              </Alert>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={onClose} data-testid="token-cancel">{t('取消')}            </Button>
-            <Button
-              variant="contained"
-              data-testid="token-submit"
-              disabled={mint.phase === 'minting'}
-              onClick={() => void runMint()}
-            >
-              {mint.phase === 'minting' ? t('生成中…') : t('生成令牌')}
-            </Button>
-          </DialogActions>
-        </>
-      )}
+            <details className="mt-1">
+              <summary className="cursor-pointer text-aux text-muted-foreground">{t('服务端原文')}</summary>
+              <pre lang="en" className="mt-1 break-all font-mono text-aux text-muted-foreground">{mint.raw ?? ''}</pre>
+            </details>
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose} data-testid="token-cancel">{t('取消')}</Button>
+              <Button
+                data-testid="token-password-submit"
+                disabled={mint.submitting || password === ''}
+                onClick={() => void runMint({ password })}
+              >
+                {mint.submitting ? t('验证中…') : t('验证并生成令牌')}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : mint.phase === 'oidc-stepup' ? (
+          <>
+            <AlertBox severity="warning">
+              {t('SSO（OIDC）会话签发令牌需到身份提供方重新认证一次。完整的「跳转 IdP 重认证 → 自动续铸」链在 Set Me Up 接入向导内：从制品树任意仓库的 Set Me Up 进入并生成 （上下文会被记住，完成后自动续铸）；或联系管理员评估 auth.token_step_up 配置。')}
+            </AlertBox>
+            <details>
+              <summary className="cursor-pointer text-aux text-muted-foreground">{t('服务端原文')}</summary>
+              <pre lang="en" className="mt-1 break-all font-mono text-aux text-muted-foreground">{mint.raw ?? ''}</pre>
+            </details>
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose} data-testid="token-cancel">{t('关闭')}</Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <div className="flex flex-col gap-4">
+              {adminWrite && (
+                <div className="field">
+                  <label htmlFor="token-subject">{t('签发对象（可选——代人签发）')}</label>
+                  <TextInput
+                    id="token-subject"
+                    mono
+                    lang="en"
+                    placeholder={username}
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    data-testid="token-form-subject"
+                  />
+                  <p className="field-hint">{t('留空 = 为自己签发；填其他用户名 = 以该用户主体签发（admin 专属，Q11）')}</p>
+                </div>
+              )}
+              <div className="field">
+                <label htmlFor="token-ttl">{t('有效期')}</label>
+                <NativeSelect
+                  id="token-ttl"
+                  value={String(ttl)}
+                  onChange={(e) => setTtl(Number(e.target.value))}
+                  options={presets.map((p) => ({ value: String(p.seconds), label: p.label }))}
+                  data-testid="token-form-ttl"
+                />
+                <p className="field-hint">
+                  {adminWrite
+                    ? t('「永不过期」仅管理员可选；非 admin 主体有限期且受 auth.token_nonadmin_max_ttl 上限约束')
+                    : t('非 admin 签发为有限期（Q11 护栏：≤ auth.token_nonadmin_max_ttl，默认 365 天）')}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge mono lang="en">api:*</Badge>
+                <span className="text-aux text-muted-foreground">
+                  {t('scope 固定（只读说明）：令牌携带主体全部权限——scope 参数仅经校验、不收窄权限域，故不设选项（端点亦无描述字段，token_id 即标识）')}
+                </span>
+              </div>
+              <div className="border-t border-border" />
+              <p className="text-aux text-muted-foreground">
+                {t('生成后明文只在结果面板展示一次（关闭即不可再取——服务端只存指纹）；签发动作记入审计日志。')}
+              </p>
+              {mint.phase === 'error' && (
+                <AlertBox severity="error" testid="token-mint-error">
+                  {t('签发失败（HTTP')} {mint.status}{t('）：')}{mint.message}
+                </AlertBox>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose} data-testid="token-cancel">{t('取消')}</Button>
+              <Button data-testid="token-submit" disabled={mint.phase === 'minting'} onClick={() => void runMint()}>
+                {mint.phase === 'minting' ? t('生成中…') : t('生成令牌')}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
     </Dialog>
   )
 }

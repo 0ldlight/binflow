@@ -1,4 +1,7 @@
 // 按钮 primitive：cva 变体（default 实底主操作 / secondary / outline /
+// 基座恒挂 text-foreground——Tailwind preflight 关闭期（P2 共存纪律）裸
+// button 是 UA 默认黑底灰面，深色主题下 ButtonFace 组合曾触 axe 对比度
+// serious（radix-* 按钮、t512 ⑥ 双主题腿实证）；P4 恢复 preflight 后冗余。
 // ghost / destructive / link）× 四尺寸；dense 形态（默认档 32px 高，
 // text-dense）——控制台按钮从不大写（对齐 Artifactory 观感）。
 import { Slot } from '@radix-ui/react-slot'
@@ -8,7 +11,7 @@ import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-dense font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-dense font-medium text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {

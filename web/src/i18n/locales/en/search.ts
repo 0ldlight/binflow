@@ -33,7 +33,6 @@ registerEn('search', {
   "快滤命中": "Quick filter matches",
   "没有匹配「{q}」的构建": "No builds match \"{q}\"",
   "没有匹配「{q}」的制品": "No artifacts match “{q}”",
-  "全选当前显示的行": "Select all displayed rows",
   "如 items.find({\"repo\":\"<repo-key>\"}).include(\"*\").limit(10)——未命中的仓 key 也回 200 空集（无存在性泄漏）。": "e.g. items.find({\"repo\":\"<repo-key>\"}).include(\"*\").limit(10) — unknown repo keys also return 200 with an empty set (no existence leak).",
   "输入 AQL 查询并执行": "Enter an AQL query and run it",
   "搜索范围": "Search scope",
@@ -45,7 +44,6 @@ registerEn('search', {
   "文案为服务端逐字回显——检查字段/操作符/域（BinFlow 子集：items + property 域 + build 族三入口 builds/modules/dependencies〔T-511〕，$not 与 statistics/build.promotions/releasebundle 等域不支持）与链序 include→sort→offset→limit。": "The message is the server's verbatim echo — check the fields/operators/domain (BinFlow subset: items + property domain + the build-family entries builds/modules/dependencies [T-511]; $not and statistics/build.promotions/releasebundle etc. are unsupported) and the chain order include→sort→offset→limit.",
   "项结果。": "results.",
   "行 · total": "rows · total:",
-  "选择 {v1}": "Select {v1}",
   "已按结果上限截断——用 .offset()/.limit() 分页继续取全量。": "Truncated at the result cap — page through with .offset()/.limit() to fetch the rest.",
   "已复制 ✓": "Copied ✓",
   "已是默认列集": "Already the default column set",
@@ -58,4 +56,6 @@ registerEn('search', {
   "BinFlow AQL 子集：items 域 + property 域（": "BinFlow AQL subset: items domain + property domain (",
   "Builds 范围：顶栏输入构建名或 run 号子串并 Enter——结果为 build run 行（按你的 build 读权限过滤），点击行进 run 详情。": "Builds scope: type a build-name or run-number substring in the top bar and press Enter — results are build-run rows (filtered by your build read permission); click a row to open the run detail.",
   "range：start_pos": "range: start_pos",
+  "全选本页结果": "Select all results on this page",
+  "选择第 {v1} 行": "Select row {v1}",
 })

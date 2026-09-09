@@ -1,21 +1,40 @@
+// Builds 页（T-512 / FR-152.3——P3 新栈重写 + promote/retention 写面解锁
+// （capability matrix 未列域 builds 行：「promote/retention 写面——API 在，
+// 旧 FE 明文无 UI」））：
+// - 三视图一组件（URL 即状态）：/builds（名单）→ /builds/:name（号单，
+//   started 倒序）→ /builds/:name/:number（详情；?started= 消歧）。
+// - 读门语义如实：号单空可见集 = 404（零泄漏）；详情面 403/404 分立承载。
+// - **promote 对话框（解锁）**：run 详情头动作——status-only / 目标仓迁移
+//   两臂（targetRepo 空 = 只翻状态）；dryRun 预演先行；messages[] 原文流
+//   呈现（error|warning|info 语义色）。
+// - **retention 对话框（解锁）**：号单头动作——四字段窗口（count /
+//   minimumBuildDate / 排除号列表 / deleteBuildArtifacts），async 缺省
+//   （200 应答自已验证计划——文案明示）。
+// - 事件时间线（audit 面）：build.upload/append/promote/delete 四 run 级词；
+//   admin 面，非 admin 403 整段隐藏。
+// - mono + 一键拷贝：Module ID / 制品 sha256 / CI URL；record-only 制品行
+//   （path 空）如实无链接。
+// 锚族原样：builds-page/builds-empty/builds-table/builds-row-<name>/
+// build-runs-page/build-runs-table/build-run-row-<n>/build-detail-page/
+// build-detail-info/build-statuses/build-status-row-<i>/
+// build-status-current/build-modules/build-module-row-<i>/
+// build-artifacts/build-artifact-row-<i>/build-dependencies/
+// build-dependency-row-<i>/build-timeline/build-timeline-row-<i>/
+// build-not-found/build-denied/build-promote-note。
+// 新锚（日志登记诉求）：build-promote/build-promote-dialog/
+// build-retention-dialog。
+import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 
-import Button from '@mui/material/Button'
-import Chip from '@mui/material/Chip'
-import Paper from '@mui/material/Paper'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
-import Typography from '@mui/material/Typography'
-
-import { CopyButton } from '../../components/CopyButton'
-import { EmptyState } from '../../components/EmptyState'
-import { ErrorCard } from '../../components/ErrorCard'
-import { Skeleton } from '../../components/Skeleton'
-import { useAsync } from '../../lib/useAsync'
-import { tr } from '../../i18n'
+import { useAuth } from '@/app/AuthContext'
+import { Button, ButtonAsChild } from '@/components/ui/button'
+import { CopyButton } from '@/components/layout/copy-button'
+import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
+import { canAdminWrite } from '@/lib/api'
+import { useAsync } from '@/lib/useAsync'
+import { tr } from '@/i18n'
+import PromoteDialog from './PromoteDialog'
+import RetentionDialog from './RetentionDialog'
 import {
   DEFAULT_BUILD_REPO,
   fetchBuildRunEvents,
@@ -27,51 +46,17 @@ import type { BuildInfo } from './api'
 
 const t = tr('builds')
 
-// Builds 页（T-512 / FR-152.3——build 域 FE 只读查询面；BundlesPage 三视图
-// 先例）：
-//
-// 形态定案（票内留痕，活体不可用——以 docs/reverse/build-info.md §6 档位
-// 核验节转引的 t226 观测〔V7〕+ 官方 REST 参考为书面锚）：
-// - **导航挂靠**：应用模式「应用」分组（制品之后、Release Bundles 之前——
-//   Artifactory 应用域族 Packages/Builds/Artifacts/Release Bundles 的相对
-//   序，BinFlow 无 Packages 域跳过；专域名词对位 Access Tokens / Release
-//   Bundles 先例不译）；图标 = Material build（扳手——CI 构建语义）。
-// - **三视图一组件**（URL 即状态）：/builds（名单 GET /api/build）→
-//   /builds/:name（号单 GET /api/build/{name}，started 倒序）→
-//   /builds/:name/:number（详情 GET /api/build/{name}/{number}；?started=
-//   消歧同名同号多 run）。
-// - **列集裁定**：V7 观测列 = Build Name / Build Repository / Last Build
-//   ID / Last Build Time——BinFlow 名单面 wire 只有 name+lastStarted（一行
-//   = (name, build_repo)，无 repo/号字段；号在号单面）——Build Repository
-//   / Last Build ID 无源不伪造，列集 = 构建名 + 最新启动（登记态差异，
-//   parity 册 §9A-S7 注记随票回写）。
-// - **读门语义如实**：名单面服务端可见集过滤（无授予用户 200 空集走
-//   空态——零泄漏）；号单面空可见集 = 404（与不存在同形，build-not-found
-//   承载）；详情面拒绝先于存在（403 = 读门拒绝即答案，build-denied 承载
-//   ——BundlesPage 同款分立）。
-// - **promote 入口裁定（票内）**：ux 册对 Builds 页无承载定案（本页为
-//   M17 新面）——列表/详情只读面先行留痕：admin-note 引导 API（POST
-//   /api/build/promote/{name}/{number}，body §2.4 全字段）；控制台动作面
-//   归后续票，不伪造表单。
-// - **事件时间线**（AC2）：消费 audit 面（零新端点）——build.upload/
-//   append/promote/delete 四 run 级词（retention 为名级窗口事件不可归属
-//   单 run，不进 run 时间线）；admin 面，非 admin 403 整段隐藏。
-// - mono + 一键拷贝：module id / 制品 sha256 / CI URL；record-only 制品行
-//   （path 空 = 行存不冒领关联）如实无链接呈现。
-
-/** Java 规范启动形（2026-09-06T21:22:30.067+0000）→ 展示形（空格替 T，
- *  偏移保真）；不可解析原样返回（审计友好，不伪造） */
+/** Java 规范启动形 → 展示形（空格替 T，偏移保真）；不可解析原样返回 */
 function fmtStarted(v: string): string {
   return v ? v.replace('T', ' ') : '—'
 }
 
-/** audit RFC3339 → 秒精度 UTC 形（mono 中立——监控页同款） */
+/** audit RFC3339 → 秒精度 UTC 形 */
 function fmtAuditTime(v: string): string {
   return v ? v.replace('T', ' ').replace(/(\.\d+)?Z$/, ' UTC') : '—'
 }
 
-/** run 级 audit 词 → 中文动作名（词面 mono 保真另呈；模块级 t() 求值点
- *  按 locale reload 重求值——APP_NAV 同款） */
+/** run 级 audit 词 → 中文动作名（词面 mono 保真另呈） */
 const ACTION_LABEL: Record<string, string> = {
   'build.upload': t('发布'),
   'build.append': t('追加合并'),
@@ -87,7 +72,9 @@ function BuildNotFound({ name }: { name?: string }) {
       message={name ? t('构建 {name} 不存在（或当前会话不可见）', { name: name }) : t('构建不存在')}
       hint={t('号单面按会话可见集过滤——不可读的构建名与不存在的名同形（零泄漏）；详情面 404 = run 真缺（?started= 消歧同名同号多 run）。')}
       action={
-        <Button variant="outlined" size="small" component={Link} to="/builds">{t('← 返回构建列表')}</Button>
+        <ButtonAsChild variant="outline" size="sm">
+          <Link to="/builds">{t('← 返回构建列表')}</Link>
+        </ButtonAsChild>
       }
     />
   )
@@ -101,7 +88,9 @@ function BuildDenied() {
       message={t('无权限查看此构建')}
       hint={t('读门 = r(buildRepo, buildName) 镜像——403 即读门拒绝（拒绝即答案，不与不存在混同）。')}
       action={
-        <Button variant="outlined" size="small" component={Link} to="/builds">{t('← 返回构建列表')}</Button>
+        <ButtonAsChild variant="outline" size="sm">
+          <Link to="/builds">{t('← 返回构建列表')}</Link>
+        </ButtonAsChild>
       }
     />
   )
@@ -113,13 +102,11 @@ function BuildNamesView() {
   const names = useAsync(listBuildNames, [])
   return (
     <div data-testid="builds-page">
-      <div className="page-header">
-        <h2>Builds</h2>
-        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{t('CI 构建记录（构建名 → run 号 → run 详情，只读查询面）')}        </span>
+      <div className="page-header flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold">Builds</h2>
+        <span className="text-aux text-2">{t('CI 构建记录（构建名 → run 号 → run 详情；promote / 保留策略写面）')}</span>
       </div>
-      <p className="admin-note">{t('ⓘ 发布走 API：PUT /api/build（body = build info JSON，name/number 在 body）；promote 走 POST /api/build/promote/{name}/{number}——控制台动作面归后续票，本页不伪造表单。')}        </p>
-
-      {names.status === 'loading' && <Skeleton lines={5} />}
+      {names.status === 'loading' && <StateSkeleton lines={5} />}
       {names.status === 'error' && names.error && <ErrorCard error={names.error} onRetry={names.reload} />}
       {names.status === 'ok' && (names.data?.builds.length ?? 0) === 0 && (
         <EmptyState
@@ -130,31 +117,31 @@ function BuildNamesView() {
         />
       )}
       {names.status === 'ok' && (names.data?.builds.length ?? 0) > 0 && (
-        <Paper component="section" className="card section" elevation={1} data-testid="builds-table">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell component="th" scope="col">{t('构建名')}</TableCell>
-                <TableCell component="th" scope="col">{t('最新启动')}</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
+        <section className="card section" data-testid="builds-table">
+          <table className="w-full text-dense">
+            <thead>
+              <tr className="border-b border-border text-left text-aux text-muted-foreground">
+                <th scope="col" className="px-3 py-2 font-medium">{t('构建名')}</th>
+                <th scope="col" className="px-3 py-2 font-medium">{t('最新启动')}</th>
+              </tr>
+            </thead>
+            <tbody>
               {(names.data?.builds ?? []).map((b) => {
                 const name = b.uri.replace(/^\//, '')
                 return (
-                  <TableRow key={`${name}|${b.lastStarted}`} hover data-testid={`builds-row-${name}`}>
-                    <TableCell>
-                      <Link className="row-link mono" lang="en" to={`/builds/${encodeURIComponent(name)}`}>
+                  <tr key={`${name}|${b.lastStarted}`} className="border-b border-border/60 hover:bg-accent" data-testid={`builds-row-${name}`}>
+                    <td className="px-3 py-1.5">
+                      <Link className="row-link font-mono text-primary hover:underline" lang="en" to={`/builds/${encodeURIComponent(name)}`}>
                         {name}
                       </Link>
-                    </TableCell>
-                    <TableCell className="mono" lang="en">{fmtStarted(b.lastStarted)}</TableCell>
-                  </TableRow>
+                    </td>
+                    <td className="px-3 py-1.5 font-mono" lang="en">{fmtStarted(b.lastStarted)}</td>
+                  </tr>
                 )
               })}
-            </TableBody>
-          </Table>
-        </Paper>
+            </tbody>
+          </table>
+        </section>
       )}
     </div>
   )
@@ -163,53 +150,68 @@ function BuildNamesView() {
 // ---- 视图 ②：run 号单 --------------------------------------------------------
 
 function BuildNumbersView({ name }: { name: string }) {
+  const { session } = useAuth()
+  const adminWrite = canAdminWrite(session)
   const numbers = useAsync(() => listBuildNumbers(name), [name])
   const notFound = numbers.status === 'error' && numbers.error?.status === 404
+  const [retentionOpen, setRetentionOpen] = useState(false)
 
   return (
     <div data-testid="build-runs-page">
-      <div className="page-header">
-        <h2>
-          Builds / <span className="mono" lang="en">{name}</span>
+      <div className="page-header flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold">
+          Builds / <span className="font-mono" lang="en">{name}</span>
         </h2>
-        <Button variant="outlined" size="small" component={Link} to="/builds">{t('← 返回构建列表')}</Button>
+        <span className="ml-auto flex gap-2">
+          {adminWrite && (
+            <Button variant="outline" size="sm" data-testid="build-retention" onClick={() => setRetentionOpen(true)}>
+              {t('保留策略…')}
+            </Button>
+          )}
+          <ButtonAsChild variant="outline" size="sm">
+            <Link to="/builds">{t('← 返回构建列表')}</Link>
+          </ButtonAsChild>
+        </span>
       </div>
 
-      {numbers.status === 'loading' && <Skeleton lines={5} />}
+      {numbers.status === 'loading' && <StateSkeleton lines={5} />}
       {numbers.status === 'error' && numbers.error && !notFound && (
         <ErrorCard error={numbers.error} onRetry={numbers.reload} />
       )}
       {notFound && <BuildNotFound name={name} />}
       {numbers.status === 'ok' && (
-        <Paper component="section" className="card section" elevation={1} data-testid="build-runs-table">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell component="th" scope="col">{t('run 号')}</TableCell>
-                <TableCell component="th" scope="col">{t('启动时间')}</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
+        <section className="card section" data-testid="build-runs-table">
+          <table className="w-full text-dense">
+            <thead>
+              <tr className="border-b border-border text-left text-aux text-muted-foreground">
+                <th scope="col" className="px-3 py-2 font-medium">{t('run 号')}</th>
+                <th scope="col" className="px-3 py-2 font-medium">{t('启动时间')}</th>
+              </tr>
+            </thead>
+            <tbody>
               {(numbers.data?.buildsNumbers ?? []).map((n) => {
                 const number = n.uri.replace(/^\//, '')
                 return (
-                  <TableRow key={`${number}|${n.started}`} hover data-testid={`build-run-row-${number}`}>
-                    <TableCell>
+                  <tr key={`${number}|${n.started}`} className="border-b border-border/60 hover:bg-accent" data-testid={`build-run-row-${number}`}>
+                    <td className="px-3 py-1.5">
                       <Link
-                        className="row-link mono"
+                        className="row-link font-mono text-primary hover:underline"
                         lang="en"
                         to={`/builds/${encodeURIComponent(name)}/${encodeURIComponent(number)}?started=${encodeURIComponent(n.started)}`}
                       >
                         {number}
                       </Link>
-                    </TableCell>
-                    <TableCell className="mono" lang="en">{fmtStarted(n.started)}</TableCell>
-                  </TableRow>
+                    </td>
+                    <td className="px-3 py-1.5 font-mono" lang="en">{fmtStarted(n.started)}</td>
+                  </tr>
                 )
               })}
-            </TableBody>
-          </Table>
-        </Paper>
+            </tbody>
+          </table>
+        </section>
+      )}
+      {retentionOpen && (
+        <RetentionDialog name={name} onClose={() => setRetentionOpen(false)} onDone={() => { setRetentionOpen(false); numbers.reload() }} />
       )}
     </div>
   )
@@ -221,41 +223,39 @@ function BuildNumbersView({ name }: { name: string }) {
 function BuildStatuses({ statuses }: { statuses: BuildInfo['statuses'] }) {
   if (!statuses || statuses.length === 0) return null
   return (
-    <Paper component="section" className="card section" elevation={1} data-testid="build-statuses">
-      <Typography variant="subtitle2" component="h3" sx={{ mb: 1 }}>
-        {t('promotion 历史（{v1} 条）', { v1: statuses.length })}
-      </Typography>
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell component="th" scope="col">{t('状态')}</TableCell>
-            <TableCell component="th" scope="col">{t('时间')}</TableCell>
-            <TableCell component="th" scope="col">{t('目标仓')}</TableCell>
-            <TableCell component="th" scope="col">comment</TableCell>
-            <TableCell component="th" scope="col">ciUser</TableCell>
-            <TableCell component="th" scope="col">user</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
+    <section className="card section" data-testid="build-statuses">
+      <h3 className="mb-2 text-dense font-semibold">{t('promotion 历史（{v1} 条）', { v1: statuses.length })}</h3>
+      <table className="w-full text-dense">
+        <thead>
+          <tr className="border-b border-border text-left text-aux text-muted-foreground">
+            <th scope="col" className="px-3 py-2 font-medium">{t('状态')}</th>
+            <th scope="col" className="px-3 py-2 font-medium">{t('时间')}</th>
+            <th scope="col" className="px-3 py-2 font-medium">{t('目标仓')}</th>
+            <th scope="col" className="px-3 py-2 font-medium">comment</th>
+            <th scope="col" className="px-3 py-2 font-medium">ciUser</th>
+            <th scope="col" className="px-3 py-2 font-medium">user</th>
+          </tr>
+        </thead>
+        <tbody>
           {statuses.map((s, i) => (
-            <TableRow key={`${s.timestamp}|${i}`} hover data-testid={`build-status-row-${i}`}>
-              <TableCell>
+            <tr key={`${s.timestamp}|${i}`} className="border-b border-border/60 hover:bg-accent" data-testid={`build-status-row-${i}`}>
+              <td className="px-3 py-1.5">
                 {i === 0 ? (
-                  <Chip size="small" variant="outlined" label={s.status} data-testid="build-status-current" sx={{ fontFamily: 'var(--bf-mono)' }} />
+                  <span className="badge neutral mono" data-testid="build-status-current">{s.status}</span>
                 ) : (
-                  <span className="mono" lang="en">{s.status}</span>
+                  <span className="font-mono" lang="en">{s.status}</span>
                 )}
-              </TableCell>
-              <TableCell className="mono" lang="en">{fmtStarted(s.timestamp)}</TableCell>
-              <TableCell className="mono" lang="en">{s.repository || '—'}</TableCell>
-              <TableCell>{s.comment || '—'}</TableCell>
-              <TableCell className="mono" lang="en">{s.ciUser || '—'}</TableCell>
-              <TableCell className="mono" lang="en">{s.user || '—'}</TableCell>
-            </TableRow>
+              </td>
+              <td className="px-3 py-1.5 font-mono" lang="en">{fmtStarted(s.timestamp)}</td>
+              <td className="px-3 py-1.5 font-mono" lang="en">{s.repository || '—'}</td>
+              <td className="px-3 py-1.5">{s.comment || '—'}</td>
+              <td className="px-3 py-1.5 font-mono" lang="en">{s.ciUser || '—'}</td>
+              <td className="px-3 py-1.5 font-mono" lang="en">{s.user || '—'}</td>
+            </tr>
           ))}
-        </TableBody>
-      </Table>
-    </Paper>
+        </tbody>
+      </table>
+    </section>
   )
 }
 
@@ -268,11 +268,9 @@ function BuildTimeline({ name, number, started }: { name: string; number: string
   const rows = events.data ?? []
   if (events.status === 'forbidden') return null
   return (
-    <Paper component="section" className="card section" elevation={1} data-testid="build-timeline">
-      <Typography variant="subtitle2" component="h3" sx={{ mb: 1 }}>
-        {t('事件时间线（audit）')}
-      </Typography>
-      {events.status === 'loading' && <Skeleton lines={2} />}
+    <section className="card section" data-testid="build-timeline">
+      <h3 className="mb-2 text-dense font-semibold">{t('事件时间线（audit）')}</h3>
+      {events.status === 'loading' && <StateSkeleton lines={2} />}
       {events.status === 'error' && events.error && (
         <p className="text-2" title={events.error.message}>{t('时间线不可用（HTTP')} {events.error.status}{t('）')}</p>
       )}
@@ -280,46 +278,49 @@ function BuildTimeline({ name, number, started }: { name: string; number: string
         <p className="text-2">{t('本 run 无 audit 事件行（retention 是名级窗口事件，不归属单个 run）。')}</p>
       )}
       {events.status === 'ok' && rows.length > 0 && (
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell component="th" scope="col">{t('动作')}</TableCell>
-              <TableCell component="th" scope="col">{t('时间')}</TableCell>
-              <TableCell component="th" scope="col">{t('操作者')}</TableCell>
-              <TableCell component="th" scope="col">detail</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
+        <table className="w-full text-dense">
+          <thead>
+            <tr className="border-b border-border text-left text-aux text-muted-foreground">
+              <th scope="col" className="px-3 py-2 font-medium">{t('动作')}</th>
+              <th scope="col" className="px-3 py-2 font-medium">{t('时间')}</th>
+              <th scope="col" className="px-3 py-2 font-medium">{t('操作者')}</th>
+              <th scope="col" className="px-3 py-2 font-medium">detail</th>
+            </tr>
+          </thead>
+          <tbody>
             {rows.map((e, i) => (
-              <TableRow key={e.id} hover data-testid={`build-timeline-row-${i}`}>
-                <TableCell>
-                  <span className="mono" lang="en" title={ACTION_LABEL[e.action] ?? ''}>{e.action}</span>
-                </TableCell>
-                <TableCell className="mono" lang="en">{fmtAuditTime(e.time)}</TableCell>
-                <TableCell className="mono" lang="en">{e.actor}</TableCell>
-                <TableCell>
-                  <span className="mono text-2" lang="en" style={{ wordBreak: 'break-all' }}>
+              <tr key={e.id} className="border-b border-border/60 hover:bg-accent" data-testid={`build-timeline-row-${i}`}>
+                <td className="px-3 py-1.5">
+                  <span className="font-mono" lang="en" title={ACTION_LABEL[e.action] ?? ''}>{e.action}</span>
+                </td>
+                <td className="px-3 py-1.5 font-mono" lang="en">{fmtAuditTime(e.time)}</td>
+                <td className="px-3 py-1.5 font-mono" lang="en">{e.actor}</td>
+                <td className="px-3 py-1.5">
+                  <span className="break-all font-mono text-aux text-2" lang="en">
                     {Object.entries(e.detail)
                       .map(([k, v]) => `${k}=${String(v)}`)
                       .join(' · ')}
                   </span>
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       )}
-    </Paper>
+    </section>
   )
 }
 
 function BuildDetailView({ name, number }: { name: string; number: string }) {
+  const { session } = useAuth()
+  const adminWrite = canAdminWrite(session)
   const [params] = useSearchParams()
   const started = params.get('started') ?? undefined
   const detail = useAsync(
     () => getBuildRun(name, number, { started }),
     [name, number, started ?? ''],
   )
+  const [promoteOpen, setPromoteOpen] = useState(false)
   const notFound = detail.status === 'error' && detail.error?.status === 404
   const info = detail.data?.buildInfo
   const modules = info?.modules ?? []
@@ -327,15 +328,28 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
   const dependencies = modules.flatMap((m) => m.dependencies.map((d) => ({ module: m.id, d })))
   const props = Object.entries(info?.properties ?? {})
 
+  const header = (
+    <div className="page-header flex flex-wrap items-center gap-2">
+      <h2 className="text-lg font-semibold">
+        Builds / <span className="font-mono" lang="en">{name}</span> / <span className="font-mono" lang="en">{number}</span>
+      </h2>
+      <span className="ml-auto flex gap-2">
+        {adminWrite && info && (
+          <Button size="sm" data-testid="build-promote" onClick={() => setPromoteOpen(true)}>
+            {t('晋升（promote）…')}
+          </Button>
+        )}
+        <ButtonAsChild variant="outline" size="sm">
+          <Link to={`/builds/${encodeURIComponent(name)}`}>{t('← 返回 run 列表')}</Link>
+        </ButtonAsChild>
+      </span>
+    </div>
+  )
+
   if (detail.status === 'forbidden') {
     return (
       <div data-testid="build-detail-page">
-        <div className="page-header">
-          <h2>
-            Builds / <span className="mono" lang="en">{name}</span> / <span className="mono" lang="en">{number}</span>
-          </h2>
-          <Button variant="outlined" size="small" component={Link} to={`/builds/${encodeURIComponent(name)}`}>{t('← 返回 run 列表')}</Button>
-        </div>
+        {header}
         <BuildDenied />
       </div>
     )
@@ -343,15 +357,10 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
 
   return (
     <div data-testid="build-detail-page">
-      <div className="page-header">
-        <h2>
-          Builds / <span className="mono" lang="en">{name}</span> / <span className="mono" lang="en">{number}</span>
-        </h2>
-        <Button variant="outlined" size="small" component={Link} to={`/builds/${encodeURIComponent(name)}`}>{t('← 返回 run 列表')}</Button>
-      </div>
-      <p className="admin-note" data-testid="build-promote-note">{t('ⓘ promote 走 API：POST /api/build/promote/{name}/{number}（body：status/comment/ciUser/timestamp/dryRun/sourceRepo/targetRepo/copy/artifacts/dependencies/scopes/properties/failFast）——ux 册无承载定案，控制台动作面归后续票。')}        </p>
+      {header}
+      <p className="admin-note" data-testid="build-promote-note">{t('ⓘ 发布走 API：PUT /api/build（body = build info JSON，name/number 在 body）；模块追加 POST /api/build/append/{name}/{number}（204）。本页「晋升」按钮即 POST /api/build/promote（P3 解锁——dryRun 预演先行）。')}</p>
 
-      {detail.status === 'loading' && <Skeleton lines={8} />}
+      {detail.status === 'loading' && <StateSkeleton lines={8} />}
       {detail.status === 'error' && detail.error && !notFound && (
         <ErrorCard error={detail.error} onRetry={detail.reload} />
       )}
@@ -359,27 +368,27 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
 
       {detail.status === 'ok' && info && (
         <>
-          <Paper component="section" className="card section" elevation={1} data-testid="build-detail-info">
+          <section className="card section" data-testid="build-detail-info">
             <div className="kv">
               <span className="k">{t('构建名')}</span>
-              <span className="mono" lang="en">{info.name}</span>
+              <span className="font-mono" lang="en">{info.name}</span>
             </div>
             <div className="kv">
               <span className="k">{t('run 号')}</span>
-              <span className="mono" lang="en">{info.number}</span>
+              <span className="font-mono" lang="en">{info.number}</span>
             </div>
             <div className="kv">
               <span className="k">{t('启动时间')}</span>
-              <span className="mono" lang="en">{fmtStarted(info.started)}</span>
+              <span className="font-mono" lang="en">{fmtStarted(info.started)}</span>
             </div>
             <div className="kv">
               <span className="k">{t('类型')}</span>
-              <span className="mono" lang="en">{info.type || '—'}</span>
+              <span className="font-mono" lang="en">{info.type || '—'}</span>
             </div>
             {typeof info.url === 'string' && info.url !== '' && (
               <div className="kv">
                 <span className="k">CI URL</span>
-                <span className="mono" lang="en" style={{ wordBreak: 'break-all' }}>
+                <span className="break-all font-mono" lang="en">
                   {info.url} <CopyButton value={info.url} label="CI URL" />
                 </span>
               </div>
@@ -387,7 +396,7 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
             {props.length > 0 && (
               <div className="kv">
                 <span className="k">{t('属性（{v1} 项）', { v1: props.length })}</span>
-                <span className="mono" lang="en" style={{ wordBreak: 'break-all' }}>
+                <span className="break-all font-mono" lang="en">
                   {props.map(([k, v], i) => (
                     <span key={k}>
                       {i > 0 && ' · '}{k}={v}
@@ -396,141 +405,144 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
                 </span>
               </div>
             )}
-          </Paper>
+          </section>
 
           <BuildStatuses statuses={info.statuses} />
 
-          {/* 模块列表（断言地基照 build-info.md §3.1 module 字段集） */}
-          <Paper component="section" className="card section" elevation={1} data-testid="build-modules">
-            <Typography variant="subtitle2" component="h3" sx={{ mb: 1 }}>
-              {t('模块（{v1} 个）', { v1: modules.length })}
-            </Typography>
+          {/* 模块列表（build-info.md §3.1 module 字段集） */}
+          <section className="card section" data-testid="build-modules">
+            <h3 className="mb-2 text-dense font-semibold">{t('模块（{v1} 个）', { v1: modules.length })}</h3>
             {modules.length === 0 ? (
               <p className="text-2">{t('（无模块——append 可按 module id 增量并入）')}</p>
             ) : (
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell component="th" scope="col">Module ID</TableCell>
-                    <TableCell component="th" scope="col">{t('类型')}</TableCell>
-                    <TableCell component="th" scope="col">{t('制品数')}</TableCell>
-                    <TableCell component="th" scope="col">{t('依赖数')}</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+              <table className="w-full text-dense">
+                <thead>
+                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
+                    <th scope="col" className="px-3 py-2 font-medium">Module ID</th>
+                    <th scope="col" className="px-3 py-2 font-medium">{t('类型')}</th>
+                    <th scope="col" className="px-3 py-2 font-medium">{t('制品数')}</th>
+                    <th scope="col" className="px-3 py-2 font-medium">{t('依赖数')}</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {modules.map((m, i) => (
-                    <TableRow key={m.id} hover data-testid={`build-module-row-${i}`}>
-                      <TableCell>
-                        <span className="mono" lang="en">{m.id}</span>
+                    <tr key={m.id} className="border-b border-border/60 hover:bg-accent" data-testid={`build-module-row-${i}`}>
+                      <td className="px-3 py-1.5">
+                        <span className="font-mono" lang="en">{m.id}</span>
                         <CopyButton value={m.id} label="Module ID" />
-                      </TableCell>
-                      <TableCell className="mono" lang="en">{m.type || '—'}</TableCell>
-                      <TableCell className="mono">{m.artifacts.length}</TableCell>
-                      <TableCell className="mono">{m.dependencies.length}</TableCell>
-                    </TableRow>
+                      </td>
+                      <td className="px-3 py-1.5 font-mono" lang="en">{m.type || '—'}</td>
+                      <td className="px-3 py-1.5 font-mono">{m.artifacts.length}</td>
+                      <td className="px-3 py-1.5 font-mono">{m.dependencies.length}</td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             )}
-          </Paper>
+          </section>
 
           {artifacts.length > 0 && (
-            <Paper component="section" className="card section" elevation={1} data-testid="build-artifacts">
-              <Typography variant="subtitle2" component="h3" sx={{ mb: 1 }}>
-                {t('模块制品（{v1} 项）', { v1: artifacts.length })}
-              </Typography>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell component="th" scope="col">Module ID</TableCell>
-                    <TableCell component="th" scope="col">{t('名称')}</TableCell>
-                    <TableCell component="th" scope="col">{t('路径')}</TableCell>
-                    <TableCell component="th" scope="col">sha256</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+            <section className="card section" data-testid="build-artifacts">
+              <h3 className="mb-2 text-dense font-semibold">{t('模块制品（{v1} 项）', { v1: artifacts.length })}</h3>
+              <table className="w-full text-dense">
+                <thead>
+                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
+                    <th scope="col" className="px-3 py-2 font-medium">Module ID</th>
+                    <th scope="col" className="px-3 py-2 font-medium">{t('名称')}</th>
+                    <th scope="col" className="px-3 py-2 font-medium">{t('路径')}</th>
+                    <th scope="col" className="px-3 py-2 font-medium">sha256</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {artifacts.map(({ module, a }, i) => {
                     // 关联形 path = "<repo>/<path>"——首段拆 (repo, path) 挂
-                    // 跨仓树深链；record-only 行（path 空 = 行存不冒领关联）
-                    // 如实无链接
+                    // 跨仓树深链；record-only 行（path 空）如实无链接
                     const repo = a.path?.includes('/') ? a.path.split('/')[0] : ''
                     const rest = a.path && repo ? a.path.slice(repo.length + 1) : ''
                     return (
-                      <TableRow key={`${module}|${a.path || a.name}|${i}`} hover data-testid={`build-artifact-row-${i}`}>
-                        <TableCell className="mono" lang="en">{module}</TableCell>
-                        <TableCell className="mono" lang="en">{a.name || '—'}</TableCell>
-                        <TableCell>
+                      <tr key={`${module}|${a.path || a.name}|${i}`} className="border-b border-border/60 hover:bg-accent" data-testid={`build-artifact-row-${i}`}>
+                        <td className="px-3 py-1.5 font-mono" lang="en">{module}</td>
+                        <td className="px-3 py-1.5 font-mono" lang="en">{a.name || '—'}</td>
+                        <td className="px-3 py-1.5">
                           {repo && rest ? (
                             <Link
-                              className="row-link mono"
+                              className="row-link font-mono text-primary hover:underline"
                               lang="en"
                               to={`/artifacts/${[repo, ...rest.split('/')].map((s) => encodeURIComponent(s)).join('/')}`}
                             >
                               {a.path}
                             </Link>
                           ) : (
-                            <span className="text-muted" title={t('record-only 行：上传文档的路径未解析到本实例节点（无 repo 段/节点缺/sha256 相左）——行存不冒领关联')}>—</span>
+                            <span className="text-muted-foreground" title={t('record-only 行：上传文档的路径未解析到本实例节点（无 repo 段/节点缺/sha256 相左）——行存不冒领关联')}>—</span>
                           )}
-                        </TableCell>
-                        <TableCell>
+                        </td>
+                        <td className="px-3 py-1.5">
                           {a.sha256 ? (
                             <>
-                              <span className="mono" lang="en">{a.sha256.slice(0, 12)}…</span>
+                              <span className="font-mono" lang="en">{a.sha256.slice(0, 12)}…</span>
                               <CopyButton value={a.sha256} label="sha256" />
                             </>
                           ) : (
-                            <span className="text-muted">—</span>
+                            <span className="text-muted-foreground">—</span>
                           )}
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                     )
                   })}
-                </TableBody>
-              </Table>
-            </Paper>
+                </tbody>
+              </table>
+            </section>
           )}
 
           {dependencies.length > 0 && (
-            <Paper component="section" className="card section" elevation={1} data-testid="build-dependencies">
-              <Typography variant="subtitle2" component="h3" sx={{ mb: 1 }}>
-                {t('模块依赖（{v1} 项）', { v1: dependencies.length })}
-              </Typography>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell component="th" scope="col">Module ID</TableCell>
-                    <TableCell component="th" scope="col">{t('依赖')}</TableCell>
-                    <TableCell component="th" scope="col">{t('类型')}</TableCell>
-                    <TableCell component="th" scope="col">scopes</TableCell>
-                    <TableCell component="th" scope="col">sha1</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+            <section className="card section" data-testid="build-dependencies">
+              <h3 className="mb-2 text-dense font-semibold">{t('模块依赖（{v1} 项）', { v1: dependencies.length })}</h3>
+              <table className="w-full text-dense">
+                <thead>
+                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
+                    <th scope="col" className="px-3 py-2 font-medium">Module ID</th>
+                    <th scope="col" className="px-3 py-2 font-medium">{t('依赖')}</th>
+                    <th scope="col" className="px-3 py-2 font-medium">{t('类型')}</th>
+                    <th scope="col" className="px-3 py-2 font-medium">scopes</th>
+                    <th scope="col" className="px-3 py-2 font-medium">sha1</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {dependencies.map(({ module, d }, i) => (
-                    <TableRow key={`${module}|${d.id}|${i}`} hover data-testid={`build-dependency-row-${i}`}>
-                      <TableCell className="mono" lang="en">{module}</TableCell>
-                      <TableCell className="mono" lang="en">{d.id}</TableCell>
-                      <TableCell className="mono" lang="en">{d.type || '—'}</TableCell>
-                      <TableCell className="mono" lang="en">{(d.scopes ?? []).join(',') || '—'}</TableCell>
-                      <TableCell>
+                    <tr key={`${module}|${d.id}|${i}`} className="border-b border-border/60 hover:bg-accent" data-testid={`build-dependency-row-${i}`}>
+                      <td className="px-3 py-1.5 font-mono" lang="en">{module}</td>
+                      <td className="px-3 py-1.5 font-mono" lang="en">{d.id}</td>
+                      <td className="px-3 py-1.5 font-mono" lang="en">{d.type || '—'}</td>
+                      <td className="px-3 py-1.5 font-mono" lang="en">{(d.scopes ?? []).join(',') || '—'}</td>
+                      <td className="px-3 py-1.5">
                         {d.sha1 ? (
                           <>
-                            <span className="mono" lang="en">{d.sha1.slice(0, 12)}…</span>
+                            <span className="font-mono" lang="en">{d.sha1.slice(0, 12)}…</span>
                             <CopyButton value={d.sha1} label="sha1" />
                           </>
                         ) : (
-                          <span className="text-muted">—</span>
+                          <span className="text-muted-foreground">—</span>
                         )}
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
-            </Paper>
+                </tbody>
+              </table>
+            </section>
           )}
 
           <BuildTimeline name={name} number={number} started={info.started} />
         </>
+      )}
+
+      {promoteOpen && info && (
+        <PromoteDialog
+          name={name}
+          number={number}
+          started={info.started}
+          onClose={() => setPromoteOpen(false)}
+          onDone={detail.reload}
+        />
       )}
     </div>
   )

@@ -18,10 +18,10 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { Button, ButtonAsChild } from '@/components/ui/button'
 import { useAuth } from '@/app/AuthContext'
 import { useConfirm } from '@/app/providers'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState } from '@/components/layout/states'
-import { LegacyDialogHost } from '@/app/router/legacy-bridge'
+import { LegacyDialogHost } from '@/components/layout/legacy-host'
 import { ApiError, isReadOnlyAdmin } from '@/lib/api'
 import { cfgBool, cfgStrList } from '@/lib/repos'
 import type { PackageType } from '@/lib/repos'
@@ -392,7 +392,7 @@ export default function ExplorerPage() {
         target: dir === '' ? `${repoKey}/${tt('（根）')}` : `${repoKey}/${dir}/`,
       }),
       placeholder: tt('目录名'),
-      inputTestid: 'tree-mkdir-input',
+      anchor: 'tree-mkdir-input',
       mono: true,
       validate: (v) => validateNameSegment(v),
       confirmLabel: tt('创建'),

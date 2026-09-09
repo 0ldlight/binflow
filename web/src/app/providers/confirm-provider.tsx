@@ -16,7 +16,8 @@ import {
 
 export interface ConfirmOptions {
   title: string
-  description?: string
+  /** P3 起允许富体（级联影响摘要等）——Radix DialogDescription 收 ReactNode */
+  description?: ReactNode
   /** 危险动作红变体 */
   danger?: boolean
   /** typed 确认：需用户输入该短语才可确认（如 repo key / YES / EMPTY） */
@@ -27,7 +28,7 @@ export interface ConfirmOptions {
 
 export interface PromptOptions {
   title: string
-  description?: string
+  description?: ReactNode
   /** 输入框占位 */
   placeholder?: string
   /** 初值 */
@@ -37,10 +38,13 @@ export interface PromptOptions {
   confirmLabel?: string
   cancelLabel?: string
   danger?: boolean
-  /** 输入框 testid（调用方锚——如 tree-mkdir-input） */
-  inputTestid?: string
+  /** 输入框锚（data-testid 落点；对象键字面量形态对 anchor-audit 可见——
+   *  与 authconfig sections.ts 的 anchor: 字段册同一扫描词汇表） */
+  anchor?: string
   /** mono 输入（路径/键位族） */
   mono?: boolean
+  /** 允许空值确认（缺省要求非空——恢复「留空 = 按原位」族的例外位） */
+  allowEmpty?: boolean
 }
 
 interface ConfirmContextValue {
@@ -114,15 +118,17 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           <DialogContent
             className={promptPending.options.danger ? 'border-destructive' : undefined}
             onOpenAutoFocus={(e) => e.preventDefault()}
+            data-testid="confirm-dialog"
+            aria-labelledby="confirm-dialog-title"
           >
             <DialogHeader>
-              <DialogTitle>{promptPending.options.title}</DialogTitle>
+              <DialogTitle id="confirm-dialog-title">{promptPending.options.title}</DialogTitle>
               {promptPending.options.description && (
                 <DialogDescription>{promptPending.options.description}</DialogDescription>
               )}
             </DialogHeader>
             <input
-              data-testid={promptPending.options.inputTestid}
+              data-testid={promptPending.options.anchor}
               className={`h-8 w-full rounded-sm border border-input bg-surface-3 px-2.5 text-dense outline-none focus-visible:border-ring ${promptPending.options.mono ? 'font-mono' : ''}`}
               value={promptValue}
               autoComplete="off"
@@ -135,12 +141,15 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               </p>
             )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => settlePrompt(null)}>
+              <Button variant="outline" data-testid="confirm-cancel" onClick={() => settlePrompt(null)}>
                 {promptPending.options.cancelLabel ?? 'Cancel'}
               </Button>
               <Button
                 variant={promptPending.options.danger ? 'destructive' : 'default'}
-                disabled={promptValue.trim() === '' || (promptPending.options.validate?.(promptValue.trim()) ?? null) !== null}
+                disabled={
+                  (!promptPending.options.allowEmpty && promptValue.trim() === '') ||
+                  (promptPending.options.validate?.(promptValue.trim()) ?? null) !== null
+                }
                 data-testid="confirm-accept"
                 onClick={() => settlePrompt(promptValue.trim())}
               >
@@ -155,9 +164,11 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           <DialogContent
             className={pending.options.danger ? 'border-destructive' : undefined}
             onOpenAutoFocus={(e) => e.preventDefault()}
+            data-testid="confirm-dialog"
+            aria-labelledby="confirm-dialog-title"
           >
             <DialogHeader>
-              <DialogTitle>{pending.options.title}</DialogTitle>
+              <DialogTitle id="confirm-dialog-title">{pending.options.title}</DialogTitle>
               {pending.options.description && <DialogDescription>{pending.options.description}</DialogDescription>}
             </DialogHeader>
             {phraseGate && (
@@ -170,7 +181,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               />
             )}
             <DialogFooter>
-              <Button ref={cancelRefCb} variant="outline" onClick={() => settle(false)}>
+              <Button ref={cancelRefCb} variant="outline" data-testid="confirm-cancel" onClick={() => settle(false)}>
                 {pending.options.cancelLabel ?? 'Cancel'}
               </Button>
               <Button

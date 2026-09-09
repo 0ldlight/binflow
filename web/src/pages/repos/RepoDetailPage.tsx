@@ -25,10 +25,10 @@ import { Link, useParams } from 'react-router-dom'
 import { Button, ButtonAsChild } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/app/AuthContext'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
-import { LegacyDialogHost } from '@/app/router/legacy-bridge'
+import { LegacyDialogHost } from '@/components/layout/legacy-host'
 import { ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '@/lib/api'
 import type { AuditEvent } from '@/lib/api'
 import { getAuditEventsPage } from '@/lib/governance'
@@ -52,6 +52,8 @@ import { clientCommands } from '@/pages/repositories/commands'
 import { useRepoDelete } from '@/pages/repositories/RepoDeleteConfirm'
 import { getItemPermissions } from '@/pages/artifacts/lib'
 import { tr } from '@/i18n'
+// 仓库管理域样式（pages/repositories 支撑模块族共享——旧页面退役后由新页直挂）
+import '@/pages/repositories/repositories.css'
 
 const t = tr('repositories')
 

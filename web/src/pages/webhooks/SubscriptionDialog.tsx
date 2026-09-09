@@ -1,24 +1,27 @@
+// 新建/编辑订阅对话框（M13 T-366——P3 新栈重写：shadcn Dialog md 档；
+// 交互形态 = console-artifactory-parity M3/M4：居中 Dialog、动作右下
+// Cancel 左主按钮右、Esc/遮罩关闭）。
+// wire 语义（webhook.md §1/§2——行为契约逐条）：
+// - key 创建后不可改（编辑态锁定展示）；^[A-Za-z][A-Za-z0-9_-]+$；
+// - enabled 默认 false（官方 schema default）；
+// - event_filter = 单域 + 域内多事件型（66 型闭集 13 域分组下拉；
+//   wired/dormant 如实标注）；
+// - criteria：本体三域表单托管五键；其余域原样透传（不丢配置）；
+// - handler 恰一个：url 必填；secret 三态：留空 = 保持（省略字段）、
+//   明文 = 设置/轮换、勾选「清除」= ""（擦除）——哨兵绝不回传；
+// - 「发送测试」= POST /subscriptions/test 吃当前表单草稿体（完整订阅体
+//   非 key 引用；同步单发不入箱），结果就地呈现。
+// 锚族原样：wh-dialog/wh-form-key/description/enabled/debug/domain/type-<t>/
+// any-local/any-remote/repos/include/exclude/scope-warn/criteria-note/url/
+// secret/secret-clear/sign/error/test(-result)?/cancel/submit。
 import { useEffect, useMemo, useState } from 'react'
-import type { ComponentPropsWithoutRef } from 'react'
 
-import Alert from '@mui/material/Alert'
-import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import Checkbox from '@mui/material/Checkbox'
-import Chip from '@mui/material/Chip'
-import Dialog from '@mui/material/Dialog'
-import DialogActions from '@mui/material/DialogActions'
-import DialogContent from '@mui/material/DialogContent'
-import DialogTitle from '@mui/material/DialogTitle'
-import Divider from '@mui/material/Divider'
-import FormControlLabel from '@mui/material/FormControlLabel'
-import Select from '@mui/material/Select'
-import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
-
-import { useToast } from '../../app/ToastContext'
-import { ApiError, errText } from '../../lib/api'
-import { monoInputSx } from '../../lib/muiAtoms'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AlertBox, Badge, CheckRow } from '@/components/layout/bits'
+import { TextInput, NativeSelect } from '@/components/layout/fields'
+import { toast } from '@/lib/toast'
+import { ApiError, errText } from '@/lib/api'
 import {
   CRITERIA_MANAGED_DOMAINS,
   DOMAIN_LABELS,
@@ -31,29 +34,11 @@ import {
   testSubscription,
   typesOfDomain,
   updateSubscription,
-} from '../../lib/webhooks'
-import type { CriteriaForm, SubscriptionRequest, TestOutcome, WebhookSubscription } from '../../lib/webhooks'
-import { tr } from '../../i18n'
+} from '@/lib/webhooks'
+import type { CriteriaForm, SubscriptionRequest, TestOutcome, WebhookSubscription } from '@/lib/webhooks'
+import { tr } from '@/i18n'
 
 const tt = tr('webhooks')
-
-// 新建/编辑订阅对话框（M13 T-366；交互形态 = console-artifactory-parity
-// M3/M4：居中 Dialog、动作右下 Cancel 左主按钮右、Esc/遮罩关闭）。
-//
-// wire 语义（webhook.md §1/§2）：
-// - key 创建后不可改（编辑态锁定展示）；pattern ^[A-Za-z][A-Za-z0-9_-]+$；
-// - enabled 默认 false（官方 schema default——建后默认禁用，需显式勾选）；
-// - event_filter = 单域 + 域内多事件型（66 型闭集，13 域分组下拉；
-//   wired/dormant 如实标注——休眠型可订阅但永不触发）；
-// - criteria：本体三域（artifact/artifact_property/docker）表单托管五键
-//   （anyLocal/anyRemote/repoKeys/include/exclude——Ant 通配）；其余域
-//   维度不在最小面内，编辑时原样透传（不丢配置）、新建发 {}；
-// - handler 恰一个（官方 minItems/maxItems 1）：预定义 webhook 型——
-//   url 必填；secret 三态：留空 = 保持（省略字段；创建 = 不设）、
-//   明文 = 设置/轮换、勾选「清除」= ""（擦除）——哨兵绝不回传；
-// - 「发送测试」= POST /subscriptions/test 吃**当前表单草稿体**（官方
-//   语义：完整订阅体非 key 引用；同步单发不入箱），结果就地呈现
-//   （ok / 状态码 / 耗时）。
 
 const KEY_RE = /^[A-Za-z][A-Za-z0-9_-]+$/
 
@@ -118,7 +103,6 @@ export default function SubscriptionDialog({
   onClose: () => void
   onSaved: (created: boolean) => void
 }) {
-  const toast = useToast()
   const [draft, setDraft] = useState<DialogDraft>(() => draftOf(editing))
   const [secret, setSecret] = useState('')
   const [secretClear, setSecretClear] = useState(false)
@@ -219,264 +203,260 @@ export default function SubscriptionDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth data-testid="wh-dialog">
-      <DialogTitle>
-        {editing ? tt('编辑订阅 {v1}', { v1: editing.key }) : tt('新建 Webhook 订阅')}
-        {readOnly && (
-          <Typography variant="caption" component="div" color="text.secondary">{tt('只读管理员：服务端拒绝写操作（403 兜底）')}          </Typography>
-        )}
-      </DialogTitle>
-      <DialogContent dividers sx={{ display: 'grid', gap: 2, pt: 1 }}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { sm: '1fr 2fr' }, gap: 2 }}>
-          <TextField
-            label={tt('key（创建后不可改）')}
-            value={draft.key}
-            onChange={(e) => setDraft((d) => ({ ...d, key: e.target.value }))}
-            error={keyError !== ''}
-            helperText={keyError || tt('字母开头，仅字母/数字/下划线/连字符')}
-            disabled={!!editing || readOnly}
-            slotProps={{ htmlInput: { 'data-testid': 'wh-form-key', lang: 'en' } }}
-            sx={monoInputSx}
-          />
-          <TextField
-            label={tt('描述')}
-            value={draft.description}
-            onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-            disabled={readOnly}
-            slotProps={{ htmlInput: { 'data-testid': 'wh-form-description' } }}
-          />
-        </Box>
-
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={draft.enabled}
-                onChange={(e) => setDraft((d) => ({ ...d, enabled: e.target.checked }))}
-                disabled={readOnly}
-                slotProps={{ input: { 'data-testid': 'wh-form-enabled' } as ComponentPropsWithoutRef<'input'> }}
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-h-[90vh] w-[min(880px,calc(100vw-32px))] overflow-y-auto sm:max-w-[880px]" data-testid="wh-dialog">
+        <DialogHeader>
+          <DialogTitle>
+            {editing ? tt('编辑订阅 {v1}', { v1: editing.key }) : tt('新建 Webhook 订阅')}
+            {readOnly && (
+              <span className="block text-aux font-normal text-muted-foreground">{tt('只读管理员：服务端拒绝写操作（403 兜底）')}</span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="field">
+              <label htmlFor="wh-key">{tt('key（创建后不可改）')}</label>
+              <TextInput
+                id="wh-key"
+                mono
+                lang="en"
+                value={draft.key}
+                onChange={(e) => setDraft((d) => ({ ...d, key: e.target.value }))}
+                aria-invalid={keyError !== '' || undefined}
+                disabled={!!editing || readOnly}
+                data-testid="wh-form-key"
               />
-            }
-            label={tt('启用（enabled）——官方默认建后禁用')}
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={draft.debug}
-                onChange={(e) => setDraft((d) => ({ ...d, debug: e.target.checked }))}
+              {keyError ? (
+                <p className="field-error">{keyError}</p>
+              ) : (
+                <p className="field-hint">{tt('字母开头，仅字母/数字/下划线/连字符')}</p>
+              )}
+            </div>
+            <div className="field sm:col-span-2">
+              <label htmlFor="wh-desc">{tt('描述')}</label>
+              <TextInput
+                id="wh-desc"
+                value={draft.description}
+                onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
                 disabled={readOnly}
-                slotProps={{ input: { 'data-testid': 'wh-form-debug' } as ComponentPropsWithoutRef<'input'> }}
+                data-testid="wh-form-description"
               />
-            }
-            label={tt('debug 排障记录（成功投递也入记录环）')}
-          />
-        </Box>
+            </div>
+          </div>
 
-        <Divider />
-        <Typography variant="subtitle2">{tt('事件（event_filter——单域，域内多选）')}</Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { sm: '1fr 1fr' }, gap: 2, alignItems: 'center' }}>
-          <TextField
-            label={tt('事件域（13 域闭集）')}
-            select
-            size="small"
-            value={draft.domain}
-            onChange={(e) => setDraft((d) => ({ ...d, domain: e.target.value, types: [] }))}
-            disabled={readOnly}
-            slotProps={{
-              select: {
-                native: true,
-                inputProps: { 'data-testid': 'wh-form-domain', lang: 'en' } as ComponentPropsWithoutRef<'select'>,
-              } as ComponentPropsWithoutRef<typeof Select>,
-            }}
-          >
-            {EVENT_DOMAINS.map((d) => (
-              <option key={d} value={d}>
-                {DOMAIN_LABELS[d] ?? d}
-              </option>
-            ))}
-          </TextField>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Chip size="small" variant="outlined" color={draft.types.length > 0 ? 'success' : 'default'} label={tt('已选 {v1}', { v1: draft.types.length })} />
-            <Typography variant="caption" color="text.secondary">{tt('已接线（wired）= BinFlow 有触发源；休眠（dormant）= 可订阅、校验通过、永不触发')}            </Typography>
-          </Box>
-        </Box>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, maxHeight: 168, overflowY: 'auto', border: 1, borderColor: 'divider', p: 1 }}>
-          {domainTypes.map((t) => (
-            <FormControlLabel
-              key={t.name}
-              control={
-                <Checkbox
+          <div className="flex flex-wrap gap-4">
+            <CheckRow
+              checked={draft.enabled}
+              onChange={(next) => setDraft((d) => ({ ...d, enabled: next }))}
+              disabled={readOnly}
+              label={tt('启用（enabled）——官方默认建后禁用')}
+              testid="wh-form-enabled"
+            />
+            <CheckRow
+              checked={draft.debug}
+              onChange={(next) => setDraft((d) => ({ ...d, debug: next }))}
+              disabled={readOnly}
+              label={tt('debug 排障记录（成功投递也入记录环）')}
+              testid="wh-form-debug"
+            />
+          </div>
+
+          <div className="border-t border-border" />
+          <h4 className="text-dense font-semibold">{tt('事件（event_filter——单域，域内多选）')}</h4>
+          <div className="grid grid-cols-1 items-center gap-4 sm:grid-cols-2">
+            <div className="field">
+              <label htmlFor="wh-domain">{tt('事件域（13 域闭集）')}</label>
+              <NativeSelect
+                id="wh-domain"
+                value={draft.domain}
+                onChange={(e) => setDraft((d) => ({ ...d, domain: e.target.value, types: [] }))}
+                disabled={readOnly}
+                options={EVENT_DOMAINS.map((d) => ({ value: d, label: DOMAIN_LABELS[d] ?? d }))}
+                data-testid="wh-form-domain"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant={draft.types.length > 0 ? 'success' : 'neutral'}>{tt('已选 {v1}', { v1: draft.types.length })}</Badge>
+              <span className="text-aux text-muted-foreground">{tt('已接线（wired）= BinFlow 有触发源；休眠（dormant）= 可订阅、校验通过、永不触发')}</span>
+            </div>
+          </div>
+          <div className="flex max-h-[168px] flex-wrap gap-1 overflow-y-auto rounded-sm border border-border p-2">
+            {domainTypes.map((t) => (
+              <label key={t.name} className="flex w-full items-center gap-1.5 text-dense sm:w-1/3">
+                <input
+                  type="checkbox"
                   checked={draft.types.includes(t.name)}
                   onChange={() => toggleType(t.name)}
                   disabled={readOnly}
-                  size="small"
-                  slotProps={{ input: { 'data-testid': `wh-form-type-${t.name}` } as ComponentPropsWithoutRef<'input'> }}
+                  data-testid={`wh-form-type-${t.name}`}
                 />
-              }
-              label={
                 <span lang="en">
                   {t.name}
-                  {t.source === 'dormant' && (
-                    <Typography component="span" variant="caption" color="text.disabled" sx={{ ml: 0.5 }}>{tt('（休眠）')}                    </Typography>
-                  )}
+                  {t.source === 'dormant' && <span className="ml-0.5 text-aux text-muted-foreground">{tt('（休眠）')}</span>}
                 </span>
-              }
-              sx={{ m: 0, width: { xs: '100%', sm: '33%' } }}
-            />
-          ))}
-        </Box>
+              </label>
+            ))}
+          </div>
 
-        {managedCriteria ? (
-          <>
-            <Divider />
-            <Typography variant="subtitle2">{tt('过滤条件（criteria——仓库范围 + Ant 路径通配）')}</Typography>
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={draft.criteria.anyLocal}
-                    onChange={(e) => setDraft((d) => ({ ...d, criteria: { ...d.criteria, anyLocal: e.target.checked } }))}
+          {managedCriteria ? (
+            <>
+              <div className="border-t border-border" />
+              <h4 className="text-dense font-semibold">{tt('过滤条件（criteria——仓库范围 + Ant 路径通配）')}</h4>
+              <div className="flex flex-wrap gap-4">
+                <CheckRow
+                  checked={draft.criteria.anyLocal}
+                  onChange={(next) => setDraft((d) => ({ ...d, criteria: { ...d.criteria, anyLocal: next } }))}
+                  disabled={readOnly}
+                  label={tt('任意 local 仓（anyLocal，含未来新建）')}
+                  testid="wh-form-any-local"
+                />
+                <CheckRow
+                  checked={draft.criteria.anyRemote}
+                  onChange={(next) => setDraft((d) => ({ ...d, criteria: { ...d.criteria, anyRemote: next } }))}
+                  disabled={readOnly}
+                  label={tt('任意 remote 仓（anyRemote）')}
+                  testid="wh-form-any-remote"
+                />
+              </div>
+              {emptyScope && (
+                <AlertBox severity="warning" testid="wh-form-scope-warn">
+                  {tt('未选择任何仓库范围（anyLocal/anyRemote/repoKeys 全空）——订阅合法但**不会命中任何事件**（空选择不匹配）。')}
+                </AlertBox>
+              )}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="field">
+                  <label htmlFor="wh-repos">{tt('仓库（repoKeys，逗号分隔）')}</label>
+                  <TextInput
+                    id="wh-repos"
+                    mono
+                    lang="en"
+                    value={draft.criteria.repoKeys}
+                    onChange={(e) => setDraft((d) => ({ ...d, criteria: { ...d.criteria, repoKeys: e.target.value } }))}
                     disabled={readOnly}
-                    slotProps={{ input: { 'data-testid': 'wh-form-any-local' } as ComponentPropsWithoutRef<'input'> }}
+                    data-testid="wh-form-repos"
                   />
-                }
-                label={tt('任意 local 仓（anyLocal，含未来新建）')}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={draft.criteria.anyRemote}
-                    onChange={(e) => setDraft((d) => ({ ...d, criteria: { ...d.criteria, anyRemote: e.target.checked } }))}
+                </div>
+                <div className="field">
+                  <label htmlFor="wh-include">{tt('include 路径 pattern（Ant，逗号分隔）')}</label>
+                  <TextInput
+                    id="wh-include"
+                    mono
+                    lang="en"
+                    value={draft.criteria.includePatterns}
+                    onChange={(e) => setDraft((d) => ({ ...d, criteria: { ...d.criteria, includePatterns: e.target.value } }))}
                     disabled={readOnly}
-                    slotProps={{ input: { 'data-testid': 'wh-form-any-remote' } as ComponentPropsWithoutRef<'input'> }}
+                    data-testid="wh-form-include"
                   />
-                }
-                label={tt('任意 remote 仓（anyRemote）')}
-              />
-            </Box>
-            {emptyScope && (
-              <Alert severity="warning" data-testid="wh-form-scope-warn">{tt('未选择任何仓库范围（anyLocal/anyRemote/repoKeys 全空）——订阅合法但**不会命中任何事件**（空选择不匹配）。')}              </Alert>
-            )}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { sm: '1fr 1fr 1fr' }, gap: 2 }}>
-              <TextField
-                label={tt('仓库（repoKeys，逗号分隔）')}
-                value={draft.criteria.repoKeys}
-                onChange={(e) => setDraft((d) => ({ ...d, criteria: { ...d.criteria, repoKeys: e.target.value } }))}
-                disabled={readOnly}
-                slotProps={{ htmlInput: { 'data-testid': 'wh-form-repos', lang: 'en' } }}
-                sx={monoInputSx}
-              />
-              <TextField
-                label={tt('include 路径 pattern（Ant，逗号分隔）')}
-                value={draft.criteria.includePatterns}
-                onChange={(e) => setDraft((d) => ({ ...d, criteria: { ...d.criteria, includePatterns: e.target.value } }))}
-                disabled={readOnly}
-                slotProps={{ htmlInput: { 'data-testid': 'wh-form-include', lang: 'en' } }}
-                sx={monoInputSx}
-              />
-              <TextField
-                label={tt('exclude 路径 pattern（优先命中即排除）')}
-                value={draft.criteria.excludePatterns}
-                onChange={(e) => setDraft((d) => ({ ...d, criteria: { ...d.criteria, excludePatterns: e.target.value } }))}
-                disabled={readOnly}
-                slotProps={{ htmlInput: { 'data-testid': 'wh-form-exclude', lang: 'en' } }}
-                sx={monoInputSx}
-              />
-            </Box>
-          </>
-        ) : (
-          <Alert severity="info" data-testid="wh-form-criteria-note">{tt('该域的 criteria 维度（build/RB/distribution 等）不在控制台最小面内——REST 全量面可配；已有配置原样保留。')}          </Alert>
-        )}
+                </div>
+                <div className="field">
+                  <label htmlFor="wh-exclude">{tt('exclude 路径 pattern（优先命中即排除）')}</label>
+                  <TextInput
+                    id="wh-exclude"
+                    mono
+                    lang="en"
+                    value={draft.criteria.excludePatterns}
+                    onChange={(e) => setDraft((d) => ({ ...d, criteria: { ...d.criteria, excludePatterns: e.target.value } }))}
+                    disabled={readOnly}
+                    data-testid="wh-form-exclude"
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <AlertBox severity="info" testid="wh-form-criteria-note">
+              {tt('该域的 criteria 维度（build/RB/distribution 等）不在控制台最小面内——REST 全量面可配；已有配置原样保留。')}
+            </AlertBox>
+          )}
 
-        <Divider />
-        <Typography variant="subtitle2">{tt('投递目标（handler——每订阅恰一个）')}</Typography>
-        <TextField
-          label={tt('接收器 URL（http/https）')}
-          value={draft.url}
-          onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
-          error={urlError !== ''}
-          helperText={urlError || tt('事件以 POST JSON 投递；3xx 不跟随、4xx 不重试、≥500/发送失败按固定 10s 重试至多 5 次')}
-          disabled={readOnly}
-          slotProps={{ htmlInput: { 'data-testid': 'wh-form-url', lang: 'en' } }}
-          sx={monoInputSx}
-        />
-        <Box sx={{ display: 'grid', gridTemplateColumns: { sm: '2fr 1fr' }, gap: 2, alignItems: 'start' }}>
-          <TextField
-            label={tt('secret（write-only）')}
-            type="password"
-            value={secret}
-            onChange={(e) => {
-              setSecret(e.target.value)
-              if (e.target.value !== '') setSecretClear(false)
-            }}
-            placeholder={draft.hasSecret ? tt('已设置——留空保持不变') : tt('未设置')}
-            disabled={readOnly}
-            slotProps={{ htmlInput: { 'data-testid': 'wh-form-secret', autoComplete: 'new-password' } }}
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={secretClear}
-                onChange={(e) => {
-                  setSecretClear(e.target.checked)
-                  if (e.target.checked) setSecret('')
-                }}
-                disabled={readOnly || !draft.hasSecret}
-                slotProps={{ input: { 'data-testid': 'wh-form-secret-clear' } as ComponentPropsWithoutRef<'input'> }}
-              />
-            }
-            label={tt('清除已存 secret')}
-          />
-        </Box>
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={draft.useSign}
-              onChange={(e) => setDraft((d) => ({ ...d, useSign: e.target.checked }))}
+          <div className="border-t border-border" />
+          <h4 className="text-dense font-semibold">{tt('投递目标（handler——每订阅恰一个）')}</h4>
+          <div className="field">
+            <label htmlFor="wh-url">{tt('接收器 URL（http/https）')}</label>
+            <TextInput
+              id="wh-url"
+              mono
+              lang="en"
+              value={draft.url}
+              onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
+              aria-invalid={urlError !== '' || undefined}
               disabled={readOnly}
-              slotProps={{ input: { 'data-testid': 'wh-form-sign' } as ComponentPropsWithoutRef<'input'> }}
+              data-testid="wh-form-url"
             />
-          }
-          label={tt('use_secret_for_signing（true = 对载荷 HMAC-SHA256 签名置 X-JFrog-Event-Auth；false = secret 明文直传该头）')}
-        />
+            {urlError ? (
+              <p className="field-error">{urlError}</p>
+            ) : (
+              <p className="field-hint">{tt('事件以 POST JSON 投递；3xx 不跟随、4xx 不重试、≥500/发送失败按固定 10s 重试至多 5 次')}</p>
+            )}
+          </div>
+          <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-3">
+            <div className="field sm:col-span-2">
+              <label htmlFor="wh-secret">{tt('secret（write-only）')}</label>
+              <TextInput
+                id="wh-secret"
+                type="password"
+                autoComplete="new-password"
+                value={secret}
+                onChange={(e) => {
+                  setSecret(e.target.value)
+                  if (e.target.value !== '') setSecretClear(false)
+                }}
+                placeholder={draft.hasSecret ? tt('已设置——留空保持不变') : tt('未设置')}
+                disabled={readOnly}
+                data-testid="wh-form-secret"
+              />
+            </div>
+            <CheckRow
+              checked={secretClear}
+              onChange={(next) => {
+                setSecretClear(next)
+                if (next) setSecret('')
+              }}
+              disabled={readOnly || !draft.hasSecret}
+              label={tt('清除已存 secret')}
+              testid="wh-form-secret-clear"
+            />
+          </div>
+          <CheckRow
+            checked={draft.useSign}
+            onChange={(next) => setDraft((d) => ({ ...d, useSign: next }))}
+            disabled={readOnly}
+            label={tt('use_secret_for_signing（true = 对载荷 HMAC-SHA256 签名置 X-JFrog-Event-Auth；false = secret 明文直传该头）')}
+            testid="wh-form-sign"
+          />
 
-        {formError !== '' && (
-          <Alert severity="error" data-testid="wh-form-error" role="alert">
-            {formError}
-          </Alert>
-        )}
-        {testResult && (
-          <Alert
-            severity={testResult.ok ? 'success' : 'error'}
-            data-testid="wh-test-result"
+          {formError !== '' && (
+            <AlertBox severity="error" testid="wh-form-error">
+              {formError}
+            </AlertBox>
+          )}
+          {testResult && (
+            <AlertBox severity={testResult.ok ? 'success' : 'error'} testid="wh-test-result">
+              <div>
+                {testResult.message ?? tt('（无回执）')}{tt('（')}<span lang="en">HTTP {testResult.attempt?.status_code ?? '—'}</span>
+                {testResult.attempt?.status_code === 0 ? tt('（无响应）') : ''}{tt('，耗时')}{' '}
+                <span className="font-mono" lang="en">{testResult.attempt?.elapsed_millis ?? '—'}ms</span>{tt('）')}
+              </div>
+            </AlertBox>
+          )}
+        </div>
+        <DialogFooter>
+          {/* 试发吃当前草稿体（官方语义：完整订阅体，不落盘）；校验失败就地报错 */}
+          <Button
+            variant="outline"
+            onClick={() => void doTest()}
+            disabled={readOnly || testing || !KEY_RE.test(draft.key) || draft.types.length === 0 || !/^https?:\/\/.+/.test(draft.url)}
+            data-testid="wh-form-test"
           >
-            <div>
-              {testResult.message ?? tt('（无回执）')}{tt('（')}<span lang="en">HTTP {testResult.attempt?.status_code ?? '—'}</span>
-              {testResult.attempt?.status_code === 0 ? tt('（无响应）') : ''}{tt('，耗时')}{' '}
-              <span className="mono" lang="en">{testResult.attempt?.elapsed_millis ?? '—'}ms</span>{tt('）')}            </div>
-          </Alert>
-        )}
+            {testing ? tt('发送中…') : tt('发送测试')}
+          </Button>
+          <span className="flex-1" />
+          <Button variant="outline" onClick={onClose} data-testid="wh-form-cancel">{tt('取消')}</Button>
+          <Button disabled={!canSubmit} onClick={() => void doSave(!editing)} data-testid="wh-form-submit">
+            {submitting ? tt('保存中…') : editing ? tt('保存') : tt('创建')}
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        {/* 试发吃当前草稿体（官方语义：完整订阅体，不落盘）；校验失败就地报错 */}
-        <Button
-          onClick={() => void doTest()}
-          disabled={readOnly || testing || !KEY_RE.test(draft.key) || draft.types.length === 0 || !/^https?:\/\/.+/.test(draft.url)}
-          data-testid="wh-form-test"
-        >
-          {testing ? tt('发送中…') : tt('发送测试')}
-        </Button>
-        <Box sx={{ flexGrow: 1 }} />
-        <Button onClick={onClose} data-testid="wh-form-cancel">{tt('取消')}        </Button>
-        <Button
-          variant="contained"
-          disabled={!canSubmit}
-          onClick={() => void doSave(!editing)}
-          data-testid="wh-form-submit"
-        >
-          {submitting ? tt('保存中…') : editing ? tt('保存') : tt('创建')}
-        </Button>
-      </DialogActions>
     </Dialog>
   )
 }

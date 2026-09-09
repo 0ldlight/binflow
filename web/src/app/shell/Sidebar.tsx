@@ -64,7 +64,7 @@ export function Sidebar({
                 className="nav-item flex items-center gap-2 rounded-sm border-l-2 border-transparent px-3 py-1.5 text-dense text-sidebar-foreground hover:bg-sidebar-hover [&.active]:border-l-primary [&.active]:bg-sidebar-active"
                 title={entry.label}
               >
-                <entry.icon className="size-4 shrink-0" aria-hidden="true" />
+                <entry.icon className="nav-icon size-4 shrink-0" aria-hidden="true" data-testid="nav-icon" data-icon={entry.id} />
                 {entry.label}
               </NavLink>
             ))}

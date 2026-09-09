@@ -156,12 +156,10 @@ test('V13: readonly_admin walk — admin pages visible, no write entry, replayed
   await ro.goto(`${origin}/binflow/ui/`)
   await login(ro, roName, 'v13-roa-pw')
 
-  // 导航（M8 IA，T-235）：readonly_admin 落应用模式但「管理」入口可见；
-  // 切管理模式后 用户与权限/治理 分组可见（读面全量）+ 会话「只读」徽章
-  await expect(ro.locator('[data-testid="nav-mode-switch"]')).toBeVisible()
-  await ro.locator('[data-testid="nav-mode-switch"]').click()
-  await expect(ro.locator('.nav-group-label', { hasText: '用户与权限' })).toBeVisible()
-  await expect(ro.locator('.nav-group-label', { hasText: '治理' })).toBeVisible()
+  // 导航（P3 四分组 IA）：双模式切换退役（nav-mode-switch 随 P2 退役），
+  // readonly_admin 直见 安全/管理 分组（读面全量）+ 会话「只读」徽章
+  await expect(ro.locator('.nav-group-label', { hasText: '安全' })).toBeVisible()
+  await expect(ro.locator('.nav-group-label', { hasText: '管理' })).toBeVisible()
   await expect(ro.locator('[data-testid="session-readonly-badge"]')).toBeVisible()
 
   // 仓库页：列表可见、只读注记、无「创建仓库」入口

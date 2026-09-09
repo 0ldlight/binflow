@@ -1,74 +1,45 @@
+// 用户列表（console-m8 §6.9——P3 新栈重写：轻量 table + 列选器 + 客户端
+// 页窗；语义承接 audit §2.7 行为契约）：
+// - 列集：Name │ Email │ Groups（计数 | 明细，"1 | readers" 形态）│ Role
+//   （三值 badge）│ Status（E2 enabled 真值）│ Last Login（T-454 投影，
+//   缺席 = 从未登录「—（尚未登录）」）│ 操作（admin）；
+// - 数据源 = 单请求 GET /security/users（E2 加宽，无 N+1）；
+// - 删除（E4）：行内 Delete（admin）——自删/内置 admin 预禁用（服务端 400
+//   终裁兜底）；强确认 = 输入用户名（widgets.useUserDelete）；
+// - 403 收敛（§3.6）：L2 无权限卡；L4 创建/删除仅 admin 渲染；
+//   readonly_admin 读面全通 + users-readonly-note。
+// 锚族原样：users-page/users-create/users-columns(-menu|-item-*|-reset)/
+// users-table/user-row-<name>/user-status-<name>/user-delete-<name>/
+// users-sort-*/users-count/users-readonly-note。
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
-import Button from '@mui/material/Button'
-import Chip from '@mui/material/Chip'
-import Divider from '@mui/material/Divider'
-import Menu from '@mui/material/Menu'
-import MenuItem from '@mui/material/MenuItem'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
-
-import { useAuth } from '../../app/AuthContext'
-import { CopyButton } from '../../components/CopyButton'
-import { EmptyState } from '../../components/EmptyState'
-import { ErrorCard } from '../../components/ErrorCard'
-import { Pager, useClientPager } from '../../components/Pager'
-import { Skeleton } from '../../components/Skeleton'
-import { canAdminWrite, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
-import type { AdminRole } from '../../lib/api'
-import { useColumnPrefs } from '../../lib/columnPrefs'
-import type { ColumnDef } from '../../lib/columnPrefs'
-import { onTableRowKeys } from '../../lib/keys'
-import { useAsync } from '../../lib/useAsync'
+import { useAuth } from '@/app/AuthContext'
+import { Button } from '@/components/ui/button'
+import { CopyButton } from '@/components/layout/copy-button'
+import { Badge, StatusLabel } from '@/components/layout/bits'
+import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
+import { Pager, useClientPager } from '@/components/layout/pager'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { SortTh, applySort, useTableSort, Th } from '@/components/layout/table'
+import { canAdminWrite, isReadOnlyAdmin, normalizeAdminRole } from '@/lib/api'
+import type { AdminRole } from '@/lib/api'
+import { useColumnPrefs } from '@/lib/columnPrefs'
+import type { ColumnDef } from '@/lib/columnPrefs'
+import { onTableRowKeys } from '@/lib/keys'
+import { useAsync } from '@/lib/useAsync'
 import './security.css'
-import { SortTh, StatusLabel, applySort, useTableSort, useUserDelete } from './widgets'
+import { useUserDelete } from './widgets'
 import { listUsers } from './api'
 import type { UserListItem } from './api'
-import { tr } from '../../i18n'
+import { tr } from '@/i18n'
 
 const t = tr('security')
 
-// 用户列表（console-m8 §6.9，T-237 重排；T-257 数据源换 E2 加宽）。
-//
-// T-453（FR-145.1，断言反转④——Q5 出口①路由化）：创建迁整页路由表单
-// /admin/security/users/new（对位 7.161.20 /ui/admin/management/users/new），
-// 列表内联展开卡退役——「＋ 新建用户」= 导航入口（users-create 锚保持）。
-//
-// 列集：Name │ Email │ Groups（计数 | 明细，Artifactory "1 | readers" 形态）
-// │ Role（三值 badge）│ **Status**（E2 enabled 真值——禁用徽章形态；T-237
-// 期的「暂缺（无回显不伪造列）」随 E2 落地退役）│ **Last Login**（T-492 /
-// FR-156.4：T-454 投影消费——GET users 列表项 lastLoggedIn，缺席 = 从未
-// 登录如实呈现「—（尚未登录）」；B-3.18 翻正腿）│ 操作（admin）。Realm
-// 列维持不建（B-3.18 stay-out：本地实例单值域——wire 实有 realm 字段但恒
-// internal，列信息密度趋零，差异登记）；Admin 布尔列不建（Role 三值 badge
-// 是其语义超集——§6.9[1] 维持）。
-//
-// 数据源 = **单请求** GET /security/users（E2 列表项已含 email/adminRole/
-// enabled/groups——T-251）。T-237 期的「listUsers + 逐用户 getUser」
-// N+1 扇出退役（20 用户 = 21 请求 → 1 请求，FR-78/PRD N01）。
-// 排序 = 前端列头排序（§4.7 asc/desc/none 循环），全量数据在端上无分页
-// （用户数 = 实例账号规模）；底部计数行对齐「用户总数： N」。
-//
-// 删除（T-257，E4）：行内 Delete（admin）——自删/内置 admin 两态 UI 预禁用
-// （服务端 400 终裁兜底）；其余护栏（last-admin 400、404 已删）由服务端
-// 原文如实呈现。强确认 = 输入用户名（widgets.useUserDelete）。
-//
-// 403 收敛（§3.6）：L2——列表 403 呈现无权限卡；L4——创建/删除按钮仅
-// admin 渲染。readonly_admin：读面全通 + users-readonly-note（M7 §7.3）。
-
 type UserSortKey = 'name' | 'email' | 'groups' | 'role' | 'status' | 'lastLogin'
 
-/** T-414（FR-135.2，T-387 spec 形态复用）：列选器列集 = **既有全部列**闭集
- * （「无端点列不伪造」——无 wire 承载的列不进闭集：Realm/Admin 布尔维持
- * 不建〔B-3.18 stay-out + Role 三值超集〕；Last Login 自 T-454 投影上 wire
- * 后入集——T-492 / FR-156.4）；label 与表头一致；anchor = 菜单项锚
- * （anchor-audit 的 anchor: 属性形态）。
- * 操作列仅 admin 在场（L4 写面预收敛）——非 admin 视图该列不存在，菜单项
- * 同步不呈现（不伪造空控制）。 */
+/** 列选器列集 = 既有全部列闭集（T-414；label 与表头一致；anchor = 菜单项锚）。
+ *  操作列仅 admin 在场——非 admin 视图该列与菜单项同步剔除。 */
 const COLUMNS: ColumnDef[] = [
   { id: 'name', label: t('用户名'), anchor: 'users-columns-item-name' },
   { id: 'email', label: 'Email', anchor: 'users-columns-item-email' },
@@ -81,22 +52,17 @@ const COLUMNS: ColumnDef[] = [
 const COLUMN_IDS = COLUMNS.map((c) => c.id)
 const COLS_KEY = 'binflow-console-cols-users'
 
+function RoleLabel({ role }: { role: AdminRole }) {
+  // 语义 badge（admin = warning outlined 形态的语义对位——对比度登记 T-344D）
+  if (role === 'admin') return <Badge variant="warning" mono lang="en" className="badge-warning-outlined">admin</Badge>
+  if (role === 'readonly_admin') return <Badge mono lang="en">readonly_admin</Badge>
+  return <Badge mono lang="en">user</Badge>
+}
+
 function roleBadge(item: UserListItem) {
   // E2 列表项无 admin 布尔（W40 禁）——adminRole 恒渲染，闭集外回退
   // false（fail-safe 不放大，normalizeAdminRole 同口径）
   return <RoleLabel role={normalizeAdminRole(item.adminRole, false)} />
-}
-
-function RoleLabel({ role }: { role: AdminRole }) {
-  // 共享语义 badge（T-266：T-237 自持 role-warning 回退）。T-344 批 C 起
-  // Chip 原生皮肤：admin = outlined warning（tint 配方在 MUI 亮色主题实测
-  // 3.7:1 不过 4.5 门——outlined 文字色两主题 5.2~7.2:1，见 T-344D 登记）；
-  // 其余 = filled default；类名组合续挂（spec §3.8 toHaveClass 钩子）。
-  if (role === 'admin')
-    return <Chip size="small" variant="outlined" color="warning" className="badge warning" label="admin" lang="en" />
-  if (role === 'readonly_admin')
-    return <Chip size="small" className="badge neutral" label="readonly_admin" lang="en" />
-  return <Chip size="small" className="badge neutral" label="user" lang="en" />
 }
 
 export default function UsersPage() {
@@ -106,18 +72,14 @@ export default function UsersPage() {
   const readOnly = isReadOnlyAdmin(session)
   // 单请求（E2 加宽列表）——行模型 = 列表项本体，无逐用户详情扇出
   const state = useAsync(listUsers, [])
-  // T-414（FR-135.2）：列显隐偏好（per-page localStorage，T-387 共享层）。
-  // 列集随视角收窄：非 admin 无操作列（列不在场则菜单项与偏好 id 同步剔除
-  // ——readHidden 按当页列集清洗，未列入不在场列的隐藏项自动失效）。
   const pageColumns = useMemo(() => (admin ? COLUMNS : COLUMNS.filter((c) => c.id !== 'actions')), [admin])
   const pageIds = useMemo(() => (admin ? COLUMN_IDS : COLUMN_IDS.filter((id) => id !== 'actions')), [admin])
   const cols = useColumnPrefs(pageIds, COLS_KEY)
-  const [colsAnchor, setColsAnchor] = useState<HTMLElement | null>(null)
-  const colsOpen = Boolean(colsAnchor)
+  const [colsOpen, setColsOpen] = useState(false)
   const { sort, toggle } = useTableSort<UserSortKey>({ key: 'name', dir: 'asc' })
   const { openDialog: deleteUser } = useUserDelete({ onDeleted: () => state.reload() })
 
-  const rows = applySort(state.data ?? [], sort as { key: string | null; dir: 'asc' | 'desc' }, (r) => {
+  const rows = applySort(state.data ?? [], sort, (r) => {
     switch (sort.key) {
       case 'email':
         return r.email
@@ -129,97 +91,92 @@ export default function UsersPage() {
         return r.enabled ? 1 : 0
       case 'lastLogin':
         // RFC3339 UTC 字典序 = 时间序（T-454 投影恒 UTC）；缺席 = ''
-        // （applySort 空值口径与 email 同——asc 沉首、desc 沉底）
         return r.lastLoggedIn ?? ''
       default:
         return r.name
     }
   })
-  // T-451（E2 翻案）：客户端页窗（数据形态 × 排序变化即回落第 1 页；
-  // 字符串键口径：同形刷新不丢页位）
+  // 客户端页窗（数据形态 × 排序变化即回落第 1 页；同形刷新不丢页位）
   const pageEpoch = `${state.status}|${rows.length}|${sort.key ?? ''}|${sort.dir}`
   const pager = useClientPager(rows.length, pageEpoch)
   const pageRows = pager.slice(rows)
 
   return (
-    <div data-testid="users-page">
-      <div className="page-header">
-        <h2>{t('用户')}</h2>
+    <div data-testid="users-page" className="flex flex-col gap-3">
+      <div className="page-header flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold">{t('用户')}</h2>
         {admin && (
-          <Button
-            variant="contained"
-            size="small"
-            onClick={() => navigate('/admin/security/users/new')}
-            data-testid="users-create"
-          >{t('＋ 新建用户')}          </Button>
+          <Button size="sm" className="ml-auto" onClick={() => navigate('/admin/security/users/new')} data-testid="users-create">
+            {t('＋ 新建用户')}
+          </Button>
         )}
       </div>
 
       {readOnly && (
-        <p className="admin-note" data-testid="users-readonly-note">{t('ⓘ 只读管理员（readonly_admin）视角：用户与角色只读；创建/编辑是管理面写操作（服务端 403 兜底）。')}        </p>
+        <p className="admin-note" data-testid="users-readonly-note">
+          {t('ⓘ 只读管理员（readonly_admin）视角：用户与角色只读；创建/编辑是管理面写操作（服务端 403 兜底）。')}
+        </p>
       )}
 
-      {/* T-414（FR-135.2）：工具栏尾 = 列选器（T-387 L1 形态复用——MUI Menu +
-          menuitemcheckbox 项，字形勾选态 aria-hidden 装饰、语义在
-          aria-checked；计数行 users-count 在表尾，尾组自推右端）。本页无
-          工具栏搜索面（用户数 = 实例账号规模，全量在端上），filter-bar 单独
-          承载列选尾组。 */}
+      {/* 列选器（filter-bar 尾组——本页无工具栏搜索面，用户数 = 实例账号规模） */}
       <div className="filter-bar">
-        <span className="filter-tail-actions filter-tail-end">
+        <span className="filter-tail-actions filter-tail-end ml-auto">
+      {/* 列选器（T-387 L1 / T-414——内联形态：锚字面量对 anchor-audit 可见，
+          P2 RepositoriesPage 同款） */}
+      <Popover open={colsOpen} onOpenChange={setColsOpen}>
+        <PopoverTrigger asChild>
           <Button
-            variant="outlined"
-            size="small"
+            variant="outline"
+            size="sm"
             aria-haspopup="menu"
             aria-expanded={colsOpen}
             data-testid="users-columns"
             title={t('自定义显示列（偏好保存在本浏览器）')}
-            onClick={(e) => setColsAnchor(e.currentTarget)}
           >
             <span aria-hidden="true">▤</span> {t('列')} {cols.visibleCount}/{pageColumns.length}
           </Button>
-          <Menu
-            open={colsOpen}
-            onClose={() => setColsAnchor(null)}
-            anchorEl={colsAnchor}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-            data-testid="users-columns-menu"
+        </PopoverTrigger>
+        <PopoverContent className="w-56 p-1" align="end" role="menu" data-testid="users-columns-menu">
+          {pageColumns.map((c) => {
+            const visible = cols.isVisible(c.id)
+            const last = visible && cols.visibleCount === 1
+            return (
+              <button
+                key={c.id}
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={visible}
+                aria-disabled={last || undefined}
+                title={last ? t('至少保留一列') : undefined}
+                data-testid={c.anchor}
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-dense hover:bg-accent aria-disabled:opacity-50"
+                onClick={() => {
+                  if (!last) cols.toggle(c.id)
+                }}
+              >
+                <span aria-hidden="true" className="col-check">{visible ? '☑' : '☐'}</span>
+                {c.label}
+              </button>
+            )
+          })}
+          <div role="separator" className="my-1 border-t border-border" />
+          <button
+            type="button"
+role="menuitem"
+            aria-disabled={cols.visibleCount === pageColumns.length || undefined}
+            title={cols.visibleCount === pageColumns.length ? t('全部列已在场') : t('显示全部列')}
+            data-testid="users-columns-reset"
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-dense hover:bg-accent aria-disabled:opacity-50"
+            onClick={() => cols.reset()}
           >
-            {pageColumns.map((c) => {
-              const visible = cols.isVisible(c.id)
-              // 至少一列在场：仅剩一列可见时该项不可再弃
-              const last = visible && cols.visibleCount === 1
-              return (
-                <MenuItem
-                  key={c.id}
-                  role="menuitemcheckbox"
-                  aria-checked={visible}
-                  aria-disabled={last || undefined}
-                  title={last ? t('至少保留一列') : undefined}
-                  data-testid={c.anchor}
-                  onClick={() => {
-                    if (!last) cols.toggle(c.id)
-                  }}
-                >
-                  <span aria-hidden="true" className="col-check">
-                    {visible ? '☑' : '☐'}
-                  </span>
-                  {c.label}
-                </MenuItem>
-              )
-            })}
-            <Divider component="li" />
-            <MenuItem
-              aria-disabled={cols.visibleCount === pageColumns.length || undefined}
-              title={cols.visibleCount === pageColumns.length ? t('全部列已在场') : t('显示全部列')}
-              data-testid="users-columns-reset"
-              onClick={() => cols.reset()}
-            >{t('全选列')}            </MenuItem>
-          </Menu>
+            {t('全选列')}
+          </button>
+        </PopoverContent>
+      </Popover>
         </span>
       </div>
 
-      {state.status === 'loading' && <Skeleton lines={6} />}
+      {state.status === 'loading' && <StateSkeleton lines={6} />}
       {state.status === 'error' && state.error && <ErrorCard error={state.error} onRetry={state.reload} />}
       {state.status === 'forbidden' && state.error && (
         <EmptyState
@@ -236,121 +193,106 @@ export default function UsersPage() {
           )
         ) : (
           <>
-            <Table data-testid="users-table">
-              <TableHead>
-                <TableRow>
-                  {cols.isVisible('name') && (
-                    <SortTh label={t('用户名')} sortKey="name" sort={sort} onToggle={toggle} testid="users-sort-name" />
-                  )}
+            <table className="w-full text-dense" data-testid="users-table">
+              <thead>
+                <tr className="border-b border-border text-left text-aux text-muted-foreground">
+                  {cols.isVisible('name') && <SortTh label={t('用户名')} sortKey="name" sort={sort} onToggle={toggle} testid="users-sort-name" />}
                   {cols.isVisible('email') && <SortTh label="Email" sortKey="email" sort={sort} onToggle={toggle} />}
                   {cols.isVisible('groups') && <SortTh label={t('组')} sortKey="groups" sort={sort} onToggle={toggle} />}
                   {cols.isVisible('role') && <SortTh label={t('角色')} sortKey="role" sort={sort} onToggle={toggle} />}
-                  {cols.isVisible('status') && (
-                    <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} testid="users-sort-status" />
-                  )}
-                  {cols.isVisible('lastLogin') && (
-                    <SortTh
-                      label={t('最近登录')}
-                      sortKey="lastLogin"
-                      sort={sort}
-                      onToggle={toggle}
-                      testid="users-sort-lastlogin"
-                    />
-                  )}
-                  {admin && cols.isVisible('actions') && <TableCell component="th" scope="col">{t('操作')}</TableCell>}
-                </TableRow>
-              </TableHead>
-              <TableBody>
+                  {cols.isVisible('status') && <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} testid="users-sort-status" />}
+                  {cols.isVisible('lastLogin') && <SortTh label={t('最近登录')} sortKey="lastLogin" sort={sort} onToggle={toggle} testid="users-sort-lastlogin" />}
+                  {admin && cols.isVisible('actions') && <Th label={t('操作')} />}
+                </tr>
+              </thead>
+              <tbody>
                 {pageRows.map((r) => {
                   // 自删/内置 admin：UI 预禁用（服务端 400 终裁；title 述因）
                   const self = session?.username === r.name
                   const builtin = r.name === 'admin'
-                  const deleteBlocked = self ? t('不能删除当前登录用户（服务端 400 护栏）') : builtin ? t('不能删除内置 admin 用户（服务端 400 护栏）') : undefined
+                  const deleteBlocked = self
+                    ? t('不能删除当前登录用户（服务端 400 护栏）')
+                    : builtin
+                      ? t('不能删除内置 admin 用户（服务端 400 护栏）')
+                      : undefined
                   return (
-                    <TableRow
+                    <tr
                       key={r.name}
                       data-testid={`user-row-${r.name}`}
-                      hover
+                      className="cursor-pointer border-b border-border/60 hover:bg-accent"
                       tabIndex={0}
-                      onKeyDown={(e) =>
-                        onTableRowKeys(e, () => navigate(`/admin/security/users/${encodeURIComponent(r.name)}`))
-                      }
+                      onClick={() => navigate(`/admin/security/users/${encodeURIComponent(r.name)}`)}
+                      onKeyDown={(e) => onTableRowKeys(e, () => navigate(`/admin/security/users/${encodeURIComponent(r.name)}`))}
                     >
                       {cols.isVisible('name') && (
-                        <TableCell>
-                          <Link className="row-link mono" to={`/admin/security/users/${encodeURIComponent(r.name)}`} lang="en">
+                        <td className="px-3 py-1.5">
+                          <Link className="row-link font-mono text-primary hover:underline" to={`/admin/security/users/${encodeURIComponent(r.name)}`} lang="en" onClick={(e) => e.stopPropagation()}>
                             {r.name}
                           </Link>{' '}
-                          <CopyButton value={r.name} label={t('用户名 {v1}', { v1: r.name })} />
-                        </TableCell>
+                          <span onClick={(e) => e.stopPropagation()}>
+                            <CopyButton value={r.name} label={t('用户名 {v1}', { v1: r.name })} />
+                          </span>
+                        </td>
                       )}
                       {cols.isVisible('email') && (
-                        <TableCell>
+                        <td className="px-3 py-1.5">
                           <span className="text-2">{r.email}</span>
-                        </TableCell>
+                        </td>
                       )}
                       {cols.isVisible('groups') && (
-                        <TableCell sx={{ maxWidth: 360, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                        <td className="max-w-[360px] break-words px-3 py-1.5">
                           {r.groups.length === 0 ? (
-                            <span className="text-muted">—</span>
+                            <span className="text-muted-foreground">—</span>
                           ) : (
                             <span title={r.groups.join(', ')}>
-                              <Chip size="small" className="badge neutral" label={r.groups.length} />{' '}
+                              <Badge>{r.groups.length}</Badge>{' '}
                               <span className="sec-chips">
                                 {r.groups.map((g) => (
-                                  <Chip
-                                    key={g}
-                                    size="small"
-                                    className="badge neutral mono"
-                                    label={g}
-                                    sx={{ fontFamily: 'var(--bf-mono)' }}
-                                    lang="en"
-                                  />
+                                  <Badge key={g} mono lang="en">{g}</Badge>
                                 ))}
                               </span>
                             </span>
                           )}
-                        </TableCell>
+                        </td>
                       )}
-                      {cols.isVisible('role') && <TableCell>{roleBadge(r)}</TableCell>}
+                      {cols.isVisible('role') && <td className="px-3 py-1.5">{roleBadge(r)}</td>}
                       {cols.isVisible('status') && (
-                        <TableCell>
-                          <StatusLabel enabled={r.enabled} name={r.name} />
-                        </TableCell>
+                        <td className="px-3 py-1.5">
+                          <span onClick={(e) => e.stopPropagation()}>
+                            <StatusLabel enabled={r.enabled} name={r.name} />
+                          </span>
+                        </td>
                       )}
                       {cols.isVisible('lastLogin') && (
-                        <TableCell
-                          className="mono"
-                          // title = 原始 RFC3339 全值（表体呈现截断到秒；缺席无 title）
-                          title={r.lastLoggedIn || undefined}
-                        >
+                        <td className="px-3 py-1.5 font-mono" title={r.lastLoggedIn || undefined}>
                           {r.lastLoggedIn ? (
                             r.lastLoggedIn.replace('T', ' ').slice(0, 19)
                           ) : (
                             // T-454 omitempty：整键缺席 = 从未登录——如实呈现
-                            // （复用详情页同键，不伪造「从未」以外的语义）
-                            <span className="text-muted">{t('—（尚未登录）')}</span>
+                            <span className="text-muted-foreground">{t('—（尚未登录）')}</span>
                           )}
-                        </TableCell>
+                        </td>
                       )}
                       {admin && cols.isVisible('actions') && (
-                        <TableCell>
+                        <td className="whitespace-nowrap px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                           <Button
-                            variant="outlined"
-                            color="error"
-                            size="small"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 border-destructive/50 text-destructive hover:bg-destructive/10"
                             disabled={deleteBlocked !== undefined}
                             title={deleteBlocked}
                             onClick={() => void deleteUser(r.name)}
                             data-testid={`user-delete-${r.name}`}
-                          >{t('删除')}                          </Button>
-                        </TableCell>
+                          >
+                            {t('删除')}
+                          </Button>
+                        </td>
                       )}
-                    </TableRow>
+                    </tr>
                   )
                 })}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
             <div className="table-foot" data-testid="users-count">
               <Pager
                 page={pager.page}

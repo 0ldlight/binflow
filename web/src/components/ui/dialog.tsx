@@ -2,6 +2,7 @@
 // 关闭 + aria 语义）；消费面 = 确认层/表单模态/向导。
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import type { ComponentProps } from 'react'
 
 import { cn } from '@/lib/utils'
@@ -22,6 +23,22 @@ function DialogOverlay({ className, ...props }: ComponentProps<typeof DialogPrim
 }
 
 function DialogContent({ className, children, ...props }: ComponentProps<typeof DialogPrimitive.Content>) {
+  // 回焦锚：挂载时捕获场外焦点元素，卸载时回焦（Esc/关闭后回启动钮的
+  // 家族契约——Radix FocusScope 的 unmount 回焦在 React 19.2 下实测不发
+  // 火（focus() 零调用、焦点落 body），此处显式承载，dialog 全族零改点；
+  // 微任务让位：若 Radix 自身回焦恢复（未来 React 版），不抢已就位的焦点）
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    return () => {
+      queueMicrotask(() => {
+        if (document.activeElement === document.body || document.activeElement === null) {
+          const el = returnFocusRef.current
+          if (el && el.isConnected) el.focus({ preventScroll: true })
+        }
+      })
+    }
+  }, [])
   return (
     <DialogPortal>
       <DialogOverlay />

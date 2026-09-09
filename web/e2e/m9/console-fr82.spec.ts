@@ -68,7 +68,10 @@ test('tree filter: drill-down resets the term, sub-level renders non-zero (QA-3)
   // 根层收窄：过滤词「root」命中 2 文件、隐掉目录行
   await page.fill('[data-testid="tree-filter"]', 'root')
   await expect(page.locator('[data-testid="tree-row-root-a.txt"]')).toBeVisible()
-  await expect(page.locator('[data-testid="tree-list"] tbody tr')).toHaveCount(2)
+  // P2 栈：children 面 = AG Grid——行数断言改树行锚（tbody tr 不复存在；
+  // 「root」命中 root-a.txt + root-b.bin 两文件行）
+  await expect(page.locator('[data-testid="tree-row-root-a.txt"]')).toBeVisible()
+  await expect(page.locator('[data-testid="tree-row-root-b.bin"]')).toBeVisible()
 
   // 下钻（左树进 alpha——跨层导航）：词清空 + 子层非零呈现，无需手动清空。
   // T-434（select≠expand）：选中仓不再强制展开——树节点可见前先展开仓根
@@ -76,14 +79,14 @@ test('tree filter: drill-down resets the term, sub-level renders non-zero (QA-3)
   await page.click('[data-testid="tree-node-alpha"]')
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${repoA}/alpha$`))
   await expect(page.locator('[data-testid="tree-filter"]')).toHaveValue('')
-  await expect(page.locator('[data-testid="tree-list"] tbody tr').first()).toBeVisible()
   await expect(page.locator('[data-testid="tree-row-alpha-1.txt"]')).toBeVisible()
   await expect(page.locator('[data-testid="tree-row-nested"]')).toBeVisible()
 
   // 同层内导航（文件选中——URL 路径末段，T-434）保留词——children 集合未变，
   // 词语义完整
   await page.fill('[data-testid="tree-filter"]', 'alpha-1')
-  await expect(page.locator('[data-testid="tree-list"] tbody tr')).toHaveCount(1)
+  // P2 栈：children 面 = AG Grid（行是 div[role=row]，非 tbody tr）
+  await expect(page.locator('[data-testid="tree-list"] [role="row"][row-index="0"]')).toBeVisible()
   await page.click('[data-testid="tree-row-alpha-1.txt"]')
   await expect(page).toHaveURL(
     new RegExp(`/binflow/ui/artifacts/${repoA}/alpha/alpha-1\\.txt$`),
@@ -142,7 +145,8 @@ test('tree filter: filtered-empty state is explicit and clearable, not a bare em
   await page.locator('.filter-bar .check-row input').check()
   await expect(page.locator('[data-testid="empty-state"]')).toContainText('只有目录')
   await page.click('[data-testid="tree-filter-clear"]')
-  await expect(page.locator('[data-testid="tree-list"] tbody tr')).toHaveCount(1)
+  // P2 栈：children 面 = AG Grid（行是 div[role=row]，非 tbody tr）
+  await expect(page.locator('[data-testid="tree-list"] [role="row"][row-index="0"]')).toBeVisible()
 })
 
 // ---- N21 / AC9：顶栏搜索框全链 ------------------------------------------------

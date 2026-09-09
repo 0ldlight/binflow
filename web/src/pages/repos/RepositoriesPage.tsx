@@ -23,11 +23,11 @@ import { Button, ButtonAsChild } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAuth } from '@/app/AuthContext'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { Pager, useClientPager } from '@/components/layout/pager'
-import { LegacyDialogHost } from '@/app/router/legacy-bridge'
+import { LegacyDialogHost } from '@/components/layout/legacy-host'
 import { ApiError, canAdminWrite, errText, isReadOnlyAdmin } from '@/lib/api'
 import type { RepoListItem } from '@/lib/api'
 import { useColumnPrefs } from '@/lib/columnPrefs'
@@ -43,6 +43,8 @@ import { PkgIcon } from '@/components/PkgIcon'
 import { useRepoDelete } from '@/pages/repositories/RepoDeleteConfirm'
 import { REPO_CREATE_ENTRY } from '@/pages/repositories/formCopy'
 import { tr } from '@/i18n'
+// 仓库管理域样式（pages/repositories 支撑模块族共享——旧页面退役后由新页直挂）
+import '@/pages/repositories/repositories.css'
 import { lazy } from 'react'
 
 const tt = tr('repositories')
@@ -376,7 +378,7 @@ export default function RepositoriesPage() {
                 <span aria-hidden="true">▤</span> {tt('列')} {cols.visibleCount}/{COLUMNS.length}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-56 p-1" align="end" data-testid="repos-columns-menu">
+            <PopoverContent className="w-56 p-1" align="end" role="menu" data-testid="repos-columns-menu">
               {COLUMNS.map((c) => {
                 const visible = cols.isVisible(c.id)
                 const last = visible && cols.visibleCount === 1
@@ -399,9 +401,10 @@ export default function RepositoriesPage() {
                   </button>
                 )
               })}
-              <div className="my-1 border-t border-border" />
+              <div role="separator" className="my-1 border-t border-border" />
               <button
                 type="button"
+role="menuitem"
                 aria-disabled={cols.visibleCount === COLUMNS.length || undefined}
                 title={cols.visibleCount === COLUMNS.length ? tt('全部列已在场') : tt('显示全部列')}
                 data-testid="repos-columns-reset"
@@ -423,7 +426,7 @@ export default function RepositoriesPage() {
             title={tt('重新拉取仓库清单与用量')}
           >
             {state.status === 'loading' ? (
-              <span aria-hidden="true" className="inline-block size-4 animate-spin rounded-full border-2 border-border border-t-primary" />
+              <span role="progressbar" aria-label={tt('重新拉取仓库清单与用量')} className="inline-block size-4 animate-spin rounded-full border-2 border-border border-t-primary" />
             ) : (
               <span aria-hidden="true">↻</span>
             )}

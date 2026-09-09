@@ -348,7 +348,7 @@ export function TreePanel({
       {/* ---- 树体（虚拟滚动）---- */}
       <div ref={scrollRef} className="browser-tree-scroll min-h-0 flex-1 overflow-y-auto py-1" role="tree" aria-label={tt('跨仓制品树')}>
         {loading && <TreeSkeleton />}
-        {error && (
+        {error && !forbidden && (
           <div className="px-3 py-2">
             <TreeDenied label={`${tt('加载失败（HTTP')} ${error.status}${tt('）')}`} title={error.message} />
             <button type="button" className="mt-1 text-aux text-primary hover:underline" onClick={onRetry}>
@@ -356,8 +356,10 @@ export function TreePanel({
             </button>
           </div>
         )}
-        {!loading && !error && forbidden && (
-          <p className="tree-empty-level px-3 py-2 text-aux text-muted-foreground">{tt('⃠ 无权限列出仓库')}</p>
+        {/* 403 优先于错误卡（t372/t492 家族契约：L2 收敛「⃠ 无权限列出
+            仓库」——先前 error 分支先行令 forbidden 分支不可达，P3 修复） */}
+        {!loading && forbidden && (
+          <p className="tree-empty-level px-3 py-2 text-aux text-muted-foreground" data-testid="tree-root-denied">{tt('⃠ 无权限列出仓库')}</p>
         )}
         {!loading && !error && !forbidden && rows.length === (canSeeAdminRow(rows) ? 1 : 0) && (
           <div className="tree-empty-level px-3 py-2 text-aux text-muted-foreground">{emptyLabel}</div>

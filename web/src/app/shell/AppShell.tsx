@@ -8,7 +8,7 @@ import { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 
 import { useAuth } from '@/app/AuthContext'
-import { LegacyDialogHost } from '@/app/router/legacy-bridge'
+import { LegacyDialogHost } from '@/components/layout/legacy-host'
 import { isReadOnlyAdmin } from '@/lib/api'
 import { useStepUp, abandonStepUp } from '@/lib/stepUpGrant'
 import type { PendingMint } from '@/lib/stepUpGrant'

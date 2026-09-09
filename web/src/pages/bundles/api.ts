@@ -93,3 +93,32 @@ export async function headBundleChecksum(name: string, version: string): Promise
   )
   return res.headers.get('X-Checksum-Sha256') ?? ''
 }
+
+// ---- 创建面（P3 解锁——capability matrix 未列域 bundles 行：「POST create、
+// GET status 只读面已用」）：
+// POST /api/release/bundle：显式清单形（{name, version, artifacts[]}）——
+// 官方 AQL 装配/signature/uuid 三通道被 400 点名拒绝（不静默丢弃）。
+// 冲突三态：202 新建 / 200 同清单续建 / 409 异清单或已完成（flat 体
+// "Bundle already exists"）。门 = sys:write + release-bundle 槽（pro+）。
+
+/** 显式清单行（repo/path 必填；sha256 可空 = 不校验钉） */
+export interface BundleManifestItem {
+  repo: string
+  path: string
+  sha256: string
+}
+
+export interface BundleCreateResponse {
+  bundle_path: string
+}
+
+export function createBundle(
+  name: string,
+  version: string,
+  artifacts: BundleManifestItem[],
+): Promise<BundleCreateResponse> {
+  return apiJSON<BundleCreateResponse>('/release/bundle', {
+    method: 'POST',
+    body: { name, version, artifacts },
+  })
+}

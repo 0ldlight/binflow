@@ -47,16 +47,11 @@ test('keyboard: login by keys, sidebar reachable and activating via Enter', asyn
   const inNav = await page.evaluate(() => !!document.activeElement?.closest('[data-testid="app-nav"]'))
   expect(inNav).toBe(true)
 
-  // 模式切换项（nav-mode-switch，button + aria-current）键盘可达并激活。
-  // 第二次 Enter 前先断言 aria-current——既是 a11y 断言本体，也等 React
-  // 提交重渲染（立即连击会以旧 mode 闭包重导航同址）。
-  await page.focus('[data-testid="nav-mode-switch"]')
-  await expect(page.locator('[data-testid="nav-mode-switch"]')).toBeFocused()
+  // FE-Rewrite P2 四分组壳：模式切换概念退役（分组即模式）——键盘面改为
+  // 直接驱动管理分组条目（focus 仓库 → Enter 落 /admin/repositories/）。
+  await page.focus('[data-testid="app-nav"] a.nav-item:text-is("仓库")')
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories/)
-  await expect(page.locator('[data-testid="nav-mode-switch"]')).toHaveAttribute('aria-current', 'true')
-  await page.keyboard.press('Enter') // 返回应用
-  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts/)
 })
 
 // ---- 2. 树方向键全语义（↑↓ sibling / → 展开 / ← 折叠 / Enter / Shift+F10）------

@@ -19,7 +19,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useConfirm } from '@/app/providers'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { ApiError, errText } from '@/lib/api'
 import { getRepositories } from '@/lib/api'
 import { copyOrMove } from '@/features/artifacts/operations'

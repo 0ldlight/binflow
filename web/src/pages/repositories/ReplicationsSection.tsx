@@ -475,7 +475,7 @@ export default function ReplicationsSection({
                     {c.target_url} <CopyButton value={c.target_url} label={tt('目标 URL {v1}', { v1: c.name })} />
                     <br />→ {c.target_repo}
                   </TableCell>
-                  <TableCell>{c.target_username || <span className="text-muted">{tt('匿名')}</span>}</TableCell>
+                  <TableCell>{c.target_username || <span className="text-muted-foreground">{tt('匿名')}</span>}</TableCell>
                   <TableCell data-testid={`repl-row-sched-${c.name}`}>
                     {c.cron_exp ? (
                       <>
@@ -490,7 +490,7 @@ export default function ReplicationsSection({
                         </span>
                       </>
                     ) : (
-                      <span className="text-muted">{tt('事件驱动')}</span>
+                      <span className="text-muted-foreground">{tt('事件驱动')}</span>
                     )}
                   </TableCell>
                   <TableCell className="mono" lang="en">

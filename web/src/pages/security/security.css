@@ -483,3 +483,39 @@
  * .sec-danger-zone 族已随 T-344 批 D 退役（§3.5）：Paper variant=
  * "outlined" + borderColor error.main；dz-head/dz-note 类名随 Typography
  * 续挂（inert）。 */
+
+/* ============================================================
+ * P3 新栈增补区块（frontend-rewrite：MUI Chip/FormControlLabel 退役，
+ * .badge 语义类直接服务 span 消费者——:not(.MuiChip-root) 守卫随批 D
+ * 末位 Chip 消费者退役而对 span 恒真）。只追加新类，不改上方已交区块。
+ * ============================================================ */
+
+/* admin 角色徽章（warning outlined 形态——文字色两主题 5.2~7.2:1，T-344D
+ * 对比度登记的语义对位） */
+.badge-warning-outlined {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--bf-warning) 62%, transparent);
+  color: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
+}
+
+/* Status 徽章（E2/E3 enabled 真值——outlined success/error 形态；不挂
+ * .badge 基类：行级 .badge 唯一性，ADR-0029 决策 3 沿袭） */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: var(--bf-fs-aux);
+  line-height: 1.5;
+  border: 1px solid;
+}
+
+.status-pill.status-on {
+  color: color-mix(in srgb, var(--bf-success) 82%, var(--bf-text));
+  border-color: color-mix(in srgb, var(--bf-success) 55%, transparent);
+}
+
+.status-pill.status-off {
+  color: color-mix(in srgb, var(--bf-danger) 82%, var(--bf-text));
+  border-color: color-mix(in srgb, var(--bf-danger) 55%, transparent);
+}

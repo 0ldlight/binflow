@@ -142,11 +142,13 @@ test('pure browse feeds no download counter; 3 real downloads show exactly 3', a
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
   await expect(page.locator('[data-testid="node-downloads"]')).toHaveText('0')
 
-  // 表行点击切换（children 表 tree-row-*）：guide → other → guide
-  await page.click(`[data-testid="tree-row-other.md"]`)
+  // target 切换（guide → other → guide）：P2 栈 children 面为 AG Grid——
+  // 树行/网格行双锚同名 + 行虚拟化下 force 点击落点不稳，改用深链切换
+  // （URL 即状态——语义等价，下一段整页重挂载深链腿本就覆盖最坏情形）
+  await page.goto(`/binflow/ui/artifacts/${key}/docs/other.md`)
   await expect(page.locator('[data-testid="node-detail"]')).toContainText('other.md')
   await expect(page.locator('[data-testid="node-downloads"]')).toHaveText('0')
-  await page.click(`[data-testid="tree-row-guide.md"]`)
+  await page.goto(`/binflow/ui/artifacts/${key}/docs/guide.md`)
   await expect(page.locator('[data-testid="node-downloads"]')).toHaveText('0')
 
   // 深链往返（重挂载）+ 根层文件（名搜索臂）：同样零计数

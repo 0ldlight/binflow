@@ -280,7 +280,7 @@ export function ChildrenGrid({
           data-testid="tree-filter"
           aria-label={tt('过滤当前层')}
         />
-        <Label className="flex cursor-pointer items-center gap-1.5 font-normal">
+        <Label className="check-row flex cursor-pointer items-center gap-1.5 font-normal">
           <input
             type="checkbox"
             className="size-3.5"

@@ -409,7 +409,22 @@ function ResultsGrid({
 
   const columnDefs = useMemo<ColDef[]>(() => {
     const visible = columns.filter((c) => cols.isVisible(c.id))
-    return visible.map((c) => {
+    return [
+      // 选择列（自定义 checkbox——锚族 search-select-all / search-row-select-<i>
+      // 自 t449 冻结；AG Grid 内建 selection checkbox 不承载锚，故自渲染）
+      {
+        colId: '__sel',
+        headerName: '',
+        pinned: 'left',
+        width: 44,
+        sortable: false,
+        resizable: false,
+        filter: false,
+        suppressMovable: true,
+        headerComponent: SelectAllHeader,
+        cellRenderer: RowSelectCell,
+      } as ColDef,
+      ...visible.map((c) => {
       const def: ColDef = { colId: c.id, headerName: c.label, sortable: false }
       if (sortFieldOf && onSort) {
         const field = sortFieldOf(c.id)
@@ -433,11 +448,13 @@ function ResultsGrid({
       }
       switch (c.id) {
         case 'name':
-          def.cellRenderer = (p: { data?: ResultRow; rowIndex?: number }) => {
+          def.cellRenderer = (p: { data?: ResultRow; node?: { rowIndex?: number | null } }) => {
             const r = p.data
             if (!r) return null
             const href = treeUrl(r.repo, r.dir, r.name)
-            const idx = p.rowIndex ?? 0
+            // v36 cellRenderer 参数面无 rowIndex（实测恒 undefined → 全行
+            // search-result-0 重复锚）——行位经 node?.rowIndex 取
+            const idx = p.node?.rowIndex ?? 0
             return (
               <span className="flex min-w-0 flex-col" data-testid={`search-result-${idx}`}>
                 {href ? (
@@ -503,7 +520,7 @@ function ResultsGrid({
           break
       }
       return def
-    })
+    })]
   }, [columns, cols, sort, sortFieldOf, onSort, navigate])
 
   const noMatch = needle !== '' && filtered.length === 0
@@ -571,7 +588,7 @@ function ResultsGrid({
             columnDefs={columnDefs}
             rowData={shown}
             onGridReady={onGridReady}
-            rowSelection={{ mode: 'multiRow', checkboxes: true, headerCheckbox: true, enableClickSelection: false }}
+            rowSelection={{ mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: false }}
             selectionColumnDef={{ pinned: 'left', width: 44 }}
             getRowId={(p) => String((p.data as ResultRow)?.key ?? '')}
             headerHeight={36}
@@ -602,6 +619,48 @@ function ResultsGrid({
       )}
       {footer}
     </div>
+  )
+}
+
+/** 选择列表头（全选 checkbox——锚 search-select-all，t449 冻结） */
+function SelectAllHeader(props: { api: GridApi }) {
+  const [all, setAll] = useState(false)
+  return (
+    <input
+      type="checkbox"
+      data-testid="search-select-all"
+      aria-label={t('全选本页结果')}
+      checked={all}
+      onChange={() => {
+        const next = !all
+        setAll(next)
+        if (next) props.api.selectAllFiltered()
+        else props.api.deselectAll()
+      }}
+    />
+  )
+}
+
+/** 选择列行 checkbox（锚 search-row-select-<i>，t449 冻结——AG Grid 内建
+ * selection checkbox 不承载锚，故自渲染并驱动 node.setSelected） */
+function RowSelectCell(props: { node?: { rowIndex?: number; isSelected: () => boolean; setSelected: (v: boolean) => void } }) {
+  const node = props.node
+  const [, force] = useState(0)
+  if (!node) return null
+  const idx = node.rowIndex ?? 0
+  const sel = node.isSelected()
+  return (
+    <input
+      type="checkbox"
+      data-testid={`search-row-select-${idx}`}
+      aria-label={t('选择第 {v1} 行', { v1: idx + 1 })}
+      checked={sel}
+      onChange={() => {
+        node.setSelected(!sel)
+        force((n) => n + 1)
+      }}
+      onClick={(e) => e.stopPropagation()}
+    />
   )
 }
 

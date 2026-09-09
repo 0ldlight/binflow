@@ -1,20 +1,28 @@
+// 组路由表单页（T-453 / FR-145.1——P3 新栈重写）：/admin/security/groups/new
+// （创建）与 /:name/edit（编辑）深链整页表单，对位 7.161.20。
+// - 字段域裁定维持：不伪造 External ID / 管理位 / Auto Join（BinFlow 组
+//   模型无对位域）；
+// - 成员单源（ADR-0030 K19/E5）：候选全集 = E2 users 投影；编辑态选区 =
+//   E5 ?includeUsers=true 按需单组读；成员落盘经各用户部分更新臂（幂等
+//   护栏防重复入组；失败名单行内呈现）；
+// - 页脚 Cancel | Reset（初始禁置）| Save（dirty 门）。
+// 锚族原样：group-form-page/group-form(-section-settings|-section-members|
+// -name|-description|-members|-member-<name>|-cancel|-reset|-submit)/
+// group-perm-matrix/group-form-readonly-note。
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
-import Alert from '@mui/material/Alert'
-import Button from '@mui/material/Button'
-import TextField from '@mui/material/TextField'
-
-import { useAuth } from '../../app/AuthContext'
-import { useToast } from '../../app/ToastContext'
-import { CopyButton } from '../../components/CopyButton'
-import { EmptyState } from '../../components/EmptyState'
-import { ErrorCard } from '../../components/ErrorCard'
-import { Skeleton } from '../../components/Skeleton'
-import { ApiError, errText, isReadOnlyAdmin } from '../../lib/api'
-import { useAsync } from '../../lib/useAsync'
+import { useAuth } from '@/app/AuthContext'
+import { Button, ButtonAsChild } from '@/components/ui/button'
+import { AlertBox } from '@/components/layout/bits'
+import { CopyButton } from '@/components/layout/copy-button'
+import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
+import { TextInput, TextArea } from '@/components/layout/fields'
+import { TransferBox } from '@/components/layout/transfer-box'
+import { toast } from '@/lib/toast'
+import { ApiError, errText, isReadOnlyAdmin } from '@/lib/api'
+import { useAsync } from '@/lib/useAsync'
 import './security.css'
-import { TransferBox } from './TransferBox'
 import { PermSummaryTable } from './widgets'
 import {
   getGroupWithUsers,
@@ -25,29 +33,9 @@ import {
   updateUser,
   validateGroupName,
 } from './api'
-import { tr } from '../../i18n'
+import { tr } from '@/i18n'
 
 const t = tr('security')
-
-// 组路由表单页（T-453 / FR-145.1，断言反转④——Q5 出口①路由化）：
-// /admin/security/groups/new（创建）与 /admin/security/groups/:name/edit
-// （编辑）深链整页表单，对位 Artifactory 7.161.20（2026-09-04 活体复核
-// /ui/admin/management/groups/new：整页路由表单，字段 Group Name /
-// Description / External ID / 管理位复选族 / Auto Join / 成员用户选择列表，
-// 页脚 Cancel | Reset〔初始禁置〕| Save〔初始禁置〕）。
-// GroupsPage 列表内联展开卡（创建 + 编辑同卡）随本票退役（B-2.15 / E5）。
-//
-// 字段域裁定（既有口径维持，不伪造 External ID / 管理位 / Auto Join）：
-// External ID / Platform Administrator / Manage Resources / Manage Webhook /
-// Automatically Join——BinFlow 组模型无对位域（console-m8 §6.10「无外部组
-// 模型」+ rbac-model §5 组不承载角色语义），不建不做缺位登记。
-//
-// 成员单源（ADR-0030 K19/§14.1 E5，随内联卡迁移）：候选全集 = E2 users
-// 列表内嵌 groups[] 投影；编辑态选区 = E5 ?includeUsers=true 按需单组读
-// （比 E2 快照新鲜）；成员落盘仍经各用户部分更新臂（组侧写端点无票承载）。
-//
-// 页脚 Reset：用户/组表单按 7.161 保留（与 T-439 建仓表单移除重置钮的
-// Q9 处置为页面级差异化配置，差异留痕见 parity 册）。
 
 interface MembershipSnapshot {
   userGroups: Record<string, string[]>
@@ -66,11 +54,9 @@ export default function GroupFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const { session } = useAuth()
   const navigate = useNavigate()
   const readOnly = isReadOnlyAdmin(session)
-  const toast = useToast()
   const editMode = mode === 'edit'
 
-  // 数据面（编辑态三请求 / 创建态一请求）：E2 users（候选全集 + 成员落盘
-  // 依据）+ E5 单组读（编辑态选区）+ 权限 targets（编辑态矩阵）
+  // 数据面（编辑态三请求 / 创建态一请求）：E2 users + E5 单组读 + targets
   const users = useAsync(listUsers, [])
   const e5 = useAsync(
     () => (editMode ? getGroupWithUsers(name) : Promise.resolve(null)),
@@ -84,8 +70,7 @@ export default function GroupFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const [description, setDescription] = useState('')
   // 编辑态选区 = E5 userNames；null = 取数中。创建态空选集。
   const [members, setMembers] = useState<string[] | null>(editMode ? null : [])
-  // E5 到达即种入表单（render-time seeding——setState-in-effect 反模式规避；
-  // 重试/刷新换新 detail 引用时重种，用户后续编辑不被覆盖直到新数据到达）
+  // E5 到达即种入表单（render-time seeding——setState-in-effect 反模式规避）
   const [seeded, setSeeded] = useState<typeof e5Detail>(null)
   if (e5Detail && e5Detail !== seeded) {
     setSeeded(e5Detail)
@@ -101,16 +86,13 @@ export default function GroupFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const memberAdded = (members ?? []).filter((m) => !initialMembers.includes(m))
   const memberRemoved = initialMembers.filter((m) => !(members ?? []).includes(m))
   const canSubmit = (editMode || (groupName.trim() !== '' && nameErr === null)) && membersReady && !readOnly
-  // dirty（7.161 活体：Reset 初始禁置——dirty 门）：创建态 pristine = 空
-  // 名/空描述/零成员；编辑态 = 与 E5 回显的偏差（选区未种入前不 dirty）
+  // dirty（7.161 活体：Reset 初始禁置——dirty 门）
   const dirty = editMode
     ? e5Detail !== null && (description !== e5Detail.description || memberAdded.length > 0 || memberRemoved.length > 0)
     : groupName.trim() !== '' || description.trim() !== '' || (members ?? []).length > 0
   const backToList = () => navigate('/admin/security/groups')
 
-  /** 成员落盘：逐用户替换组集（add → 追加本组；remove → 去掉本组）。
-   *  幂等护栏：E5 视图与 E2 快照之间带外并发下，已入组用户跳过追加
-   *  （避免重复组名）；移除臂的 filter 天然幂等。 */
+  /** 成员落盘：逐用户替换组集（幂等护栏——竞窗外已在组的跳过追加） */
   const applyMembership = async (group: string) => {
     if (!snapshot) return undefined
     const failures: string[] = []
@@ -120,7 +102,7 @@ export default function GroupFormPage({ mode }: { mode: 'create' | 'edit' }) {
         failures.push(m)
         continue
       }
-      if (current.includes(group)) continue // 视图竞窗外已在组——收敛而非重复追加
+      if (current.includes(group)) continue
       try {
         await updateUser(m, { groups: [...current, group] })
       } catch {
@@ -155,10 +137,7 @@ export default function GroupFormPage({ mode }: { mode: 'create' | 'edit' }) {
       if (failures.length > 0) {
         // 部分成员变更未落盘：组本体已保存（PUT 先成），失败名单行内呈现
         setServerError(
-          new ApiError(
-            0,
-            t('部分成员变更未落盘（{v1}）——组本体已保存；请重试或到用户编辑器逐个处理。', { v1: failures.join(', ') }),
-          ),
+          new ApiError(0, t('部分成员变更未落盘（{v1}）——组本体已保存；请重试或到用户编辑器逐个处理。', { v1: failures.join(', ') })),
         )
         return
       }
@@ -171,7 +150,6 @@ export default function GroupFormPage({ mode }: { mode: 'create' | 'edit' }) {
       } else {
         toast.success(memberAdded.length > 0 ? t('组 {target} 已创建（成员 +{v1}）', { target: target, v1: memberAdded.length }) : t('组 {target} 已创建', { target: target }))
       }
-      // 创建-列表-编辑闭环：保存后回列表（7.161 同姿）
       backToList()
     } catch (err) {
       setServerError(err instanceof ApiError ? err : new ApiError(0, errText(err)))
@@ -180,8 +158,7 @@ export default function GroupFormPage({ mode }: { mode: 'create' | 'edit' }) {
     }
   }
 
-  // 编辑态 E5 异常态：404 = 组已被带外删除（空态回列表）；403 = 非管理
-  // 员深链（无权限卡——L4 收敛，服务端是唯一守门）；其余错误卡可重试
+  // 编辑态 E5 异常态：404 = 组已被带外删除；403 = 非管理员深链；其余可重试
   if (editMode && (e5.status === 'error' || e5.status === 'forbidden') && e5.error) {
     return (
       <div data-testid="group-form-page">
@@ -191,7 +168,9 @@ export default function GroupFormPage({ mode }: { mode: 'create' | 'edit' }) {
           <EmptyState
             message={t('组 {name} 不存在', { name: name })}
             action={
-              <Button variant="outlined" size="small" component={Link} to="/admin/security/groups">{t('← 返回组列表')}              </Button>
+              <ButtonAsChild variant="outline" size="sm">
+                <Link to="/admin/security/groups">{t('← 返回组列表')}</Link>
+              </ButtonAsChild>
             }
           />
         ) : (
@@ -210,71 +189,68 @@ export default function GroupFormPage({ mode }: { mode: 'create' | 'edit' }) {
 
   return (
     <div data-testid="group-form-page">
-      <div className="page-header">
-        <h2>
+      <div className="page-header flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold">
           {editMode ? (
-            <>{t('编辑组 ·')} <span className="mono" lang="en">{name}</span>{' '}
+            <>
+              {t('编辑组 ·')} <span className="font-mono" lang="en">{name}</span>{' '}
               <CopyButton value={name} label={t('组名 {name}', { name: name })} />
             </>
           ) : (
             t('新建组')
           )}
         </h2>
-        <Button variant="outlined" size="small" component={Link} to="/admin/security/groups">{t('← 返回列表')}        </Button>
+        <ButtonAsChild variant="outline" size="sm" className="ml-auto">
+          <Link to="/admin/security/groups">{t('← 返回列表')}</Link>
+        </ButtonAsChild>
       </div>
 
       {readOnly && (
-        <p className="admin-note" data-testid="group-form-readonly-note">{t('ⓘ 只读管理员（readonly_admin）视角：组创建/编辑是管理面写操作，本页为只读呈现 （服务端 403 兜底，UI 不代持判定）。')}        </p>
+        <p className="admin-note" data-testid="group-form-readonly-note">
+          {t('ⓘ 只读管理员（readonly_admin）视角：组创建/编辑是管理面写操作，本页为只读呈现 （服务端 403 兜底，UI 不代持判定）。')}
+        </p>
       )}
 
       <section className="card inline-form" data-testid="group-form" aria-label={editMode ? t('编辑组') : t('新建组')}>
-        {/* T-384 节锚（v1.20 批）随路由化迁本页：组面两节——载体迁移零改名 */}
         <div className="form-section" data-testid="group-form-section-settings">
           <h4>{t('组设置')}</h4>
           <div className="field">
             <label htmlFor="gf-name">{t('组名')}{editMode ? t('（不可变）') : ' *'}</label>
-            <TextField
+            <TextInput
               id="gf-name"
-              size="small"
+              mono
+              lang="en"
               value={editMode ? name : groupName}
               disabled={editMode || readOnly}
               onChange={(e) => setGroupName(e.target.value)}
               placeholder="qa-team"
-              error={!!nameErr}
-              sx={{ width: 320 }}
-              slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'group-form-name', lang: 'en' } }}
+              aria-invalid={!!nameErr || undefined}
+              data-testid="group-form-name"
             />
             {nameErr ? (
-              <p className="field-error" role="alert">
-                {nameErr}
-              </p>
+              <p className="field-error" role="alert">{nameErr}</p>
             ) : (
               <p className="field-hint">{t('[a-z][a-z0-9._-]*，≤64；保留字 anonymous / _system_ 拒绝。')}</p>
             )}
           </div>
           <div className="field">
             <label htmlFor="gf-desc">{t('描述')}</label>
-            <TextField
+            <TextArea
               id="gf-desc"
-              size="small"
-              multiline
-              minRows={2}
+              className="max-w-[480px]"
               value={description}
               disabled={readOnly}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t('用途、负责人…')}
-              sx={{ width: 480 }}
-              slotProps={{ htmlInput: { 'data-testid': 'group-form-description' } }}
+              data-testid="group-form-description"
             />
           </div>
         </div>
         <div className="form-section" data-testid="group-form-section-members">
           <h4>{t('成员')}</h4>
           <p className="field-hint">{t('勾选即加入（右列）；保存后即时生效——移出即失去该组授权，无需重登。')}</p>
-          {!snapshot ? (
-            <Skeleton lines={2} />
-          ) : !membersReady ? (
-            <Skeleton lines={2} />
+          {!snapshot || !membersReady ? (
+            <StateSkeleton lines={2} />
           ) : (
             <div data-testid="group-form-members">
               <TransferBox
@@ -293,7 +269,7 @@ export default function GroupFormPage({ mode }: { mode: 'create' | 'edit' }) {
           <div className="form-section">
             <h4>{t('组权限矩阵')}</h4>
             <p className="field-hint">{t('只读汇总（来源 = 引用本组的 permission target）——变更入口在权限编辑器。')}</p>
-            {targets.status === 'loading' && <Skeleton lines={3} />}
+            {targets.status === 'loading' && <StateSkeleton lines={3} />}
             {targets.status === 'ok' && (
               <PermSummaryTable
                 rows={grants}
@@ -307,17 +283,18 @@ export default function GroupFormPage({ mode }: { mode: 'create' | 'edit' }) {
           </div>
         )}
         {serverError && (
-          <Alert severity="error">
-            <div className="headline">{editMode ? t('保存失败') : t('创建失败')}</div>
-            <div className="raw">{serverError.message}</div>
-          </Alert>
+          <AlertBox severity="error">
+            <div className="font-medium">{editMode ? t('保存失败') : t('创建失败')}</div>
+            <div className="mt-1 break-all font-mono text-aux opacity-90">{serverError.message}</div>
+          </AlertBox>
         )}
         <div className="form-actions">
-          {/* 页脚三联（7.161 活体：Cancel 最左 / Reset〔初始禁置〕/ Save 右） */}
-          <Button variant="outlined" size="small" component={Link} to="/admin/security/groups" data-testid="group-form-cancel">{t('取消')}          </Button>
+          <Button variant="outline" size="sm" data-testid="group-form-cancel" onClick={() => navigate('/admin/security/groups')}>
+            {t('取消')}
+          </Button>
           <Button
-            variant="outlined"
-            size="small"
+            variant="outline"
+            size="sm"
             disabled={!dirty || submitting}
             data-testid="group-form-reset"
             onClick={() => {
@@ -325,10 +302,11 @@ export default function GroupFormPage({ mode }: { mode: 'create' | 'edit' }) {
               setDescription(e5Detail?.description ?? '')
               setMembers(initialMembers)
             }}
-          >{t('重置')}          </Button>
+          >
+            {t('重置')}
+          </Button>
           <Button
-            variant="contained"
-            size="small"
+            size="sm"
             disabled={!canSubmit || !dirty || submitting}
             title={readOnly ? t('只读管理员：组创建/编辑是管理面写操作（服务端 403）') : undefined}
             onClick={() => void submit()}

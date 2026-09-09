@@ -101,6 +101,24 @@ for (const f of srcFiles) {
   for (const m of text.matchAll(/\b(?:anchor|setAnchor)\s*:\s*(['"`])([^'"`\n]+)\1/g)) {
     addSrc(toFamily(m[2]), rel)
   }
+  // FE-Rewrite P3 收编补形：锚承载 helper 实参形态。新栈页面把「卡片/属性行」
+  // 锚经本地 helper 透传——wrap('anchor', title, …)（dashboard 卡片 section
+  // data-testid={testid}）与 row(label, 'anchor', …)（DetailInspector KV 行
+  // span data-testid={testid}）。两 helper 全库仅 dashboard/DetailInspector
+  // 使用（grep 自证）——域外零外溢（工具局限史同款：域外落点会让「册有 src
+  // 无」假阳性，A3 误伤）。
+  for (const m of text.matchAll(/\bwrap\(\s*(['"`])([^'"`\n]+)\1\s*,/g)) {
+    addSrc(toFamily(m[2]), rel)
+  }
+  for (const m of text.matchAll(/\brow\(\s*[^,()\n]+,\s*(['"`])([^'"`\n]+)\1\s*,/g)) {
+    addSrc(toFamily(m[2]), rel)
+  }
+  // 同批补形（第八形态）：对象属性 testid: 形（SearchPageV2 列定义
+  // `testid: `search-aql-sort-${c.id}``——AG Grid ColDef 自定义头组件经对象
+  // 字段透传，渲染位 data-testid={props.testid}；字面量与模板头均收）。
+  for (const m of text.matchAll(/\btestid\s*:\s*(['"`])([^'"`\n]+)\1/g)) {
+    addSrc(toFamily(m[2]), rel)
+  }
 }
 // widgets.PermSummaryTable 的 ${rowTestidPrefix} 动态前缀：调用方实参
 // group-perm / user-perm（GroupsPage/UserDetailPage），拼出 §10.3 在册三族
@@ -149,12 +167,26 @@ for (const dir of E2E) {
   for (const f of walk(dir, ['.ts'])) {
     const text = readFileSync(f, 'utf8')
     const rel = f.slice(ROOT.length + 1)
+    // 退役反检豁免（FE-Rewrite P3 收编补形）：无 not. 前缀的 `toHaveCount(0)`
+    // 是退役锚的自证反断言（形态退役批的标准腿——§10.6 各行「count 0 反断言」
+    // 为本仓退役反检唯一惯例形；artifacts.spec 对 tree-load-more），引用语义 =
+    // 确认不在场，不是消费。该行命中不计入 specRefs，否则伪 broken。缺陷修史
+    //（FE-P3 锚账收尾）：① 初版正则误写 `toBeCount(`（断言方法实为
+    // toHaveCount——字面不命中，豁免从未生效）；② 二版曾扩 toBeHidden() 同款
+    // 豁免并按子串命中 not.toHaveCount(0)——两处过宽：toBeHidden() 在本仓全部
+    // 用法是对活锚的隐藏态断言（node-download-panel、audit-columns-menu、
+    // help-docs——逐点 grep 自证为真实消费，退役反检零用例），`.not.` 前缀形
+    // 语义 = 「至少一个在场」的正消费（artifacts.spec tree-list 腿）。终版
+    // 收紧为仅本形态。
+    const negated = text.split('\n').map((l) => /(?<!\bnot\s*\.\s*)toHaveCount\(\s*0\s*\)/.test(l))
     for (const re of REF_RES) {
       re.lastIndex = 0
       for (const m of text.matchAll(re)) {
         // 各形态的捕获组位置不同：S1/S2/S3/S4/S6 取最后一个「值」组，S5 单组
         const raw = m[3] ?? m[2] ?? m[1]
         if (!raw || raw.startsWith('${')) continue
+        const line = text.slice(0, m.index).split('\n').length - 1
+        if (negated[line]) continue
         specRaw.push({ raw, spec: rel })
         specRefs.add(specFamily(raw))
       }
@@ -351,6 +383,22 @@ const STOP = new Set([
   // （spec-pending——契约待核清单机制名非锚）/ 本票新 spec 文件名段
   // （t514-bundles-presets），均非 testid 锚
   'spec-pending', 't514-bundles-presets',
+  // FE-P3 锚账收尾（§10.7/§10.8 重写期行文假阳性，console-ux §10.8 勘误批）：
+  // ① spec 与 git rm 的文件名段（core-flow 即 e2e/p2/core-flow.spec.ts、
+  //   t512-builds-page 即 e2e/m17/T-512 spec、unlocked-faces 即
+  //   e2e/p3/unlocked-faces.spec.ts、legacy-bridge——HEAD grep 自证该删除文件
+  //   零 testid 落点，非锚）+ 机制词（load-more——增量机制名，§10.7 行文）；
+  // ② §10.8 组描述的裸名行文短写——真身 = 同节逐名补录的带尾实名（均在册
+  //   在 src：users-sort 的 name/status/lastlogin 三实名〔SortTh prop 形〕、
+  //   wh-tab 的 subs/outbox 两实名、qrl-mode 的 enabled/disabled 两实名、
+  //   qrl-readonly-note、keypair-create-generate 与 keypair-generate-* 与
+  //   keypair-generate-uid-* 与 keypair-import-* 向导实名族、
+  //   keypair-readonly-note、outbox-filter 的 subscription/status/event-type
+  //   三实名），裸名非独立锚（v1.25 repo-repl 星号速记同款先例）。
+  'core-flow', 't512-builds-page', 'unlocked-faces', 'legacy-bridge', 'load-more',
+  'users-sort', 'wh-tab', 'qrl-mode', 'qrl-readonly',
+  'keypair-create', 'keypair-import', 'keypair-generate', 'keypair-generate-uid',
+  'keypair-readonly', 'outbox-filter', 'outbox-filter-event',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

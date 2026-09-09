@@ -36,7 +36,7 @@ import { useConfirm } from '@/app/providers'
 import { BrandMark } from '@/components/BrandLogo'
 import { errText, isReadOnlyAdmin } from '@/lib/api'
 import { useVersion } from '@/lib/useVersion'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { tr } from '@/i18n'
 
 import type { Crumb } from './breadcrumbs'

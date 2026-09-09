@@ -1,52 +1,36 @@
+// 用户编辑器（console-m8 §6.9 编辑态——P3 新栈重写）：分区形态 = 用户
+// 设置 / 选项（状态）/ 口令 / 相关组（双列穿梭）/ 用户权限矩阵（只读
+// 汇总）/ 账户信息（含危险区）。
+// - 角色三值下拉仅走 adminRole 通道（与 admin 布尔混发不一致 → 服务端 400）；
+// - enabled 翻转 = 表单全量提交形态（保存体总是携带 enabled，指针语义即
+//   写入）；回显驱动（E3 enabled 恒渲染）；
+// - 删除（E4）：危险区（admin）——自删/内置 admin 预禁用；成功（或 404
+//   已被删）回列表；
+// - readonly_admin 进入本页 = 只读呈现（服务端 403 兜底）。
+// 锚族原样：user-detail-page/user-form(-email|-role(-<r>)?|-enabled|
+// -password(2)?|-groups|-group-<name>|-submit|-error|-readonly-note)/
+// user-perms/user-perm-matrix/user-facts(-role)/user-danger-zone/user-delete。
 import { useEffect, useState } from 'react'
-import type { ComponentPropsWithoutRef } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
-import Alert from '@mui/material/Alert'
-import Button from '@mui/material/Button'
-import Checkbox from '@mui/material/Checkbox'
-import FormControlLabel from '@mui/material/FormControlLabel'
-import Paper from '@mui/material/Paper'
-import Select from '@mui/material/Select'
-import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
-
-import { useAuth } from '../../app/AuthContext'
-import { useToast } from '../../app/ToastContext'
-import { CopyButton } from '../../components/CopyButton'
-import { EmptyState } from '../../components/EmptyState'
-import { ErrorCard } from '../../components/ErrorCard'
-import { Skeleton } from '../../components/Skeleton'
-import { ADMIN_ROLES, ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
-import type { AdminRole } from '../../lib/api'
-import { useAsync } from '../../lib/useAsync'
+import { useAuth } from '@/app/AuthContext'
+import { Button, ButtonAsChild } from '@/components/ui/button'
+import { AlertBox, CheckRow, StatusLabel } from '@/components/layout/bits'
+import { CopyButton } from '@/components/layout/copy-button'
+import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
+import { TextInput, NativeSelect } from '@/components/layout/fields'
+import { toast } from '@/lib/toast'
+import { ADMIN_ROLES, ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '@/lib/api'
+import type { AdminRole } from '@/lib/api'
+import { useAsync } from '@/lib/useAsync'
 import './security.css'
-import { TransferBox } from './TransferBox'
-import { PermSummaryTable, StatusLabel, useUserDelete } from './widgets'
+import { TransferBox } from '@/components/layout/transfer-box'
+import { PermSummaryTable, useUserDelete } from './widgets'
 import { getUser, grantsOfUser, listGroups, listPermissionTargets, updateUser } from './api'
 import type { UserDetail, UserUpdateBody } from './api'
-import { tr } from '../../i18n'
+import { tr } from '@/i18n'
 
 const t = tr('security')
-
-// 用户编辑器（console-m8 §6.9 编辑态，T-237 重排；T-257 数据源换 E3/E4）：
-// 分区形态 = 用户设置 / 选项（状态）/ 口令 / 相关组（双列穿梭）/ 用户权限
-// 矩阵（只读汇总）/ 账户信息（含危险区）。
-//
-// 角色（M7 FR-66 / §7.1）：三值下拉，仅走 adminRole 通道（与 admin 布尔
-// 混发不一致 → 服务端 400）；readonly_admin 视角禁用 + 说明行。
-//
-// enabled 翻转（§7.5 / T-224 非缺陷②）：表单全量提交形态——保存体总是
-// 携带 enabled（POST 部分更新臂的指针语义：携带即写入）。控件**回显驱动**
-// （E3 enabled 恒渲染，T-251）——T-237 期的 knownEnabled 本地回显 hack
-// （「本页写过的值即已知值」+ 默认启用假设）及其漂移注记随本票退役。
-//
-// 删除用户（E4，T-257）：账户信息卡内危险区（admin）——自删/内置 admin
-// 预禁用，其余护栏（last-admin 400 / 404 已删）服务端原文如实呈现；成功
-// 后回列表。§6.9 线框的「Actions ▾」菜单不建（单动作不设菜单壳）。
-//
-// readonly_admin 进入本页 = 只读呈现：全部编辑面禁用（服务端 403 兜底，
-// UI 无绕过——服务端是唯一守门）。
 
 const ROLE_LABEL: Record<AdminRole, string> = {
   user: t('user —— 内容面按 permission target 授权'),
@@ -80,7 +64,6 @@ export default function UserDetailPage() {
   const { session } = useAuth()
   const readOnly = isReadOnlyAdmin(session)
   const admin = canAdminWrite(session)
-  const toast = useToast()
   const navigate = useNavigate()
   const detail = useAsync(() => getUser(name), [name])
   const groups = useAsync(listGroups, [])
@@ -100,7 +83,7 @@ export default function UserDetailPage() {
   if (detail.status === 'loading') {
     return (
       <div data-testid="user-detail-page">
-        <Skeleton lines={8} />
+        <StateSkeleton lines={8} />
       </div>
     )
   }
@@ -111,7 +94,9 @@ export default function UserDetailPage() {
           <EmptyState
             message={t('用户 {name} 不存在', { name: name })}
             action={
-              <Button variant="outlined" size="small" component={Link} to="/admin/security/users">{t('← 返回用户列表')}              </Button>
+              <ButtonAsChild variant="outline" size="sm">
+                <Link to="/admin/security/users">{t('← 返回用户列表')}</Link>
+              </ButtonAsChild>
             }
           />
         ) : (
@@ -178,10 +163,13 @@ export default function UserDetailPage() {
 
   return (
     <div data-testid="user-detail-page">
-      <div className="page-header">
-        <h2>{t('编辑用户 ·')} <span className="mono" lang="en">{name}</span>
+      <div className="page-header flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold">
+          {t('编辑用户 ·')} <span className="font-mono" lang="en">{name}</span>
         </h2>
-        <Button variant="outlined" size="small" component={Link} to="/admin/security/users">{t('← 返回列表')}        </Button>
+        <ButtonAsChild variant="outline" size="sm" className="ml-auto">
+          <Link to="/admin/security/users">{t('← 返回列表')}</Link>
+        </ButtonAsChild>
       </div>
 
       <section className="card inline-form" data-testid="user-form" aria-label={t('编辑用户')}>
@@ -189,72 +177,54 @@ export default function UserDetailPage() {
         {f && (
           <>
             {readOnly && (
-              <p className="admin-note" data-testid="user-form-readonly-note">{t('ⓘ 只读管理员（readonly_admin）视角：用户编辑是管理面写操作，本页为只读呈现 （服务端 403 兜底，UI 不代持判定）。')}              </p>
+              <p className="admin-note" data-testid="user-form-readonly-note">
+                {t('ⓘ 只读管理员（readonly_admin）视角：用户编辑是管理面写操作，本页为只读呈现 （服务端 403 兜底，UI 不代持判定）。')}
+              </p>
             )}
             <div className="form-section">
               <div className="field">
-                <label htmlFor="ud-name">{t('用户名（不可变）')}</label>
+                <label>{t('用户名（不可变）')}</label>
                 <div>
-                  <span className="mono" lang="en">
-                    {name}
-                  </span>{' '}
+                  <span className="font-mono" lang="en">{name}</span>{' '}
                   <CopyButton value={name} label={t('用户名 {name}', { name: name })} />
                 </div>
               </div>
               <div className="field">
                 <label htmlFor="ud-email">Email</label>
-                <TextField
+                <TextInput
                   id="ud-email"
-                  size="small"
                   type="email"
                   value={f.email}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, email: e.target.value } : p))}
-                  sx={{ width: 320 }}
-                  slotProps={{ htmlInput: { 'data-testid': 'user-form-email' } }}
+                  data-testid="user-form-email"
                 />
                 {f.email.trim() === '' && <p className="field-error">{t('email 不能为空（服务端 400）')}</p>}
               </div>
-              <div className="field" style={{ maxWidth: 480 }}>
+              <div className="field max-w-[480px]">
                 <label htmlFor="ud-role">{t('角色（三值闭集——wire 值即选项值）')}</label>
-                <TextField
+                <NativeSelect
                   id="ud-role"
-                  select
-                  size="small"
+                  className="max-w-[420px]"
                   value={f.role}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, role: e.target.value as AdminRole } : p))}
-                  sx={{ width: 420 }}
-                  slotProps={{
-                    select: {
-                      native: true,
-                      inputProps: { 'data-testid': 'user-form-role' } as ComponentPropsWithoutRef<'select'>,
-                    } as ComponentPropsWithoutRef<typeof Select>,
-                  }}
-                >
-                  {ADMIN_ROLES.map((r) => (
-                    <option key={r} value={r} data-testid={`user-form-role-${r}`}>
-                      {ROLE_LABEL[r]}
-                    </option>
-                  ))}
-                </TextField>
-                <p className="field-hint">{t('角色变更即时生效并落')} <span className="mono" lang="en">user.role.change</span> {t('审计；只读管理员对 permission target 短路（组合无效而非非法）。')}                </p>
+                  options={ADMIN_ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
+                  data-testid="user-form-role"
+                />
+                <p className="field-hint">
+                  {t('角色变更即时生效并落')} <span className="font-mono" lang="en">user.role.change</span> {t('审计；只读管理员对 permission target 短路（组合无效而非非法）。')}
+                </p>
               </div>
             </div>
             <div className="form-section">
               <h4>{t('选项')}</h4>
-              <FormControlLabel
-                className="check-row"
-                control={
-                  <Checkbox
-                    size="small"
-                    checked={f.enabled}
-                    disabled={readOnly}
-                    onChange={(e) => setF((p) => (p ? { ...p, enabled: e.target.checked } : p))}
-                    slotProps={{ input: { 'data-testid': 'user-form-enabled' } as ComponentPropsWithoutRef<'input'> }}
-                  />
-                }
+              <CheckRow
+                checked={f.enabled}
+                disabled={readOnly}
+                onChange={(next) => setF((p) => (p ? { ...p, enabled: next } : p))}
                 label={t('启用（取消勾选 = 禁用账号——登录与写面全部拒绝）')}
+                testid="user-form-enabled"
               />
               <p className="field-hint">{t('勾选态 = 服务端 enabled 回显（E3，DB 行事实）；保存总是携带该位写入。')}</p>
             </div>
@@ -262,43 +232,37 @@ export default function UserDetailPage() {
               <h4>{t('口令')}</h4>
               <div className="field">
                 <label htmlFor="ud-pass">{t('重置口令（可选——留空不改动；无需旧口令）')}</label>
-                <TextField
+                <TextInput
                   id="ud-pass"
-                  size="small"
                   type="password"
                   autoComplete="new-password"
                   placeholder={t('（不改动）')}
                   value={f.password}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, password: e.target.value } : p))}
-                  sx={{ width: 320 }}
-                  slotProps={{ htmlInput: { 'data-testid': 'user-form-password' } }}
+                  data-testid="user-form-password"
                 />
               </div>
               <div className="field">
                 <label htmlFor="ud-pass2">{t('确认口令')}</label>
-                <TextField
+                <TextInput
                   id="ud-pass2"
-                  size="small"
                   type="password"
                   autoComplete="new-password"
                   placeholder={t('（再输入一次）')}
                   value={f.password2}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, password2: e.target.value } : p))}
-                  error={passMismatch}
-                  sx={{ width: 320 }}
-                  slotProps={{ htmlInput: { 'data-testid': 'user-form-password2' } }}
+                  aria-invalid={passMismatch || undefined}
+                  data-testid="user-form-password2"
                 />
-                {passMismatch && (
-                  <p className="field-error" role="alert">{t('两次输入的口令不一致')}                  </p>
-                )}
+                {passMismatch && <p className="field-error" role="alert">{t('两次输入的口令不一致')}</p>}
               </div>
             </div>
             <div className="form-section">
               <h4>{t('相关组')}</h4>
               <p className="field-hint">{t('勾选即加入（右列）；保存后即时生效——移出组即失去该组授权，无需重登。')}</p>
-              {groups.status === 'loading' && <Skeleton lines={2} />}
+              {groups.status === 'loading' && <StateSkeleton lines={2} />}
               {groups.status === 'ok' && (
                 <div data-testid="user-form-groups">
                   <TransferBox
@@ -321,25 +285,23 @@ export default function UserDetailPage() {
               )}
             </div>
             {serverError && (
-              <Alert severity="error" data-testid="user-form-error">
-                <div className="headline">{t('保存失败（HTTP')} {serverError.status || t('网络')}{t('）')}</div>
-                <div className="raw" lang="en">
-                  {serverError.message}
-                </div>
-              </Alert>
+              <AlertBox severity="error" testid="user-form-error">
+                <div className="font-medium">{t('保存失败（HTTP')} {serverError.status || t('网络')}{t('）')}</div>
+                <div className="mt-1 break-all font-mono text-aux opacity-90" lang="en">{serverError.message}</div>
+              </AlertBox>
             )}
             <div className="form-actions">
-              <Button variant="outlined" size="small" component={Link} to="/admin/security/users">{t('取消')}              </Button>
+              <Button variant="outline" size="sm" onClick={() => navigate('/admin/security/users')}>{t('取消')}</Button>
               <Button
-                variant="outlined"
-                size="small"
-               
+                variant="outline"
+                size="sm"
                 disabled={!dirty || submitting}
                 onClick={() => d && setF(editFromDetail(d))}
-              >{t('重置')}              </Button>
+              >
+                {t('重置')}
+              </Button>
               <Button
-                variant="contained"
-                size="small"
+                size="sm"
                 disabled={!dirty || f.email.trim() === '' || passMismatch || submitting || readOnly}
                 title={readOnly ? t('只读管理员：用户编辑是管理面写操作（服务端 403）') : undefined}
                 onClick={() => void submit()}
@@ -355,7 +317,7 @@ export default function UserDetailPage() {
       <section className="card" data-testid="user-perms">
         <h3>{t('用户权限矩阵')}</h3>
         <p className="field-hint">{t('只读汇总（来源 = 各 permission target 的直接行与经组行）——变更入口在权限编辑器。')}</p>
-        {targets.status === 'loading' && <Skeleton lines={3} />}
+        {targets.status === 'loading' && <StateSkeleton lines={3} />}
         {targets.status === 'ok' && (
           <PermSummaryTable
             rows={permRows ?? []}
@@ -372,15 +334,11 @@ export default function UserDetailPage() {
         <h3>{t('账户信息')}</h3>
         <div className="kv">
           <span className="k">realm</span>
-          <span className="mono" lang="en">
-            {d?.realm ?? '—'}
-          </span>
+          <span className="font-mono" lang="en">{d?.realm ?? '—'}</span>
         </div>
         <div className="kv">
           <span className="k">{t('角色')}</span>
-          <span className="mono" lang="en" data-testid="user-facts-role">
-            {baseRole ?? '—'}
-          </span>
+          <span className="font-mono" lang="en" data-testid="user-facts-role">{baseRole ?? '—'}</span>
         </div>
         <div className="kv">
           <span className="k">Status</span>
@@ -388,46 +346,32 @@ export default function UserDetailPage() {
         </div>
         <div className="kv">
           <span className="k">{t('最近登录')}</span>
-          <span>{d?.lastLoggedIn ? <span className="mono" lang="en">{d.lastLoggedIn}</span> : t('—（尚未登录）')}</span>
+          <span>{d?.lastLoggedIn ? <span className="font-mono" lang="en">{d.lastLoggedIn}</span> : t('—（尚未登录）')}</span>
         </div>
         <div className="kv">
           <span className="k">API URI</span>
-          <span className="mono wrap" lang="en" style={{ overflowWrap: 'anywhere' }}>
+          <span className="font-mono break-all" lang="en" style={{ overflowWrap: 'anywhere' }}>
             {d ? `/binflow/api/security/users/${d.name}` : '—'}
           </span>
         </div>
         {admin && (
-          /* T-344 批 D：sec-danger-zone Paper 化（§3.5 security 行）——
-             outlined + error 边，dz-head/dz-note 类名随规则退役留 DOM */
-          <Paper
-            variant="outlined"
-            className="sec-danger-zone"
-            sx={{ mt: 'var(--bf-sp-4)', p: 'var(--bf-sp-3) var(--bf-sp-4)', borderColor: 'error.main' }}
-            data-testid="user-danger-zone"
-          >
-            <Typography className="dz-head" variant="subtitle2" component="div" color="error" sx={{ mb: 0.5 }}>{t('危险区')}            </Typography>
-            <Typography className="dz-note" variant="body2" color="text.secondary" sx={{ mb: 1, maxWidth: '72ch' }}>{t('删除不可恢复（组员/授权/token/会话同事务级联；审计保留）。人员离场的可逆路径是')}              <b>{t('禁用')}</b>{t('（选项区）——删除仅用于账号彻底清退。')}            </Typography>
-            {deleteBlocked ? (
-              <Button
-                variant="outlined"
-                color="error"
-                size="small"
-               
-                disabled
-                title={deleteBlocked}
-                data-testid="user-delete"
-              >{t('删除用户')}              </Button>
-            ) : (
-              <Button
-                variant="outlined"
-                color="error"
-                size="small"
-               
-                onClick={() => void deleteUser(name)}
-                data-testid="user-delete"
-              >{t('删除用户')}              </Button>
-            )}
-          </Paper>
+          <div className="mt-4 rounded-md border border-destructive/50 px-4 py-3" data-testid="user-danger-zone">
+            <div className="mb-0.5 text-dense font-semibold text-destructive">{t('危险区')}</div>
+            <p className="mb-2 max-w-[72ch] text-dense text-2">
+              {t('删除不可恢复（组员/授权/token/会话同事务级联；审计保留）。人员离场的可逆路径是')}<b>{t('禁用')}</b>{t('（选项区）——删除仅用于账号彻底清退。')}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-destructive/50 text-destructive hover:bg-destructive/10"
+              disabled={deleteBlocked !== undefined}
+              title={deleteBlocked}
+              onClick={() => void deleteUser(name)}
+              data-testid="user-delete"
+            >
+              {t('删除用户')}
+            </Button>
+          </div>
         )}
       </section>
     </div>
