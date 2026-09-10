@@ -60,21 +60,6 @@ func TestParseBearerChallenge(t *testing.T) {
 	}
 }
 
-// TestV2WirePaths pins the upstream wire spellings: the storage layout's
-// bare hex becomes the wire's sha256: form; tags ride verbatim.
-func TestV2WirePaths(t *testing.T) {
-	if got := v2WireManifestPath("mychart", "0.1.0"); got != "mychart/manifests/0.1.0" {
-		t.Errorf("manifest tag wire = %q", got)
-	}
-	hex := sha256HexOf([]byte("x"))
-	if got := v2WireManifestPath("team/mychart", "sha256:"+hex); got != "team/mychart/manifests/sha256:"+hex {
-		t.Errorf("manifest digest wire = %q", got)
-	}
-	if got := v2WireBlobPath("mychart", hex); got != "mychart/blobs/sha256:"+hex {
-		t.Errorf("blob wire = %q", got)
-	}
-}
-
 // challengingRegistry is one mock OCI registry that guards everything
 // behind a Bearer token: the first unauthenticated request answers 401 +
 // the challenge; the token endpoint exchanges the repository credential
@@ -140,11 +125,13 @@ func writeJSONError(w http.ResponseWriter, status int) {
 }
 
 // newTestSession builds one session pool entry around the mock's facts.
+// The upstream URL is the registry ROOT — the wire path carries /v2/ itself
+// (L000-F).
 func newTestSession(t *testing.T, url string) *remoteSessionEntry {
 	t.Helper()
 	pool := &remoteSessions{}
 	entry, err := pool.forRepo("helmoci-remote", &repo.RemoteUpstream{
-		URL: url + "/v2", Username: "ci", Password: "s3cret",
+		URL: url, Username: "ci", Password: "s3cret",
 		AllowPrivateUpstream: true, // the loopback mock (the admin-set NFR-S13 exemption)
 		SocketTimeoutMs:      2000, ContentTTLSeconds: 7200, MissedTTLSeconds: 1800,
 	})
@@ -204,7 +191,7 @@ func TestSessionDanceRefusedCredential(t *testing.T) {
 	up := newChallengingRegistry(t, manifest, "application/vnd.oci.image.manifest.v1+json", sha256HexOf([]byte("b")), []byte("b"))
 	pool := &remoteSessions{}
 	entry, err := pool.forRepo("helmoci-remote", &repo.RemoteUpstream{
-		URL: up.url + "/v2", Username: "ci", Password: "WRONG",
+		URL: up.url, Username: "ci", Password: "WRONG",
 		AllowPrivateUpstream: true, SocketTimeoutMs: 2000,
 	})
 	if err != nil {

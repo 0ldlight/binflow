@@ -139,16 +139,20 @@ func (p *remoteSessions) forRepo(repoKey string, facts *repo.RemoteUpstream) (*r
 }
 
 // v2WireManifestPath builds the upstream request path of one manifest
-// read: the image's namespace plus the wire ref (a tag verbatim, a digest
-// re-prefixed with the algorithm — the storage layout keeps bare hex, the
-// wire keeps the sha256: spelling).
+// read: the /v2/ API root plus the image's namespace and the wire ref (a
+// tag verbatim, a digest re-prefixed with the algorithm — the storage
+// layout keeps bare hex, the wire keeps the sha256: spelling). The upstream
+// URL is the REGISTRY ROOT (L000-F: the registry-v2 spec and Artifactory's
+// E4 evidence — X-Artifactory-Origin-Remote-Path — both speak
+// <root>/v2/<name>/manifests/<ref>).
 func v2WireManifestPath(image, ref string) string {
-	return image + "/manifests/" + ref
+	return "/v2/" + image + "/manifests/" + ref
 }
 
-// v2WireBlobPath builds the upstream request path of one blob read.
+// v2WireBlobPath builds the upstream request path of one blob read — the
+// same /v2/ root as the manifest arm.
 func v2WireBlobPath(image, hex string) string {
-	return image + "/blobs/" + digestPrefixHex(hex)
+	return "/v2/" + image + "/blobs/" + digestPrefixHex(hex)
 }
 
 // upstreamAnswer is one classified upstream outcome shared by the two

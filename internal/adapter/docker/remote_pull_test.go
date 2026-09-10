@@ -123,7 +123,11 @@ func newDockerRemoteFixture(t *testing.T) (down *remotePullStack, upSrv *httptes
 	t.Cleanup(upSrv.Close)
 
 	down = &remotePullStack{newCatalogStack(t, true)}
-	down.seedDockerRemoteRepo(t, "docker-remote", upSrv.URL+"/v2/up-local")
+	// The upstream URL is the REGISTRY ROOT; the wire path carries /v2/
+	// itself (L000-F). The BinFlow upstream's repoKey rides the image
+	// namespace — `up-local/myapp` — exactly the `library/hello-world`
+	// shape a docker.io upstream presents.
+	down.seedDockerRemoteRepo(t, "docker-remote", upSrv.URL)
 	return down, upSrv, hits, manifest, cfg, layer
 }
 
@@ -135,7 +139,7 @@ func newDockerRemoteFixture(t *testing.T) (down *remotePullStack, upSrv *httptes
 func TestT392RemotePullThroughChain(t *testing.T) {
 	down, _, hits, manifest, cfg, layer := newDockerRemoteFixture(t)
 
-	code, body, hdr := down.get("/v2/docker-remote/myapp/manifests/1.0", acceptManifests)
+	code, body, hdr := down.get("/v2/docker-remote/up-local/myapp/manifests/1.0", acceptManifests)
 	if code != http.StatusOK {
 		t.Fatalf("remote manifest GET = (%d, %s), want 200", code, body)
 	}
@@ -158,7 +162,7 @@ func TestT392RemotePullThroughChain(t *testing.T) {
 	// The blobs: proxied byte-identical (streamed landing, AC1's digest
 	// identity extends to every layer byte).
 	for _, blob := range [][]byte{cfg, layer} {
-		code, body, hdr = down.get("/v2/docker-remote/myapp/blobs/sha256:"+sha256Hex(blob), nil)
+		code, body, hdr = down.get("/v2/docker-remote/up-local/myapp/blobs/sha256:"+sha256Hex(blob), nil)
 		if code != http.StatusOK || body != string(blob) {
 			t.Fatalf("remote blob GET = (%d, %d bytes), want (200, %d bytes)", code, len(body), len(blob))
 		}
@@ -170,7 +174,7 @@ func TestT392RemotePullThroughChain(t *testing.T) {
 	// The second round trip: everything serves from the cache — the
 	// upstream counter must not move (AC1's 上游访问计数不增).
 	afterFirst := hits.Load()
-	code, body, hdr = down.get("/v2/docker-remote/myapp/manifests/1.0", acceptManifests)
+	code, body, hdr = down.get("/v2/docker-remote/up-local/myapp/manifests/1.0", acceptManifests)
 	if code != http.StatusOK || body != string(manifest) {
 		t.Fatalf("second manifest GET = (%d, %d bytes), want the cached copy", code, len(body))
 	}
@@ -178,7 +182,7 @@ func TestT392RemotePullThroughChain(t *testing.T) {
 		t.Errorf("second manifest X-BinFlow-Cache = %q, want HIT", got)
 	}
 	for _, blob := range [][]byte{cfg, layer} {
-		code, body, _ = down.get("/v2/docker-remote/myapp/blobs/sha256:"+sha256Hex(blob), nil)
+		code, body, _ = down.get("/v2/docker-remote/up-local/myapp/blobs/sha256:"+sha256Hex(blob), nil)
 		if code != http.StatusOK || body != string(blob) {
 			t.Fatalf("second blob GET = (%d, %d bytes), want the cached copy", code, len(body))
 		}
@@ -189,15 +193,15 @@ func TestT392RemotePullThroughChain(t *testing.T) {
 
 	// The cached tag rows back the tags/list face; the catalog names the
 	// cached image; by-digest resolves over the cached state (HIT).
-	code, body, _ = down.get("/v2/docker-remote/myapp/tags/list", nil)
+	code, body, _ = down.get("/v2/docker-remote/up-local/myapp/tags/list", nil)
 	if code != http.StatusOK || !strings.Contains(body, `"1.0"`) {
 		t.Errorf("remote tags/list = (%d, %s), want 200 naming 1.0", code, body)
 	}
 	code, body, _ = down.serveReq(http.MethodGet, "/v2/_catalog", nil, nil)
-	if code != http.StatusOK || !strings.Contains(body, "docker-remote/myapp") {
+	if code != http.StatusOK || !strings.Contains(body, "docker-remote/up-local/myapp") {
 		t.Errorf("catalog = (%d, %s), want the remote's cached image", code, body)
 	}
-	code, body, hdr = down.get("/v2/docker-remote/myapp/manifests/sha256:"+sha256Hex(manifest), acceptManifests)
+	code, body, hdr = down.get("/v2/docker-remote/up-local/myapp/manifests/sha256:"+sha256Hex(manifest), acceptManifests)
 	if code != http.StatusOK || body != string(manifest) {
 		t.Fatalf("manifest by digest = (%d, %d bytes), want the cached copy", code, len(body))
 	}
@@ -215,9 +219,9 @@ func TestT392RemoteWriteRefusal(t *testing.T) {
 	for _, tc := range []struct {
 		method, path string
 	}{
-		{http.MethodPut, "/v2/docker-remote/myapp/manifests/2.0"},
-		{http.MethodPost, "/v2/docker-remote/myapp/blobs/uploads/"},
-		{http.MethodDelete, "/v2/docker-remote/myapp/manifests/sha256:" + sha256Hex(manifest)},
+		{http.MethodPut, "/v2/docker-remote/up-local/myapp/manifests/2.0"},
+		{http.MethodPost, "/v2/docker-remote/up-local/myapp/blobs/uploads/"},
+		{http.MethodDelete, "/v2/docker-remote/up-local/myapp/manifests/sha256:" + sha256Hex(manifest)},
 	} {
 		code, body, hdr := down.serveReq(tc.method, tc.path, strings.NewReader(`{}`),
 			map[string]string{"Content-Type": mediaTypeDockerManifest})
@@ -239,17 +243,17 @@ func TestT392RemoteWriteRefusal(t *testing.T) {
 func TestT392RemoteDegradationMatrix(t *testing.T) {
 	down, upSrv, deadSrv, _, manifest, cfg, layer := newDockerRemoteFixtureWithDead(t)
 
-	code, body, _ := down.get("/v2/docker-remote/myapp/manifests/1.0", acceptManifests)
+	code, body, _ := down.get("/v2/docker-remote/up-local/myapp/manifests/1.0", acceptManifests)
 	if code != http.StatusOK {
 		t.Fatalf("first pull = (%d, %s), want 200", code, body)
 	}
 	// Expire the cached manifest + blob windows (the row-level clock).
 	past := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
 	for _, path := range []string{
-		"myapp/manifests/" + sha256Hex(manifest),
-		"myapp/blobs/" + sha256Hex(manifest),
-		"myapp/blobs/" + sha256Hex(cfg),
-		"myapp/blobs/" + sha256Hex(layer),
+		"up-local/myapp/manifests/" + sha256Hex(manifest),
+		"up-local/myapp/blobs/" + sha256Hex(manifest),
+		"up-local/myapp/blobs/" + sha256Hex(cfg),
+		"up-local/myapp/blobs/" + sha256Hex(layer),
 	} {
 		if err := down.md.Remote().PutCache(context.Background(), &metadata.RemoteCacheEntry{
 			RepoKey: "docker-remote", Path: path, Kind: metadata.RemoteCacheKindContent,
@@ -261,7 +265,7 @@ func TestT392RemoteDegradationMatrix(t *testing.T) {
 	upSrv.Close()
 
 	// STALE serve of the expired copy, with the marker (已缓存可拉).
-	code, body, hdr := down.get("/v2/docker-remote/myapp/manifests/1.0", acceptManifests)
+	code, body, hdr := down.get("/v2/docker-remote/up-local/myapp/manifests/1.0", acceptManifests)
 	if code != http.StatusOK || body != string(manifest) {
 		t.Fatalf("degraded pull = (%d, %d bytes), want the stale copy", code, len(body))
 	}
@@ -274,7 +278,7 @@ func TestT392RemoteDegradationMatrix(t *testing.T) {
 
 	// Uncached against the dead upstream: the unfound family, zero 5xx
 	// (未缓存零 5xx).
-	down.seedDockerRemoteRepo(t, "docker-remote-dead", deadSrv.URL+"/v2/nothing")
+	down.seedDockerRemoteRepo(t, "docker-remote-dead", deadSrv.URL)
 	code, body, _ = down.get("/v2/docker-remote-dead/otherimg/manifests/9.9.9", acceptManifests)
 	if code != http.StatusNotFound || !strings.Contains(body, "MANIFEST_UNKNOWN") {
 		t.Errorf("uncached degraded manifest = (%d, %s), want the 404 unfound shape", code, body)
@@ -330,9 +334,9 @@ func TestT392RemoteBearerChain(t *testing.T) {
 	t.Cleanup(bearerSrv.Close)
 
 	down := &remotePullStack{newCatalogStack(t, true)}
-	down.seedDockerRemoteRepo(t, "docker-remote", bearerSrv.URL+"/v2/upstream")
+	down.seedDockerRemoteRepo(t, "docker-remote", bearerSrv.URL)
 
-	code, body, hdr := down.get("/v2/docker-remote/myapp/manifests/1.0", acceptManifests)
+	code, body, hdr := down.get("/v2/docker-remote/up-local/myapp/manifests/1.0", acceptManifests)
 	if code != http.StatusOK {
 		t.Fatalf("bearer pull = (%d, %s), want 200 through the dance", code, body)
 	}
@@ -348,7 +352,7 @@ func TestT392RemoteBearerChain(t *testing.T) {
 	}
 
 	// The second pull serves from the cache — no further dance rounds.
-	code, body, hdr = down.get("/v2/docker-remote/myapp/manifests/1.0", acceptManifests)
+	code, body, hdr = down.get("/v2/docker-remote/up-local/myapp/manifests/1.0", acceptManifests)
 	if code != http.StatusOK || body != string(manifest) {
 		t.Fatalf("post-dance pull = (%d, %d bytes), want the cached copy", code, len(body))
 	}
@@ -397,7 +401,7 @@ func TestT392RemoteUpstreamFactsDecrypted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RemoteUpstream on docker remote: %v", err)
 	}
-	if facts.URL != upSrv.URL+"/v2/up-local" {
+	if facts.URL != upSrv.URL {
 		t.Fatalf("facts URL = %q, want the upstream root", facts.URL)
 	}
 	if !facts.AllowPrivateUpstream || facts.ContentTTLSeconds <= 0 || facts.MissedTTLSeconds <= 0 {
