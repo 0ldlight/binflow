@@ -4,16 +4,17 @@ id: docker-remote/empty-blob-synthetic
 contract_ref: contracts/docker-remote.yaml#docker/remote-blob-empty-digest-synthetic
 matrix_ref: matrix.yaml#D12-R01
 capture:
-  mode: derived-from-report         # 书面源推导模式（compatibility-engineering.md §5 认可，confidence 上限 medium）
-  source_artifactory: reports/compatibility/L000-docker-remote-evidence.md#E4-6
-  source_difftest: reports/compatibility/L000-docker-remote-diff.md#C17
-  raw_response_available: false     # 参照实例原始响应未存档；:8082 当前无 docker 仓（仅 example-repo-local/Generic，2026-09-11 核查），
-                                    # 只读边界内不可活体采集
+  mode: live-captured               # L002-2 活体重采（2026-09-11）：参照实例运行时原始响应在档
+  captured_at: '2026-09-10T21:24Z（UTC；GET 与 HEAD 相邻两次）'
+  capture_instance: 'Artifactory-pro 7.161.20（http://localhost:8082，repo audit-probe-docker-remote，上游 registry:3 host.docker.internal:5588）'
+  capture_commands: >-
+    curl -sS --noproxy '*' -D a_empty.h -o a_empty.b -H "Authorization: Bearer <token>"
+    http://localhost:8082/v2/audit-probe-docker-remote/busybox/blobs/sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
+    （GET 与 -I HEAD 各一次；token 经 /v2/token Basic admin 取）
+  raw_response_archive: reports/compatibility/L002-contract-replay.md（C17 段：双端原始响应逐字，含 32B hex）
+  history: derived-from-report（L001-2 首评，source=E4-6/C17）→ live-captured（L002-2，本档）
 instance_versions:
   artifactory_ref: Artifactory-pro 7.161.20（revision 86120900，package_handler 5.675.40）
-  binflow_tested: uat-l000f-59f33ab5（rev 59f33ab5）
-confidence: medium                  # 单源书面推导上限；双侧 SAME 见证在案
-upgrade_path: >-
-  下次差分运行在 :8082 重建 remote 探针仓后以 golden-capture 活体重采（补 pending_capture 头集 + 32B 原始体存档），
-  升 confidence: high——金样更新须 compatibility-engineer 评审（禁止跟实现走的静默改金）。
-review: L001-2（2026-09-11）首批评审落档；evidence.kind=golden-capture 待差分侧回填
+  binflow_tested: uat-l0022-5f9c48d0（worktree rev 5f9c48d0 + 未提交 L002-1 docker adapter WIP；对拍记录同报告）
+confidence: high                    # 双端活体原始响应 + sha256 不变量 + 上游 0 往返（合成路径直证）
+review: L002-2（2026-09-11）活体重采落档；下次评审随 compatibility-engineer 例行

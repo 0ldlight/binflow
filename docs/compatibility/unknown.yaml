@@ -91,6 +91,42 @@ unknowns:
     required_evidence: "full-db 链换装实测（E4）",
     probe: "binarystore.xml 换 full-db 模板重启后上传/下载/GC",
     origin: "L000-A binary-provider-chain.md 模板矩阵残余", cross_ref: "" }
+- { unknown_id: U-STG-20, domain: STG, priority: P2, status: open,
+    question: "compress 在 PostgreSQL 的真实 HTTP 形态（活体探测时实例因宿主 IP 变更宕机受阻）",
+    why_unknown: "E4 探测窗口被环境事件打断；E1 只有 handler 静态形态",
+    required_evidence: "实例稳定后 compress 端点实测（E4）",
+    probe: "POST /artifactory/api/system/storage/compress 抓响应头/体/异步性",
+    origin: "L002-3 prune-gc-admin.md V-1", cross_ref: "" }
+- { unknown_id: U-STG-21, domain: STG, priority: P2, status: open,
+    question: "backup 坏 key 信封错误形态（errors-JSON vs 裸文本两源分歧）",
+    why_unknown: "反编译与官方文档两源分歧，无活体样本",
+    required_evidence: "带坏 key 的 backup 请求实测（E4）",
+    probe: "POST /api/system/storage/backup 传错误信封参数抓响应",
+    origin: "L002-3 prune-gc-admin.md V-2", cross_ref: "" }
+- { unknown_id: U-STG-22, domain: STG, priority: P2, status: open,
+    question: "PruneRequestModel 第 3/4 参数的 JSON 键名（库类不可达）",
+    why_unknown: "请求模型在外部库，E1 不可达",
+    required_evidence: "活体 prune/start 全参数请求实测（E4）",
+    probe: "prune/start 逐参数试探（dryRun/closeStreams/第 3/4 参）",
+    origin: "L002-3 prune-gc-admin.md V-3", cross_ref: "" }
+- { unknown_id: U-STG-23, domain: STG, priority: P2, status: open,
+    question: "status=\"error\" 终态形态与续跑 progress 计数口径",
+    why_unknown: "正常流只见过 running/stopped/finished",
+    required_evidence: "构造失败 prune（E4）",
+    probe: "prune 过程中断上游/磁盘制造 error 终态抓 status",
+    origin: "L002-3 prune-gc-admin.md V-4/V-5", cross_ref: "" }
+- { unknown_id: U-STG-24, domain: STG, priority: P1, status: open,
+    question: "UI maintenance 树鉴权门（basic 401 含已知好端点的形态）",
+    why_unknown: "反编译单源（E1），UI 面未活体验证",
+    required_evidence: "浏览器/带 basic 的 UI 维护页请求实测（E4）",
+    probe: "UI 登录态访问 maintenance 操作树抓 401/200 形态",
+    origin: "L002-3 prune-gc-admin.md V-6", cross_ref: "" }
+- { unknown_id: U-STG-25, domain: STG, priority: P2, status: open,
+    question: "gc 并发触发的 409 活体形态（资源层 412 改写链是否覆盖 gc 面）",
+    why_unknown: "并发 prune=412 已实证；gc 并发未测",
+    required_evidence: "双 gc 并发实测（E4）",
+    probe: "并行两个 POST /api/system/storage/gc 抓第二响应",
+    origin: "L002-3 prune-gc-admin.md V-7", cross_ref: "" }
 - { unknown_id: U-STG-02, domain: STG, priority: P1, status: open,
     question: "MPU（客户端分块续传）wire 协议本体——init/part/complete/abort 逐端点与 checksum-deploy token 用法",
     why_unknown: "s3-storage-layout.md §3 只有配置面与会话语义；REST handler 疑在外部 storage 库不可达",

@@ -1,15 +1,14 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-11T05:00:00Z
-current_iteration: 002
-current_goal: "C10 门控实现（ADR-0047）+ 契约 21 条目全量重放/D21 闭账 + prune 管理面规格票 + PRD C3 勘误票"
-iteration_001_seal: "五轨全收；差分 SAME 6→13；契约 VERIFIED 15/21；ADR-0047/0048+勘误三；iteration-001.md 落盘；commit 详见 BOARD"
-loop_002_tracks:
-  - { id: L002-1, domain: remote-cache(docker), owner: dev-registry-adapter, what: "C10 门控实现：DigestChainGate（repo.DigestChainGate facet + docker_refs 账本 + node 短路）按 ADR-0047/docs/design/remote-cache-v2.md §设计" }
-  - { id: L002-2, domain: differential, owner: differential-qa-engineer, what: "契约 21 条目全量重放（UAT :8083）+ D21 repo GET 取证闭账 + 金样活体重采（:8082 重建探针仓）" }
-  - { id: L002-3, domain: storage-governance, owner: reverse-engineer, what: "prune/gc 管理面行为规格票（202 异步+status 报告 JSON——storage-v2 REFACTOR 前置，对拍 :8082 /api/system/storage + prune 端点族）" }
-  - { id: L002-4, domain: product, owner: product-manager, what: "PRD v1.2/C3 勘误票：FR-11 错误体二分退役（token errors 数组形态差分实证推翻）；顺带整理用户裁定清单 7+2 项成待裁表格" }
+updated: 2026-09-11T06:00:00Z
+current_iteration: 003
+current_goal: "prune/gc 管理面实现（10 端点族）+ docker remote 头集/分页票族 + remote-cache 引擎 §8 B/C/D + MinIO 云链取证与 UAT 重建"
+iteration_002_seal: "四轨全收；C10 双审 APPROVE；契约 VERIFIED 16/21；divergence resolved 5；双审战绩 3/3；iteration-002.md 落盘"
+loop_003_tracks:
+  - { id: L003-1, domain: storage-admin, owner: dev-go-storage, what: "prune/gc 管理面实现票：10 端点族（prune start/stop/status 202 异步 + gc 200 同步点流 + size/info/optimize/compress/backup/exportds）按 docs/reverse/storage/prune-gc-admin.md 规格清偿差异 10 条；引擎 §8 B/C/D（21600s TTL 接线/304 透传/Invalidate 删 refs）串行接续" }
+  - { id: L003-2, domain: docker-remote-face, owner: dev-registry-adapter, what: "remote 面头集+分页票族：C06/#11 manifest+blob 头集（Etag/Last-Modified/Origin-Remote-Path）、#1 ping charset、#2 ping 坏凭据 Basic realm 臂、tags/_catalog n/last 透传（无效 n=404 pretty）+ Review A 微票三件（parse 失败 WARN/重复链外测试腿/T-log 17→16 勘误）" }
+  - { id: L003-3, domain: uat+cloud-evidence, owner: devops-engineer, what: "UAT 重建至已提交树 + MinIO 云链取证票（binarystore.xml 换 s3-storage-v3 指向本机 MinIO：PUT/GET/redirect/预签名形态——解 R-6 依赖 U-STG-15）" }
 
 active_tasks:
   - { id: L000-A, domain: storage-filestore, owner: reverse-engineer, what: "U-STG-01 取证：binarystore.xml 活体 + C 模板族 + A 常量域 → docs/reverse/storage/binary-provider-chain.md" }
@@ -33,6 +32,11 @@ completed_tasks:
   - { id: L001-3, what: "D20 凭据闭环：BINFLOW_REMOTE_CREDENTIALS_KEY 已配（.env.uat gitignored），认证回源 E4 全链验证（dind pull authorized request 200 + 无凭据 A/B 反证 401）；**尾缀取证：/v2 尾缀双侧行为逐字一致（parity）→ divergence 条目 1 改判 INTENTIONAL_DIFFERENCE/resolved**；产物 L001-url-suffix-evidence.md；Artifactory/BinFlow 测试资产删净" }
   - { id: L001-1, what: "DIVERGENT 族清偿 7/8：tags/_catalog 上游聚合、token 401 errors 数组、manifest/blob 404 detail 键、禁推 400 三文案、service host 回显（bearerChallenge 合一）——全部差分复验 SAME（**SAME 6→13 / DIVERGENT 12→5**，pre-fix 基线先行取证）；D21 域边界转票 L001-5（httpapi）；四包 -count=1 全绿；UAT= uat-l0011-f80c46aa；双审在途" }
   - { id: L001-5, what: "D21 修复：repositories.go remoteUpstreamURL 助手（list/detail 双面顶层 url=configuration.url，凭据字段零泄漏断言）；urlless 回落臂无实证已声明；httpapi 全包 232s 绿 + lint 0；遗留建议=契约/规格回写 remote 例外 + UAT repo GET 取证闭 D21（LOOP 002 契约重放一并做）" }
+  - { id: LOOP-001, what: "LOOP 001 闭卷：commits 615d379d/b1e1bc12/5f9c48d0 pushed；差分 SAME 6→13；契约 21 条目 VERIFIED 15；ADR-0047/0048+勘误三；iteration-001.md；resolved(parity) 闭环态设立" }
+  - { id: L002-4, what: "PRD 勘误 C8（milestone-2 v1.5：401 臂退役 errors 数组追认 L001-1、400 参数臂显式保留）+ pending-rulings.md v1.0（9 项待裁各带 PM 建议立场——R-1 TTL 对齐 9000/R-2 匿名默认开/R-3 SSRF 维持严/R-4 HA 两步走/R-5 GCS 不进/R-6 证据依赖暂缓/R-7 C05 INTENTIONAL/R-8 xray REMOVE/R-9 plugins DEPRECATE）；待用户批量裁定" }
+  - { id: L002-3, what: "prune/gc 管理面规格票：端点 10（prune 族 202 异步/optimize 202/gc 200 同步点流；并发 prune=412；GC cron 出厂 0 0 /4 * * ?，20 轮 minor 夹 1 轮 FULL）；PruneStatusReport 26 字段；BinFlow 差异 10 条（storage 族 9 端点缺+prune 面全缺+dry-run 极性反）；V-1~V-7 入队 U-STG-20~25；**环境事件：参照实例因宿主 DHCP 换网段 + system.yaml 写死节点 IP 宕机——agent 恢复性修复（备份在位，实例 200 复验）**" }
+  - { id: L002-1, what: "C10 门控落地（ADR-0047）：repo.DigestChainGate facet（docker_refs 账本 PK covering 查询零迁移）+ docker/helmoci 双臂接线；**伴生根因修复=remoteManifestRefs 空 Content-Type 恒 parse 失败（refs 从未写入，门控暴露潜伏缺口）**；差分直证=链外 404 ~5ms 上游零请求/链内代取 200/manifest 后门开；契约条目翻 VERIFIED；divergence C10 条目 resolved；残留=存量缓存 refs 缺行升级窗口项+设计 §8 票 B/C/D（LOOP 003 池）；双审在途" }
+  - { id: L002-2, what: "契约全量重放 21/21：SAME 12/DIVERGENT 8/in-flight 1（C10 条目实测门控断言过但归 L002-1 自验）；D21 双面闭账（同卷重建 UAT 后复验）；金样 2 件 live-captured（medium→high）；分页分歧实锤（Artifactory 尊重 n/last、无效 n=404 pretty）；新显性 DIVERGENT 3（#1 ping charset 缺/#2 ping 坏凭据臂 Basic realm/#11 blob GET 缺 Last-Modified+Origin-Remote-Path——并入 manifest-headers 票族）；附观察：BinFlow 删仓需 deleteContent=true（新 API 行为面）；UAT=uat-l0022-5f9c48d0（worktree+L002-1 WIP——LOOP 003 开环时重建到已提交树）" }
 
   - { id: L000-E, domain: release-packaging, owner: release-engineer, what: "DEFECT-L000-1 修复：deploy/release/Dockerfile.alpine + Dockerfile.distroless + deploy/dev/Dockerfile 补 COPY web/public ./public → compose up -d --build 全路径出证（wire-brand-assets 不再空）" }
   - { id: L000-F, domain: package-protocols-oss(docker), owner: dev-registry-adapter, what: "P0 修复：internal/adapter/docker/remote.go 上游 wire path 补 /v2/ 前缀（差分 C04/C09 灭因）+ wire path 单测 + registry:3 重放闭合五阻断案（C05~C08/C10）→ diff 报告追加复验段" }

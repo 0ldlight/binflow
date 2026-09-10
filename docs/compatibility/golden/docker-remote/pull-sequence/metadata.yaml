@@ -4,16 +4,20 @@ id: docker-remote/pull-sequence
 contract_ref: contracts/docker-remote.yaml#docker/remote-pull-sequence
 matrix_ref: matrix.yaml#D12-R01
 capture:
-  mode: derived-from-report          # 书面源推导（E4 观测 + E5/L000-F 差分 SAME 见证）；confidence 上限 medium
-  source_artifactory: reports/compatibility/L000-docker-remote-evidence.md#E1-1/E1-3/E2-1/E2-2/E2-3/E2-5
-  source_difftest: reports/compatibility/L000-docker-remote-diff.md#C04（含 L000-F 复验段）
-  raw_response_available: false      # 序列原始响应未存档；index digest 全值在两份源报告中均为截断记法，不补齐（禁猜测）
+  mode: live-captured               # L002-2 活体重采（2026-09-11）：真实客户端序列在档
+  captured_at: '2026-09-10T21:26Z（UTC）'
+  capture_instance: 'Artifactory-pro 7.161.20（http://localhost:8082，repo audit-probe-docker-remote，上游 registry:3 host.docker.internal:5588，hello-world:latest 首拉+二拉）'
+  capture_commands: >-
+    docker exec difftest-dind sh -c 'echo *** | docker login host.docker.internal:8082 -u admin --password-stdin &&
+    docker pull host.docker.internal:8082/audit-probe-docker-remote/hello-world:latest'（dind docker 27.5.1 经典栈，
+    --insecure-registry=host.docker.internal:8082）；digest 全值经 docker images --digests 与上游推送回执双源核对
+  raw_response_archive: reports/compatibility/L002-contract-replay.md（C04 段：dind 输出 + 上游日志 + BinFlow 同拓扑对拍）
+  history: derived-from-report（L001-2 首评）→ live-captured（L002-2，本档）
 instance_versions:
   artifactory_ref: Artifactory-pro 7.161.20（revision 86120900）
-  binflow_tested: uat-l000f-59f33ab5（rev 59f33ab5）
-confidence: medium
+  binflow_tested: uat-l0022-5f9c48d0（worktree rev 5f9c48d0 + 未提交 L002-1 docker adapter WIP；同拓扑对拍在报告）
+confidence: high                    # 真实客户端 + digest 全值 + 上游日志直证
 known_gaps:
-- 'manifest 内容字节未锚 fixture（sha256 锚定待补）——下一步差分运行捕获后固化'
+- 'manifest 内容字节未锚 fixture——以 digest 不变量锚定（拉取序列的 manifest 即上游字节，sha256==digest）；独立 manifest fixture 归 manifest 条目管辖'
 - '缓存布局侧效应（C05）为 DIVERGENT 在案（known-divergence docker/remote-cache-layout），金样只锚客户端可见面'
-upgrade_path: 下次差分运行 golden-capture 重采（补 digest 全值 + 逐步原始响应），升 high；更新须 compatibility-engineer 评审
-review: L001-2（2026-09-11）首批评审落档
+review: L002-2（2026-09-11）活体重采落档；下次评审随 compatibility-engineer 例行

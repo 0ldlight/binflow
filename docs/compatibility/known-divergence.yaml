@@ -32,6 +32,7 @@ entries:
   rationale: 差分 C10 DIVERGENT——语义级分歧（未拉 manifest 的 digest 是否上游代取），牵动缓存架构，需 remote-cache-v2 设计输入
   authority: { type: differential, ref: "reports/compatibility/L000-docker-remote-diff.md C10" }
   review_gate: LOOP 001 设计票 + 实现票
+  resolved: { date: '2026-09-11', evidence: 'L002-1（ADR-0047 DigestChainGate 落地）：链外 digest 本地 404 ~5ms 且上游日志零请求直证（对照修复前盲代理一次上游 404+负缓存）；链内未缓存代取 200；manifest 拉取后门开；契约条目 docker/remote-blob-unknown-digest-404 翻 VERIFIED（diff 复验 L002-1 段）' }
 - id: docker/remote-error-shapes
   surface: remote 错误形态族（C11 禁推 405→400 / C12 detail.reference→manifest / C13 detail.digest→blobSum / C15 tags 聚合缺失 / C16 域 404 形态 / D21 url 回显 / P3 service 常量）
   classification: BUG
@@ -42,9 +43,11 @@ entries:
     date: '2026-09-11'
     evidence: reports/compatibility/L000-docker-remote-diff.md L001-1 复验段（C11/C12/C13/C15/C16/service 七子项全 SAME 灭，verbatim 在案）
     note: >-
-      C11-C13/C15/C16 与 service 常量由 L001-1 清偿（契约条目已翻 VERIFIED）；D21 由 L001-5 修复（httpapi 双面，
-      conductor 2026-09-11 转达——差分复验证据待下轮回填）。枚举子项零残余，条目结案；伴生登记：httpapi router.go:291
-      no-adapter 兜底挑战 service 仍硬编码（生产装配不可达，不影响对拍面）。
+      C11-C13/C15/C16 与 service 常量由 L001-1 清偿（契约条目已翻 VERIFIED）；D21 由 L001-5 修复（httpapi 双面）——
+      差分复验已回填（L002-2，2026-09-11：UAT uat-l0022-5f9c48d0 上 List 面 `GET /api/repositories` remote 行 url 与
+      Detail 面 `GET /api/repositories/{key}` 顶层 url 均回显真实上游 http://host.docker.internal:5588，与 :8082
+      同构仓逐字一致；证据 reports/compatibility/L002-contract-replay.md D21 段）。枚举子项零残余，条目结案；伴生登记：
+      httpapi router.go:291 no-adapter 兜底挑战 service 仍硬编码（生产装配不可达，不影响对拍面）。
 - id: docker/ssrf-private-upstream-stricter
   surface: 上游私网限制（allowPrivateUpstream）
   classification: UNKNOWN
@@ -83,9 +86,15 @@ entries:
 - id: docker/remote-tags-catalog-pagination
   surface: remote tags/list 与 _catalog 的分页参数（n/last/Link 头）
   classification: UNKNOWN
-  rationale: "Review A（L001-1）发现的未观察角落：BinFlow remote 面无视 n/last 不回 Link（本地面支持两者、无效 n 400）；E7 仅观察裸 GET，Artifactory remote 面分页行为未取证"
-  authority: { type: pending, ref: "LOOP 002 金样采集点（?n= 形态对拍）" }
+  rationale: >-
+    Review A（L001-1）发现的未观察角落：BinFlow remote 面无视 n/last 不回 Link（本地面支持两者、无效 n 400）；
+    E7 仅观察裸 GET，Artifactory remote 面分页行为未取证。L002-2 第一手对拍（2026-09-11，registry:3 上游 3 tag）：
+    Artifactory remote 面【尊重】n 与 last（?n=2→["t1","t2"]；?n=2&last=t1→["t2","t3"]；无 Link 头回出），
+    无效 n=abc→404 pretty status 形态 "Not Found"（非 docker errors 数组）；BinFlow 同参无视（200 全量列表）——
+    分歧已实锤为双侧行为差异，不再是观察空白。
+  authority: { type: pending, ref: "契约补条目 + 实现裁定（n/last 透传语义 + 无效 n 错误形态）" }
   review_gate: LOOP 003 限期升级
+  evidence: reports/compatibility/L002-contract-replay.md 分页取证段
 # 条目模式（M3-2 落地）：
 # - id: rest/build-batch-delete-date-range
 #   surface: POST /api/build/delete
