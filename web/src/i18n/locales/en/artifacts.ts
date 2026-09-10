@@ -5,6 +5,14 @@ import { registerEn } from '../../index'
 
 registerEn('artifacts', {
   "⃠ 无权限列出仓库": "⃠ No permission to list repositories",
+  "下载归档": "Download archive",
+  "目录归档下载（api/archive/download——服务端装配 zip，单路径）": "Folder archive download (api/archive/download — server-assembled zip, single path)",
+  "下载归档（zip）": "Download archive (zip)",
+  "目录归档下载（api/archive/download——服务端装配 zip）": "Folder archive download (api/archive/download — server-assembled zip)",
+  "整仓归档下载（api/archive/download/{repo}——服务端装配 zip）": "Whole-repository archive download (api/archive/download/{repo} — server-assembled zip)",
+  "归档已下载 {v1}": "Archive downloaded: {v1}",
+  "归档下载失败：{v1}": "Archive download failed: {v1}",
+  "关闭错误提示": "Dismiss error",
   " 这是 remote 缓存——删除后下次请求将重新回源。": " This is remote cache — after deletion the next request re-fetches from upstream.",
   "：sha256 与服务端一致": ": sha256 matches the server",
   "（{favCount}）": " ({favCount})",

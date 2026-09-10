@@ -1,20 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, RefObject } from 'react'
 import { Link } from 'react-router-dom'
-import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import DialogActions from '@mui/material/DialogActions'
-import DialogContent from '@mui/material/DialogContent'
-import DialogTitle from '@mui/material/DialogTitle'
-import Drawer from '@mui/material/Drawer'
-import IconButton from '@mui/material/IconButton'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
 
+import { Button, ButtonAsChild } from '@/components/ui/button'
 import { useAuth } from '../app/AuthContext'
 import { PkgIcon } from './PkgIcon'
-import { CopyButton } from './CopyButton'
-import { EmptyState } from './EmptyState'
-import { ErrorCard } from './ErrorCard'
-import { Skeleton } from './Skeleton'
+import { CopyButton } from '@/components/layout/copy-button'
+import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { ApiError, apiJSON, errText, getRepositories } from '../lib/api'
 import { getRepoDetail, PACKAGE_TYPES } from '../lib/repos'
 import type { PackageType, RepoDetail } from '../lib/repos'
@@ -93,6 +86,16 @@ const t = tr('console')
 //
 // 403 收敛：仓库清单 GET /api/repositories 普通用户 403 → 已知 repo key 时
 // 走单仓详情兜底（m-holder 持 manage 可读）；仍不可得 → L2 空态卡。
+//
+// FE-P4 MUI 清场：MUI Drawer → Radix Dialog 右向 sheet（dialog.tsx
+// primitive 族同底座）；宽 clamp(480px,50vw,800px) 经 style 承载（v1.1
+// 实测参数原样）。锚族与语义 DOM 原样（smu-dialog/-grid/-grid-item-<pt>/
+// -repo/-tab-*/-pane-*/-cmd-*/-token/-token-panel/-stepup/-password*/
+// -reauth/-generate/-back/-done/-close）；焦点圈进/Tab 循环/Esc/滚动锁定
+// 交 Radix FocusScope（Esc 兜底不再需要文档级监听——DismissableLayer 的
+// Esc 监听在 document 级、任意焦点位可达，且药丸/主面板切换的焦点掉
+// body 场景同覆盖）；关闭回焦 = Radix FocusScope 卸载回焦（quick-set-me-up
+// 菜单链路）+ 调用方显式 focus() 双保险。
 
 /** Artifactory Set Me Up 令牌默认 24h（reverse §3.18：SetMeUp token 默认 24h 过期） */
 const TOKEN_TTL_SECONDS = 24 * 60 * 60
@@ -314,6 +317,23 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
   const deployBlocks = pkg && repoKey ? smuDeployCommands(pkg, repoKey, creds) : []
   const resolveBlocks = pkg && repoKey ? smuResolveCommands(pkg, repoKey) : []
 
+  // 回焦锚：挂载时捕获场外焦点元素，卸载时回焦（quick-set-me-up 等启动钮
+  // 的回焦家族契约——ui/dialog 的 DialogContent 同款：Radix FocusScope 的
+  // unmount 回焦在 React 19.2 下实测不发火，此处显式承载；微任务让位：
+  // 若 Radix 自身回焦恢复，不抢已就位的焦点）
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    return () => {
+      queueMicrotask(() => {
+        if (document.activeElement === document.body || document.activeElement === null) {
+          const el = returnFocusRef.current
+          if (el && el.isConnected) el.focus({ preventScroll: true })
+        }
+      })
+    }
+  }, [])
+
   // ---- Tab 三枚（role=tablist + 方向键，§9；T-382 起 Configure/Deploy/
   //      Resolve——方向键在三枚间循环） ----
   const [tab, setTab] = useState<(typeof TABS)[number]>('configure')
@@ -327,24 +347,6 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
     setTab(next)
     tabRef.current?.querySelector<HTMLButtonElement>(`[data-testid="smu-tab-${next}"]`)?.focus()
   }
-
-  // ---- 焦点陷阱 + Tab 循环：T-344 批 B 交 MUI modal、T-382 壳换 Drawer
-  //      （temporary variant 走同一 Modal/FocusTrap 底座——TrapFocus 首焦
-  //      落 paper〔tabIndex -1 承载 scrollable-region-focusable〕；Tab 循
-  //      环排除禁用钮——口令空时 smu-password-submit 禁用的破口场景由
-  //      getTabbable 语义覆盖；关闭时 MUI 归焦启动元素——quick-set-me-up
-  //      菜单链路）。Esc 兜底：MUI 的 Esc 监听在 modal root（冒泡路径内
-  //      才生效），药丸/主面板切换会把焦点元素卸载（焦点掉到 body）——
-  //      文档级监听补位；MUI 已处理的 Esc 会 stopPropagation，不会双触发。
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      e.preventDefault()
-      onClose()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
 
   const pkgMeta = pkg ? CLIENT_PKG_META.find((m) => m.id === pkg) : undefined
 
@@ -367,7 +369,9 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
           hint={t('Set Me Up 按已有仓库的包类型生成接入指引——先创建仓库。')}
           action={
             admin ? (
-              <Button component={Link} to="/admin/repositories/new" variant="contained" size="medium">{t('创建仓库')}              </Button>
+              <ButtonAsChild>
+                <Link to="/admin/repositories/new">{t('创建仓库')}</Link>
+              </ButtonAsChild>
             ) : undefined
           }
         />
@@ -424,163 +428,163 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
     )
   }
 
-  // paper slotProps 以变量承载（data-* 的字面量过剩属性检查绕行，同
-  // ConfirmDialog 注记）。宽 = 50vw 档（T-381 实测 800px@1600 / 640px@1280）
-  // ——clamp(480px, 50vw, 800px) 上下钳制 + min(…, 100vw) 窄屏兜底（票内
-  // 定案：两侧钳制取 v1.1 区间端点，100vw 防移动端横向溢出）。
-  const paperProps = {
-    'data-testid': 'smu-dialog',
-    'aria-labelledby': 'smu-dialog-title',
-    sx: {
-      width: 'min(clamp(480px, 50vw, 800px), 100vw)',
-      display: 'flex',
-      flexDirection: 'column',
-    },
-  }
-
   // 头部：标题（可及名源）+ 右上 X（抽屉族通用规格，§4）
   const header = (title: ReactNode) => (
-    <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
-      <DialogTitle id="smu-dialog-title" sx={{ pb: 0.5, pr: 0, minWidth: 0 }}>
+    <div className="flex items-start justify-between gap-2 px-4 pt-4">
+      <DialogPrimitive.Title id="smu-dialog-title" className="text-h3 min-w-0 font-semibold">
         {title}
-      </DialogTitle>
-      <IconButton aria-label={t('关闭')} data-testid="smu-close" onClick={onClose} sx={{ mt: 1, mr: 1 }}>
+      </DialogPrimitive.Title>
+      <button
+        type="button"
+        aria-label={t('关闭')}
+        data-testid="smu-close"
+        onClick={onClose}
+        className="mt-0.5 rounded-sm p-1 text-muted-foreground hover:bg-surface-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+      >
         ✕
-      </IconButton>
-    </Box>
+      </button>
+    </div>
   )
 
   return (
-    <Drawer
-      open
-      anchor="right"
-      variant="temporary"
-      onClose={onClose}
-      slotProps={{ paper: paperProps }}
-    >
-      {showGrid || !pkg ? (
-        <>
-          {header(t('选择客户端类型'))}
-          <DialogContent>
-            <p className="text-2">{t('选择包类型，了解如何向 BinFlow 解析与部署制品。')}</p>
-            {resolving ? <Skeleton lines={3} /> : renderGrid()}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={onClose}>{t('关闭')}</Button>
-          </DialogActions>
-        </>
-      ) : (
-        <>
-          {header(
-            <>{t('配置')} {pkgMeta?.label ?? pkg} {t('客户端')}              {repoKey && (
-                <span className="mono" lang="en" style={{ marginLeft: 8, fontSize: 'var(--bf-fs-body)' }}>
-                  {repoKey}
-                </span>
+    <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay data-slot="dialog-overlay" className="fixed inset-0 z-[90] bg-scrim" />
+        <DialogPrimitive.Content
+          data-testid="smu-dialog"
+          aria-labelledby="smu-dialog-title"
+          className="box-border fixed inset-y-0 right-0 z-[90] flex w-[min(clamp(480px,50vw,800px),100vw)] flex-col border-l border-border bg-surface-1 shadow-modal"
+        >
+          {showGrid || !pkg ? (
+            <>
+              {header(t('选择客户端类型'))}
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                <p className="text-2">{t('选择包类型，了解如何向 BinFlow 解析与部署制品。')}</p>
+                {resolving ? <StateSkeleton lines={3} /> : renderGrid()}
+              </div>
+              <div className="flex justify-end border-t border-border px-4 py-3">
+                <Button variant="outline" onClick={onClose}>{t('关闭')}</Button>
+              </div>
+            </>
+          ) : (
+            <>
+              {header(
+                <>{t('配置')} {pkgMeta?.label ?? pkg} {t('客户端')}
+                  {repoKey && (
+                    <span className="mono" lang="en" style={{ marginLeft: 8, fontSize: 'var(--bf-fs-body)' }}>
+                      {repoKey}
+                    </span>
+                  )}
+                </>,
               )}
-            </>,
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                <div className="field">
+                  <label htmlFor="smu-repo">{t('仓库')}</label>
+                  <select
+                    id="smu-repo"
+                    className="w-full"
+                    data-testid="smu-repo"
+                    value={repoKey}
+                    onChange={(e) => setRepoKey(e.target.value)}
+                  >
+                    {pkgRepos.map((r) => (
+                      <option key={r.key} value={r.key}>
+                        {r.key}
+                        {r.type !== 'local' ? t('（{v1}）', { v1: r.type }) : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="field-hint">{t('下拉只列')} {pkgMeta?.label ?? pkg} {t('类型的仓库。')}</div>
+                </div>
+
+                <div className="smu-tabs" role="tablist" aria-label={t('接入指引')} ref={tabRef} onKeyDown={onTabKeys}>
+                  <button
+                    type="button"
+                    className="smu-tab"
+                    role="tab"
+                    aria-selected={tab === 'configure'}
+                    data-testid="smu-tab-configure"
+                    onClick={() => setTab('configure')}
+                  >{t('配置 Configure')}</button>
+                  <button
+                    type="button"
+                    className="smu-tab"
+                    role="tab"
+                    aria-selected={tab === 'deploy'}
+                    data-testid="smu-tab-deploy"
+                    onClick={() => setTab('deploy')}
+                  >{t('部署 Deploy')}</button>
+                  <button
+                    type="button"
+                    className="smu-tab"
+                    role="tab"
+                    aria-selected={tab === 'resolve'}
+                    data-testid="smu-tab-resolve"
+                    onClick={() => setTab('resolve')}
+                  >{t('解析 Resolve')}</button>
+                </div>
+
+                {tab === 'configure' ? (
+                  <div role="tabpanel" data-testid="smu-pane-configure">
+                    {session && (
+                      <TokenArea
+                        mint={mint}
+                        admin={admin}
+                        username={session.username}
+                        oidcLeg={oidcLeg}
+                        resuming={!!resume}
+                        grantAt={resume ? stepUp.grantAt : null}
+                        password={password}
+                        setPassword={setPassword}
+                        passwordRef={passwordRef}
+                        onGenerate={() => void runMint()}
+                        onSubmitPassword={() => void runMint({ password })}
+                        onReauth={onReauth}
+                      />
+                    )}
+                    {configureBlocks.length === 0 && (
+                      // 包型无配置步（generic/pypi——curl/pip 开箱即用）：导航提示
+                      // 替代命令块，不发明命令（P3 同源纪律）
+                      <p className="field-hint">
+                        {pkg === 'pypi'
+                          ? t('pip 无需登录步骤——解析配置（pip.conf）在「解析 Resolve」Tab，发布凭据（.pypirc）在「部署 Deploy」Tab。')
+                          : t('curl 无需预配置——匿名读默认开；解析/上传命令见另两 Tab，需要认证的路径在命令中加 -u <用户名>:<令牌>。')}
+                      </p>
+                    )}
+                    {configureBlocks.map((c) => (
+                      <CmdBlock key={c.title} block={c} />
+                    ))}
+                  </div>
+                ) : tab === 'deploy' ? (
+                  <div role="tabpanel" data-testid="smu-pane-deploy">
+                    {deployBlocks.map((c, i) => (
+                      <CmdBlock key={c.title} block={c} testid={`smu-cmd-dep-${pkg}-${i}`} />
+                    ))}
+                  </div>
+                ) : (
+                  <div role="tabpanel" data-testid="smu-pane-resolve">
+                    {resolveBlocks.map((c, i) => (
+                      <CmdBlock key={c.title} block={c} testid={`smu-cmd-res-${pkg}-${i}`} />
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* 底栏（Artifactory 形态，v1.1 实测）：左文本返回链接 + 右主按钮 */}
+              <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
+                <Button
+                  variant="link"
+                  size="sm"
+                  data-testid="smu-back"
+                  className="px-0"
+                  onClick={() => setShowGrid(true)}
+                >{t('← 选择不同的包类型')}</Button>
+                <Button data-testid="smu-done" onClick={onClose}>{t('完成')}</Button>
+              </div>
+            </>
           )}
-          <DialogContent>
-            <div className="field">
-              <label htmlFor="smu-repo">{t('仓库')}</label>
-              <select
-                id="smu-repo"
-                data-testid="smu-repo"
-                value={repoKey}
-                onChange={(e) => setRepoKey(e.target.value)}
-              >
-                {pkgRepos.map((r) => (
-                  <option key={r.key} value={r.key}>
-                    {r.key}
-                    {r.type !== 'local' ? t('（{v1}）', { v1: r.type }) : ''}
-                  </option>
-                ))}
-              </select>
-              <div className="field-hint">{t('下拉只列')} {pkgMeta?.label ?? pkg} {t('类型的仓库。')}</div>
-            </div>
-
-            <div className="smu-tabs" role="tablist" aria-label={t('接入指引')} ref={tabRef} onKeyDown={onTabKeys}>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab === 'configure'}
-                data-testid="smu-tab-configure"
-                onClick={() => setTab('configure')}
-              >{t('配置 Configure')}              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab === 'deploy'}
-                data-testid="smu-tab-deploy"
-                onClick={() => setTab('deploy')}
-              >{t('部署 Deploy')}              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab === 'resolve'}
-                data-testid="smu-tab-resolve"
-                onClick={() => setTab('resolve')}
-              >{t('解析 Resolve')}              </button>
-            </div>
-
-            {tab === 'configure' ? (
-              <div role="tabpanel" data-testid="smu-pane-configure">
-                {session && (
-                  <TokenArea
-                    mint={mint}
-                    admin={admin}
-                    username={session.username}
-                    oidcLeg={oidcLeg}
-                    resuming={!!resume}
-                    grantAt={resume ? stepUp.grantAt : null}
-                    password={password}
-                    setPassword={setPassword}
-                    passwordRef={passwordRef}
-                    onGenerate={() => void runMint()}
-                    onSubmitPassword={() => void runMint({ password })}
-                    onReauth={onReauth}
-                  />
-                )}
-                {configureBlocks.length === 0 && (
-                  // 包型无配置步（generic/pypi——curl/pip 开箱即用）：导航提示
-                  // 替代命令块，不发明命令（P3 同源纪律）
-                  <p className="field-hint">
-                    {pkg === 'pypi'
-                      ? t('pip 无需登录步骤——解析配置（pip.conf）在「解析 Resolve」Tab，发布凭据（.pypirc）在「部署 Deploy」Tab。')
-                      : t('curl 无需预配置——匿名读默认开；解析/上传命令见另两 Tab，需要认证的路径在命令中加 -u <用户名>:<令牌>。')}
-                  </p>
-                )}
-                {configureBlocks.map((c) => (
-                  <CmdBlock key={c.title} block={c} />
-                ))}
-              </div>
-            ) : tab === 'deploy' ? (
-              <div role="tabpanel" data-testid="smu-pane-deploy">
-                {deployBlocks.map((c, i) => (
-                  <CmdBlock key={c.title} block={c} testid={`smu-cmd-dep-${pkg}-${i}`} />
-                ))}
-              </div>
-            ) : (
-              <div role="tabpanel" data-testid="smu-pane-resolve">
-                {resolveBlocks.map((c, i) => (
-                  <CmdBlock key={c.title} block={c} testid={`smu-cmd-res-${pkg}-${i}`} />
-                ))}
-              </div>
-            )}
-          </DialogContent>
-          {/* 底栏（Artifactory 形态，v1.1 实测）：左文本返回链接 + 右主按钮 */}
-          <DialogActions sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-            <Button
-              variant="text"
-              size="small"
-              data-testid="smu-back"
-              onClick={() => setShowGrid(true)}
-              sx={{ px: 0, minWidth: 0 }}
-            >{t('← 选择不同的包类型')}            </Button>
-            <Button variant="contained" size="medium" data-testid="smu-done" onClick={onClose}>{t('完成')}            </Button>
-          </DialogActions>
-        </>
-      )}
-    </Drawer>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   )
 }
 
@@ -670,7 +674,7 @@ function TokenArea({
       {mint.phase === 'done' ? (
         <div className="smu-token-panel" data-testid="smu-token-panel">
           <div>
-            <b>{t('令牌已生成')}</b>{t('（以')} <span className="mono" lang="en">{username}</span> {t('身份自铸）')}          </div>
+            <b>{t('令牌已生成')}</b>{t('（以')} <span className="mono" lang="en">{username}</span> {t('身份自铸）')}</div>
           <div className="token-line">
             <code data-testid="smu-token" lang="en">
               {mint.token}
@@ -678,7 +682,7 @@ function TokenArea({
             <CopyButton value={mint.token} label="API Token" />
           </div>
           <div className="field-hint">{t('关闭抽屉后不可再查看（服务端只存指纹）。有效期 24 小时（token_id')}{' '}
-            <span className="mono" lang="en">{mint.tokenId}</span>{t('）——CI 与脚本请使用此令牌，不要用控制台口令。')}          </div>
+            <span className="mono" lang="en">{mint.tokenId}</span>{t('）——CI 与脚本请使用此令牌，不要用控制台口令。')}</div>
         </div>
       ) : mint.phase === 'need-password' ? (
         <div className="smu-stepup" data-testid="smu-stepup">
@@ -713,8 +717,6 @@ function TokenArea({
           </details>
           <div style={{ marginTop: 8 }}>
             <Button
-              variant="contained"
-              size="medium"
               data-testid="smu-password-submit"
               disabled={mint.submitting || password === ''}
               onClick={onSubmitPassword}
@@ -726,7 +728,7 @@ function TokenArea({
       ) : mint.phase === 'need-reauth' ? (
         // OIDC 腿（T-260 / FR-81）：无本地口令——重认证引导，替代口令框
         <div className="smu-stepup" data-testid="smu-oidc-stepup">
-          <p className="field-hint" style={{ marginBottom: 8 }}>{t('服务端要求重新认证（step-up）：SSO 会话铸造令牌需到身份提供方重新登录一次。点击后将跳转登录页 （强制重新输入 IdP 凭据），完成后自动返回此处继续铸币——本抽屉的上下文会被记住。')}          </p>
+          <p className="field-hint" style={{ marginBottom: 8 }}>{t('服务端要求重新认证（step-up）：SSO 会话铸造令牌需到身份提供方重新登录一次。点击后将跳转登录页 （强制重新输入 IdP 凭据），完成后自动返回此处继续铸币——本抽屉的上下文会被记住。')}</p>
           {mint.error && (
             <p className="smu-error-inline" role="alert" data-testid="smu-reauth-error" lang="en">
               {mint.error}
@@ -743,8 +745,6 @@ function TokenArea({
           </details>
           <div style={{ marginTop: 8 }}>
             <Button
-              variant="contained"
-              size="medium"
               data-testid="smu-reauth"
               disabled={mint.busy}
               onClick={onReauth}
@@ -757,12 +757,10 @@ function TokenArea({
         <>
           {resuming && mint.phase === 'minting' && (
             // 回跳续铸 in-flight（§14.3-2）：grant 已到手、mint 自动重发中
-            <p className="field-hint" style={{ marginBottom: 8 }} role="status">{t('重认证完成——正在自动续铸令牌…（重认证凭证约')} {mmss(ttlLeft)} {t('内有效）')}            </p>
+            <p className="field-hint" style={{ marginBottom: 8 }} role="status">{t('重认证完成——正在自动续铸令牌…（重认证凭证约')} {mmss(ttlLeft)} {t('内有效）')}</p>
           )}
           <div style={{ marginBottom: 8 }}>
             <Button
-              variant="contained"
-              size="medium"
               data-testid="smu-generate"
               disabled={mint.phase === 'minting'}
               onClick={onGenerate}
@@ -777,7 +775,7 @@ function TokenArea({
                 ? t('以 {username}（SSO 会话）自铸 24 小时令牌（仅本人、TTL 有上限）；实例开启 step-up 时需到 IdP 重新认证。', { username: username })
                 : t('以 {username} 身份自铸 24 小时令牌（仅本人、TTL 有上限）；实例开启 step-up 时需口令重验。', { username: username })}
             {pending && (
-              <span className="field-hint" data-testid="smu-pending-hint" style={{ display: 'block' }}>{t('有一笔铸造正在等待重认证完成…（')}{pendingAgeMin} {t('分钟前发起；若已在登录页取消，直接重新生成即可再次发起）')}              </span>
+              <span className="field-hint" data-testid="smu-pending-hint" style={{ display: 'block' }}>{t('有一笔铸造正在等待重认证完成…（')}{pendingAgeMin} {t('分钟前发起；若已在登录页取消，直接重新生成即可再次发起）')}</span>
             )}
             {mint.phase === 'error' && (
               <span className="smu-error-inline" role="alert" style={{ display: 'block' }}>{t('铸币失败（HTTP')} {mint.status}{t('）：')}{mint.message}

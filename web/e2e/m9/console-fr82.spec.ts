@@ -225,13 +225,11 @@ test('topbar search: recent dropdown rides the shared store; Esc clears + blurs;
   await expect(page.locator('[data-testid="topbar-search"]')).toHaveValue('')
   await expect(page.locator('[data-testid="topbar-search"]')).not.toBeFocused()
 
-  // ⌘K 聚焦（下拉随聚焦展开，Esc#1 收它、Esc#2 清空失焦）；「/」非输入态聚焦
+  // ⌘K = 命令面板（FE-P4 起语义翻正——palette 承接，Esc 关面板）；「/」非输入态聚焦
   await page.keyboard.press('Control+k')
-  await expect(page.locator('[data-testid="topbar-search"]')).toBeFocused()
-  await expect(page.locator('[data-testid="topbar-search-recent"]')).toBeVisible()
+  await expect(page.locator('[data-testid="palette-root"]')).toBeVisible()
   await page.keyboard.press('Escape')
-  await page.keyboard.press('Escape')
-  await expect(page.locator('[data-testid="topbar-search"]')).not.toBeFocused()
+  await expect(page.locator('[data-testid="palette-root"]')).toHaveCount(0)
   await page.keyboard.press('/')
   await expect(page.locator('[data-testid="topbar-search"]')).toBeFocused()
 })

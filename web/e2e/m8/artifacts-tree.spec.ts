@@ -84,7 +84,8 @@ test('seed-m8 tree: deep link auto-expands ancestors, selects the node and scrol
 
   // 当前层 children 表（懒加载一层的数据面）+ 选中文件进 URL（T-434：文件是
   // 路径末段——?focus= 退役，断言反转①）
-  await expect(page.locator('[data-testid="tree-list"] tbody tr').first()).toBeVisible()
+  // P2 栈：children 面 = AG Grid（tbody tr 不复存在——行锚承载可见性）
+  await expect(page.locator('[data-testid="tree-row-f000.txt"]')).toBeVisible()
   await page.click('[data-testid="tree-row-f000.txt"]')
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${PERM_REPO}/perf/w03/f000\\.txt$`))
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
@@ -107,16 +108,17 @@ test('context menu: file/folder/repo forms, Shift+F10 reachable, delete reconcil
   await loginAs(page, 'admin')
   await page.goto(`/binflow/ui/artifacts/${key}/docs`)
 
-  // 文件形态：复制路径 / 下载 / 删除
+  // 文件形态：复制路径 / 复制到 / 移动到 / 下载 / 删除（P2 解锁 copy/move——
+  // 「Move/Copy 不建」的 T-434 旧断言随解锁退役；FE-P4 复修右键腿后本计数
+  // 与当前契约对齐：文件 5 项）
   const row = page.locator('[data-testid="tree-row-guide.md"]')
   await expect(row).toBeVisible()
   await row.click({ button: 'right' })
   await expect(page.locator('[data-testid="tree-context-menu"]')).toBeVisible()
-  for (const item of ['copy-path', 'download', 'delete']) {
+  for (const item of ['copy-path', 'copy-to', 'move-to', 'download', 'delete']) {
     await expect(page.locator(`[data-testid="tree-context-${item}"]`)).toBeVisible()
   }
-  // Move/Copy 不建（零影子入口）
-  await expect(page.locator('[data-testid="tree-context-menu"] button')).toHaveCount(3)
+  await expect(page.locator('[data-testid="tree-context-menu"] button')).toHaveCount(5)
   await page.keyboard.press('Escape')
   await expect(page.locator('[data-testid="tree-context-menu"]')).toHaveCount(0)
 
@@ -127,6 +129,7 @@ test('context menu: file/folder/repo forms, Shift+F10 reachable, delete reconcil
   await page.keyboard.press('Shift+F10')
   await expect(page.locator('[data-testid="tree-context-menu"]')).toBeVisible()
   await expect(page.locator('[data-testid="tree-context-copy-path"]')).toBeVisible()
+  await expect(page.locator('[data-testid="tree-context-archive"]')).toBeVisible()
   await expect(page.locator('[data-testid="tree-context-refresh"]')).toBeVisible()
   await page.keyboard.press('Escape')
 

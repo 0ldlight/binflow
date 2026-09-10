@@ -19,7 +19,7 @@
 //   repo-governance-card / repo-quota-input / repo-quota-save /
 //   repo-repl-card(-na|-goto|-edit-link|-table|-row-*) /
 //   repo-manage-note / repo-detail-readonly-note。
-import { lazy, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { Button, ButtonAsChild } from '@/components/ui/button'
@@ -28,7 +28,6 @@ import { useAuth } from '@/app/AuthContext'
 import { toast } from '@/lib/toast'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
-import { LegacyDialogHost } from '@/components/layout/legacy-host'
 import { ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '@/lib/api'
 import type { AuditEvent } from '@/lib/api'
 import { getAuditEventsPage } from '@/lib/governance'
@@ -41,6 +40,7 @@ import {
   cfgStrList,
   getRepoDetail,
   getRepoUsage,
+  reindexRepository,
   updateRepo,
 } from '@/lib/repos'
 import type { PackageType, RClass, RepoDetail, RepoUsage } from '@/lib/repos'
@@ -57,7 +57,7 @@ import '@/pages/repositories/repositories.css'
 
 const t = tr('repositories')
 
-// 旧全局对话框（MUI——终验强删项）
+// 全局对话框懒分片（FE-P4 新栈壳）
 const SetMeUpDialog = lazy(() => import('@/components/SetMeUpDialog'))
 const DeployDialog = lazy(() => import('@/components/DeployDialog'))
 
@@ -107,6 +107,61 @@ function QuotaLine({ usage }: { usage: RepoUsage }) {
         {t('（')}{pct.toFixed(1)}{t('%）')}{used >= quota ? t(' · 已满（写入将 413）') : pct >= 80 ? t(' · 接近上限') : ''}
       </div>
     </div>
+  )
+}
+
+/** 高级动作卡：重索引（FE-P4 解锁面——audit §2.17 helm/yum/deb/conan 四型） */
+function ReindexCard({ repoKey, packageType, disabled }: { repoKey: string; packageType: PackageType; disabled: boolean }) {
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+  const door = packageType === 'rpm' ? 'yum' : packageType === 'debian' ? 'deb' : packageType
+  const run = async () => {
+    if (busy) return
+    setBusy(true)
+    setResult(null)
+    try {
+      const text = await reindexRepository(packageType, repoKey)
+      setResult(text)
+      toast.success(t('已发起 {v1} 重索引', { v1: repoKey }))
+    } catch (err) {
+      const status = err instanceof ApiError ? err.status : 0
+      setResult(errText(err))
+      if (status === 501) {
+        toast.error(t('本实例不服务 {v1} 协议面（HTTP 501）', { v1: door }))
+      } else {
+        toast.error(t('重索引失败（HTTP {v1}）：{v2}', { v1: status, v2: errText(err) }))
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <section className="card section rounded-md border border-border bg-surface-1 p-4" data-testid="repo-reindex-card">
+      <h3 className="mb-2 text-[13px] font-semibold">{t('高级动作')}</h3>
+      <p className="text-dense text-muted-foreground">
+        {t('重建本仓的')} {door} {t('索引元数据（repo-operations 面——索引损坏/手动补齐时使用）。')}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="repo-reindex-run"
+          disabled={disabled || busy}
+          title={disabled ? t('仅全量 admin 可发起（服务端 403 兜底）') : t('POST /api/{door} 重索引端点', { door })}
+          onClick={() => void run()}
+        >
+          {busy ? t('发起中…') : t('重索引 Reindex')}
+        </Button>
+        {result && (
+          <span className="font-mono text-aux text-muted-foreground" lang="en" data-testid="repo-reindex-result" title={result}>
+            {result.slice(0, 120)}{result.length > 120 ? '…' : ''}
+          </span>
+        )}
+      </div>
+      <p className="field-hint mt-2 text-aux text-muted-foreground" data-testid="repo-reindex-note">
+        {t('helm 为异步调度（响应文案为准）；deb/yum/conan 按实例配置同步或异步。本实例不服务该协议面时返回 501 如实呈现。')}
+      </p>
+    </section>
   )
 }
 
@@ -305,7 +360,8 @@ export default function RepoDetailPage() {
         </p>
       )}
 
-      {/* 八 Tab 条（总令 §十） */}
+      {/* 八 Tab 条（总令 §十）——tablist 方向键选择随焦点（A3 键盘全集：
+          DetailInspector 同款链，P2 期缺者补齐） */}
       <div role="tablist" aria-label={t('仓库视图')} className="flex flex-wrap gap-1 border-b border-border">
         {TABS.map(([id, label]) => (
           <button
@@ -316,6 +372,19 @@ export default function RepoDetailPage() {
             data-testid={`repo-tab-${id}`}
             className={`-mb-px rounded-t-sm border-b-2 bg-transparent px-3 py-1.5 text-dense ${tab === id ? 'border-primary font-medium text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             onClick={() => setTab(id)}
+            onKeyDown={(e) => {
+              const tabsBtns = Array.from(e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [])
+              const idx = tabsBtns.indexOf(e.currentTarget)
+              if (e.key === 'ArrowRight' && tabsBtns[idx + 1]) {
+                e.preventDefault()
+                tabsBtns[idx + 1].focus()
+                tabsBtns[idx + 1].click()
+              } else if (e.key === 'ArrowLeft' && tabsBtns[idx - 1]) {
+                e.preventDefault()
+                tabsBtns[idx - 1].focus()
+                tabsBtns[idx - 1].click()
+              }
+            }}
           >
             {label}
           </button>
@@ -364,6 +433,10 @@ export default function RepoDetailPage() {
                 </p>
               )}
             </section>
+
+            {['helm', 'rpm', 'debian', 'conan'].includes(repo.packageType) && (
+              <ReindexCard repoKey={repo.key} packageType={packageType} disabled={!admin} />
+            )}
 
             {rclass === 'remote' && (
               <section className="card section rounded-md border border-border bg-surface-1 p-4" data-testid="repo-remote-card">
@@ -589,14 +662,14 @@ export default function RepoDetailPage() {
       {tab === 'activity' && <RepoActivityPanel repoKey={repo.key} />}
 
       {smuOpen && routeKey && (
-        <LegacyDialogHost>
+        <Suspense fallback={null}>
           <SetMeUpDialog preselectedRepo={routeKey} onClose={() => setSmuOpen(false)} />
-        </LegacyDialogHost>
+        </Suspense>
       )}
       {deployOpen && routeKey && (
-        <LegacyDialogHost>
+        <Suspense fallback={null}>
           <DeployDialog preselectedRepo={routeKey} onClose={() => setDeployOpen(false)} onUploaded={state.reload} />
-        </LegacyDialogHost>
+        </Suspense>
       )}
     </div>
   )

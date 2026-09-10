@@ -2,13 +2,12 @@
 // Main）。认证守卫：checking → boot-screen；anonymous → /login?return=
 // （AuthProvider 在根路由层常驻——本壳只做守卫与布局）。
 //
-// Set Me Up 全局对话框（含 OIDC step-up 回跳续铸）以 LegacyDialogHost
-// 挂载——MUI 树的旧组件，P4 重写后随桥退役（终验强删项清单成员）。
-import { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+// Set Me Up 全局对话框（含 OIDC step-up 回跳续铸）——FE-P4 起新栈壳
+// （Radix sheet），Suspense 懒分片照旧。
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 
 import { useAuth } from '@/app/AuthContext'
-import { LegacyDialogHost } from '@/components/layout/legacy-host'
 import { isReadOnlyAdmin } from '@/lib/api'
 import { useStepUp, abandonStepUp } from '@/lib/stepUpGrant'
 import type { PendingMint } from '@/lib/stepUpGrant'
@@ -17,12 +16,13 @@ import { tr } from '@/i18n'
 
 import { adminCrumbs, appTitle } from './breadcrumbs'
 import { NAV_GROUPS } from './nav-model'
+import { CommandPalette } from './CommandPalette'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 
 const t = tr('console')
 
-// MUI 树旧组件的懒分片（P4 重写退役——终验强删项清单成员）
+// Set Me Up 懒分片（Radix sheet——FE-P4 新栈）
 const SetMeUpDialog = lazy(() => import('@/components/SetMeUpDialog'))
 
 export function AppShell() {
@@ -123,9 +123,11 @@ export function AppShell() {
             <Outlet />
           </div>
         </main>
+        {/* FE-P4 A1：⌘K 命令面板（全局面板——开闭态在 command-palette-store） */}
+        <CommandPalette />
       </div>
       {smuMounted && (
-        <LegacyDialogHost>
+        <Suspense fallback={null}>
           <SetMeUpDialog
             preselectedRepo={resumeOpen ? resumeCtxRef.current?.repo : undefined}
             resume={resumeOpen ? resumeCtxRef.current : null}
@@ -138,7 +140,7 @@ export function AppShell() {
               openerRef.current?.focus()
             }}
           />
-        </LegacyDialogHost>
+        </Suspense>
       )}
     </div>
   )

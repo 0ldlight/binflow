@@ -1,5 +1,7 @@
 // Toast primitive：Sonner Toaster 封装（右下角堆叠——对齐旧 Snackbar
-// 位形；success 自动消失 / error 常驻的策略归上层 toast() 调用约定）。
+// 位形；success 自动消失 / error 常驻的策略归上层 toast() 调用约定——
+// closeButton 开启：常驻 error 的手动关闭通道，P4 起旧 Snackbar 退役后
+// 的对位能力）。
 import { Toaster as Sonner, toast } from 'sonner'
 import type { ComponentProps } from 'react'
 
@@ -11,6 +13,7 @@ function Toaster({ theme = 'system', ...props }: ToasterProps) {
       data-slot="toaster"
       theme={theme}
       position="bottom-right"
+      closeButton
       className="toaster group"
       toastOptions={{
         classNames: {

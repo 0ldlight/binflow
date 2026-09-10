@@ -64,7 +64,7 @@ export function EmptyState({
   message,
   hint,
   action,
-  testid,
+  testid = 'empty-state',
   illustration = false,
   className,
 }: {
@@ -78,7 +78,7 @@ export function EmptyState({
 }) {
   return (
     <div
-      data-testid={testid ?? 'empty-state'}
+      data-testid={testid}
       className={cn('flex flex-col items-start gap-1.5 rounded-md border border-dashed border-border bg-surface-1 px-4 py-6', className)}
     >
       {illustration && (

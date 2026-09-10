@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test'
 // pkg-grid-*，选定即关闭）；步骤按钮 form-next/prev 退役，门控断言改
 // form-submit 禁用态；列表类型筛选 select 退役（三 Tab 子路由承载，
 // virtual 仓行在 /admin/repositories/virtual Tab）；详情 governance 卡
-// 自本票起在「配置」Tab（repo-tab-config 先点，锚不变）。
+// 自本票起在「配置」Tab（P2 八 Tab 化后锚 = repo-tab-configuration——旧三 Tab 名随 P2 退役，选择器细节重做纪律）。
 //
 // 运行前提：已 `make console && make build` 的真二进制在前台 serve，
 // BASE 指向它（同 T-98 探针约定）；ADMIN_PW 默认 password（PRD §4）。
@@ -83,9 +83,9 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${key}$`))
   await expect(page.locator('[data-testid="repo-detail-page"] .key')).toHaveText(key)
   // governance 卡在「配置」Tab（T-240 三 Tab 化；锚不变）
-  await page.click('[data-testid="repo-tab-config"]')
+  await page.click('[data-testid="repo-tab-configuration"]')
   await expect(page.locator('[data-testid="repo-governance-card"]')).toContainText('1048576')
-  await page.click('[data-testid="repo-tab-summary"]')
+  await page.click('[data-testid="repo-tab-overview"]')
   await expect(page.locator('[data-testid="repo-usage-card"]')).toBeVisible()
 
   // API 对账：packageType / governance 字段回显（AC①：建后 curl 单查对账）

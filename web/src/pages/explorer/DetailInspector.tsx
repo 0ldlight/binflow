@@ -7,13 +7,13 @@
 //   （file，?stats）→ 类型/tags（docker）。
 // - 下载形态（B-2.12 + Q9）：24px 图标钮（直接下载）+ 伴随菜单（校验
 //   能力 + checksum/mimeType 的家）。
-// - 属性页签 = 旧 PropertiesTab（MUI 树）经 LegacyMount 嵌挂——终验强删
+// - 属性页签 = PropertiesTab 懒分片（FE-P4 新栈）
 //   项（P4 重写）。
 // - 锚族原样：node-detail / node-tab-* / node-file-url / node-repo-*
 //   / node-downloads / node-last-downloaded(-by) / node-remote-downloads
 //   / node-perms / node-download(-menu|-panel|-verify|-checksums)
 //   / delete-node-button / node-module-id / node-remote-error。
-import { lazy, useState } from 'react'
+import { Suspense, lazy, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -27,7 +27,6 @@ import { useAuth } from '@/app/AuthContext'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState } from '@/components/layout/states'
 import { StateSkeleton } from '@/components/layout/states'
-import { LegacyMount } from '@/components/layout/legacy-host'
 import { getNodeProperties } from '@/lib/api'
 import { formatBytes } from '@/lib/format'
 import { getRepoDetail } from '@/lib/repos'
@@ -56,7 +55,7 @@ import type { DetailTab, DownloadState } from './model'
 
 const tt = tr('artifacts')
 
-// 属性页签 = 旧 MUI PropertiesTab（LegacyMount 嵌挂——终验强删项）
+// 属性页签懒分片（FE-P4 新栈 PropertiesTab）
 const PropertiesTabLazy = lazy(() => import('@/pages/artifacts/PropertiesTab'))
 
 export type DetailTarget =
@@ -197,13 +196,13 @@ export function DetailInspector({
           />
         )
       ) : activeTab === 'props' && target.kind === 'node' ? (
-        <LegacyMount>
+        <Suspense fallback={null}>
           <PropertiesTabLazy
             repoKey={target.repoKey}
             path={target.node.folder ? `${target.node.path}/` : target.node.path}
             canWrite={canWriteProps}
           />
-        </LegacyMount>
+        </Suspense>
       ) : (
         <PermsTab target={target} />
       )}
@@ -258,7 +257,7 @@ function FileDownloadActions({
             <span aria-hidden="true" className="text-xs">▾</span>
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-[380px] p-3" align="end" data-testid="node-download-panel">
+        <PopoverContent className="w-[380px] p-3" align="end" data-testid="node-download-panel" aria-label={tt('下载与校验')}>
           <div className="flex flex-col gap-2">
             <Button variant="outline" size="sm" data-testid="node-download-menu-verify" disabled={busy} onClick={onVerify}>
               {DOWNLOAD_COPY.verifyLabel}

@@ -304,3 +304,28 @@ export function buildLocalQuotaBody(d: RepoDetail, quotaBytes: number): RepoConf
   }
   return body
 }
+
+/**
+ * 重索引（FE-P4 解锁面：audit §2.17——helm/yum/deb/conan 四型 7 op 的
+ * 管理面动作，此前无任何 UI 入口）。URL 形态按型分岔（router.go 实测）：
+ *   helm   POST /api/helm/{repo}/reindex（异步调度，200 文案）
+ *   rpm    POST /api/yum/{repo}（yum 全量重索引 = 仓资源本身）
+ *   debian POST /api/deb/reindex/{repo}
+ *   conan  POST /api/conan/{repo}/reindex（ManagementHandler 自带门）
+ * 返回 = 纯文本 200 文案（apiText）；501 = 本实例不服务该协议面（如实呈现）。
+ */
+export function reindexRepository(packageType: PackageType, repoKey: string): Promise<string> {
+  const key = encodeURIComponent(repoKey)
+  switch (packageType) {
+    case 'helm':
+      return apiText(`/helm/${key}/reindex`, { method: 'POST' })
+    case 'rpm':
+      return apiText(`/yum/${key}`, { method: 'POST' })
+    case 'debian':
+      return apiText(`/deb/reindex/${key}`, { method: 'POST' })
+    case 'conan':
+      return apiText(`/conan/${key}/reindex`, { method: 'POST' })
+    default:
+      return Promise.reject(new ApiError(400, `package type ${packageType} has no reindex door`))
+  }
+}

@@ -407,5 +407,16 @@
   "Virtual 仓库",
   "virtual 仓至少需要一个成员",
   "yumGroupFileNames（comps 组文件清单）",
-  "yumRootDepth（repodata 根深度）"
+  "yumRootDepth（repodata 根深度）",
+  "已发起 {v1} 重索引",
+  "本实例不服务 {v1} 协议面（HTTP 501）",
+  "重索引失败（HTTP {v1}）：{v2}",
+  "高级动作",
+  "重建本仓的",
+  "索引元数据（repo-operations 面——索引损坏/手动补齐时使用）。",
+  "仅全量 admin 可发起（服务端 403 兜底）",
+  "POST /api/{door} 重索引端点",
+  "发起中…",
+  "重索引 Reindex",
+  "helm 为异步调度（响应文案为准）；deb/yum/conan 按实例配置同步或异步。本实例不服务该协议面时返回 501 如实呈现。"
 ]

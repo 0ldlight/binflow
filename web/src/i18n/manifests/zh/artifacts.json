@@ -226,5 +226,13 @@
   "remote 仓浏览的是已缓存内容；首次访问的路径需经客户端拉取后才会出现在树上（可在仓库配置开启远端浏览 listRemoteFolderItems）。",
   "Size（直系文件合计）",
   "virtual 仓不经手删除（RE-08，服务端 405）——请到持有该制品的成员仓删除",
-  "virtual 仓是聚合视图：浏览合并各成员；上传/删除不经 virtual（删除走成员仓本身——BinFlow 有意不兼容，RE-08）。"
+  "virtual 仓是聚合视图：浏览合并各成员；上传/删除不经 virtual（删除走成员仓本身——BinFlow 有意不兼容，RE-08）。",
+  "关闭错误提示",
+  "下载归档（zip）",
+  "目录归档下载（api/archive/download——服务端装配 zip）",
+  "整仓归档下载（api/archive/download/{repo}——服务端装配 zip）",
+  "归档已下载 {v1}",
+  "归档下载失败：{v1}",
+  "下载归档",
+  "目录归档下载（api/archive/download——服务端装配 zip，单路径）"
 ]

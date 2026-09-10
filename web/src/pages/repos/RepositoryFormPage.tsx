@@ -12,7 +12,7 @@
 //
 // 形态承接：包类型网格 Dialog（进页必选；924px 居中档）→ 三段步进
 // （Basic | Advanced | Replications——第三步仅编辑×local，内嵌旧
-// ReplicationsSection〔MUI，LegacyMount——终验强删项〕）；右栏实时摘要；
+// ReplicationsSection 懒分片嵌挂）；右栏实时摘要；
 // Cancel + Create/Save 两钮（无 Reset——Q9 冻结）；?section=replications
 // 直落第三步；预留位字段族（repoLayout/Environments/notes/blackedOut/
 // archiveBrowsing/maxUniqueSnapshots/SuppressPOM）恒禁用零提交。
@@ -25,7 +25,7 @@
 // form-<policy 键> / form-step-* / form-error / form-submit /
 // repo-form-readonly-note / pkg-grid / pkg-grid-item-* / pkg-tier-* /
 // pkg-grid-cancel / form-reserved-* 族。
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -42,7 +42,6 @@ import {
 } from '@/components/ui/dialog'
 import { useAuth } from '@/app/AuthContext'
 import { toast } from '@/lib/toast'
-import { LegacyMount } from '@/components/layout/legacy-host'
 import { PkgIcon } from '@/components/PkgIcon'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { ApiError, canAdminWrite, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole } from '@/lib/api'
@@ -110,7 +109,7 @@ import { lazy } from 'react'
 
 const t = tr('repositories')
 
-// 旧 ReplicationsSection（MUI——第三步内嵌；终验强删项）
+// ReplicationsSection 懒分片（FE-P4 新栈）
 const ReplicationsSection = lazy(() => import('@/pages/repositories/ReplicationsSection'))
 
 const REMOTE_TTL_DEFAULTS = {
@@ -719,9 +718,9 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
           </div>
 
           {activeStep === 'replications' ? (
-            <LegacyMount>
+            <Suspense fallback={null}>
               <ReplicationsSection repoKey={routeKey ?? ''} canWrite={admin} focus={searchParams.get('section') === 'replications'} />
-            </LegacyMount>
+            </Suspense>
           ) : activeStep === 'basic' ? (
             <>
               <section className="form-section mb-3 rounded-md border border-border bg-surface-1 p-3" aria-label={t('常规设置')} data-testid="form-section-general">

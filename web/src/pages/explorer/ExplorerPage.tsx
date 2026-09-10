@@ -9,10 +9,10 @@
 // - 右键上下文菜单（tree-context-* 族 + copy/move 解锁项）+ 多选批量
 //   动作（复制/移动/删除）；
 // - BIG_DIR 警示 + docker 特化列（AG Grid 列族）；
-// - 上传/接入 = 旧 DeployDialog / SetMeUpDialog 经 LegacyDialogHost 挂载
-//   （MUI 树——终验强删项）；属性页签 = 旧 PropertiesTab 同款嵌挂。
+// - 上传/接入 = DeployDialog / SetMeUpDialog 懒分片（FE-P4 新栈壳）；
+//   属性页签 = PropertiesTab 同款嵌挂。
 // - 页根锚 tree-page。
-import { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { Button, ButtonAsChild } from '@/components/ui/button'
@@ -21,8 +21,7 @@ import { useConfirm } from '@/app/providers'
 import { toast } from '@/lib/toast'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState } from '@/components/layout/states'
-import { LegacyDialogHost } from '@/components/layout/legacy-host'
-import { ApiError, isReadOnlyAdmin } from '@/lib/api'
+import { ApiError, errText, isReadOnlyAdmin } from '@/lib/api'
 import { cfgBool, cfgStrList } from '@/lib/repos'
 import type { PackageType } from '@/lib/repos'
 import { formatBytes } from '@/lib/format'
@@ -35,7 +34,7 @@ import {
   useTreeCacheClear,
 } from '@/features/artifacts/hooks'
 import type { DirEntry } from '@/features/artifacts/hooks'
-import { ancestorDirs, deleteNode, downloadArtifact, mkdir, saveBlob, validateNameSegment } from '@/pages/artifacts/lib'
+import { ancestorDirs, deleteNode, downloadArchive, downloadArtifact, mkdir, saveBlob, validateNameSegment } from '@/pages/artifacts/lib'
 import type { ChildNode } from '@/pages/artifacts/lib'
 import { clientCommands } from '@/pages/repositories/commands'
 import { tr } from '@/i18n'
@@ -50,8 +49,7 @@ import type { DetailTab, DownloadState, MenuTarget, TreeSort } from './model'
 
 const tt = tr('artifacts')
 
-// 旧 DeployDialog / SetMeUpDialog（MUI 树——终验强删项清单成员；
-// LegacyDialogHost 自带 Suspense 回退）
+// DeployDialog / SetMeUpDialog 懒分片（FE-P4 新栈壳；Suspense 回退随挂）
 const DeployDialog = lazy(() => import('@/components/DeployDialog'))
 const SetMeUpDialog = lazy(() => import('@/components/SetMeUpDialog'))
 
@@ -173,7 +171,19 @@ export default function ExplorerPage() {
 
   // ---- 展开集 + 想要装载的目录集（懒单层语义）----
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  // 序列化仅作 memo 依赖（join('\n') 后再 split 会把含 \n 段键的复合集
+  // 切错——FE-P4 修 P2 遗留 bug：≥2 个展开键时 wanted 集被错切出
+  // {repo:'per',dir:'f'} 一类幽灵装载，二级展开永远装不到真目录）
   const expandedKey = Array.from(expanded).sort().join('\n')
+  const expandedEntries = useMemo(
+    () =>
+      Array.from(expanded).map((k) => {
+        const sep = k.indexOf('\n')
+        return { repo: k.slice(0, sep), dir: k.slice(sep + 1) }
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- expandedKey 是 expanded 的稳定序列化投影
+    [expandedKey],
+  )
 
   // 分类门需要父 listing 状态——先装载「选中仓根 + 乐观链 ∪ 展开集」的
   // 第一轮（不含未决末段），再据分类补装
@@ -185,12 +195,8 @@ export default function ExplorerPage() {
         wanted.push({ repo: repoKey, dir: d })
       }
     }
-    for (const key of expandedKey === '' ? [] : expandedKey.split('\n')) {
-      const sep = key.indexOf('\n')
-      wanted.push({ repo: key.slice(0, sep), dir: key.slice(sep + 1) })
-    }
-    return wanted
-  }, [repoKey, parentDir, expandedKey])
+    return [...wanted, ...expandedEntries]
+  }, [repoKey, parentDir, expandedEntries])
 
   const dirStateBase = useDirQueries(wantedBase, isDockerRepo)
   const parentSt = repoKey ? dirStateBase.get(`${repoKey}\n${parentDir}`) : undefined
@@ -453,6 +459,17 @@ export default function ExplorerPage() {
   const deleteSelected = async (nodes: ChildNode[]) => {
     for (const n of nodes) {
       await confirmDelete(repoKey, n)
+    }
+  }
+
+  // 目录归档下载（FE-P4 解锁面：api/archive/download——单路径语义，目录节点/
+  // 批量「恰好一个目录」时可用；pro 槽位未开时服务端 403/404 如实 toast）
+  const doArchive = async (repo: string, node: ChildNode) => {
+    try {
+      await downloadArchive(repo, node.path)
+      toast.success(tt('归档已下载 {v1}', { v1: `${node.path}/` }))
+    } catch (err) {
+      toast.error(tt('归档下载失败：{v1}', { v1: errText(err) }))
     }
   }
 
@@ -761,6 +778,7 @@ export default function ExplorerPage() {
                   onMenu={openMenuAt}
                   onCopyMove={(op, nodes) => setCopyMove({ op, nodes })}
                   onDeleteSelected={(nodes) => void deleteSelected(nodes)}
+                  onArchive={(node) => void doArchive(repoKey, node)}
                   remoteDegraded={cur?.status === 'ok' ? cur.remoteDegraded : undefined}
                   emptyState={
                     isVirtual ? (
@@ -851,6 +869,7 @@ export default function ExplorerPage() {
             )
           }}
           onDownload={(repo, node) => void doDownload(repo, node, node.sha256)}
+          onArchive={(repo, node) => void doArchive(repo, node)}
           onDelete={(repo, node) => void confirmDelete(repo, node)}
           onCopyMove={(op, node) => setCopyMove({ op, nodes: [node] })}
           onRefresh={(repo) => {
@@ -866,19 +885,19 @@ export default function ExplorerPage() {
       )}
 
       {smuOpen && (
-        <LegacyDialogHost>
+        <Suspense fallback={null}>
           <SetMeUpDialog preselectedRepo={repoKey || undefined} onClose={() => setSmuOpen(false)} />
-        </LegacyDialogHost>
+        </Suspense>
       )}
       {deployOpen && (
-        <LegacyDialogHost>
+        <Suspense fallback={null}>
           <DeployDialog
             preselectedRepo={repoKey || undefined}
             preselectedDir={dir || undefined}
             onClose={() => setDeployOpen(false)}
             onUploaded={refresh}
           />
-        </LegacyDialogHost>
+        </Suspense>
       )}
       {copyMove && repoKey && (
         <CopyMoveDialog
@@ -914,6 +933,7 @@ function TreeContextMenu({
   onClose,
   onCopyPath,
   onDownload,
+  onArchive,
   onDelete,
   onCopyMove,
   onRefresh,
@@ -929,6 +949,7 @@ function TreeContextMenu({
   onClose: () => void
   onCopyPath: (value: string) => void
   onDownload: (repo: string, node: ChildNode) => void
+  onArchive: (repo: string, node: ChildNode) => void
   onDelete: (repo: string, node: ChildNode) => void
   onCopyMove: (op: 'copy' | 'move', node: ChildNode) => void
   onRefresh: (repo: string) => void
@@ -970,6 +991,7 @@ function TreeContextMenu({
             title: tt('收藏是前端态（localStorage 持久）；树头 My Favorites 可只看收藏仓库'),
             run: () => { onToggleFavorite(t.repoKey); onClose() },
           },
+          { id: 'archive', label: tt('下载归档（zip）'), title: tt('整仓归档下载（api/archive/download/{repo}——服务端装配 zip）'), run: () => { onClose(); onArchive(t.repoKey, { name: t.repoKey, path: '', folder: true, size: null, lastModified: '', sha256: '' }) } },
           { id: 'refresh', label: tt('刷新'), run: () => onRefresh(t.repoKey) },
           ...(canSeeAdmin ? [{ id: 'open-admin', label: tt('在仓库管理中打开'), run: () => onOpenAdmin(t.repoKey) }] : []),
         ]
@@ -979,6 +1001,7 @@ function TreeContextMenu({
             // P2 解锁：copy/move（api/copy|move——pro 域，community 403 如实呈现）
             { id: 'copy-to', label: tt('复制到…'), disabled: readOnly, title: tt('服务端复制（api/copy，pro 域）——目录递归整树'), run: () => { onClose(); onCopyMove('copy', t.node) } },
             { id: 'move-to', label: tt('移动到…'), disabled: readOnly, title: tt('服务端移动（api/move，pro 域）——源删除 + 目标落地'), run: () => { onClose(); onCopyMove('move', t.node) } },
+            { id: 'archive', label: tt('下载归档（zip）'), title: tt('目录归档下载（api/archive/download——服务端装配 zip）'), run: () => { onClose(); onArchive(t.repoKey, t.node) } },
             { id: 'delete', label: tt('删除'), disabled: deleteBlocked, title: deleteTitle, run: () => { onClose(); onDelete(t.repoKey, t.node) } },
             { id: 'refresh', label: tt('刷新'), run: () => onRefresh(t.repoKey) },
           ]

@@ -5,6 +5,8 @@ import { registerEn } from '../../index'
 
 registerEn('search', {
   "· 本页": "· this page:",
+  "服务暂不可用": "Service temporarily unavailable",
+  "请求失败（HTTP {v1}）": "Request failed (HTTP {v1})",
   "（快滤自 {v1}）": " (quick-filtered by {v1})",
   "（流式语义 = 本页行数，非全量计数）": " (streaming semantics = rows on this page, not the full count)",
   "）+ build 族三入口 builds/modules/dependencies（T-511 起）；操作符 $eq/$ne/$gt/$gte/$lt/$lte/$match/$nmatch/$and/$or/$msp/$last/$before。 未支持域（statistics/build.promotions/releasebundle…）与语法错 → 400 逐字文案。分页/排序由查询的": ") plus the build-family entries builds/modules/dependencies (since T-511); operators $eq/$ne/$gt/$gte/$lt/$lte/$match/$nmatch/$and/$or/$msp/$last/$before. Unsupported domains (statistics/build.promotions/releasebundle…) and syntax errors → 400 with the verbatim message. Paging/sorting rides the query's",

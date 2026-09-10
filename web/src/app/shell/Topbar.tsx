@@ -1,17 +1,24 @@
-// 顶栏（新壳——architecture §4：面包屑/标题 · 全局搜索（驻留查询+最近词）
-// · 帮助 · 主题 · 用户菜单（Quick 动作仅全量 admin））。
+// 顶栏（新壳——architecture §4：面包屑/标题 · 全局搜索（驻留查询+最近词
+// +FE-P4 快速结果下拉）· 帮助 · 主题 · 用户菜单（Quick 动作仅全量 admin））。
 //
 // 语义平移自旧 AppShell 顶栏（audit §3 全局能力清单 #9/11/12/13/15/23）：
 // - topbar-search：Enter → /search?q=（/search 上 replace，沿当前 scope）；
 //   驻留回显（URL q 是事实源 + draft 草稿层）；最近词下拉聚焦恒渲染
 //   （空历史占位「暂无最近搜索」）；两段 Esc；↑↓ 循环。
+// - FE-P4 快速结果（A2）：输入 ≥2 字符防抖 300ms 打 POST /api/
+//   artifactsearch/quick（K64 名字片段内核——此前 API 在而未用的解锁面），
+//   top 5 制品行进下拉首段，点击深链树页（/artifacts/{repo}/{path}——
+//   文件末段即选中态）；Enter 语义不变（仍是提交搜索——快速结果只用
+//   鼠标/点击，避免键盘歧义）。
 // - admin-filter：/admin 域的管理资源过滤框（客户端子串过滤侧栏条目，
 //   Esc 清词）——管理态顶栏单框形态（制品搜索让位，7.161 同形）。
+// - ⌘K = 命令面板（FE-P4 A1，CommandPalette 组件承接——开闭走
+//   command-palette-store）；`/` 聚焦当前模式的框（既有键位不破）。
 // - 用户菜单 Quick 动作：仅全量 admin（readonly_admin 不见写入口）；
 //   Set Me Up 全局入口 + step-up 回跳续铸（useStepUp）。
-// - 锚族全保：topbar-breadcrumb / topbar-search(-recent-* ) / admin-filter
-//   / topbar-help / help-* / topbar-theme-toggle / session-* / quick-* /
-//   menu-edit-profile / logout-button / about-*。
+// - 锚族全保：topbar-breadcrumb / topbar-search(-recent-*) / topbar-search-quick
+//   (-item-<i>) / admin-filter / topbar-help / help-* / topbar-theme-toggle /
+//   session-* / quick-* / menu-edit-profile / logout-button / about-*。
 import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -34,7 +41,8 @@ import { useAuth } from '@/app/AuthContext'
 import { useTheme } from '@/app/providers'
 import { useConfirm } from '@/app/providers'
 import { BrandMark } from '@/components/BrandLogo'
-import { errText, isReadOnlyAdmin } from '@/lib/api'
+import { errText, isReadOnlyAdmin, quickArtifactSearch } from '@/lib/api'
+import type { QuickSearchHit } from '@/lib/api'
 import { useVersion } from '@/lib/useVersion'
 import { toast } from '@/lib/toast'
 import { tr } from '@/i18n'
@@ -45,6 +53,10 @@ const t = tr('console')
 
 const RECENT_SEARCH_KEY = 'binflow-console-recent-searches'
 const RECENT_SEARCH_MAX = 8
+/** 快速结果：≥2 字符触发、300ms 防抖、top 5（architecture §8 解锁面口径） */
+const QUICK_MIN_CHARS = 2
+const QUICK_DEBOUNCE_MS = 300
+const QUICK_MAX_ROWS = 5
 
 function loadRecentSearches(): string[] {
   try {
@@ -64,6 +76,17 @@ function commitRecentSearch(term: string): string[] {
     // localStorage 不可用：最近搜索退化为会话内
   }
   return next
+}
+
+/** 快速命中行 → 树页深链（ExplorerPage buildTreeUrl 同口径：repo 与各路径
+ *  段逐段编码；文件末段即选中态——深链不猝死红线 §0-5） */
+function quickHitURL(hit: QuickSearchHit): string {
+  const path = hit.path
+    .split('/')
+    .filter((s) => s !== '')
+    .map((s) => encodeURIComponent(s))
+    .join('/')
+  return `/artifacts/${encodeURIComponent(hit.repo)}${path ? `/${path}` : ''}`
 }
 
 export function Topbar({
@@ -97,7 +120,7 @@ export function Topbar({
   const readOnlyAdmin = isReadOnlyAdmin(session)
   const sessionToggleRef = useRef<HTMLButtonElement>(null)
 
-  // ---- 全局搜索（驻留查询 + 最近词） ----
+  // ---- 全局搜索（驻留查询 + 最近词 + 快速结果） ----
   const topbarSearchRef = useRef<HTMLInputElement>(null)
   const urlQ = location.pathname === '/search' ? (new URLSearchParams(location.search).get('q') ?? '').trim() : ''
   const [draft, setDraft] = useState<{ key: string; term: string }>({ key: '', term: '' })
@@ -106,6 +129,29 @@ export function Topbar({
   const [recentOpen, setRecentOpen] = useState(false)
   const [recentActive, setRecentActive] = useState(-1)
   const recentList = recent.filter((q) => q.toLowerCase().includes(searchTerm.trim().toLowerCase()))
+
+  // ---- 快速结果（A2）：防抖 + abort 在飞；会话死/网络错静默（被动下拉） ----
+  const [quick, setQuick] = useState<{ term: string; hits: QuickSearchHit[] } | null>(null)
+  useEffect(() => {
+    const term = searchTerm.trim()
+    if (term.length < QUICK_MIN_CHARS) {
+      setQuick(null)
+      return
+    }
+    const ctrl = new AbortController()
+    const timer = window.setTimeout(() => {
+      quickArtifactSearch(term, ctrl.signal)
+        .then((hits) => setQuick({ term, hits: hits.slice(0, QUICK_MAX_ROWS) }))
+        .catch(() => {
+          // 静默：被动提示面（401/abort/网络抖动不弹 toast、不清最近词）
+        })
+    }, QUICK_DEBOUNCE_MS)
+    return () => {
+      ctrl.abort()
+      window.clearTimeout(timer)
+    }
+  }, [searchTerm])
+  const quickHits = quick && quick.term === searchTerm.trim() ? quick.hits : null
 
   const submitTopbarSearch = (raw: string) => {
     const term = raw.trim()
@@ -161,18 +207,15 @@ export function Topbar({
     onAdminFilter(adminFilter)
   }, [adminFilter, onAdminFilter])
 
-  // ---- 全局快捷键（⌘K / /）——指向当前模式的框 ----
+  // ---- 全局快捷键（`/` 聚焦当前模式的框——FE-P4 起 ⌘K 归 CommandPalette
+  //      组件独占处理，本框不再抢键避免双开合对撞） ----
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (document.querySelector('[role="dialog"]')) return
       const el = e.target as HTMLElement | null
       const inField = !!el?.closest('input, textarea, select, [contenteditable="true"]')
       const target = adminMode ? adminFilterRef : topbarSearchRef
-      if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        target.current?.focus()
-        target.current?.select()
-      } else if (e.key === '/' && !inField) {
+      if (e.key === '/' && !inField) {
         e.preventDefault()
         target.current?.focus()
       }
@@ -239,7 +282,7 @@ export function Topbar({
               }
             }}
           />
-          <kbd aria-hidden="true" className="text-aux">⌘K</kbd>
+          <kbd aria-hidden="true" className="text-aux">/</kbd>
         </div>
       ) : (
         <div className="search-entry relative flex min-w-[220px] max-w-[360px] items-center gap-2 rounded-md border border-input px-3 text-muted-foreground focus-within:border-ring hover:border-muted-foreground/50">
@@ -264,9 +307,38 @@ export function Topbar({
             }}
             onKeyDown={onTopbarSearchKeyDown}
           />
-          <kbd aria-hidden="true" className="text-aux">⌘K</kbd>
+          <kbd aria-hidden="true" className="text-aux">/</kbd>
           {recentOpen && (
-            <div className="topbar-search-recent absolute right-0 top-[calc(100%+4px)] z-50 w-full min-w-[280px] rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-flat" data-testid="topbar-search-recent">
+            <div className="topbar-search-recent absolute right-0 top-[calc(100%+4px)] z-50 w-full min-w-[320px] rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-flat" data-testid="topbar-search-recent">
+              {/* FE-P4 快速结果（首段——artifactsearch/quick top 5，点击深链树页） */}
+              {quickHits && quickHits.length > 0 && (
+                <div className="search-quick mb-2 border-b border-border pb-2" data-testid="topbar-search-quick">
+                  <div className="search-recent-head mb-1 text-aux">{t('快速结果')}</div>
+                  <ul aria-label={t('快速结果')}>
+                    {quickHits.map((hit, i) => (
+                      <li key={`${hit.repo}/${hit.path}`}>
+                        <button
+                          type="button"
+                          className="flex w-full items-baseline gap-2 rounded-sm px-2 py-1 text-left hover:bg-accent"
+                          data-testid={`topbar-search-quick-item-${i}`}
+                          lang="en"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setRecentOpen(false)
+                            setRecentActive(-1)
+                            navigate(quickHitURL(hit))
+                          }}
+                        >
+                          <span className="min-w-0 break-all font-mono text-dense">
+                            <span className="text-muted-foreground">{hit.repo}/</span>
+                            {hit.path}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="search-recent-head mb-1 flex items-center justify-between text-aux">
                 <span>{t('最近搜索')}</span>
                 {recent.length > 0 && (

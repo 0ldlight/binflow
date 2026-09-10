@@ -130,7 +130,7 @@ export default function LoginPage() {
   return (
     <div
       data-testid="login-page"
-      className="flex min-h-screen flex-col items-center justify-center gap-5 px-3 py-5"
+      className="flex min-h-screen flex-col items-center justify-center gap-5 bg-background px-3 py-5 text-foreground"
     >
       {/* 品牌区（FR-126）：横版 lockup（path 化 wordmark，零字体依赖） */}
       <div className="text-center">

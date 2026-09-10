@@ -328,7 +328,7 @@ test('readonly_admin: section read-only — switch disabled, write entries absen
 
   // 仓 Tab 指针（升级形态）：摘要行 + 全局页链接；readonly 无编辑深链
   await page.goto(`/binflow/ui/admin/repositories/${key}`)
-  await page.click('[data-testid="repo-tab-replications"]')
+  await page.click('[data-testid="repo-tab-replication"]')
   await expect(page.locator('[data-testid="repo-repl-card"]')).toBeVisible()
   await expect(page.locator('[data-testid="repo-repl-table"]')).toBeVisible()
   await expect(page.locator(`[data-testid="repo-repl-row-${name}"]`)).toContainText('已停用')
@@ -361,9 +361,15 @@ test('admin: repos list Replications column — plain 0 vs Run trigger (toast + 
 
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/admin/repositories/local')
+  // 实例仓数超过页窗时新行在后页——key 过滤先收窄到目标行（accumulated
+  //  实例的确定性面；干净实例同过）
+  await page.fill('[data-testid="repos-filter-key"]', bare)
+  await expect(page.locator(`[data-testid="repos-row-${bare}"]`)).toBeVisible()
   // 未配置 = 纯文本「0」（R5 OSS 未启用分支同款 cell）
   await expect(page.locator(`[data-testid="repos-repl-${bare}"]`)).toHaveText('0')
   // 已配置 = icon-run 行级动作（aria-label 携带条数/启用数——T-404 形态不变）
+  await page.fill('[data-testid="repos-filter-key"]', wired)
+  await expect(page.locator(`[data-testid="repos-row-${wired}"]`)).toBeVisible()
   const run = page.locator(`[data-testid="repos-repl-run-${wired}"]`)
   await expect(run).toBeVisible()
   await expect(run).toHaveAttribute('aria-label', `复制 ${wired}：2 条配置（1 启用）`)
@@ -389,7 +395,7 @@ test('admin: repos list Replications column — plain 0 vs Run trigger (toast + 
 
   // remote 仓详情 Replications Tab：不适用注记（R10——配置面 push 源 = local 仓）
   await page.goto(`/binflow/ui/admin/repositories/${rem}`)
-  await page.click('[data-testid="repo-tab-replications"]')
+  await page.click('[data-testid="repo-tab-replication"]')
   await expect(page.locator('[data-testid="repo-repl-card"]')).toBeVisible()
   await expect(page.locator('[data-testid="repo-repl-na"]')).toBeVisible()
 

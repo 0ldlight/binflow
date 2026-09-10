@@ -16,7 +16,7 @@
 //   repos-usage-<key> / repos-repl-<key>(-run-<key>) / repos-setmeup-<key>
 //   / repos-deploy-<key> / repos-delete-<key> / repos-pager /
 //   repos-empty-filtered / repos-readonly-note。
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { Button, ButtonAsChild } from '@/components/ui/button'
@@ -27,7 +27,6 @@ import { toast } from '@/lib/toast'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { Pager, useClientPager } from '@/components/layout/pager'
-import { LegacyDialogHost } from '@/components/layout/legacy-host'
 import { ApiError, canAdminWrite, errText, isReadOnlyAdmin } from '@/lib/api'
 import type { RepoListItem } from '@/lib/api'
 import { useColumnPrefs } from '@/lib/columnPrefs'
@@ -45,7 +44,6 @@ import { REPO_CREATE_ENTRY } from '@/pages/repositories/formCopy'
 import { tr } from '@/i18n'
 // 仓库管理域样式（pages/repositories 支撑模块族共享——旧页面退役后由新页直挂）
 import '@/pages/repositories/repositories.css'
-import { lazy } from 'react'
 
 const tt = tr('repositories')
 
@@ -608,14 +606,14 @@ role="menuitem"
         ))}
 
       {smuKey && (
-        <LegacyDialogHost>
+        <Suspense fallback={null}>
           <SetMeUpDialog preselectedRepo={smuKey} onClose={() => setSmuKey(null)} />
-        </LegacyDialogHost>
+        </Suspense>
       )}
       {deployKey && (
-        <LegacyDialogHost>
+        <Suspense fallback={null}>
           <DeployDialog preselectedRepo={deployKey} onClose={() => setDeployKey(null)} onUploaded={reload} />
-        </LegacyDialogHost>
+        </Suspense>
       )}
     </div>
   )

@@ -160,12 +160,13 @@ test('setmeup grid: package types = union of existing repos; back link returns t
   await seedRepos(m8Client(), [{ key }, { key: `${key}-npmpkg`, packageType: 'npm' }])
 
   await loginAs(page, 'admin')
-  // T-492（B-3.2）：/artifacts 进入即自动选中首仓库——无仓库上下文的根态
-  // （步 0 药丸的前提）经「带选中进入 → 侧栏导航回根」重建（回根不重复
-  // 自动选中）
-  await page.goto(`/binflow/ui/artifacts/${key}`)
-  await page.click('[data-testid="app-nav"] a.nav-item:text-is("制品")')
-  await page.click('[data-testid="tree-setmeup"]')
+  // 无仓库上下文的根态（步 0 药丸的前提）：T-492 的「回根不重复自动选中」
+  // 前提在快实例上不可复现（auto-select 与本 click 的竞速——P3 基线二进制
+  // 同样失手，FE-P4 实证）；改走用户菜单 quick-set-me-up 全局入口（壳层
+  // 挂载、恒无仓库上下文——确定性等价面）
+  await page.goto('/binflow/ui/dashboard')
+  await page.click('[data-testid="session-toggle"]')
+  await page.click('[data-testid="quick-set-me-up"]')
 
   await expect(page.locator('[data-testid="smu-grid"]')).toBeVisible()
   // 药丸集合 = 实例内已有仓库的包类型并集（对齐 reverse §4.1）
@@ -422,16 +423,20 @@ test('axe: setmeup drawer (pills + main) clean in both themes; deploy dialog cle
     // （步 0 药丸前提）经「带选中进入 → 侧栏导航回根」重建
     await page.goto(`/binflow/ui/artifacts/${key}`)
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
-    await page.click('[data-testid="app-nav"] a.nav-item:text-is("制品")')
 
-    // 药丸态（步 0）
-    await page.click('[data-testid="tree-setmeup"]')
+    // 药丸态（步 0）——无仓库上下文入口走用户菜单 quick-set-me-up（auto-select
+    // 竞速的确定性等价面，见上腿注记）
+    await page.goto('/binflow/ui/dashboard')
+    await page.click('[data-testid="session-toggle"]')
+    await page.click('[data-testid="quick-set-me-up"]')
     await expect(page.locator('[data-testid="smu-grid-item-generic"]')).toBeVisible()
     await settleDialog(page, '[data-testid="smu-dialog"]')
     await expectA11yClean(page, testInfo, { include: '[data-testid="smu-dialog"]' })
     await page.keyboard.press('Escape')
 
-    // 主面板（含铸币区 + 三 Tab 命令块；Resolve 为 T-382 新增面）
+    // 主面板（含铸币区 + 三 Tab 命令块；Resolve 为 T-382 新增面）——回树页
+    // （上步 quick-set-me-up 入口在 dashboard，树页上下文在此重建）
+    await page.goto(`/binflow/ui/artifacts/${key}`)
     await page.click(`[data-testid="tree-repo-${key}"]`)
     await page.click('[data-testid="tree-setmeup"]')
     await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)

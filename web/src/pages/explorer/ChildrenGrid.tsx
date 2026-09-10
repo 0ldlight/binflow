@@ -14,7 +14,7 @@
 //   滚动语义取代 load-more——锚随形态退役入册 §10.6 P2 批）。
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'
-import type { CellClickedEvent, CellKeyDownEvent, ColDef, GridApi, GridReadyEvent, IDatasource, IGetRowsParams } from 'ag-grid-community'
+import type { CellClickedEvent, CellContextMenuEvent, CellKeyDownEvent, ColDef, GridApi, GridReadyEvent, IDatasource, IGetRowsParams } from 'ag-grid-community'
 import { AgGridReact } from 'ag-grid-react'
 
 // 社区模块注册（v33+ 必需——无限行模型/行选/虚拟滚动都在社区集内）
@@ -54,6 +54,7 @@ export function ChildrenGrid({
   onMenu,
   onCopyMove,
   onDeleteSelected,
+  onArchive,
   remoteDegraded,
   emptyState,
 }: {
@@ -73,6 +74,8 @@ export function ChildrenGrid({
   onMenu: (x: number, y: number, target: MenuTarget) => void
   onCopyMove: (op: 'copy' | 'move', nodes: ChildNode[]) => void
   onDeleteSelected: (nodes: ChildNode[]) => void
+  /** 目录归档下载（api/archive/download——单路径语义：仅「恰好一个目录」时启用） */
+  onArchive: (node: ChildNode) => void
   remoteDegraded?: string
   /** total=0 的空态（调用方按仓型预组装——tree-empty-dir / tree-empty-virtual 锚） */
   emptyState: React.ReactNode
@@ -127,6 +130,20 @@ export function ChildrenGrid({
       else onSelectFile(n.name)
     },
     [onNavigateDir, onSelectFile],
+  )
+
+  // 右键上下文菜单（FE-P4 补漏：P2 换 AG Grid 时只接了键盘 ContextMenu/
+  // Shift+F10 腿，鼠标右键腿漏接——m8 artifacts-tree 的 right-click 契约与
+  // P4 归档/复制/移动的右键入口共 consumes 本接线；树节点位 = 事件坐标 +2px
+  // 偏移，页边兜底由 openMenuAt 夹取）
+  const onCellContextMenu = useCallback(
+    (e: CellContextMenuEvent) => {
+      const n = e.data as ChildNode | undefined
+      if (!n) return
+      const ev = e.event as MouseEvent | undefined
+      onMenu(ev ? ev.clientX + 2 : 80, ev ? ev.clientY + 4 : 80, { kind: 'node', repoKey, node: n })
+    },
+    [onMenu, repoKey],
   )
 
   const onCellKeyDown = useCallback(
@@ -315,6 +332,17 @@ export function ChildrenGrid({
             >
               {tt('移动 {v1} 项', { v1: selectedNodes.length })}
             </Button>
+            {selectedNodes.length === 1 && selectedNodes[0].folder && (
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="tree-bulk-archive"
+                title={tt('目录归档下载（api/archive/download——服务端装配 zip，单路径）')}
+                onClick={() => onArchive(selectedNodes[0])}
+              >
+                {tt('下载归档')}
+              </Button>
+            )}
             <Button variant="outline" size="sm" data-testid="tree-bulk-delete" disabled={readOnly} onClick={() => onDeleteSelected([...selectedNodes])}>
               {tt('删除')}
             </Button>
@@ -380,6 +408,7 @@ export function ChildrenGrid({
             columnDefs={columnDefs}
             onGridReady={onGridReady}
             onCellClicked={onCellClicked}
+            onCellContextMenu={onCellContextMenu}
             onCellKeyDown={onCellKeyDown}
             rowModelType="infinite"
             cacheBlockSize={PAGE}

@@ -2845,3 +2845,24 @@ broken 双零与退役表一致）；③ 死锚处置随大版本回归进行—
 - **文件名与机制词**：`core-flow`（e2e/p2/core-flow.spec.ts 文件名段）；`t512-builds-page`（e2e/m17 的 T-512 spec 文件名段——FE-P3 日志曾误报为「旧页根锚退役」，实为文件名误入册 token，全库零该 testid 落点，退役条目不成立）；`unlocked-faces`（e2e/p3/unlocked-faces.spec.ts 文件名段）；`legacy-bridge`（P3 git rm 文件名段——HEAD 版该文件零 testid，自证非锚）；`load-more`（增量机制名，§10.7「客户端 load-more」行文）。
 - **§10.6 落笔兑现**：§10.7「退役登记（§10.6 增补 2 条）」预告的 tree-load-more 与 nav-mode-switch 表行本批补入（行文预告而表行缺失即 --ledger A3 断链主因）。
 - **对账器缺陷修留痕**：退役反检豁免（count 0 行不计消费）初版 toBeCount( 字面不命中从未生效；二版 toBeHidden() 与子串命中 not.toHaveCount(0) 过宽——活锚隐藏态断言被误除消费（node-download-panel、audit-columns-menu、help-docs 逐点自证为真实消费，退役反检零用例）。终版 = 仅豁免无 not. 前缀的 toHaveCount(0) 行。
+
+### §10.9 P4 批（FE-Rewrite 高级 UX 收编批，FE-P4 2026-09-10）
+
+**P4 新锚入册（14 名；载体与消费面见本节末行）**——逐名补录（对账器精确匹配层）：
+
+  `- `palette-root`
+  `- `palette-input`
+  `- `palette-item-<id>`
+  `- `palette-ai`
+  `- `topbar-search-quick`
+  `- `topbar-search-quick-item-<i>`
+  `- `repo-reindex-card`
+  `- `repo-reindex-run`
+  `- `repo-reindex-result`
+  `- `repo-reindex-note`
+  `- `tree-bulk-archive`
+  `- `tree-context-archive`
+
+**分组注记**：命令面板三件与占位入口（⌘K 面板——开闭态走 Zustand 面板仓；条目族含导航四分组与建仓/上传/新建/偏好动作，偏好组承载主题与语言切换）；顶栏快速结果两件（artifactsearch 快速端点首次 UI 化——输入两字符起防抖打点，命中行点击深链制品树）；仓库详情高级动作四件（reindex 族——四包型呈现，仅全量管理员可发起）；Explorer 归档下载两件（archive 下载端点首次 UI 化——多选工具条在恰好一个目录时启用，右键项挂目录与仓节点）。
+
+**MUI 清场留痕**：六个对话框与节件迁新栈壳（部署/Set Me Up/属性/复制配置/危险确认/吐司桥），锚族与调用方接口逐字保真；九个旧载体文件删除（过渡挂载壳、MUI 主题层、旧主题上下文、配方层、旧四态五件），独占锚为零、retired 桶自证；空态冻结锚的载体移至新栈四态层（prop 缺省值形态保持扫描可见性）。载体：web/src/app/shell/ 与 pages 诸件；消费：web/e2e/p4/ 三 spec。

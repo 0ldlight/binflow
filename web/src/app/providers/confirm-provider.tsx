@@ -71,10 +71,14 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [typed, setTyped] = useState('')
   const [promptPending, setPromptPending] = useState<PendingPrompt | null>(null)
   const [promptValue, setPromptValue] = useState('')
-  // 打开即聚焦取消钮（回调 ref——危险动作默认路径是放弃）
+  // 打开即聚焦取消钮（回调 ref——危险动作默认路径是放弃；confirm 与
+  // prompt 双对话框同契约 §3.5，prompt 腿 P2 期缺者 FE-P4 补齐）
   const cancelRef = useRef<HTMLButtonElement>(null)
   const cancelRefCb = useCallback((el: HTMLButtonElement | null) => {
     cancelRef.current = el
+    if (el) queueMicrotask(() => el.focus())
+  }, [])
+  const promptCancelRefCb = useCallback((el: HTMLButtonElement | null) => {
     if (el) queueMicrotask(() => el.focus())
   }, [])
 
@@ -141,7 +145,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               </p>
             )}
             <DialogFooter>
-              <Button variant="outline" data-testid="confirm-cancel" onClick={() => settlePrompt(null)}>
+              <Button ref={promptCancelRefCb} variant="outline" data-testid="confirm-cancel" onClick={() => settlePrompt(null)}>
                 {promptPending.options.cancelLabel ?? 'Cancel'}
               </Button>
               <Button

@@ -5,6 +5,17 @@ import { registerEn } from '../../index'
 
 registerEn('repositories', {
   " · 接近上限": " · near quota",
+  "已发起 {v1} 重索引": "Reindex started for {v1}",
+  "本实例不服务 {v1} 协议面（HTTP 501）": "This instance does not serve the {v1} protocol face (HTTP 501)",
+  "重索引失败（HTTP {v1}）：{v2}": "Reindex failed (HTTP {v1}): {v2}",
+  "高级动作": "Advanced actions",
+  "重建本仓的": "Rebuild this repository’s ",
+  "索引元数据（repo-operations 面——索引损坏/手动补齐时使用）。": " index metadata (repo-operations face — use when the index is damaged or needs manual backfill).",
+  "仅全量 admin 可发起（服务端 403 兜底）": "Only full admins can start this (server-side 403 backstop)",
+  "POST /api/{door} 重索引端点": "POST /api/{door} reindex endpoint",
+  "发起中…": "Starting…",
+  "重索引 Reindex": "Reindex",
+  "helm 为异步调度（响应文案为准）；deb/yum/conan 按实例配置同步或异步。本实例不服务该协议面时返回 501 如实呈现。": "helm is scheduled asynchronously (see the response text); deb/yum/conan are synchronous or asynchronous depending on instance configuration. A 501 is surfaced verbatim when this instance does not serve the protocol face.",
   " · 已满（写入将 413）": " · full (writes will get 413)",
   "_auth 生成：printf '%s:%s' \"<用户名>\" \"<令牌>\" | base64；裸 _auth 会被 npm 10 拒绝，凭据行必须带 //host/路径/ 前缀。": "_auth generation: printf '%s:%s' \"<username>\" \"<token>\" | base64; a bare _auth is rejected by npm 10 — the credentials line must carry a //host/path/ prefix.",
   "_auth 生成：printf 'admin:%s' \"$ADMIN_PW\" | base64；裸 _auth 会被 npm 10 拒绝，凭据行必须带 //host/路径/ 前缀。": "_auth generation: printf 'admin:%s' \"$ADMIN_PW\" | base64; a bare _auth is rejected by npm 10 — the credentials line must carry a //host/path/ prefix.",
