@@ -407,12 +407,15 @@ func TestTokenEndpointSuite(t *testing.T) {
 			principal:  nil,
 			wantStatus: http.StatusUnauthorized,
 			wantBody: func(t *testing.T, body string, _ *Handler) {
-				var oe oauthErrorBody
-				if err := json.Unmarshal([]byte(body), &oe); err != nil {
+				// L000-B E1-4: the anonymous 401 is Artifactory's generic
+				// error model, exact message observed verbatim.
+				var eb statusFormBody
+				if err := json.Unmarshal([]byte(body), &eb); err != nil {
 					t.Fatalf("body %q: %v", body, err)
 				}
-				if oe.Error != oauthErrInvalidClient {
-					t.Fatalf("error = %q, want invalid_client", oe.Error)
+				if len(eb.Errors) != 1 || eb.Errors[0].Status != http.StatusUnauthorized ||
+					eb.Errors[0].Message != "Authentication is required" {
+					t.Fatalf("body = %q, want the E1-4 status form", body)
 				}
 			},
 		},
@@ -576,17 +579,19 @@ func TestEnsureAnonymousSubjectFailure(t *testing.T) {
 	}
 }
 
-// TestRenderAuthFailureTokenPathIsOAuth (T-55, PRD v1.2/C3): a refused
-// credential on the token endpoint's route renders the OAUTH-form body with
-// the Bearer challenge header unchanged; every other /v2 route keeps the
-// registry spec body. The router reaches RenderAuthFailure through the
-// v2AuthFailure seam, so this pins the adapter-side split both ways.
-func TestRenderAuthFailureTokenPathIsOAuth(t *testing.T) {
+// TestRenderAuthFailureTokenPathIsArtifactoryForm (T-55, superseded by
+// L000-B C02): a refused credential on the token endpoint's route renders
+// Artifactory's generic error model — the exact observed "Bad Credentials"
+// body (E1-5) — with the Bearer challenge header unchanged (service = the
+// request's host, C01); every other /v2 route keeps the registry spec
+// body. The router reaches RenderAuthFailure through the v2AuthFailure
+// seam, so this pins the adapter-side split both ways.
+func TestRenderAuthFailureTokenPathIsArtifactoryForm(t *testing.T) {
 	h := newTokenHandler(nil, nil, &fakeUsers{}, Options{AnonymousAccess: true, BaseURL: "http://reg.example"})
 
 	cases := []struct {
-		path  string
-		oauth bool
+		path    string
+		badCred bool
 	}{
 		{TokenPath, true},
 		{TokenPath + "/sub", true},
@@ -595,22 +600,24 @@ func TestRenderAuthFailureTokenPathIsOAuth(t *testing.T) {
 	}
 	for _, tc := range cases {
 		w := &captureWriter{hdr: http.Header{}}
-		req := &http.Request{Method: http.MethodGet, URL: &url.URL{Path: tc.path}}
+		req := &http.Request{Method: http.MethodGet, URL: &url.URL{Path: tc.path}, Host: "reg.example"}
 		h.RenderAuthFailure(w, req)
 
 		if w.status != http.StatusUnauthorized {
 			t.Fatalf("%s status = %d", tc.path, w.status)
 		}
 		body := w.body.String()
-		if strings.Contains(body, `"status"`) {
-			t.Fatalf("%s body carries the /binflow envelope: %s", tc.path, body)
-		}
-		if tc.oauth {
-			if !strings.Contains(body, `"error":"invalid_client"`) {
-				t.Fatalf("%s body is not the OAuth form: %s", tc.path, body)
+		if tc.badCred {
+			var eb statusFormBody
+			if err := json.Unmarshal([]byte(body), &eb); err != nil {
+				t.Fatalf("%s body %q: %v", tc.path, body, err)
 			}
-			if strings.Contains(body, `"errors"`) {
-				t.Fatalf("%s body carries the registry spec envelope: %s", tc.path, body)
+			if len(eb.Errors) != 1 || eb.Errors[0].Status != http.StatusUnauthorized ||
+				eb.Errors[0].Message != "Bad Credentials" {
+				t.Fatalf("%s body = %q, want the E1-5 Bad Credentials status form", tc.path, body)
+			}
+			if strings.Contains(body, `"error":"invalid_client"`) {
+				t.Fatalf("%s body is still the OAuth form: %s", tc.path, body)
 			}
 		} else {
 			if !strings.Contains(body, `"code":"UNAUTHORIZED"`) {
@@ -618,8 +625,9 @@ func TestRenderAuthFailureTokenPathIsOAuth(t *testing.T) {
 			}
 		}
 		// The challenge header keeps the ADR-0010 clause 4 shape on BOTH
-		// branches (realm=<base>/v2/token, service=binflow).
-		want := `Bearer realm="http://reg.example/v2/token",service="binflow"`
+		// branches (realm=<base>/v2/token); service echoes the request's
+		// host (L000-B C01, Artifactory's own semantics).
+		want := `Bearer realm="http://reg.example/v2/token",service="reg.example"`
 		if got := w.hdr.Get("WWW-Authenticate"); got != want {
 			t.Fatalf("%s challenge = %q, want %q", tc.path, got, want)
 		}

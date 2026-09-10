@@ -83,6 +83,37 @@ type specErrorBody struct {
 	Errors []specError `json:"errors"`
 }
 
+// statusFormError is one entry of Artifactory's GENERIC error model — the
+// {"status":<n>,"message":"..."} entries (no code, no detail) its
+// non-registry faults render (L000-B evidence E1-5/E5-1: the token
+// endpoint's refused credential and the remote plane's upload refusals
+// both speak it, pretty-printed, while the manifest/blob 404s keep the
+// spec {code,detail} form above — the two forms coexist on one repository).
+type statusFormError struct {
+	Status  int    `json:"status"`
+	Message string `json:"message"`
+}
+
+// statusFormBody is the generic model's envelope (an errors array whose
+// entries carry status, not code — the docker CLI renders their message
+// under the "unknown:" prefix, E1-5's client-side fingerprint).
+type statusFormBody struct {
+	Errors []statusFormError `json:"errors"`
+}
+
+// writeStatusFormError renders the Artifactory generic error model
+// (pretty-printed, the evidence bodies' shape) with the mandatory
+// api-version header every /v2 response carries (DE-17).
+func writeStatusFormError(w http.ResponseWriter, status int, message string) {
+	hdr := w.Header()
+	hdr.Set("Content-Type", "application/json")
+	hdr.Set(HeaderAPIVersion, APIVersionValue)
+	w.WriteHeader(status)
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(statusFormBody{Errors: []statusFormError{{Status: status, Message: message}}})
+}
+
 // writeSpecError renders the registry error envelope with the mandatory
 // api-version header. detail may be nil (serialized as null).
 func writeSpecError(w http.ResponseWriter, status int, code, message string, detail any) {

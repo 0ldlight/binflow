@@ -255,32 +255,44 @@ func TestRemoteDegradationMatrix(t *testing.T) {
 	}
 }
 
-// TestRemoteWriteRefusal: every write verb on the remote repository
-// answers RE-05's 405 + Allow: GET — the read-only proxy contract, before
-// any upload session is minted.
+// TestRemoteWriteRefusal: the remote plane's write refusal answers
+// Artifactory's upload-rejection shape (L000-B C11, evidence E5-1..3) — 400
+// with the generic error model's per-endpoint copy for the three OBSERVED
+// verb families; an unobserved combination (a blob DELETE) keeps RE-05's
+// standing 405 + Allow: GET.
 func TestRemoteWriteRefusal(t *testing.T) {
 	down, _, _, _, manifest, _, _ := newRemoteFixture(t)
 
-	status, body, hdr := down.put("/v2/helmoci-remote/helmoci-local/mychart/manifests/0.2.0", manifest,
-		map[string]string{"Content-Type": mtOCIManifest})
-	if status != http.StatusMethodNotAllowed {
-		t.Fatalf("remote manifest PUT status = %d, want 405 (body %s)", status, body)
+	cases := []struct {
+		method, path, wantBody string
+	}{
+		{http.MethodPut, "/v2/helmoci-remote/helmoci-local/mychart/manifests/0.2.0",
+			"Unable to upload a manifest to a remote repository."},
+		{http.MethodPost, "/v2/helmoci-remote/helmoci-local/mychart/blobs/uploads/",
+			"Unable to upload blobs to a remote repository."},
+		{http.MethodDelete, "/v2/helmoci-remote/helmoci-local/mychart/manifests/sha256:" + sha256HexOf(manifest),
+			"Unable to delete a manifest from a remote repository."},
 	}
-	if got := hdr.Get("Allow"); got != http.MethodGet {
-		t.Errorf("405 Allow = %q, want GET", got)
+	for _, tc := range cases {
+		status, body, _ := down.do(tc.method, tc.path, adminUser, adminPass,
+			strings.NewReader(string(manifest)), map[string]string{"Content-Type": mtOCIManifest})
+		if status != http.StatusBadRequest {
+			t.Fatalf("%s %s status = %d, want 400 (body %s)", tc.method, tc.path, status, body)
+		}
+		if !strings.Contains(body, tc.wantBody) {
+			t.Errorf("%s %s body %q lacks the E5 copy %q", tc.method, tc.path, body, tc.wantBody)
+		}
 	}
-	if !strings.Contains(body, "read-only proxy cache") {
-		t.Errorf("405 body %q does not carry the RE-05 wording", body)
-	}
-	status, body, hdr = down.post("/v2/helmoci-remote/helmoci-local/mychart/blobs/uploads/", nil, nil)
-	if status != http.StatusMethodNotAllowed || hdr.Get("Allow") != http.MethodGet {
-		t.Fatalf("remote upload POST = (%d, Allow %q), want the 405/GET pair (body %s)",
-			status, hdr.Get("Allow"), body)
-	}
-	status, body, _ = down.do(http.MethodDelete, "/v2/helmoci-remote/helmoci-local/mychart/manifests/sha256:"+sha256HexOf(manifest),
+
+	// An unobserved combination keeps the standing 405 + Allow: GET.
+	status, body, hdr := down.do(http.MethodDelete,
+		"/v2/helmoci-remote/helmoci-local/mychart/blobs/sha256:"+sha256HexOf(manifest),
 		adminUser, adminPass, nil, nil)
 	if status != http.StatusMethodNotAllowed {
-		t.Fatalf("remote manifest DELETE status = %d, want 405 (body %s)", status, body)
+		t.Fatalf("blob DELETE status = %d, want the standing 405 (body %s)", status, body)
+	}
+	if got := hdr.Get("Allow"); got != http.MethodGet {
+		t.Errorf("blob DELETE Allow = %q, want GET", got)
 	}
 }
 

@@ -12,6 +12,7 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -210,30 +211,50 @@ func TestT392RemotePullThroughChain(t *testing.T) {
 	}
 }
 
-// TestT392RemoteWriteRefusal: every write verb against the docker remote
-// row answers RE-05's 405 + Allow: GET — the read-only proxy contract,
-// answered before any upload session is minted.
+// TestT392RemoteWriteRefusal: the remote plane's write refusal answers
+// Artifactory's upload-rejection shape (L000-B C11, evidence E5-1..3) — 400
+// with the generic error model's per-endpoint copy for the three OBSERVED
+// verb families; the unobserved combinations (a blob DELETE) keep RE-05's
+// standing 405 + Allow: GET.
 func TestT392RemoteWriteRefusal(t *testing.T) {
 	down, _, _, manifest, _, _ := newDockerRemoteFixture(t)
 
 	for _, tc := range []struct {
 		method, path string
+		wantBody     string
 	}{
-		{http.MethodPut, "/v2/docker-remote/up-local/myapp/manifests/2.0"},
-		{http.MethodPost, "/v2/docker-remote/up-local/myapp/blobs/uploads/"},
-		{http.MethodDelete, "/v2/docker-remote/up-local/myapp/manifests/sha256:" + sha256Hex(manifest)},
+		{http.MethodPut, "/v2/docker-remote/up-local/myapp/manifests/2.0",
+			"Unable to upload a manifest to a remote repository."},
+		{http.MethodPost, "/v2/docker-remote/up-local/myapp/blobs/uploads/",
+			"Unable to upload blobs to a remote repository."},
+		{http.MethodPatch, "/v2/docker-remote/up-local/myapp/blobs/uploads/deadbeef",
+			"Unable to upload blobs to a remote repository."},
+		{http.MethodDelete, "/v2/docker-remote/up-local/myapp/manifests/sha256:" + sha256Hex(manifest),
+			"Unable to delete a manifest from a remote repository."},
 	} {
-		code, body, hdr := down.serveReq(tc.method, tc.path, strings.NewReader(`{}`),
+		code, body, _ := down.serveReq(tc.method, tc.path, strings.NewReader(`{}`),
 			map[string]string{"Content-Type": mediaTypeDockerManifest})
-		if code != http.StatusMethodNotAllowed {
-			t.Fatalf("%s %s = (%d, %s), want 405", tc.method, tc.path, code, body)
+		if code != http.StatusBadRequest {
+			t.Fatalf("%s %s = (%d, %s), want 400", tc.method, tc.path, code, body)
 		}
-		if got := hdr.Get("Allow"); got != http.MethodGet {
-			t.Errorf("%s %s Allow = %q, want GET", tc.method, tc.path, got)
+		var eb statusFormBody
+		if err := json.Unmarshal([]byte(body), &eb); err != nil {
+			t.Fatalf("%s %s body %q: %v", tc.method, tc.path, body, err)
 		}
-		if !strings.Contains(body, "read-only proxy cache") {
-			t.Errorf("%s %s body %q lacks the RE-05 wording", tc.method, tc.path, body)
+		if len(eb.Errors) != 1 || eb.Errors[0].Status != http.StatusBadRequest ||
+			eb.Errors[0].Message != tc.wantBody {
+			t.Errorf("%s %s body = %q, want the E5 copy %q", tc.method, tc.path, body, tc.wantBody)
 		}
+	}
+
+	// An unobserved combination keeps the standing 405 + Allow: GET.
+	code, body, hdr := down.serveReq(http.MethodDelete,
+		"/v2/docker-remote/up-local/myapp/blobs/sha256:"+sha256Hex(manifest), nil, nil)
+	if code != http.StatusMethodNotAllowed {
+		t.Fatalf("blob DELETE = (%d, %s), want the standing 405", code, body)
+	}
+	if got := hdr.Get("Allow"); got != http.MethodGet {
+		t.Errorf("blob DELETE Allow = %q, want GET", got)
 	}
 }
 

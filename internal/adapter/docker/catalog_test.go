@@ -675,8 +675,10 @@ func TestCatalogClosedInstanceChallenges(t *testing.T) {
 	if !strings.Contains(ch, `scope="`+scopeRegistryCatalog+`"`) {
 		t.Fatalf("challenge %q carries no catalog scope", ch)
 	}
-	if !strings.Contains(ch, `service="`+ServiceID+`"`) {
-		t.Fatalf("challenge %q carries no service", ch)
+	// service echoes the request's host (L000-B C01: httptest requests
+	// present "example.com").
+	if !strings.Contains(ch, `service="example.com"`) {
+		t.Fatalf("challenge %q carries no host-echo service", ch)
 	}
 
 	// The tags/list plane stays on the content-read scope instead (AC4:

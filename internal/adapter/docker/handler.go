@@ -53,8 +53,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // closed-instance anonymous challenge. httpapi's router reaches it through
 // the narrow v2AuthFailure interface so neither package imports the other.
 // T-55 exception: the token endpoint's refused credential keeps the same
-// Bearer challenge header but renders the OAuth error body (PRD v1.2/C3 —
-// every /v2/token non-2xx is OAuth form; the 400s already were).
+// Bearer challenge header but renders Artifactory's generic error model
+// body ("Bad Credentials", L000-B C02 — the OAuth-form ruling applies to
+// the endpoint's parameter 400s only).
 func (h *Handler) RenderAuthFailure(w http.ResponseWriter, r *http.Request) {
 	if r.URL != nil && isTokenRoute(r.URL.EscapedPath()) {
 		h.renderTokenAuthFailure(w, r)
@@ -66,8 +67,8 @@ func (h *Handler) RenderAuthFailure(w http.ResponseWriter, r *http.Request) {
 // servePing implements DE-01 (D44-1/C6 errata form): an AUTHENTICATED
 // ping answers 200 {} with the api-version header; every unauthenticated
 // ping — on an anonymous-open instance too — answers 401 with the Bearer
-// challenge (realm = <base>/v2/token, service="binflow", ADR-0010
-// clause 4). The unconditional challenge is what ping-caching clients
+// challenge (realm = <base>/v2/token, service = the request's host,
+// ADR-0010 clause 4 as aligned by L000-B C01). The unconditional challenge is what ping-caching clients
 // (docker daemon, containers/image: they authenticate only against the
 // challenge the ping cached) need to ever negotiate; anonymous access
 // flows through the anonymous token instead of a challenge-free ping, and
@@ -100,14 +101,30 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 // is empty on the ping endpoint (identity only); endpoint-scoped
 // challenges (repository:<name>:pull,push) are T-37's to derive.
 func (h *Handler) challenge(w http.ResponseWriter, r *http.Request, scope string) {
-	ch := fmt.Sprintf(`Bearer realm="%s",service="%s"`, h.realmBase(r)+TokenPath, ServiceID)
+	hdr := w.Header()
+	hdr.Set("WWW-Authenticate", h.bearerChallenge(r, scope))
+	writeSpecError(w, http.StatusUnauthorized, ErrCodeUnauthorized,
+		"authentication required", nil)
+}
+
+// bearerChallenge builds the WWW-Authenticate Bearer value (the one
+// construction both challenge sites share — the route gate and the token
+// endpoint's refused-credential arm). The service= value is the request's
+// own host[:port] echoed back (L000-B C01: Artifactory's
+// service="localhost:8082" is the registry host the client addressed, not
+// a product constant; the token spec's service semantics = the registry
+// host). A request without a Host (synthetic zero-value requests) falls
+// back to the ServiceID constant.
+func (h *Handler) bearerChallenge(r *http.Request, scope string) string {
+	service := r.Host
+	if service == "" {
+		service = ServiceID
+	}
+	ch := fmt.Sprintf(`Bearer realm="%s",service="%s"`, h.realmBase(r)+TokenPath, service)
 	if scope != "" {
 		ch += fmt.Sprintf(`,scope="%s"`, scope)
 	}
-	hdr := w.Header()
-	hdr.Set("WWW-Authenticate", ch)
-	writeSpecError(w, http.StatusUnauthorized, ErrCodeUnauthorized,
-		"authentication required", nil)
+	return ch
 }
 
 // realmBase resolves the externally visible origin for the challenge
@@ -158,6 +175,12 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 	case strings.HasPrefix(path, catalogPath+"/"):
 		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,
 			"unknown registry route "+path, nil)
+		return
+	case repoCatalogKey(path) != "":
+		// The repo-domain catalog, GET /v2/<repoKey>/_catalog (L000-B C16):
+		// intercepted before the name parser for the same reserved-prefix
+		// reason — a "_catalog" image slot carries no registry route.
+		h.serveRepoCatalog(w, r, path, repoCatalogKey(path))
 		return
 	case !strings.HasPrefix(path, "/v2/"):
 		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,

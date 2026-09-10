@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,10 +33,12 @@ import (
 //   - blob GET/HEAD: the same probe/land flow over the digest-keyed blob
 //     path, STREAMED through a storage session (unbounded body, flat heap
 //     — FR-20-AC11) with the digest enforced at commit;
-//   - tags/list: the cached tag rows (a tag lands with its manifest — no
-//     upstream tags/list proxying, helm.md 8.3's scope line);
-//   - every write verb: 405 + Allow: GET (RE-05 — remote is a read-only
-//     proxy cache; cache invalidation is the REST plane's RE-06 arm).
+//   - tags/list and the repo-domain _catalog: the upstream LIST
+//     conversation (L000-B C15/C16, evidence E7) — the tags/catalog pages
+//     fetched live from the upstream (Link rel="next" aggregation), never
+//     the cached rows alone;
+//   - every observed write verb: Artifactory's 400 upload refusal (C11);
+//     the unobserved combinations keep RE-05's 405 + Allow: GET.
 //
 // The upstream SESSION rides internal/remote's exported outbound client
 // (the engine's own NFR-S13 chain: guarded dials, per-hop re-screening,
@@ -236,6 +239,91 @@ func (e *remoteSessionEntry) fetchBlobStream(ctx context.Context, image, hex str
 	return e.attemptStreamWithToken(ctx, wire, token.value)
 }
 
+// remoteListMaxPages caps the upstream Link rel="next" aggregation of the
+// list endpoints (tags/list, _catalog): Artifactory's
+// remote.fetching.list.maximum.iteration default is 3 (evidence report
+// section 8's key-defaults table; the configured hard ceiling of 15 needs
+// no knob until a caller asks for one).
+const remoteListMaxPages = 3
+
+// fetchList runs one upstream LIST conversation (tags/list, _catalog,
+// L000-B C15/C16): the first page through the same attempt/dance machinery
+// the manifest arm uses, then the upstream's Link rel="next" chain
+// followed up to remoteListMaxPages total requests (every page URL is a
+// full absolute URL — the outbound client guard-checks each hop). Pages
+// are buffered answers; the chain stops at the first non-200 or transport
+// fault. The CALLER decides what a failed head page means — the two
+// endpoints degrade differently (C15: tags render null; C16: the catalog
+// renders empty).
+func (e *remoteSessionEntry) fetchList(ctx context.Context, wire, scope string) ([]*upstreamAnswer, error) {
+	fetch := func(ctx context.Context, c *remote.Client, req remote.Request) (*upstreamAnswer, error) {
+		return e.buffered(ctx, c, req)
+	}
+	first, _, err := e.attempt(ctx, fetch, wire, scope, http.Header{})
+	if err != nil {
+		return nil, err
+	}
+	if first.status == http.StatusUnauthorized {
+		if challenge := parseBearerChallenge(first.header.Get("WWW-Authenticate")); challenge != nil && challenge.realm != "" {
+			first, err = e.dance(ctx, challenge, scope, func(token string) (*upstreamAnswer, error) {
+				return e.attemptWithToken(ctx, fetch, wire, token, http.Header{})
+			})
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	pages := []*upstreamAnswer{first}
+	seen := map[string]bool{}
+	next := nextListLink(first.header.Get("Link"))
+	for i := 1; i < remoteListMaxPages && next != "" && !seen[next]; i++ {
+		seen[next] = true
+		var page *upstreamAnswer
+		var perr error
+		if token := e.token(scope); token != "" {
+			page, perr = e.buffered(ctx, e.anon, remote.Request{URL: next, Header: bearerAuthHeader(token)})
+		} else {
+			page, perr = e.buffered(ctx, e.authed, remote.Request{URL: next})
+		}
+		if perr != nil || page.status != http.StatusOK {
+			break // a broken chain serves the pages that arrived
+		}
+		pages = append(pages, page)
+		next = nextListLink(page.header.Get("Link"))
+	}
+	return pages, nil
+}
+
+// bearerAuthHeader is the one-header Authorization set of a token ride.
+func bearerAuthHeader(token string) http.Header {
+	return http.Header{"Authorization": []string{"Bearer " + token}}
+}
+
+// nextListLink extracts the rel="next" target of an RFC 8288 Link header
+// (the pagination grammar the registry list endpoints emit:
+// `<https://reg/v2/_catalog?last=x>; rel="next"`). Empty when the header
+// carries no next relation — the aggregation's stop signal.
+func nextListLink(header string) string {
+	for _, field := range strings.Split(header, ",") {
+		trimmed := strings.TrimSpace(field)
+		target, params, found := strings.Cut(trimmed, ">")
+		if !found {
+			continue
+		}
+		target = strings.TrimPrefix(strings.TrimSpace(target), "<")
+		for _, param := range strings.Split(params, ";") {
+			key, value, found := strings.Cut(param, "=")
+			if !found || strings.TrimSpace(key) != "rel" {
+				continue
+			}
+			if strings.Trim(strings.TrimSpace(value), `"`) == "next" && target != "" {
+				return target
+			}
+		}
+	}
+	return ""
+}
+
 // attempt runs one buffered request: the cached token when present (via
 // the credential-free client), else the repository credential. usedToken
 // reports which shape rode the wire.
@@ -291,7 +379,7 @@ func (e *remoteSessionEntry) attemptStreamWithToken(ctx context.Context, wire, t
 
 // bearerRequest builds one Bearer-authenticated request.
 func bearerRequest(wire, token string) remote.Request {
-	return remote.Request{Path: wire, Header: http.Header{"Authorization": []string{"Bearer " + token}}}
+	return remote.Request{Path: wire, Header: bearerAuthHeader(token)}
 }
 
 // dance runs the exchange+retry half of the Bearer flow shared by the
@@ -473,21 +561,27 @@ type remoteUnfound struct {
 	detail  map[string]string
 }
 
-// manifestUnfound is the manifest arm's unfound shape.
-func manifestUnfound(reference string) remoteUnfound {
+// manifestUnfound is the manifest arm's unfound shape — the observed
+// Artifactory body verbatim (L000-B C12/E6-1): a STATIC message and a
+// detail whose key is "manifest" carrying the IMAGE path (the name
+// without the tag/digest reference), never the raw reference.
+func manifestUnfound(image string) remoteUnfound {
 	return remoteUnfound{
 		code:    ErrCodeManifestUnknown,
-		message: fmt.Sprintf("manifest unknown to registry: %s", reference),
-		detail:  map[string]string{"reference": reference},
+		message: "The named manifest is not known to the registry.",
+		detail:  map[string]string{"manifest": image},
 	}
 }
 
-// blobUnfound is the blob arm's unfound shape.
+// blobUnfound is the blob arm's unfound shape — the observed Artifactory
+// body verbatim (L000-B C13/E6-2): a STATIC message (no digest suffix)
+// and a detail whose key is "blobSum", the docker v2 blob-addressing
+// spelling.
 func blobUnfound(digest string) remoteUnfound {
 	return remoteUnfound{
 		code:    ErrCodeBlobUnknown,
-		message: fmt.Sprintf("blob unknown to registry: %s", digest),
-		detail:  map[string]string{"digest": digest},
+		message: "blob unknown to registry",
+		detail:  map[string]string{"blobSum": digest},
 	}
 }
 
@@ -502,14 +596,12 @@ func (u remoteUnfound) write(w http.ResponseWriter, summary string) {
 
 // serveRemoteRoute answers every request the /v2 plane receives against a
 // REMOTE repository row (T-363): reads proxy pull-through, writes answer
-// RE-05's 405 with Allow: GET (mirroring refuseNonLocalWrite's wording —
-// the same refusal the local write plane renders through the verbatim
-// seam, answered here BEFORE any upload session is minted).
+// Artifactory's upload refusal (L000-B C11/E5: 400 + the generic error
+// model's per-endpoint copy — "Unable to upload blobs/a manifest to..." —
+// answered here BEFORE any upload session is minted).
 func (h *Handler) serveRemoteRoute(w http.ResponseWriter, r *http.Request, ref nameRef) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		w.Header().Set("Allow", http.MethodGet)
-		writeSpecError(w, http.StatusMethodNotAllowed, ErrCodeUnsupported,
-			fmt.Sprintf("Remote repository '%s' is a read-only proxy cache; deployments to remote repositories are not accepted.", ref.repoKey), nil)
+		h.refuseRemoteWrite(w, r, ref)
 		return
 	}
 	switch {
@@ -518,14 +610,178 @@ func (h *Handler) serveRemoteRoute(w http.ResponseWriter, r *http.Request, ref n
 	case strings.HasPrefix(ref.tail, manifestsTail):
 		h.serveRemoteManifest(w, r, ref, ref.tail)
 	case ref.tail == tagsListTail:
-		// The cached tag rows (ListTags admits the read plane's classes
-		// since T-363): a tag lands with its manifest, so the listing is
-		// the local fact base — no upstream tags/list proxying.
-		h.serveTagsList(w, r, ref)
+		h.serveRemoteTagsList(w, r, ref)
 	default:
 		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,
 			"registry route /v2/"+ref.repoKey+"/"+ref.image+"/"+ref.tail+" is not implemented in BinFlow M2 yet", nil)
 	}
+}
+
+// refuseRemoteWrite answers every write verb on the remote plane with the
+// observed Artifactory shape (L000-B C11, evidence E5-1..3): 400 plus the
+// generic error model's message per endpoint family —
+//
+//   - POST/PATCH/PUT on blobs/uploads*: "Unable to upload blobs to a
+//     remote repository."
+//   - PUT on manifests/<ref>: "Unable to upload a manifest to a remote
+//     repository."
+//   - DELETE on manifests/<ref>: "Unable to delete a manifest from a
+//     remote repository."
+//
+// Verb/path combinations the evidence never exercised (a blob DELETE, an
+// upload-session cancel) keep the standing 405 + Allow: GET refusal —
+// RE-05's read-only contract still holds for them, unobserved shape
+// unchanged.
+func (h *Handler) refuseRemoteWrite(w http.ResponseWriter, r *http.Request, ref nameRef) {
+	switch {
+	case strings.HasPrefix(ref.tail, uploadsTailPrefix) &&
+		(r.Method == http.MethodPost || r.Method == http.MethodPatch || r.Method == http.MethodPut):
+		writeStatusFormError(w, http.StatusBadRequest, "Unable to upload blobs to a remote repository.")
+	case strings.HasPrefix(ref.tail, manifestsTail) && r.Method == http.MethodPut:
+		writeStatusFormError(w, http.StatusBadRequest, "Unable to upload a manifest to a remote repository.")
+	case strings.HasPrefix(ref.tail, manifestsTail) && r.Method == http.MethodDelete:
+		writeStatusFormError(w, http.StatusBadRequest, "Unable to delete a manifest from a remote repository.")
+	default:
+		w.Header().Set("Allow", http.MethodGet)
+		writeSpecError(w, http.StatusMethodNotAllowed, ErrCodeUnsupported,
+			fmt.Sprintf("Remote repository '%s' is a read-only proxy cache; deployments to remote repositories are not accepted.", ref.repoKey), nil)
+	}
+}
+
+// serveRemoteTagsList implements the remote plane's tags/list (L000-B
+// C15, evidence E7-1): the listing is the LIVE upstream aggregation — the
+// tags pages fetched from the upstream every call (pretty body, the name
+// the upstream itself reported — Artifactory echoes its own normalized
+// image name, e.g. docker.io's library/ prefix — dictionary-sorted full
+// tag set), NOT the local cache's tag rows (the fallback-to-cache switch
+// defaults off, E7's key table). A failed head page (transport fault,
+// non-200, unparseable body) answers 200 with "tags":null — the same
+// empty-200 degradation the catalog arm observes (E7-2); the exact
+// null-vs-empty spelling of this unobserved corner is BinFlow's own (the
+// local plane's R4 empty form).
+func (h *Handler) serveRemoteTagsList(w http.ResponseWriter, r *http.Request, ref nameRef) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		writeSpecError(w, http.StatusMethodNotAllowed, ErrCodeUnsupported,
+			fmt.Sprintf("method %s is not supported on tags/list", r.Method), nil)
+		return
+	}
+	ctx := r.Context()
+	p := principalOf(r)
+	entry, _, serr := h.remoteSession(ctx, p, ref.repoKey)
+	if serr != nil {
+		h.writeRemoteServeError(w, r, serr, ref)
+		return
+	}
+	name, tags := ref.image, []string(nil)
+	pages, err := entry.fetchList(ctx, "/v2/"+ref.image+"/"+tagsListTail, "repository:"+ref.image+":"+scopeActionPull)
+	if err != nil {
+		h.log.WarnContext(ctx, "docker remote: upstream tags/list failed",
+			"repo", ref.repoKey, "image", ref.image, "error", err.Error())
+	} else if first := pages[0]; first.status == http.StatusOK {
+		var head tagsBody
+		if jerr := json.Unmarshal(first.body, &head); jerr != nil {
+			h.log.WarnContext(ctx, "docker remote: upstream tags/list body unparseable",
+				"repo", ref.repoKey, "image", ref.image, "error", jerr.Error())
+		} else {
+			if head.Name != "" {
+				name = head.Name
+			}
+			tags = append(tags, head.Tags...)
+			for _, page := range pages[1:] {
+				var next tagsBody
+				if jerr := json.Unmarshal(page.body, &next); jerr == nil {
+					tags = append(tags, next.Tags...)
+				}
+			}
+			sort.Strings(tags)
+		}
+	} else {
+		h.log.WarnContext(ctx, "docker remote: upstream tags/list answered non-200",
+			"repo", ref.repoKey, "image", ref.image, "status", first.status)
+	}
+	writeAPIVersion(w)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(tagsBody{Name: name, Tags: tags})
+}
+
+// serveRepoCatalog implements the repo-domain catalog route
+// /v2/<repoKey>/_catalog (L000-B C16, evidence E7-2): 200 always — the
+// repositories of the LIVE upstream catalog when the upstream serves one
+// (Link pages aggregated), an EMPTY list when it does not (docker.io has
+// no /v2/_catalog; Artifactory answers 200 {"repositories":[]} after the
+// upstream refusal — the fallback-to-cache switch defaults off). The
+// route is intercepted before the name parser (a "_catalog" image slot
+// carries no registry route); non-remote rows keep that standing 404.
+func (h *Handler) serveRepoCatalog(w http.ResponseWriter, r *http.Request, path, repoKey string) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		writeSpecError(w, http.StatusMethodNotAllowed, ErrCodeUnsupported,
+			fmt.Sprintf("method %s is not supported on the catalog", r.Method), nil)
+		return
+	}
+	p := principalOf(r)
+	if p == nil && !h.opts.AnonymousAccess {
+		h.challenge(w, r, scopeRegistryCatalog)
+		return
+	}
+	ctx := r.Context()
+	row, err := h.repos.Get(ctx, repoKey)
+	if err != nil {
+		h.log.ErrorContext(ctx, "docker: repository lookup failed",
+			"repo", repoKey, "error", err.Error())
+		writeSpecError(w, http.StatusInternalServerError, ErrCodeUnknown,
+			"repository lookup failed", nil)
+		return
+	}
+	if row == nil || !servesV2Plane(row.PackageType()) {
+		writeSpecError(w, http.StatusNotFound, ErrCodeNameUnknown,
+			fmt.Sprintf("repository name not known to registry: %q", repoKey), nil)
+		return
+	}
+	if !h.authorizeRoute(w, r, nameRef{repoKey: repoKey}) {
+		return
+	}
+	if row.Class() != repo.TypeRemote {
+		// The aggregation face is the remote plane's; every other class
+		// keeps the standing route shape this path always answered (the
+		// name parser's not-a-name 404 — reproduced verbatim).
+		_, perr := parseV2Name(path) // always a notAName rejection here
+		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported, perr.Error(), nil)
+		return
+	}
+	entry, _, serr := h.remoteSession(ctx, p, repoKey)
+	if serr != nil {
+		h.writeRemoteServeError(w, r, serr, nameRef{repoKey: repoKey})
+		return
+	}
+	repositories := []string{}
+	pages, err := entry.fetchList(ctx, catalogPath, scopeRegistryCatalog)
+	switch {
+	case err != nil:
+		h.log.WarnContext(ctx, "docker remote: upstream catalog failed",
+			"repo", repoKey, "error", err.Error())
+	case pages[0].status != http.StatusOK:
+		h.log.WarnContext(ctx, "docker remote: upstream catalog answered non-200",
+			"repo", repoKey, "status", pages[0].status)
+	default:
+		for _, page := range pages {
+			var body catalogBody
+			if jerr := json.Unmarshal(page.body, &body); jerr == nil {
+				repositories = append(repositories, body.Repositories...)
+			}
+		}
+		sort.Strings(repositories)
+	}
+	writeAPIVersion(w)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(catalogBody{Repositories: repositories})
 }
 
 // remotePlane resolves the service's v2 remote capability; nil when the
@@ -581,7 +837,7 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported, "unknown manifest route "+tail, nil)
 		return
 	}
-	unfound := manifestUnfound(reference)
+	unfound := manifestUnfound(ref.image)
 	// The reference shape runs BEFORE anything else (the local plane's
 	// rule): a sha256: spelling must parse, anything else must be a legal
 	// tag.
@@ -1090,7 +1346,7 @@ func (h *Handler) writeRemoteFetchFault(w http.ResponseWriter, r *http.Request, 
 	case errors.As(err, &rej):
 		writeSpecError(w, http.StatusBadRequest, ErrCodeUnsupported,
 			fmt.Sprintf("Cannot fetch '%s/%s': upstream target refused — private or suppressed upstream (%v)",
-				ref.repoKey, unfound.message, err), nil)
+				ref.repoKey, ref.image, err), nil)
 	case errors.Is(err, remote.ErrBodyTooLarge):
 		writeSpecError(w, http.StatusBadGateway, ErrCodeUnknown,
 			fmt.Sprintf("Failed to proxy '%s': %v", ref.repoKey, err), nil)

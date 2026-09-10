@@ -86,7 +86,7 @@ func (h *Handler) serveVirtualManifest(w http.ResponseWriter, r *http.Request, r
 		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported, "unknown manifest route "+tail, nil)
 		return
 	}
-	unfound := manifestUnfound(reference)
+	unfound := manifestUnfound(ref.image)
 	// The reference shape runs BEFORE anything else (the local plane's
 	// rule): a sha256: spelling must parse, anything else a legal tag.
 	isDigestRef := strings.HasPrefix(reference, digestPrefix)
