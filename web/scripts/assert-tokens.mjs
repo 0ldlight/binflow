@@ -4,19 +4,20 @@
 //     ——tokens.css 仍为唯一色值字面量豁免层（token 定义层）。
 //   T-264 (FR-82-AC4) 扩面：注释感知（css 注释中的对比度实测注记不参与）。
 //   T-344 批 A 扩 TSX 双腿（mui-native-visual §5.2）：
-//     腿 2 色值字面量：web/src/**/*.tsx 的 sx/style 内 hex/rgb/hsl 字面量
-//       仅允许出现在 src/app/MuiProvider.tsx（主题定义层，与 tokens.css
-//       同级豁免——R5 双源同值的字面量复刻位）。
+//     腿 2 色值字面量：web/src/**/*.tsx 内 hex/rgb/hsl 字面量零容忍
+//       （FE-P4 MUI 清场：MuiProvider 豁免层随 MuiProvider 删除而移除——
+//       色板唯一来源 = tokens.css + Tailwind 语义类，闸语义只升不降）。
 //     腿 3 主题优先：TSX 内 var(--bf-(bg|surface|text|accent|danger|
 //       success|warning|info|scrim)[\w-]*) 命中即 FAIL——色板一律
-//       theme.palette / 组件默认；--bf-sp-*/fs-*/r-*/mono/z 布局 token 与
+//       Tailwind 语义类；--bf-sp-*/fs-*/r-*/mono/z 布局 token 与
 //       --bf-sidebar 系（侧栏身份例外，§4.1）不受限；保留清单 css 文件
 //       不在本腿扫描面（只扫 tsx）。
 //   前端重写 P1（frontend-rewrite-architecture §3 等价纪律新栈版）：
 //     src/styles/tw/（新栈 token 定义层 + Tailwind @theme 桥接层）整层
 //     加入豁免清单——与 tokens.css 同级的 token 定义层位；层外新栈
 //     tsx 仍受腿 2/3 约束（色板走 Tailwind 语义类，不写 var(--bf-色系)，
-//     不写字面量）。闸语义不降：豁免仅限该目录，组件/页面 css 零放宽。
+//     不写字面量）。闸语义不降：豁免仅限该目录，组件/页面 css 零放宽；
+//     FE-P4 起 TSX 面零文件级豁免（MuiProvider 退役）。
 // 其余 css 的声明中出现色值字面量即失败（transparent 关键字与
 // color-mix(... var(--bf-*) ...) 不受限）。挂在 build 前置：
 //   npm run assert:tokens   # 单独执行
@@ -51,13 +52,14 @@ function collectCss(dir) {
 }
 const cssFiles = collectCss(srcDir)
 
-// TSX 扫描面（腿 2/3）：MuiProvider = 主题定义层，唯一豁免
+// TSX 扫描面（腿 2/3）：FE-P4 起零文件级豁免（MuiProvider 主题层已随
+// MUI 清场退役——色值字面量与 --bf-* 色彩 token 在 TSX 面全量禁止）
 function collectTsx(dir) {
   const found = []
   for (const f of readdirSync(dir).sort()) {
     const p = join(dir, f)
     if (statSync(p).isDirectory()) found.push(...collectTsx(p))
-    else if (f.endsWith('.tsx') && !p.endsWith(join('app', 'MuiProvider.tsx'))) found.push(p)
+    else if (f.endsWith('.tsx')) found.push(p)
   }
   return found
 }
@@ -97,10 +99,10 @@ for (const p of tsxFiles) {
   const lines = stripJsComments(readFileSync(p, 'utf8')).split('\n')
   lines.forEach((line, i) => {
     for (const m of line.matchAll(LITERAL)) {
-      failures.push(`${f}:${i + 1}: TSX 色值字面量 "${m[0]}"（仅 app/MuiProvider.tsx 主题层豁免；色板走 theme.palette）`)
+      failures.push(`${f}:${i + 1}: TSX 色值字面量 "${m[0]}"（零豁免——色板走 tokens.css/Tailwind 语义类）`)
     }
     for (const m of line.matchAll(BF_COLOR)) {
-      failures.push(`${f}:${i + 1}: TSX 引用 --bf-* 色彩 token "${m[0]}"（色板一律 theme.palette / 组件默认；sidebar 系与布局 token 例外）`)
+      failures.push(`${f}:${i + 1}: TSX 引用 --bf-* 色彩 token "${m[0]}"（色板一律 Tailwind 语义类；sidebar 系与布局 token 例外）`)
     }
   })
 }
@@ -111,5 +113,5 @@ if (failures.length > 0) {
   process.exit(1)
 }
 console.log(
-  `assert-tokens: OK — css ${cssFiles.length} 个（零硬编码色值）+ tsx ${tsxFiles.length} 个（MuiProvider 外零色值字面量、零 --bf-* 色彩 token 引用）+ 新栈 token 桥接层 ${newTokenLayerCount} 个豁免（styles/tw/）`,
+  `assert-tokens: OK — css ${cssFiles.length} 个（零硬编码色值）+ tsx ${tsxFiles.length} 个（零色值字面量、零 --bf-* 色彩 token 引用——FE-P4 起零文件级豁免）+ 新栈 token 桥接层 ${newTokenLayerCount} 个豁免（styles/tw/）`,
 )

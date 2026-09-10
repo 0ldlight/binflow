@@ -1,39 +1,28 @@
+// 订阅详情 / 最近投递记录抽屉（M13 T-366——P3 新栈重写：shadcn Sheet 右滑
+// 480 档；形态 = console-artifactory-parity 抽屉族通用规格）。
+// 「最近投递记录」= GET /event/api/v1/troubleshooting?subscription=<key>
+// （webhook.md §7 排障环）：失败必录；成功仅 debug:true 订阅入记录——空
+// 列表 ≠ 无投递，空态文案如实说明。行点击展开 payload 快照（mono + 拷贝）。
+// 锚族原样：wh-drawer/wh-drawer-close/wh-drawer-criteria/wh-records-refresh/
+// wh-records-table/wh-record-<i>/wh-record-payload-<i>/wh-records-empty。
 import { useCallback, useEffect, useState } from 'react'
 
-import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import Chip from '@mui/material/Chip'
-import Divider from '@mui/material/Divider'
-import Drawer from '@mui/material/Drawer'
-import IconButton from '@mui/material/IconButton'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
-import Typography from '@mui/material/Typography'
-
-import { CopyButton } from '../../components/CopyButton'
-import { EmptyState } from '../../components/EmptyState'
-import { ErrorCard } from '../../components/ErrorCard'
-import { Skeleton } from '../../components/Skeleton'
-import { ApiError, errText } from '../../lib/api'
-import { getTroubleshooting, isWired } from '../../lib/webhooks'
-import type { TroubleshootingRecord, WebhookSubscription } from '../../lib/webhooks'
-import { tr } from '../../i18n'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/layout/bits'
+import { CopyButton } from '@/components/layout/copy-button'
+import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
+import { ApiError, errText } from '@/lib/api'
+import { getTroubleshooting, isWired } from '@/lib/webhooks'
+import type { TroubleshootingRecord, WebhookSubscription } from '@/lib/webhooks'
+import { tr } from '@/i18n'
 
 const tt = tr('webhooks')
-
-// 订阅详情 / 最近投递记录抽屉（M13 T-366；形态 = console-artifactory-parity
-// 抽屉族通用规格：右侧滑入、宽 480 档、右上 X + Esc/遮罩关闭、内部滚动）。
-//
-// 「最近投递记录」= GET /event/api/v1/troubleshooting?subscription=<key>
-// （webhook.md §7 排障环）：**失败必录；成功仅 debug:true 订阅入记录**——
-// 空列表 ≠ 无投递，空态文案如实说明。每行呈现状态（response.status 或
-// 发送失败）/ 耗时（elapsed_millis）/ 重试计数（retries_attempted），
-// payload 快照可展开（mono + 一键拷贝，§7.3）。
-
-const DRAWER_WIDTH = 480
 
 function formatMillis(ts: number): string {
   const t = new Date(ts)
@@ -43,13 +32,13 @@ function formatMillis(ts: number): string {
 }
 
 /** 一条记录的可呈现状态 */
-function recordStatus(rec: TroubleshootingRecord): { label: string; color: 'success' | 'error' | 'warning' } {
+function recordStatus(rec: TroubleshootingRecord): { label: string; color: 'success' | 'danger' | 'warning' } {
   if (rec.errors.length > 0 && rec.response.status === 0) {
-    return { label: tt('发送失败'), color: 'error' }
+    return { label: tt('发送失败'), color: 'danger' }
   }
   const s = rec.response.status
   if (s >= 200 && s < 300) return { label: tt('{s} 已送达', { s: s }), color: 'success' }
-  return { label: `${s}`, color: 'error' }
+  return { label: `${s}`, color: 'danger' }
 }
 
 type RecordsPhase =
@@ -91,165 +80,157 @@ export default function SubscriptionDrawer({
   const criteria = sub.event_filter.criteria ?? {}
 
   return (
-    <Drawer
-      anchor="right"
-      open
-      onClose={onClose}
-      slotProps={{
-        paper: {
-          // modal Drawer 的 paper 承载 role="dialog"——需要可及名（axe
-          // aria-dialog-name）；标题 = 订阅 key
-          'aria-label': tt('订阅详情 {v1}', { v1: sub.key }),
-          sx: { width: `min(${DRAWER_WIDTH}px, 100vw - 32px)`, display: 'flex', flexDirection: 'column' },
-        },
-      }}
-      data-testid="wh-drawer"
-    >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 600, wordBreak: 'break-all' }} lang="en">
-          {sub.key}
-        </Typography>
-        <Box sx={{ flexGrow: 1 }} />
-        <Chip size="small" variant="outlined" color={sub.enabled ? 'success' : 'default'} label={sub.enabled ? tt('启用') : tt('停用')} />
-        {sub.debug && <Chip size="small" variant="outlined" color="info" label="debug" />}
-        <IconButton aria-label={tt('关闭')} onClick={onClose} data-testid="wh-drawer-close">
-          ✕
-        </IconButton>
-      </Box>
+    <Sheet open onOpenChange={(open) => { if (!open) onClose() }}>
+      <SheetContent
+        side="right"
+        className="flex w-full max-w-[480px] flex-col gap-4 overflow-y-auto p-0"
+        data-testid="wh-drawer"
+      >
+        <SheetHeader className="border-b border-border px-4 py-3">
+          <SheetTitle className="flex items-center gap-2">
+            <span className="break-all font-mono text-base" lang="en">{sub.key}</span>
+            <span className="flex-1" />
+            <Badge variant={sub.enabled ? 'success' : 'neutral'}>{sub.enabled ? tt('启用') : tt('停用')}</Badge>
+            {sub.debug && <Badge mono lang="en">debug</Badge>}
+            <button
+              type="button"
+              aria-label={tt('关闭')}
+              onClick={onClose}
+              data-testid="wh-drawer-close"
+              className="grid size-7 place-items-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              ✕
+            </button>
+          </SheetTitle>
+        </SheetHeader>
 
-      <Box sx={{ flex: 1, overflowY: 'auto', p: 2, display: 'grid', gap: 2, alignContent: 'start' }}>
-        {sub.description && <Typography color="text.secondary">{sub.description}</Typography>}
+        <div className="flex flex-1 flex-col gap-4 px-4 pb-4">
+          {sub.description && <p className="text-dense text-2">{sub.description}</p>}
 
-        <Box sx={{ display: 'grid', gap: 0.5 }}>
-          <Typography variant="caption" color="text.secondary">{tt('事件域')}          </Typography>
-          <div lang="en" className="mono">
-            {sub.event_filter.domain}
-          </div>
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>{tt('事件型（wired = 有触发源）')}          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {sub.event_filter.event_types.map((t) => (
-              <Chip
-                key={t}
-                size="small"
-                variant="outlined"
-                color={isWired(sub.event_filter.domain, t) ? 'success' : 'default'}
-                label={t}
-                lang="en"
-              />
-            ))}
-          </Box>
-        </Box>
-
-        <Box sx={{ display: 'grid', gap: 0.5 }}>
-          <Typography variant="caption" color="text.secondary">{tt('过滤条件（criteria）')}          </Typography>
-          <pre className="mono" data-testid="wh-drawer-criteria" style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: 12 }}>
-            {JSON.stringify(criteria, null, 2)}
-          </pre>
-        </Box>
-
-        <Box sx={{ display: 'grid', gap: 0.5 }}>
-          <Typography variant="caption" color="text.secondary">{tt('投递目标（handler）')}          </Typography>
-          <div className="mono" lang="en" style={{ wordBreak: 'break-all' }}>
-            {handler?.url ?? '—'} {handler?.url && <CopyButton value={handler.url} label={tt('接收器 URL')} />}
-          </div>
-          <Typography variant="body2" color="text.secondary">{tt('secret：')}{handler?.secret ? tt('已设置（write-only，回显为掩码）') : tt('未设置')}
-            {handler?.secret && handler.use_secret_for_signing ? tt('；签名态（HMAC-SHA256 → X-JFrog-Event-Auth）') : ''}
-          </Typography>
-        </Box>
-
-        <Divider />
-
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="subtitle2">{tt('最近投递记录（排障环）')}</Typography>
-          <Box sx={{ flexGrow: 1 }} />
-          <Button size="small" onClick={() => void load(sub.key)} data-testid="wh-records-refresh">{tt('刷新')}          </Button>
-        </Box>
-
-        {phase.kind === 'loading' && <Skeleton lines={4} />}
-        {phase.kind === 'error' && (
-          <ErrorCard error={new ApiError(0, phase.message)} onRetry={() => void load(sub.key)} />
-        )}
-        {phase.kind === 'ok' && phase.records.length === 0 && (
-          <EmptyState
-            message={tt('暂无投递记录')}
-            hint={tt('排障环只记录失败投递；开启 debug 的订阅成功也记录。空列表不等于没有投递发生。')}
-            testid="wh-records-empty"
-          />
-        )}
-        {phase.kind === 'ok' && phase.records.length > 0 && (
-          <>
-            <Table size="small" data-testid="wh-records-table">
-              <TableHead>
-                <TableRow>
-                  <TableCell component="th" scope="col">{tt('时间')}</TableCell>
-                  <TableCell component="th" scope="col">{tt('状态')}</TableCell>
-                  <TableCell component="th" scope="col">{tt('事件')}</TableCell>
-                  <TableCell component="th" scope="col" align="right">{tt('耗时')}</TableCell>
-                  <TableCell component="th" scope="col" align="right">{tt('重试')}</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {phase.records.map((rec, i) => {
-                  const st = recordStatus(rec)
-                  return (
-                    <TableRow
-                      key={`${rec.timestamp}-${i}`}
-                      data-testid={`wh-record-${i}`}
-                      hover
-                      sx={{ cursor: 'pointer' }}
-                      onClick={() => setExpanded(expanded === i ? null : i)}
-                    >
-                      <TableCell className="mono" sx={{ whiteSpace: 'nowrap' }} title={String(rec.timestamp)}>
-                        {formatMillis(rec.timestamp)}
-                      </TableCell>
-                      <TableCell>
-                        <Chip size="small" variant="outlined" color={st.color} label={st.label} />
-                      </TableCell>
-                      <TableCell className="mono" lang="en">
-                        {rec.event.event_type}
-                      </TableCell>
-                      <TableCell className="mono" align="right" lang="en">
-                        {rec.elapsed_millis}ms
-                      </TableCell>
-                      <TableCell className="mono" align="right" lang="en">
-                        {rec.request.retries_attempted}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-            {expanded !== null && phase.records[expanded] && (
-              <Box data-testid={`wh-record-payload-${expanded}`} sx={{ border: 1, borderColor: 'divider', p: 1 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                  <Typography variant="caption" color="text.secondary">{tt('投递载荷快照（点击行收起）')}{phase.records[expanded].errors.length > 0 && tt('；错误：')}
-                  </Typography>
-                  {phase.records[expanded].errors.length > 0 && (
-                    <Typography variant="caption" color="error" className="mono" style={{ wordBreak: 'break-all' }}>
-                      {phase.records[expanded].errors.join('; ')}
-                    </Typography>
-                  )}
-                  <Box sx={{ flexGrow: 1 }} />
-                  <CopyButton value={phase.records[expanded].request.payload} label={tt('投递载荷 JSON')} />
-                </Box>
-                <pre
-                  className="mono"
-                  aria-label={tt('投递载荷 JSON')}
-                  style={{ margin: 0, maxHeight: 240, overflow: 'auto', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+          <div className="flex flex-col gap-1">
+            <span className="text-aux text-muted-foreground">{tt('事件域')}</span>
+            <div lang="en" className="font-mono">{sub.event_filter.domain}</div>
+            <span className="mt-1 text-aux text-muted-foreground">{tt('事件型（wired = 有触发源）')}</span>
+            <div className="flex flex-wrap gap-1">
+              {sub.event_filter.event_types.map((t) => (
+                <span
+                  key={t}
+                  className={`badge ${isWired(sub.event_filter.domain, t) ? 'success' : 'neutral'}`}
+                  lang="en"
                 >
-                  {phase.records[expanded].request.payload}
-                </pre>
-                {phase.records[expanded].response.body && (
-                  <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5, wordBreak: 'break-all' }}>{tt('接收器应答体：')}<span className="mono">{phase.records[expanded].response.body.slice(0, 512)}</span>
-                  </Typography>
-                )}
-              </Box>
-            )}
-          </>
-        )}
-        <Box sx={{ flexGrow: 1 }} />
-        <Typography variant="caption" color="text.secondary">{tt('投递语义（官方锚点）：失败或 ≥500 按固定 10s 重试、首试计入共 5 次；4xx/3xx 不重试一步终态；重试耗尽行标 dead。')}        </Typography>
-      </Box>
-    </Drawer>
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <span className="text-aux text-muted-foreground">{tt('过滤条件（criteria）')}</span>
+            <pre className="m-0 break-all whitespace-pre-wrap font-mono text-xs" data-testid="wh-drawer-criteria">
+              {JSON.stringify(criteria, null, 2)}
+            </pre>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <span className="text-aux text-muted-foreground">{tt('投递目标（handler）')}</span>
+            <div className="break-all font-mono" lang="en">
+              {handler?.url ?? '—'} {handler?.url && <CopyButton value={handler.url} label={tt('接收器 URL')} />}
+            </div>
+            <p className="text-dense text-2">
+              {tt('secret：')}{handler?.secret ? tt('已设置（write-only，回显为掩码）') : tt('未设置')}
+              {handler?.secret && handler.use_secret_for_signing ? tt('；签名态（HMAC-SHA256 → X-JFrog-Event-Auth）') : ''}
+            </p>
+          </div>
+
+          <div className="border-t border-border" />
+
+          <div className="flex items-center gap-2">
+            <h4 className="text-dense font-semibold">{tt('最近投递记录（排障环）')}</h4>
+            <span className="flex-1" />
+            <Button variant="outline" size="sm" className="h-7" onClick={() => void load(sub.key)} data-testid="wh-records-refresh">{tt('刷新')}</Button>
+          </div>
+
+          {phase.kind === 'loading' && <StateSkeleton lines={4} />}
+          {phase.kind === 'error' && (
+            <ErrorCard error={new ApiError(0, phase.message)} onRetry={() => void load(sub.key)} />
+          )}
+          {phase.kind === 'ok' && phase.records.length === 0 && (
+            <EmptyState
+              message={tt('暂无投递记录')}
+              hint={tt('排障环只记录失败投递；开启 debug 的订阅成功也记录。空列表不等于没有投递发生。')}
+              testid="wh-records-empty"
+            />
+          )}
+          {phase.kind === 'ok' && phase.records.length > 0 && (
+            <>
+              <table className="w-full text-dense" data-testid="wh-records-table">
+                <thead>
+                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
+                    <th scope="col" className="px-2 py-1.5 font-medium">{tt('时间')}</th>
+                    <th scope="col" className="px-2 py-1.5 font-medium">{tt('状态')}</th>
+                    <th scope="col" className="px-2 py-1.5 font-medium">{tt('事件')}</th>
+                    <th scope="col" className="px-2 py-1.5 text-right font-medium">{tt('耗时')}</th>
+                    <th scope="col" className="px-2 py-1.5 text-right font-medium">{tt('重试')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {phase.records.map((rec, i) => {
+                    const st = recordStatus(rec)
+                    return (
+                      <tr
+                        key={`${rec.timestamp}-${i}`}
+                        data-testid={`wh-record-${i}`}
+                        className="cursor-pointer border-b border-border/60 hover:bg-accent"
+                        onClick={() => setExpanded(expanded === i ? null : i)}
+                      >
+                        <td className="whitespace-nowrap px-2 py-1.5 font-mono text-aux" title={String(rec.timestamp)}>
+                          {formatMillis(rec.timestamp)}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <Badge variant={st.color}>{st.label}</Badge>
+                        </td>
+                        <td className="px-2 py-1.5 font-mono" lang="en">{rec.event.event_type}</td>
+                        <td className="px-2 py-1.5 text-right font-mono" lang="en">{rec.elapsed_millis}ms</td>
+                        <td className="px-2 py-1.5 text-right font-mono" lang="en">{rec.request.retries_attempted}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              {expanded !== null && phase.records[expanded] && (
+                <div className="rounded-md border border-border p-2" data-testid={`wh-record-payload-${expanded}`}>
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="text-aux text-muted-foreground">
+                      {tt('投递载荷快照（点击行收起）')}{phase.records[expanded].errors.length > 0 ? tt('；错误：') : ''}
+                    </span>
+                    {phase.records[expanded].errors.length > 0 && (
+                      <span className="break-all font-mono text-aux text-destructive">
+                        {phase.records[expanded].errors.join('; ')}
+                      </span>
+                    )}
+                    <span className="flex-1" />
+                    <CopyButton value={phase.records[expanded].request.payload} label={tt('投递载荷 JSON')} />
+                  </div>
+                  <pre
+                    className="m-0 max-h-[240px] overflow-auto whitespace-pre-wrap break-all font-mono text-xs"
+                    aria-label={tt('投递载荷 JSON')}
+                  >
+                    {phase.records[expanded].request.payload}
+                  </pre>
+                  {phase.records[expanded].response.body && (
+                    <p className="mt-1 break-all text-aux text-muted-foreground">
+                      {tt('接收器应答体：')}<span className="font-mono">{phase.records[expanded].response.body.slice(0, 512)}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+          <p className="mt-auto text-aux text-muted-foreground">
+            {tt('投递语义（官方锚点）：失败或 ≥500 按固定 10s 重试、首试计入共 5 次；4xx/3xx 不重试一步终态；重试耗尽行标 dead。')}
+          </p>
+        </div>
+      </SheetContent>
+    </Sheet>
   )
 }

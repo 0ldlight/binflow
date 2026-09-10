@@ -1,0 +1,88 @@
+# 来源: SOURCE C 安装包 /Users/lzw/Downloads/artifactory-pro-7.161.16/app/bin/migrationComposeInfo.yaml
+# 版本: 7.161.16 | 证据等级: E2 | 原样摘录（全文）
+# 用途: 6.x→7.x 数据迁移（docker/compose 形态）的目录搬移表与属性文件→system.yaml 键映射表
+# 注: zip/rpm 变体（migrationZipInfo.yaml / migrationRpmInfo.yaml）额外含 xmlFiles（server.xml→tomcat 键）
+#     与 defaultFile（etc/artifactory/old/default→app/bin/artifactory.default）迁移节；docker 变体无这两节。
+
+migration:
+  product: ARTIFACTORY
+  oldDataDir: /var/opt/jfrog/artifactory
+  propertyFiles:
+    files:
+      dbProperty
+      haNodeProperty
+      accessDbProperty
+    dbProperty:
+      # Note $JF_ROOT_DATA_DIR/var will be prepended to the filePath value
+      filePath: etc/artifactory/old
+      fileName: db.properties
+      map:
+      # map should be in format example: systemYamlPath=property
+        shared.database.type=type
+        shared.database.driver=driver
+        shared.database.url=url
+        shared.database.username=username
+        shared.database.password=password
+        artifactory.database.poolType=pool.type
+        artifactory.database.maxOpenConnections=pool.max.active
+        artifactory.database.maxIdleConnections=pool.max.idle
+        artifactory.database.minIdleConnections=minIdle
+        artifactory.database.lockingdbUsername=lockingdb.username
+        artifactory.database.lockingdbPassword=lockingdb.password
+        artifactory.database.lockingdbType=lockingdb.type
+        artifactory.database.lockingdbUrl=lockingdb.url
+        artifactory.database.lockingdbDriver=lockingdb.driver
+    accessDbProperty:
+      # Note $JF_ROOT_DATA_DIR/var will be prepended to the filePath value
+      filePath: etc/access/old
+      fileName: db.properties
+      map:
+      # map should be in format example: systemYamlPath=property
+        access.database.poolType=pool.type
+        access.database.maxOpenConnections=pool.max.active
+        access.database.maxIdleConnections=pool.max.idle
+        access.database.minIdleConnections=minIdle
+    haNodeProperty:
+      # Note $JF_ROOT_DATA_DIR/var will be prepended to the filePath value
+      filePath: etc/artifactory/old
+      fileName: ha-node.properties
+      map:
+      # map should be in format example: systemYamlPath=property
+        shared.node.id=node.id
+        shared.node.primary=primary
+        artifactory.node.contexturl=context.url
+        artifactory.node.membershipPort=membership.port
+        artifactory.node.haDataDir=artifactory.ha.data.dir
+        artifactory.node.haBackupDir=artifactory.ha.backup.dir
+        artifactory.node.crossZoneOrder=cross.zone.order
+        artifactory.node.clusterHome=cluster.home
+        artifactory.node.hazelcastInterface=hazelcast.interface
+  moveDirectories:
+    map:
+    # Note : $JF_ROOT_DATA_DIR will be prepended to the sourceDirectoryPath value only if relative path and $JF_ROOT_DATA_DIR/var will be prepended to the targetDirectoryPath value
+    # map should be in format example: targetDirectoryPath=sourceDirectoryPath
+      backup/access=access/backup
+      data/access=access/data
+      etc/artifactory=etc
+      etc/access=access/etc
+      support/artifactory=support
+      work/access=access/tmp
+      backup/artifactory=backup
+      data/artifactory=data
+      log/archived/access=access/logs
+      log/archived/artifactory=logs
+      data/postgres/data=../postgresql
+  copySpecificFiles:
+    map:
+    # Note : $JF_ROOT_DATA_DIR will be prepended to the sourceDirectoryPath value only if relative path and $JF_ROOT_DATA_DIR will be prepended to the targetDirectoryPath value
+    # map should be in format example: targetDirectoryPath=sourceDirectoryPath
+      var/etc/security=etc/security/master.key
+  cleanUpOldDataDir:
+    # Note : $JF_ROOT_DATA_DIR will be prepended to the map entry
+    map:
+      access
+      backup
+      etc
+      data
+      metadata
+      logs

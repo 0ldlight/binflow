@@ -1,23 +1,9 @@
 import { useMemo, useState } from 'react'
 
-import Alert from '@mui/material/Alert'
-import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import IconButton from '@mui/material/IconButton'
-import InputAdornment from '@mui/material/InputAdornment'
-import Stack from '@mui/material/Stack'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
-import TextField from '@mui/material/TextField'
-import Tooltip from '@mui/material/Tooltip'
-import Typography from '@mui/material/Typography'
-
+import { Button } from '@/components/ui/button'
 import { useConfirm } from '../../components/ConfirmDialog'
 import { useToast } from '../../app/ToastContext'
-import { Skeleton } from '../../components/Skeleton'
+import { StateSkeleton } from '@/components/layout/states'
 import { ApiError, deleteNodeProperties, errText, getNodeProperties, putNodeProperties } from '../../lib/api'
 import { PROPS_COPY } from './detailCopy'
 import { useAsync } from '../../lib/useAsync'
@@ -46,6 +32,12 @@ const t = tr('artifacts')
 //     保留写入口，服务端 403 行内呈现（opError 信封文案）
 // 四态：loading（Skeleton）/ 空（无属性引导，常显表单仍在）/ 错误
 // （Alert + 重试）/ 数据。
+//
+// FE-P4 MUI 清场：TextField/Button/Tooltip/Table/Alert/IconButton →
+// Tailwind + `.field` 族 + 原生 table（新栈 idiom）。锚族原样（node-props /
+// -key-input / -values-input-<key> / -add / -search / -table / -row-<key> /
+// -delete-<key> / -empty / -error / -search-empty）；校验/确认/toast 语义
+// 零改点（useConfirm/useToast 仍是既有 API）。
 
 /** 键闭集（与服务端 ValidatePropKey 同口径） */
 const KEY_RE = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/
@@ -55,8 +47,6 @@ const CTRL_RE = /[\x00-\x1f\x7f]/
 const MAX_KEYS = 64
 const MAX_VALUES = 32
 const MAX_VALUE_BYTES = 1024
-
-const MONO = { fontFamily: 'var(--bf-mono)' } as const
 
 function validateKey(key: string): string | null {
   if (!KEY_RE.test(key)) return t('键须匹配 [A-Za-z][A-Za-z0-9_.-]{0,63}（字母开头，≤64 字符）')
@@ -195,18 +185,18 @@ export default function PropertiesTab({
   const searchEmpty = search.trim() !== '' && filtered.length === 0
 
   // ---- 四态 ----
-  if (propsQ.status === 'loading') return <div data-testid="node-props"><Skeleton lines={3} /></div>
+  if (propsQ.status === 'loading') return <div data-testid="node-props"><StateSkeleton lines={3} /></div>
   if (propsQ.status === 'error' || propsQ.status === 'forbidden') {
     return (
       <div data-testid="node-props">
-        <Alert
-          severity="error"
+        <div
           data-testid="node-props-error"
-          action={
-            <Button color="inherit" size="small" onClick={propsQ.reload}>{t('重试')}            </Button>
-          }
-        >{t('属性加载失败（HTTP')} {propsQ.error?.status ?? 0}{t('）——')}{propsQ.error?.message ?? t('网络错误')}
-        </Alert>
+          role="alert"
+          className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-dense"
+        >
+          <span className="text-destructive">{t('属性加载失败（HTTP')} {propsQ.error?.status ?? 0}{t('）——')}{propsQ.error?.message ?? t('网络错误')}</span>
+          <Button variant="outline" size="sm" onClick={propsQ.reload}>{t('重试')}</Button>
+        </div>
       </div>
     )
   }
@@ -215,161 +205,161 @@ export default function PropertiesTab({
     <div data-testid="node-props">
       {/* 常显表单（B-2.9 翻正——7.161.20 活体：Property name / Property
           value 两输入 + Add 常驻；同名键 = 整体替换其值集） */}
-      <Stack direction="row" alignItems="flex-start" spacing={1} sx={{ mb: 1.5, flexWrap: 'wrap' }}>
-        <TextField
-          size="small"
-          label="Property"
-          sx={{ width: 220 }}
-          placeholder={PROPS_COPY.keyPlaceholder}
-          value={newKey}
-          onChange={(e) => setNewKey(e.target.value)}
-          onKeyDown={onFieldKeys}
-          disabled={!canWrite || busy}
-          error={!!keyError || !!keyCountError}
-          helperText={keyError ?? keyCountError ?? (keyExists ? PROPS_COPY.replaceHint : ' ')}
-          slotProps={{ htmlInput: { 'data-testid': 'node-props-key-input', spellCheck: false, autoComplete: 'off' } }}
-        />
-        <TextField
-          size="small"
-          label="Value"
-          sx={{ width: 280 }}
-          placeholder={PROPS_COPY.valuePlaceholder}
-          value={valuesText}
-          onChange={(e) => setValuesText(e.target.value)}
-          onKeyDown={onFieldKeys}
-          disabled={!canWrite || busy}
-          error={!!valuesError}
-          helperText={valuesError ?? t('多值以逗号分隔，如 v1, v2')}
-          slotProps={{
-            htmlInput: {
-              // 后缀 = 已敲键或 new（家族 node-props-values-input-<key>）——
-              // 模板串内不得内联引号（对账器值类正则按引号截断，锚家族会
-              // 从 src 侧隐形——T-447 复刻 T-291 教训，先算后拼）
-              'data-testid': `node-props-values-input-${valuesAnchorSuffix}`,
-              spellCheck: false,
-              autoComplete: 'off',
-            },
-          }}
-        />
-        <Tooltip
-          title={
-            !canWrite
-              ? readonlyTitle
-              : rows.length >= MAX_KEYS
-                ? t('节点最多 {MAX_KEYS} 个属性键', { MAX_KEYS: MAX_KEYS })
-                : PROPS_COPY.replaceHint
-          }
-        >
-          <span>
-            <Button
-              size="small"
-              variant="outlined"
-              sx={{ mt: 0.5 }}
-              data-testid="node-props-add"
-              disabled={!canWrite || busy || invalid}
-              onClick={() => void add()}
-            >
-              {PROPS_COPY.addLabel}
-            </Button>
-          </span>
-        </Tooltip>
-      </Stack>
+      <div className="flex flex-wrap items-start gap-2" style={{ marginBottom: 6 }}>
+        <div className="field" style={{ width: 220, marginBottom: 0 }}>
+          <label htmlFor="node-props-key-input">Property</label>
+          <input
+            id="node-props-key-input"
+            className="w-full"
+            placeholder={PROPS_COPY.keyPlaceholder}
+            value={newKey}
+            onChange={(e) => setNewKey(e.target.value)}
+            onKeyDown={onFieldKeys}
+            disabled={!canWrite || busy}
+            data-testid="node-props-key-input"
+            spellCheck={false}
+            autoComplete="off"
+            aria-invalid={!!keyError || !!keyCountError}
+          />
+          {(keyError || keyCountError) ? (
+            <p className="field-error" role="alert">{keyError ?? keyCountError}</p>
+          ) : (
+            <p className="field-hint">{keyExists ? PROPS_COPY.replaceHint : ' '}</p>
+          )}
+        </div>
+        <div className="field" style={{ width: 280, marginBottom: 0 }}>
+          <label htmlFor={`node-props-values-input-${valuesAnchorSuffix}`}>Value</label>
+          <input
+            // 后缀 = 已敲键或 new（家族 node-props-values-input-<key>）——
+            // 模板串内不得内联引号（对账器值类正则按引号截断，锚家族会
+            // 从 src 侧隐形——T-447 复刻 T-291 教训，先算后拼）
+            data-testid={`node-props-values-input-${valuesAnchorSuffix}`}
+            className="w-full"
+            placeholder={PROPS_COPY.valuePlaceholder}
+            value={valuesText}
+            onChange={(e) => setValuesText(e.target.value)}
+            onKeyDown={onFieldKeys}
+            disabled={!canWrite || busy}
+            spellCheck={false}
+            autoComplete="off"
+            aria-invalid={!!valuesError}
+          />
+          {valuesError ? (
+            <p className="field-error" role="alert">{valuesError}</p>
+          ) : (
+            <p className="field-hint">{t('多值以逗号分隔，如 v1, v2')}</p>
+          )}
+        </div>
+        <span title={!canWrite ? readonlyTitle : rows.length >= MAX_KEYS ? t('节点最多 {MAX_KEYS} 个属性键', { MAX_KEYS: MAX_KEYS }) : PROPS_COPY.replaceHint}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-6"
+            data-testid="node-props-add"
+            disabled={!canWrite || busy || invalid}
+            onClick={() => void add()}
+          >
+            {PROPS_COPY.addLabel}
+          </Button>
+        </span>
+      </div>
 
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.5 }}>
-        <Typography variant="body2" color="text.secondary">{t('属性 ·')} {rows.length} {t('个键')}{search.trim() !== '' ? t('（匹配 {v1}）', { v1: filtered.length }) : ''}
-        </Typography>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-dense text-muted-foreground">{t('属性 ·')} {rows.length} {t('个键')}{search.trim() !== '' ? t('（匹配 {v1}）', { v1: filtered.length }) : ''}</span>
         {/* 网格搜索（B-2.9 解剖要素——键/值子串过滤；清空恢复全量） */}
-        <TextField
-          size="small"
-          sx={{ width: 220 }}
-          placeholder={PROPS_COPY.searchPlaceholder}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          slotProps={{
-            htmlInput: { 'data-testid': 'node-props-search', 'aria-label': PROPS_COPY.searchLabel, autoComplete: 'off' },
-            input: {
-              endAdornment: search !== '' && (
-                <InputAdornment position="end">
-                  <IconButton size="small" aria-label={t('清除属性搜索')} onClick={() => setSearch('')}>
-                    <span aria-hidden="true">✕</span>
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-      </Stack>
+        <div className="field" style={{ width: 220, marginBottom: 0 }}>
+          <input
+            data-testid="node-props-search"
+            className="w-full"
+            aria-label={PROPS_COPY.searchLabel}
+            placeholder={PROPS_COPY.searchPlaceholder}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            autoComplete="off"
+          />
+          {search !== '' && (
+            <button
+              type="button"
+              aria-label={t('清除属性搜索')}
+              onClick={() => setSearch('')}
+              className="mt-0.5 self-start text-aux text-muted-foreground hover:text-foreground"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
 
       {rows.length === 0 ? (
-        <Box data-testid="node-props-empty" sx={{ py: 3, textAlign: 'center' }}>
-          <Typography color="text.secondary">{t('此节点尚无属性')}</Typography>
-          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>{t('部署时以矩阵参数（PUT …;key=value）附带，或用上方表单添加；属性用于检索与治理。')}          </Typography>
-        </Box>
+        <div data-testid="node-props-empty" className="py-6 text-center">
+          <p className="text-dense text-muted-foreground">{t('此节点尚无属性')}</p>
+          <p className="mt-1 text-aux text-muted-foreground">{t('部署时以矩阵参数（PUT …;key=value）附带，或用上方表单添加；属性用于检索与治理。')}</p>
+        </div>
       ) : searchEmpty ? (
-        <Box sx={{ py: 3, textAlign: 'center' }}>
-          <Typography color="text.secondary" data-testid="node-props-search-empty">{t('没有匹配「')}{search.trim()}{t('」的属性')}          </Typography>
-        </Box>
+        <div className="py-6 text-center">
+          <p className="text-dense text-muted-foreground" data-testid="node-props-search-empty">{t('没有匹配「')}{search.trim()}{t('」的属性')}</p>
+        </div>
       ) : (
-        <Table size="small" data-testid="node-props-table" aria-label={t('制品属性')}>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ width: '34%' }}>{t('键')}</TableCell>
-              <TableCell>{t('值（多值以逗号分隔）')}</TableCell>
-              <TableCell sx={{ width: 72 }} align="right">{t('操作')}              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
+        <table data-testid="node-props-table" aria-label={t('制品属性')} className="w-full border-collapse text-dense">
+          <thead>
+            <tr className="border-b border-border text-left text-aux text-muted-foreground">
+              <th className="w-[34%] px-2 py-1.5 font-medium">{t('键')}</th>
+              <th className="px-2 py-1.5 font-medium">{t('值（多值以逗号分隔）')}</th>
+              <th className="w-[72px] px-2 py-1.5 text-right font-medium">{t('操作')}</th>
+            </tr>
+          </thead>
+          <tbody>
             {filtered.map(([key, values]) => (
-              <TableRow key={key} data-testid={`node-props-row-${key}`}>
-                <TableCell sx={MONO} component="th" scope="row">
+              <tr key={key} data-testid={`node-props-row-${key}`} className="border-b border-border/60">
+                <th scope="row" className="px-2 py-1.5 text-left font-mono font-normal">
                   {key}
-                </TableCell>
-                <TableCell sx={MONO}>{values.join(', ')}</TableCell>
-                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                  <Tooltip
-                    title={
-                      !canWrite
-                        ? readonlyTitle
-                        : t('删除该属性（DELETE 单键——过危险确认，E1 统一）')
-                    }
+                </th>
+                <td className="px-2 py-1.5 font-mono">{values.join(', ')}</td>
+                <td className="whitespace-nowrap px-2 py-1.5 text-right">
+                  <button
+                    type="button"
+                    aria-label={t('删除属性 {key}', { key: key })}
+                    data-testid={`node-props-delete-${key}`}
+                    title={!canWrite ? readonlyTitle : t('删除该属性（DELETE 单键——过危险确认，E1 统一）')}
+                    disabled={!canWrite || busy}
+                    onClick={() => void remove(key)}
+                    className="rounded-sm p-1 text-muted-foreground hover:bg-surface-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50"
                   >
-                    <span>
-                      <IconButton
-                        size="small"
-                        aria-label={t('删除属性 {key}', { key: key })}
-                        data-testid={`node-props-delete-${key}`}
-                        disabled={!canWrite || busy}
-                        onClick={() => void remove(key)}
-                      >
-                        <span aria-hidden="true">🗑</span>
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                </TableCell>
-              </TableRow>
+                    <span aria-hidden="true">🗑</span>
+                  </button>
+                </td>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       )}
 
       {opError && (
-        <Alert
-          severity="error"
-          sx={{ mt: 1 }}
+        <div
           data-testid="node-props-error"
-          onClose={() => setOpError(null)}
+          role="alert"
+          className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-dense"
         >
-          <div>{t('属性写入失败（HTTP')} {opError.status}{t('）：')}<span lang="en">{opError.message}</span>
+          <div className="flex items-center justify-between gap-2">
+            <span>{t('属性写入失败（HTTP')} {opError.status}{t('）：')}<span lang="en">{opError.message}</span></span>
+            <button
+              type="button"
+              aria-label={t('关闭错误提示')}
+              onClick={() => setOpError(null)}
+              className="rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
+            >
+              <span aria-hidden="true">✕</span>
+            </button>
           </div>
           {opError.status === 403 && (
             <div>{t('当前会话没有该路径的写权限（write 动作）——权限按 permission target 的路径 pattern 授予，请联系管理员。')}</div>
           )}
-        </Alert>
+        </div>
       )}
 
-      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+      <p className="mt-2 text-aux text-muted-foreground">
         {PROPS_COPY.footnote}
-      </Typography>
+      </p>
     </div>
   )
 }

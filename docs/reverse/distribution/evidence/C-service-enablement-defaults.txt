@@ -1,0 +1,37 @@
+# 来源: SOURCE C 安装包 /Users/lzw/Downloads/artifactory-pro-7.161.16/app/bin/artifactoryCommon.sh（run* 函数族 grep 摘编）
+# 版本: 7.161.16 | 证据等级: E2 | 摘编（getSystemValue 的默认值参即 enablement 缺省）
+# 交叉印证: SOURCE B 7.161.20 运行时进程表（E4）——默认开启的服务全部在跑，
+#           默认关闭的 rtfs/apptrust/unifiedpolicy/evaluation/platformFederation 无进程，完全吻合。
+
+服务 enablement 键                缺省值     额外条件
+router_service.enabled            true
+observability.enabled             true
+event.enabled                     true
+evidence.enabled                  true
+metadata.enabled                  true
+onemodel.enabled                  true
+frontend.enabled                  true
+jfconnect_service.enabled         true
+jfconfig.enabled                  true
+jfbus.enabled                     true
+topology.enabled                  true
+jfmelt.enabled                    true      需 jfbus 与 jfconnect 同时启用，否则告警不启动
+rtfs.enabled                      false     且 JF_RTFS_EMBEDDED_ENABLED != false 时才纳入编排
+platformFederation.enabled        false
+apptrust.enabled                  false
+unifiedpolicy.enabled             false
+evaluation.enabled                false
+mc.enabled                        false     （Mission Control war 形态）
+access                            （无 yaml 键）由环境变量 JF_ACCESS_ENABLED 控制，未设或非 "false" 即启用
+# 平台服务架构开关（JF_ARTIFACTORY_SERVICE_ENABLED / PLATFORM_SERVICE_ENABLED）为真时
+# requiredServiceTypes 收缩为 jfrt,jfmd,jfob 等子集（setRouterTopology 内）
+
+--- performActionOnScript 对每个受管脚本的前置闸 ---
+脚本路径含服务名且对应 run* 判定为假时，start/stop/status 动作整体跳过（no-op）。
+
+--- setRouterTopology 产出的 required service types（动态拼接）---
+基线: jfrt,jfac,jfmd,jffe,jfob,jfcfg
+条件追加: jfcon(jfconnect) jfmc(mc) jfevt(event) jfrtfs(rtfs) jfevd(evidence) jftpl(topology)
+          jfomr(onemodel) jfbus jfmelt jfpfed(platformFederation) jfapp(apptrust) jfup(unifiedpolicy) jfevl(evaluation)
+# E4 印证: B 实例 /router/api/v1/system/health 返回 required_service_types =
+# [jfrt jfac jfmd jffe jfob jfcfg jfcon jfevt jfevd jftpl jfomr jfbus jfmelt]（13 项，与默认开启集一致）

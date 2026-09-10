@@ -451,3 +451,15 @@ a:hover {
   color: var(--bf-text-muted);
   font-size: var(--bf-fs-aux);
 }
+
+/* ---------- P3 增补：裸 button 最小重置（Tailwind preflight 关闭期） ----------
+ * 背景：共存期 preflight 关闭（P2 纪律），新栈的裸 <button>（Tab 条、
+ * 穿梭条目、图标钮等非 ui/Button 件）落到 UA 默认 ButtonFace——浅色
+ * #efefef / 深色 #6b6b6b，配合继承色曾触 axe color-contrast serious
+ * （t366 webhooks 双主题腿、t512 ⑥ 实证）。此处仅重置背景/文字继承两个
+ * 属性（preflight 的 button 子集），MUI 自绘按钮自带背景不受影响；
+ * P4 恢复完整 preflight 后本块冗余可删。 */
+button {
+  background-color: transparent;
+  color: inherit;
+}

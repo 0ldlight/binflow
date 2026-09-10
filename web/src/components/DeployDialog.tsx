@@ -1,29 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { Link } from 'react-router-dom'
-import Button from '@mui/material/Button'
-import Chip from '@mui/material/Chip'
-import Dialog from '@mui/material/Dialog'
-import DialogActions from '@mui/material/DialogActions'
-import DialogContent from '@mui/material/DialogContent'
-import DialogTitle from '@mui/material/DialogTitle'
-import LinearProgress from '@mui/material/LinearProgress'
-import Stack from '@mui/material/Stack'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
-import Typography from '@mui/material/Typography'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
 
+import { Badge } from '@/components/ui/badge'
+import { Button, ButtonAsChild } from '@/components/ui/button'
+import { CopyButton } from '@/components/layout/copy-button'
+import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { useAuth } from '../app/AuthContext'
-import { CopyButton } from './CopyButton'
-import { EmptyState } from './EmptyState'
-import { ErrorCard } from './ErrorCard'
-import { Skeleton } from './Skeleton'
 import { ApiError, errText, getRepositories } from '../lib/api'
 import { formatBytes } from '../lib/format'
-import { cellBtnSx } from '../lib/muiAtoms'
 import { getRepoDetail } from '../lib/repos'
 import type { PackageType, RepoDetail } from '../lib/repos'
 import { useAsync } from '../lib/useAsync'
@@ -32,6 +17,7 @@ import { putArtifact } from '../pages/artifacts/lib'
 import type { UploadProgress } from '../pages/artifacts/lib'
 import { mavenTarget } from '../lib/maven'
 import type { GavForm } from '../lib/maven'
+import { Link } from 'react-router-dom'
 
 import './dialogs.css'
 import { tr } from '../i18n'
@@ -58,6 +44,15 @@ const t = tr('console')
 // 队列模型（UploadDialog 同款纪律）：行一次只跑一个（hash → PUT 串行）；
 // 「部署」按钮启泵（对齐 Artifactory 的显式 Deploy 提交步）；关闭 = 落闸 +
 // abort 在飞 XHR（排队文件不再上传）。
+//
+// FE-P4 MUI 清场：MUI Dialog/Button/Chip/Table/LinearProgress → Radix
+// Dialog + shadcn/Tailwind 承载。锚族与语义 DOM 原样（deploy-dialog /
+// deploy-repo / deploy-target / deploy-gav-* / deploy-drop / deploy-rows /
+// deploy-row-<name> / deploy-echo-<name> / deploy-verify-<name> /
+// deploy-submit / deploy-close）；焦点圈进/Tab 循环/Esc/滚动锁定交 Radix
+// FocusScope（Esc 与 backdrop 点击 → close——落闸 + abort 语义由
+// onOpenChange 承载，任意焦点位可达）。行内进度条 = 原生 role=progressbar
+// div（aria 语义与 MUI LinearProgress 同构）。
 
 interface MiniRepo {
   key: string
@@ -286,303 +281,306 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
     onClose()
   }
 
+  // 回焦锚：挂载时捕获场外焦点元素，卸载时回焦（quick-set-me-up 等启动钮
+  // 的回焦家族契约——ui/dialog 的 DialogContent 同款：Radix FocusScope 的
+  // unmount 回焦在 React 19.2 下实测不发火，此处显式承载；微任务让位：
+  // 若 Radix 自身回焦恢复，不抢已就位的焦点）
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    return () => {
+      queueMicrotask(() => {
+        if (document.activeElement === document.body || document.activeElement === null) {
+          const el = returnFocusRef.current
+          if (el && el.isConnected) el.focus({ preventScroll: true })
+        }
+      })
+    }
+  }, [])
+
   const allSettled = rows.length > 0 && rows.every((r) => r.phase === 'done' || r.phase === 'error')
   const inFlight = rows.some((r) => r.phase === 'uploading' || r.phase === 'hashing')
   const canDeploy =
     rows.length > 0 && !inFlight && (mode === 'generic' || mavenReady) && !allSettled
-
-  // ---- 焦点陷阱 + Tab 循环：T-344 批 B 起交 MUI Dialog（FocusTrap 首焦
-  //      落 paper〔tabIndex -1 承载 scrollable-region-focusable〕；Tab 循
-  //      环排除禁用钮——T-244 的禁用破口场景由 getTabbable 语义覆盖）。
-  //      Esc 兜底：MUI 的 Esc 监听在 modal root（冒泡路径内才生效），
-  //      焦点掉到 body 时到不了 root——文档级监听补位；MUI 已处理的 Esc
-  //      会 stopPropagation，不会双触发（旧壳行为 = 任意焦点下 Esc 关闭）。
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      e.preventDefault()
-      close()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- close 语义稳定（onClose 闭包）
-  }, [])
 
   const dropHint =
     mode === 'generic'
       ? t('拖拽文件到此处，或点击选择（部署模式决定单文件替换还是多文件追加）')
       : t('选择构件文件（文件名按 GAV 坐标重命名为 layout 名）')
 
-  // paper slotProps 以变量承载（data-* 的字面量过剩属性检查绕行，同
-  // ConfirmDialog 注记）；720px 宽版 modal（原 .deploy-modal 规则随本批
-  // 退役，§3.5）。
-  const paperProps = {
-    'data-testid': 'deploy-dialog',
-    sx: {
-      width: 'min(720px, calc(100vw - 48px))',
-      maxHeight: 'calc(100vh - 96px)',
-    },
-  }
-
   return (
-    <Dialog
-      open
-      onClose={close}
-      aria-labelledby="deploy-dialog-title"
-      slotProps={{ paper: paperProps }}
-    >
-      <DialogTitle id="deploy-dialog-title">{t('部署 Deploy')}</DialogTitle>
-      <DialogContent>
-          {list.status === 'loading' || (needFallback && fallback.status === 'loading') ? (
-            <Skeleton lines={3} />
-          ) : list.status === 'error' && list.error ? (
-            <ErrorCard error={list.error} onRetry={list.reload} />
-          ) : candidates.length === 0 ? (
-            <EmptyState
-              message={t('没有可经浏览器上传的仓库')}
-              hint={t('浏览器上传面向 local 的 Generic / Maven 仓；docker / npm / pypi 协议请用对应客户端发布（仓库详情页有接入命令）。')}
-              action={
-                admin ? (
-                  <Button component={Link} to="/admin/repositories/new" variant="contained" size="medium">{t('创建 Generic 仓库')}                  </Button>
-                ) : undefined
-              }
-            />
-          ) : (
-            <>
-              <div className="deploy-field-grid">
-                <div className="field">
-                  <label htmlFor="deploy-repo">{t('目标仓库')}</label>
-                  <select
-                    id="deploy-repo"
-                    data-testid="deploy-repo"
-                    value={repoKey}
-                    onChange={(e) => setRepoKey(e.target.value)}
-                  >
-                    {candidates.map((r) => (
-                      <option key={r.key} value={r.key}>
-                        {r.key}
-                      </option>
-                    ))}
-                  </select>
-                  {degradedCandidate && (
-                    <div className="field-hint">{t('仓库元数据为管理员视图（HTTP 403）——按 Generic 语义直传；实际协议与 写权限由服务端终裁（被拒原因会在此原样呈现）。')}                    </div>
-                  )}
-                </div>
-                <div className="field">
-                  <label>{t('包类型（只读）')}</label>
-                  <div>
-                    <Chip label={packageType === 'maven' ? 'Maven' : 'Generic'} color="default" />{' '}
-                    <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{t('local 仓 · PUT 直传')}                    </span>
-                  </div>
-                </div>
-                <div className="field">
-                  <label>{t('部署模式')}</label>
-                  <div role="radiogroup" aria-label={t('部署模式')} style={{ display: 'flex', gap: 12 }}>
-                    <label className="check-row">
-                      <input
-                        type="radio"
-                        name="deploy-mode"
-                        value="single"
-                        checked={deployMode === 'single'}
-                        onChange={() => setDeployMode('single')}
-                      />{t('单个部署')}                    </label>
-                    <label className="check-row">
-                      <input
-                        type="radio"
-                        name="deploy-mode"
-                        value="multi"
-                        checked={deployMode === 'multi'}
-                        onChange={() => setDeployMode('multi')}
-                      />{t('多个部署')}                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {mode === 'generic' ? (
-                <div className="field" style={{ marginTop: 12 }}>
-                  <label htmlFor="deploy-target">{t('目标路径（repo 相对目录，可修改）')}</label>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <input
-                      id="deploy-target"
-                      className="mono-input"
-                      data-testid="deploy-target"
-                      value={target}
-                      placeholder={t('例如 acme/release/（空 = 仓库根）')}
-                      onChange={(e) => setTarget(e.target.value)}
-                      spellCheck={false}
-                    />
-                    <CopyButton value={normalizeDir(target)} label={t('目标路径')} />
-                  </div>
-                  <div className="field-hint deploy-echo" lang="en">{t('请求编码回显：')}{repoKey}/{encodedPath(normalizeDir(target), rows[0]?.fileName ?? t('<文件名>'))}
-                  </div>
-                </div>
-              ) : (
-                <div style={{ marginTop: 12 }}>
-                  <div className="deploy-field-grid">
-                    {(
-                      [
-                        ['groupId', 'groupId', 'com.acme'],
-                        ['artifactId', 'artifactId', 'demo-app'],
-                        ['version', 'version', '1.0.0'],
-                        ['classifier', t('classifier（可选）'), 'sources'],
-                        ['packaging', 'packaging', 'jar'],
-                      ] as const
-                    ).map(([field, label, ph]) => (
-                      <div className="field" key={field}>
-                        <label htmlFor={`deploy-gav-${field}`}>{label}</label>
-                        <input
-                          id={`deploy-gav-${field}`}
-                          className="mono-input"
-                          data-testid={`deploy-gav-${field}`}
-                          value={gav[field]}
-                          placeholder={ph}
-                          onChange={(e) => setGav((cur) => ({ ...cur, [field]: e.target.value }))}
-                          spellCheck={false}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="field-hint deploy-echo" data-testid="deploy-maven-preview" lang="en">
-                    {maven.error ? `✗ ${maven.error}` : gav.groupId === '' ? t('填写坐标后生成 layout 路径') : `${maven.dir}/${maven.file}`}
-                  </div>
-                </div>
-              )}
-
-              <div
-                className={`deploy-drop${dragOver ? ' over' : ''}`}
-                data-testid="deploy-drop"
-                role="button"
-                tabIndex={0}
-                aria-label={t('拖拽文件到此处，或按回车选择文件')}
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  setDragOver(true)
-                }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={onDrop}
-                onKeyDown={(e: ReactKeyboardEvent<HTMLDivElement>) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    fileInput.current?.click()
-                  }
-                }}
-                onClick={() => fileInput.current?.click()}
-              >
-                <div aria-hidden="true">⬇</div>
-                <div>{dropHint}</div>
-              </div>
-              <input
-                ref={fileInput}
-                type="file"
-                multiple={mode === 'generic' && deployMode === 'multi'}
-                hidden
-                data-testid="deploy-file-input"
-                onChange={(e) => {
-                  if (e.target.files?.length) addFiles(e.target.files)
-                  e.target.value = ''
-                }}
+    <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) close() }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay data-slot="dialog-overlay" className="fixed inset-0 z-[90] bg-scrim" />
+        <DialogPrimitive.Content
+          data-testid="deploy-dialog"
+          aria-labelledby="deploy-dialog-title"
+          className="fixed top-1/2 left-1/2 z-[90] flex max-h-[calc(100vh-96px)] w-[min(720px,calc(100vw-48px))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-border bg-surface-1 shadow-modal"
+        >
+          <DialogPrimitive.Title id="deploy-dialog-title" className="text-h3 px-4 pt-4 font-semibold">
+            {t('部署 Deploy')}
+          </DialogPrimitive.Title>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+            {list.status === 'loading' || (needFallback && fallback.status === 'loading') ? (
+              <StateSkeleton lines={3} />
+            ) : list.status === 'error' && list.error ? (
+              <ErrorCard error={list.error} onRetry={list.reload} />
+            ) : candidates.length === 0 ? (
+              <EmptyState
+                message={t('没有可经浏览器上传的仓库')}
+                hint={t('浏览器上传面向 local 的 Generic / Maven 仓；docker / npm / pypi 协议请用对应客户端发布（仓库详情页有接入命令）。')}
+                action={
+                  admin ? (
+                    <ButtonAsChild>
+                      <Link to="/admin/repositories/new">{t('创建 Generic 仓库')}</Link>
+                    </ButtonAsChild>
+                  ) : undefined
+                }
               />
+            ) : (
+              <>
+                <div className="deploy-field-grid">
+                  <div className="field">
+                    <label htmlFor="deploy-repo">{t('目标仓库')}</label>
+                    <select
+                      id="deploy-repo"
+                      data-testid="deploy-repo"
+                      value={repoKey}
+                      onChange={(e) => setRepoKey(e.target.value)}
+                    >
+                      {candidates.map((r) => (
+                        <option key={r.key} value={r.key}>
+                          {r.key}
+                        </option>
+                      ))}
+                    </select>
+                    {degradedCandidate && (
+                      <div className="field-hint">{t('仓库元数据为管理员视图（HTTP 403）——按 Generic 语义直传；实际协议与 写权限由服务端终裁（被拒原因会在此原样呈现）。')}</div>
+                    )}
+                  </div>
+                  <div className="field">
+                    <label>{t('包类型（只读）')}</label>
+                    <div>
+                      <Badge variant="outline">{packageType === 'maven' ? 'Maven' : 'Generic'}</Badge>{' '}
+                      <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{t('local 仓 · PUT 直传')}</span>
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label>{t('部署模式')}</label>
+                    <div role="radiogroup" aria-label={t('部署模式')} style={{ display: 'flex', gap: 12 }}>
+                      <label className="check-row">
+                        <input
+                          type="radio"
+                          name="deploy-mode"
+                          value="single"
+                          checked={deployMode === 'single'}
+                          onChange={() => setDeployMode('single')}
+                        />{t('单个部署')}</label>
+                      <label className="check-row">
+                        <input
+                          type="radio"
+                          name="deploy-mode"
+                          value="multi"
+                          checked={deployMode === 'multi'}
+                          onChange={() => setDeployMode('multi')}
+                        />{t('多个部署')}</label>
+                    </div>
+                  </div>
+                </div>
 
-              {rows.length > 0 && (
-                <Table data-testid="deploy-rows" sx={{ mt: 1.5 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ width: 24 }}>#</TableCell>
-                      <TableCell>{t('文件（目标路径 / 编码回显）')}</TableCell>
-                      <TableCell>{t('大小')}</TableCell>
-                      <TableCell>{t('sha256 / 进度')}</TableCell>
-                      <TableCell>{t('状态')}</TableCell>
-                      <TableCell>{t('操作')}</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {rows.map((r, i) => (
-                      <TableRow key={r.id} data-testid={`deploy-row-${r.fileName}`}>
-                        <TableCell>{i + 1}</TableCell>
-                        <TableCell>
-                          <div className="mono" lang="en">
-                            {r.fileName}
-                          </div>
-                          <div className="deploy-echo" data-testid={`deploy-echo-${r.fileName}`} lang="en">
-                            {repoKey}/{encodedPath(r.targetDir, r.fileName)}
-                          </div>
-                        </TableCell>
-                        <TableCell className="mono">{formatBytes(r.file.size)}</TableCell>
-                        <TableCell sx={{ minWidth: 180 }}>
-                          {r.phase === 'hashing' ? (
-                            <span className="text-2">{t('正在计算本地 sha256…')}</span>
-                          ) : r.localSha ? (
-                            <span className="mono" lang="en" title={r.localSha}>
-                              {r.localSha.slice(0, 12)}…
-                            </span>
-                          ) : (
-                            <span className="text-2">—</span>
-                          )}
-                          {r.phase === 'uploading' && (
-                            <Stack direction="row" spacing={1} alignItems="center">
-                              <LinearProgress
-                                variant="determinate"
-                                value={r.total > 0 ? Math.min(100, (r.loaded / r.total) * 100) : 0}
-                                aria-label={t('上传进度 {v1}', { v1: r.fileName })}
-                                sx={{ flex: 1 }}
-                              />
-                              <Typography variant="caption" className="text-2">
-                                {Math.round(r.total > 0 ? (r.loaded / r.total) * 100 : 0)}%
-                              </Typography>
-                            </Stack>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {r.phase === 'done' ? (
-                            <Stack direction="row" spacing={0.5} alignItems="center" useFlexGap sx={{ flexWrap: 'wrap' }}>
-                              <Chip label={t('上传完成 201')} color="success" />
-                              {r.localSha && r.serverSha && (
-                                <Chip
-                                  label={r.localSha === r.serverSha ? t('✓ checksum 一致') : t('✗ 不一致')}
-                                  color={r.localSha === r.serverSha ? 'success' : 'error'}
-                                  data-testid={`deploy-verify-${r.fileName}`}
-                                />
-                              )}
-                            </Stack>
-                          ) : r.phase === 'error' && r.error ? (
-                            <DeployError err={r.error} admin={admin} />
-                          ) : (
-                            <span className="text-2">
-                              {r.phase === 'hashing' ? t('哈希中') : r.phase === 'queued' ? t('待部署') : t('上传中')}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {r.phase === 'error' && (
-                            <Button sx={cellBtnSx} onClick={() => retry(r)}>{t('重试')}                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
+                {mode === 'generic' ? (
+                  <div className="field" style={{ marginTop: 12 }}>
+                    <label htmlFor="deploy-target">{t('目标路径（repo 相对目录，可修改）')}</label>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input
+                        id="deploy-target"
+                        className="mono-input w-full"
+                        data-testid="deploy-target"
+                        value={target}
+                        placeholder={t('例如 acme/release/（空 = 仓库根）')}
+                        onChange={(e) => setTarget(e.target.value)}
+                        spellCheck={false}
+                      />
+                      <CopyButton value={normalizeDir(target)} label={t('目标路径')} />
+                    </div>
+                    <div className="field-hint deploy-echo" lang="en">{t('请求编码回显：')}{repoKey}/{encodedPath(normalizeDir(target), rows[0]?.fileName ?? t('<文件名>'))}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 12 }}>
+                    <div className="deploy-field-grid">
+                      {(
+                        [
+                          ['groupId', 'groupId', 'com.acme'],
+                          ['artifactId', 'artifactId', 'demo-app'],
+                          ['version', 'version', '1.0.0'],
+                          ['classifier', t('classifier（可选）'), 'sources'],
+                          ['packaging', 'packaging', 'jar'],
+                        ] as const
+                      ).map(([field, label, ph]) => (
+                        <div className="field" key={field}>
+                          <label htmlFor={`deploy-gav-${field}`}>{label}</label>
+                          <input
+                            id={`deploy-gav-${field}`}
+                            className="mono-input w-full"
+                            data-testid={`deploy-gav-${field}`}
+                            value={gav[field]}
+                            placeholder={ph}
+                            onChange={(e) => setGav((cur) => ({ ...cur, [field]: e.target.value }))}
+                            spellCheck={false}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="field-hint deploy-echo" data-testid="deploy-maven-preview" lang="en">
+                      {maven.error ? `✗ ${maven.error}` : gav.groupId === '' ? t('填写坐标后生成 layout 路径') : `${maven.dir}/${maven.file}`}
+                    </div>
+                  </div>
+                )}
 
-              <label className="check-row" style={{ marginTop: 8 }}>
+                <div
+                  className={`deploy-drop${dragOver ? ' over' : ''}`}
+                  data-testid="deploy-drop"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={t('拖拽文件到此处，或按回车选择文件')}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    setDragOver(true)
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={onDrop}
+                  onKeyDown={(e: ReactKeyboardEvent<HTMLDivElement>) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      fileInput.current?.click()
+                    }
+                  }}
+                  onClick={() => fileInput.current?.click()}
+                >
+                  <div aria-hidden="true">⬇</div>
+                  <div>{dropHint}</div>
+                </div>
                 <input
-                  type="checkbox"
-                  checked={sendChecksum}
-                  onChange={(e) => setSendChecksum(e.target.checked)}
-                />{t('计算并附带 X-Checksum-Sha256（推荐：服务端校验，不一致 409）')}              </label>
-            </>
-          )}
-      </DialogContent>
-      <DialogActions>
-        <Button data-testid="deploy-close" onClick={close}>{t('关闭')}        </Button>
-        <Button
-          variant="contained"
-          size="medium"
-          data-testid="deploy-submit"
-          disabled={!canDeploy}
-          onClick={startDeploy}
-        >{t('部署')}        </Button>
-      </DialogActions>
-    </Dialog>
+                  ref={fileInput}
+                  type="file"
+                  multiple={mode === 'generic' && deployMode === 'multi'}
+                  hidden
+                  data-testid="deploy-file-input"
+                  onChange={(e) => {
+                    if (e.target.files?.length) addFiles(e.target.files)
+                    e.target.value = ''
+                  }}
+                />
+
+                {rows.length > 0 && (
+                  <table data-testid="deploy-rows" className="w-full border-collapse text-dense" style={{ marginTop: 6 }}>
+                    <thead>
+                      <tr className="border-b border-border text-left text-aux text-muted-foreground">
+                        <th className="w-6 px-2 py-1.5 font-medium">#</th>
+                        <th className="px-2 py-1.5 font-medium">{t('文件（目标路径 / 编码回显）')}</th>
+                        <th className="px-2 py-1.5 font-medium">{t('大小')}</th>
+                        <th className="px-2 py-1.5 font-medium">{t('sha256 / 进度')}</th>
+                        <th className="px-2 py-1.5 font-medium">{t('状态')}</th>
+                        <th className="px-2 py-1.5 font-medium">{t('操作')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((r, i) => (
+                        <tr key={r.id} data-testid={`deploy-row-${r.fileName}`} className="border-b border-border/60 align-top">
+                          <td className="px-2 py-1.5">{i + 1}</td>
+                          <td className="px-2 py-1.5">
+                            <div className="mono" lang="en">
+                              {r.fileName}
+                            </div>
+                            <div className="deploy-echo" data-testid={`deploy-echo-${r.fileName}`} lang="en">
+                              {repoKey}/{encodedPath(r.targetDir, r.fileName)}
+                            </div>
+                          </td>
+                          <td className="px-2 py-1.5 font-mono">{formatBytes(r.file.size)}</td>
+                          <td className="px-2 py-1.5 min-w-[180px]">
+                            {r.phase === 'hashing' ? (
+                              <span className="text-2">{t('正在计算本地 sha256…')}</span>
+                            ) : r.localSha ? (
+                              <span className="mono" lang="en" title={r.localSha}>
+                                {r.localSha.slice(0, 12)}…
+                              </span>
+                            ) : (
+                              <span className="text-2">—</span>
+                            )}
+                            {r.phase === 'uploading' && (
+                              <div className="flex items-center gap-1.5">
+                                <div
+                                  role="progressbar"
+                                  aria-label={t('上传进度 {v1}', { v1: r.fileName })}
+                                  aria-valuenow={Math.round(r.total > 0 ? Math.min(100, (r.loaded / r.total) * 100) : 0)}
+                                  aria-valuemin={0}
+                                  aria-valuemax={100}
+                                  className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-sm bg-surface-2"
+                                >
+                                  <div
+                                    className="h-full bg-primary transition-[width]"
+                                    style={{ width: `${r.total > 0 ? Math.min(100, (r.loaded / r.total) * 100) : 0}%` }}
+                                  />
+                                </div>
+                                <span className="text-aux text-2">
+                                  {Math.round(r.total > 0 ? (r.loaded / r.total) * 100 : 0)}%
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            {r.phase === 'done' ? (
+                              <span className="flex flex-wrap items-center gap-1">
+                                <Badge variant="success">{t('上传完成 201')}</Badge>
+                                {r.localSha && r.serverSha && (
+                                  <Badge
+                                    variant={r.localSha === r.serverSha ? 'success' : 'destructive'}
+                                    data-testid={`deploy-verify-${r.fileName}`}
+                                  >
+                                    {r.localSha === r.serverSha ? t('✓ checksum 一致') : t('✗ 不一致')}
+                                  </Badge>
+                                )}
+                              </span>
+                            ) : r.phase === 'error' && r.error ? (
+                              <DeployError err={r.error} admin={admin} />
+                            ) : (
+                              <span className="text-2">
+                                {r.phase === 'hashing' ? t('哈希中') : r.phase === 'queued' ? t('待部署') : t('上传中')}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            {r.phase === 'error' && (
+                              <Button variant="outline" size="sm" className="min-w-0" onClick={() => retry(r)}>{t('重试')}</Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                <label className="check-row" style={{ marginTop: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={sendChecksum}
+                    onChange={(e) => setSendChecksum(e.target.checked)}
+                  />{t('计算并附带 X-Checksum-Sha256（推荐：服务端校验，不一致 409）')}</label>
+              </>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
+            <Button variant="outline" data-testid="deploy-close" onClick={close}>{t('关闭')}</Button>
+            <Button
+              data-testid="deploy-submit"
+              disabled={!canDeploy}
+              onClick={startDeploy}
+            >{t('部署')}</Button>
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   )
 }
 
@@ -591,21 +589,20 @@ function DeployError({ err, admin }: { err: ApiError; admin: boolean }) {
   return (
     <div className="deploy-error">
       <span>
-        <Chip
-          label={`HTTP ${err.status}`}
-          color={err.status === 403 || err.status === 413 || err.status === 409 ? 'error' : 'default'}
-        />
+        <Badge variant={err.status === 403 || err.status === 413 || err.status === 409 ? 'destructive' : 'outline'}>
+          {`HTTP ${err.status}`}
+        </Badge>
       </span>
       <span className="raw" lang="en">
         {errText(err)}
       </span>
       {err.status === 403 && (
-        <span className="field-hint">{t('当前会话对该路径没有所需权限（写入需 write；覆盖已有文件还需对旧文件的 delete）。')}          {admin && t(' 可在权限 target 里为该路径加 write 动作。')}
+        <span className="field-hint">{t('当前会话对该路径没有所需权限（写入需 write；覆盖已有文件还需对旧文件的 delete）。')}{admin && t(' 可在权限 target 里为该路径加 write 动作。')}
         </span>
       )}
       {err.status === 413 && <span className="field-hint">{t('仓库配额已满——服务端已原子拒绝，未落任何残留。')}</span>}
       {err.status === 409 && (
-        <span className="field-hint">{t('409：路径被 include/exclude pattern 拒绝，或声明的 checksum 与实际内容不一致（message 含 received/actual 双值）。')}        </span>
+        <span className="field-hint">{t('409：路径被 include/exclude pattern 拒绝，或声明的 checksum 与实际内容不一致（message 含 received/actual 双值）。')}</span>
       )}
     </div>
   )

@@ -2,18 +2,16 @@ import { expect, test } from '@playwright/test'
 import { loginAs, provisionRoles } from './support/roles'
 import { m8Client, roleFixturesFromEnv, seedRepos } from './support/seed'
 
-// T-235 双模式壳与路由重排（console-m8 §1/§2；FR-71 AC1~AC3）：
-//   1. 三角色 × 双模式导航可达性（应用侧栏 2 条目 / 管理侧栏五分组 18 条目
-//      〔M8 基线 12 + M10/M11/M12/M13 增量 + T-459 重排：监控组扩三页 +
-//      系统信息/维护/备份归位，Webhooks 归常规组〕；
-//      readonly_admin 见「管理」入口；普通用户无入口且 /admin/** 直链保持
-//      应用侧栏 + 页面 L2 收敛——§2.2 姿态不变）。
-//   2. 旧路由终态（T-263，Q3 终裁）：console-m8 §1.4 的 20 条映射全量移除
-//      ——旧路径不再重定向，直链落 NotFound（原始路径回显 + 回主页，
-//      T-239 形态）；查询串不复活重定向。首页 `/` 的 index 落点保留。
-//   3. 键盘导航：模式切换 / 用户菜单 Quick 动作全键盘驱动（§3.4）。
-// 锚口径 = ADR-0029 决策 3：锚不随路由改名；URL 断言仅出现在外部前缀与
-// 本终态腿两处（README §2.1；决策 6：路径断言随路由表改，同票携带）。
+// FE-Rewrite P2 四分组壳（architecture §4 IA——原 T-235 双模式概念退役：
+// 分组即模式，权限可见性替代模式切换；nav-mode-switch 锚随形态退役 §10.7）：
+//   1. 三角色 × 四分组导航可达性（核心/运营/安全/管理——admin 全见 25 条目；
+//      readonly_admin 同见〔读姿态〕；普通用户仅见「全可见」条目——核心 3 +
+//      运营 2，管理/安全分组整组不渲染〔L1〕，/admin/** 直链页面 L2 收敛）。
+//   2. 旧路由终态（T-263，Q3 终裁）：20 条映射全量移除——旧路径直链落
+//      NotFound（原始路径回显 + 回主页，T-239 形态）；查询串不复活重定向。
+//   3. 键盘导航：侧栏条目与用户菜单 Quick 动作全键盘驱动（§3.4 承接）。
+// 锚口径 = ADR-0029 决策 3：锚不随路由改名；nav-icon 一级条目锚在新壳延续
+// （T-388 N2/V5 档位不变——分组标签不配）。
 
 const REPO = 'm8-shell-legacy-local'
 
@@ -23,114 +21,86 @@ test.beforeEach(async ({ request }) => {
   await provisionRoles()
 })
 
-/** 管理模式侧栏五分组 × 18 条目（console-m8 §1.3 全图 + M10 T-288/M11 T-307/
- *  M12 T-352/M13 T-366 增量 + **T-459 七一六重排**：Webhooks 归常规组 /
- *  维护·备份归监控组〔服务节点〕/ 系统信息自常规组归位监控组 + 监控组
- *  新增服务状态与系统日志两页——parity B-2.18/B-1.11）。
- *  T-388（N2/V5）起每条一级条目带 16px mono 图标（nav-icon 家族锚）——档位
- *  仅一级条目：分组标签与底部模式切换项不配（V5 活体核验口径）。 */
-const ADMIN_GROUPS = ['仓库', '用户与权限', '治理', '监控', '常规'] as const
+/** 四分组全标签（nav-model.ts NAV_GROUPS——中文 label 逐字） */
+const GROUPS = ['核心', '运营', '安全', '管理'] as const
 
+/** 管理可达条目（label × 页面锚——18 条旧基线 + P3 解锁双页） */
 const ADMIN_ENTRIES: [string, string][] = [
   ['仓库', 'repos-page'],
   ['用户', 'users-page'],
   ['组', 'groups-page'],
   ['权限', 'perms-page'],
-  ['Access Tokens', 'tokens-page'], // M14 T-386 落真身（原占位页承载）
-  ['认证配置', 'authcfg-page'], // M11 T-307（FR-92——LDAP/OAuth/SAML 三协议）
+  ['Access Tokens', 'tokens-page'], // M14 T-386
+  ['签名密钥', 'keypair-page'], // FE-Rewrite P3 解锁（API 10 op）
+  ['认证配置', 'authcfg-page'], // M11 T-307
   ['审计日志', 'audit-page'],
   ['配额', 'quotas-page'],
   ['复制', 'repl-page'],
-  ['回收站', 'trash-page'], // M12 T-352（FR-106——浏览/恢复/清空；槽门控态）
-  ['存储', 'storage-page'], // T-238 落真身（原 placeholder-page 占位）
-  ['服务状态', 'status-page'], // T-459（FR-145.5——health + schedules 运行面）
-  ['系统日志', 'logs-page'], // T-459（FR-145.5——审计跟踪尾随查看器）
-  ['系统信息', 'settings'], // T-459 归位监控组（/admin/monitoring/system-info）
-  ['维护（GC）', 'gc-page'], // T-459 自治理组迁监控组（服务节点挂靠）
-  ['备份 / 恢复', 'backup-page'], // T-459 自治理组迁监控组（同上）
-  ['Webhooks', 'wh-page'], // M13 T-366；T-459 归常规组（/admin/general/webhooks）
-  ['License & Add-ons', 'license-page'], // M10 T-288（FR-86-AC5）
+  ['回收站', 'trash-page'], // M12 T-352
+  ['存储', 'storage-page'], // T-238
+  ['服务状态', 'status-page'], // T-459
+  ['系统日志', 'logs-page'], // T-459
+  ['系统信息', 'settings'], // T-459 归位监控组
+  ['维护（GC）', 'gc-page'], // T-459 迁监控组
+  ['备份 / 恢复', 'backup-page'], // T-459 迁监控组
+  ['Webhooks', 'wh-page'], // M13 T-366
+  ['设置', 'settings-page'], // FE-Rewrite P3 解锁（/v1/system/settings 六旋钮+QRL）
+  ['License & Add-ons', 'license-page'], // M10 T-288
 ]
 
-test('admin: app-mode sidebar (2 entries) -> admin mode (5 groups / 18 entries) -> back, all keyboard', async ({
-  page,
-}) => {
+/** 全可见条目（plain 用户同集——nav-model visibility:'all'） */
+const ALL_ENTRIES = ['仪表盘', '制品', '搜索', 'Builds', 'Release Bundles'] as const
+
+test('admin: four-group sidebar (25 entries) all reachable, keyboard-driven', async ({ page }) => {
   await seedRepos(m8Client(), [{ key: REPO }])
   await page.goto('/binflow/ui/')
   await page.fill('[data-testid="login-username"]', roleFixturesFromEnv().admin.name)
   await page.fill('[data-testid="login-password"]', roleFixturesFromEnv().admin.password)
   await page.click('[data-testid="login-submit"]')
 
-  // 登录落点 = /artifacts（console-m8 §1.1；T-236 起跨仓树真身承载）；
-  // T-492（B-3.2）：落点随即自动选中首仓库——前缀断言（/artifacts/<repo>）
+  // 登录落点 = /artifacts（T-492 B-3.2：随即自动选中首仓库——前缀断言）
   await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
   const nav = page.locator('[data-testid="app-nav"]')
-  await expect(nav.locator('.nav-group-label', { hasText: '应用' })).toBeVisible()
-  // 4 条目（T-512 起 + Builds 应用域第三条目；T-514 Release Bundles 第四）+ 模式切换项（button.nav-item）
-  await expect(nav.locator('.nav-item')).toHaveCount(5)
-  await expect(nav.locator('a.nav-item', { hasText: '仪表盘' })).toBeVisible()
-  await expect(nav.locator('a.nav-item', { hasText: '制品' })).toBeVisible()
-  await expect(nav.locator('a.nav-item', { hasText: 'Builds' })).toBeVisible()
-  await expect(nav.locator('a.nav-item', { hasText: 'Release Bundles' })).toBeVisible()
-  // 应用域一级条目图标（T-388 N2/V5：4/4——T-512 build 图标入列）
-  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(4)
-  // 应用模式无管理分组（无影子入口）
-  for (const g of ADMIN_GROUPS) {
-    await expect(nav.locator('.nav-group-label', { hasText: g })).toHaveCount(0)
-  }
 
-  // 键盘切管理模式：落 /admin/repositories/local + 管理侧栏
-  await page.focus('[data-testid="nav-mode-switch"]')
-  await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local$/)
-  await expect(page.locator('[data-testid="repos-page"]')).toBeVisible()
-  for (const g of ADMIN_GROUPS) {
+  // 四分组齐见（分组即模式——admin 全景一屏）
+  for (const g of GROUPS) {
     await expect(nav.locator('.nav-group-label', { hasText: g })).toBeVisible()
   }
-  await expect(nav.locator('a.nav-item')).toHaveCount(18)
-  // 一级条目图标（T-388 N2/V5）：18/18 逐条在场、aria-hidden 装饰位；
-  // 分组标签与模式切换项不配（档位 = 仅一级条目）
-  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(18)
+  // 25 条目（核心 4 + 运营 5 + 安全 7 + 管理 9——nav-model 全表）
+  await expect(nav.locator('a.nav-item')).toHaveCount(25)
+  // 一级条目图标（T-388 N2/V5 承接）：25/25 在场；分组标签不配（档位不变）
+  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(25)
   await expect(nav.locator('.nav-group-label [data-testid="nav-icon"]')).toHaveCount(0)
-  await expect(nav.locator('[data-testid="nav-mode-switch"] [data-testid="nav-icon"]')).toHaveCount(0)
-  for (const [label] of ADMIN_ENTRIES) {
-    await expect(
-      nav.locator(`a.nav-item:text-is("${label}") [data-testid="nav-icon"]`),
-      `icon for ${label}`,
-    ).toBeVisible()
-  }
-  // 面包屑（§1.3：管理页层级表达）
-  await expect(page.locator('[data-testid="topbar-breadcrumb"]')).toContainText('仓库')
 
-  // 18 条目逐项可达（URL 均落 /admin/** + 页面锚到达）
+  // 键盘驱动首条目：focus 仪表盘 → Enter 落 /dashboard
+  await page.focus('a.nav-item:text-is("仪表盘")')
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/\/binflow\/ui\/dashboard$/)
+  await expect(page.locator('[data-testid="dashboard"]')).toBeVisible()
+
+  // 管理条目逐项可达（URL 落 /admin/** + 页面锚到达〔settings 系双锚族〕）
   for (const [label, anchor] of ADMIN_ENTRIES) {
     await page.click(`[data-testid="app-nav"] a.nav-item:text-is("${label}")`)
     await expect(page).toHaveURL(/\/binflow\/ui\/admin\//)
     await expect(page.locator(`[data-testid="${anchor}"]`).first()).toBeVisible()
   }
-
-  // 键盘切回应用模式（aria-current 随模式翻转）
-  await expect(page.locator('[data-testid="nav-mode-switch"]')).toHaveAttribute('aria-current', 'true')
-  await page.focus('[data-testid="nav-mode-switch"]')
-  await page.keyboard.press('Enter')
-  // T-492（B-3.2）：应用模式落点自动选中首仓库——前缀断言
-  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
-  await expect(page.locator('[data-testid="nav-mode-switch"]')).not.toHaveAttribute('aria-current', 'true')
+  // 面包屑（§1.3 承接：管理页层级表达）
+  await page.click(`[data-testid="app-nav"] a.nav-item:text-is("仓库")`)
+  await expect(page.locator('[data-testid="topbar-breadcrumb"]')).toContainText('仓库')
 })
 
-test('readonly_admin: admin mode reachable, readonly badge, no quick-create write entries', async ({
+test('readonly_admin: four groups visible, readonly badge, no quick-create write entries', async ({
   page,
 }) => {
   await loginAs(page, 'readonly_admin') // 内含只读徽章断言
 
-  // 管理入口可见（M7 §7.3 语义保留）；深链进管理模式
+  // 管理面深链 + 分组可见（读姿态——分组即模式，无切换概念）
   await page.goto('/binflow/ui/admin/governance/audit')
   await expect(page.locator('[data-testid="audit-page"]')).toBeVisible()
   const nav = page.locator('[data-testid="app-nav"]')
-  for (const g of ADMIN_GROUPS) {
+  for (const g of GROUPS) {
     await expect(nav.locator('.nav-group-label', { hasText: g })).toBeVisible()
   }
-  await expect(page.locator('[data-testid="nav-mode-switch"]')).toHaveText(/返回应用/)
 
   // 用户菜单（§2.3）：readonly_admin 不见快速建仓/新建写入口（L4 预收敛）
   await page.click('[data-testid="session-toggle"]')
@@ -142,21 +112,28 @@ test('readonly_admin: admin mode reachable, readonly badge, no quick-create writ
   await expect(page.locator('[data-testid="menu-edit-profile"]')).toHaveCount(0)
 })
 
-test('plain user: no mode switch; /admin/** deep link keeps app sidebar + L2 convergence', async ({
+test('plain user: only all-visible entries; /admin/** deep link keeps shell + L2 convergence', async ({
   page,
 }) => {
   await loginAs(page, 'user')
 
-  await expect(page.locator('[data-testid="nav-mode-switch"]')).toHaveCount(0)
+  // 全可见条目 5 项（核心 3 + 运营 2）；管理/安全分组整组不渲染（L1）
+  const nav = page.locator('[data-testid="app-nav"]')
+  await expect(nav.locator('a.nav-item')).toHaveCount(5)
+  for (const label of ALL_ENTRIES) {
+    await expect(nav.locator(`a.nav-item:text-is("${label}")`)).toBeVisible()
+  }
+  for (const label of ['仓库', '复制', 'Webhooks', '回收站', '用户', '组', '权限', '配额', '设置']) {
+    await expect(nav.locator(`a.nav-item:text-is("${label}")`)).toHaveCount(0)
+  }
+  await expect(nav.locator('.nav-group-label', { hasText: '安全' })).toHaveCount(0)
+  await expect(nav.locator('.nav-group-label', { hasText: '管理' })).toHaveCount(0)
+
+  // /admin/** 直链：页面自身 403 收敛（§2.2 L2）；壳保留
   await page.goto('/binflow/ui/admin/security/users')
   await expect(page.locator('[data-testid="users-page"]')).toBeVisible()
-  // 壳保留 + L2 无权限卡（§2.2：页面自身 403 收敛）；侧栏不泄管理分组（L1）
   await expect(page.locator('[data-testid="users-page"] [data-testid="empty-state"]')).toBeVisible()
-  const nav = page.locator('[data-testid="app-nav"]')
-  await expect(nav.locator('.nav-group-label', { hasText: '应用' })).toBeVisible()
-  for (const g of ADMIN_GROUPS) {
-    await expect(nav.locator('.nav-group-label', { hasText: g })).toHaveCount(0)
-  }
+
   // 用户菜单只有 编辑档案/主题/登出（无 Quick 写入口）
   await page.click('[data-testid="session-toggle"]')
   await expect(page.locator('[data-testid="quick-new-user"]')).toHaveCount(0)
@@ -174,7 +151,7 @@ test('admin: user-menu quick actions are keyboard reachable', async ({ page }) =
   await expect(page.locator('[data-testid="perm-editor-page"]')).toBeVisible()
 
   // 快速建仓子菜单（T-240 消费；T-443 起 /new?rclass= 链接经路由表兼容映射
-  // 落 remote 分路由——AppShell 零改动，兼容窗语义在此钉死）
+  // 落 remote 分路由——兼容窗语义在此钉死）
   await page.focus('[data-testid="session-toggle"]')
   await page.keyboard.press('Enter')
   await page.focus('[data-testid="quick-new-repo-remote"]')
@@ -217,8 +194,8 @@ test('legacy routes: all console-m8 §1.4 paths land NotFound (redirect window r
   expect(LEGACY_PATHS).toHaveLength(19)
   await loginAs(page, 'admin')
 
-  // 首页 index 落点不受移除影响（§1.1 登录落点，非兼容窗口）；T-492（B-3.2）：
-  // /artifacts 落点随即自动选中首仓库——前缀断言
+  // 首页 index 落点不受移除影响；T-492（B-3.2）：/artifacts 落点随即自动
+  // 选中首仓库——前缀断言
   await page.goto('/binflow/ui/')
   await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
@@ -244,8 +221,7 @@ test('legacy routes: all console-m8 §1.4 paths land NotFound (redirect window r
     `/repositories/${REPO}/tree`,
   )
 
-  // 404 页深链回主页（T-239 已备：主行动回应用模式首页 /artifacts）；T-492
-  // （B-3.2）：落点随即自动选中首仓库——前缀断言
+  // 404 页深链回主页（T-239 已备：主行动回首页 /artifacts）；T-492 前缀断言
   await page.click('[data-testid="not-found-home"]')
   await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()

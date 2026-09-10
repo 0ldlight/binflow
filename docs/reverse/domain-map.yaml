@@ -1,0 +1,318 @@
+# ============================================================
+# Artifactory 能力域 → 支撑模块映射 — EVIDENCE INDEX (evidence-index-only)
+# 仅供发现与对账，禁止作为 BinFlow 结构设计依据（ADR-0001 / 宪章 §39-41）。
+# 行为规格见 docs/reverse/*.md；本文件只回答「哪些模块支撑哪个产品能力域」。
+# ============================================================
+# taxonomy 依据（E1 静态观察）：
+#   1) addons 组 65 模块的 artifactId 后缀即官方 addon 域名（alpine/docker/replication/…）；
+#   2) artifactory-core 组按 pom <name> 与包根职能（org/artifactory/repo、security、schedule、engine…）；
+#   3) access 组按 org.jfrog.access 客户端/服务端分包；jfrog-commons 按 org.jfrog.{common,storage,eventing,…} 包根。
+# 置信度：高 = 模块名/包根双证据；中 = 单证据（仅 artifactId 或仅包根）；低 = 推断，待动态验证。
+# 说明：同一模块可出现在多个域的 supporting 列表（Artifactory 本就是单体内核+插件）；
+#       module_index 给出每模块唯一 primary 归属，保证 147 个 org 名模块全量对账不重不漏。
+meta:
+  source: /Users/lzw/workspace/artifactory-decompiled (ARTIFACTORY_DECOMPILED_SOURCE)
+  reference_version: 7.161.24
+  generated: 2026-09-11
+  evidence_level: "E1 (static observation: module names, pom name, package roots, class names)"
+  companion_files: [artifactory-module-catalog.yaml, dependency-map.yaml]
+  read_only_note: source tree is read-only; regenerate instead of hand-editing
+summary:
+  domains: 26
+  org_modules_indexed: 147   # = 137 modules.json 非 thirdparty 模块 + 10 个 recovered 占位的 org 名模块
+                             #   (access-server-*6、access-application、addons-manager、opensaml-deps*2、onemodelsdk)
+  cross_cutting_modules: 13
+  unknown_items: 6
+
+domains:
+  - id: package-protocols-addons
+    name_zh: 制品协议域 — 商业 addon 包型（注册表协议服务端）
+    primary_modules: [artifactory-addon-alpine, artifactory-addon-bower, artifactory-addon-cargo, artifactory-addon-chef,
+      artifactory-addon-cocoapods, artifactory-addon-composer, artifactory-addon-conan, artifactory-addon-debian,
+      artifactory-addon-dpkg-common, artifactory-addon-docker, artifactory-addon-gems, artifactory-addon-git,
+      artifactory-addon-helmoci, artifactory-addon-oci, artifactory-addon-nimmodel, artifactory-addon-nuget,
+      artifactory-addon-opkg, artifactory-addon-p2, artifactory-addon-pub, artifactory-addon-puppet,
+      artifactory-addon-swift, artifactory-addon-terraform, artifactory-addon-vagrant, artifactory-addon-webstart,
+      artifactory-addon-yum]
+    supporting_modules: [artifactory-common, artifactory-core, artifactory-rest]
+    role: 各包型注册表协议的 addon 实现（alpine apk / bower / cargo crates / chef / cocoapods / composer packagist /
+      conan / debian apt（dpkg-common/opkg 共用 deb 家族）/ docker+oci+helmoci 容器族 / gems rubygems / git-lfs /
+      nimmodel（Nim registry 远端模型）/ nuget / p2 / pub dart / puppet / swift / terraform / vagrant / webstart JNLP / yum rpm）
+    evidence: "addon artifactId 后缀域 + 各模块 org/artifactory/addon/<domain>/ 包根（E1）；docker 116 java、debian 45 java 等规模见 module-catalog"
+    confidence: 高
+  - id: package-protocols-oss
+    name_zh: 制品协议域 — OSS 核心包型（maven/ivy/gradle/npm/pypi/sbt/rpm 基础层）
+    primary_modules: []
+    supporting_modules: [artifactory-core, artifactory-common, artifactory-rest, artifactory-api]
+    role: 无 addon 门的包型支持：maven/ivy 布局与元数据（artifactory-common org/artifactory/{maven,ivy}）、
+      npm/pypi 仓库与元数据 provider（artifactory-core repo/{NpmHttpRepo,PypiHttpRepo}、metadata/service/provider）、
+      rpm 基础（见 docs/reverse/rpm.md）、下载/上传引擎（artifactory-core org/artifactory/engine Upload/DownloadServiceImpl）
+    evidence: "grep NpmDescriptor/PypiMetadataProvider 命中 artifactory-core + artifactory-common；engine 包类名（E1）"
+    confidence: 高
+  - id: repo-model
+    name_zh: 仓库模型（local/remote/virtual/federated + 布局 + 仓库 CRUD REST）
+    primary_modules: [artifactory-capi, artifactory-addon-rest, artifactory-addon-layouts]
+    supporting_modules: [artifactory-core, artifactory-common, artifactory-rest]
+    role: 仓库类型模型与服务（local/remote/virtual/federated/webdav 拦截器在 artifactory-core org/artifactory/repo/
+      {local,remote,virtual,federated,webdav,interceptor}）；capi=pom 名 "Artifactory Common API"（fs/md/repo/keys/bundle
+      公共模型）；addon-rest=仓库 create/update REST helper（Local/Remote/Virtual/Federated/CreateUpdateHelper）；
+      layouts=自定义仓库布局
+    evidence: "find artifactory-core …/repo/{local,remote,virtual,federated} 命中；capi/addon-rest pom <name> 与类名（E1）"
+    confidence: 高
+  - id: storage-filestore
+    name_zh: 存储与 filestore（二进制存储链、归档分层、备份/导入导出）
+    primary_modules: [artifactory-storage-common, artifactory-addon-archive-v2]
+    supporting_modules: [artifactory-storage-db, artifactory-common, artifactory-core]
+    role: 二进制存储服务接口与 filestore 摘要（artifactory-common org/artifactory/storage StorageService、
+      FileStoreStorageSummary）、binstore 服务与 trash 清理（storage-db …/db/binstore/service）、备份/导入导出
+      （artifactory-core org/artifactory/backup BackupServiceImpl、config/ImportServiceImpl、storage-common backup 包）、
+      archive-v2=归档/冷分层与二进制恢复任务
+    evidence: "包根 org/artifactory/storage/{binstore,backup}、backup/ImportServiceImpl 类名；ConstantValues
+      binary.store.full.binary.provider.chain.ping 等 filestore 配置键（E1）"
+    confidence: 高
+  - id: db-persistence
+    name_zh: DB / 持久化层（DAO、多数据库方言、schema 迁移）
+    primary_modules: [artifactory-storage-db, jfrog-db-infra]
+    supporting_modules: [jfrog-commons]
+    role: 全部 DB DAO/实体/schema（storage-db org/artifactory/storage/db/{dao,fs,event,repo,…}；resources 下
+      derby/mssql/mysql/oracle/postgresql 方言脚本；conversion/version DB 版本转换链）；jfrog-db-infra=连接池/
+      事务/存储基础设施（org.jfrog.storage）
+    evidence: "storage-db 包树 + src/main/resources/{derby,mssql,mysql,oracle,postgresql}（E1）；flyway-* 为三方占位依赖"
+    confidence: 高
+  - id: authn-authz
+    name_zh: 认证 / 授权（access 客户端、SSO/SAML/LDAP、密钥、API key/token）
+    primary_modules: [access-application, access-client-api, access-client-core, access-common-api, access-common-core,
+      access-common-grpc, access-common-mapstruct, access-common-rest, access-common-router-client, access-server-api,
+      access-server-core, access-server-graphql, access-server-grpc, access-server-rest, artifactory-addon-sso,
+      artifactory-addon-ldap, artifactory-addon-keys, artifactory-addon-security-resource, jfrog-opensaml-deps,
+      jfrog-opensaml-deps-fips]
+    supporting_modules: [artifactory-core, artifactory-common, artifactory-rest, artifactory-rest-ui, jfrog-crypto]
+    role: 平台统一认证授权：access client（grpc/token/multitenant）+ access server（recovered 占位，代码见
+      access-server-core 2282 java）；artifactory 侧 security 包（core org/artifactory/security/{access 迁移,
+      authentication, ldap, ssh, db/apikey}）、SSO/SAML（sso addon + opensaml deps）、LDAP 同步、GPG keys、
+      security-resource=REST 安全请求处理器；REST 面 token/ssh/security 资源
+    evidence: "包根 org/artifactory/security/* 与 org/jfrog/access/*（E1）；access-server-* 无原始 pom（recovered）"
+    confidence: 高
+  - id: remote-cache-proxy
+    name_zh: 远端缓存代理（remote 仓库拉取/缓存/统计 + 注册表重定向）
+    primary_modules: [jfrog-http-client, jfrog-http-client5, artifactory-addon-package-reroute]
+    supporting_modules: [artifactory-core, artifactory-storage-db]
+    role: remote 仓库代理与本地缓存（artifactory-core org/artifactory/repo/{remote,cache}）、远端下载统计落库
+      （storage-db …/db/remote/stats）、出站 HTTP 客户端栈（jfrog-http-client/5，proxy/重试/认证）；
+      package-reroute=按包型注册表重定向配置（REST package-reroute/config/{type}）
+    evidence: "包根 repo/{remote,cache}、db/remote/stats；PackageRerouteConfigResource @Path（E1）"
+    confidence: 高
+  - id: replication-federation
+    name_zh: 复制 / 联邦 / 平台镜像
+    primary_modules: [artifactory-addon-replication, artifactory-addon-federated, artifactory-addon-grid,
+      artifactory-addon-mirror, artifactory-federation-dto, platformfederation-client-api, platformfederation-client-core]
+    supporting_modules: [artifactory-core, artifactory-common, artifactory-storage-db]
+    role: push/pull 复制（replication 137 java）、federated 仓库双向联邦（federated 134 java + core federation
+      DefaultFederatedRepoServiceImpl）、grid=联邦网格仓库供给/快照/同步、mirror=RTFS 平台镜像与二进制任务、
+      platformfederation-client=平台联邦服务客户端、federation-dto=org.jfrog.rtfs DTO
+    evidence: "包根 org/artifactory/{repo/replication,federation}、addon/federated|mirror|grid 类名（E1）"
+    confidence: 高
+  - id: search-index
+    name_zh: 搜索与索引（AQL / properties / 通用搜索）
+    primary_modules: [artifactory-addon-search, artifactory-addon-properties]
+    supporting_modules: [artifactory-api, artifactory-core, artifactory-storage-db]
+    role: AQL 语法/模型/SQL 生成与执行（api org/artifactory/aql/{model,result} + storage-db …/db/aql/{parser,sql,
+      builder,service}）、properties 键值服务（core org/artifactory/properties/PropertiesServiceImpl）、
+      通用搜索 REST（rest resource search/）
+    evidence: "aql 包树双模块命中；PropertiesServiceImpl 类名（E1）；行为面另见 docs/reverse/aql.md"
+    confidence: 高
+  - id: build-info
+    name_zh: build-info（CI 构建信息、promotion/staging、VCS 标签）
+    primary_modules: [artifactory-papi, artifactory-addon-vcs]
+    supporting_modules: [artifactory-rest, artifactory-core]
+    role: papi=pom 名 "Artifactory Public API"，承载 org/artifactory/build（BuildRun、promotion/PromotionConfig、
+      staging、VcsConfig）；vcs addon=发布 VCS 标签操作；REST ci/release 资源承接 build promotion；
+      build-handler-acl 为外部 com.jfrog.build 依赖（树内无模块）
+    evidence: "papi pom <name> + org/artifactory/build 包类名（E1）"
+    confidence: 高
+  - id: release-bundle-distribution
+    name_zh: release-bundle / distribution（发布包与分发）
+    primary_modules: [artifactory-addon-release-bundle, artifactory-addon-bundle-handler, artifactory-addon-distribution-handler]
+    supporting_modules: [artifactory-storage-db, artifactory-rest]
+    role: release bundle 创建/签名/版本（release-bundle 86 java）、bundle 存储落库（storage-db …/db/bundle/{dao,
+      model,service}）、distribution 事件对接 distribution-handler；REST release/federation 资源
+    evidence: "addon artifactId 域 + storage-db db/bundle 包树（E1）；行为面另见 docs/reverse/release-bundle.md"
+    confidence: 高
+  - id: cleanup-retention
+    name_zh: cleanup / retention（清理与保留策略）
+    primary_modules: [artifactory-addon-cleanup, artifactory-addon-retention, artifactory-addon-retention-common]
+    supporting_modules: [artifactory-storage-db, artifactory-rest]
+    role: 清理策略与保留策略执行（cleanup 112 / retention 97 / retention-common 138 java）、策略落库
+      （storage-db …/db/policy/{cleanup,retention}）、REST cleanup/retention 资源
+    evidence: "addon artifactId 域 + db/policy/cleanup|retention 包树（E1）"
+    confidence: 高
+  - id: webhooks-events
+    name_zh: webhooks / 事件（事件总线、watch、事件队列）
+    primary_modules: [artifactory-addon-watch, artifactory-addon-jf-event, artifactory-event-queue-api,
+      jfrog-eventing-client-api, jfrog-eventing-client-core, jfrog-eventing-client-jfbus-adapter,
+      jfrog-eventing-facade-api, jfrog-eventing-facade-impl, jfrog-eventing-messagebus, jfrog-eventing-uem,
+      jfrog-jfbus-api, jfrog-jfevent]
+    supporting_modules: [artifactory-common, artifactory-storage-db, artifactory-rest, artifactory-addon-plugins]
+    role: watch/订阅事件分发（WatchServiceImpl、AggregatingEventServiceImpl）、jf-event 平台事件 addon、
+      eventing 客户端族（jfbus 适配/messagebus/uem）、事件队列 API（org/artifactory/event）、事件日志落库
+      （storage-db …/db/event）与 REST unifiedevent 资源；webhook 以插件类型出现（plugins addon 内 Webhook 引用）
+    evidence: "addon-watch 类名清单 + org.jfrog.eventing 包根 + rest resource unifiedevent（E1）；
+      独立 WebhookService 实现未在树内定位（见 unknown）"
+    confidence: 中
+  - id: task-scheduling
+    name_zh: 任务调度（quartz 任务、异步工作队列）
+    primary_modules: [artifactory-work-queue-api]
+    supporting_modules: [artifactory-api, artifactory-core]
+    role: quartz 调度内核（api org/artifactory/quartz + core org/artifactory/schedule/{quartz,aop,monitor}，
+      任务历史/过期清理 job）、异步工作队列 API（work-queue-api org/artifactory/workqueue，复制/清理等长任务消费）
+    evidence: "包根 schedule/quartz、workqueue（E1）；行为面另见 docs/reverse/cron-scheduling.md"
+    confidence: 高
+  - id: observability-diagnostics
+    name_zh: 审计 / 日志 / 指标 / 诊断（traffic、observability、support bundle、限流）
+    primary_modules: [artifactory-traffic, artifactory-addon-observability, artifactory-addon-analytics,
+      artifactory-addon-support, artifactory-support-core, jfrog-commons-logging-extra, jfrog-logging]
+    supporting_modules: [artifactory-core, artifactory-rest]
+    role: 请求流量日志（traffic org/artifactory/traffic TrafficService/RequestLogger）、流量与下载统计落库
+      （storage-db db/traffic/{stats,summary}）、观测 addon（metrics 上报）、support bundle 生成（support-core
+      org/artifactory/support + support addon）、日志框架扩展、请求限流（core org/artifactory/throttling
+      RequestRateLimiterServiceV2）、请求头审计（core request/audit HttpHeadersAudit*）
+    evidence: "包根 traffic/、throttling/、request/audit、support/（E1）；经典 AuditLogService 实现未在树内定位（见 unknown）"
+    confidence: 中
+  - id: license-addon-framework
+    name_zh: license / addon 框架（许可与插件装载门）
+    primary_modules: [artifactory-addon-license, artifactory-addons-common, artifactory-addons-manager]
+    supporting_modules: [artifactory-common, artifactory-rest]
+    role: addon 装载与生命周期（addons-manager AddonsManager + common org/artifactory/addon/{AddonType,
+      AddonsManager}）、license 校验（license addon + rest license 资源 + 三方占位 license-manager 依赖）
+    evidence: "artifactory-common org/artifactory/addon 包类名；rest resource license（E1）"
+    confidence: 高
+  - id: plugins-worker-spi
+    name_zh: plugins / worker SPI（用户插件与 worker 扩展）
+    primary_modules: [artifactory-addon-plugins, artifactory-addon-worker]
+    supporting_modules: [artifactory-core, artifactory-rest, artifactory-storage-db]
+    role: 用户插件（groovy/execution/steps + webhook 插件类型，plugins 41 java）、worker 扩展体系
+      （worker 116 java，REST workers 资源）、插件执行接 core schedule PluginCommand
+    evidence: "addon 包类名 + rest resource {plugin,workers}（E1）"
+    confidence: 高
+  - id: configuration
+    name_zh: 配置体系（集中配置、转换器、加密）
+    primary_modules: [artifactory-config, jfrog-config, jfrog-commons-config-extra, jfrog-commons-autoconfigure,
+      jfrog-crypto, jfrog-crypto-fips]
+    supporting_modules: [artifactory-common, artifactory-core]
+    role: 全部 ConstantValues 键与配置描述符/转换器（artifactory-config org/artifactory/{config,converter,
+      descriptor,environment} + common/ConstantValues，组内最高入度 63）、jfrog-config=分层配置读写、
+      crypto=org.jfrog.security 加解密（配置加密与凭据，FIPS 变体）
+    evidence: "artifactory-config 包树 + ConstantValues.java（E1）；依赖入度见 dependency-map observations"
+    confidence: 高
+  - id: upgrade-migration
+    name_zh: 升级迁移（版本升级、DB 转换、access 数据迁移）
+    primary_modules: [artifactory-update]
+    supporting_modules: [artifactory-config, artifactory-storage-db, artifactory-core]
+    role: 升级引导（artifactory-update org/artifactory/update）、配置版本转换（config converter + storage-db
+      db/conversion/version/v213..v228 与 db/version/converter）、access 迁移（core security/access/{migration,
+      emigrate}）
+    evidence: "包根 update/、db/conversion/version/v2xx 目录名（E1）"
+    confidence: 高
+  - id: ha-cluster
+    name_zh: HA / 集群
+    primary_modules: [artifactory-addon-ha, jfrog-topology-common, jfrog-topology-environment, jfrog-topology-grpc-api]
+    supporting_modules: [artifactory-storage-db, artifactory-common]
+    role: HA 集群成员管理/心跳（ha addon HaAddonImpl + common HaCommonAddon）、分布式锁（storage-db db/locks/
+      {provider,service}）、集群拓扑（com.jfrog.topology common/environment/grpc-api）
+    evidence: "HaAddonImpl 类名、db/locks 包树（E1）"
+    confidence: 高
+  - id: platform-integration
+    name_zh: 平台服务集成（metadata / jf-connect / central / 多租户 / 引导）
+    primary_modules: [metadata-client-api, metadata-client-core, jfconnect-client-api, jfconnect-client-core,
+      artifactory-addon-central-integration, artifactory-addon-jf-connect, artifactory-addon-onboarding,
+      jfrog-centralintegration-grpc-api, jfrog-multitenant-infra, jfrog-onemodelsdk-lib]
+    supporting_modules: [artifactory-common, artifactory-core]
+    role: jf-metadata 服务客户端（元数据提取回写，core metadata/service/provider）、jfconnect 平台连接心跳、
+      central-integration（JFrog Central 对接）、onboarding（仓库引导校验/缓存）、多租户基础设施、
+      onemodelsdk（recovered 占位，职能 UNKNOWN）
+    evidence: "ms-client 组 artifactId + core org/artifactory/{metadata,jfconnect,tenant} 包根（E1）"
+    confidence: 高
+  - id: xray-curation
+    name_zh: 安全扫描集成（Xray / Curation / AppTrust）
+    primary_modules: [artifactory-addon-xray, artifactory-addon-curation, apptrust-client-api, apptrust-client-core]
+    supporting_modules: [artifactory-common, artifactory-core, artifactory-storage-db]
+    role: Xray 索引上报与拦截（xray addon + common XrayAddon 接口 + storage-db db/xray）、Curation 策略审计拦截
+      （curation addon CurationResource/AuditRequestWrapper）、AppTrust 服务客户端（com.jfrog.apptrust grpc）
+    evidence: "addon 包类名 + common org/artifactory/addon/xray/XrayAddon（E1）"
+    confidence: 高
+  - id: compliance-evidence
+    name_zh: 合规 evidence（证据链存取）
+    primary_modules: [artifactory-addon-evidence]
+    supporting_modules: [artifactory-core]
+    role: 对接 jf-evidence 微服务的证据创建/路径/JSON 工具（EvidenceAddonBeansConfig、EvidencePathUtils）
+    evidence: "addon evidence 包类名（E1）；jf-evidence Go 服务见 module-catalog go_services"
+    confidence: 中
+  - id: rest-api-surface
+    name_zh: REST API 表面（公开 REST 与 UI 后端 REST）
+    primary_modules: [artifactory-base-rest, artifactory-rest, artifactory-rest-common, artifactory-rest-ui]
+    supporting_modules: [artifactory-capi, artifactory-papi]
+    role: artifactory-rest=公开 REST 资源（org/artifactory/rest/resource/{aql,artifact,security,replication,
+      retention,system,storage,xray,…}）；rest-ui=控制台后端 REST（org/artifactory/ui/rest 1189 java）；
+      rest-common/base-rest=公共模型与骨架
+    evidence: "rest resource 目录清单 + ui/rest 包树（E1）；端点行为面见 docs/reverse/rest-api.md"
+    confidence: 高
+  - id: core-kernel
+    name_zh: 内核容器与共享内核（SPI 汇聚、公共内核、生命周期）
+    primary_modules: [artifactory-api, artifactory-base-api, artifactory-common, artifactory-core,
+      artifactory-lifecycle, artifactory-utils]
+    supporting_modules: []
+    role: artifactory-core=引擎/仓库/安全/调度实现主体（1445 java）；artifactory-api=内核 SPI 汇聚（addon/aql/
+      federation/ivy/mime/policy/quartz/request）；artifactory-common=跨域公共内核（826 java，含 maven/nuget/ivy
+      元数据、security、storage、mirror、federation 客户端配置）；base-api=底座接口；lifecycle=启动阶段；
+      utils=杂项工具
+    evidence: "各模块包根扫描（E1）；模块规模见 module-catalog"
+    confidence: 高
+  - id: frontend
+    name_zh: 前端（控制台 SPA 与前端服务器）
+    primary_modules: [artifactory-web-application]
+    supporting_modules: [artifactory-rest-ui]
+    role: frontend/artifactory-ui=webpack 打包的前端 SPA 源（source-map 还原）；frontend/frontend-server=node
+      前端服务器（SSR/BFF bundle）；artifactory-web-application=war 装配与 webapp 引导（org/artifactory/webapp）
+    evidence: "frontend 目录树（E1，非 maven 模块）；行为走查见 docs/reverse/console-ui.md"
+    confidence: 中
+
+cross_cutting:  # 归属不唯一的模块（primary 无法裁到单一域）及理由
+  - { id: jfrog-utils, reason: 通用工具库，被 config/crypto/logging/db-infra 等全组依赖（组内入度 33），无域特化 }
+  - { id: jfrog-base, reason: 平台依赖注入/装配底座（spring 装配），横切所有服务 }
+  - { id: jfrog-application, reason: 应用引导框架（main/启动链），横切 }
+  - { id: jfrog-platform, reason: 平台坐标/组件模型聚合（3 java），横切 }
+  - { id: jfrog-model, reason: 通用模型基类，横切 }
+  - { id: jfrog-cache, reason: 通用缓存原语，被 remote 缓存/搜索/配置多域使用 }
+  - { id: jfrog-iostreams, reason: 流工具库，存储与 HTTP 域共用 }
+  - { id: jfrog-commons-rest, reason: REST 公共模型，被 access/artifactory REST 面共用 }
+  - { id: jfrog-jersey-config, reason: jersey 服务器/客户端公共配置，横切 REST }
+  - { id: jfrog-annotation-processing, reason: 编译期注解处理器，横切构建 }
+  - { id: artifactory-addon-filtered-resources, reason: 模板化资源渲染（velocity 适配器），既非包型也非存储域，7 java，归属待定（低） }
+  - { id: artifactory-addon-lead-artifact-detector, reason: 单类 addon（LeadArtifactDetectorAddonImpl），用途无静态证据（低） }
+  - { id: router-grpc-api, reason: "org.jfrog.router 7.954.0（25 java）：平台路由 grpc api，被 access/commons 边引用；无域名归属证据" }
+
+unknown_items:  # 证据不足项，禁止据此设计；供动态验证票取证
+  - item: BinaryProvider 存储链实现类（filestore/S3/Azure/GCS provider 链）
+    detail: 反编译 Java 树内未出现 FileStorageBinaryProviderImpl/S3BinaryProviderImpl 等实现类，仅有
+      ConstantValues 配置键与引用；存储链行为只能靠 binstore/service + 活体（:8082）核对
+    evidence_status: not-located-in-tree
+  - item: access 服务端组内依赖
+    detail: access-server-{api,core,graphql,grpc,rest} 与 access-application 为 recovered 占位 pom，
+      无法抽边；access-server-core 有 2282 java 可读但依赖关系 UNKNOWN
+    evidence_status: pom-recovered
+  - item: 经典 WebhookService（system webhooks REST 面）
+    detail: 树内 Webhook 引用仅出现在 plugins addon 与 access 模块；独立 webhook 管理实现未定位，
+      疑为 plugins/webhook 类型 + access 侧承载（待活体验证）
+    evidence_status: partial
+  - item: 审计日志（audit log）服务端实现
+    detail: 仅见 request/audit HttpHeadersAudit* 与 traffic 日志；AuditLogServiceImpl/audit 表 DAO 未在树内定位
+    evidence_status: partial
+  - item: jfrog-onemodelsdk-lib 职能
+    detail: recovered 占位（0 java），名称指向 one-model SDK，用途 UNKNOWN
+    evidence_status: unknown
+  - item: 形似 JFrog 内部库的三方占位真实身份
+    detail: sysconf(x12)/license-manager/support-common/support-rest/rds/iostreams/event-client/checksums/utils
+      等依赖目标按 artifactId 命中 recovered.thirdparty 占位；另有整组嵌入式服务占位（jfbus-service、
+      jfconfig-service、rtfs-service、topology-service、eventstream、profiles）对应运行时部署的微服务 war。
+      真实 groupId/职能需运行时 classpath 或官方制品库比对（dependency-map thirdparty_referenced 有引用计数）
+    evidence_status: needs-verification

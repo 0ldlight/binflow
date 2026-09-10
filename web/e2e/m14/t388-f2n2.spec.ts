@@ -29,24 +29,26 @@ test.beforeEach(async ({ request }) => {
 
 // ---- 1. N2 侧栏一级条目图标（身份表 + mono currentColor） ----------------------
 
-/** 16+2 一级条目 → 图标身份闭集（AppShell APP_NAV/ADMIN_NAV 接线表） */
+/** 一级条目 → 图标身份闭集（FE-Rewrite P2 nav-model NAV_GROUPS 接线表——
+ *  Lucide 图标族，身份属性 = 条目 id；旧 MUI material 名表随 NavIcons 退役） */
 const ADMIN_ICON: [string, string][] = [
-  ['仓库', 'inventory_2'],
-  ['用户', 'person'],
-  ['组', 'group'],
-  ['权限', 'lock'],
-  ['Access Tokens', 'vpn_key'],
-  ['认证配置', 'shield'],
-  ['审计日志', 'history'],
-  ['维护（GC）', 'delete_sweep'],
-  ['配额', 'pie_chart'],
-  ['复制', 'sync'],
+  ['仓库', 'repositories'],
+  ['用户', 'users'],
+  ['组', 'groups'],
+  ['权限', 'permissions'],
+  ['Access Tokens', 'tokens'],
+  ['签名密钥', 'keypair'],
+  ['认证配置', 'auth'],
+  ['审计日志', 'audit'],
+  ['维护（GC）', 'gc'],
+  ['配额', 'quotas'],
+  ['复制', 'replication'],
   ['备份 / 恢复', 'backup'],
-  ['回收站', 'delete'],
-  ['Webhooks', 'bolt'],
+  ['回收站', 'trash'],
+  ['Webhooks', 'webhooks'],
   ['存储', 'storage'],
-  ['系统信息', 'info'],
-  ['License & Add-ons', 'card_membership'],
+  ['系统信息', 'system-info'],
+  ['License & Add-ons', 'license'],
 ]
 
 test('N2: first-level nav entries carry 16px mono icons (identity closed set, currentColor)', async ({
@@ -75,24 +77,23 @@ test('N2: first-level nav entries carry 16px mono icons (identity closed set, cu
   })
   expect(fill, 'icon fill follows entry text color (currentColor)').toBe(color)
 
-  // 档位反面：分组标签无图标、底部模式切换项维持既有字形（V5：仅一级条目）
+  // 档位反面：分组标签无图标（V5：仅一级条目——模式切换概念已随双模式退役）
   await expect(nav.locator('.nav-group-label [data-testid="nav-icon"]')).toHaveCount(0)
-  await expect(nav.locator('[data-testid="nav-mode-switch"] [data-testid="nav-icon"]')).toHaveCount(0)
 
   // active 行图标在场（高亮不改图标档——结构断言，不断言视觉）
   await page.click('a.nav-item:text-is("审计日志")')
   await expect(page.locator('[data-testid="audit-page"]')).toBeVisible()
   await expect(
-    page.locator('a.nav-item.active [data-testid="nav-icon"][data-icon="history"]'),
+    page.locator('a.nav-item.active [data-testid="nav-icon"][data-icon="audit"]'),
   ).toBeVisible()
 
-  // 应用域 2 条目同档（dashboard / account_tree）；T-492（B-3.2）：应用模式
-  // 落点随即自动选中首仓库——前缀断言（/artifacts 或 /artifacts/<repo>）
-  await page.click('[data-testid="nav-mode-switch"]')
+  // 核心组条目同档（dashboard / artifacts；T-492 B-3.2 前缀断言）；四分组
+  // 壳下全景 25 图标（admin 视野全表）
+  await page.click('a.nav-item:text-is("制品")')
   await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
-  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(2)
+  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(25)
   await expect(nav.locator('[data-testid="nav-icon"][data-icon="dashboard"]')).toBeVisible()
-  await expect(nav.locator('[data-testid="nav-icon"][data-icon="account_tree"]')).toBeVisible()
+  await expect(nav.locator('[data-testid="nav-icon"][data-icon="artifacts"]')).toBeVisible()
 })
 
 // ---- 2. F2 插画槽形态（尺寸/位置/CTA 关系 + 双空形态） ------------------------

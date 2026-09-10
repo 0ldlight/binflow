@@ -1,4 +1,4 @@
-import { useTheme } from '../app/ThemeContext'
+import { useTheme } from '@/app/providers'
 import lockupDark from '../assets/brand/lockup-dark.svg?url'
 import lockupLight from '../assets/brand/lockup-horizontal.svg?url'
 import markDark from '../assets/brand/mark-dark.svg?url'

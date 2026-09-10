@@ -78,6 +78,7 @@ registerEn('admin', {
   "卸载失败：{v1}": "Uninstall failed: {v1}",
   "新证书生成后即可下载导入；此操作不可撤销。": "Once the new certificate is generated it can be downloaded and imported; this action cannot be undone.",
   "须配 Custom Base URL（7.98.7 起缺失会 500——官方 Breaking Change）。": "A Custom Base URL must be configured (its absence 500s since 7.98.7 — an official breaking change).",
+  "需输入 UNINSTALL": "Enter UNINSTALL to confirm",
   "需要": "needs",
   "已过期 {v1} 天（D6 无宽限：已降级 community，读不劫持）": "Expired {v1} days ago (D6 has no grace period: downgraded to community, reads not held hostage)",
   "已解锁": "Unlocked",

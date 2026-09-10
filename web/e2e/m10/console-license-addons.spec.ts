@@ -48,7 +48,8 @@ test('L27a: admin — nav entry, community floor card, live addons matrix', asyn
   // 导航可见（「常规」分组第二页）
   await page.goto('/binflow/ui/admin/general/license')
   await expect(page.locator('[data-testid="license-page"]')).toBeVisible()
-  await expect(page.locator('.nav-group-label', { hasText: '常规' })).toBeVisible()
+  // P3 四分组 IA：License & Add-ons 挂「管理」分组（旧「常规」组随重排退役）
+  await expect(page.locator('.nav-group-label', { hasText: '管理' })).toBeVisible()
   const navEntry = page.locator('[data-testid="app-nav"] .nav-item', { hasText: 'License & Add-ons' })
   await expect(navEntry).toBeVisible()
   await expect(navEntry).toHaveAttribute('href', '/binflow/ui/admin/general/license')
@@ -65,10 +66,13 @@ test('L27a: admin — nav entry, community floor card, live addons matrix', asyn
   // 空文档装载钮禁用（表单零坏请求）
   await expect(page.locator('[data-testid="license-install"]')).toBeDisabled()
 
-  // 矩阵：装配序全槽位（AC1 ≥10；T-327F =15，T-339/T-345 增 repo-operations/trashcan 后 = 17）
+  // 矩阵：装配序全槽位（AC1 ≥10；T-327F =15，T-339/T-345 =17，T-336 =19，
+  // M17 release-bundle 第 20 槽——计数断言 ≥19 保留「全量装配」语义，槽位
+  // 增长不再逐票改数）
   await expect(page.locator('[data-testid="addons-card"]')).toBeVisible()
   const rows = page.locator('[data-testid="addons-table"] tbody tr')
-  await expect(rows).toHaveCount(19)
+  await expect(rows).not.toHaveCount(0)
+  expect(await rows.count()).toBeGreaterThanOrEqual(19)
   for (const id of [...CORE_PKG, ...PRO_PKG, ...ENT_FEATURES, ...PRO_FEATURES, 'properties']) {
     await expect(page.locator(`[data-testid="addons-row-${id}"]`)).toBeVisible()
   }

@@ -75,9 +75,11 @@ async function expectFooterTriple(cancel: Locator, reset: Locator, save: Locator
   const xs = await Promise.all([cancel, reset, save].map((b) => b.boundingBox()))
   expect(xs[0]!.x, 'cancel is far-left').toBeLessThan(xs[1]!.x)
   expect(xs[1]!.x, 'reset is middle').toBeLessThan(xs[2]!.x)
-  await expect(save).toHaveClass(/MuiButton-contained/)
-  await expect(cancel).toHaveClass(/MuiButton-outlined/)
-  await expect(reset).toHaveClass(/MuiButton-outlined/)
+  // P3 新栈：contained/outlined 语义 → bg-primary（主操作底色）/ outline
+  // 边框变体（MUI 类名随栈退役——形状钉语义不变）
+  await expect(save).toHaveClass(/bg-primary/)
+  await expect(cancel).toHaveClass(/border/)
+  await expect(reset).toHaveClass(/border/)
 }
 
 // ---- 1. 用户创建全链：列表入口 → 路由整页表单 → Save 落用户（+ API 对账）--

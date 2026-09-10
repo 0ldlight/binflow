@@ -47,16 +47,11 @@ test('keyboard: login by keys, sidebar reachable and activating via Enter', asyn
   const inNav = await page.evaluate(() => !!document.activeElement?.closest('[data-testid="app-nav"]'))
   expect(inNav).toBe(true)
 
-  // 模式切换项（nav-mode-switch，button + aria-current）键盘可达并激活。
-  // 第二次 Enter 前先断言 aria-current——既是 a11y 断言本体，也等 React
-  // 提交重渲染（立即连击会以旧 mode 闭包重导航同址）。
-  await page.focus('[data-testid="nav-mode-switch"]')
-  await expect(page.locator('[data-testid="nav-mode-switch"]')).toBeFocused()
+  // FE-Rewrite P2 四分组壳：模式切换概念退役（分组即模式）——键盘面改为
+  // 直接驱动管理分组条目（focus 仓库 → Enter 落 /admin/repositories/）。
+  await page.focus('[data-testid="app-nav"] a.nav-item:text-is("仓库")')
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories/)
-  await expect(page.locator('[data-testid="nav-mode-switch"]')).toHaveAttribute('aria-current', 'true')
-  await page.keyboard.press('Enter') // 返回应用
-  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts/)
 })
 
 // ---- 2. 树方向键全语义（↑↓ sibling / → 展开 / ← 折叠 / Enter / Shift+F10）------
@@ -109,20 +104,27 @@ test('keyboard: tree arrows expand/collapse/navigate, row Enter opens, Shift+F10
   // 表格行：↑↓ 行移动 + 目录行 Enter 进路径 + 文件行 Enter 选中（T-434：文件
   // 选中进 URL 路径末段——?focus= 退役）
   await page.goto(`/binflow/ui/artifacts/${key}`)
+  await page.goto(`/binflow/ui/artifacts/${key}`)
   await expect(page.locator('[data-testid="tree-row-docs"]')).toBeVisible()
-  await page.focus('[data-testid="tree-row-docs"]')
+  // P2 AG Grid 形态：↑↓ 行移是网格单元焦点（DOM 焦点在 cell，不挂 tree-row
+  // span——旧手作表的 span tabIndex 形态退役）；Enter 激活与 Shift+F10 菜单
+  // 经网格单元格键盘链（ChildrenGrid onCellKeyDown）
+  const docsCell = page.locator('.ag-row').filter({ hasText: 'docs' }).first()
+  await docsCell.click()
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowUp')
-  await expect(page.locator('[data-testid="tree-row-docs"]')).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${key}/docs$`))
-  await page.focus('[data-testid="tree-row-guide.md"]')
+  const fileCell = page.locator('.ag-row').filter({ hasText: 'guide.md' }).first()
+  await fileCell.click()
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${key}/docs/guide\\.md$`))
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
 
-  // Shift+F10：右键菜单键盘打开（Chromium 报 F10+shift）+ Esc 关闭
-  await page.focus('[data-testid="tree-row-guide.md"]')
+  // Shift+F10：右键菜单键盘打开（Chromium 报 F10+shift）+ Esc 关闭——
+  // 网格单元聚焦后经 onCellKeyDown 的 ContextMenu 键分支
+  const fileCell2 = page.locator('.ag-row').filter({ hasText: 'guide.md' }).first()
+  await fileCell2.click()
   await page.keyboard.press('Shift+F10')
   await expect(page.locator('[data-testid="tree-context-menu"]')).toBeVisible()
   await page.keyboard.press('Escape')
@@ -176,16 +178,18 @@ test('keyboard: tablist arrow keys switch repo detail tabs and node detail tabs'
 
   await loginAs(page, 'admin')
   await page.goto(`/binflow/ui/admin/repositories/${key}`)
-  await expect(page.locator('[data-testid="repo-tab-summary"]')).toBeVisible()
+  // P2 八 Tab 化后的 Tab 序（概要/制品/配置/存储/权限/复制/Webhooks/活动）
+  // ——旧三 Tab 名（summary/config/replications）随 P2 退役，键盘链按新序
+  await expect(page.locator('[data-testid="repo-tab-overview"]')).toBeVisible()
 
-  await page.focus('[data-testid="repo-tab-summary"]')
+  await page.focus('[data-testid="repo-tab-overview"]')
   await page.keyboard.press('ArrowRight')
-  await expect(page.locator('[data-testid="repo-tab-config"]')).toHaveAttribute('aria-selected', 'true')
-  await expect(page.locator('[data-testid="repo-tab-config"]')).toBeFocused()
+  await expect(page.locator('[data-testid="repo-tab-artifacts"]')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('[data-testid="repo-tab-artifacts"]')).toBeFocused()
   await page.keyboard.press('ArrowRight')
-  await expect(page.locator('[data-testid="repo-tab-replications"]')).toBeFocused()
+  await expect(page.locator('[data-testid="repo-tab-configuration"]')).toBeFocused()
   await page.keyboard.press('ArrowLeft')
-  await expect(page.locator('[data-testid="repo-tab-config"]')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('[data-testid="repo-tab-artifacts"]')).toHaveAttribute('aria-selected', 'true')
 
   // 树详情面板 node-tabs：常规 → 有效权限 → 属性（T-445 / FR-144.1 页签序
   // ——权限在属性前，7.161.20 活体 A2-7 + 7.84 reverse §3.2 逐级一致；

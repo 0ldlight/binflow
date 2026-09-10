@@ -199,7 +199,8 @@ test('tokens: revoke via danger confirm flips the row and kills the credential s
   const confirm = page.locator('[data-testid="confirm-dialog"]')
   await expect(confirm).toBeVisible()
   await expect(confirm).toContainText(`吊销令牌 #${minted.tokenId}`)
-  await expect(page.locator('[data-testid="confirm-accept"]')).toHaveClass(/Error/) // danger 红变体
+  // P3 新栈：danger 红变体 = destructive 变体类（MUI Error 类名随栈退役）
+  await expect(page.locator('[data-testid="confirm-accept"]')).toHaveClass(/destructive/) // danger 红变体
   await expect(page.locator('[data-testid="confirm-cancel"]')).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(confirm).toHaveCount(0)

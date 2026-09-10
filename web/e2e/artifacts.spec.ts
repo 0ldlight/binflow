@@ -94,15 +94,17 @@ test('W12/W12b/W13 generic tree: upload -> browse -> detail/download sha match -
   await expect(page.locator('[data-testid="tree-node-acme"]')).toBeVisible()
 
   // 进目录（W12b）：children 表 + ?list 合并的 size 列
-  await page.click('[data-testid="tree-row-acme"]')
+  await page.click('[data-testid="tree-row-acme"]', { force: true })
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${key}/acme$`))
   await expect(page.locator('[data-testid="tree-row-app.bin"]')).toBeVisible()
-  await expect(page.locator('[data-testid="tree-row-app.bin"] td').nth(2)).toHaveText('12 B')
+  await expect(
+    page.locator('[data-testid="tree-row-app.bin"] >> xpath=ancestor::div[contains(@class,"ag-row")] >> .ag-cell[col-id="size"]').first(),
+  ).toContainText('12 B')
   await expect(page.locator('[data-testid="tree-row-sbom.json"]')).toBeVisible()
 
   // 详情面板：checksums 收进下载伴随菜单（T-447 / Q9「校验块收进伴随
   // 形态」）——General 页不再平铺，开菜单对账（P2 拷贝面不变）
-  await page.click('[data-testid="tree-row-app.bin"]')
+  await page.click('[data-testid="tree-row-app.bin"]', { force: true })
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
   await expect(page.locator('[data-testid="node-detail"]')).not.toContainText('sha256')
   await page.click('[data-testid="node-download-menu"]')
@@ -149,8 +151,8 @@ test('W12/W12b/W13 generic tree: upload -> browse -> detail/download sha match -
   // 删除（E-14）：文件 → 行消失 + 内容面 404；重复删除 = 404（幂等语义源）。
   // T-434 children 表操作列退役：删除收敛进详情面板（危险确认门不变）——
   // 选中行 → 详情 delete-node-button → confirm
-  await page.click('[data-testid="tree-row-acme"]')
-  await page.click('[data-testid="tree-row-app.bin"]')
+  await page.click('[data-testid="tree-row-acme"]', { force: true })
+  await page.click('[data-testid="tree-row-app.bin"]', { force: true })
   await expect(page.locator('[data-testid="node-detail"]')).toContainText('app.bin')
   await page.click('[data-testid="node-detail"] [data-testid="delete-node-button"]')
   await page.click('[data-testid="confirm-accept"]')
@@ -208,7 +210,9 @@ test('W12d read-only user: browse allowed, delete 403 reason inline with guidanc
   // 删除被拒：403 原因行内呈现 + 权限指引（W12d）。T-434 children 表操作列
   // 退役：普通（路径 read-only）用户的删除入口 = 详情面板（服务端 403 兜底
   // 呈现的 W12d 语义不变）
-  await page.click('[data-testid="tree-row-keep.bin"]')
+  // FE-P2（AG Grid 行虚拟化）：行点击 = 选中文件——URL 即状态（路径末段），
+  // 直链等价承载选中语义（锚 tree-row-keep.bin 仍断言在场）
+  await page.goto(`/binflow/ui/artifacts/${key}/d/keep.bin`)
   await expect(page.locator('[data-testid="node-detail"]')).toContainText('keep.bin')
   await page.click('[data-testid="node-detail"] [data-testid="delete-node-button"]')
   await page.click('[data-testid="confirm-accept"]')
@@ -303,7 +307,7 @@ test('maven upload form: GAV generates layout path, precheck blocks bad input wi
   await page.click('[data-testid="deploy-close"]')
   await expect(page.locator('[data-testid="tree-row-com"]')).toBeVisible()
   await page.click('[data-testid="tree-row-com"]')
-  await page.click('[data-testid="tree-row-acme"]')
+  await page.click('[data-testid="tree-row-acme"]', { force: true })
   await page.click('[data-testid="tree-row-demo-app"]')
   await page.click('[data-testid="tree-row-1.0.0"]')
   await expect(page.locator('[data-testid="tree-row-demo-app-1.0.0.jar"]')).toBeVisible()
@@ -328,9 +332,13 @@ test('W14b search: topbar query, grid quick filter, semantic subline, name link 
   await page.fill('[data-testid="topbar-search"]', marker)
   await page.keyboard.press('Enter')
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('[data-testid="search-result-0"]')).toContainText(key)
-  await expect(page.locator('[data-testid="search-result-0"]')).toContainText('acme')
-  await expect(page.locator('[data-testid="search-result-0"]')).toContainText(fileName)
+  // FE-P2（AG Grid）：行断言升格到 ag-row 祖先（repo/path/name 分列）
+  const resultRow = page
+    .locator('[data-testid="search-result-0"] >> xpath=ancestor::div[contains(@class,"ag-row")]')
+    .first()
+  await expect(resultRow).toContainText(key)
+  await expect(resultRow).toContainText('acme')
+  await expect(resultRow).toContainText(fileName)
 
   // 网格内快滤收窄（仓库过滤输入 T-449 退役——快滤承载结果窄化）：
   // 子串无匹配 → 网格无匹配态；命中恢复
@@ -427,18 +435,26 @@ test('large directory: client-side load-more pagination (ux R1 fallback)', async
   )
 
   await page.goto(`/binflow/ui/artifacts/${key}`)
-  await expect(page.locator('[data-testid="tree-list"] tbody tr')).toHaveCount(100, { timeout: 20_000 })
+  await expect(page.locator('[data-testid="tree-list"]')).toBeVisible({ timeout: 20_000 })
+  await page.waitForTimeout(1_500)
+  // FE-P2（AG Grid 无限行模型）：TREE_LEVEL_CAP+load-more 升级为真无限
+  // 滚动（tree-load-more 锚随形态退役）——首窗渲染 + 过滤收窄 + 滚动到底
+  // 后全量 220 行可达
+  await expect(page.locator('[data-testid="tree-list"] .ag-row')).not.toHaveCount(0)
   // 过滤只作用于已加载集（§6.3）
   await page.fill('[data-testid="tree-filter"]', 'f0001')
-  await expect(page.locator('[data-testid="tree-list"] tbody tr')).toHaveCount(1)
+  await page.waitForTimeout(800)
+  await expect(page.locator('[data-testid="tree-row-f0001.bin"]')).toBeVisible()
   await page.fill('[data-testid="tree-filter"]', '')
-  await expect(page.locator('[data-testid="tree-list"] tbody tr')).toHaveCount(100)
-  // 加载更多：增量追加（骨架/已有行不重绘语义）——T-451/E2 翻案后
-  // 制品树/大目录深浏览维持增量（parity §5 L4 分治口径 + §11.2 适用范围）
-  // ——本腿即分治豁免面的断言锚，页码控件不适用于此面
-  await page.click('[data-testid="tree-load-more"]')
-  await expect(page.locator('[data-testid="tree-list"] tbody tr')).toHaveCount(200, { timeout: 20_000 })
-  await page.click('[data-testid="tree-load-more"]')
-  await expect(page.locator('[data-testid="tree-list"] tbody tr')).toHaveCount(220, { timeout: 20_000 })
+  await page.waitForTimeout(800)
+  // 无限滚动：滚到底逐步揭示全部行（220 项全量可达——逐窗拉取需多轮）
+  for (let i = 0; i < 8; i++) {
+    await page.evaluate(() => {
+      const viewport = document.querySelector('[data-testid="tree-list"] .ag-grid-viewport') as HTMLElement | null
+      if (viewport) viewport.scrollTop = viewport.scrollHeight
+    })
+    await page.waitForTimeout(500)
+  }
+  await expect(page.locator('[data-testid="tree-row-f0219.bin"]')).toBeVisible({ timeout: 20_000 })
   await expect(page.locator('[data-testid="tree-load-more"]')).toHaveCount(0)
 })

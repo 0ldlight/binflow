@@ -1,0 +1,562 @@
+# =====================================================================
+# Artifactory ↔ BinFlow 能力映射总账（宪章 §23）— Phase 1 架构 v2 直接输入
+# =====================================================================
+# 性质：映射总账（gap ledger）。capability 四态唯一账 = docs/compatibility/matrix.yaml
+#   （M3-1 迁移前事实源 docs/reverse/rest-compat-matrix.md §1）——本账以**引用**消费，
+#   不复制其行；行数/锚点引用不构成第二账。
+# 骨架：docs/reverse/domain-map.yaml 的 26 能力域（E1 evidence-index-only，禁作结构设计依据）。
+# BinFlow 侧现状基于：develop 分支 internal/ 包实读（2026-09-11）+ matrix D01~D14 四态统计
+#   + docs/compatibility/contracts/ 既有契约。Artifactory 侧 evidence_base 指向本次 Phase 0
+#   审计产物与既有规格（docs/reverse/**）。
+# 状态机：本账条目初始态一律 DISCOVERED；后续流转词汇 SPECIFIED / DESIGNED / IMPLEMENTING /
+#   IMPLEMENTED / VERIFIED / DIVERGENT / BLOCKED / INTENTIONAL（与契约状态机对齐）。
+# migration_verdict：仅为**候选倾向**（KEEP / REFACTOR / REWRITE / DEPRECATE / REMOVE +
+#   NEW-BUILD=绿地无既有可处置），最终裁定归 Phase 1（架构 v2 设计）——本账不构成裁定。
+# UNKNOWN 阻塞项以 U-xxx 引用 docs/compatibility/unknown.yaml（§44 队列）。
+# 写入者：compatibility-engineer（Phase 0 任务 #8，2026-09-11）。
+meta:
+  program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
+  charter_refs: { gap_ledger: "§23", score: "§46", unknown_queue: "§44" }
+  generated: 2026-09-11
+  artifactory_version: "7.161.x（A=7.161.24 反编译 / B=7.161.20 运行时 / C=7.161.16 安装包）"
+  binflow_baseline: "develop @ 7c8bfaba（fe-rewrite terminal verification sealed）"
+  matrix_ref:
+    ledger: docs/compatibility/matrix.yaml            # 唯一账（rows 迁移占位中）
+    pre_migration_source: docs/reverse/rest-compat-matrix.md §1   # D01~D14 四态表（迁移前事实源）
+    frozen_v1: "195 行：✅57 / ◐27 / ❌83 / ⛔17 / 超集C11；置信 高137/中58"
+  domains: 26
+  status_default: DISCOVERED
+
+domains:
+
+- id: package-protocols-addons
+  artifactory:
+    evidence_base: [docs/reverse/domain-map.yaml#package-protocols-addons, docs/reverse/protocols/registry.yaml, docs/reverse/enterprise/feature-catalog.yaml]
+    modules: { primary: 24, supporting: 3 }
+    key_behaviors: "24 商业 addon 包型注册表服务端（alpine/bower/cargo/chef/cocoapods/composer/conan/debian(dpkg/opkg)/容器族(docker/oci/helmoci)/gems/git-lfs/nimmodel/nuget/p2/pub/puppet/swift/terraform/vagrant/webstart/yum）"
+  binflow:
+    current: "internal/adapter（handler SPI）+ internal/addons（编译期 addon 注册表）；matrix D12 子表 13 包型 × Artifactory 57 型（rest-compat §11.1）"
+    coverage: "24 商业包型 0/24 实现（npm/pypi/go 等 OSS 族归 package-protocols-oss 域计）"
+  gap:
+    summary: "整域绿地；仅 registry.yaml 族级聚合规格（confidence medium），无一包型有 §9 全字段契约"
+    top_gaps:
+      - { what: "language-ecosystem-a 15 包型字段级行为全缺", evidence: protocols/registry.yaml family_protocols, priority: P1, ref: U-PROTO-02 }
+      - { what: "alpine/opkg 上传链与索引重算", evidence: registry.yaml os-package-extra, priority: P1, ref: U-PROTO-03 }
+      - { what: "ansible/puppet/chef/vagrant/p2 上传面", evidence: registry.yaml infra-config-management, priority: P1, ref: U-PROTO-04 }
+    block: [U-PROTO-02, U-PROTO-03, U-PROTO-04, U-PROTO-06]
+  next:
+    migration_verdict: "NEW-BUILD（绿地——无既有 BinFlow 实现可 KEEP/REWRITE；internal/adapter SPI 作为装载载体 KEEP）"
+    first_loop: "每包型一张规格票（真实客户端实测 :8082）→ 契约 → 差分；按 inv-3 §5 优先级排序"
+  status: DISCOVERED
+
+- id: package-protocols-oss
+  artifactory:
+    evidence_base: [docs/reverse/protocols/registry.yaml#p0_protocols, "docs/reverse/{docker-registry,maven-npm-pypi,npm,helm,nuget,conan,debian,rpm,goproxy,cargo}.md"]
+    modules: { primary: 0, supporting: 4 }
+    key_behaviors: "OSS 核心包型：maven/ivy/gradle/sbt/npm/pypi/generic + docker/conan/helm/debian/rpm/go/cargo（13 型有厚实规格，confidence high）"
+  binflow:
+    current: "internal/adapter 各型 handler + internal/httpapi 协议端点（docker_v2/deb/helm/…）；matrix D12 ✅6/◐3/❌7/⛔1（17 行）"
+    coverage: "P0 协议 13 型基座已立（docker×16/npm×9/pypi×4/conan×19/goproxy 等 ✅），remote 臂与重索引族 ◐/❌"
+  gap:
+    summary: "已实现型的字段级缺口集中在 remote 代理、重索引、搜索族；helmoci 未实现"
+    top_gaps:
+      - { what: "docker remote 代理模式 v2（DockerV2RemoteRepoHandler）", evidence: docker-registry.md 待验证#3, priority: P0, ref: U-PROTO-01 }
+      - { what: "helmoci 与 docker 栈差异点未证即未实现", evidence: registry.yaml semi/full, priority: P1, ref: U-PROTO-09 }
+      - { what: "maven 最新版 token（SNAPSHOT/[RELEASE]）解析缺位", evidence: registry.yaml maven.download, priority: P1 }
+      - { what: "pypi JSON 元数据两臂 ❌、npm dist-tags 显式端点族 ◐", evidence: rest-compat D12 行3-7, priority: P1 }
+    block: [U-PROTO-01, U-PROTO-09]
+  next:
+    migration_verdict: "REFACTOR（adapter SPI 与既有 handler 保留；逐型补 remote/重索引/搜索缺口）"
+    first_loop: "docker remote 代理差分对拍（P0）→ maven token 族契约化"
+  status: DISCOVERED
+
+- id: repo-model
+  artifactory:
+    evidence_base: [docs/reverse/domain-map.yaml#repo-model, docs/reverse/repo-semantics.md, docs/reverse/rest-compat-matrix.md §3 D02]
+    modules: { primary: 3, supporting: 3 }
+    key_behaviors: "local/remote/virtual/federated 四 rclass + 自定义布局 + 仓库 CRUD REST v1/v2/batch + copy/move/zap"
+  binflow:
+    current: "internal/repo + internal/httpapi 仓库 CRUD；matrix D02 ✅2/◐3/❌6/⛔1/超集1（13 行）"
+    coverage: "local/remote/virtual 配置面 ✅ 基础；federated rclass、自定义布局、batch CRUD 缺"
+  gap:
+    summary: "配置 CRUD 主干在、四型差一角（federated）+ 布局系统整缺"
+    top_gaps:
+      - { what: "federated rclass 配置面与语义", evidence: rest-compat D02 行11 族, priority: P1 }
+      - { what: "自定义仓库布局 CRUD（layouts addon 面）", evidence: feature-catalog n57, priority: P1 }
+      - { what: "virtual DELETE 逐成员遍历/部分失败语义", evidence: repo-semantics 待验证5, priority: P2 }
+    block: []
+  next:
+    migration_verdict: "REFACTOR（repo 模型扩展 federated + layouts 子模型）"
+    first_loop: "federated 建仓 wire 契约（对拍 :8082 PUT /api/repositories federated rclass）"
+  status: DISCOVERED
+
+- id: storage-filestore
+  artifactory:
+    evidence_base: [docs/reverse/storage-layout.md, docs/reverse/s3-storage-layout.md, docs/reverse/storage/README.md, docs/reverse/config-formats.md §1]
+    modules: { primary: 2, supporting: 3 }
+    key_behaviors: "三层模型（元数据/bin/blob）、sha1 全量寻址+2 字符分片、tmp→_pre→rename→DB 事务、回收站 14 天、GC/prune、binarystore.xml provider 链、云存储/MPU/归档分层"
+  binflow:
+    current: "internal/storage（filestore + S3 链解析，cmd t306_binstore_wire_test）+ 回收站/GC prune；matrix D01 ✅13/◐7/❌12/⛔3/超集2（37 行）"
+    coverage: "本层覆盖最高（D01 ✅ 面）——checksum deploy/X-Checksum 头族/回收站已有；云 provider 链/MPU/分层归档缺"
+  gap:
+    summary: "核心读写链健康；证据缺口集中在 Artifactory 侧实现不可达（外部 storage-client 库）导致的行为面"
+    top_gaps:
+      - { what: "BinaryProvider 链组合模板与云 provider 行为（最重要证据缺口）", evidence: domain-map unknown#1, priority: P0, ref: U-STG-01 }
+      - { what: "MPU wire 协议本体", evidence: s3-storage-layout §3, priority: P1, ref: U-STG-02 }
+      - { what: "corruption 面（bit-rot 校验/Sha256MigrationJob/MissingBinary 降级）", evidence: storage/README §2.2-3, priority: P1, ref: U-STG-04 }
+      - { what: "recovery 全流程", evidence: storage/README §2.2-4, priority: P1, ref: U-STG-05 }
+    block: [U-STG-01, U-STG-02, U-STG-03, U-STG-04, U-STG-05, U-STG-08, U-STG-09, U-STG-10]
+  next:
+    migration_verdict: "KEEP（本层读写链）+ REFACTOR（provider 链抽象按 U-STG-01 取证后扩展）"
+    first_loop: "U-STG-01 P0 取证（binarystore.xml 活体 + 官方模板族）→ 云链契约票"
+  status: DISCOVERED
+
+- id: db-persistence
+  artifactory:
+    evidence_base: [docs/reverse/domain-map.yaml#db-persistence, docs/reverse/storage-layout.md §3]
+    modules: { primary: 2, supporting: 1 }
+    key_behaviors: "6 方言（derby/mssql/mysql/oracle/postgresql/mariadb）schema 脚本、DAO 全量、DB 版本转换链（v213..v228）、outbox 模式可靠事件"
+  binflow:
+    current: "internal/metadata（存储层 + AuditStore；sqlite/postgres 双后端）"
+    coverage: "单/双后端健康；多方言支持与 schema 版本转换链为 Artifactory 侧形态（BinFlow 自有迁移体系）"
+  gap:
+    summary: "结构对等度低是形态差异而非缺陷；对 parity 有意义的面是元数据表语义（binaries/nodes/node_props/stats）"
+    top_gaps:
+      - { what: "Artifactory 元数据表语义对照（nodes/stats 字段级）", evidence: storage-layout §3 DDL 级, priority: P2 }
+      - { what: "outbox 模式可靠事件（BinFlow webhook outbox 已有对照点）", evidence: inv-4 K3, priority: P2 }
+    block: []
+  next:
+    migration_verdict: "KEEP（BinFlow 存储层）——多方言是否入目标是 Phase 1 产品裁定（倾向： Derby/PostgreSQL 两档足够，DEPRECATE 其余方言为候选）"
+    first_loop: "storage-layout §3 表语义 → BinFlow 表对照注释（只读对账，不改表）"
+  status: DISCOVERED
+
+- id: authn-authz
+  artifactory:
+    evidence_base: [docs/reverse/auth-model.md, docs/reverse/rbac-model.md, docs/reverse/auth-integration.md, docs/reverse/security/README.md, docs/reverse/enterprise/license-behavior.md]
+    modules: { primary: 18, supporting: 5 }
+    key_behaviors: "access 服务化认证中枢（token/多租户/projects 域角色）、SSO 三协议（SAML/OAuth-OIDC/Crowd）、LDAP 多服务器、密码策略/锁定、API key（deprecated）、SCIM、MFA、密钥对/信任键、signed URL"
+  binflow:
+    current: "internal/auth（users/groups/permissions/session/rbac/LDAP/OIDC/SAML 配置面）+ internal/keypair；matrix D04 ✅16/◐6/❌12/超集1（35 行）"
+    coverage: "四态最优域之一（56% 可信覆盖）；MFA/SCIM/Vault/API key/Crowd/HTTP-SSO 缺，access 服务拆分为架构差异"
+  gap:
+    summary: "认证主干 + 三协议配置面在；缺口是 negative wire 细节与 access 服务族面"
+    top_gaps:
+      - { what: "OIDC/SAML 登录失败腿逐字 negative 矩阵", evidence: security/README §2.2-1/2, priority: P1, ref: U-SEC-02 }
+      - { what: "MFA/SCIM/Vault 三面零规格", evidence: security/README §2.2-4/6/7, priority: P1, ref: "U-SEC-05, U-SEC-07, U-SEC-08" }
+      - { what: "token 401 body 逐字 + 锁定策略阈值", evidence: security/README §2.2-3/5, priority: P1, ref: "U-SEC-04, U-SEC-06" }
+      - { what: "API key 生命周期（deprecated 面仍需 parity）", evidence: security/README §2.2-9, priority: P1, ref: U-SEC-10 }
+    block: [U-SEC-02, U-SEC-03, U-SEC-04, U-SEC-05, U-SEC-06, U-SEC-07, U-SEC-08, U-SEC-09, U-SEC-10, U-SEC-11, U-SEC-12, U-SEC-01]
+  next:
+    migration_verdict: "REFACTOR（auth 包保留；access 服务族面按 Phase 1 裁定——单进程内聚 vs 服务拆分）"
+    first_loop: "U-SEC-06/11 只读探针先行（无写腿）→ negative 矩阵契约票"
+  status: DISCOVERED
+
+- id: remote-cache-proxy
+  artifactory:
+    evidence_base: [docs/reverse/remote-browsing.md, docs/reverse/repo-semantics.md §7, docs/reverse/protocols/registry.yaml remote 字段]
+    modules: { primary: 3, supporting: 2 }
+    key_behaviors: "remote 仓拉取/缓存/统计落库、Smart Remote 字段族、miss 回源→缓存→服务、downloadRedirect/CDN 重定向、package-reroute 注册表重定向"
+  binflow:
+    current: "internal/remote（pull-through 缓存、负缓存等按包型部分实现）；matrix D01/D02 remote 行"
+    coverage: "基础代理在；smart remote 字段族、下载重定向、package-reroute 缺"
+  gap:
+    summary: "代理主干在、Artifactory 的 smart/重定向/重路由增强层缺"
+    top_gaps:
+      - { what: "docker remote 代理 v2（P0 协议缺口）", evidence: registry.yaml REG-1, priority: P0, ref: U-PROTO-01 }
+      - { what: "Smart Remote Repo 字段族（EDGE 门）", evidence: feature-catalog n129, priority: P1 }
+      - { what: "package-reroute 触发语义", evidence: feature-catalog pending#6, priority: P1, ref: U-ENT-06 }
+    block: [U-PROTO-01, U-ENT-06]
+  next:
+    migration_verdict: "REFACTOR"
+    first_loop: "随 U-PROTO-01 docker remote 取证合并出 smart-remote 字段契约票"
+  status: DISCOVERED
+
+- id: replication-federation
+  artifactory:
+    evidence_base: [docs/reverse/replication.md, docs/reverse/release-bundle.md, docs/reverse/enterprise/feature-catalog.yaml 复制与分发域]
+    modules: { primary: 7, supporting: 3 }
+    key_behaviors: "push/pull V1 复制、V2 流式引擎、multipush、事件驱动 pull、federated 双向联邦 mirrors、grid/平台镜像"
+  binflow:
+    current: "internal/replication（push/pull 任务 + 事件消费）；matrix D05 ◐5/❌4/⛔1/超集1（11 行，✅0）"
+    coverage: "复制配置/执行 ◐；federation 整缺"
+  gap:
+    summary: "复制面进行中（◐ 为主）；federation 与 multipush/event-based 全缺"
+    top_gaps:
+      - { what: "federated mirrors + full sync（134 java 量级行为面）", evidence: domain-map replication-federation, priority: P1 }
+      - { what: "Replication V2 streaming engine", evidence: feature-catalog n127, priority: P1 }
+      - { what: "multipush / event-based pull", evidence: feature-catalog n130/131, priority: P2 }
+    block: [U-JOB-02]
+  next:
+    migration_verdict: "REFACTOR（既有复制保留）+ NEW-BUILD（federation 组件）"
+    first_loop: "federation 建仓→mirror 同步行为规格票（:8082 双实例实验需环境）"
+  status: DISCOVERED
+
+- id: search-index
+  artifactory:
+    evidence_base: [docs/reverse/aql.md, docs/reverse/rest-compat-matrix.md §4 D03]
+    modules: { primary: 2, supporting: 3 }
+    key_behaviors: "AQL 语法/模型/SQL 生成执行、properties 键值服务、老搜索 16 端点族、UI 搜索族、docker 检索面"
+  binflow:
+    current: "internal/search + internal/httpapi AQL 端点（M15 落地 item/property 域）；matrix D03 ✅9/❌9/⛔2（20 行）"
+    coverage: "AQL 主链 ✅ 高置信（官方+反编译+活体三源）；statistics/builds 域、老搜索尾部、docker 检索缺"
+  gap:
+    summary: "已实现部分质量最高；缺口是 AQL 其余域与老搜索余量"
+    top_gaps:
+      - { what: "AQL 其余域（archive/统计/builds 域字段集）", evidence: aql.md §2.1 域表, priority: P1 }
+      - { what: "老搜索族余量（❌9 行含 docker manifests 检索）", evidence: rest-compat D03, priority: P2 }
+      - { what: "aql V-a~h 待验证 8 项收口", evidence: aql.md §12, priority: P2 }
+    block: []
+  next:
+    migration_verdict: "KEEP（引擎保留，按域扩展）"
+    first_loop: "AQL statistics 域字段集契约（aql.md §14.1 已有定案面）"
+  status: DISCOVERED
+
+- id: build-info
+  artifactory:
+    evidence_base: [docs/reverse/build-info.md, docs/reverse/rest-compat-matrix.md §8 D07]
+    modules: { primary: 2, supporting: 2 }
+    key_behaviors: "build-info JSON 模型、PUT /api/build、promotion/staging、VCS 标签、Docker promote、AQL builds 域"
+  binflow:
+    current: "internal/build + internal/httpapi build REST（在途票）；matrix D07 ❌11（11 行全 absent）"
+    coverage: "0/11（在途 T-505 族）"
+  gap:
+    summary: "整域在途；规格已厚（build-info.md）主要是实现量"
+    top_gaps:
+      - { what: "build REST 11 行逐行落地", evidence: rest-compat D07, priority: P1 }
+      - { what: "promotion/staging 状态机", evidence: build-info.md, priority: P1 }
+    block: []
+  next:
+    migration_verdict: "REWRITE（在途面按 build-info.md 官方 wire 口径实现——BinFlow internal/build 早期形态让位）"
+    first_loop: "D07 行集契约化 → 差分（jf rt build-upload 真机）"
+  status: DISCOVERED
+
+- id: release-bundle-distribution
+  artifactory:
+    evidence_base: [docs/reverse/release-bundle.md, docs/reverse/rest-compat-matrix.md §9 D08]
+    modules: { primary: 3, supporting: 2 }
+    key_behaviors: "RB v2 事务（创建/签名/版本）、air-gap 导入导出、distribution 事件对接、Edge 分发"
+  binflow:
+    current: "internal/bundle（bundle_wire_test 在册）；matrix D08 ❌6/⛔1（7 行）"
+    coverage: "0/7（在途 T-513 族）"
+  gap:
+    summary: "整域在途且强许可耦合（RELEASE_BUNDLES_READ/WRITE entitlement）"
+    top_gaps:
+      - { what: "RB v2 事务 6 行", evidence: rest-compat D08, priority: P1 }
+      - { what: "distribution service 对接面（外部服务依赖裁定时序）", evidence: domain-map distribution-handler, priority: P2 }
+    block: [U-ENT-11]
+  next:
+    migration_verdict: "REWRITE（RB v2 面）——distribution 外部服务对接是否入范围属 Phase 1 裁定"
+    first_loop: "release-bundle.md → 契约票（jf CLI distribution 真机差分）"
+  status: DISCOVERED
+
+- id: cleanup-retention
+  artifactory:
+    evidence_base: [docs/reverse/enterprise/feature-catalog.yaml 治理域, docs/reverse/cron-scheduling.md]
+    modules: { primary: 3, supporting: 2 }
+    key_behaviors: "cleanup v1 cron + v2 策略引擎（policies addon 112 java）、retention v2 策略、cold storage 归档、trashcan"
+  binflow:
+    current: "回收站/GC/cleanup 定时（cmd cleanup_wiring + internal/scheduler）；matrix D11 ❌2/⛔1 + D06 cleanup 行"
+    coverage: "v1 定时清理在；v2 策略引擎（CRUD+执行+审计）与 retention/归档缺"
+  gap:
+    summary: "策略引擎整块缺（含 REST 面 cleanup/retention 资源族）"
+    top_gaps:
+      - { what: "Cleanup v2 policy CRUD+执行", evidence: feature-catalog n87, priority: P1 }
+      - { what: "Retention v2（coverage/impact 口径未证）", evidence: feature-catalog n89/pending#10, priority: P1, ref: "U-ENT-10, U-API-04" }
+      - { what: "cold storage 归档（COLD_STORAGE 门）", evidence: feature-catalog n90, priority: P2 }
+    block: [U-ENT-10]
+  next:
+    migration_verdict: "REFACTOR（v1 面保留，v2 策略引擎新建挂接 scheduler）"
+    first_loop: "cleanup policy REST 契约票（对拍 :8082 /api/policies）"
+  status: DISCOVERED
+
+- id: webhooks-events
+  artifactory:
+    evidence_base: [docs/reverse/webhook.md, docs/reverse/rest-compat-matrix.md §10 D09, docs/reverse/jobs/README.md 轴2]
+    modules: { primary: 12, supporting: 4 }
+    key_behaviors: "统一事件总线（jf-event 36 事件族）、webhook 管理（access 承载）、watch 订阅邮件、event Go 服务（重试/限流/SSRF 黑名单）"
+  binflow:
+    current: "internal/webhook（dispatcher/outbox/bus）+ internal/httpapi webhook REST；matrix D09 ✅7/❌1/⛔1（9 行）"
+    coverage: "webhook CRUD+分发最优域之一（78%）；watch 通知、jf-event 统一事件面、system webhook 归属未证"
+  gap:
+    summary: "webhook 面厚实；事件总线拓扑与 watch 面缺"
+    top_gaps:
+      - { what: "WebhookService 实现归属（access 侧承载形态）", evidence: domain-map unknown#3, priority: P1, ref: "U-API-06, U-PROTO-10" }
+      - { what: "jf-event 36 事件族与 event 服务分工", evidence: inv-4 I1-I4, priority: P1, ref: U-JOB-02 }
+      - { what: "watch 订阅/邮件通知", evidence: feature-catalog n110, priority: P2 }
+    block: [U-API-06, U-PROTO-10, U-JOB-02, U-LOG-07]
+  next:
+    migration_verdict: "KEEP（outbox/dispatcher 架构）+ 事件面扩展"
+    first_loop: "U-API-06 双端点探针 → system webhook 契约裁定"
+  status: DISCOVERED
+
+- id: task-scheduling
+  artifactory:
+    evidence_base: [docs/reverse/cron-scheduling.md, docs/reverse/jobs/README.md]
+    modules: { primary: 1, supporting: 2 }
+    key_behaviors: "Quartz cron 全集+校验拒绝文案、出厂调度 5+2 项、work-queue 异步工作队列（20 消费模块）、db-scheduler（access 侧）、HA 分布式执行守卫、任务历史持久化"
+  binflow:
+    current: "internal/scheduler（cron 表达式解析/next-run，ADR-0044 输入）+ cmd/binflow-server schedule_wiring"
+    coverage: "cron 语义面已对齐规格；work-queue/db-scheduler/HA 执行整缺"
+  gap:
+    summary: "Quartz 腿 KEEP；异步全景四轴（work-queue/event 消费/db-scheduler/HA）为证据+实现双缺口"
+    top_gaps:
+      - { what: "work-queue 语义（重试/退避/死信/JMX）", evidence: jobs/README 轴1, priority: P1, ref: U-JOB-01 }
+      - { what: "事件消费链（outbox/重投）", evidence: jobs/README 轴2, priority: P1, ref: U-JOB-02 }
+      - { what: "出厂 job 全集穷举", evidence: jobs/README J-5, priority: P2, ref: U-JOB-05 }
+    block: [U-JOB-01, U-JOB-02, U-JOB-03, U-JOB-04, U-JOB-05, U-JOB-06]
+  next:
+    migration_verdict: "KEEP（scheduler 核心）+ REFACTOR（work-queue 语义按 U-JOB-01 取证后补）"
+    first_loop: "U-JOB-06/U-JOB-01 只读取证先行"
+  status: DISCOVERED
+
+- id: observability-diagnostics
+  artifactory:
+    evidence_base: [docs/reverse/logging/taxonomy.yaml, docs/reverse/logging/format-spec.md, docs/compatibility/logging-matrix.yaml, docs/reverse/metrics.md]
+    modules: { primary: 6, supporting: 2 }
+    key_behaviors: "四 logger 家族（Java/Go/jfbus/tomcat）93 文件 taxonomy、request/service/audit/metrics/traffic 全文件族、轮转双语义（logback/Go 五元组）、trace-id 贯穿、support bundle、限流 QRL、live logs"
+  binflow:
+    current: "internal/metrics（/metrics Prometheus 文本）+ internal/audit（DB 追加审计+查询 REST）+ slog 单流（JSON/console）+ httpapi accessLog 中间件；matrix D06 ✅4/◐3/❌12/⛔4/超集6（29 行）"
+    coverage: "观测三件套有最小实现（metrics 端点/DB 审计/结构化访问日志）；日志文件族/traffic/support bundle/live logs/限流面整缺——详见 logging-matrix.yaml 逐族对照"
+  gap:
+    summary: "差距最大的横切域：BinFlow 是「单流结构化日志+DB 审计」，Artifactory 是「93 文件 taxonomy+双轮转+trace 贯穿」——日志架构是 Phase 1 关键决策"
+    top_gaps:
+      - { what: "日志文件族与行格式（jftext/pipe11/审计三件）", evidence: logging-matrix.yaml, priority: P1 }
+      - { what: "traffic 日志行格式（0 字节无样本）", evidence: format-spec §13-1, priority: P1, ref: U-LOG-02 }
+      - { what: "审计日志服务端实现定位", evidence: domain-map unknown#4, priority: P1, ref: U-LOG-01 }
+      - { what: "support bundle / live logs / QRL 限流", evidence: feature-catalog n100/101/97, priority: P1 }
+      - { what: "trace-id（uber-trace-id）贯穿语义", evidence: format-spec §1-5/§12, priority: P2 }
+    block: [U-LOG-01, U-LOG-02, U-LOG-03, U-LOG-04, U-LOG-12]
+  next:
+    migration_verdict: "REFACTOR（slog 保留为内核；文件族/轮转/trace 按契约票分层补——单进程形态可承载 taxonomy 全集）"
+    first_loop: "logging-matrix P1 族契约票（request/service 两族先行——差分可锚 :8082 现成样本）"
+  status: DISCOVERED
+
+- id: license-addon-framework
+  artifactory:
+    evidence_base: [docs/reverse/enterprise/feature-gates.yaml, docs/reverse/enterprise/license-behavior.md, docs/reverse/enterprise/runtime-behavior.md, docs/reverse/enterprise/feature-catalog.yaml]
+    modules: { primary: 3, supporting: 2 }
+    key_behaviors: "三层门控（L1 addon 装配/L2 license tier/L3 entitlement 45 项）、license 生命周期（安装/激活/HA 池/过期降级/lockdown 503）、OSS/JCR/ConanCE 特殊模式、AddonType 81+动态 17"
+  binflow:
+    current: "internal/license（manager+gate）+ internal/addons（编译期 Addon 注册表，ADR-0033 显式装配）+ httpapi license_gate/license/addons 端点"
+    coverage: "单层门（gate 布尔）+ 编译期注册表；三层判定/entitlement/过期降级面未建模"
+  gap:
+    summary: "BinFlow 有「门」的原语无「三层判定体系」；Artifactory 侧行为规格已厚（gates/license 两件 E1-E3），缺的是降级实例 E4 收口"
+    top_gaps:
+      - { what: "L2/L3 判定与 lockdown 响应体", evidence: license-behavior §4/§8-1, priority: P1, ref: U-ENT-19 }
+      - { what: "trial 过期 24 前缀拦截", evidence: license-behavior §4.2/§8-2, priority: P1, ref: U-ENT-20 }
+      - { what: "JFConnect enforcement 强制路径", evidence: feature-gates unknowns#1, priority: P1, ref: U-ENT-11 }
+    block: [U-ENT-11, U-ENT-14, U-ENT-17, U-ENT-18, U-ENT-19, U-ENT-20, U-ENT-21]
+  next:
+    migration_verdict: "REFACTOR（addons 显式装配 KEEP；按 feature-gates 三层模型扩展 license 域——BinFlow 自有许可语义由 Phase 1+产品裁定）"
+    first_loop: "lockdown 503 响应体契约（license-behavior §4 表 → 契约，标 E3 待差分）"
+  status: DISCOVERED
+
+- id: plugins-worker-spi
+  artifactory:
+    evidence_base: [docs/reverse/enterprise/feature-catalog.yaml 其他域, docs/reverse/api-inventory.yaml]
+    modules: { primary: 2, supporting: 3 }
+    key_behaviors: "Groovy 用户插件（execution/steps/webhook 类型）、worker TS serverless 扩展（116 java）、REST plugin/workers 资源"
+  binflow:
+    current: "无（matrix D10 ❌1）"
+    coverage: "0"
+  gap:
+    summary: "整域缺；是否入 BinFlow 范围是产品级裁定（Groovy 插件=运行时代码执行面，安全模型需先行）"
+    top_gaps:
+      - { what: "用户插件执行模型（groovy lifecycle/钩子族）", evidence: feature-catalog n139, priority: P2 }
+    block: []
+  next:
+    migration_verdict: "DEPRECATE 候选（倾向不做 Groovy 运行时插件——安全与维护成本；worker 面同理）——需产品裁定 authority，未裁前不实现"
+    first_loop: "开产品裁定票（product-manager）：插件/worker 是否入范围"
+  status: DISCOVERED
+
+- id: configuration
+  artifactory:
+    evidence_base: [docs/reverse/configuration-map.yaml, docs/reverse/config-formats.md, docs/reverse/distribution/behavior.md §2]
+    modules: { primary: 6, supporting: 2 }
+    key_behaviors: "system.yaml 22 服务段 schema + JF_* env 映射 + 解析序（env>yaml>默认）、模板机制（full/basic 不覆盖刷新）、secrets 加密链（master.key/aesgcm256/首读加密）、服务层遗留配置双轨（binarystore.xml/config.xml/properties）"
+  binflow:
+    current: "internal/config（自有 config 体系 + logging.level/format 键）"
+    coverage: "自有配置在；system.yaml 形态/JF_* 兼容/模板/加密链未建模（BinFlow 无 Artifactory 配置兼容义务？——若目标是工具链迁移兼容则 JF_* env 与 system.yaml 导入面有值）"
+  gap:
+    summary: "形态差异为主；有 parity 价值的是「Artifactory 配置导入面」与 JF_* env 兼容（迁移故事）"
+    top_gaps:
+      - { what: "Java 侧 JF_* env 直读机制", evidence: configuration-map CFG-1, priority: P1, ref: U-CFG-01 }
+      - { what: "system.yaml vs properties 优先级", evidence: configuration-map CFG-3, priority: P1, ref: U-CFG-03 }
+      - { what: "binarystore.xml→BinFlow 映射（已有规格）", evidence: config-formats §1, priority: P1 }
+    block: [U-CFG-01, U-CFG-02, U-CFG-03, U-CFG-04, U-CFG-05]
+  next:
+    migration_verdict: "REFACTOR（自有 config 保留；增 Artifactory 配置导入适配层——迁移故事子域）"
+    first_loop: "Artifactory system.yaml/binarystore.xml 导入票（消费 config-formats 既有规格）"
+  status: DISCOVERED
+
+- id: upgrade-migration
+  artifactory:
+    evidence_base: [docs/reverse/distribution/behavior.md §6, docs/reverse/domain-map.yaml#upgrade-migration]
+    modules: { primary: 1, supporting: 3 }
+    key_behaviors: "7.x→7.x app/var 分区替换升级、6.x→7.x 16 步迁移器、DB conversion v213..v228、access 数据迁移"
+  binflow:
+    current: "internal/migrate + cmd/bf-migrate（Artifactory→BinFlow 四相迁移管线：读-转换-写 + 空目标守卫）"
+    coverage: "BinFlow 自有迁移方向（Artifactory→BinFlow）已有实现；Artifactory 版本间升级语义对 BinFlow 是参照非目标"
+  gap:
+    summary: "方向不同：Artifactory 域行为映射到 BinFlow 的「迁移输入面」（旧实例导出格式兼容）而非自身升级链"
+    top_gaps:
+      - { what: "Artifactory 导出目录/DB 转储的完整读取面", evidence: import-export-api.md + migrate 管线现状, priority: P1 }
+      - { what: "6.x→7.x 迁移后的目录形态（迁移输入变种）", evidence: distribution/behavior §6.2, priority: P2 }
+    block: [U-DIST-02, U-DIST-03]
+  next:
+    migration_verdict: "KEEP（bf-migrate 管线）+ 按 Artifactory 导出格式扩展读取器"
+    first_loop: "export 目录全形态清单票（含 6.x 迁移后变种）"
+  status: DISCOVERED
+
+- id: ha-cluster
+  artifactory:
+    evidence_base: [docs/reverse/enterprise/feature-catalog.yaml 部署形态域, docs/reverse/enterprise/feature-gates.yaml gate n1]
+    modules: { primary: 4, supporting: 2 }
+    key_behaviors: "HA 心跳/主选举、分布式锁（db/locks）、集群拓扑、混合许可降级、任务单节点执行守卫"
+  binflow:
+    current: "无（单节点）"
+    coverage: "0（单节点形态）"
+  gap:
+    summary: "整域缺且证据环境缺（双节点实验）；是否入范围是 Phase 1 架构级裁定"
+    top_gaps:
+      - { what: "HA 最小集（锁/心跳/任务守卫）行为规格", evidence: feature-catalog n134 + jobs 轴4, priority: P2, ref: "U-JOB-04, U-ENT-22" }
+    block: [U-JOB-04, U-ENT-22, U-ENT-15, U-STG-11]
+  next:
+    migration_verdict: "NEW-BUILD 候选（范围未裁）——设计侧先做「HA-ready 无状态化」审查而非先建集群"
+    first_loop: "Phase 1 架构票：单写多读 vs 集群（消费 db/locks + HaAddon 证据索引）"
+  status: DISCOVERED
+
+- id: platform-integration
+  artifactory:
+    evidence_base: [docs/reverse/domain-map.yaml#platform-integration, docs/reverse/configuration-map.yaml 相关服务段]
+    modules: { primary: 10, supporting: 2 }
+    key_behaviors: "jf-metadata 客户端、jfconnect 云连接/entitlement、central-integration、onboarding、multitenant、onemodel GraphQL"
+  binflow:
+    current: "无"
+    coverage: "0"
+  gap:
+    summary: "JFrog 云耦合面；自托管 BinFlow 无对接对象（jfconnect/central 指向 JFrog SaaS）"
+    top_gaps:
+      - { what: "onboarding 首启向导（自托管有 UI parity 价值）", evidence: feature-catalog n108, priority: P2, ref: U-FE-07 }
+    block: [U-API-07, U-ENT-04]
+  next:
+    migration_verdict: "DEPRECATE 候选（云耦合组件不迁移；onboarding UI 单独评估）——需产品/架构联合裁定 authority"
+    first_loop: "Phase 1 范围票：平台服务清单（哪些 jf* 服务语义 BinFlow 需要——metadata/onboarding 两个候选保留项）"
+  status: DISCOVERED
+
+- id: xray-curation
+  artifactory:
+    evidence_base: [docs/reverse/domain-map.yaml#xray-curation, docs/reverse/rest-compat-matrix.md D14]
+    modules: { primary: 4, supporting: 3 }
+    key_behaviors: "Xray 索引上报/拦截、Curation 策略拦截、AppTrust 客户端"
+  binflow:
+    current: "无（matrix D14 xray 行 ⛔ 登记口径）"
+    coverage: "0（终裁排除）"
+  gap:
+    summary: "PRODUCT 范围终裁已排除 Xray（唯一排除项）；curation/apptrust 同族待同判"
+    top_gaps: []
+  next:
+    migration_verdict: "REMOVE（Xray 依产品终裁 authority=rest-compat D14 注记/PRODUCT 口径；curation/apptrust 建议同裁——正式登 known-divergence INTENTIONAL 需 authority 票）"
+    first_loop: "开 INTENTIONAL 裁定票（curation/apptrust 归 D14 ⛔ 族）"
+  status: DISCOVERED
+
+- id: compliance-evidence
+  artifactory:
+    evidence_base: [docs/reverse/domain-map.yaml#compliance-evidence, docs/reverse/enterprise/feature-catalog.yaml n121]
+    modules: { primary: 1, supporting: 1 }
+    key_behaviors: "对接 jf-evidence 微服务的证据创建/路径/签名链（38 java addon）"
+  binflow:
+    current: "无"
+    coverage: "0"
+  gap:
+    summary: "外部微服务依赖面（jf-evidence 不在包内）；自托管价值未证"
+  next:
+    migration_verdict: "DEPRECATE 候选（外部服务依赖+无 BinFlow 需求信号）——产品裁定"
+    first_loop: "并入 platform-integration 范围票合并裁"
+  status: DISCOVERED
+
+- id: rest-api-surface
+  artifactory:
+    evidence_base: [docs/reverse/api-inventory.yaml, docs/reverse/rest-api.md, docs/reverse/rest-compat-matrix.md（653 官方条目口径）, docs/reverse/gap-endpoints.md]
+    modules: { primary: 4, supporting: 2 }
+    key_behaviors: "公开 REST 资源族（org/artifactory/rest/resource/*）+ 控制台后端 ui/rest（1189 java）+ errors[] 统一信封 + 401/403 语义"
+  binflow:
+    current: "internal/httpapi（Go net/http，158 ops；envelope/errors/兼容中间件族）；matrix 全账 ✅57/◐27/❌83/⛔17/超集11（195 行）"
+    coverage: "39% 可信覆盖（REST 面）；错误信封与认证挑战已固化契约"
+  gap:
+    summary: "域账最大（❌83 行 backlog）；扩面按 rest-compat backlog registry 滚程推进"
+    top_gaps:
+      - { what: "D06 系统与运维 ❌12（含 support/config 族）", evidence: rest-compat §7, priority: P1 }
+      - { what: "D07/D08 两域 ❌17", evidence: rest-compat §8-9, priority: P1 }
+      - { what: "grid/metadata/retentionTools 等低置信资源", evidence: api-inventory INV-API-1..4, priority: P2, ref: "U-API-01, U-API-02, U-API-04" }
+    block: [U-API-01, U-API-02, U-API-03]
+  next:
+    migration_verdict: "KEEP（net/http + 中间件架构）+ REFACTOR（按矩阵滚程扩面）"
+    first_loop: "M3-1 矩阵迁移票收口（matrix.yaml rows 填充——主账单一化）"
+  status: DISCOVERED
+
+- id: core-kernel
+  artifactory:
+    evidence_base: [docs/reverse/domain-map.yaml#core-kernel, docs/reverse/distribution/behavior.md, docs/reverse/logging/format-spec.md]
+    modules: { primary: 6, supporting: 0 }
+    key_behaviors: "单体内核（core 1445 java）+ 13 微服务编排（router/access/metadata/…端口拓扑 8082/8046/…）+ 生命周期阶段 + add-opens JVM 形态"
+  binflow:
+    current: "cmd/binflow-server（单二进制装配：config→logger→storage→http→scheduler→replication/webhook drain；servelock 单实例锁）"
+    coverage: "单进程承载全部面；与 Artifactory 微服务拓扑是形态差异——对外兼容面（8082 路由语义）可单进程复刻"
+  gap:
+    summary: "Phase 1 核心架构问题：单二进制（KEEP 方向）vs 服务拆分；端口/路由/进程模型证据（distribution §3）支持单进程可 parity 自托管面"
+    top_gaps:
+      - { what: "对外路由语义（/<svc> 前缀聚合、8082 唯一入口）复刻", evidence: distribution/behavior §3.5-3.6, priority: P1 }
+      - { what: "进程模型差异的登记（服务边界=内部形态，不进兼容契约）", evidence: domain-map cross_cutting, priority: P2 }
+    block: []
+  next:
+    migration_verdict: "KEEP（单二进制——内部服务边界不构成兼容义务；/access、/ui 等路径面按契约复刻）"
+    first_loop: "路由前缀契约族（/artifactory /access /ui /router/api/v1/system/health）"
+  status: DISCOVERED
+
+- id: frontend
+  artifactory:
+    evidence_base: ["docs/reverse/frontend/{README,routes,screens,api-map}.yaml", docs/reverse/console-ui.md, docs/reverse/frontend/api-map.yaml]
+    modules: { primary: 1, supporting: 1 }
+    key_behaviors: "MFE 宿主（Vue2）+ frontend-server（Node SSR/网关 627 文件）+ 双 MFE 路由 113 条 + 屏四态 + SSR 开放路由白名单"
+  binflow:
+    current: "web/（React SPA，fe-rewrite 五阶段收官=AI foundation 零网络壳）+ internal/console（embed 挂载）；matrix D13 ⛔1（UI 内部面登记口径）"
+    coverage: "自有控制台完整；Artifactory UI parity 按 M16 指令推进中（retention/lifecycle 屏等 Pro 面缺）"
+  gap:
+    summary: "载体健康（刚完成 fe-rewrite）；缺口是 Pro 屏规格与 7.161 树对拍"
+    top_gaps:
+      - { what: "retention/lifecycle/release-bundles 屏零规格", evidence: frontend/README §5-2, priority: P1, ref: U-FE-02 }
+      - { what: "7.161 管理树与 7.84.10 走查稿偏斜", evidence: frontend/README §5-3, priority: P1, ref: U-FE-03 }
+      - { what: "navigationConstraints 权限裁剪机制", evidence: frontend/README §5-6, priority: P1, ref: U-FE-06 }
+    block: [U-FE-01, U-FE-02, U-FE-03, U-FE-04, U-FE-05, U-FE-06, U-FE-07]
+  next:
+    migration_verdict: "KEEP（fe-rewrite 产物为载体；不动架构只补屏）"
+    first_loop: "U-FE-03 对拍走查（只读）→ 增补 console-ui.md"
+  status: DISCOVERED
+
+# ───────────────────────── score（宪章 §46：14 子域当前可信覆盖率 — Phase 0 快照） ─────────────────────────
+# 口径：credible_coverage = (✅ + 0.5×◐ + 0.5×超集C) / 域行数，基于 matrix 四态（rest-compat-matrix.md §1
+#   冻结表；matrix.yaml rows 迁移前同源）。这是**未加权快照**，不是加权 Compatibility Score——
+#   加权 Score 计量归 matrix.yaml 主账（唯一账），本节不复制行只记算得比例。
+# 注意：矩阵口径=REST 表面；协议 wire、日志、前端不在此表内（各域 top_gaps 另计）。
+score_snapshot:
+  overall_rest_surface: "76/195 ≈ 39%（✅57 + 0.5×◐27 + 0.5×超集11）"
+  subdomains:
+    - { domain: D01 制品与存储,      rows: 37, credible_coverage: "47%", note: "最强域；storage-filestore 域账" }
+    - { domain: D02 仓库配置,        rows: 13, credible_coverage: "31%", note: "federated/layouts 缺拉低" }
+    - { domain: D03 搜索,            rows: 20, credible_coverage: "45%", note: "AQL 主链高置信；余量在老搜索尾" }
+    - { domain: D04 安全,            rows: 35, credible_coverage: "56%", note: "authn-authz 域账" }
+    - { domain: D05 复制,            rows: 11, credible_coverage: "27%", note: "✅0 全域 ◐/❌；federation 缺" }
+    - { domain: D06 系统与运维,      rows: 29, credible_coverage: "29%", note: "观测/诊断族 ❌12 为主因" }
+    - { domain: D07 Build-info,      rows: 11, credible_coverage: "0%",  note: "在途票承接" }
+    - { domain: D08 Release Bundle,  rows: 7,  credible_coverage: "0%",  note: "在途票承接；entitlement 耦合" }
+    - { domain: D09 Webhook,         rows: 9,  credible_coverage: "78%", note: "全域最高；watch/jf-event 缺" }
+    - { domain: D10 用户插件,        rows: 1,  credible_coverage: "0%",  note: "产品裁定前不实现" }
+    - { domain: D11 生命周期治理,    rows: 3,  credible_coverage: "0%",  note: "v2 策略引擎整块缺" }
+    - { domain: D12 协议面,          rows: 17, credible_coverage: "44%", note: "13/57 包型；REST 行口径低估 wire 面" }
+    - { domain: D13 UI 内部面,       rows: 1,  credible_coverage: "0%",  note: "⛔ 登记口径（自有控制台不进 REST 账）" }
+    - { domain: D14 外部产品面,      rows: 1,  credible_coverage: "0%",  note: "范围外（Xray 终裁排除等）" }
+  out_of_matrix_gaps:
+    logging: "Phase 0 全新账（logging-matrix.yaml）：Artifactory 93 文件 taxonomy vs BinFlow 单流 slog——none 族占多数"
+    protocols_wire: "57 包型协议 wire 面（registry.yaml）远超 D12 17 行 REST 口径——language-ecosystem 15 型/ai-ml 12 型 0 实现"
+    frontend_parity: "M16 议程承载，不在 REST 账"

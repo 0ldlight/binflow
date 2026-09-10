@@ -1,87 +1,50 @@
+// 权限 target 编辑器（T-241 重排——P3 新栈重写；audit §2.7 行为契约逐条）：
+//   [1] 目标信息（name 编辑态锁定 + 适用仓库 chips + 「添加/编辑仓库…」入口）
+//   [2] 路径模式（只读摘要 + 模式测试器——evaluatePath 本地求值零端点，
+//       逐条命中明细 + exclude 优先终判，aria-live）
+//   [3] 用户 / [4] 组区块：五动作矩阵（read/annotate/write/delete/manage，
+//       列头 tooltip 语义边界；wire 双层 normalizePermActions/wireActions）
+//   [5] 保存 = 变更摘要 diff 确认（buildTargetDiff ±行）→ POST create-or-replace
+// 两步资源对话框（①选仓穿梭——三通配桶与具体仓混选；m-holder 403 时降级
+// 手动录入；②patterns chip 逐行编辑）。
+// 覆盖集语义：m-holder 注水走 E6 ?filter=manage；保存/删除 403 服务端原文
+// 如实呈现（UI 不代持判定）。readonly_admin 全控件只读。
+// 锚族原样：perm-editor-page/perm-form-name/perm-repos/perm-repo-remove-<r>/
+// perm-repo-add/perm-res-dialog(-step-1|-step-2|-step|-repos|-next|-ok|-cancel)/
+// perm-repo-pick-<k>/perm-repo-entry-input/perm-repo-entry-add/perm-buckets-note/
+// perm-pattern(-input|-add|-remove)-{include|exclude}/perm-pattern-test/
+// perm-pattern-result/perm-pattern-verdict/perm-matrix(-groups)?/
+// perm-matrix-cell-<kind>-<principal>-<action>/perm-matrix-remove-<kind>-<name>/
+// perm-add-user/perm-add-group/perm-diff/perm-save/perm-delete-button/
+// perm-danger-zone/perm-editor-readonly-note/perm-editor-manage-note。
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { ComponentPropsWithoutRef, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
-import Alert from '@mui/material/Alert'
-import Button from '@mui/material/Button'
-import Checkbox from '@mui/material/Checkbox'
-import Chip from '@mui/material/Chip'
-import Dialog from '@mui/material/Dialog'
-import DialogActions from '@mui/material/DialogActions'
-import DialogContent from '@mui/material/DialogContent'
-import DialogTitle from '@mui/material/DialogTitle'
-import Paper from '@mui/material/Paper'
-import Select from '@mui/material/Select'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
-import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
-
-import { useAuth } from '../../app/AuthContext'
-import { useToast } from '../../app/ToastContext'
-import { useConfirm } from '../../components/ConfirmDialog'
-import { EmptyState } from '../../components/EmptyState'
-import { ErrorCard } from '../../components/ErrorCard'
-import { Skeleton } from '../../components/Skeleton'
-import { ApiError, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
-import { monoInputSx } from '../../lib/muiAtoms'
-import { useAsync } from '../../lib/useAsync'
+import { useAuth } from '@/app/AuthContext'
+import { Button, ButtonAsChild } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Badge, AlertBox } from '@/components/layout/bits'
+import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
+import { TextInput, NativeSelect } from '@/components/layout/fields'
+import { TransferBox } from '@/components/layout/transfer-box'
+import { useConfirm } from '@/app/providers'
+import { toast } from '@/lib/toast'
+import { ApiError, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole } from '@/lib/api'
+import { useAsync } from '@/lib/useAsync'
 import './security.css'
 import { PERM_ACTIONS, WILDCARD_BUCKETS, deletePermissionTarget, isWildcardBucket, listGroups, listPermissionTargets, listPermissionTargetsManaged, listUsers, normalizePermActions, savePermissionTarget, wireActions } from './api'
 import type { PermAction } from './api'
 import { evaluatePath } from './pathmatch'
 import { buildTargetDiff, sameSnapshot } from './targetdiff'
 import type { DiffLine, TargetSnapshot } from './targetdiff'
-import { TransferBox } from './TransferBox'
-import { tr } from '../../i18n'
+import { tr } from '@/i18n'
 
 const tt = tr('security')
 
-// 权限 target 编辑器（T-241 重排，console-m8 §4.5/§6.11 + reverse §3.8/§4.9）：
-//   [1] 目标信息（name 编辑态锁定 + 适用仓库 chips + 「添加/编辑仓库…」入口）
-//   [2] 路径模式（只读摘要 + 模式测试器——灵魂件：逐条命中明细 + exclude
-//       优先最终判定；判定向量与 internal/auth pathmatch 同源，本地求值
-//       零端点）——pattern 的编辑面在两步资源对话框第 2 步
-//   [3] 用户区块 / [4] 组区块：各自展开矩阵形态，动作五列（T-455，parity
-//       B-1.6 翻正）read/annotate/write/delete/manage——列序对位 7.161.20
-//       活体（Read/Annotate/Deploy-Cache/Delete-Overwrite/Manage）；列头
-//       tooltip 说明语义边界（manage 不隐含读写删 §7.2；write 不携带
-//       annotate；annotate = 属性写独立位）。wire 词双层（T-444）：GET 回显
-//       正名单 read/deploy-cache/annotate/delete/manage，PUT 另收 write 别名
-//       ——水合归一/保存序列化收口在 api.ts 两函数，见 normalizePermActions
-//   [5] 保存 = 变更摘要 diff 确认（§4.9[4] BinFlow 保留）→ POST create-or-replace
-// 两步资源对话框（§3.3 C6 / §4.5，对齐 reverse §3.8「Edit Repositories」）：
-//   ① 选择仓库（双列穿梭；Any Local / Any Remote / Any Distribution 三预置
-//      桶同场可勾选〔T-514——B-2.16 缺位解除；wire 字面 ANY LOCAL / ANY
-//      REMOTE / ANY DISTRIBUTION，T-491 BE 语义已承接〕，与具体仓库可混选）
-//   ② 设置模式（可选；include/exclude 逐行 chip）→ 确定 回填
-// 危险区：删除 target（连带全部授权行，单事务）。
-//
-// 覆盖集语义（任务项 4，T-217 B1 / console-m8 §7.2/§7.10；T-259 起控制台
-// 可达）：manage 持有者（非 admin）可编辑「引用仓库全部落在其 manage 覆盖集
-// 内」的 target（POST 是 create-or-replace，校验 union(body, 存量) ⊆ 覆盖集
-// ），超出即 403——UI 不自行判定覆盖集，仅：① 保存/删除的 403 服务端原文
-// 行内如实呈现（form-error / toast）；② m-holder 的注水走 E6
-// `?filter=manage`（条目字段与全量一致），列表外/部分覆盖的 target 不在
-// 呈现面（服务端信息隔离）。
-//
-// m-holder 注水形态（§14.1.6「E6 + 主体名手动录入」）：仓库目录
-// （/api/repositories）与用户/组枚举（/api/security/{users,groups}）维持
-// CapSecurityRead/CapRepoRead 闭集——m-holder 会话一律 403，故编辑器的
-// 添加位降级为**手动录入**（仓库名/主体名 text entry），存在性与覆盖集
-// 由服务端终裁（unknown → 400；覆盖集外 → 403）。
-//
-// readonly_admin（M7 FR-66）：编辑器可见但全控件只读（security:read 过 GET，
-// 写端点 403——服务端是唯一守门，UI 只呈现）。
-
 type PrincipalMap = Record<string, PermAction[]>
 
-// 预置桶穿梭条目（T-514 / B-2.16 缺位解除——console-ui §3.8 活体：选仓步
-// 预置 Any Local / Any Remote / Any Distribution 三行与仓库同场可勾选；
-// 键 = wire 字面〔T-491 闭集〕，展示 = 活体拼写，note = 覆盖语义一行注）
+// 预置桶穿梭条目（wire 字面键 + 活体拼写展示 + 覆盖语义一行注）
 const PRESET_TRANSFER_ITEMS = WILDCARD_BUCKETS.map((b) => ({
   name: b.wire,
   label: b.label,
@@ -114,7 +77,7 @@ function snapshotOf(s: EditorState): TargetSnapshot {
   return { repos: [...s.repos], includes: [...s.includes], excludes: [...s.excludes], users: s.users, groups: s.groups }
 }
 
-/** 矩阵单元格（§4.9[3]：testid 契约 perm-matrix-cell-<kind>-<principal>-<action>） */
+/** 矩阵单元格（testid 契约 perm-matrix-cell-<kind>-<principal>-<action>） */
 function MatrixCell({
   kind,
   name,
@@ -131,38 +94,26 @@ function MatrixCell({
   disabled?: boolean
 }) {
   return (
-    <TableCell>
+    <td className="px-3 py-1.5 text-center">
       <label className="matrix-cell">
-        <Checkbox
-          size="small"
+        <input
+          type="checkbox"
           checked={on}
           disabled={disabled}
           onChange={onToggle}
-          slotProps={{
-            input: {
-              'aria-label': tt('{v1} {name} 的 {action} 权限', { v1: kind === 'user' ? tt('用户') : tt('组'), name: name, action: action }),
-              'data-testid': `perm-matrix-cell-${kind}-${name}-${action}`,
-            } as ComponentPropsWithoutRef<'input'>,
-          }}
+          aria-label={tt('{v1} {name} 的 {action} 权限', { v1: kind === 'user' ? tt('用户') : tt('组'), name: name, action: action })}
+          data-testid={`perm-matrix-cell-${kind}-${name}-${action}`}
         />
       </label>
-    </TableCell>
+    </td>
   )
 }
 
-// T-344 批 D：手写 Tab 循环陷阱（FOCUSABLE 常量）已随 MUI Dialog 的
-// FocusTrap 退役——禁用钮不破口由 getTabbable 语义原生覆盖。
-
 /**
- * 两步资源对话框（console-m8 §3.3 C6 / §4.5；对齐 reverse §3.8 的
- * Edit Repositories 形态：① Select Repositories（双列穿梭）→ ② Set
- * Patterns (Optional) → OK 回填）。焦点圈进对话框 + Tab 循环 + Esc = 取消
- * （不回填）。draft 状态在打开时从表单初始化，确定 时一次性 onApply。
- * T-344 批 D：自有 modal 壳（.modal-backdrop + 手写焦点陷阱）→ MUI
- * Dialog（ConfirmDialog 同款接线）：打开即聚焦取消（安全默认） =
- * disableAutoFocus + 回调 ref + 微任务（Modal 二段式提交——T-344C D6）；
- * Esc 兜底 = 文档级监听（MUI 的 Esc 挂 modal root——T-344C D5）；宽度
- * 720px 由 paper sx 承载（security.css 的 .modal.perm-res-modal 行退役）。
+ * 两步资源对话框（对齐 reverse §3.8 Edit Repositories 形态：① Select
+ * Repositories（双列穿梭）→ ② Set Patterns (Optional) → OK 回填）。
+ * 新栈 = shadcn Dialog（Radix 焦点圈 + Esc = 取消不回填）；打开即聚焦
+ * 取消（安全默认——回调 ref + 微任务）；720px 宽由 DialogContent 承载。
  */
 function ResourceDialog({
   create,
@@ -191,25 +142,13 @@ function ResourceDialog({
   const [excludeInput, setExcludeInput] = useState('')
   const [repoEntry, setRepoEntry] = useState('')
 
-  // 打开即聚焦取消（安全默认）：回调 ref + 微任务承载（T-344C D6——挂载期
-  // useEffect 时 Modal 内容尚未落 DOM）。ref 必须 useCallback 稳定引用：
-  // 每次渲染新建的函数会让 React 走「detach(null) → attach(node)」重挂，
-  // 对话框内每敲一个字符（state 更新重渲染）就把焦点抢回取消钮——
-  // permissions.spec 的 type+Enter 键盘腿实测炸在此（键入落进按钮）。
-  const focusCancel = useCallback((node: HTMLButtonElement | null) => {
+  // 打开即聚焦取消（安全默认——Radix 默认聚焦首个可聚焦件，此处改道）。
+  // ref 必须 useCallback 稳定引用：内联箭头每渲染一新身份，React 走
+  // detach(null)→attach(node) 重挂——每敲一个字符（state 更新重渲染）就把
+  // 焦点抢回取消钮，键盘 type+Enter 腿实测炸在此（旧版同坑注记）。
+  const cancelRef = useCallback((node: HTMLButtonElement | null) => {
     if (node) queueMicrotask(() => node.focus())
   }, [])
-
-  // Esc 兜底（T-344C D5）：MUI 已处理的 Esc 会 stopPropagation，不双触发。
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      e.preventDefault()
-      onClose()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
 
   const addPattern = (kind: 'includes' | 'excludes', raw: string) => {
     const v = raw.trim()
@@ -223,8 +162,7 @@ function ResourceDialog({
     }
   }
 
-  /** 手动录入仓库名（m-holder 分支）：目录 403 下的加入面——服务端终裁
-   *  （unknown repository → 400；覆盖集外保存 → 403） */
+  /** 手动录入仓库名（m-holder 分支）：目录 403 下的加入面——服务端终裁 */
   const addRepoEntry = () => {
     const v = repoEntry.trim()
     if (v === '') return
@@ -232,7 +170,7 @@ function ResourceDialog({
     setRepoEntry('')
   }
 
-  /** pattern 编辑列（§4.9 锚：perm-pattern-{input,add,remove}-{include|exclude}） */
+  /** pattern 编辑列（锚：perm-pattern-{input,add,remove}-{include|exclude}） */
   const renderPatternCol = (kind: 'includes' | 'excludes') => {
     const isIncl = kind === 'includes'
     const list = isIncl ? includes : excludes
@@ -248,9 +186,7 @@ function ResourceDialog({
         )}
         {list.map((p, i) => (
           <div key={p} className="pattern-chip" data-testid={`perm-pattern-${word}-${i}`}>
-            <span className="val" lang="en">
-              {p}
-            </span>
+            <span className="val" lang="en">{p}</span>
             <button
               type="button"
               aria-label={tt('移除 {p}', { p: p })}
@@ -262,8 +198,9 @@ function ResourceDialog({
           </div>
         ))}
         <div className="pattern-add">
-          <TextField
-            size="small"
+          <TextInput
+            mono
+            lang="en"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -273,70 +210,49 @@ function ResourceDialog({
               }
             }}
             placeholder={isIncl ? 'ci-out/**' : 'ci-out/tmp/**'}
-            sx={{ width: 220 }}
-            slotProps={{
-              htmlInput: {
-                'aria-label': tt('添加 {word} pattern', { word: word }),
-                'data-testid': `perm-pattern-input-${word}`,
-                lang: 'en',
-                className: 'mono',
-              },
-            }}
+            className="w-[220px]"
+            aria-label={tt('添加 {word} pattern', { word: word })}
+            data-testid={`perm-pattern-input-${word}`}
           />
-          <Button
-            variant="outlined"
-            size="small"
-           
-            onClick={() => addPattern(kind, input)}
-            data-testid={`perm-pattern-add-${word}`}
-          >{tt('添加')}          </Button>
+          <Button variant="outline" size="sm" onClick={() => addPattern(kind, input)} data-testid={`perm-pattern-add-${word}`}>
+            {tt('添加')}
+          </Button>
         </div>
       </div>
     )
   }
 
-  // paper slotProps 以变量承载（嵌套字面量触发 data-* 过剩属性检查——
-  // T-344C §3.5 同款修法）
-  const paperProps = {
-    'data-testid': 'perm-res-dialog',
-    sx: { width: 'min(720px, calc(100vw - 48px))' },
-  }
-
   return (
-    <Dialog
-      open
-      disableAutoFocus
-      onClose={(_, reason) => {
-        // Esc / backdrop 点击 = 取消不回填（旧壳行为原样）
-        if (reason === 'escapeKeyDown' || reason === 'backdropClick') onClose()
-      }}
-      aria-label={step === 1 ? tt('选择仓库') : tt('设置模式')}
-      slotProps={{ paper: paperProps }}
-    >
-      <DialogTitle>{step === 1 ? (create ? tt('添加仓库') : tt('编辑仓库')) : tt('设置模式（可选）')}</DialogTitle>
-      <DialogContent>
-        {/* 可点步头（T-455，对位 7.161.20 活体 Add Repositories 弹窗：两个步
-            头常驻可点、「2 Set Patterns (Optional)」标可选——探针证据
-            reports/agents/t455-probe/）。非当前步可直跳（活体同形）；footer
-            的 下一步/上一步 链保留（锚 perm-res-next 冻结）。 */}
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent
+        className="max-w-[720px] w-[min(720px,calc(100vw-48px))]"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        data-testid="perm-res-dialog"
+      >
+        <DialogHeader>
+          <DialogTitle>{step === 1 ? (create ? tt('添加仓库') : tt('编辑仓库')) : tt('设置模式（可选）')}</DialogTitle>
+        </DialogHeader>
+        {/* 可点步头（两步头常驻可点、「2 Set Patterns (Optional)」标可选） */}
         <div className="perm-res-steps" role="list" aria-label={tt('两步流程')}>
           {([1, 2] as const).map((n) => (
-            <Button
+            <button
               key={n}
+              type="button"
               role="listitem"
-              variant="text"
-              size="small"
-              color={step === n ? 'primary' : 'inherit'}
               aria-current={step === n ? 'step' : undefined}
               data-testid={`perm-res-step-${n}`}
               onClick={() => setStep(n)}
-              sx={{ justifyContent: 'flex-start', fontWeight: step === n ? 600 : 400, minWidth: 0 }}
+              className={`text-left text-aux ${step === n ? 'font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
             >
               {`${n} ${n === 1 ? tt('选择仓库') : tt('设置模式（可选）')}`}
-            </Button>
+            </button>
           ))}
         </div>
-        <p className="perm-res-step" data-testid="perm-res-step">{tt('第')} {step} {tt('步，共 2 步')}          {step === 1 ? tt(' · 选择此 target 适用的仓库（pattern 与主体在仓库范围内生效）') : tt(' · 模式作用于所选仓库内的制品路径（repo 相对路径；** 跨段 / * 段内）')}
+        <p className="perm-res-step" data-testid="perm-res-step">
+          {tt('第')} {step} {tt('步，共 2 步')}{' '}
+          {step === 1
+            ? tt(' · 选择此 target 适用的仓库（pattern 与主体在仓库范围内生效）')
+            : tt(' · 模式作用于所选仓库内的制品路径（repo 相对路径；** 跨段 / * 段内）')}
         </p>
         <div className="perm-res-body">
           {step === 1 ? (
@@ -346,10 +262,7 @@ function ResourceDialog({
               ) : reposStatus === 'loading' ? (
                 <p className="field-hint">{tt('仓库列表加载中…')}</p>
               ) : reposStatus === 'forbidden' ? (
-                // m-holder（§14.1.6「E6 + 手动录入」）：仓库目录 403——已选
-                // 仓可摘除（穿梭右列），新增走手动录入，服务端终裁。三预置
-                // 桶照常可勾选（桶字面是客户端常量，不依赖被 403 的目录端点；
-                // 服务端收词 + 覆盖集终裁——桶字面进覆盖集按字面键判定）
+                // m-holder：仓库目录 403——已选仓可摘除，新增走手动录入
                 <>
                   <TransferBox
                     items={[
@@ -363,8 +276,9 @@ function ResourceDialog({
                     itemTestid={(k) => `perm-repo-pick-${k}`}
                   />
                   <div className="pattern-add">
-                    <TextField
-                      size="small"
+                    <TextInput
+                      mono
+                      lang="en"
                       value={repoEntry}
                       onChange={(e) => setRepoEntry(e.target.value)}
                       onKeyDown={(e) => {
@@ -374,26 +288,23 @@ function ResourceDialog({
                         }
                       }}
                       placeholder={tt('仓库名（服务端校验）')}
-                      sx={{ width: 220 }}
-                      slotProps={{
-                        htmlInput: {
-                          'aria-label': tt('手动录入仓库名'),
-                          'data-testid': 'perm-repo-entry-input',
-                          lang: 'en',
-                          className: 'mono',
-                        },
-                      }}
+                      className="w-[220px]"
+                      aria-label={tt('手动录入仓库名')}
+                      data-testid="perm-repo-entry-input"
                     />
                     <Button
-                      variant="outlined"
-                      size="small"
-
+                      variant="outline"
+                      size="sm"
                       disabled={repoEntry.trim() === ''}
                       onClick={addRepoEntry}
                       data-testid="perm-repo-entry-add"
-                    >{tt('添加仓库')}                    </Button>
+                    >
+                      {tt('添加仓库')}
+                    </Button>
                   </div>
-                  <p className="admin-note" data-testid="perm-buckets-note">{tt('ⓘ 仓库目录是管理面读端点（本会话 403）——无法浏览候选仓库；手动录入仓库名加入，服务端终裁 （unknown repository → 400；覆盖集外保存 → 403）。三预置桶不依赖目录端点、照常可勾选：Any Local / Any Remote 按 class 覆盖全部（含授权后新建）仓库，Any Distribution 覆盖 Release Bundle 域（模式作用于 bundle 名）；桶按字面进 manage 覆盖集判定。')}                  </p>
+                  <p className="admin-note" data-testid="perm-buckets-note">
+                    {tt('ⓘ 仓库目录是管理面读端点（本会话 403）——无法浏览候选仓库；手动录入仓库名加入，服务端终裁 （unknown repository → 400；覆盖集外保存 → 403）。三预置桶不依赖目录端点、照常可勾选：Any Local / Any Remote 按 class 覆盖全部（含授权后新建）仓库，Any Distribution 覆盖 Release Bundle 域（模式作用于 bundle 名）；桶按字面进 manage 覆盖集判定。')}
+                  </p>
                 </>
               ) : (
                 <>
@@ -405,7 +316,9 @@ function ResourceDialog({
                     selectedLabel={tt('已选仓库')}
                     itemTestid={(k) => `perm-repo-pick-${k}`}
                   />
-                  <p className="admin-note" data-testid="perm-buckets-note">{tt('ⓘ 预置桶与具体仓库同场可勾选：Any Local / Any Remote 按 class 覆盖全部（含授权后新建）仓库〔virtual 无桶〕，Any Distribution 覆盖 Release Bundle 域〔第 2 步模式作用于 bundle 名——include/exclude 的路径位语义〕；桶与具体仓各自独立生效，ANY 家族互不隐式覆盖。')}                  </p>
+                  <p className="admin-note" data-testid="perm-buckets-note">
+                    {tt('ⓘ 预置桶与具体仓库同场可勾选：Any Local / Any Remote 按 class 覆盖全部（含授权后新建）仓库〔virtual 无桶〕，Any Distribution 覆盖 Release Bundle 域〔第 2 步模式作用于 bundle 名——include/exclude 的路径位语义〕；桶与具体仓各自独立生效，ANY 家族互不隐式覆盖。')}
+                  </p>
                 </>
               )}
             </div>
@@ -416,23 +329,20 @@ function ResourceDialog({
             </div>
           )}
         </div>
+        <DialogFooter>
+          <Button ref={cancelRef} variant="outline" size="sm" data-testid="perm-res-cancel" onClick={onClose}>{tt('取消')}</Button>
+          {step === 2 && (
+            <Button variant="outline" size="sm" onClick={() => setStep(1)}>{tt('← 上一步')}</Button>
+          )}
+          {step === 1 ? (
+            <Button size="sm" data-testid="perm-res-next" onClick={() => setStep(2)}>{tt('下一步')}</Button>
+          ) : (
+            <Button size="sm" data-testid="perm-res-ok" onClick={() => onApply(repos, includes, excludes)}>
+              {tt('确定')}
+            </Button>
+          )}
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button ref={focusCancel} variant="outlined" size="small" data-testid="perm-res-cancel" onClick={onClose}>{tt('取消')}        </Button>
-        {step === 2 && (
-          <Button variant="outlined" size="small" onClick={() => setStep(1)}>{tt('← 上一步')}          </Button>
-        )}
-        {step === 1 ? (
-          <Button variant="contained" size="medium" data-testid="perm-res-next" onClick={() => setStep(2)}>{tt('下一步')}          </Button>
-        ) : (
-          <Button
-            variant="contained"
-            size="medium"
-            data-testid="perm-res-ok"
-            onClick={() => onApply(repos, includes, excludes)}
-          >{tt('确定')}          </Button>
-        )}
-      </DialogActions>
     </Dialog>
   )
 }
@@ -441,15 +351,11 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
   const { name: routeName = '' } = useParams<{ name: string }>()
   const { session } = useAuth()
   const readOnly = isReadOnlyAdmin(session)
-  // 普通 user = 潜在 m-holder（判定形态沿 RepositoriesPage/PermissionsPage
-  // 既有）：是否真持有 manage 由 filter=manage 的 200/403 判定，UI 不预判
   const mHolder = normalizeAdminRole(session?.adminRole, session?.admin ?? false) === 'user'
-  const toast = useToast()
   const confirm = useConfirm()
   const navigate = useNavigate()
 
-  // 编辑器注水：m-holder 走 E6 覆盖集过滤列表（字段与全量一致）——403 即
-  // L2（无 manage/覆盖集空），200 空数组时深链名不在列表 → notFound 呈现
+  // 编辑器注水：m-holder 走 E6 覆盖集过滤列表——403 即 L2
   const targets = useAsync(
     () => (mHolder ? listPermissionTargetsManaged() : listPermissionTargets()),
     [mHolder],
@@ -461,8 +367,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
   const [f, setF] = useState<EditorState>(CREATE_INITIAL)
   const [baseline, setBaseline] = useState<TargetSnapshot>(snapshotOf(CREATE_INITIAL))
   const [hydrated, setHydrated] = useState(mode === 'create')
-  // 404 判定与 hydration 解耦：列表 ok 而 name 不在（deep link 打错/已被
-  // 带外删除）时 hydration 永不触发——不能用 hydrated 作 404 信号
+  // 404 判定与 hydration 解耦：列表 ok 而 name 不在时 hydration 永不触发
   const notFound =
     mode === 'edit' && targets.status === 'ok' && !(targets.data ?? []).some((t) => t.name === routeName)
   const [submitting, setSubmitting] = useState(false)
@@ -472,10 +377,8 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
   const [addGroup, setAddGroup] = useState('')
   const [resOpen, setResOpen] = useState(false)
 
-  // 编辑态：从列表过滤（无单查端点）；404 / loading / 403 分支。
-  // T-444 兼容窗收口（T-455）：GET 回显正名单含 'deploy-cache'——水合过
-  // normalizePermActions 归一为 UI 词域（write 列勾选如实亮起），wire 原词
-  // 不再原样持有；保存侧 wireActions 反向序列化，GET→PUT→GET 往返稳定。
+  // 编辑态：从列表过滤（无单查端点）——GET 回显正名单经 normalizePermActions
+  // 归一（deploy-cache→write），保存侧 wireActions 反向序列化，往返稳定
   useEffect(() => {
     if (mode !== 'edit' || targets.status !== 'ok') return
     const t = (targets.data ?? []).find((x) => x.name === routeName)
@@ -506,9 +409,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
   const repoKeys = (reposState.data ?? []).map((r) => r.key).sort()
   const userOptions = (usersState.data ?? []).map((u) => u.name).filter((n) => !(n in f.users))
   const groupOptions = (groupsState.data ?? []).map((g) => g.name).filter((n) => !(n in f.groups))
-  // m-holder 的三个枚举端点（仓库目录/用户/组）一律 403（闭集不开放，
-  // §14.1.6）——主体添加位据此降级为手动录入（仓库目录的 forbidden 分支
-  // 在 ResourceDialog 内按 reposStatus 处理），服务端终裁
+  // m-holder 的枚举端点一律 403——主体添加位降级手动录入，服务端终裁
   const usersForbidden = usersState.status === 'forbidden'
   const groupsForbidden = groupsState.status === 'forbidden'
 
@@ -535,20 +436,20 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
     })
   }
 
-  // m-holder 的 create 臂保持 L4（「＋ 新建权限」入口仅 admin 渲染；控制台
-  // 的 m-holder 编辑入口是列表项）。深链 /new 如实说明，不放大入口——
-  // POST 本身是族 4 覆盖集内写（服务端终裁），API 臂不受影响。
+  // m-holder 的 create 臂保持 L4——深链 /new 如实说明，不放大入口
   if (mHolder && mode === 'create') {
     return (
       <div data-testid="perm-editor-page">
         <div className="page-header">
-          <h2>{tt('新建权限')}</h2>
+          <h2 className="text-lg font-semibold">{tt('新建权限')}</h2>
         </div>
         <EmptyState
           message={tt('新建 permission target 是管理员入口')}
           hint={tt('当前用户 {v1} 不是管理员。manage 持有者的控制台编辑入口是权限列表项（仓库全部落在 manage 覆盖集内的 target）；新建也可经 API（POST /api/v1/permissions，覆盖集内 201，引用覆盖集外仓库——含替换前的存量——服务端 403）。', { v1: session?.username })}
           action={
-            <Button variant="outlined" size="small" component={Link} to="/admin/security/permissions">{tt('← 返回权限列表')}            </Button>
+            <ButtonAsChild variant="outline" size="sm">
+              <Link to="/admin/security/permissions">{tt('← 返回权限列表')}</Link>
+            </ButtonAsChild>
           }
         />
       </div>
@@ -559,7 +460,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
     if (targets.status === 'loading') {
       return (
         <div data-testid="perm-editor-page">
-          <Skeleton lines={10} />
+          <StateSkeleton lines={10} />
         </div>
       )
     }
@@ -571,8 +472,6 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
       )
     }
     if (targets.status === 'forbidden' && targets.error) {
-      // m-holder：filter=manage 403 = 无 manage/覆盖集空（与无 filter 同形，
-      // 零新增可区分面）——普通 user 的 L2 保留面
       return (
         <div data-testid="perm-editor-page">
           <EmptyState
@@ -590,20 +489,22 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
       return (
         <div data-testid="perm-editor-page">
           {mHolder ? (
-            // m-holder：过滤列表不含此名 = 覆盖集外/部分覆盖（服务端信息隔离
-            // 下与不存在同形）——边界说明的常驻位（T-241 L2 卡的退役承接面）
             <EmptyState
               message={tt('permission target {routeName} 不在 manage 覆盖集内（或不存在）', { routeName: routeName })}
               hint={tt('manage 持有者可编辑的 target 需引用仓库全部落在覆盖集内（部分覆盖的由服务端隐藏）；覆盖集外的维护经 API（服务端 403 兜底）。')}
               action={
-                <Button variant="outlined" size="small" component={Link} to="/admin/security/permissions">{tt('← 返回权限列表')}                </Button>
+                <ButtonAsChild variant="outline" size="sm">
+                  <Link to="/admin/security/permissions">{tt('← 返回权限列表')}</Link>
+                </ButtonAsChild>
               }
             />
           ) : (
             <EmptyState
               message={tt('permission target {routeName} 不存在', { routeName: routeName })}
               action={
-                <Button variant="outlined" size="small" component={Link} to="/admin/security/permissions">{tt('← 返回权限列表')}                </Button>
+                <ButtonAsChild variant="outline" size="sm">
+                  <Link to="/admin/security/permissions">{tt('← 返回权限列表')}</Link>
+                </ButtonAsChild>
               }
             />
           )}
@@ -619,13 +520,15 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
     return (
       <div data-testid="perm-editor-page">
         <div className="page-header">
-          <h2>{tt('新建权限')}</h2>
+          <h2 className="text-lg font-semibold">{tt('新建权限')}</h2>
         </div>
         <EmptyState
           message={tt('只读管理员无法创建 permission target')}
           hint={tt('创建 target 是管理面写操作（security:write，服务端 403 兜底）。')}
           action={
-            <Button variant="outlined" size="small" component={Link} to="/admin/security/permissions">{tt('← 返回权限列表')}            </Button>
+            <ButtonAsChild variant="outline" size="sm">
+              <Link to="/admin/security/permissions">{tt('← 返回权限列表')}</Link>
+            </ButtonAsChild>
           }
         />
       </div>
@@ -633,14 +536,12 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
   }
 
   const doSave = async () => {
-    // [5] 变更摘要 diff 确认（§4.9 线框：+ 授予 / − 移除 逐条列出）
+    // [5] 变更摘要 diff 确认（+ 授予 / − 移除 逐条列出）
     const lines: ReactNode = diff.length > 0 ? (
       <div className="diff-list" data-testid="perm-diff">
         {diff.map((d, i) => (
           <div key={i} className={`d ${d.sign === '+' ? 'add' : 'del'}`}>
-            <span className="sign" aria-label={d.sign === '+' ? tt('新增') : tt('移除')}>
-              {d.sign}
-            </span>
+            <span className="sign" aria-label={d.sign === '+' ? tt('新增') : tt('移除')}>{d.sign}</span>
             <span>
               {d.text} <span className="mono-v" lang="en">{d.value}</span>
             </span>
@@ -648,15 +549,13 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
         ))}
       </div>
     ) : (
-      // sameSnapshot 集合语义后，编辑态空 diff 已被按钮禁用拦下——此分支
-      // 仅剩理论路径（重排/重复），文案如实陈述
       <p className="text-2">{tt('没有字段级变更（仅顺序或重复调整）。')}</p>
     )
-    const ok = await confirm({
+    const ok = await confirm.confirm({
       title: mode === 'create' ? tt('创建 target {v1}', { v1: f.name.trim() }) : tt('保存 {v1} 的变更', { v1: f.name.trim() }),
-      body: (
+      description: (
         <div>
-          <p>{tt('将提交到')} <span className="mono" lang="en">{f.name.trim()}</span>{tt('（create-or-replace：同名整体替换，单事务）：')}          </p>
+          <p>{tt('将提交到')} <span className="font-mono" lang="en">{f.name.trim()}</span>{tt('（create-or-replace：同名整体替换，单事务）：')}</p>
           {lines}
         </div>
       ),
@@ -667,9 +566,8 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
     setServerError(null)
     setSubmitting(true)
     try {
-      // 无动作的主体行不提交（空 r/a/w/d/m ≡ 未授权；撤销全部动作 = 移除主体）；
-      // 动作词经 wireActions 序列化为正名单形（write → deploy-cache——与 GET
-      // 回显同形，PUT 的 write 别名只是收词兼容，不再由 FE 发出）
+      // 无动作的主体行不提交（空 r/a/w/d/m ≡ 未授权）；动作词经 wireActions
+      // 序列化为正名单形（write → deploy-cache——与 GET 回显同形）
       const users = Object.fromEntries(
         Object.entries(f.users)
           .filter(([, a]) => a.length > 0)
@@ -690,7 +588,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
       toast.success(tt('permission target {v1} 已保存', { v1: f.name.trim() }))
       navigate('/admin/security/permissions')
     } catch (err) {
-      // 覆盖集边界（T-217）：非 security-writer 的 403 服务端原文行内如实呈现
+      // 覆盖集边界：非 security-writer 的 403 服务端原文行内如实呈现
       setServerError(err instanceof ApiError ? err : new ApiError(0, errText(err)))
     } finally {
       setSubmitting(false)
@@ -698,10 +596,12 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
   }
 
   const doDelete = async () => {
-    const ok = await confirm({
+    const ok = await confirm.confirm({
       title: tt('删除 target {routeName}', { routeName: routeName }),
-      body: (
-        <p>{tt('将删除')} <span className="mono" lang="en">{routeName}</span> {tt('及其全部授权行（用户与组两侧）。依赖此 target 的主体将')}<b>{tt('立即')}</b>{tt('失去相应访问（除非其它 target 覆盖）。')}        </p>
+      description: (
+        <p>
+          {tt('将删除')} <span className="font-mono" lang="en">{routeName}</span> {tt('及其全部授权行（用户与组两侧）。依赖此 target 的主体将')}<b>{tt('立即')}</b>{tt('失去相应访问（除非其它 target 覆盖）。')}
+        </p>
       ),
       confirmLabel: tt('删除'),
       danger: true,
@@ -712,46 +612,38 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
       toast.success(tt('permission target {routeName} 已删除', { routeName: routeName }))
       navigate('/admin/security/permissions')
     } catch (err) {
-      // 覆盖集外的删除同样 403——服务端原文 toast（不代持判定）
       toast.error(tt('删除失败：{v1}', { v1: errText(err) }))
     }
   }
 
-  /** 主体 × 动作矩阵表（§6.11 [3]/[4]：用户表锚 perm-matrix，组表锚
-   * perm-matrix-groups）。T-455 五列（parity B-1.6 翻正——Q7）：read /
-   * annotate / write / delete / manage，列序对位 7.161.20 活体 Repositories
-   * 资源型矩阵（Read / Annotate / Deploy/Cache / Delete/Overwrite / Manage
-   * ——探针证据 reports/agents/t455-probe/）；列头词用 BinFlow wire 正名单
-   * 词形，7.161 标签进 title。 */
+  /** 主体 × 动作矩阵表（perm-matrix / perm-matrix-groups 锚） */
   const renderMatrixTable = (kind: 'users' | 'groups') => {
     const cellKind: 'user' | 'group' = kind === 'users' ? 'user' : 'group'
     const names = Object.keys(f[kind]).sort()
     return (
-      <Table data-testid={kind === 'users' ? 'perm-matrix' : 'perm-matrix-groups'}>
-        <TableHead>
-          <TableRow>
-            <TableCell component="th" scope="col">{tt('主体')}</TableCell>
-            <TableCell component="th" scope="col">read</TableCell>
-            <TableCell component="th" scope="col" title={tt('annotate = 属性写位（7.161 标签 Annotate）：properties 的 PUT/DELETE 门；不隐含内容写（write 是独立列）')}>annotate</TableCell>
-            <TableCell component="th" scope="col" title={tt('write = 部署位（7.161 标签 Deploy/Cache；wire 正名 deploy-cache，PUT 仍收 write 别名）；不携带 annotate——属性写需另勾 annotate 列')}>write</TableCell>
-            <TableCell component="th" scope="col" title={tt('delete = 删除/覆盖（7.161 标签 Delete/Overwrite）')}>delete</TableCell>
-            <TableCell component="th" scope="col" title={tt('manage = 仓库级 admin 派生位（只判 repos[]，pattern 不参与）；不隐含读写删')}>manage</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
+      <table className="w-full text-dense" data-testid={kind === 'users' ? 'perm-matrix' : 'perm-matrix-groups'}>
+        <thead>
+          <tr className="border-b border-border text-left text-aux text-muted-foreground">
+            <th scope="col" className="px-3 py-2 font-medium">{tt('主体')}</th>
+            <th scope="col" className="px-3 py-2 font-medium">read</th>
+            <th scope="col" className="px-3 py-2 font-medium" title={tt('annotate = 属性写位（7.161 标签 Annotate）：properties 的 PUT/DELETE 门；不隐含内容写（write 是独立列）')}>annotate</th>
+            <th scope="col" className="px-3 py-2 font-medium" title={tt('write = 部署位（7.161 标签 Deploy/Cache；wire 正名 deploy-cache，PUT 仍收 write 别名）；不携带 annotate——属性写需另勾 annotate 列')}>write</th>
+            <th scope="col" className="px-3 py-2 font-medium" title={tt('delete = 删除/覆盖（7.161 标签 Delete/Overwrite）')}>delete</th>
+            <th scope="col" className="px-3 py-2 font-medium" title={tt('manage = 仓库级 admin 派生位（只判 repos[]，pattern 不参与）；不隐含读写删')}>manage</th>
+          </tr>
+        </thead>
+        <tbody>
           {names.map((name) => {
             const actions = f[kind][name] ?? []
             return (
-              <TableRow key={`${kind}:${name}`} hover>
-                <TableCell>
+              <tr key={`${kind}:${name}`} className="border-b border-border/60 hover:bg-accent">
+                <td className="px-3 py-1.5">
                   <span className="matrix-user-cell">
                     {cellKind === 'group' && (
-                      <span aria-hidden="true" title={tt('组（组成员并集授权）')}>👥                      </span>
+                      <span aria-hidden="true" title={tt('组（组成员并集授权）')}>👥</span>
                     )}
-                    <span className="mono" lang="en">
-                      {name}
-                    </span>
-                    <Chip size="small" className="badge neutral" label={cellKind === 'group' ? tt('组') : tt('用户')} />
+                    <span className="font-mono" lang="en">{name}</span>
+                    <Badge>{cellKind === 'group' ? tt('组') : tt('用户')}</Badge>
                     <button
                       type="button"
                       className="principal-remove"
@@ -763,7 +655,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                       ✕
                     </button>
                   </span>
-                </TableCell>
+                </td>
                 {PERM_ACTIONS.map((a) => (
                   <MatrixCell
                     key={a}
@@ -775,59 +667,64 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                     onToggle={() => toggleAction(kind, name, a)}
                   />
                 ))}
-              </TableRow>
+              </tr>
             )
           })}
           {names.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={6} className="text-muted">
+            <tr>
+              <td colSpan={6} className="px-3 py-2 text-muted-foreground">
                 {kind === 'users'
                   ? tt('还没有用户主体——从下方添加。')
                   : tt('还没有组主体——从下方添加。授权 = 用户自身行 ∪ 所属组行的动作并集。')}
-              </TableCell>
-            </TableRow>
+              </td>
+            </tr>
           )}
-        </TableBody>
-      </Table>
+        </tbody>
+      </table>
     )
   }
 
   return (
     <div data-testid="perm-editor-page">
-      <div className="page-header">
-        <h2>
+      <div className="page-header flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold">
           {mode === 'create' ? tt('新建权限') : (
-            <>{tt('权限 /')} <span className="mono" lang="en">{routeName}</span>
-            </>
+            <>{tt('权限 /')} <span className="font-mono" lang="en">{routeName}</span></>
           )}
         </h2>
         {mode === 'edit' && (
-          <Button variant="outlined" size="small" component={Link} to="/admin/security/permissions">{tt('← 返回列表')}          </Button>
+          <ButtonAsChild variant="outline" size="sm" className="ml-auto">
+            <Link to="/admin/security/permissions">{tt('← 返回列表')}</Link>
+          </ButtonAsChild>
         )}
       </div>
 
       {readOnly && (
-        <p className="admin-note" data-testid="perm-editor-readonly-note">{tt('ⓘ 只读管理员（readonly_admin）视角：本编辑器为只读呈现（矩阵含 manage 位）；保存/删除是管理面写操作， 服务端 403 兜底——UI 不代持判定。')}        </p>
+        <p className="admin-note" data-testid="perm-editor-readonly-note">
+          {tt('ⓘ 只读管理员（readonly_admin）视角：本编辑器为只读呈现（矩阵含 manage 位）；保存/删除是管理面写操作， 服务端 403 兜底——UI 不代持判定。')}
+        </p>
       )}
 
       {mHolder && (
-        <p className="admin-note" data-testid="perm-editor-manage-note">{tt('ⓘ 当前会话以 manage 持有者身份编辑（注水 = manage 覆盖集过滤列表）：仓库目录与用户/组枚举是管理面读端点 （本会话 403）——新增仓库与主体走手动录入，服务端终裁（unknown → 400；覆盖集外保存/删除 → 403）。')}        </p>
+        <p className="admin-note" data-testid="perm-editor-manage-note">
+          {tt('ⓘ 当前会话以 manage 持有者身份编辑（注水 = manage 覆盖集过滤列表）：仓库目录与用户/组枚举是管理面读端点 （本会话 403）——新增仓库与主体走手动录入，服务端终裁（unknown → 400；覆盖集外保存/删除 → 403）。')}
+        </p>
       )}
 
       <section className="card perm-section">
         <h3>{tt('目标信息')}</h3>
         <div className="field">
           <label htmlFor="pe-name">{tt('名称')}</label>
-          <TextField
+          <TextInput
             id="pe-name"
-            size="small"
+            mono
+            lang="en"
             value={mode === 'create' ? f.name : routeName}
             disabled={mode === 'edit' || readOnly}
             onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
             placeholder="ci-out-rw"
-            error={!nameValid}
-            sx={{ width: 320 }}
-            slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'perm-form-name', lang: 'en' } }}
+            aria-invalid={!nameValid || undefined}
+            data-testid="perm-form-name"
           />
           {mode === 'create' &&
             (nameValid ? (
@@ -836,12 +733,12 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
               <p className="field-error">{tt('名称必填')}</p>
             ))}
         </div>
-        <div className="field" style={{ maxWidth: 640 }}>
+        <div className="field max-w-[640px]">
           <label>{tt('适用仓库（至少一个；pattern 与主体在仓库范围内生效）')}</label>
           {f.repos.length > 0 && (
-            <div className="sec-chips" style={{ marginBottom: 8 }} data-testid="perm-repos">
+            <div className="sec-chips mb-2" data-testid="perm-repos">
               {f.repos.map((r) => (
-                <span key={r} className="pattern-chip" style={{ marginBottom: 0 }}>
+                <span key={r} className="pattern-chip !mb-0">
                   <span className="val" lang="en" title={isWildcardBucket(r) ? tt('通配桶（wire 字面）——语义见「添加/编辑仓库」对话框注记') : undefined}>
                     {r}
                   </span>
@@ -859,16 +756,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
             </div>
           )}
           <div className="pattern-add">
-            {/* 锚沿用 T-101 冻结的 perm-repo-add：本票起是两步资源对话框的入口
-                （§4.5「编辑仓库」按钮；新建态文案 = Add Repositories，reverse §3.8） */}
-            <Button
-              variant="outlined"
-              size="small"
-             
-              disabled={readOnly}
-              onClick={() => setResOpen(true)}
-              data-testid="perm-repo-add"
-            >
+            <Button variant="outline" size="sm" disabled={readOnly} onClick={() => setResOpen(true)} data-testid="perm-repo-add">
               {mode === 'create' ? tt('＋ 添加仓库…') : tt('编辑仓库…')}
             </Button>
             {reposState.status === 'error' && (
@@ -879,44 +767,37 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
       </section>
 
       <section className="card perm-section">
-        <h3>{tt('路径模式（repo 相对路径；')}<span className="mono" lang="en">**</span> {tt('跨段 /')} <span className="mono" lang="en">*</span> {tt('段内）')}</h3>
+        <h3>
+          {tt('路径模式（repo 相对路径；')}<span className="font-mono" lang="en">**</span> {tt('跨段 /')} <span className="font-mono" lang="en">*</span> {tt('段内）')}
+        </h3>
         <div className="perm-pattern-summary" data-testid="perm-patterns-summary">
           <span className="text-2">{tt('include：')}</span>
           {f.includes.length === 0 ? (
-            <span className="text-muted">{tt('（空 = 匹配全部路径）')}</span>
+            <span className="text-muted-foreground">{tt('（空 = 匹配全部路径）')}</span>
           ) : (
-            f.includes.map((p) => (
-              <Chip key={p} size="small" className="badge neutral mono" label={p} sx={{ fontFamily: 'var(--bf-mono)' }} />
-            ))
+            f.includes.map((p) => <Badge key={p} mono lang="en">{p}</Badge>)
           )}
-          <span className="text-2" style={{ marginLeft: 12 }}>{tt('exclude：')}</span>
+          <span className="ml-3 text-2">{tt('exclude：')}</span>
           {f.excludes.length === 0 ? (
-            <span className="text-muted">{tt('（无）')}</span>
+            <span className="text-muted-foreground">{tt('（无）')}</span>
           ) : (
-            f.excludes.map((p) => (
-              <Chip key={p} size="small" className="badge neutral mono" label={p} sx={{ fontFamily: 'var(--bf-mono)' }} />
-            ))
+            f.excludes.map((p) => <Badge key={p} mono lang="en">{p}</Badge>)
           )}
-          <span className="text-muted" style={{ fontSize: 'var(--bf-fs-aux)' }}>{tt('（在「')}{mode === 'create' ? tt('添加') : tt('编辑')}{tt('仓库」对话框第 2 步修改）')}          </span>
+          <span className="text-aux text-muted-foreground">{tt('（在「')}{mode === 'create' ? tt('添加') : tt('编辑')}{tt('仓库」对话框第 2 步修改）')}</span>
         </div>
 
         <div className="tester">
           <div className="row">
-            <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)', whiteSpace: 'nowrap' }}>{tt('模式测试器')}            </span>
-            <TextField
-              size="small"
+            <span className="whitespace-nowrap text-aux text-2">{tt('模式测试器')}</span>
+            <TextInput
+              mono
+              lang="en"
               value={testPath}
               onChange={(e) => setTestPath(e.target.value)}
               placeholder={tt('输入任意路径即时判定，如 ci-out/builds/42/app.bin（尾 / 表示目录）')}
-              sx={{ ...monoInputSx, flex: 1 }}
-              slotProps={{
-                htmlInput: {
-                  'aria-label': tt('模式测试器路径输入'),
-                  'data-testid': 'perm-pattern-test',
-                  lang: 'en',
-                  className: 'mono',
-                },
-              }}
+              className="flex-1"
+              aria-label={tt('模式测试器路径输入')}
+              data-testid="perm-pattern-test"
             />
           </div>
           {evaluation && (
@@ -924,7 +805,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
               {evaluation.includesEmpty && (
                 <div className="line">
                   <span>–</span>
-                  <span>{tt('include 为空 =')} <b>{tt('匹配全部路径')}</b>{tt('（auth 语义）')}                  </span>
+                  <span>{tt('include 为空 =')} <b>{tt('匹配全部路径')}</b>{tt('（auth 语义）')}</span>
                 </div>
               )}
               {evaluation.includes.map((v) => (
@@ -944,15 +825,10 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                 </div>
               ))}
               <div className="verdict">
-                <Chip
-                  size="small"
-                  variant="outlined"
-                  color={evaluation.match ? 'success' : 'error'}
-                  className={`badge ${evaluation.match ? 'success' : 'danger'}`}
-                  label={evaluation.match ? tt('✓ 匹配') : tt('✗ 不匹配')}
-                  data-testid="perm-pattern-verdict"
-                />
-                <span className="text-2" style={{ fontWeight: 400, fontSize: 'var(--bf-fs-aux)' }}>
+                <span className={`badge ${evaluation.match ? 'success' : 'danger'}`} data-testid="perm-pattern-verdict">
+                  {evaluation.match ? tt('✓ 匹配') : tt('✗ 不匹配')}
+                </span>
+                <span className="text-aux font-normal text-2">
                   {evaluation.excludedBy !== null
                     ? tt('被 exclude `{v1}` 排除（exclude 优先）', { v1: evaluation.excludedBy })
                     : evaluation.match
@@ -973,12 +849,9 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
         {renderMatrixTable('users')}
         <div className="matrix-add">
           {usersForbidden ? (
-            // name-entry（§14.1.6）：用户枚举对 m-holder 403——手动录入用户名，
-            // 存在性由服务端终裁（unknown → 400）。perm-add-user 冻结锚随控件
-            // 形态迁移（select → input，admin/readonly 路径零变——T-241
-            // perm-repo-add 语义滑移同款纪律）
-            <TextField
-              size="small"
+            <TextInput
+              mono
+              lang="en"
               value={addUser}
               disabled={readOnly}
               onChange={(e) => setAddUser(e.target.value)}
@@ -989,49 +862,32 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                 }
               }}
               placeholder={tt('输入用户名（服务端校验）')}
-              sx={{ ...monoInputSx, width: 260 }}
-              slotProps={{
-                htmlInput: {
-                  'aria-label': tt('输入要添加的用户名'),
-                  'data-testid': 'perm-add-user',
-                  lang: 'en',
-                  className: 'mono',
-                },
-              }}
+              className="w-[260px]"
+              aria-label={tt('输入要添加的用户名')}
+              data-testid="perm-add-user"
             />
           ) : (
-            <TextField
-              select
-              size="small"
+            <NativeSelect
               value={addUser}
               disabled={readOnly}
               onChange={(e) => setAddUser(e.target.value)}
-              sx={{ ...monoInputSx, width: 260 }}
-              slotProps={{
-                select: {
-                  native: true,
-                  inputProps: {
-                    'aria-label': tt('选择要添加的用户'),
-                    'data-testid': 'perm-add-user',
-                  } as ComponentPropsWithoutRef<'select'>,
-                } as ComponentPropsWithoutRef<typeof Select>,
-              }}
-            >
-              <option value="">{tt('＋ 添加用户…')}</option>
-              {userOptions.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </TextField>
+              className="w-[260px]"
+              aria-label={tt('选择要添加的用户')}
+              data-testid="perm-add-user"
+              options={[
+                { value: '', label: tt('＋ 添加用户…') },
+                ...userOptions.map((n) => ({ value: n, label: n })),
+              ]}
+            />
           )}
           <Button
-            variant="outlined"
-            size="small"
-           
+            variant="outline"
+            size="sm"
             disabled={addUser.trim() === '' || readOnly}
             onClick={() => addPrincipal('users', addUser.trim())}
-          >{tt('添加用户')}          </Button>
+          >
+            {tt('添加用户')}
+          </Button>
         </div>
         {usersState.status === 'forbidden' && (
           <p className="field-hint">{tt('用户枚举是管理面读端点（本会话 403）——手动录入用户名，服务端校验（unknown → 400）。')}</p>
@@ -1047,9 +903,9 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
         {renderMatrixTable('groups')}
         <div className="matrix-add">
           {groupsForbidden ? (
-            // name-entry 同用户区块：组枚举 403 → 手动录入组名（服务端终裁）
-            <TextField
-              size="small"
+            <TextInput
+              mono
+              lang="en"
               value={addGroup}
               disabled={readOnly}
               onChange={(e) => setAddGroup(e.target.value)}
@@ -1060,48 +916,32 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                 }
               }}
               placeholder={tt('输入组名（服务端校验）')}
-              sx={{ ...monoInputSx, width: 260 }}
-              slotProps={{
-                htmlInput: {
-                  'aria-label': tt('输入要添加的组名'),
-                  'data-testid': 'perm-add-group',
-                  lang: 'en',
-                  className: 'mono',
-                },
-              }}
+              className="w-[260px]"
+              aria-label={tt('输入要添加的组名')}
+              data-testid="perm-add-group"
             />
           ) : (
-            <TextField
-              select
-              size="small"
+            <NativeSelect
               value={addGroup}
               disabled={readOnly}
               onChange={(e) => setAddGroup(e.target.value)}
-              sx={{ ...monoInputSx, width: 260 }}
-              slotProps={{
-                select: {
-                  native: true,
-                  inputProps: {
-                    'aria-label': tt('选择要添加的组'),
-                    'data-testid': 'perm-add-group',
-                  } as ComponentPropsWithoutRef<'select'>,
-                } as ComponentPropsWithoutRef<typeof Select>,
-              }}
-            >
-              <option value="">{tt('＋ 添加组…')}</option>
-              {groupOptions.map((n) => (
-                <option key={n} value={n}>👥 {n}
-                </option>
-              ))}
-            </TextField>
+              className="w-[260px]"
+              aria-label={tt('选择要添加的组')}
+              data-testid="perm-add-group"
+              options={[
+                { value: '', label: tt('＋ 添加组…') },
+                ...groupOptions.map((n) => ({ value: n, label: `👥 ${n}` })),
+              ]}
+            />
           )}
           <Button
-            variant="outlined"
-            size="small"
-           
+            variant="outline"
+            size="sm"
             disabled={addGroup.trim() === '' || readOnly}
             onClick={() => addPrincipal('groups', addGroup.trim())}
-          >{tt('添加组')}          </Button>
+          >
+            {tt('添加组')}
+          </Button>
         </div>
         {groupsState.status === 'forbidden' && (
           <p className="field-hint">{tt('组枚举是管理面读端点（本会话 403）——手动录入组名，服务端校验（unknown → 400）。')}</p>
@@ -1109,26 +949,25 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
         {groupsState.status === 'error' && (
           <p className="field-hint">{tt('组列表不可用（')}{groupsState.error?.message ?? tt('未知错误')}{tt('）——可刷新重试。')}</p>
         )}
-        <p className="admin-note">{tt('ⓘ admin 隐式拥有全部权限，不列入矩阵；无动作的主体不会提交（空 r/a/w/d/m ≡ 未授权）。manage = 仓库级 admin（可编辑其 manage 覆盖集内的 target、读写该仓配置族；不含建/删仓与安全面）——manage 持有者（控制台或 API）编辑 target 时，服务端要求其引用的全部仓库（含替换前的存量，T-217 B1）落在覆盖集内，超出即 403。 write 与 annotate 是两个独立位：write 只开内容部署（wire 正名 deploy-cache），属性写（properties） 由 annotate 位单独授予——两者互不隐含（T-444 拆分语义，勾选互不联动）。')}        </p>
+        <p className="admin-note">
+          {tt('ⓘ admin 隐式拥有全部权限，不列入矩阵；无动作的主体不会提交（空 r/a/w/d/m ≡ 未授权）。manage = 仓库级 admin（可编辑其 manage 覆盖集内的 target、读写该仓配置族；不含建/删仓与安全面）——manage 持有者（控制台或 API）编辑 target 时，服务端要求其引用的全部仓库（含替换前的存量，T-217 B1）落在覆盖集内，超出即 403。 write 与 annotate 是两个独立位：write 只开内容部署（wire 正名 deploy-cache），属性写（properties） 由 annotate 位单独授予——两者互不隐含（T-444 拆分语义，勾选互不联动）。')}
+        </p>
       </section>
 
       {serverError && (
-        <Alert severity="error" data-testid="form-error">
-          <div className="headline">{tt('保存失败（HTTP')} {serverError.status || tt('网络')}{tt('）')}</div>
-          <div className="raw" lang="en">
-            {serverError.message}
-          </div>
-        </Alert>
+        <AlertBox severity="error" testid="form-error">
+          <div className="font-medium">{tt('保存失败（HTTP')} {serverError.status || tt('网络')}{tt('）')}</div>
+          <div className="mt-1 break-all font-mono text-aux opacity-90" lang="en">{serverError.message}</div>
+        </AlertBox>
       )}
 
       <div className="form-actions">
-        <Button variant="outlined" size="small" component={Link} to="/admin/security/permissions">
+        <Button variant="outline" size="sm" onClick={() => navigate('/admin/security/permissions')}>
           {readOnly ? tt('返回列表') : tt('取消')}
         </Button>
         {!readOnly && (
           <Button
-            variant="contained"
-            size="small"
+            size="sm"
             disabled={!nameValid || f.repos.length === 0 || !dirty || submitting}
             title={
               !nameValid
@@ -1147,26 +986,20 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
         )}
       </div>
 
-      {/* T-344 批 D：危险区 Paper 化（mui-native-visual §3.3）——
-          variant outlined + error 边；类名留 DOM（inert）。 */}
       {mode === 'edit' && !readOnly && (
-        <Paper
-          variant="outlined"
-          className="danger-zone"
-          sx={{ mt: 'var(--bf-sp-5)', p: 'var(--bf-sp-4)', borderColor: 'error.main' }}
-          data-testid="perm-danger-zone"
-        >
-          <Typography variant="subtitle2" component="h3" color="error" sx={{ mb: 1 }}>{tt('危险区')}          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{tt('删除 target 会连带删除其全部授权行（单事务，无撤销）。')}          </Typography>
+        <div className="danger-zone mt-6 rounded-md border border-destructive/50 p-4" data-testid="perm-danger-zone">
+          <h3 className="mb-1 text-dense font-semibold text-destructive">{tt('危险区')}</h3>
+          <p className="mb-1.5 text-dense text-2">{tt('删除 target 会连带删除其全部授权行（单事务，无撤销）。')}</p>
           <Button
-            variant="outlined"
-            color="error"
-            size="small"
-
+            variant="outline"
+            size="sm"
+            className="border-destructive/50 text-destructive hover:bg-destructive/10"
             onClick={() => void doDelete()}
             data-testid="perm-delete-button"
-          >{tt('删除 target…')}          </Button>
-        </Paper>
+          >
+            {tt('删除 target…')}
+          </Button>
+        </div>
       )}
 
       {resOpen && (

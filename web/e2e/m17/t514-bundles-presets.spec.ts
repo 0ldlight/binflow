@@ -304,8 +304,12 @@ test('③ admin render: nav entry + list/detail views + axe (light/dark)', async
   await expect(page.locator('[data-testid="bundles-table"] th', { hasText: 'Bundle' })).toHaveCount(1)
   await expectA11yClean(page, testInfo, { include: '[data-testid="bundles-page"]' })
 
-  // 深色主题再扫一腿（②已在默认主题扫过描述符视图——此处补名单面）
-  await page.click('[data-testid="topbar-theme-toggle"]')
+  // 深色主题再扫一腿（②已在默认主题扫过描述符视图——此处补名单面）。
+  // localStorage + reload（t384 同款）：主题钮点击路径携带 transition-
+  // colors，紧随扫描会命中过渡中点（假阳性）
+  await page.evaluate(() => localStorage.setItem('binflow-console-theme', 'dark'))
+  await page.reload()
+  await expect(page.locator('[data-testid="bundles-table"]')).toBeVisible()
   await expectA11yClean(page, testInfo, { include: '[data-testid="bundles-page"]' })
 })
 

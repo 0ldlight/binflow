@@ -1,0 +1,1033 @@
+# EVIDENCE INDEX (evidence-index-only) — 仅供发现与对账，禁止作为 BinFlow 结构设计依据（ADR-0001 / 宪章 §39-41）
+# Artifactory REST/UI/协议表面端点清单（聚合粒度 = resource × 操作类别）
+# 派生源（零新增取证）：docs/reverse/inv-2-surface.md（§0 五层测绘 + §1.A–K 功能族）
+#   × docs/reverse/rest-compat-matrix.md（D01–D14 域结构 + 官方 653 条目对账）
+#   × docs/reverse/rest-api.md（核心面行为细节）。
+# 证据源版本：A=反编译 7.161.24（等价入口 reverse-src/artifactory）｜B=运行时 :8082 7.161.20｜C=安装包 7.161.16。
+# 本文件不逐条展开 ≈1,866 方法级操作；每行 = 一个 resource 的一个操作类别（代表 method+path 形态）。
+# 认证词汇表：anon=免认证｜user=任意认证用户｜read/deploy/annotate/delete/manage=对应权限位（r/w/n/d/m）｜admin=admin 角色｜UNKNOWN=证据未定位。
+# 置信度沿用派生源标注：高=反编译+官方文档双证；中=仅反编译；低=推断/待动态验证。
+
+meta:
+  artifact_version: {A: 7.161.24-decompiled, B: 7.161.20-runtime, C: 7.161.16-installer}
+  surface_total: {resource_classes: 357, method_level_operations: 1866}   # inv-2 §0 估计（1,800±100）
+  aggregation: resource × 操作类别
+  layer_counts:   # inv-2 §0（resource 类数 / 方法级操作数）
+    core-rest:       {prefix: "/artifactory/api/…",            resources: 103, operations: 475}
+    ui-rest:         {prefix: "/artifactory/ui/api/v1/…",      resources: 107, operations: 470}
+    protocol-sub:    {prefix: "/{repoKey}/…（按包型分派）",      resources: 22,  operations: 207}
+    ph-framework:    {prefix: "/{repoKey}/api/… + 实例级 /api/…", resources: 51, operations: 432}
+    addon:           {prefix: "/artifactory/api/…（增值域）",    resources: 74,  operations: 282}
+  jersey_assembly: "JerseyApplication 注册扫描 org.artifactory;org.jfrog.repomd;com.jfrog.ph;com.jfrog.bh;com.jfrog.build;com.jfrog.distribution.handler;…；RolesAllowedDynamicFeature（@RolesAllowed 两值 admin/user）；可禁 OPTIONS/WADL；package handler shadowing 开关 artifactory.shadowing.enabled（inv-2 §0）"
+  error_envelope: '所有 REST 层错误统一 {"errors":[{"status":<int>,"message":"<string>"}]}；日期 ISO8601 带毫秒时区；vendor 媒体类型同时接受 application/json（rest-api.md §0）'
+
+domains:
+
+# ───────────────────────── D01 制品与存储 ─────────────────────────
+- domain: D01 制品与存储
+  resources:
+  - resource: artifact-content            # 存储命名空间（无 /api 前缀，RepoFilter 路由）
+    layer: core-rest
+    evidence: rest-api.md §1.1–1.5 / inv-2 §1.A
+    confidence: 高
+    operations:
+    - {category: deploy,       method: PUT,    path: "/{repoKey}/{path}",              auth: deploy,  note: "201+Location+FileInfo；矩阵参数属性；X-Checksum 三头；X-Explode-Archive 解包（rest-compat D01 行18）"}
+    - {category: mkdir,        method: PUT,    path: "/{repoKey}/{path}/（尾斜杠）",    auth: annotate, note: "201 ItemCreated（FolderInfo 形态）"}
+    - {category: checksum-deploy, method: PUT, path: "/{repoKey}/{path}",              auth: deploy,  note: "X-Checksum-Deploy: true 零 body；按 sha1/sha256 库内寻 blob 引用；失败 400/404"}
+    - {category: checksum-sidecar, method: PUT, path: "/{repoKey}/{path}.sha1|.md5|.sha256", auth: deploy, note: ">1024B 409；client-checksums 策略不匹配 409"}
+    - {category: download,     method: GET,    path: "/{repoKey}/{path}",              auth: read,    note: "ETag=sha1 无引号；Range 206/416；304；X-Artifactory-Filename；?mark=&gcCaches= 同步预热臂"}
+    - {category: head,         method: HEAD,   path: "/{repoKey}/{path}",              auth: read,    note: "同 GET 头无 body"}
+    - {category: properties-read, method: GET, path: "/{repoKey}/{path}?properties",   auth: read,    note: "内容面属性读（legacy 形态）"}
+    - {category: delete,       method: DELETE, path: "/{repoKey}/{path}[?atomic]",     auth: delete,  note: "204；atomic 单事务"}
+    - {category: archive-inner-read, method: GET, path: "/{repoKey}/{name}.<archExt>!/inner/path", auth: read, note: "归档内路径按需解包（inv-3 §3.1）；strictArchiveDotSlash 开关"}
+  - resource: storage-item              # @Path storage/{path}
+    layer: core-rest
+    evidence: rest-api.md §3 / inv-2 §1.A / rest-compat D01 行1–8,21
+    confidence: 高
+    operations:
+    - {category: read,            method: GET,    path: "/api/storage/{repoKey}/{path}", auth: read,  note: "FileInfo/FolderInfo；downloadUri 处置=T-493 定案"}
+    - {category: read-properties, method: GET,    path: "…?properties[=K1,K2*]",       auth: read,  note: "propertiesXml 臂 Artifactory 有/BinFlow 501（rest-compat D01 行3）"}
+    - {category: read-stats,      method: GET,    path: "…?stats",                     auth: read,  note: "StatsInfo 七字段"}
+    - {category: read-permissions, method: GET,   path: "…?permissions",               auth: manage, note: "主体名→权限字母集 r/w/n/d/m；非 local/cached 仓 400"}
+    - {category: read-last-modified, method: GET, path: "…?lastModified",              auth: read,  note: "目录内最新修改项+Last-Modified 头"}
+    - {category: list,            method: GET,    path: "…?list&deep=&depth=&listFolders=&mdTimestamps=&includeRootPath=", auth: user, note: "仅认证用户；根目录 400 Cannot list files of root."}
+    - {category: set-properties,  method: PUT,    path: "/api/storage/{repoKey}/{path}?properties=k=v&recursive&atomic", auth: annotate, note: "204；%3B=值内容、raw ';' 使整对脱落（T-447/T-493）"}
+    - {category: delete-properties, method: DELETE, path: "同上?properties=k1,k2",     auth: annotate, note: "204；未指定 400"}
+    - {category: update-properties, method: POST, path: "同上?recursive&atomic",       auth: annotate, note: "6.1.0+ 增量改属性；rest-compat D01 行8（BinFlow 缺位扩张）"}
+    - {category: set-sha256,      method: POST,   path: "/api/storage/{path}",         auth: manage, note: "sha256 属性回填（5.5 前遗留兼容）"}
+  - resource: copy-move
+    layer: core-rest
+    evidence: rest-api.md 端点表引 rest-compat D01 行12–14 / inv-2 §1.A
+    confidence: 高
+    operations:
+    - {category: copy,      method: POST, path: "/api/copy/{srcRepo}/{srcPath}",  auth: read+deploy, note: "to/dry/suppressLayouts/failFast/atomic 参数族"}
+    - {category: move,      method: POST, path: "/api/move/{srcRepo}/{srcPath}",  auth: read+deploy, note: "同上"}
+    - {category: flat-copy, method: POST, path: "/api/flat/copy/{srcRepo}/{srcPath}", auth: admin, note: "系统开关默认关（端点 404）；rest-compat D01 行14"}
+    - {category: flat-move, method: POST, path: "/api/flat/move/{srcRepo}/{srcPath}", auth: admin, note: "同上"}
+  - resource: trash
+    layer: core-rest
+    evidence: inv-2 §1.A / rest-compat D01 行22–25
+    confidence: 高
+    operations:
+    - {category: empty,  method: POST,   path: "/api/trash/empty",                       auth: admin,  note: ""}
+    - {category: restore, method: POST,  path: "/api/trash/restore/{path}",              auth: admin,  note: ""}
+    - {category: clean,  method: DELETE, path: "/api/trash/clean/{path}",                auth: admin,  note: ""}
+    - {category: update-settings, method: PUT, path: "/api/trash/settings/deleteDirectoryTrashProperty", auth: admin, note: "空目录进回收站时限旋钮"}
+  - resource: zap
+    layer: core-rest
+    evidence: inv-2 §1.A / rest-compat D01 行20
+    confidence: 中
+    operations:
+    - {category: delete-physical, method: DELETE, path: "/api/zap/{path}", auth: admin, note: "删物理保元数据催 GC"}
+  - resource: storageinfo
+    layer: core-rest
+    evidence: inv-2 §1.A / rest-compat D01 行28 / gap-endpoints §5
+    confidence: 高
+    operations:
+    - {category: read,     method: GET,  path: "/api/storageinfo",            auth: admin, note: "binariesSummary/fileStoreSummary/repositoriesSummaryList；冷缓存 503"}
+    - {category: refresh,  method: POST, path: "/api/storageinfo/calculate",  auth: admin, note: ""}
+    - {category: read-summary, method: GET, path: "/api/storagesummary",     auth: admin, note: "汇总用量（StorageSummaryResource）"}
+  - resource: archive
+    layer: core-rest
+    evidence: inv-2 §1.A / rest-compat D01 行15–17
+    confidence: 高
+    operations:
+    - {category: list,              method: GET,  path: "/api/archive/list/{repoKey}/{path}", auth: read, note: "归档内条目列"}
+    - {category: download-archive, method: GET,  path: "/api/archive/download/{repoKey}/{path}?archiveType=", auth: read, note: "folder/repo 整包；folderDownloadConfig 配额门"}
+    - {category: download-entry,   method: GET,  path: "…?entry=（`!` 归档内单文件语法）", auth: read, note: "rest-compat D01 行16（BinFlow 缺位）"}
+    - {category: build-artifacts-archive, method: POST, path: "/api/archive/buildArtifacts", auth: user, note: "指针行→build-info.md"}
+  - resource: statistics
+    layer: core-rest
+    evidence: inv-2 §1.A
+    confidence: 高
+    operations:
+    - {category: read-item-stats,   method: GET, path: "/api/storage/statistics/{path}", auth: read, note: "下载计数"}
+    - {category: read-remote-stats, method: GET, path: "/api/v1/stats…",                 auth: admin, note: "远端仓命中/未命中统计；自带 openapi 791 行（inv-2 §1.A/§5）"}
+  - resource: artifact-metadata   # 新 metadata（区别于 properties）
+    layer: core-rest
+    evidence: inv-2 §1.A
+    confidence: 中
+    operations:
+    - {category: read,   method: GET, path: "/api/metadata/{path}", auth: read, note: "制品/仓库级自定义 metadata"}
+    - {category: update, method: PUT, path: "/api/metadata/{path}", auth: manage, note: "UNKNOWN：写动词/权限（需活体或反编译复检）"}
+    - {category: reindex, method: POST, path: "/api/system/metadata_server/reindex", auth: admin, note: "JCR/企业 metadata server 组件（rest-compat D06 行12 ⛔ 候裁）"}
+  - resource: locks
+    layer: core-rest
+    evidence: inv-2 §1.A
+    confidence: 中
+    operations:
+    - {category: list,  method: GET, path: "/api/system/locks[/{type}[/local]]", auth: admin, note: "分布式锁表查询（HA）"}
+    - {category: delete, method: DELETE, path: "/api/system/locks…", auth: admin, note: "清理锁"}
+  - resource: versions
+    layer: core-rest
+    evidence: inv-2 §1.A
+    confidence: 高
+    operations:
+    - {category: list, method: GET, path: "/api/versions/{repoKey|_any}/{path}", auth: read, note: "跨仓列路径下全部版本；SNAPSHOT/RELEASE 语义"}
+  - resource: localgenerated
+    layer: core-rest
+    evidence: inv-2 §1.A
+    confidence: 低
+    operations:
+    - {category: list, method: GET, path: "/api/localgenerated/filter", auth: admin, note: "按 path 正则列本地生成文件；语义待动态验证"}
+  - resource: mpu-uploads           # 客户端断点续传 REST 面
+    layer: core-rest
+    evidence: inv-2 §1.H / rest-compat D01 行32 / inv-3 §3.2
+    confidence: 高
+    operations:
+    - {category: create,  method: POST, path: "/api/v1/uploads/create",  auth: deploy, note: "generateToken(repoKey,path,partSizeMB)"}
+    - {category: upload-part, method: PUT, path: "/api/v1/uploads/part/{id}/{n}", auth: deploy, note: "分片 URL 上传"}
+    - {category: complete, method: POST, path: "/api/v1/uploads/complete", auth: deploy, note: "sha1 收尾；响应头 X-Checksum-Deploy-Token"}
+    - {category: read-status, method: GET, path: "/api/v1/uploads/status", auth: deploy, note: ""}
+    - {category: abort,   method: POST, path: "/api/v1/uploads/abort",   auth: deploy, note: ""}
+    - {category: read-config, method: GET, path: "/api/v1/uploads/config", auth: admin, note: ""}
+  - resource: system-storage-tasks
+    layer: core-rest
+    evidence: rest-api.md §5 / rest-compat D01 行26–27,30
+    confidence: 高
+    operations:
+    - {category: gc,      method: POST, path: "/api/system/storage/gc",       auth: admin, note: "手动 GC"}
+    - {category: prune,   method: POST, path: "/api/system/storage/prune/start", auth: admin, note: "202 任务提交；GET status / POST stop 三态"}
+    - {category: compact, method: POST, path: "/api/system/storage/compact",  auth: admin, note: "在线压缩；路径字面待复核（rest-compat V-1）"}
+
+# ───────────────────────── D02 仓库配置 ─────────────────────────
+- domain: D02 仓库配置
+  resources:
+  - resource: repositories
+    layer: core-rest
+    evidence: rest-api.md §2 / rest-compat D02 行1–6,9 / gap-endpoints §5.1
+    confidence: 高
+    operations:
+    - {category: list,   method: GET,    path: "/api/repositories?type=&packageType=&project=", auth: user,  note: "非法过滤值→空数组；url=<contextUrl>/<key>"}
+    - {category: read,   method: GET,    path: "/api/repositories/{key}",  auth: user,  note: "404 纯文本（默认开关）；回显域差异 rest-compat D02 行2"}
+    - {category: create, method: PUT,    path: "/api/repositories/{key}",  auth: admin, note: "200 纯文本；body key 与路径不一致 400"}
+    - {category: update, method: POST,   path: "/api/repositories/{key}",  auth: admin, note: "200 纯文本；404/409/400"}
+    - {category: delete, method: DELETE, path: "/api/repositories/{key}",  auth: admin, note: "最后 local 仓守卫 400"}
+    - {category: list-configurations, method: GET, path: "/api/repositories/configurations?packageType=&repoType=", auth: admin, note: "按 type 分组、组内 key 排序；Cache-Control: no-store"}
+    - {category: exists, method: GET,    path: "/api/repositories/existence?type=&project=", auth: user, note: "7.103+ 探测"}
+  - resource: repositories-v2
+    layer: core-rest
+    evidence: inv-2 §1.B / rest-compat D02 行7–8
+    confidence: 中
+    operations:
+    - {category: read,          method: GET,    path: "/api/v2/repositories/{key}", auth: user,  note: "v2 schema 读"}
+    - {category: batch-read,   method: GET,    path: "/api/v2/repositories/batch", auth: admin, note: "路径实取；批写三动词方法归属中置信"}
+    - {category: batch-create, method: POST,   path: "/api/v2/repositories/batch", auth: admin, note: "同上"}
+    - {category: batch-update, method: PUT,    path: "/api/v2/repositories/batch", auth: admin, note: "同上"}
+    - {category: batch-delete, method: DELETE, path: "/api/v2/repositories/batch", auth: admin, note: "207 混合态"}
+  - resource: federation        # FederatedRepoResource 53 操作
+    layer: addon
+    evidence: inv-2 §1.B / rest-compat D02 行11
+    confidence: 高
+    operations:
+    - {category: convert,        method: POST, path: "/api/federation/convert/…（local↔federated ×2）", auth: admin, note: "族级聚合；逐端点展开候专程票（M18+）"}
+    - {category: member-crud,    method: PUT,  path: "/api/federation/…（成员增删改）", auth: admin, note: "多成员管理"}
+    - {category: read-status,    method: GET,  path: "/api/v2/federation/status…", auth: admin, note: "成员状态"}
+    - {category: mirror-tasks,   method: GET,  path: "…（binary 分发任务/失败任务）", auth: admin, note: ""}
+    - {category: replace-url,    method: POST, path: "/api/federation/replaceUrl", auth: admin, note: ""}
+    - {category: pairing-token,  method: POST, path: "…（联邦配对令牌）", auth: admin, note: ""}
+  - resource: grid            # GridReposResource
+    layer: addon
+    evidence: inv-2 §1.B §6待验证1
+    confidence: 低
+    operations:
+    - {category: sync,            method: POST, path: "/api/v1/grid/repos/sync", auth: admin, note: "企业网格预配；语义待动态验证"}
+    - {category: provision,       method: POST, path: "/api/v1/grid/repos/provision", auth: admin, note: "同上"}
+    - {category: snapshot-create, method: POST, path: "/api/v1/grid/repos/snapshot/create", auth: admin, note: "同上"}
+    - {category: snapshot-download, method: GET, path: "/api/v1/grid/repos/snapshot/download/{fileName}", auth: admin, note: "同上"}
+  - resource: repolayouts
+    layer: core-rest
+    evidence: inv-2 §1.B / rest-compat D02 行12 / config-formats.md §2
+    confidence: 高
+    operations:
+    - {category: list,   method: GET,    path: "/api/repo_layouts",        auth: admin, note: "26 内置布局"}
+    - {category: read,   method: GET,    path: "/api/repo_layouts/{name}", auth: admin, note: ""}
+    - {category: create, method: POST,   path: "/api/repo_layouts/{name}", auth: admin, note: ""}
+    - {category: update, method: PUT,    path: "/api/repo_layouts/{name}", auth: admin, note: ""}
+    - {category: delete, method: DELETE, path: "/api/repo_layouts/{name}", auth: admin, note: ""}
+  - resource: gpg             # GpgResource 5 操作
+    layer: core-rest
+    evidence: inv-2 §1.B / rest-compat D04 行27
+    confidence: 中
+    operations:
+    - {category: read-public,  method: GET, path: "/api/gpg…", auth: user,  note: "公钥分发"}
+    - {category: set-private,  method: PUT, path: "/api/gpg…", auth: admin, note: "私钥设/删 + passphrase"}
+    - {category: delete,       method: DELETE, path: "/api/gpg…", auth: admin, note: "族级聚合（5 操作）"}
+
+# ───────────────────────── D03 搜索 ─────────────────────────
+- domain: D03 搜索
+  resources:
+  - resource: aql
+    layer: core-rest
+    evidence: aql.md（官方 OpenAPI 唯一行为基准）/ rest-compat D03 行1
+    confidence: 高
+    operations:
+    - {category: query, method: POST, path: "/api/search/aql", auth: user, note: "POST AQL 文本；OSS 档 .sort() 被许可门挡（aql.md §0-2）"}
+  - resource: search-classic   # SearchResource 注册恰 14 子资源 + 2 外挂 = 16（T-407 定案）
+    layer: core-rest
+    evidence: aql.md §8.1–8.2 / rest-compat D03 行2–17
+    confidence: 高
+    operations:
+    - {category: artifact,    method: GET, path: "/api/search/artifact?name=&repos=", auth: read, note: "大小写不敏感（K64①）"}
+    - {category: gavc,        method: GET, path: "/api/search/gavc?g=&a=&v=&c=", auth: read, note: ""}
+    - {category: prop,        method: GET, path: "/api/search/prop（任意查询参数即属性键）", auth: read, note: "键无值=`*`"}
+    - {category: checksum,    method: GET, path: "/api/search/checksum?sha1=&md5=&sha256=", auth: read, note: ""}
+    - {category: pattern,     method: GET, path: "/api/search/pattern?pattern=", auth: read, note: "`**` 不支持"}
+    - {category: usage,       method: GET, path: "/api/search/usage?notUsedSince=&createdBefore=", auth: read, note: "对外参数名=notUsedSince"}
+    - {category: dates,       method: GET, path: "/api/search/dates?from=&to=&dateFields=", auth: read, note: "from 必填 400 逐字文案；maven-metadata.xml 恒排除"}
+    - {category: creation,    method: GET, path: "/api/search/creation?from=&to=", auth: read, note: "404 空集语义族"}
+    - {category: versions,    method: GET, path: "/api/search/versions?g=&a=&v=&remote=", auth: read, note: "remote=1 联动远端列举"}
+    - {category: latest-version, method: GET, path: "/api/search/latestVersion?g=&a=&v=", auth: read, note: "按布局排序（K73）"}
+    - {category: dependency,  method: GET, path: "/api/search/dependency?sha1=", auth: read, note: "build-info 域联动（T-511）"}
+    - {category: build-artifacts, method: POST, path: "/api/search/buildArtifacts", auth: read, note: "同上"}
+    - {category: bad-checksum, method: GET, path: "/api/search/badChecksum?type=&repos=", auth: read, note: "响应上限 10,000"}
+    - {category: license,     method: GET, path: "/api/search/license", auth: read, note: "⛔ xray_tied（Q9 缺位登记）"}
+    - {category: archive,     method: GET, path: "/api/search/archive", auth: read, note: "官方 deprecated"}
+    - {category: latest-version-by-properties, method: GET, path: "/api/search/latestVersionByProperties", auth: read, note: "外挂端点（aql.md §8.1）"}
+  - resource: search-docker
+    layer: core-rest
+    evidence: rest-compat D03 行18
+    confidence: 中
+    operations:
+    - {category: find-parent-manifests, method: GET, path: "/api/search/docker/manifests/…", auth: read, note: ""}
+    - {category: list-repositories, method: GET, path: "…（List Docker Repositories）", auth: read, note: ""}
+    - {category: list-tags,    method: GET, path: "…（List Docker Tags）", auth: read, note: ""}
+  - resource: search-ui       # /ui/api/v1 面
+    layer: ui-rest
+    evidence: inv-2 §1.C / rest-compat D03 行19（D13 口径 ⛔ 登记不实现）
+    confidence: 高
+    operations:
+    - {category: ui-artifact-search, method: GET,  path: "/ui/api/v1/artifactsearch…（8 op）", auth: user, note: "UI 内部面（D13）"}
+    - {category: stash-results,      method: GET,  path: "/ui/api/v1/stashResults…（10 op）", auth: user, note: "结果暂存"}
+    - {category: packages-search,    method: GET,  path: "/ui/api/v1/packagesSearch…（2 op）", auth: user, note: "packages 索引搜索"}
+    - {category: syntax-search,      method: GET,  path: "/ui/api/v1/syntax-search（1 op）", auth: user, note: ""}
+
+# ───────────────────────── D04 安全 ─────────────────────────
+- domain: D04 安全
+  resources:
+  - resource: users
+    layer: core-rest
+    evidence: gap-endpoints §1 / auth-model.md §1 / rest-compat D04 行1–8
+    confidence: 高
+    operations:
+    - {category: list,   method: GET,    path: "/api/security/users",           auth: admin, note: "数组×{name,uri,realm} 闭集"}
+    - {category: read,   method: GET,    path: "/api/security/users/{name}",    auth: admin, note: "status 枚举闭集 invited/enabled/disabled/locked；无 enabled 布尔"}
+    - {category: create, method: PUT,    path: "/api/security/users/{name}",    auth: admin, note: "201 无 body"}
+    - {category: update, method: POST,   path: "/api/security/users/{name}",    auth: admin, note: "部分更新 200"}
+    - {category: delete, method: DELETE, path: "/api/security/users/{name}",    auth: admin, note: "级联 ACE 剥离→转发删除→缓存失效"}
+    - {category: create-collection, method: POST, path: "/api/security/users",  auth: admin, note: "BinFlow 超集形态（rest-compat D04 行8）"}
+    - {category: change-password, method: POST, path: "/api/security/users/authorization/changePassword", auth: user, note: "别名形态；另有 PUT /api/security/password 改自己"}
+    - {category: expire-passwords, method: POST, path: "/api/security/users/authorization/expirePasswords", auth: admin, note: "密码过期族（expire/unexpire/策略 GET/PUT，rest-compat D04 行9）"}
+  - resource: user-lock-policy
+    layer: core-rest
+    evidence: inv-2 §1.D / rest-compat D04 行10
+    confidence: 高
+    operations:
+    - {category: read-settings,  method: GET,  path: "/api/security/userLockPolicy", auth: admin, note: "锁定策略"}
+    - {category: update-settings, method: PUT, path: "/api/security/userLockPolicy", auth: admin, note: "登录失败递增锁定 (n-3)*500ms 上限 5s"}
+    - {category: list-locked,    method: GET,  path: "/api/security/lockedUsers",    auth: admin, note: ""}
+    - {category: unlock,         method: POST, path: "/api/security/unlockUsers|unlockAllUsers", auth: admin, note: "两形态"}
+  - resource: encrypted-password
+    layer: core-rest
+    evidence: rest-compat D04 行11
+    confidence: 中
+    operations:
+    - {category: read, method: GET, path: "/api/security/encryptedPassword", auth: user, note: ""}
+  - resource: api-key
+    layer: core-rest
+    evidence: inv-2 §1.D / rest-compat D04 行26
+    confidence: 高
+    operations:
+    - {category: create,    method: POST,   path: "/api/security/apiKey",        auth: user,  note: "legacy 凭据（5 操作族，候 PM 裁 ⛔）"}
+    - {category: regenerate, method: PUT,   path: "/api/security/apiKey/regenerate", auth: user, note: ""}
+    - {category: read,      method: GET,    path: "/api/security/apiKey",        auth: user,  note: ""}
+    - {category: revoke,    method: DELETE, path: "/api/security/apiKey|apiKey/{userName}", auth: user, note: "含 revoke-user"}
+  - resource: groups
+    layer: core-rest
+    evidence: gap-endpoints §3 / rbac-model.md §1.2 / rest-compat D04 行12–16
+    confidence: 高
+    operations:
+    - {category: list,   method: GET,    path: "/api/security/groups",                    auth: admin, note: "数组×{name,uri}"}
+    - {category: read,   method: GET,    path: "/api/security/groups/{name}?includeUsers=", auth: admin, note: "includeUsers→userNames[]"}
+    - {category: create, method: PUT,    path: "/api/security/groups/{name}",             auth: admin, note: "组成员全量替换"}
+    - {category: update, method: POST,   path: "/api/security/groups/{name}",             auth: admin, note: "成员增量添加（不对称）"}
+    - {category: delete, method: DELETE, path: "/api/security/groups/{name}",             auth: admin, note: "最后 admin 组守卫"}
+  - resource: permissions-v1
+    layer: core-rest
+    evidence: gap-endpoints §4 / rest-compat D04 行17–18
+    confidence: 高
+    operations:
+    - {category: list,         method: GET,    path: "/api/security/permissions",          auth: admin, note: "{name,uri}；v1 无过滤参数"}
+    - {category: read,         method: GET,    path: "/api/security/permissions/{name}",   auth: admin, note: "principals/ACE 模型"}
+    - {category: create-or-replace, method: PUT, path: "/api/security/permissions/{name}", auth: admin, note: ""}
+    - {category: delete,       method: DELETE, path: "/api/security/permissions/{name}",   auth: admin, note: ""}
+  - resource: permissions-v2
+    layer: core-rest
+    evidence: rest-compat D04 行19
+    confidence: 高
+    operations:
+    - {category: list,   method: GET,    path: "/api/v2/security/permissions",          auth: user,  note: "v2 非 admin 可见语义；8 端点族"}
+    - {category: read,   method: GET,    path: "/api/v2/security/permissions/{name}",   auth: user,  note: "repo/build/release-bundle 三域合并"}
+    - {category: exists, method: GET,    path: "…/permissions/{name}/existence",        auth: user,  note: ""}
+    - {category: create-or-replace, method: PUT, path: "/api/v2/security/permissions/{name}", auth: admin, note: ""}
+    - {category: delete, method: DELETE, path: "/api/v2/security/permissions/{name}",   auth: admin, note: ""}
+    - {category: per-principal, method: GET, path: "…/permissions/{name}/{users|groups}…（6 端点）", auth: user, note: "per-user/per-group 面"}
+  - resource: token
+    layer: core-rest
+    evidence: inv-2 §1.D / rest-compat D04 行20–22
+    confidence: 高
+    operations:
+    - {category: create,  method: POST, path: "/api/security/token",          auth: user,  note: "form-encoded；grant_type=client_credentials；scope 体系"}
+    - {category: refresh, method: POST, path: "/api/security/token",          auth: user,  note: "refresh_token 形态"}
+    - {category: revoke,  method: POST, path: "/api/security/token/revoke",   auth: user,  note: "token_id 或 token 本体"}
+    - {category: list,    method: GET,  path: "/api/security/token",          auth: admin, note: "Access 侧 /access/api/v1/tokens 族对位"}
+  - resource: keypair
+    layer: core-rest
+    evidence: rest-compat D04 行23–25
+    confidence: 中
+    operations:
+    - {category: list,   method: GET,    path: "/api/security/keypair",             auth: admin, note: "GPG/RSA 签名密钥对；字段集核对项（passPhrase/impersonation）"}
+    - {category: create, method: POST,   path: "/api/security/keypair",             auth: admin, note: ""}
+    - {category: update, method: PUT,    path: "/api/security/keypair",             auth: admin, note: ""}
+    - {category: read,   method: GET,    path: "/api/security/keypair/{pairName}",  auth: admin, note: ""}
+    - {category: delete, method: DELETE, path: "/api/security/keypair/{pairName}",  auth: admin, note: ""}
+    - {category: verify, method: POST,   path: "/api/security/keypair/{pairName}/verify", auth: admin, note: ""}
+    - {category: read-public-per-repo, method: GET, path: "/api/security/keypair/public/repositories/{repoKey}", auth: user, note: ""}
+    - {category: generate, method: POST, path: "/api/v1/admin/security/keypair/generate", auth: admin, note: "「此条补充官方规范」（官方 reference 无页）"}
+    - {category: associate, method: POST, path: "/api/v2/repositories/{repoKey}/keyPairs[/{keyName}]", auth: admin, note: "仓级关联 SET/DELETE 两形态"}
+  - resource: trusted-keys
+    layer: core-rest
+    evidence: inv-2 §1.D
+    confidence: 中
+    operations:
+    - {category: crud, method: ANY, path: "/api/security/keys/trusted|trustedKeys…", auth: admin, note: "受信公钥（pgp/tuf）；族级聚合"}
+  - resource: signing-keys      # 主/次签名密钥 + keystore
+    layer: ui-rest
+    evidence: inv-2 §1.D / rest-compat D04 行28
+    confidence: 中
+    operations:
+    - {category: set-get-delete, method: ANY, path: "/ui…/signingkeys|keystore（primary/secondary ×7）", auth: admin, note: "UI 证书签名面；族级聚合"}
+  - resource: certificates
+    layer: core-rest
+    evidence: rest-compat D04 行29
+    confidence: 中
+    operations:
+    - {category: list,   method: GET,    path: "/api/system/certificates",       auth: admin, note: "远端 TLS 信任库"}
+    - {category: add,    method: POST,   path: "/api/system/certificates",       auth: admin, note: ""}
+    - {category: delete, method: DELETE, path: "/api/system/certificates/{alias}", auth: admin, note: ""}
+  - resource: sso-family        # SAML/OAuth2/OIDC/Crowd/HTTP-SSO/SCIM/Vault
+    layer: core-rest
+    evidence: inv-2 §1.D / auth-integration.md / rest-compat D04 行30–35
+    confidence: 高
+    operations:
+    - {category: saml-config,   method: GET, path: "/access/api/v1/saml…（六端点）", auth: admin, note: "官方主推 Access 面；Artifactory UI 内部面对照 auth-integration.md"}
+    - {category: oauth-config,  method: ANY, path: "/api/oauth2…（OAuthResource 10 op）+ UI oauth 8 op", auth: admin, note: "授权码+PKCE"}
+    - {category: oidc-config,   method: ANY, path: "/access…oidc（config CRUD + identity mapping ×4 + token exchange）", auth: admin, note: ""}
+    - {category: crowd-httpsso, method: ANY, path: "/api/system/crowd|httpsso…", auth: admin, note: "外部目录/网关形态（低优候裁）"}
+    - {category: scim,          method: ANY, path: "/access/api/v2/scim…（Users/Groups ×12）", auth: admin, note: "IdP 自动供给"}
+    - {category: vault-iam,     method: ANY, path: "…（Vault secrets ×4 + AWS IAM role ×3）", auth: admin, note: "外部密钥服务集成"}
+  - resource: delegate-login
+    layer: core-rest
+    evidence: inv-2 §1.D
+    confidence: 中
+    operations:
+    - {category: authenticate, method: POST, path: "/api/security/auth…", auth: anon, note: "透传凭据换会话"}
+  - resource: ldap-ui
+    layer: ui-rest
+    evidence: inv-2 §1.D / auth-integration.md
+    confidence: 高
+    operations:
+    - {category: ldap-config,     method: ANY, path: "/ui/api/v1/admin/security/ldap…（7 op）", auth: admin, note: "多 LDAP server 配置"}
+    - {category: ldap-group-map,  method: ANY, path: "/ui/api/v1/ldapgroups…（7 op）",          auth: admin, note: "组映射 CRUD"}
+
+# ───────────────────────── D05 复制 ─────────────────────────
+- domain: D05 复制
+  resources:
+  - resource: repo-replication
+    layer: core-rest
+    evidence: replication.md §9 / rest-compat D05 行1–7
+    confidence: 高
+    operations:
+    - {category: read,    method: GET,    path: "/api/replications/{repoKey}",      auth: admin, note: "单仓复制配置"}
+    - {category: create-or-replace, method: PUT, path: "/api/replications/{repoKey}", auth: admin, note: "cron/events/pathPrefix wire 模型（replication.md §9）"}
+    - {category: update,  method: POST,   path: "/api/replications/{repoKey}",      auth: admin, note: ""}
+    - {category: delete,  method: DELETE, path: "/api/replications/{repoKey}",      auth: admin, note: ""}
+    - {category: multipush-create, method: POST, path: "/api/replications/multiple/{repoKey}", auth: admin, note: "多目标 push（ent 档）"}
+    - {category: enable-disable-batch, method: POST, path: "/api/replications/enable|disable", auth: admin, note: "批量启停"}
+    - {category: list-registered-remotes, method: GET, path: "/api/replications/remote", auth: admin, note: "smart remote 拓扑面"}
+    - {category: event-channels, method: POST, path: "…/establishChannel 等 ×4",    auth: admin, note: "官方自标 [Internal]；⛔ 登记不实现（smart replication 握手）"}
+  - resource: replication-execution
+    layer: core-rest
+    evidence: rest-compat D05 行2–3
+    confidence: 高
+    operations:
+    - {category: read-status, method: GET,  path: "/api/replication/status",        auth: admin, note: "异步任务状态"}
+    - {category: run,         method: POST, path: "/api/replication/execute/{repoKey}", auth: admin, note: "手动 push/pull 触发"}
+  - resource: global-replication
+    layer: core-rest
+    evidence: rest-compat D05 行8–10 / replication.md §B
+    confidence: 高
+    operations:
+    - {category: read,    method: GET,  path: "/api/system/replications",            auth: admin, note: "blockPulls/blockPushes 两字段"}
+    - {category: block,   method: POST, path: "/api/system/replications/block|unblock", auth: admin, note: ""}
+    - {category: checksum-replication, method: GET|PUT, path: "/api/system/replication", auth: admin, note: "全局 checksum 复制旋钮"}
+  - resource: mirror-fullsync
+    layer: addon
+    evidence: inv-2 §1.E
+    confidence: 中
+    operations:
+    - {category: mirror,  method: ANY, path: "/api/mirror…",  auth: admin, note: "远端镜像拉齐（族级聚合）"}
+    - {category: fullsync, method: ANY, path: "/api/fullsync/repo/{fileName}", auth: admin, note: "文件级同步"}
+  - resource: filelist-task
+    layer: addon
+    evidence: inv-2 §1.E
+    confidence: 低
+    operations:
+    - {category: create-read, method: ANY, path: "/api/fileList…", auth: admin, note: "复制用文件清单生成/查询；语义待验证"}
+
+# ───────────────────────── D06 系统与运维 ─────────────────────────
+- domain: D06 系统与运维
+  resources:
+  - resource: system-probe
+    layer: core-rest
+    evidence: rest-api.md §5 / rest-compat D06 行1–5,14
+    confidence: 高
+    operations:
+    - {category: ping,       method: GET, path: "/api/system/ping",       auth: anon,  note: "HA lockdown 503；目录/DB 异常 500"}
+    - {category: read-version, method: GET, path: "/api/system/version",  auth: user,  note: "{version,revision,addons,license…}"}
+    - {category: read-servertime, method: GET, path: "/api/system/serverTime", auth: user, note: "epoch 毫秒纯文本"}
+    - {category: read-service-id, method: GET, path: "/api/system/service_id", auth: admin, note: ""}
+    - {category: read-system-info, method: GET, path: "/api/system",      auth: admin, note: "存储/HA 汇总"}
+    - {category: read-probes, method: GET, path: "/api/system/readiness|liveness", auth: anon, note: "K8s 探针"}
+    - {category: read-usage, method: GET, path: "/api/system/usage",      auth: admin, note: ""}
+  - resource: config-descriptor
+    layer: core-rest
+    evidence: rest-api.md §5 / config-formats.md §2 / rest-compat D06 行6–7
+    confidence: 中
+    operations:
+    - {category: read,   method: GET,  path: "/api/system/configuration",        auth: admin, note: "config.xml 原文（脱敏 proxy/mail 密码）"}
+    - {category: update, method: POST, path: "/api/system/configuration",        auth: admin, note: "支持 rpm/debian/ha 子段部分更新"}
+    - {category: read-security-descriptor, method: GET, path: "/api/system/security|securitydescriptor", auth: admin, note: ""}
+    - {category: update-platform, method: POST, path: "/api/system/configuration/platform/{mail,proxxies}…", auth: admin, note: "平台化配置面"}
+    - {category: update-baseurl, method: POST, path: "/api/system/configuration/baseUrl", auth: admin, note: ""}
+  - resource: encryption
+    layer: core-rest
+    evidence: inv-2 §1.H / rest-compat D06 行26
+    confidence: 高
+    operations:
+    - {category: encrypt,   method: POST, path: "/api/system/encrypt",   auth: admin, note: "全库敏感字段加密（master key）"}
+    - {category: decrypt,   method: POST, path: "/api/system/decrypt",   auth: admin, note: ""}
+  - resource: sha2-migration
+    layer: core-rest
+    evidence: inv-2 §1.H
+    confidence: 中
+    operations:
+    - {category: start-stop, method: POST, path: "/api/system/migration/sha2/{start,stop}", auth: admin, note: "sha1→sha256 主校验迁移"}
+  - resource: backup
+    layer: core-rest
+    evidence: inv-2 §1.H / cron-scheduling.md / rest-compat D06 行17
+    confidence: 高
+    operations:
+    - {category: list,   method: GET,    path: "/api/system/backup（列表）",  auth: admin, note: "预置 backup-daily/backup-weekly 两条（config 模板）"}
+    - {category: read,   method: GET,    path: "/api/system/backup/{key}",    auth: admin, note: ""}
+    - {category: create-or-replace, method: PUT, path: "/api/system/backup/{key}", auth: admin, note: "cron 语义按 cron-scheduling.md"}
+    - {category: delete, method: DELETE, path: "/api/system/backup/{key}",    auth: admin, note: ""}
+  - resource: import-export
+    layer: core-rest
+    evidence: import-export-api.md / rest-compat D06 行16
+    confidence: 高
+    operations:
+    - {category: import-system, method: POST, path: "/api/import/system",      auth: admin, note: "含 metadata 形态"}
+    - {category: export-system, method: POST, path: "/api/export/system",      auth: admin, note: ""}
+    - {category: import-repo,   method: POST, path: "/api/import/repo/{repoKey}", auth: admin, note: ""}
+    - {category: export-repo,   method: POST, path: "/api/export/repo/{repoKey}", auth: admin, note: ""}
+  - resource: support-bundle
+    layer: addon
+    evidence: inv-2 §1.H / rest-compat D06 行27
+    confidence: 高
+    operations:
+    - {category: create,  method: POST,   path: "/api/system/support/bundle",         auth: admin, note: "上限 5 个（system.properties）"}
+    - {category: list,    method: GET,    path: "/api/system/support/bundles",        auth: admin, note: ""}
+    - {category: read,    method: GET,    path: "/api/system/support/bundle/{name}",  auth: admin, note: "含 currentnode/archive 下载"}
+    - {category: delete,  method: DELETE, path: "/api/system/support/bundle/{name}",  auth: admin, note: ""}
+    - {category: read-metadata, method: GET, path: "…/metadata", auth: admin, note: "族级聚合（7 操作）"}
+  - resource: reverse-proxy
+    layer: core-rest
+    evidence: inv-2 §1.H（nginx.ftl 等模板）/ rest-compat D06 行10
+    confidence: 高
+    operations:
+    - {category: read,     method: GET,  path: "/api/system/configuration/reverseProxy", auth: admin, note: ""}
+    - {category: update,   method: POST, path: "/api/system/configuration/reverseProxy", auth: admin, note: ""}
+    - {category: read-snippet, method: GET, path: "…/reverseProxy/snippet",        auth: admin, note: "nginx/apache 片段生成"}
+    - {category: read-possible-values, method: GET, path: "…/possibleValues",      auth: admin, note: ""}
+  - resource: mail
+    layer: core-rest
+    evidence: inv-2 §1.H
+    confidence: 中
+    operations:
+    - {category: read-config,  method: GET,  path: "/api/system/configuration/platform/mail", auth: admin, note: "SMTP 设置"}
+    - {category: update-config, method: POST, path: "/api/system/configuration/platform/mail", auth: admin, note: ""}
+    - {category: send-test,    method: POST, path: "/ui…/send_mail", auth: admin, note: "测试/任意发送"}
+  - resource: proxies
+    layer: core-rest
+    evidence: inv-2 §1.H
+    confidence: 中
+    operations:
+    - {category: crud, method: ANY, path: "/api/system/configuration/platform/proxies…", auth: admin, note: "出口代理 CRUD"}
+  - resource: license
+    layer: core-rest
+    evidence: inv-2 §1.H / rest-compat D06 行8–9
+    confidence: 高
+    operations:
+    - {category: read,    method: GET,    path: "/api/system/license",     auth: admin, note: ""}
+    - {category: install, method: POST,   path: "/api/system/license",     auth: admin, note: ""}
+    - {category: delete,  method: DELETE, path: "/api/system/license",     auth: admin, note: ""}
+    - {category: ha-cluster-license, method: ANY, path: "/api/system/licenses…（HA 三节点哈希）", auth: admin, note: "HA 专属（M18+ 联动）"}
+  - resource: ha-management     # RestHaResource 30 操作
+    layer: addon
+    evidence: inv-2 §1.H
+    confidence: 高
+    operations:
+    - {category: propagate,  method: POST, path: "/api/ha/propagateTask…（config/descriptor/repoconfig/policy/security 广播）", auth: admin, note: "集群配置广播（族级聚合）"}
+    - {category: sync,       method: POST, path: "/api/ha/syncMasterKey|syncStorageSummary|syncUsage…", auth: admin, note: ""}
+    - {category: read-nodes, method: GET,  path: "/api/system/nodes…", auth: admin, note: ""}
+    - {category: ops,        method: ANY, path: "/api/ha…（rate limiter 重算/thread_dump/events shift）", auth: admin, note: ""}
+  - resource: maintenance
+    layer: core-rest
+    evidence: inv-2 §1.H / rest-compat D06 行18
+    confidence: 中
+    operations:
+    - {category: read,   method: GET,  path: "/api/system/maintenance", auth: admin, note: "维护窗口"}
+    - {category: update, method: PUT,  path: "/api/system/maintenance", auth: admin, note: ""}
+    - {category: load-healer, method: ANY, path: "/api/system/loadhealer…", auth: admin, note: "过载自愈开关（application.yaml 阈值表）"}
+  - resource: tasks
+    layer: core-rest
+    evidence: inv-2 §1.H / rest-compat D06 行29（V-1 待复核）
+    confidence: 中
+    operations:
+    - {category: list,  method: GET,  path: "/api/tasks",  auth: admin, note: "后台任务清单"}
+    - {category: run,   method: POST, path: "/api/jobs…",  auth: admin, note: "job 触发"}
+    - {category: read-workers, method: GET, path: "/api/v1/workers…", auth: admin, note: ""}
+    - {category: update-traffic, method: ANY, path: "/api/traffic…（3 op）", auth: admin, note: "traffic 日志开关"}
+  - resource: logs
+    layer: core-rest
+    evidence: inv-2 §1.H / rest-compat D06 行13 / inv-1-core Live Logs
+    confidence: 高
+    operations:
+    - {category: tail,          method: GET,    path: "/api/system/logs…", auth: admin, note: "远程日志流式查看"}
+    - {category: read-level,   method: GET,    path: "…logger levels",    auth: admin, note: "GET/PUT/DELETE 三动词"}
+    - {category: set-level,    method: PUT,    path: "…logger levels",    auth: admin, note: ""}
+    - {category: ui-live-logs, method: ANY,    path: "/ui…/system/logs/{config,data}", auth: admin, note: "UI 内部面（中置信）"}
+  - resource: indexer
+    layer: core-rest
+    evidence: inv-2 §1.H
+    confidence: 高
+    operations:
+    - {category: run,   method: POST, path: "/api/maven?reposToIndex=&force=",  auth: admin, note: "Maven 索引器触发（3 操作）"}
+    - {category: read,  method: GET,  path: "/api/indexer…",                    auth: admin, note: ""}
+  - resource: rate-limiters
+    layer: core-rest
+    evidence: aql.md §14.4 / inv-2 §1.H（openapi 174/348 行资产）
+    confidence: 高
+    operations:
+    - {category: qrl-config,   method: GET|POST|DELETE, path: "/api/v1/system/query_rate_limiter/config", auth: admin, note: "查询级限流三态"}
+    - {category: rrl-config,   method: ANY, path: "/api/v2/system/request_rate_limiter…（3 op）", auth: admin, note: "请求级限流"}
+    - {category: inbound-guard, method: ANY, path: "/api/system/inboundRequestGuardTriggers…", auth: admin, note: "OFF/SHADOW/ACTIVE 三模式；按 header/UA/IP-CIDR 拒绝"}
+    - {category: remote-offline-triggers, method: ANY, path: "/api/system/remoteRepoOfflineTriggers…", auth: admin, note: "远端仓离线熔断"}
+  - resource: observability-addons
+    layer: addon
+    evidence: inv-2 §1.H / metrics.md
+    confidence: 中
+    operations:
+    - {category: read-metrics, method: GET, path: "/api/system/metrics…", auth: admin, note: "应用指标 + Open Metrics 面（metrics.md）"}
+    - {category: log-shipping, method: ANY, path: "/api/v1/system/logs/{billing,generic,usage}…（9 op）", auth: admin, note: "日志外发/用量上报/计费事件"}
+    - {category: sumologic,    method: ANY, path: "/api/sumologic…（7 op）", auth: admin, note: "日志分析集成注册/重置"}
+  - resource: debug
+    layer: core-rest
+    evidence: inv-2 §1.H
+    confidence: 中
+    operations:
+    - {category: read,   method: GET,  path: "/api/system/debug…（4 op）", auth: admin, note: "线程栈/日志级别调试"}
+    - {category: read-requests, method: GET, path: "/api/devopsagent/{errors,requests}", auth: admin, note: "请求日志目录"}
+  - resource: checkup
+    layer: core-rest
+    evidence: inv-2 §1.H §6待验证2
+    confidence: 低
+    operations:
+    - {category: run, method: POST, path: "/api/system/checkup…（2 op）", auth: admin, note: "系统自检；语义待验证"}
+  - resource: events
+    layer: addon
+    evidence: inv-2 §1.H / inv-3 §3.5
+    confidence: 中
+    operations:
+    - {category: register,   method: POST,   path: "/api/v1/unifiedevent/registration…（4 op）", auth: admin, note: "统一事件消费者注册/注销"}
+    - {category: emit-internal, method: ANY, path: "/api/internal/events…", auth: admin, note: "内部事件总线"}
+  - resource: service-trust
+    layer: addon
+    evidence: inv-2 §1.H
+    confidence: 中
+    operations:
+    - {category: pairing, method: ANY, path: "/api/v1/service_trust/…（pairings/pairing/exchange/revoke 6 op）", auth: admin, note: "服务间 mTLS 配对（联邦前置）"}
+  - resource: vcs            # VcsResourceSelector 21 操作
+    layer: addon
+    evidence: inv-2 §1.H
+    confidence: 中
+    operations:
+    - {category: read-refs,    method: GET, path: "/api/vcs/refs/{org}/{repo}…（tags/branches）", auth: read, note: "git 远端当仓浏览"}
+    - {category: download-tag, method: GET, path: "…/downloadTag|downloadBranch", auth: read, note: ""}
+    - {category: download-by-checksum, method: GET, path: "…（按 checksum 归档）", auth: read, note: "族级聚合"}
+  - resource: config-service
+    layer: core-rest
+    evidence: inv-2 §1.H §6待验证2
+    confidence: 中
+    operations:
+    - {category: read-general,   method: GET,  path: "/ui…/generalConfig…（10 op）", auth: admin, note: "平台级设置"}
+    - {category: read-basic,     method: GET,  path: "/ui…/basicConfig",  auth: admin, note: ""}
+    - {category: token-config,   method: ANY,  path: "/api/config…",      auth: admin, note: "token 化 config 服务；行为细节待验证"}
+  - resource: system-property
+    layer: core-rest
+    evidence: inv-2 §1.H
+    confidence: 中
+    operations:
+    - {category: read, method: GET, path: "/api/system/property…", auth: admin, note: "运行时属性"}
+
+# ───────────────────────── D07 Build-info（指针行，行为见 build-info.md） ─────────────────────────
+- domain: D07 Build-info
+  resources:
+  - resource: build            # 行为规格全部由 build-info.md §1 承载（T-488 冻结）
+    layer: core-rest
+    evidence: build-info.md §1（一手 OpenAPI 996 行 + 官方参考页）/ rest-compat §8
+    confidence: 高
+    operations:
+    - {category: list,          method: GET,    path: "/api/build",                        auth: read,   note: "名清单+lastStarted"}
+    - {category: upload,        method: PUT,    path: "/api/build",                        auth: deploy, note: "全量上传（name/number 在 body）"}
+    - {category: list-numbers,  method: GET,    path: "/api/build/{buildName}",            auth: read,   note: ""}
+    - {category: delete-batch,  method: DELETE, path: "/api/build/{buildName}",            auth: delete, note: "buildNumbers/artifacts/deleteAll"}
+    - {category: read,          method: GET,    path: "/api/build/{buildName}/{buildNumber}", auth: read, note: "started/diff 消歧"}
+    - {category: append,        method: POST,   path: "/api/build/append/{name}/{number}", auth: deploy, note: "模块数组合并"}
+    - {category: promote,       method: POST,   path: "/api/build/promote/{name}/{number}", auth: deploy, note: "状态机+迁仓（copy/move+scope+properties+dryRun+failFast）"}
+    - {category: delete-multi,  method: POST,   path: "/api/build/delete",                 auth: delete, note: "批删（特殊字符号）"}
+    - {category: rename,        method: POST,   path: "/api/build/rename/{buildName}",     auth: admin,  note: "M17 面外登记（ADR-0045 点6）"}
+    - {category: retention,     method: POST,   path: "/api/build/retention/{buildName}",  auth: admin,  note: ""}
+    - {category: docker-promote, method: POST,  path: "/api/docker/{repoKey}/v2/promote",  auth: deploy, note: "镜像提升（经 build promote targetRepo 直达，面外登记）"}
+
+# ───────────────────────── D08 Release Bundle（指针行，行为见 release-bundle.md） ─────────────────────────
+- domain: D08 Release Bundle / Distribution
+  resources:
+  - resource: release-bundle   # 行为规格全部由 release-bundle.md §1 承载（T-488 冻结）
+    layer: addon
+    evidence: release-bundle.md §1（源侧 18 端点 + Distribution 侧 v1/v2 索引）/ rest-compat §9
+    confidence: 高
+    operations:
+    - {category: create,          method: POST, path: "/api/release/bundle",            auth: deploy, note: "AQL 装配清单（v1 19 操作族）"}
+    - {category: transaction,     method: POST, path: "…/transaction/{open,close,asyncStatus}", auth: admin, note: "事务三段式（v2 signing 面外登记）"}
+    - {category: store,           method: PUT,  path: "/api/release/store",             auth: admin,  note: "202/200/409 三态"}
+    - {category: read,            method: GET,  path: "/api/release/bundles[/{name}[/{version}[/status]]]", auth: read, note: "查询族 + HEAD 校验和"}
+    - {category: delete,          method: DELETE, path: "/api/release/bundles/{name}/{version}", auth: delete, note: "两行"}
+    - {category: read-config,     method: GET,  path: "/api/release/bundles/config…",   auth: admin,  note: "admin 深度面（artifacts 清单+fat_manifest）"}
+    - {category: distribution-side, method: ANY, path: "/distribution/api/…（v1/v2 ≈60 op）", auth: admin, note: "⛔ 产品界外（独立部署单元，Q2 出口②）"}
+
+# ───────────────────────── D09 Webhook ─────────────────────────
+- domain: D09 Webhook
+  resources:
+  - resource: webhook-subscriptions
+    layer: addon
+    evidence: webhook.md / rest-compat §10
+    confidence: 高
+    operations:
+    - {category: list,   method: GET,    path: "/event/api/v1/subscriptions",           auth: admin, note: ""}
+    - {category: create, method: POST,   path: "/event/api/v1/subscriptions",           auth: admin, note: "201/204 码位按 webhook.md"}
+    - {category: read,   method: GET,    path: "/event/api/v1/subscriptions/{key}",     auth: admin, note: ""}
+    - {category: update, method: PUT,    path: "/event/api/v1/subscriptions/{key}",     auth: admin, note: ""}
+    - {category: delete, method: DELETE, path: "/event/api/v1/subscriptions/{key}",     auth: admin, note: ""}
+    - {category: test,   method: POST,   path: "/event/api/v1/subscriptions/{key}/test", auth: admin, note: ""}
+    - {category: read-troubleshooting, method: GET, path: "/event/api/v1/troubleshooting", auth: admin, note: "流式/历史双模；参数族 webhook.md §7"}
+    - {category: replay, method: POST,   path: "…（outbox 行级重放）", auth: admin, note: "BinFlow 自有增强目标（FR-159.2，C 层）"}
+
+# ───────────────────────── D10 用户插件 ─────────────────────────
+- domain: D10 用户插件
+  resources:
+  - resource: plugins          # PluginsResource 13 操作（Groovy 服务端脚本）
+    layer: core-rest
+    evidence: inv-2 §1.I / rest-compat §11
+    confidence: 高
+    operations:
+    - {category: read-status,  method: GET,  path: "/api/plugins",                    auth: admin, note: ""}
+    - {category: execute,      method: ANY,  path: "/api/plugins/execute/{executionName}（GET+POST）", auth: user, note: "脚本执行"}
+    - {category: staging,      method: POST, path: "/api/plugins/build/staging/{strategy}", auth: user, note: ""}
+    - {category: promote,      method: POST, path: "/api/plugins/build/promote/{name}/{build}/{number}", auth: user, note: "构建级 promotion 钩子"}
+    - {category: read-source,  method: GET,  path: "/api/plugins/{scriptName}",       auth: admin, note: "插件源码"}
+    - {category: reload,       method: POST, path: "/api/plugins/reload",             auth: admin, note: "热重载（refreshIntervalSecs）"}
+    - {category: download,     method: GET,  path: "/api/plugins/download/{pluginName}", auth: user, note: ""}
+
+# ───────────────────────── D11 生命周期治理 ─────────────────────────
+- domain: D11 生命周期治理
+  resources:
+  - resource: cleanup-v1
+    layer: addon
+    evidence: inv-2 §1.F
+    confidence: 中
+    operations:
+    - {category: crud, method: ANY, path: "/api/cleanup…（老版清理策略）+ /ui…/cleanup-ui/packages/policies", auth: admin, note: "族级聚合"}
+  - resource: cleanup-v2
+    layer: addon
+    evidence: inv-2 §1.F / rest-compat §11（≈80 op 族）
+    confidence: 高
+    operations:
+    - {category: policy-crud,   method: ANY, path: "/api/cleanup/packages…（8 op）", auth: admin, note: "策略 CRUD + 手动 run + dry-run view"}
+    - {category: run-list,      method: ANY, path: "…/policies/runs…（6 op）+ view", auth: admin, note: ""}
+    - {category: cleanup-builds, method: ANY, path: "/api/cleanup/builds…",  auth: admin, note: ""}
+    - {category: cleanup-bundles, method: ANY, path: "/api/cleanup/bundles…", auth: admin, note: ""}
+    - {category: read-supported, method: GET, path: "/api/supportedPackages/full…", auth: admin, note: "按包型枚举受支持清理对象"}
+  - resource: retention
+    layer: addon
+    evidence: inv-2 §1.F
+    confidence: 中
+    operations:
+    - {category: policy-crud, method: ANY, path: "/api/retention…（13 op）", auth: admin, note: "保留策略（保多删少）"}
+    - {category: archive-policy, method: ANY, path: "/api/artifactRetention/archive/policies…（11 op）", auth: admin, note: "归档联动"}
+    - {category: tools,        method: ANY, path: "/api/retentionTools/{repositories,coverage,policies} + retention/migration", auth: admin, note: "覆盖率/影响分析/v1→v2 迁移（低置信）"}
+  - resource: cold-storage-archive
+    layer: addon
+    evidence: inv-2 §1.F
+    confidence: 中
+    operations:
+    - {category: policy-crud, method: ANY, path: "/api/archive/v2/packages…（8 op + runs 6 + view）", auth: admin, note: "归档到冷层"}
+    - {category: restore,     method: ANY, path: "/api/archive/v2/{restore,cold,consumption}…", auth: admin, note: "取回与用量统计"}
+  - resource: curation        # xray_tied
+    layer: addon
+    evidence: inv-2 §1.F / rest-compat §11 D11-C
+    confidence: 中
+    operations:
+    - {category: config, method: ANY, path: "/api/curation…（8 op：types/repositories/status/settings/…）", auth: admin, note: "⛔ xray_tied 缺位登记（远端包拦截审计）"}
+
+# ───────────────────────── D12 协议面（按包型） ─────────────────────────
+- domain: D12 协议面
+  resources:
+  - resource: docker-v2       # DockerV2Resource 16 op + OciResource
+    layer: protocol-sub
+    evidence: docker-registry.md（官方 [DIST-API]/[OCI] 为基准）/ rest-compat §11.1 行1
+    confidence: 高
+    operations:
+    - {category: ping,     method: GET,    path: "/v2/（Bearer challenge 兜底）",  auth: anon,  note: "401+WWW-Authenticate realm/service/scope"}
+    - {category: token,    method: GET,    path: "/api/docker/{repoKey}/{v1|v2}/token", auth: anon, note: "token 签发（expires_in 3600）"}
+    - {category: upload-start, method: POST, path: "/v2/<name>/blobs/uploads/[?digest=]", auth: deploy, note: "202+Location+Docker-Upload-UUID（<uuid>.patch）；单体一步 201"}
+    - {category: upload-patch, method: PATCH, path: "/v2/<name>/blobs/uploads/<uuid>", auth: deploy, note: "Content-Range 起点校验 416；追加=读旧+串接重存"}
+    - {category: upload-finish, method: PUT, path: "/v2/<name>/blobs/uploads/<uuid>[?digest=]", auth: deploy, note: "digest sha256 校验失败 400 BLOB_UPLOAD_INVALID+删临时文件"}
+    - {category: upload-status, method: GET, path: "…/blobs/uploads/<uuid>.patch（非标准）", auth: read, note: "204+Range 0-<len-1>；官方标准 GET 端点 Artifactory 未实现"}
+    - {category: blob-read, method: GET|HEAD, path: "/v2/<name>/blobs/<digest>", auth: read, note: "空层 digest 直接合成；HEAD 附全套 X-Checksum 头"}
+    - {category: manifest-put, method: PUT, path: "/v2/<name>/manifests/<ref>", auth: deploy, note: "10 步校验链；schema1 block 403；OCI-Subject 头"}
+    - {category: manifest-read, method: GET|HEAD, path: "/v2/<name>/manifests/<ref>", auth: read, note: "Accept 协商 6 媒体类型；schema2→1 转换"}
+    - {category: delete-manifest, method: DELETE, path: "/v2/<name>/manifests/<digest|tag>", auth: delete, note: "by-tag 为 Artifactory 私有扩展；202/500"}
+    - {category: list-tags,   method: GET, path: "/v2/<name>/tags/list?n=&last=", auth: read, note: "缓存文件 .jfrog/<image>/tags_v2.json；空→404 NO_TAGS_FOUND（偏离）"}
+    - {category: list-catalog, method: GET, path: "/v2/_catalog?n=&last=", auth: read, note: "缓存文件 .jfrog/repository_v2.catalog；n 缺省=全量（偏离官方 100）"}
+    - {category: referrers,  method: GET, path: "/v2/<image>/referrers/<digest>?artifactType=", auth: read, note: "OCI 1.1；索引懒构建；OCI-Filters-Applied 头"}
+  - resource: docker-v1       # DockerSubResource 26 op（deprecated）
+    layer: protocol-sub
+    evidence: inv-2 §1.J / rest-compat §11.1 行1（⛔ deprecated 不实现）
+    confidence: 高
+    operations:
+    - {category: v1-compat, method: ANY, path: "/v1/…（X-Docker-Token/images/{imageId}/json ancestry）", auth: read, note: "v1 API 常量仍在；BinFlow 裁不做"}
+  - resource: docker-api     # /api/docker/{repoKey} 管理面
+    layer: addon
+    evidence: inv-2 §1.J / rest-compat §11.1 行2 / build-info.md §2.6
+    confidence: 高
+    operations:
+    - {category: promote,   method: POST, path: "/api/docker/{repoKey}/v2/promote", auth: deploy, note: "镜像提升（D07 行11 关联）"}
+    - {category: list-tags, method: GET, path: "/api/docker/{repoKey}/…（listTag 族）", auth: read, note: ""}
+  - resource: npm            # ph NpmResource 42 op
+    layer: ph-framework
+    evidence: maven-npm-pypi.md §2 / npm.md（认证族）/ rest-compat §11.1 行3–5
+    confidence: 高
+    operations:
+    - {category: ping,     method: GET,  path: "/api/npm/{repoKey}/-/ping", auth: anon, note: "200 {}"}
+    - {category: login,    method: PUT,  path: "/api/npm/{repoKey}/-/user/org.couchdb.user:<username>", auth: anon, note: "body 凭据 201 铸 token（K60-1）"}
+    - {category: whoami,   method: GET,  path: "/api/npm/{repoKey}/-/whoami", auth: user, note: "匿名 401"}
+    - {category: read-packument, method: GET|HEAD, path: "/api/npm/{repoKey}/{name}（含 @scope）", auth: read, note: "SLIM Accept 协商；ETag=包文档 sha1；304"}
+    - {category: read-version, method: GET, path: "/api/npm/{repoKey}/{name}/{version}", auth: read, note: ""}
+    - {category: publish,  method: PUT, path: "/api/npm/{repoKey}/{name}", auth: deploy, note: "十步校验链；重复版本 403"}
+    - {category: download-tarball, method: GET, path: "/api/npm/{repoKey}/{…}.tgz（scoped 全路径/ _external/ _relative/ 变体）", auth: read, note: "dist.tarball 重写"}
+    - {category: dist-tags-read, method: GET, path: "/api/npm/{repoKey}/-/package/{name}/dist-tags", auth: read, note: ""}
+    - {category: dist-tags-write, method: PUT, path: "…/dist-tags/{tag}", auth: annotate, note: "201 {ok:created new tag}"}
+    - {category: dist-tags-delete, method: DELETE, path: "…/dist-tags/{tag}", auth: annotate, note: "200 空"}
+    - {category: unpublish-version, method: DELETE, path: "/api/npm/{repoKey}/{name}/-/{filename}/-rev/{rev}", auth: delete, note: "-rev PUT 恒 200 假成功（rev-dance 占位）"}
+    - {category: unpublish-package, method: DELETE, path: "/api/npm/{repoKey}/{name}/-rev/{rev}", auth: delete, note: ""}
+    - {category: search,    method: GET,  path: "/api/npm/{repoKey}/-/v1/search?text=", auth: read, note: "text 必填 400"}
+    - {category: reindex,   method: POST, path: "/api/npm/{repoKey}/{path}/reindex", auth: manage, note: ""}
+  - resource: pypi           # ph PypiResource 17 op
+    layer: ph-framework
+    evidence: maven-npm-pypi.md §3 / rest-compat §11.1 行6–7
+    confidence: 高
+    operations:
+    - {category: read-simple-index, method: GET, path: "/api/pypi/{repoKey}/simple/", auth: read, note: "api-version=2 头；rel=internal|external 私有属性"}
+    - {category: read-simple-package, method: GET, path: "/api/pypi/{repoKey}/simple/{name}/", auth: read, note: "无尾斜杠 302；链接 #sha256= 优先"}
+    - {category: download,  method: GET, path: "/api/pypi/{repoKey}/packages/{path}", auth: read, note: ""}
+    - {category: upload,    method: POST, path: "/api/pypi/{repoKey}/（multipart）", auth: deploy, note: ":action=file_upload 严格；md5_digest 可缺失"}
+    - {category: read-json-metadata, method: GET, path: "/api/pypi/{repoKey}/pypi/{name}/json…", auth: read, note: "warehouse legacy JSON API（rest-compat D12 行7）"}
+  - resource: maven-metadata-api
+    layer: core-rest
+    evidence: maven-npm-pypi.md §1.1 / rest-compat §11.1 行8
+    confidence: 高
+    operations:
+    - {category: calculate-metadata, method: POST, path: "/api/maven/calculateMetadata/{repoKey}/{path}?noneRecursive=", auth: manage, note: "异步"}
+    - {category: generate-pom, method: POST, path: "/api/maven/generatePom/{repoKey}/{path}", auth: manage, note: "同步"}
+    - {category: calculate-index, method: POST, path: "/api/maven?reposToIndex=", auth: admin, note: "索引器触发"}
+  - resource: reindex-family   # 各包型重索引（BinFlow 已实现 6 件：conan×2/deb/helm×2/yum）
+    layer: ph-framework
+    evidence: rest-compat §11.1 行9–10 / conan.md §3.3 / debian.md / helm.md §5.2 / rpm.md §3.2
+    confidence: 高
+    operations:
+    - {category: reindex-conan, method: POST, path: "/api/conan/{repoKey}[/{repoPath}]/reindex", auth: manage, note: "MANAGE；Artifactory 异步"}
+    - {category: reindex-debian, method: POST, path: "/api/deb/{repoKey}…", auth: manage, note: ""}
+    - {category: reindex-helm,  method: POST, path: "/api/helm/{repoKey}/reindex[/{path}]", auth: manage, note: "全仓异步/部分同步"}
+    - {category: reindex-yum,   method: POST, path: "/api/yum/{repoKey}?path=&async=", auth: manage, note: "async=0 且自动计算开 → 409"}
+    - {category: reindex-missing-family, method: POST, path: "/api/{alpine,cargo,conda,cocoapods(bower),cran,nuget,opkg,pub,rubygems,swift,terraform,vagrant}/…", auth: manage, note: "官方 calc 条目群；BinFlow 缺位（rest-compat D12 行10）"}
+  - resource: nuget-v2        # NuGetSubResource 18 op 全路由
+    layer: protocol-sub
+    evidence: nuget.md §2–§5（T-304/T-334 锚定）
+    confidence: 高
+    operations:
+    - {category: read-service-document, method: GET, path: "/api/nuget/{repoKey}/（base 根）", auth: user, note: "OData 服务文档；匿名根 GET 豁免例外"}
+    - {category: read-metadata, method: GET, path: "/api/nuget/{repoKey}/$metadata", auth: user, note: "EDMX"}
+    - {category: search,    method: GET,  path: "…/Search()[/$count]?searchTerm=&semVerLevel=", auth: read, note: "括号可省略；semVerLevel 语义官方 wiki"}
+    - {category: read-versions, method: GET, path: "…/FindPackagesById()?id='<id>'[/$count]", auth: read, note: "id 缺失 404（非 400）"}
+    - {category: read-packages, method: GET, path: "…/Packages[()]…（寻址/投影/$count）", auth: read, note: ""}
+    - {category: read-updates, method: GET, path: "…/GetUpdates()/?packageIds=&versions=", auth: read, note: ""}
+    - {category: batch,     method: POST, path: "…/$batch", auth: user, note: "202 multipart/mixed；不支持子形态 400 Unsupported batch entry."}
+    - {category: download,  method: GET,  path: "…/Download/{id}/{ver} 与任意 .nupkg 路径", auth: read, note: ""}
+    - {category: publish,   method: PUT,  path: "/api/nuget/{repoKey}/[/{path}]（multipart 字段 package）", auth: deploy, note: "重复臂：无 d 权限 409/有 d 权限覆盖 201（D-10 终裁）"}
+    - {category: delete,    method: DELETE, path: "…/{id}/{version}/…（前两段=坐标）", auth: delete, note: "硬删；200 Successfully removed"}
+  - resource: nuget-v3        # NuGetV3SubResource 13 op
+    layer: protocol-sub
+    evidence: nuget.md §1/§5.4（K59）/ rest-compat §11.1
+    confidence: 高
+    operations:
+    - {category: read-service-index, method: GET, path: "/api/nuget/v3/{repoKey}/index.json", auth: read, note: "SearchQueryService/registrations/flatcontainer 合成"}
+    - {category: search,    method: GET, path: "…/SearchQueryService…（query/take/skip/prerelease/semVerLevel）", auth: read, note: "remote/virtual 上游代理"}
+    - {category: download-flatcontainer, method: GET, path: "…/v3-flatcontainer/{id}/{ver}/{id}.{ver}.nupkg", auth: read, note: ""}
+    - {category: read-signatures, method: GET, path: "…/repository-signatures…", auth: read, note: "签名索引"}
+  - resource: conan           # repomd 5 子资源 + ConanV2Resource 19 + ph ConanResource 37
+    layer: protocol-sub
+    evidence: conan.md（v1+v2 修订链全量）/ rest-compat §11.1
+    confidence: 高
+    operations:
+    - {category: ping,        method: GET, path: "/api/conan/{repoKey}/{v1|v2}/ping", auth: anon, note: "能力头 X-Conan-Server-Capabilities"}
+    - {category: authenticate, method: GET, path: "…/{v1|v2}/users/authenticate", auth: anon, note: "200 体纯文本 token；握手三端点三类仓同服务"}
+    - {category: check-credentials, method: GET, path: "…/{v1|v2}/users/check_credentials", auth: user, note: ""}
+    - {category: recipe-crud-v2, method: ANY, path: "…/v2/conans/<ref>/revisions/{rRev}/files/{path}", auth: deploy, note: "latest/revisions/files 全修订链"}
+    - {category: package-crud-v2, method: ANY, path: "…/v2/conans/<ref>/revisions/{rRev}/packages/{pid}/revisions/{pRev}/files/…", auth: deploy, note: ""}
+    - {category: delete-v2,   method: DELETE, path: "…/v2/conans/<ref>[…revisions…packages]", auth: delete, note: "整树删语义（T-369 对齐）"}
+    - {category: search-v2,   method: GET, path: "…/v2/conans/search?q=", auth: read, note: "`/*` 尾缀服务端剥离（T-308 D2）"}
+    - {category: v1-data-plane, method: ANY, path: "…/v1/conans/<ref>/{search,digest,download_urls,upload_urls,packages/delete,remove_files} + files/ 直传", auth: deploy, note: "仅 local；十七端点全量（CN-1 终裁）"}
+    - {category: reindex,     method: POST, path: "/api/conan/{repoKey}[/{repoPath}]/reindex", auth: manage, note: "Artifactory 异步/BinFlow 同步（已登记差异）"}
+  - resource: goproxy
+    layer: ph-framework
+    evidence: goproxy.md（go.dev/ref/mod 官方为基准）
+    confidence: 高
+    operations:
+    - {category: list-versions, method: GET, path: "/{repoKey}/<module>/@v/list", auth: read, note: "纯文本；不应含 pseudo-version"}
+    - {category: read-info,  method: GET,  path: "/{repoKey}/<module>/@v/<version>.info", auth: read, note: "缺失时由 .zip 合成并回写"}
+    - {category: read-mod,   method: GET,  path: "/{repoKey}/<module>/@v/<version>.mod", auth: read, note: "无则合成 module 单行"}
+    - {category: download-zip, method: GET, path: "/{repoKey}/<module>/@v/<version>.zip", auth: read, note: ""}
+    - {category: read-latest, method: GET, path: "/{repoKey}/<module>/@latest", auth: read, note: "官方可选端点"}
+    - {category: upload,     method: PUT,  path: "/{repoKey}/<module>/@v/<version>.{zip,mod,info}", auth: deploy, note: "厂商扩展（官方协议只读）"}
+    - {category: sumdb-proxy, method: GET, path: "…/sumdb/sum.golang.org/{supported,lookup,tile}", auth: read, note: "sumdb 代理三端点（BinFlow M11+ 登记未做）"}
+  - resource: cargo
+    layer: protocol-sub
+    evidence: cargo.md（Cargo Book 官方两页为基准）
+    confidence: 高
+    operations:
+    - {category: read-config, method: GET, path: "/{repoKey}/index/config.json", auth: read, note: "{dl,api}；auth-required 匿名握手"}
+    - {category: read-index,  method: GET, path: "/{repoKey}/index/{pkgPath}", auth: read, note: "NDJSON 索引行；ETag/304；404/410/451 三码"}
+    - {category: download,    method: GET, path: "/{repoKey}/v1/crates/{name}/{version}/download", auth: read, note: ""}
+    - {category: publish,     method: PUT, path: "/{repoKey}/api/v1/crates/new", auth: deploy, note: "长度前缀帧 wire；成功体禁 errors 键（R-1）；CG-2 双轨错误"}
+    - {category: yank,        method: DELETE, path: "/{repoKey}/api/v1/crates/{name}/{version}/yank", auth: deploy, note: "unyank=PUT；不存在 404（TL-6）"}
+    - {category: search,      method: GET, path: "/{repoKey}/api/v1/crates?q=&per_page=", auth: read, note: "官方：不带 Authorization"}
+  - resource: helm-classic
+    layer: ph-framework
+    evidence: helm.md（helm.sh 官方两章 + JFrog 文档为基准）
+    confidence: 高
+    operations:
+    - {category: read-index,  method: GET|HEAD, path: "/api/helm/{repoKey}/index.yaml", auth: read, note: "virtual=聚合面（.index 缓存键含 contextUrl+权限哈希）"}
+    - {category: download-chart, method: GET, path: "/api/helm/{repoKey}/<chart>.tgz[.prov]", auth: read, note: ""}
+    - {category: external-proxy, method: GET, path: "…/_external|_transitive/{protocol}/{url…}", auth: read, note: "local → 400；模式不匹配 400"}
+    - {category: upload,     method: PUT,  path: "/{repoKey}/<chart>-<version>.tgz（内容面）", auth: deploy, note: "触发 index 重算事件；enforce layout 403 族"}
+    - {category: delete,     method: DELETE, path: "/{repoKey}/<path>.tgz", auth: delete, note: "索引条目移除事件"}
+  - resource: generic-content  # simple-default；矩阵参数属性化部署
+    layer: protocol-sub
+    evidence: rest-api.md §1 / inv-3 §2.2 GENERIC
+    confidence: 高
+    operations:
+    - {category: deploy,   method: PUT,    path: "/{repoKey}/{path}", auth: deploy, note: "simple-default layout 仅展示用（includesPattern **/* 无强约束）"}
+    - {category: download, method: GET,    path: "/{repoKey}/{path}", auth: read,   note: ""}
+    - {category: delete,   method: DELETE, path: "/{repoKey}/{path}", auth: delete, note: ""}
+  - resource: terraform       # registry + backend 双面
+    layer: ph-framework
+    evidence: inv-3 §2.5 TERRAFORM/TERRAFORMBACKEND 行 / inv-2 §1.J
+    confidence: 高
+    operations:
+    - {category: discovery, method: GET, path: "/.well-known/terraform.json", auth: read, note: "服务发现"}
+    - {category: module-api, method: ANY, path: "…/v1/modules（search/{ns}/{name}/{provider}/versions/download）", auth: read, note: ""}
+    - {category: provider-api, method: ANY, path: "…/v1/providers…（transitive/external 下载代理）", auth: read, note: ""}
+    - {category: state-backend, method: ANY, path: "…/v2/state-versions…（+current/workspaces/lock/unlock）", auth: deploy, note: "HTTP state 后端 + state 锁"}
+  - resource: package-handlers-remaining   # 40+ 包型协议栈（族级聚合，逐包型行为见 protocols/registry.yaml）
+    layer: ph-framework
+    evidence: inv-2 §1.J 末行 / inv-3 §2 全表 / rest-compat §11.1 行15
+    confidence: 高
+    operations:
+    - {category: protocol-stack, method: ANY, path: "各包型专属面（oci/gems/composer/swift/pub/conda/cran/cocoapods/bower/hex/luarocks/nimmodel/bazelmodules/nix/vcs/gitlfs/alpine/opkg/ansible/puppet/chef/vagrant/p2/huggingface/machinelearning/vscode/jetbrains/aieditor/skills/agentplugins/agentpackages…）", auth: UNKNOWN, note: "逐包型端点/语义 → docs/reverse/protocols/registry.yaml；认证=按包型强制开关+路径权限（待逐包型规格）"}
+  - resource: migrator
+    layer: ph-framework
+    evidence: inv-2 §1.J / rest-compat §11.1 行16
+    confidence: 中
+    operations:
+    - {category: migration-jobs, method: ANY, path: "/api/v1/migrations…（13 op）+ /migration/metrics", auth: admin, note: "内嵌包迁移作业；BinFlow bf-migrate CLI 等价候裁"}
+
+# ───────────────────────── D13 UI 内部面 ─────────────────────────
+- domain: D13 UI 内部面（/ui/api/v1，≈470 op）
+  resources:
+  - resource: treebrowser-family
+    layer: ui-rest
+    evidence: inv-2 §1.K / console-ui.md
+    confidence: 高
+    operations:
+    - {category: browse, method: GET, path: "/ui/api/v1/treebrowser|v2/treebrowser|nativeBrowser…", auth: read, note: "树浏览三形态"}
+  - resource: artifact-tabs
+    layer: ui-rest
+    evidence: inv-2 §1.K
+    confidence: 高
+    operations:
+    - {category: read-tab, method: GET, path: "/ui/api/v1/{artifactgeneral,checksums,artifactproperties,artifactpermissions,artifactwatches,dependencydeclaration,…}", auth: read, note: "Tab 数据族（含 views/{alpine,nuget,swift} 18 op、archiveViewSource）"}
+  - resource: artifact-actions
+    layer: ui-rest
+    evidence: inv-2 §1.K
+    confidence: 高
+    operations:
+    - {category: act, method: ANY, path: "/ui/api/v1/artifactactions…（19 op：复制/移动/删除/watch/删旧版本）", auth: deploy, note: ""}
+  - resource: ui-deploy
+    layer: ui-rest
+    evidence: inv-2 §1.K
+    confidence: 高
+    operations:
+    - {category: deploy, method: POST, path: "/ui/api/v1/artifact…（5 op 含 exploded archive）", auth: deploy, note: ""}
+  - resource: native-packages-ui
+    layer: ui-rest
+    evidence: inv-2 §1.K
+    confidence: 高
+    operations:
+    - {category: read, method: GET, path: "/ui/api/v1/native/{packages,versions,repos}…（8+10 op）", auth: read, note: "包/版本原生浏览"}
+  - resource: home-widgets-validations-tools
+    layer: ui-rest
+    evidence: inv-2 §1.K
+    confidence: 高
+    operations:
+    - {category: read, method: GET, path: "/ui/api/v1/home/widget…（5 op）", auth: user, note: "首页 widget"}
+    - {category: validate, method: ANY, path: "/ui/api/v1/validations…（6 op）", auth: user, note: ""}
+    - {category: tool, method: ANY, path: "/ui/api/v1/{crontime,predefinevalues,repopropertyset,autoCompleteRepodata,pagedRepodata,repodata}", auth: user, note: "工具族"}
+  - resource: setmeup
+    layer: ui-rest
+    evidence: inv-2 §1.H/K（build.gradle.*.template ×12）
+    confidence: 高
+    operations:
+    - {category: generate, method: ANY, path: "/ui/api/v1/setMeUp…（20 op）", auth: read, note: "按仓/包型生成客户端配置片段"}
+  - resource: onboarding-projects-licenses
+    layer: ui-rest
+    evidence: inv-2 §1.H/K
+    confidence: 中
+    operations:
+    - {category: read-update, method: ANY, path: "/ui/api/v1/onboarding[?quickstart]", auth: admin, note: "首启向导"}
+    - {category: read-projects, method: ANY, path: "/ui/api/v1/projects…+ /api/internal/storage/projects/{projectKey}", auth: admin, note: "项目域存储隔离查询"}
+    - {category: manage-licenses, method: ANY, path: "/ui/api/v1/licenses…（manageLicenses/licenseexport/registerlicense）", auth: admin, note: ""}
+  - resource: ui-login-screen
+    layer: ui-rest
+    evidence: inv-2 §1.K
+    confidence: 高
+    operations:
+    - {category: read, method: GET, path: "/ui/api/v1/auth/screen…", auth: anon, note: "登录屏"}
+
+# ───────────────────────── D14 外部产品面 ─────────────────────────
+- domain: D14 外部产品面（族级合并，⛔ 登记口径）
+  resources:
+  - resource: access-platform
+    layer: addon
+    evidence: rest-compat §11 D14 / 官方 administration reference 索引
+    confidence: 高
+    operations:
+    - {category: platform-api, method: ANY, path: "/access/api/…（用户/组/token/SCIM/SAML/OIDC/LDAP/projects 联邦 ≈15）", auth: admin, note: "Access 服务面（≈185 条目归 ⛔ 族）"}
+  - resource: external-products
+    layer: addon
+    evidence: rest-compat §11 D14
+    confidence: 高
+    operations:
+    - {category: xray, method: ANY, path: "…（漏洞/合规/license 识别）", auth: admin, note: "Xray 唯一排除（PRODUCT 范围终裁）"}
+    - {category: pipelines-mc-bridge-workers, method: ANY, path: "…（Pipelines/Mission Control+Grid+JPD ≈25/Bridge ≈19/JFConnect 7/Workers 14）", auth: admin, note: "外部独立产品面"}
+    - {category: cloud-specific, method: ANY, path: "…（signed URL/private link/SSL objects/IP allowlist/NAT/regions/MyJFrog/server list ≈19）", auth: admin, note: "云专属（物理不可行）"}
+    - {category: bintray-sunset, method: ANY, path: "…（Distribute Artifact 等）", auth: admin, note: "已 sunset（物理不可行）"}
+
+# ───────────────────────── 待验证（本清单粒度下的低置信锚） ─────────────────────────
+pending_verification:
+  - {id: INV-API-1, item: "grid（v1/grid/repos snapshot/provision）与 Jem addon 语义", why: 仅见资源类未见流转, need: 活体 curl + 企业档实例}
+  - {id: INV-API-2, item: "artifact-metadata 写动词与权限", why: inv-2 仅记资源名, need: 反编译 ArtifactMetadataResource 方法注解复检}
+  - {id: INV-API-3, item: "package-handlers-remaining 族逐包型认证面", why: 族级聚合未逐包型取证, need: 逐包型规格票（protocols/registry.yaml 低置信字段同源）}
+  - {id: INV-API-4, item: "retentionTools/*（coverage/impact）计算口径", why: 仅资源类, need: 反编译服务端复检}
+  - {id: INV-API-5, item: "system.yaml 优先级 vs artifactory.system.properties（跨清单：configuration-map.yaml UNKNOWN 同源）", why: loader 未完整走读, need: 反编译 ArtifactorySystemProperties/system yaml loader}

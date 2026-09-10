@@ -1,0 +1,16 @@
+# 来源: SOURCE B 运行时容器 /opt/jfrog/artifactory/var/etc/system.yaml（docker exec 只读取证）
+# 版本: 7.161.20 | 证据等级: E4 | 摘录（脱敏）
+# 脱敏说明: password 原值为 "<2位hex>.aesgcm256.<base64url密文>" 形态（首启时被 access 用 master.key 加密后回写），
+#           本摘录以占位符替代密文，避免可解密凭据落盘。形态本身（前缀算法标记）保留。
+# 用途: 全新引导实例的最小 system.yaml 实态——绝大多数键留默认（缺省即模板注释值），
+#       仅 DB 连接与 node.ip 被环境注入写入。
+
+shared:
+    node:
+        ip: <容器宿主网络 IP，由启动脚本自动解析写入>
+    database:
+        driver: org.postgresql.Driver
+        type: postgresql
+        url: jdbc:postgresql://<外部 DB 主机>:5432/artifactorydb
+        username: artifactory
+        password: <redacted>.aesgcm256.<redacted-ciphertext>

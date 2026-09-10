@@ -1,123 +1,55 @@
-import { createContext, useCallback, useContext, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
-import Alert from '@mui/material/Alert'
-import Box from '@mui/material/Box'
-import Link from '@mui/material/Link'
-import Snackbar from '@mui/material/Snackbar'
-import { tr } from '../i18n'
+import { toast } from '@/lib/toast'
 
-const tt = tr('console')
-
-// toast（console-ux §3.5）：右下角堆叠；成功 5s 自动消失、错误常驻至
-// 手动关闭；可带一个动作链接。aria-live 播报，无需焦点抢占。
-// T-344 批 B：div.toast-stack + .toast 手作条 → Snackbar + Alert
-// （mui-native-visual §4.2）。MUI Snackbar 自带 fixed 锚位与多实例无内建
-// 堆叠——堆叠形态由容器 Box 承载，Snackbar 置 static 参与列流并保留
-// Slide 入场动效；`toast`/`toast-stack` 类名与 toast 锚原样（§3.8 钩子）。
+// toast 门面桥（FE-P4 MUI 清场）：旧 Snackbar/Alert 栈退役，本文件降为
+// 「旧 useToast() API → sonner」的适配层——AuthContext / RepoDeleteConfirm /
+// PropertiesTab / ReplicationsSection 等存量消费面的调用形态零改点。
+//
+// 语义对齐（console-ux §3.5 旧契约逐条）：
+// - 右下角堆叠：Toaster（app/providers/toast-provider——position
+//   bottom-right）已挂载，本层零 DOM；
+// - 成功 5s 自动消失、错误常驻（duration Infinity）至手动关闭（Toaster
+//   开 closeButton）；
+// - 动作链接（action）：sonner 原生 action 槽（点击后自动消散）；
+// - aria-live 播报：sonner ol[aria-live] 家族语义承载；
+// - `toast` testid：经 lib/toast 门面统一携带（70 处 spec 消费面零迁移）。
+//
+// useToast 不再是 context 消费（sonner 是模块级单例）——保留函数形态，
+// 存量调用点零改动；ToastProvider 保留为恒等组件（main.tsx 过渡期可摘）。
 
 export interface ToastAction {
   label: string
   onClick: () => void
 }
 
-interface ToastItem {
-  id: number
-  kind: 'success' | 'error'
-  message: string
-  action?: ToastAction
-}
-
-interface ToastApi {
+export interface ToastApi {
   success: (message: string, action?: ToastAction) => void
   error: (message: string, action?: ToastAction) => void
 }
 
-const ToastContext = createContext<ToastApi>({
-  success: () => {},
-  error: () => {},
-})
-
 const SUCCESS_TTL_MS = 5000
 
-export function ToastProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<ToastItem[]>([])
-  const nextId = useRef(1)
-
-  const dismiss = useCallback((id: number) => {
-    setItems((cur) => cur.filter((t) => t.id !== id))
-  }, [])
-
-  const push = useCallback(
-    (kind: ToastItem['kind'], message: string, action?: ToastAction) => {
-      const id = nextId.current++
-      setItems((cur) => [...cur, { id, kind, message, action }])
-      if (kind === 'success') {
-        window.setTimeout(() => dismiss(id), SUCCESS_TTL_MS)
-      }
-    },
-    [dismiss],
-  )
-
-  const success = useCallback((message: string, action?: ToastAction) => push('success', message, action), [push])
-  const error = useCallback((message: string, action?: ToastAction) => push('error', message, action), [push])
-
-  return (
-    <ToastContext.Provider value={{ success, error }}>
-      {children}
-      <Box
-        className="toast-stack"
-        aria-live="polite"
-        sx={{
-          position: 'fixed',
-          right: 16,
-          bottom: 16,
-          zIndex: (t) => t.zIndex.snackbar,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 1,
-          maxWidth: 380,
-        }}
-      >
-        {items.map((t) => (
-          <Snackbar
-            key={t.id}
-            open
-            sx={{ position: 'static', left: 'auto', right: 'auto', justifyContent: 'flex-start' }}
-          >
-            <Alert
-              className={`toast ${t.kind}`}
-              data-testid="toast"
-              severity={t.kind}
-              role={t.kind === 'error' ? 'alert' : 'status'}
-              onClose={() => dismiss(t.id)}
-              closeText={tt('关闭通知')}
-              sx={{ alignItems: 'flex-start' }}
-              action={
-                t.action ? (
-                  <Link
-                    component="button"
-                    underline="hover"
-                    color="inherit"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      t.action?.onClick()
-                      dismiss(t.id)
-                    }}
-                  >
-                    {t.action.label}
-                  </Link>
-                ) : undefined
-              }
-            >
-              {t.message}
-            </Alert>
-          </Snackbar>
-        ))}
-      </Box>
-    </ToastContext.Provider>
-  )
+const api: ToastApi = {
+  success: (message, action) => {
+    void toast.success(message, {
+      duration: SUCCESS_TTL_MS,
+      ...(action ? { action: { label: action.label, onClick: action.onClick } } : {}),
+    })
+  },
+  error: (message, action) => {
+    // 错误常驻（旧契约）：duration Infinity + Toaster closeButton 手动关
+    void toast.error(message, {
+      duration: Infinity,
+      ...(action ? { action: { label: action.label, onClick: action.onClick } } : {}),
+    })
+  },
 }
 
+/** 旧 ToastContext.useToast 的恒等桥（sonner 单例——零 context） */
 export function useToast(): ToastApi {
-  return useContext(ToastContext)
+  return api
+}
+
+/** 过渡期恒等 Provider（P4 起 main.tsx 不再需要挂载） */
+export function ToastProvider({ children }: { children: React.ReactNode }) {
+  return <>{children}</>
 }

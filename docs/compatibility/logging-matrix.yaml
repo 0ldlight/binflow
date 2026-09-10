@@ -1,0 +1,61 @@
+# =====================================================================
+# Artifactory 日志 taxonomy × BinFlow 现状对照矩阵（宪章 §12）
+# =====================================================================
+# Artifactory 侧聚合自：docs/reverse/logging/taxonomy.yaml（93 文件条目，E1~E4）
+#   + docs/reverse/logging/format-spec.md（行格式/轮转/trace-id 语义）。
+#   家族粒度 = logger 家族 / 文件族（同一 writer 语义归一族）；家族内的逐文件差异
+#   记在 family 的 detail 字段，不再逐文件一行。
+# BinFlow 侧结论基于当前 develop 代码实读（2026-09-11）：
+#   - cmd/binflow-server/main.go newLogger()：slog 单流（JSON 缺省 / console 文本），
+#     level 仅启动期由 logging.level 配置——无运行时调级 API；
+#   - internal/httpapi/middleware.go：requestID（mint+回显响应头）与 accessLog
+#     （每请求一行结构化 slog：method/path/status/duration_ms/remote_addr/user/
+#     bytes_in/bytes_out/request_id；≥500 ERROR、client-disconnect 降 WARN）；
+#   - internal/audit：DB 追加审计 + 查询 REST（非文件形态）；
+#   - internal/metrics：GET /metrics Prometheus 文本（无文件 sink）。
+#   BinFlow 为单进程单日志流——无 per-service 文件、无轮转、无 archived/ 目录。
+# binflow_equivalent 词汇：none（无对应物）/ partial（有最小对应物，指针注明差距）/
+#   equivalent（形态对齐）。本矩阵是对照矩阵非契约；契约化按 P1 族逐族开票。
+# 写入者：compatibility-engineer（Phase 0 任务 #8，2026-09-11）。
+meta:
+  charter_ref: "§12 日志体系"
+  artifactory_source: [docs/reverse/logging/taxonomy.yaml, docs/reverse/logging/format-spec.md]
+  artifactory_scale: "var/log 87 项实测；taxonomy 93 条目（含 usage/tomcat/archived）"
+  binflow_baseline: "develop @ 7c8bfaba 单进程实读（见头注四组件）"
+  generated: 2026-09-11
+  families: 23
+
+summary:
+  binflow_equivalent_distribution: { equivalent: 0, partial: 13, none: 10 }
+  reading: "BinFlow 是「单流结构化日志 + DB 审计 + 指标端点」三件套；Artifactory 是「四 logger 家族 × 93 文件 + 双轮转语义 + trace 贯穿」。无一行族达到 equivalent——单进程复刻的差距在文件族/行格式/轮转三层，均在可补范围（差分可锚 :8082 现成样本）。"
+
+families:
+- { family: F01 jfrt-service（Java 主服务应用日志）, artifactory: "artifactory-service.log，jftext 八槽格式（ts/[jfrt ]/级别/trace/调用点尾3段/线程20/` - `/消息）；异常节流 5/h/logger；根 warn、org.artifactory info", binflow_equivalent: "partial — slog 单流（cmd/binflow-server newLogger，JSON/console 双形态）；无槽位格式、无服务 tag、无异常节流", gap: "行格式/级别分层/异常节流三差；BinFlow 单进程无服务分文件概念（可裁：按需出 jfrt 风格文件）", priority: P1 }
+- { family: F02 jfrt-request（主服务请求日志）, artifactory: "artifactory-request.log，pipe11（ts|trace|IP|用户|METHOD|路径|状态|reqLen|resLen|durationMs|UA）；reqLen 无体=-1；路径剥 /artifactory 前缀；用户三分态 admin/anonymous/non_authenticated_user", binflow_equivalent: "partial — httpapi accessLog 中间件（method/path/status/duration_ms/remote_addr/user/bytes_in/bytes_out/request_id）", gap: "竖线格式 vs JSON 键值；无 UA（刻意不记头）；bytes_in 无体=0 非 -1；无 trace-id；无 per-file sink", priority: P1 }
+- { family: F03 jfrt-request-out + request-trace（出站与追踪）, artifactory: "artifactory-request-out.log（pipe11 含 sha1）+ artifactory-storage-request-out.log（存储层内部出站）+ artifactory-request-trace.log（trace 级诊断，默认空）", binflow_equivalent: "none", gap: "出站请求日志整族缺（BinFlow remote 回源无出站日志面）；internal/remote 无对应 writer", priority: P2 }
+- { family: F04 access-request（access 请求日志）, artifactory: "access-request.log，pipe11 但 res 在前 req 在后；gRPC 行（--UNA 标记/gRPC 状态码/方法全路径）；trace 16hex 变宽", binflow_equivalent: "none", gap: "无独立 access 面（单进程认证在 internal/auth）；/access/* 路径复刻时需决定是否单进程内分文件", priority: P2 }
+- { family: F05 Java 微服务族（jfcfg/jftpl）, artifactory: "jfconfig/topology 各 service+request+request-out+metrics（独立 logback）；topology 7 字段 out；derby 诊断归 F18", binflow_equivalent: "partial — 对应配置/拓扑子系统走同一 slog 单流", gap: "Artifactory 服务级分文件在单进程下是裁定点（形态差异，需 INTENTIONAL 裁定或文件族复刻）", priority: P2 }
+- { family: F06 Go 服务族应用日志, artifactory: "jffe/jfmd/jfevt/jfevd/jfcon/jfmel/jfob/jfomr/jfrou <svc>-service.log，jftext-go（tag 无尾空格/文件名.go:行号右补齐/main 槽/组件槽；jfmd/jffe 无组件槽；jfmel 带 span 尾巴）；frontend 调用点槽=字面文件名", binflow_equivalent: "partial — slog 承载等价信息（caller 由 slog source 可选）", gap: "组件槽/span 尾巴/jftext 槽位格式缺；BinFlow 无服务概念（单进程）", priority: P2 }
+- { family: F07 Go 请求族, artifactory: "8 服务 <svc>-request.log，pipe11 变体：metadata 32hex 左补零、event/onemodel 尾多两空字段、frontend trace 恒空+reqLen=- +毫秒小数；无体 reqLen=0（与 Java -1 不同）", binflow_equivalent: "partial — 同一 accessLog 中间件覆盖全部路径", gap: "逐服务字段序差异 BinFlow 不存在（单一 writer）；若复刻 /event /onemodel 路径面需决定日志形态", priority: P2 }
+- { family: F08 Go request-out 族, artifactory: "jfconnect/jfmelt/observability/onemodel/evidence-request-out.log（pipe8；evidence 含 Go 格式化动词错配原样落盘——上游真实行为）；topology pipe7", binflow_equivalent: "none", gap: "无出站日志；未来 remote/webhook 出站可参照 pipe8 形态", priority: P2 }
+- { family: F09 token 审计（access-audit.log）, artifactory: "`ts [AUDIT] Token created/refreshed/deleted ...`（tokenId/issuer/subject/expiry/refreshable 键值）", binflow_equivalent: "partial — internal/audit DB 追加（token 生命周期事件有审计钩子面）", gap: "文件行格式（[AUDIT] 前缀+自由键值）vs DB 行；binflow 无 var/log 文件输出", priority: P1 }
+- { family: F10 安全审计（access-security-audit + artifactory-access.log）, artifactory: "access-security-audit.log pipe8（trace|IP|操作者|主体|实体|事件码 C/D|实体码 TKN/PRS/LGN|变更JSON 脱敏）；artifactory-access.log `[trace] [ACCEPTED LOGIN/DEPLOY/DOWNLOAD/DELETE] repo:path for client: user/ip`", binflow_equivalent: "partial — internal/audit 事件模型 + 查询 REST（GE-01/T-93 keyset 分页）", gap: "两文件行格式与事件码词表缺（U-LOG-03/04 收口后可契约化）；DB vs 文件双形态并存的裁定未做", priority: P1 }
+- { family: F11 jfrt 功能任务日志族, artifactory: "artifactory-binarystore(10MB)/cleanup-audit(json-line 数字序号 %i 1..1000 1GB)/import-export(独立格式 `ts [级别] (logger:行) msg`)/shadow/sha256-migration/path-checksum-migration/conan-v2-migration/service-federation/event.log(trace|msg)", binflow_equivalent: "none — 各任务走 slog 单流无专属文件", gap: "九文件族整缺；cleanup-audit 的 json-line+数字序号轮转是治理审计载体（对应 BinFlow cleanup 域缺口）", priority: P1 }
+- { family: F12 traffic 流量统计族, artifactory: "artifactory-traffic.<epoch-ms>/-v2/-v3/xray-traffic + metadata-traffic；行格式 UNKNOWN（活体 0 字节，U-LOG-02）；v2/v3 轮转 15min/500 份", binflow_equivalent: "none", gap: "双缺口：Artifactory 侧行格式未取证（U-LOG-02）+ BinFlow 无对应物；traffic 与 DB 台账（db/traffic）关系待证", priority: P1 }
+- { family: F13 metrics 文件族, artifactory: "<svc>-metrics.log / -metrics_events.log / usage-metrics / federation-metrics：Prometheus exposition 行+尾部抓取时戳列；15min 定长轮转", binflow_equivalent: "partial — internal/metrics GET /metrics（同 exposition 格式，ADR-0022 手写序列化）", gap: "端点有、文件族无（无定时落盘/无 per-service 指标文件）；jfrt_*/jfsh_*/app_* 前缀约定未对齐", priority: P2 }
+- { family: F14 usage 用量域, artifactory: "data/{artifactory,access}/usage/*.log（artifactory-usage/consumption-usage/aggregated|raw-{usage,consumption}-metrics；多数 UNKNOWN 空文件）；独立于 var/log 的 data 树", binflow_equivalent: "none", gap: "用量遥测整块缺（与 observability 域 usage telemetry 能力同缺口）", priority: P2 }
+- { family: F15 jfbus 事件总线族, artifactory: "jfbus-service.log（[INFO] 不补齐+全限定类名）+ ack/consume/publish-events.log（逐行 JSON，负载 schema UNKNOWN U-LOG-07）+ request/receive-polling（pipe11，内部消费者主体）", binflow_equivalent: "partial — internal/webhook bus/outbox 有事件骨架，无日志文件面", gap: "三事件文件+轮转 UNKNOWN（U-LOG-08）；与 F23 事件域联动", priority: P2 }
+- { family: F16 router/traefik 族, artifactory: "router-request.log（Traefik JSON 访问日志：Duration/Overhead 纳秒、request_<Header> 透传、600 权限）+ router-service.log + router-traefik.log（ANSI 文件内不剥色）", binflow_equivalent: "partial — accessLog 覆盖网关级请求（单进程无 router 跳数）；无 JSON 访问日志形态/无 600 权限语义", gap: "若 BinFlow 对外复刻 /router/api/v1/system/health 需同裁日志面；traefik 层单进程不存在（形态差异）", priority: P2 }
+- { family: F17 tomcat JULI 容器族, artifactory: "var/log/tomcat/ 四前缀按日文件（catalina/localhost × jfrt/jfac）；JULI 单行格式；console 恒 JSON（SimpleFormatter 模板）", binflow_equivalent: "none — Go 进程无容器层日志", gap: "纯形态差异（JVM 容器日志）；BinFlow 单二进制天然无对应——候选 INTENTIONAL（需裁定登记）", priority: P2 }
+- { family: F18 DB 诊断与占位（derby/dummy）, artifactory: "derby.log + topology-derby.log（derby.stream.error 非轮转）+ dummy.log（Go 串表占位 0 字节，创建时机 U-LOG-09）", binflow_equivalent: "none — BinFlow 用 sqlite/postgres（无 Derby）", gap: "形态差异；若支持 Derby 方言（db-persistence 域裁定）才需 derby.log", priority: P2 }
+- { family: F19 access 线程诊断（access-thread-dump.log）, artifactory: "thread-dump 文件（logback 轮转 25MB/23h）", binflow_equivalent: "none", gap: "无线程转储面；Go pprof 有等价诊断能力但无文件输出（可裁 pprof 端点替代——需登记形态差异）", priority: P2 }
+- { family: F20 console 双流与聚合（console.log + logrotate）, artifactory: "console=stdout 恒有（ANSI 色；Go 族可选 JSON）；shared.logging.consoleLog.enabled=true 聚合 var/log/console.log（logrotate daily/copytruncate 唯一对象；Docker 恒跳过=0 字节配置）", binflow_equivalent: "partial — slog→stderr 即 console 流（JSON/console 两形态对齐 enableJsonConsoleLogAppenders 语义的一半）", gap: "无 ANSI 色码槽、无聚合 console.log、无 logrotate 集成（容器部署下 Artifactory 也跳过——可裁对齐）", priority: P2 }
+- { family: F21 轮转与归档语义, artifactory: "Java 族 logback 双触发（25MB 或 23h，先到先转）+归档名 %i=UTC 时间戳+maxIndex=10（traffic 500/metrics 150/cleanup 1000 数字版）；Go 族五元组（25MB/10 文件/365 天/压缩/留 1 未压，连字符归档名）；JULI 按日不压缩；重启以最新归档 mtime 续 interval 基准", binflow_equivalent: "none — stderr 单流交由部署层（docker/journald）轮转", gap: "契约面差距：若复刻文件族则轮转语义成套要（双触发/归档名/保留数）；若裁「文件族不做」需 INTENTIONAL 裁定+authority", priority: P1 }
+- { family: F22 trace-id 贯穿, artifactory: "uber-trace-id 32hex 同链贯穿 router/access/artifactory/metadata request 日志（E4 因果对实证）；各文件形态 7 变体（16hex/32hex/左补零/恒空——format-spec §12 表）；服务日志槽空时 16 空格", binflow_equivalent: "partial — requestID 中间件（mint 32hex+回显 X-Request-Id 响应头+入 accessLog）；不接收外部 Uber-Trace-Id 头", gap: "单进程内贯通天然成立；缺：入站 trace 头采纳、多形态宽度语义、与日志槽位对齐", priority: P1 }
+- { family: F23 运行时调级与诊断 API, artifactory: "Admin 运行时日志级别 API（jfrt）+ Go 族 <svc>.logging.application.level 运行时可调（模板注释「configurable at runtime」）+ live logs 流式（LIVE_LOGS entitlement）", binflow_equivalent: "partial — logging.level 仅启动期生效（newLogger switch），无运行时 API、无 live logs 流", gap: "调级 REST 契约缺；live logs 属观测域 REST 面（matrix D06 ❌ 行族）", priority: P1 }
+
+# ── 契约化路线（给 differential-qa-engineer 的批次输入；契约票按族开） ──
+contract_pipeline:
+  first_batch: [F02, F10]   # request 与安全审计先行：:8082 现成样本可锚金样，normalize 只需时间戳/trace-id/UA
+  blocked_on_unknown: { F12: U-LOG-02, F09: "U-LOG-03/04（词表）", F15: "U-LOG-07/08" }
+  form_divergence_rulings: [F17, F18, F21]   # 形态差异族：需 INTENTIONAL/UNSUPPORTED 裁定（known-divergence 台账，authority 缺位前不裁）

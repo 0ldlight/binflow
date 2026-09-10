@@ -33,6 +33,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
+    // AG Grid v36 Theming API 的深浅选档（html[data-ag-theme-mode]——
+    // grid 的 styled-root portal 到 body 级，仓内属性不可达）
+    document.documentElement.dataset.agThemeMode = theme
     try {
       localStorage.setItem(STORAGE_KEYS.theme, theme)
     } catch {

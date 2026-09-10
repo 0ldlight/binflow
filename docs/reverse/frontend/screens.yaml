@@ -1,0 +1,149 @@
+# Artifactory Frontend Screen Inventory — evidence index (E1/E2/E4)
+#
+# > IMPORTANT (clean-room): EVIDENCE INDEX of screens observed in the reference console.
+# > NOT a design input for BinFlow pages (program charter §39-41; ADR-0001). Screen behavior
+# > details remain in console-ui.md / console-artifactory-parity.md.
+#
+# four_states legend (per screen): 加载 loading / 空 empty / 错误 error / 成功 success.
+#   documented-<E> = 有出处; UNKNOWN = 无证据, 禁猜 (per charter §44).
+# Global component-level patterns apply to all list screens (console-ui §5):
+#   empty-global  = "No results were found" + "Try to change your search" (E4, 7.84.10 走查)
+#   loading-global = 未专项取证 (console-ui §5 标低——树为虚拟滚动渐进渲染)
+#   danger-confirm = 标题+后果+Cancel/确认(危险色) 双按钮 (E4)
+#   inline-validation = "You must fill in this field" 字段下内联, blur 触发 (E4)
+#   pagination = "Showing a - b from c items" + 页码, AG Grid 列头排序 (E4)
+# sources: console-ui = docs/reverse/console-ui.md (OSS 7.84.10 live walkthrough);
+#          parity = docs/design/console-artifactory-parity.md (pattern anchors);
+#          ux4 = docs/design/console-ux.md §5 (BinFlow 侧四态规范——对照用, 非参照证据).
+
+meta:
+  runtime_reference: "http://localhost:8082 (7.161.20); walkthrough source 7.84.10 (version skew flagged)"
+  screens_total: 41
+  coverage: { walked: 26, route_only_unknown: 15 }
+
+walked_screens:   # console-ui.md 走查覆盖(7.84.10)——四态逐项判据
+  - id: login
+    route: /ui/login/
+    four_states:
+      loading: UNKNOWN
+      empty: "不适用(表单页)"
+      error: documented-E4 (停留本页; console-ui §2.2)
+      success: documented-E4 (admin 首登→onboarding, 余→/ui/packages; §2.2)
+  - id: onboarding
+    route: /ui/admin/onboarding-page
+    four_states: { loading: UNKNOWN, empty: 不适用, error: UNKNOWN, success: documented-E4 (点 Skip 进落地页; §1.1) }
+  - id: packages
+    route: /ui/packages
+    four_states: { loading: UNKNOWN, empty: UNKNOWN (卡片空态未见, §5), error: UNKNOWN, success: documented-E4 (卡片流+排序; §3.1) }
+  - id: artifacts-tree
+    route: /ui/repos/tree/General[/<path>]
+    four_states:
+      loading: documented-低 (虚拟滚动渐进渲染; console-ui §5)
+      empty: UNKNOWN
+      error: UNKNOWN
+      success: documented-E4 (懒加载展开/URL 同步/深链自动展开; §3.2)
+  - id: artifact-search-results
+    route: /ui/artifactSearchResults
+    four_states: { loading: UNKNOWN, empty: UNKNOWN, error: UNKNOWN, success: documented-E4 (含计数不一致怪癖; §3.3) }
+  - id: repositories-list
+    route: /ui/admin/repositories/{local|remote|virtual}
+    four_states: { loading: UNKNOWN, empty: UNKNOWN, error: UNKNOWN, success: documented-E4 (Tab/计数/AG Grid/行删; §3.4) }
+  - id: repository-form
+    route: /ui/admin/repositories/{type}/new|{key}/edit
+    four_states:
+      loading: UNKNOWN
+      empty: 不适用
+      error: documented-E4 (必填空 blur 即错 "You must fill in this field"; §3.5)
+      success: documented-E4 (Create Local Repository/Save 提交; 成功 toast 未捕获=UNKNOWN, §4-12)
+  - id: users-list
+    route: /ui/admin/management/users
+    four_states: { loading: UNKNOWN, empty: UNKNOWN, error: UNKNOWN, success: documented-E4 (列/Total Users 计数; §3.6) }
+  - id: user-form
+    route: /ui/admin/management/users/{new|{name}/edit}
+    four_states:
+      loading: UNKNOWN
+      empty: documented-E4 (穿梭空侧 "No Items Selected"; §4-11)
+      error: UNKNOWN
+      success: documented-E4 (必填未满足 Save 置灰; 满足后提交; §4-6)
+  - id: groups-list
+    route: /ui/admin/management/groups
+    four_states: { loading: UNKNOWN, empty: UNKNOWN, error: UNKNOWN, success: documented-E4 (§3.7) }
+  - id: group-form
+    route: /ui/admin/management/groups/{new|edit}
+    four_states: { loading: UNKNOWN, empty: documented-E4 (穿梭空侧), error: UNKNOWN, success: UNKNOWN }
+  - id: permissions-list
+    route: /ui/admin/management/permissions
+    four_states: { loading: UNKNOWN, empty: UNKNOWN, error: UNKNOWN, success: documented-E4 (§3.8) }
+  - id: permission-editor
+    route: /ui/admin/management/permissions/{create|edit/<name>}
+    four_states: { loading: UNKNOWN, empty: 不适用, error: UNKNOWN, success: documented-E4 (两步对话框 OK 回填→Save; §4-9) }
+  - id: maintenance
+    route: /ui/admin/artifactory/advanced/maintenance
+    four_states: { loading: UNKNOWN, empty: 不适用, error: UNKNOWN, success: UNKNOWN (Run Now 反馈形态=console-ui §8-9) }
+  - id: backups-list
+    route: /ui/admin/artifactory/services/backups
+    four_states: { loading: UNKNOWN, empty: UNKNOWN, error: UNKNOWN, success: documented-E4 (预置两 backup 行; §3.10) }
+  - id: backup-form
+    route: /ui/admin/artifactory/services/backups/new
+    four_states: { loading: UNKNOWN, empty: documented-E4 (穿梭), error: UNKNOWN, success: UNKNOWN }
+  - id: storage-summary
+    route: /ui/admin/monitoring/storage-summary
+    four_states: { loading: UNKNOWN, empty: UNKNOWN, error: UNKNOWN, success: documented-E4 (刷新时间戳+TOTAL 行; §3.11) }
+  - id: system-logs-viewer
+    route: /ui/admin/monitoring/system_logs
+    four_states: { loading: UNKNOWN, empty: UNKNOWN, error: UNKNOWN, success: documented-中 (标题级; §3.12) }
+  - id: repository-layouts
+    route: /ui/admin/repositories/layouts
+    four_states: { loading: UNKNOWN, empty: UNKNOWN, error: UNKNOWN, success: documented-E4 (§3.13) }
+  - id: general-settings
+    route: /ui/admin/configuration/general
+    four_states: { loading: UNKNOWN, empty: 不适用, error: UNKNOWN, success: UNKNOWN (Reset/Save 存在; §3.14) }
+  - id: ldap-config
+    route: /ui/admin/configuration/security/ldap
+    four_states:
+      loading: UNKNOWN
+      empty: documented-E4 ("No results were found"+"Try to change your search"; §3.15)
+      error: UNKNOWN (保存错误形态未取证)
+      success: UNKNOWN
+  - id: import-export
+    route: /ui/admin/artifactory/import_export
+    four_states: { loading: UNKNOWN, empty: 不适用, error: UNKNOWN, success: UNKNOWN (三操作卡; §3.16) }
+  - id: access-tokens
+    route: /ui/admin/configuration/security/access_tokens
+    four_states: { loading: UNKNOWN, empty: 不适用, error: UNKNOWN, success: UNKNOWN (走查=中; §3.17) }
+  - id: user-profile
+    route: /ui/user_profile
+    four_states: { loading: UNKNOWN, empty: documented-E4 (Identity Tokens 表/SSH 表), error: UNKNOWN, success: UNKNOWN (§3.18) }
+  - id: set-me-up-dialog
+    route: dialog (树页页头入口)
+    four_states:
+      loading: UNKNOWN
+      empty: 不适用
+      error: documented-E4 (错误口令→内联 "Incorrect password"; §4-1)
+      success: documented-E4 (token+Copy+客户端说明+Done; §4-1)
+  - id: deploy-dialog
+    route: dialog (树页页头入口)
+    four_states: { loading: UNKNOWN, empty: 不适用, error: UNKNOWN, success: UNKNOWN (提交后反馈=console-ui §8-7) }
+
+route_only_unknown_screens:   # 7.161 路由表实证存在, 屏内容/四态零走查
+  - { id: retention-policies-family, routes: "admin/artifactory/services/retention/* (10+)", why_unknown: "Pro 许可屏, OSS 7.84.10 走查天然缺位", need: ":8082 (Pro) 走查" }
+  - { id: lifecycle,                 routes: artifactory/lifecycle, why_unknown: 同上, need: 同上 }
+  - { id: release-bundles-admin,     routes: "artifactory/release-bundles, release-bundles/target, release-bundles/target-history", why_unknown: 同上, need: 同上 }
+  - { id: cold-storage-monitoring,   routes: admin/artifactory/services/retention/cold_storage_monitoring, why_unknown: 同上, need: 同上 }
+  - { id: federation-status,         routes: admin/monitoring/federation-status, why_unknown: "Pro 联邦, OSS 无", need: 同上 }
+  - { id: scim,                      routes: admin/configuration/security/scim, why_unknown: "7.161 access MFE 新页, 7.84.10 走查后新增", need: 同上 }
+  - { id: vault-integration,         routes: "admin/configuration/security/vault_integration, .../vaults", why_unknown: 同上, need: 同上 }
+  - { id: global-roles,              routes: admin/management/global_roles, why_unknown: "Projects 域 UI, 未走查 (模型已规格化: rbac-model §2)", need: 同上 }
+  - { id: http-sso,                  routes: admin/configuration/security/http_sso, why_unknown: "console-ui §1.2 仅侧栏条目", need: 同上 }
+  - { id: crowd-integration,         routes: admin/configuration/security/crowd_integration, why_unknown: 同上, need: 同上 }
+  - { id: mail-server,               routes: admin/configuration/mail, why_unknown: "侧栏条目级 (§1.2)", need: 同上 }
+  - { id: quick-setup,               routes: quick-setup, why_unknown: "路由实证, 零走查", need: 同上 }
+  - { id: migration-tool,            routes: "admin/artifactory/migration_tool, create_migration", why_unknown: 同上, need: 同上 }
+  - { id: config-descriptor,         routes: admin/artifactory/advanced/config_descriptor, why_unknown: "CodeMirror 编辑器级提及 (§5), 屏结构未走查", need: 同上 }
+  - { id: native-browser,            routes: "native, native/:artifactPath+", why_unknown: "仅右键菜单入口实证 (§3.2)", need: 同上 }
+
+# cross-cutting state notes (E4):
+#   - 会话过期: 任意 /ui/* 页重定向 /ui/login/ (console-ui §4-13)
+#   - 保存成功 toast: 未捕获 (§8-1) — 全部表单屏 success 态存疑
+#   - 加载态: 全局未专项取证 (§5) — 全部列表/表单屏 loading 态 UNKNOWN
+#   - 批量选择: 未观察到复选框列 (§5) — 列表屏无批量操作面

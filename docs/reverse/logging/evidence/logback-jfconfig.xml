@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    =======================================================================
+    This configuration file contains the full logback configuration.
+    The users may modify it at their own risk or as directed by support.
+    =======================================================================
+-->
+<configuration scan="true" scanPeriod="60 seconds">
+  <include resource="logback-jfconfig-default.xml"/>
+
+  <if condition='property("enableJson").equals("true")'>
+    <then>
+      <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+          <layout class="com.jfrog.jfconfig.server.logback.json.layout.ServiceLogJsonLayout">
+          </layout>
+        </encoder>
+      </appender>
+      <appender name="CONSOLE-REQUEST" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+          <layout class="com.jfrog.jfconfig.server.logback.json.layout.RequestLogJsonLayout">
+          </layout>
+        </encoder>
+      </appender>
+      <appender name="CONSOLE-REQUEST-OUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+          <layout class="com.jfrog.jfconfig.server.logback.json.layout.RequestOutLogJsonLayout">
+          </layout>
+        </encoder>
+      </appender>
+      <logger name="org.jfrog.common.audit.request" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE-REQUEST"/>
+      </logger>
+      <logger name="com.jfrog.jfconfig.server.audit.request.out" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE-REQUEST-OUT"/>
+      </logger>
+    </then>
+    <else>
+      <property name="console.log.message.prefix" value="%date{yyyy-MM-dd'T'HH:mm:ss.SSS, UTC}Z %boldWhite([jfcfg]) %highlight([%-5level]) [%16.-16X{uber-trace-id}] [%-30.30(%logger{3}:%line)] [%-20.20thread]"/>
+      <if condition='property("multitenant").equals("true")'>
+        <then>
+          <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+              <pattern>${console.log.message.prefix} [%-16.16X{tenantid}] - %message%n</pattern>
+              <charset>utf8</charset>
+            </encoder>
+          </appender>
+        </then>
+        <else>
+          <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+              <pattern>${console.log.message.prefix} - %message%n</pattern>
+              <charset>utf8</charset>
+            </encoder>
+          </appender>
+        </else>
+      </if>
+    </else>
+  </if>
+
+  <if condition='property("disableFileAppenders").equals("false")'>
+    <then>
+      <if condition='property("multitenant").equals("true")'>
+        <property name="service.log.message.prefix" value="%date{yyyy-MM-dd'T'HH:mm:ss.SSS, UTC}Z [jfcfg] [%-5level] [%16.-16X{uber-trace-id}] [%-30.30(%logger{3}:%line)] [%-20.20thread]"/>
+        <then>
+          <appender class="ch.qos.logback.core.rolling.RollingFileAppender" name="FILE">
+            <file>${log.dir}/jfconfig-service.log</file>
+            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+              <pattern>${service.log.message.prefix} [%-16.16X{tenantid}] - %message%xException{full}%n</pattern>
+              <charset>utf8</charset>
+            </encoder>
+            <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+              <fileNamePattern>${log.dir}/archived/jfconfig-service-%i.log.gz</fileNamePattern>
+              <compressLatest>false</compressLatest>
+            </rollingPolicy>
+            <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+              <maxFileSize>25MB</maxFileSize>
+            </triggeringPolicy>
+          </appender>
+          <appender class="ch.qos.logback.core.rolling.RollingFileAppender" name="FILE-REQUEST">
+            <File>${log.dir}/jfconfig-request.log</File>
+            <encoder>
+              <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSS, UTC}Z|%.-16X{uber-trace-id}|%.-16X{tenantid}|%X{req.remoteAddress}|%X{req.username}|%X{req.method}|%X{req.uri}|%X{req.status}|%X{res.contentLength}|%X{req.contentLength}|%X{req.duration}|%X{req.userAgent}%n</pattern>
+              <charset>utf8</charset>
+            </encoder>
+            <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+              <fileNamePattern>${log.dir}/archived/jfconfig-request-%i.log.gz</fileNamePattern>
+              <compressLatest>false</compressLatest>
+            </rollingPolicy>
+            <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+              <maxFileSize>25MB</maxFileSize>
+            </triggeringPolicy>
+          </appender>
+          <appender class="ch.qos.logback.core.rolling.RollingFileAppender" name="FILE-REQUEST-OUT">
+            <File>${log.dir}/jfconfig-request-out.log</File>
+            <encoder>
+              <pattern>%date{yyyy-MM-dd'T'HH:mm:ss.SSS, UTC}Z|%.-16X{uber-trace-id}|%.-16X{tenantid}|%mdc{out.req.url}|%mdc{out.req.method}|%mdc{out.req.status}|%mdc{out.req.message}|%mdc{out.req.duration}%n</pattern>
+              <charset>utf8</charset>
+            </encoder>
+            <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+              <fileNamePattern>${log.dir}/archived/jfconfig-request-out-%i.log.gz</fileNamePattern>
+              <compressLatest>false</compressLatest>
+            </rollingPolicy>
+            <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+              <maxFileSize>25MB</maxFileSize>
+            </triggeringPolicy>
+          </appender>
+        </then>
+        <else>
+          <appender class="ch.qos.logback.core.rolling.RollingFileAppender" name="FILE">
+            <file>${log.dir}/jfconfig-service.log</file>
+            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+              <pattern>${service.log.message.prefix} - %message%xException{full}%n</pattern>
+              <charset>utf8</charset>
+            </encoder>
+            <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+              <fileNamePattern>${log.dir}/archived/jfconfig-service-%i.log.gz</fileNamePattern>
+              <compressLatest>false</compressLatest>
+            </rollingPolicy>
+            <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+              <maxFileSize>25MB</maxFileSize>
+            </triggeringPolicy>
+          </appender>
+          <appender class="ch.qos.logback.core.rolling.RollingFileAppender" name="FILE-REQUEST">
+            <File>${log.dir}/jfconfig-request.log</File>
+            <encoder>
+              <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSS, UTC}Z|%.-16X{uber-trace-id}|%X{req.remoteAddress}|%X{req.username}|%X{req.method}|%X{req.uri}|%X{req.status}|%X{res.contentLength}|%X{req.contentLength}|%X{req.duration}|%X{req.userAgent}%n</pattern>
+              <charset>utf8</charset>
+            </encoder>
+            <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+              <fileNamePattern>${log.dir}/archived/jfconfig-request-%i.log.gz</fileNamePattern>
+              <compressLatest>false</compressLatest>
+            </rollingPolicy>
+            <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+              <maxFileSize>25MB</maxFileSize>
+            </triggeringPolicy>
+          </appender>
+          <appender class="ch.qos.logback.core.rolling.RollingFileAppender" name="FILE-REQUEST-OUT">
+            <File>${log.dir}/jfconfig-request-out.log</File>
+            <encoder>
+              <pattern>%date{yyyy-MM-dd'T'HH:mm:ss.SSS, UTC}Z|%.-16X{uber-trace-id}|%mdc{out.req.url}|%mdc{out.req.method}|%mdc{out.req.status}|%mdc{out.req.message}|%mdc{out.req.duration}%n</pattern>
+              <charset>utf8</charset>
+            </encoder>
+            <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+              <fileNamePattern>${log.dir}/archived/jfconfig-request-out-%i.log.gz</fileNamePattern>
+              <compressLatest>false</compressLatest>
+            </rollingPolicy>
+            <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+              <maxFileSize>25MB</maxFileSize>
+            </triggeringPolicy>
+          </appender>
+        </else>
+      </if>
+
+      <logger name="org.jfrog.common.audit.request" level="INFO" additivity="false">
+        <appender-ref ref="FILE-REQUEST"/>
+      </logger>
+      <logger name="com.jfrog.jfconfig.server.audit.request.out" level="INFO" additivity="false">
+        <appender-ref ref="FILE-REQUEST-OUT"/>
+      </logger>
+    </then>
+  </if>
+
+  <appender name="METRICS-APPENDER" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <File>${log.dir}/jfconfig-metrics.log</File>
+    <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+      <FileNamePattern>${log.dir}/archived/jfconfig-metrics.%i.log.gz</FileNamePattern>
+    </rollingPolicy>
+    <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+      <MaxFileSize>25MB</MaxFileSize>
+    </triggeringPolicy>
+    <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+      <layout class="org.jfrog.common.logging.logback.layout.BackTracePatternLayout">
+        <pattern>%m%n</pattern>
+      </layout>
+    </encoder>
+  </appender>
+  <logger name="METRICS" additivity="false" level="INFO">
+    <appender-ref ref="METRICS-APPENDER"/>
+  </logger>
+
+  <include file="/opt/jfrog/artifactory/var/etc/jfconfig/logback-include.xml"/>
+
+  <if condition='property("disableFileAppenders").equals("false")'>
+    <then>
+      <root level="WARN">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+      </root>
+    </then>
+    <else>
+      <root level="WARN">
+        <appender-ref ref="CONSOLE"/>
+      </root>
+    </else>
+  </if>
+
+</configuration>

@@ -263,6 +263,26 @@ export function getRepositories(): Promise<RepoListItem[]> {
   return apiJSON<RepoListItem[]>('/repositories')
 }
 
+/** POST /api/artifactsearch/quick 命中行（fileInfoBody 投影——FE-P4 顶栏
+ *  快速结果下拉消费面；名字片段走 K64 内核，认证面（匿名 401）） */
+export interface QuickSearchHit {
+  repo: string
+  path: string
+  uri?: string
+  size?: string
+  lastModified?: string
+}
+
+/** 顶栏快速搜索（≥2 字符防抖消费）：searchTerm 片段 → 制品路径命中集 */
+export function quickArtifactSearch(searchTerm: string, signal?: AbortSignal): Promise<QuickSearchHit[]> {
+  return apiJSON<{ results: QuickSearchHit[] }>('/artifactsearch/quick', {
+    method: 'POST',
+    body: { searchTerm },
+    signal,
+    silent401: true,
+  }).then((r) => r.results ?? [])
+}
+
 export function getRecentAudit(limit = 8): Promise<AuditPage> {
   return apiJSON<AuditPage>(`/v1/audit?limit=${limit}`)
 }

@@ -174,7 +174,9 @@ test('trash node: resident at tree tail; click deep-links to the M12 page; back 
 
   // 返回：树与节点复位（深链可回环）
   await page.goBack()
-  await expect(page).toHaveURL(new RegExp(`${TREE}$`))
+  // P2 Explorer：返回 /artifacts 后 B-3.2 首仓自动选中 replace 落
+  // /artifacts/<first>（URL 即状态）——返回契约以树面复位为准
+  await expect(page).toHaveURL(new RegExp(`${TREE}(/|$)`))
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
   await expect(node).toBeVisible()
 })

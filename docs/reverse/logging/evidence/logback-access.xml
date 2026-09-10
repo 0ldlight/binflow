@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- // @formatter:off -->
+<configuration debug="false">
+    <conversionRule conversionWord="formattedTenantId" converterClass="org.jfrog.access.server.logging.converter.TenantIdConverter" />
+    <conversionRule conversionWord="formattedCustomUberTraceId" converterClass="org.jfrog.access.server.logging.converter.TraceIdCustomConverter" />
+    <contextListener class="ch.qos.logback.classic.jul.LevelChangePropagator" />
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class = "org.jfrog.access.server.logging.filters.ConsoleStandardLoggingFilter"/>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.jfrog.common.logging.logback.layout.BackTracePatternLayout">
+                <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSS, UTC}Z %boldYellow([jfac ]) %highlight([%-5p]) [%formattedCustomUberTraceId] [%-30.30(%c{3}:%L)] [%-20.20thread] - %m%n</pattern>
+            </layout>
+        </encoder>
+    </appender>
+    <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class = "org.jfrog.access.server.logging.filters.ConsoleJsonLoggingFilter"/>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.jfrog.access.server.logging.layout.service.ServiceJsonLayout">
+            </layout>
+        </encoder>
+    </appender>
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <File>${log.dir}/access-service.log</File>
+        <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+            <FileNamePattern>${log.dir.archived}/access-service.%i.log.gz</FileNamePattern>
+            <compressLatest>false</compressLatest>
+        </rollingPolicy>
+        <triggeringPolicy class="org.jfrog.common.logging.logback.triggering.SizeAndIntervalTriggeringPolicy">
+            <MaxFileSize>25MB</MaxFileSize>
+        </triggeringPolicy>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.jfrog.common.logging.logback.layout.BackTracePatternLayout">
+                <pattern>%formattedTenantId%d{yyyy-MM-dd'T'HH:mm:ss.SSS, UTC}Z [jfac ] [%-5p] [%formattedCustomUberTraceId] [%-30.30(%c{3}:%L)] [%-20.20thread] - %m%n</pattern>
+            </layout>
+        </encoder>
+    </appender>
+    <appender name="REQUEST" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <File>${log.dir}/access-request.log</File>
+        <encoder>
+            <pattern>%formattedTenantId%d{yyyy-MM-dd'T'HH:mm:ss.SSS, UTC}Z|%formattedCustomUberTraceId|%X{req.remoteAddress}|%X{req.username}|%X{req.method}|%X{req.path}|%X{req.status}|%X{res.contentLength}|%X{req.contentLength}|%X{req.duration}|%X{req.userAgent}%n</pattern>
+        </encoder>
+        <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+            <FileNamePattern>${log.dir.archived}/access-request.%i.log.gz</FileNamePattern>
+            <compressLatest>false</compressLatest>
+        </rollingPolicy>
+        <triggeringPolicy class="org.jfrog.common.logging.logback.triggering.SizeAndIntervalTriggeringPolicy">
+            <MaxFileSize>25MB</MaxFileSize>
+        </triggeringPolicy>
+    </appender>
+    <appender name="REQUEST_CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class = "org.jfrog.access.server.logging.filters.ConsoleJsonLoggingFilter"/>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.jfrog.access.server.logging.layout.request.RequestJsonLayout">
+            </layout>
+        </encoder>
+    </appender>
+    <appender name="AUDIT" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <File>${log.dir}/access-audit.log</File>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.jfrog.common.logging.logback.layout.BackTracePatternLayout">
+                <pattern>%formattedTenantId%d{yyyy-MM-dd'T'HH:mm:ss.SSS, UTC}Z %m%n</pattern>
+            </layout>
+        </encoder>
+        <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+            <FileNamePattern>${log.dir.archived}/access-audit.%i.log.gz</FileNamePattern>
+            <compressLatest>false</compressLatest>
+        </rollingPolicy>
+        <triggeringPolicy class="org.jfrog.common.logging.logback.triggering.SizeAndIntervalTriggeringPolicy">
+            <MaxFileSize>25MB</MaxFileSize>
+        </triggeringPolicy>
+    </appender>
+    <appender name="AUDIT_CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class = "org.jfrog.access.server.logging.filters.ConsoleJsonLoggingFilter"/>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.jfrog.access.server.logging.layout.audit.TokenAuditJsonLayout">
+            </layout>
+        </encoder>
+    </appender>
+    <appender name="VAULT_AUDIT_CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class = "org.jfrog.access.server.logging.filters.ConsoleJsonLoggingFilter"/>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.jfrog.access.server.logging.layout.audit.VaultAuditJsonLayout">
+            </layout>
+        </encoder>
+    </appender>
+    <appender name="SECURITY_AUDIT" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <File>${log.dir}/access-security-audit.log</File>
+        <encoder>
+            <pattern>%formattedTenantId%d{yyyy-MM-dd'T'HH:mm:ss.SSS, UTC}Z|%formattedCustomUberTraceId|%X{audit.performingUserIp}|%X{audit.performingUser}|%X{audit.loggedinPrincipal}|%X{audit.entityName}|%X{audit.securityEventType}|%X{audit.securityEvent}|%X{audit.dataChanged}%n</pattern>
+        </encoder>
+        <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+            <FileNamePattern>${log.dir.archived}/access-security-audit.%i.log.gz</FileNamePattern>
+            <compressLatest>false</compressLatest>
+        </rollingPolicy>
+        <triggeringPolicy class="org.jfrog.common.logging.logback.triggering.SizeAndIntervalTriggeringPolicy">
+            <MaxFileSize>25MB</MaxFileSize>
+        </triggeringPolicy>
+    </appender>
+    <appender name="SECURITY_AUDIT_CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class = "org.jfrog.access.server.logging.filters.ConsoleJsonLoggingFilter"/>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.jfrog.access.server.logging.layout.security.audit.SecurityAuditJsonLayout">
+            </layout>
+        </encoder>
+    </appender>
+    <root>
+        <level value="warn" />
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE" />
+        <appender-ref ref="CONSOLE_JSON" />
+    </root>
+
+    <logger name="org.jfrog" level="info" />
+    <!-- third party loggers -->
+    <logger name="org.glassfish.jersey" level="warn" />
+    <logger name="org.springframework" level="warn" />
+    <logger name="com.github.kagkarlsson.scheduler.jdbc.JdbcTaskRepository" level="error" />
+
+    <logger name="org.jfrog.access.server.audit.RequestLogger" additivity="false">
+        <level value="info" />
+        <appender-ref ref="REQUEST" />
+        <appender-ref ref="REQUEST_CONSOLE_JSON" />
+    </logger>
+    <logger name="org.jfrog.access.server.audit.TokenAuditor" additivity="false">
+        <level value="info" />
+        <appender-ref ref="AUDIT" />
+        <appender-ref ref="AUDIT_CONSOLE_JSON" />
+    </logger>
+    <logger name="org.jfrog.access.server.service.secrets.VaultAuditor" additivity="false">
+        <level value="info" />
+        <appender-ref ref="AUDIT" />
+        <appender-ref ref="VAULT_AUDIT_CONSOLE_JSON" />
+    </logger>
+    <logger name="org.jfrog.access.server.audit.security.AuditLogger" additivity="false">
+        <level value="info" />
+        <appender-ref ref="SECURITY_AUDIT" />
+        <appender-ref ref="SECURITY_AUDIT_CONSOLE_JSON" />
+    </logger>
+
+    <appender name="METRICS-APPENDER" class="org.jfrog.metrics.MetricTimeBasedRollingFileAppender">
+        <File>${log.dir}/access-metrics.log</File>
+        <intervalMs>900000</intervalMs>
+        <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+            <FileNamePattern>${log.dir.archived}/access-metrics.%i.log.gz</FileNamePattern>
+            <compressLatest>false</compressLatest>
+        </rollingPolicy>
+        <triggeringPolicy class="org.jfrog.common.logging.logback.triggering.SizeAndIntervalTriggeringPolicy">
+            <MaxFileSize>25MB</MaxFileSize>
+        </triggeringPolicy>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.jfrog.common.logging.logback.layout.BackTracePatternLayout">
+                <pattern>%m%n</pattern>
+            </layout>
+        </encoder>
+    </appender>
+    <logger name="METRICS" additivity="false" level="INFO">
+        <appender-ref ref="METRICS-APPENDER" />
+    </logger>
+
+    <appender name="METRICS-EVENTS-APPENDER" class="org.jfrog.metrics.MetricTimeBasedRollingFileAppender">
+        <File>${log.dir}/access-metrics_events.log</File>
+        <intervalMs>900000</intervalMs>
+        <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+            <FileNamePattern>${log.dir.archived}/access-metrics_events.%i.log.gz</FileNamePattern>
+            <compressLatest>false</compressLatest>
+        </rollingPolicy>
+        <triggeringPolicy class="org.jfrog.common.logging.logback.triggering.SizeAndIntervalTriggeringPolicy">
+            <MaxFileSize>25MB</MaxFileSize>
+        </triggeringPolicy>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.jfrog.common.logging.logback.layout.BackTracePatternLayout">
+                <pattern>%m%n</pattern>
+            </layout>
+        </encoder>
+    </appender>
+    <logger name="METRICS_EVENTS" additivity="false" level="INFO">
+        <appender-ref ref="METRICS-EVENTS-APPENDER" />
+    </logger>
+
+    <appender name="USAGE_METRICS-APPENDER" class="org.jfrog.metrics.MetricTimeBasedRollingFileAppender">
+        <File>${access.usage.dir}/usage-metrics.log</File>
+        <intervalMs>21600000</intervalMs>
+        <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+            <maxIndex>150</maxIndex>
+            <FileNamePattern>${access.usage.dir.archived}/usage-metrics.%i.log.gz</FileNamePattern>
+            <compressLatest>true</compressLatest>
+        </rollingPolicy>
+        <triggeringPolicy class="org.jfrog.common.logging.logback.triggering.SizeAndIntervalTriggeringPolicy">
+            <MaxFileSize>1GB</MaxFileSize>
+        </triggeringPolicy>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.jfrog.common.logging.logback.layout.BackTracePatternLayout">
+                <pattern>%m%n</pattern>
+            </layout>
+        </encoder>
+    </appender>
+    <appender name="REQUEST_OUT" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <File>${log.dir}/access-request-out.log</File>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSS, UTC}Z|%formattedCustomUberTraceId|%X{out.req.url}|%X{out.req.method}|%X{out.res.status}|%X{out.res.message}|%X{out.req.contentLength}|%X{out.res.contentLength}|%X{out.res.duration}%n</pattern>
+            <charset>utf8</charset>
+        </encoder>
+        <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+            <FileNamePattern>${log.dir.archived}/access-request-out.%i.log.gz</FileNamePattern>
+            <compressLatest>false</compressLatest>
+        </rollingPolicy>
+        <triggeringPolicy class="org.jfrog.common.logging.logback.triggering.SizeAndIntervalTriggeringPolicy">
+            <MaxFileSize>25MB</MaxFileSize>
+        </triggeringPolicy>
+    </appender>
+    <appender name="REQUEST_OUT_CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class = "org.jfrog.access.server.logging.filters.ConsoleJsonLoggingFilter"/>
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="org.jfrog.access.server.logging.layout.request.out.RequestOutJsonLayout">
+            </layout>
+        </encoder>
+    </appender>
+    <logger name="USAGE_METRICS" additivity="false" level="INFO">
+        <appender-ref ref="USAGE_METRICS-APPENDER" />
+    </logger>
+    <!-- Flyway root log level is WARN to mitigate https://github.com/flyway/flyway/issues/1620 -->
+    <logger name="org.flywaydb" level="WARN"/>
+    <logger name="org.jfrog.access.server.audit.LoginAuditor" additivity="false">
+        <level value="info" />
+        <appender-ref ref="SECURITY_AUDIT" />
+        <appender-ref ref="SECURITY_AUDIT_CONSOLE_JSON" />
+    </logger>
+    <logger name="org.jfrog.access.server.audit.request.out.RequestOutLogger" additivity="false">
+        <level value="info" />
+        <appender-ref ref="REQUEST_OUT" />
+        <appender-ref ref="REQUEST_OUT_CONSOLE_JSON" />
+    </logger>
+    <appender name="THREAD_DUMP" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <File>${log.dir}/access-thread-dump.log</File>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSS, UTC}Z%n%m%n</pattern>
+            <charset>utf8</charset>
+        </encoder>
+        <rollingPolicy class="org.jfrog.common.logging.logback.rolling.FixedWindowWithDateRollingPolicy">
+            <FileNamePattern>${log.dir.archived}/access-thread-dump.%i.log.gz</FileNamePattern>
+            <compressLatest>false</compressLatest>
+        </rollingPolicy>
+        <triggeringPolicy class="org.jfrog.common.logging.logback.triggering.SizeAndIntervalTriggeringPolicy">
+            <MaxFileSize>25MB</MaxFileSize>
+        </triggeringPolicy>
+    </appender>
+    <logger name="THREAD_DUMP" additivity="false">
+        <level value="info" />
+        <appender-ref ref="THREAD_DUMP" />
+    </logger>
+    <include optional="true" file="${etc.access.dir}/logback-include.xml"/>
+</configuration>

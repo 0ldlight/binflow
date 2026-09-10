@@ -509,6 +509,34 @@ export function saveBlob(blob: Blob, filename: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
+/**
+ * 目录归档下载（FE-P4 解锁面：GET /api/archive/download/{repo}[/{dir}]——
+ * M12 T-343 文件夹下载，api 树而非内容面）。单路径语义（服务端一次打一
+ * 个 zip；多选批量不虚构合并——UI 仅在「恰好一个目录」时给出入口）。
+ * 文件名优先取 Content-Disposition，缺席时按目录名兜底（repo 根 = repo
+ * key）。归档无 checksum 对账面（zip 是服务端装配产物），直接 Blob 落盘。
+ */
+export async function downloadArchive(repoKey: string, dir: string): Promise<void> {
+  const enc = dir
+    .split('/')
+    .filter((s) => s !== '')
+    .map((s) => encodeURIComponent(s))
+    .join('/')
+  // archiveType 必填（空值 400「Unsupported archive type」——wire 实测；
+  // 控制台档固定 zip：UI 不引 tar 族选择器，P5 后有诉求再开）
+  const url = `/binflow/api/archive/download/${encodeURIComponent(repoKey)}${enc ? `/${enc}` : ''}?archiveType=zip`
+  const res = await fetch(url, {
+    headers: { 'X-BinFlow-Console': '1' },
+    credentials: 'same-origin',
+  })
+  if (!res.ok) throw await contentError(res)
+  const disposition = res.headers.get('Content-Disposition') ?? ''
+  const m = /filename="([^"]+)"/.exec(disposition)
+  const segs = dir.split('/').filter((s) => s !== '')
+  const filename = m?.[1] ?? `${segs.length > 0 ? segs[segs.length - 1] : repoKey}.zip`
+  saveBlob(await res.blob(), filename)
+}
+
 /** 目录/文件名段校验（与 adapter validateRelPath 同口径的前端预检） */
 export function validateNameSegment(name: string): string | null {
   if (name === '') return t('名称不能为空')

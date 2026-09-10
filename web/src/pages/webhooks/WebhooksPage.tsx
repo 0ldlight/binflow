@@ -1,65 +1,46 @@
+// Webhook 订阅管理页（M13 T-366——P3 新栈重写 + outbox 死信面解锁）。
+// 两 Tab：
+// - 订阅：GET /event/api/v1/subscriptions（读门 system:read——readonly 可
+//   见；读面不过 license 门）。行内：启停开关（PUT 全量体）、详情抽屉、
+//   试发、编辑对话框、删除（danger 确认——级联投递行）。
+// - 死信（Outbox——T-496 API 的 FE 解锁）：GET /api/v1/webhooks/outbox
+//   （管理面根；filter: subscription/status/event_type + keyset 分页），
+//   dead 行 replay（POST …/{id}/replay——reset pending 即刻重投；写面过
+//   webhook 槽门）。
+// 交互形态照 console-artifactory-parity：新建/编辑 = Dialog，详情 + 记录 =
+// 右侧 Drawer。
+// 锚族原样：wh-page/wh-refresh/wh-create/wh-readonly-note/wh-locked-note/
+// wh-test-last/wh-empty(-create)?/wh-table/wh-row-<key>/wh-toggle-<key>/
+// wh-open-<key>/wh-test-<key>/wh-edit-<key>/wh-delete-<key>/wh-count。
+// 新锚（日志登记诉求）：wh-tab-subs/wh-tab-outbox/outbox-panel/
+// outbox-filter-*/outbox-table/outbox-row-<i>/outbox-replay-<id>/
+// outbox-pager/outbox-empty。
 import { useCallback, useEffect, useState } from 'react'
-import type { ComponentPropsWithoutRef } from 'react'
 
-import Alert from '@mui/material/Alert'
-import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import Chip from '@mui/material/Chip'
-import IconButton from '@mui/material/IconButton'
-import Paper from '@mui/material/Paper'
-import Switch from '@mui/material/Switch'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
-import Tooltip from '@mui/material/Tooltip'
-import Typography from '@mui/material/Typography'
-
-import { useAuth } from '../../app/AuthContext'
-import { useToast } from '../../app/ToastContext'
-import { useConfirm } from '../../components/ConfirmDialog'
-import { CopyButton } from '../../components/CopyButton'
-import { EmptyState } from '../../components/EmptyState'
-import { ErrorCard } from '../../components/ErrorCard'
-import { Skeleton } from '../../components/Skeleton'
-import { ApiError, canAdminWrite, errText, isReadOnlyAdmin } from '../../lib/api'
-import { getAddons } from '../../lib/addons'
-import type { AddonRow } from '../../lib/addons'
+import { useAuth } from '@/app/AuthContext'
+import { Button } from '@/components/ui/button'
+import { AlertBox } from '@/components/layout/bits'
+import { CopyButton } from '@/components/layout/copy-button'
+import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
+import { useConfirm } from '@/app/providers'
+import { toast } from '@/lib/toast'
+import { ApiError, canAdminWrite, errText, isReadOnlyAdmin } from '@/lib/api'
+import { getAddons } from '@/lib/addons'
+import type { AddonRow } from '@/lib/addons'
 import {
   deleteSubscription,
   isWired,
   listSubscriptions,
   testSubscription,
   updateSubscription,
-} from '../../lib/webhooks'
-import type { SubscriptionRequest, TestOutcome, WebhookSubscription } from '../../lib/webhooks'
+} from '@/lib/webhooks'
+import type { SubscriptionRequest, TestOutcome, WebhookSubscription } from '@/lib/webhooks'
 import SubscriptionDialog from './SubscriptionDialog'
 import SubscriptionDrawer from './SubscriptionDrawer'
-import { tr } from '../../i18n'
+import OutboxPanel from './OutboxPanel'
+import { tr } from '@/i18n'
 
 const tt = tr('webhooks')
-
-// Webhook 订阅管理页（M13 T-366，FR-115.5——治理分组「Webhooks」）。最小面：
-//
-// - 列表：GET /event/api/v1/subscriptions（读门 = system:read——
-//   readonly_admin 可见；**读面不过 license 门**〔D1：锁定实例上已配订阅
-//   仍可见〕）。行内：启停开关（PUT 全量体——key/project_key 不可改、
-//   secret 省略 = 保持）、详情抽屉、试发（POST …/test 吃完整订阅体）、
-//   编辑对话框、删除（danger 确认——订阅删除级联投递行）。
-// - 门控呈现：写动词过 webhook 槽（pro+）——community 实例试写收
-//   403 + X-Binflow-License-Required: webhook（服务端终裁；FE 只以
-//   /api/v1/addons 槽行驱动提示文案，不复制门控）。
-// - 四态：骨架 / 空态（从未有过订阅）/ 403 无权限卡 / 错误卡 + 重试。
-// - 交互形态照 console-artifactory-parity：新建/编辑 = Dialog（M3/M4），
-//   详情 + 最近投递记录 = 右侧 Drawer（抽屉族通用规格）。
-
-type ListPhase =
-  | { kind: 'loading' }
-  | { kind: 'ok'; subs: WebhookSubscription[] }
-  /** 403：非 admin/readonly_admin——页面主数据面无权限（L2 无权限卡） */
-  | { kind: 'forbidden' }
-  | { kind: 'error'; message: string }
 
 /** webhook 功能槽 id（slots.go 第 19 槽） */
 const WEBHOOK_SLOT_ID = 'webhook'
@@ -89,13 +70,19 @@ function putBodyOf(sub: WebhookSubscription, enabled: boolean): SubscriptionRequ
   }
 }
 
+type ListPhase =
+  | { kind: 'loading' }
+  | { kind: 'ok'; subs: WebhookSubscription[] }
+  | { kind: 'forbidden' }
+  | { kind: 'error'; message: string }
+
 export default function WebhooksPage() {
   const { session } = useAuth()
   const readOnly = isReadOnlyAdmin(session)
   const adminWrite = canAdminWrite(session)
-  const toast = useToast()
   const confirm = useConfirm()
 
+  const [tab, setTab] = useState<'subs' | 'outbox'>('subs')
   const [phase, setPhase] = useState<ListPhase>({ kind: 'loading' })
   const [slot, setSlot] = useState<AddonRow | null | 'unavailable'>('unavailable')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -171,9 +158,9 @@ export default function WebhooksPage() {
   }
 
   const doDelete = async (sub: WebhookSubscription) => {
-    const ok = await confirm({
+    const ok = await confirm.confirm({
       title: tt('删除订阅 {v1}', { v1: sub.key }),
-      body: tt('删除后该订阅的全部投递记录一并级联清除；接收器不会再收到任何事件。此操作不可撤销。'),
+      description: tt('删除后该订阅的全部投递记录一并级联清除；接收器不会再收到任何事件。此操作不可撤销。'),
       confirmLabel: tt('删除'),
       danger: true,
     })
@@ -193,192 +180,215 @@ export default function WebhooksPage() {
 
   return (
     <div data-testid="wh-page">
-      <div className="page-header">
-        <h2>Webhooks</h2>
-        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{tt('统一事件订阅（/binflow/event/api/v1——13 域 66 事件型；outbox 投递，失败重试固定 10s×4）')}        </span>
+      <div className="page-header flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold">Webhooks</h2>
+        <span className="text-aux text-2">{tt('统一事件订阅（/binflow/event/api/v1——13 域 66 事件型；outbox 投递，失败重试固定 10s×4）')}</span>
       </div>
-      <Box sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center' }}>
-        <Box sx={{ flexGrow: 1 }} />
-        <Button
-          variant="outlined"
-          onClick={() => void reload()}
-          data-testid="wh-refresh"
-          sx={{ minWidth: 0 }}
-        >{tt('刷新')}        </Button>
-        {adminWrite && (
-          <Button
-            variant="contained"
-            onClick={() => {
-              setEditing(null)
-              setDialogOpen(true)
-            }}
-            data-testid="wh-create"
-          >{tt('新建订阅')}          </Button>
-        )}
-      </Box>
 
-      {readOnly && (
-        <Alert severity="info" data-testid="wh-readonly-note" sx={{ mb: 1 }}>{tt('只读管理员：订阅面只读呈现（写动作禁用；服务端以 403 兜底）。')}        </Alert>
-      )}
-      {slotLocked && (
-        <Alert severity="warning" data-testid="wh-locked-note" sx={{ mb: 1 }}>{tt('webhook 功能槽未解锁（')}{slotRow?.minTier ?? 'pro'}{tt('+ 档特性）——读面可见，写操作（新建/编辑/删除/试发）将被服务端以 403 拒绝。')}        </Alert>
-      )}
-      {lastTest && (
-        <Alert
-          severity={lastTest.outcome.ok ? 'success' : 'error'}
-          data-testid="wh-test-last"
-          sx={{ mb: 1 }}
-        >{tt('试发')} {lastTest.key}{tt('：')}<span lang="en">{lastTest.outcome.message ?? tt('（无回执）')}</span>{tt('（')}          <span lang="en">HTTP {lastTest.outcome.attempt?.status_code ?? '—'}</span>
-          {lastTest.outcome.attempt?.status_code === 0 ? tt('（无响应）') : ''}{tt('，耗时')}{' '}
-          <span className="mono" lang="en">{lastTest.outcome.attempt?.elapsed_millis ?? '—'}ms</span>{tt('）')}        </Alert>
-      )}
+      {/* Tab 条（订阅 / 死信 outbox——P3 解锁面） */}
+      <div className="mb-3 flex gap-1 border-b border-border">
+        <button
+          type="button"
+          data-testid="wh-tab-subs"
+          aria-current={tab === 'subs' ? 'page' : undefined}
+          onClick={() => setTab('subs')}
+          className={`-mb-px rounded-t-sm border-b-2 px-3 py-1.5 text-dense ${tab === 'subs' ? 'border-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+        >
+          {tt('订阅')}
+        </button>
+        <button
+          type="button"
+          data-testid="wh-tab-outbox"
+          aria-current={tab === 'outbox' ? 'page' : undefined}
+          onClick={() => setTab('outbox')}
+          className={`-mb-px rounded-t-sm border-b-2 px-3 py-1.5 text-dense ${tab === 'outbox' ? 'border-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+        >
+          {tt('投递（Outbox / 死信）')}
+        </button>
+      </div>
 
-      {phase.kind === 'loading' && <Skeleton lines={6} />}
-      {phase.kind === 'forbidden' && (
-        <EmptyState
-          message={tt('无权限查看 Webhook 订阅')}
-          hint={tt('订阅面为管理员视图（GET /event/api/v1/subscriptions 仅 admin / readonly_admin）。')}
-        />
-      )}
-      {phase.kind === 'error' && (
-        <ErrorCard error={new ApiError(0, phase.message)} onRetry={() => void reload()} />
-      )}
-      {phase.kind === 'ok' && subs.length === 0 && (
-        <EmptyState
-          illustration
-          message={tt('暂无 Webhook 订阅')}
-          hint={tt('订阅一个事件域与接收器 URL，制品部署/删除等事件会以签名 JSON 信封 POST 到接收器（试发不入箱）。')}
-          testid="wh-empty"
-          action={
-            adminWrite ? (
+      {tab === 'outbox' ? (
+        <OutboxPanel readOnly={readOnly} />
+      ) : (
+        <>
+          <div className="mb-2 flex items-center gap-2">
+            <span className="flex-1" />
+            <Button variant="outline" size="sm" onClick={() => void reload()} data-testid="wh-refresh">
+              {tt('刷新')}
+            </Button>
+            {adminWrite && (
               <Button
-                variant="contained"
+                size="sm"
                 onClick={() => {
                   setEditing(null)
                   setDialogOpen(true)
                 }}
-                data-testid="wh-empty-create"
-              >{tt('新建第一个订阅')}              </Button>
-            ) : undefined
-          }
-        />
-      )}
-      {phase.kind === 'ok' && subs.length > 0 && (
-        <Paper variant="outlined">
-          <Table size="small" data-testid="wh-table">
-            <TableHead>
-              <TableRow>
-                <TableCell component="th" scope="col">{tt('启用')}</TableCell>
-                <TableCell component="th" scope="col">key</TableCell>
-                <TableCell component="th" scope="col">{tt('事件域 / 类型')}</TableCell>
-                <TableCell component="th" scope="col">{tt('接收器 URL')}</TableCell>
-                <TableCell component="th" scope="col" align="right">{tt('操作')}</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {subs.map((sub) => (
-                <TableRow key={sub.key} data-testid={`wh-row-${sub.key}`} hover>
-                  <TableCell>
-                    <Switch
-                      checked={sub.enabled}
-                      disabled={readOnly || busyKey === sub.key}
-                      onChange={(e) => void doToggle(sub, e.target.checked)}
-                      size="small"
-                      slotProps={
-                        {
-                          input: {
-                            'aria-label': tt('启用订阅 {v1}', { v1: sub.key }),
-                            'data-testid': `wh-toggle-${sub.key}`,
-                          },
-                        } as { input: ComponentPropsWithoutRef<'input'> }
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="mono" lang="en">
-                    {sub.key}
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center', maxWidth: 320 }}>
-                      <Chip size="small" variant="outlined" label={sub.event_filter.domain} lang="en" />
-                      {sub.event_filter.event_types.slice(0, 3).map((t) => (
-                        <Chip
-                          key={t}
-                          size="small"
-                          variant="outlined"
-                          color={isWired(sub.event_filter.domain, t) ? 'success' : 'default'}
-                          label={t}
-                          lang="en"
+                data-testid="wh-create"
+              >
+                {tt('新建订阅')}
+              </Button>
+            )}
+          </div>
+
+          {readOnly && (
+            <AlertBox severity="info" testid="wh-readonly-note">
+              {tt('只读管理员：订阅面只读呈现（写动作禁用；服务端以 403 兜底）。')}
+            </AlertBox>
+          )}
+          {slotLocked && (
+            <AlertBox severity="warning" testid="wh-locked-note">
+              {tt('webhook 功能槽未解锁（')}{slotRow?.minTier ?? 'pro'}{tt('+ 档特性）——读面可见，写操作（新建/编辑/删除/试发）将被服务端以 403 拒绝。')}
+            </AlertBox>
+          )}
+          {lastTest && (
+            <AlertBox severity={lastTest.outcome.ok ? 'success' : 'error'} testid="wh-test-last">
+              {tt('试发')} {lastTest.key}{tt('：')}<span lang="en">{lastTest.outcome.message ?? tt('（无回执）')}</span>{tt('（')}
+              <span lang="en">HTTP {lastTest.outcome.attempt?.status_code ?? '—'}</span>
+              {lastTest.outcome.attempt?.status_code === 0 ? tt('（无响应）') : ''}{tt('，耗时')}{' '}
+              <span className="font-mono" lang="en">{lastTest.outcome.attempt?.elapsed_millis ?? '—'}ms</span>{tt('）')}
+            </AlertBox>
+          )}
+
+          {phase.kind === 'loading' && <StateSkeleton lines={6} />}
+          {phase.kind === 'forbidden' && (
+            <EmptyState
+              message={tt('无权限查看 Webhook 订阅')}
+              hint={tt('订阅面为管理员视图（GET /event/api/v1/subscriptions 仅 admin / readonly_admin）。')}
+            />
+          )}
+          {phase.kind === 'error' && (
+            <ErrorCard error={new ApiError(0, phase.message)} onRetry={() => void reload()} />
+          )}
+          {phase.kind === 'ok' && subs.length === 0 && (
+            <EmptyState
+              illustration
+              message={tt('暂无 Webhook 订阅')}
+              hint={tt('订阅一个事件域与接收器 URL，制品部署/删除等事件会以签名 JSON 信封 POST 到接收器（试发不入箱）。')}
+              testid="wh-empty"
+              action={
+                adminWrite ? (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEditing(null)
+                      setDialogOpen(true)
+                    }}
+                    data-testid="wh-empty-create"
+                  >
+                    {tt('新建第一个订阅')}
+                  </Button>
+                ) : undefined
+              }
+            />
+          )}
+          {phase.kind === 'ok' && subs.length > 0 && (
+            <div className="overflow-x-auto rounded-md border border-border">
+              <table className="w-full text-dense" data-testid="wh-table">
+                <thead>
+                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
+                    <th scope="col" className="px-3 py-2 font-medium">{tt('启用')}</th>
+                    <th scope="col" className="px-3 py-2 font-medium">key</th>
+                    <th scope="col" className="px-3 py-2 font-medium">{tt('事件域 / 类型')}</th>
+                    <th scope="col" className="px-3 py-2 font-medium">{tt('接收器 URL')}</th>
+                    <th scope="col" className="px-3 py-2 text-right font-medium">{tt('操作')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {subs.map((sub) => (
+                    <tr key={sub.key} data-testid={`wh-row-${sub.key}`} className="border-b border-border/60 hover:bg-accent">
+                      <td className="px-3 py-1.5">
+                        <input
+                          type="checkbox"
+                          role="switch"
+                          checked={sub.enabled}
+                          disabled={readOnly || busyKey === sub.key}
+                          onChange={(e) => void doToggle(sub, e.target.checked)}
+                          aria-label={tt('启用订阅 {v1}', { v1: sub.key })}
+                          data-testid={`wh-toggle-${sub.key}`}
                         />
-                      ))}
-                      {sub.event_filter.event_types.length > 3 && (
-                        <Typography variant="caption" color="text.secondary">
-                          +{sub.event_filter.event_types.length - 3}
-                        </Typography>
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell className="mono" lang="en" sx={{ maxWidth: 280, whiteSpace: 'normal', wordBreak: 'break-all' }}>
-                    {sub.handlers[0]?.url ?? '—'}{' '}
-                    {sub.handlers[0]?.url && <CopyButton value={sub.handlers[0].url} label={tt('接收器 URL {v1}', { v1: sub.key })} />}
-                  </TableCell>
-                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    <Tooltip title={tt('订阅详情 + 最近投递记录')}>
-                      <IconButton
-                        aria-label={tt('详情 {v1}', { v1: sub.key })}
-                        onClick={() => setDrawerSub(sub)}
-                        data-testid={`wh-open-${sub.key}`}
-                        size="small"
-                      >
-                        ☰
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={tt('试发（test——同步单发，不入箱）')}>
-                      <IconButton
-                        aria-label={tt('试发 {v1}', { v1: sub.key })}
-                        disabled={readOnly || busyKey === sub.key}
-                        onClick={() => void doTest(sub)}
-                        data-testid={`wh-test-${sub.key}`}
-                        size="small"
-                      >
-                        ➤
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={tt('编辑')}>
-                      <IconButton
-                        aria-label={tt('编辑 {v1}', { v1: sub.key })}
-                        disabled={readOnly}
-                        onClick={() => {
-                          setEditing(sub)
-                          setDialogOpen(true)
-                        }}
-                        data-testid={`wh-edit-${sub.key}`}
-                        size="small"
-                      >
-                        ✎
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={tt('删除（级联投递行）')}>
-                      <IconButton
-                        aria-label={tt('删除 {v1}', { v1: sub.key })}
-                        disabled={readOnly}
-                        onClick={() => void doDelete(sub)}
-                        data-testid={`wh-delete-${sub.key}`}
-                        size="small"
-                        color="error"
-                      >
-                        ✕
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Paper>
-      )}
-      {phase.kind === 'ok' && (
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }} data-testid="wh-count">
-          {subs.length} {tt('个订阅')}        </Typography>
+                      </td>
+                      <td className="px-3 py-1.5 font-mono" lang="en">{sub.key}</td>
+                      <td className="px-3 py-1.5">
+                        <span className="flex max-w-[320px] flex-wrap items-center gap-1">
+                          <span className="badge neutral" lang="en">{sub.event_filter.domain}</span>
+                          {sub.event_filter.event_types.slice(0, 3).map((t) => (
+                            <span
+                              key={t}
+                              className={`badge ${isWired(sub.event_filter.domain, t) ? 'success' : 'neutral'}`}
+                              lang="en"
+                            >
+                              {t}
+                            </span>
+                          ))}
+                          {sub.event_filter.event_types.length > 3 && (
+                            <span className="text-aux text-muted-foreground">+{sub.event_filter.event_types.length - 3}</span>
+                          )}
+                        </span>
+                      </td>
+                      <td className="max-w-[280px] break-all px-3 py-1.5 font-mono" lang="en">
+                        {sub.handlers[0]?.url ?? '—'}{' '}
+                        {sub.handlers[0]?.url && <CopyButton value={sub.handlers[0].url} label={tt('接收器 URL {v1}', { v1: sub.key })} />}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-1.5 text-right">
+                        <button
+                          type="button"
+                          className="grid size-7 place-items-center rounded-sm hover:bg-accent disabled:opacity-40"
+                          title={tt('订阅详情 + 最近投递记录')}
+                          aria-label={tt('详情 {v1}', { v1: sub.key })}
+                          onClick={() => setDrawerSub(sub)}
+                          data-testid={`wh-open-${sub.key}`}
+                        >
+                          ☰
+                        </button>
+                        <button
+                          type="button"
+                          className="grid size-7 place-items-center rounded-sm hover:bg-accent disabled:opacity-40"
+                          title={tt('试发（test——同步单发，不入箱）')}
+                          aria-label={tt('试发 {v1}', { v1: sub.key })}
+                          disabled={readOnly || busyKey === sub.key}
+                          onClick={() => void doTest(sub)}
+                          data-testid={`wh-test-${sub.key}`}
+                        >
+                          ➤
+                        </button>
+                        <button
+                          type="button"
+                          className="grid size-7 place-items-center rounded-sm hover:bg-accent disabled:opacity-40"
+                          title={tt('编辑')}
+                          aria-label={tt('编辑 {v1}', { v1: sub.key })}
+                          disabled={readOnly}
+                          onClick={() => {
+                            setEditing(sub)
+                            setDialogOpen(true)
+                          }}
+                          data-testid={`wh-edit-${sub.key}`}
+                        >
+                          ✎
+                        </button>
+                        <button
+                          type="button"
+                          className="grid size-7 place-items-center rounded-sm text-destructive hover:bg-accent disabled:opacity-40"
+                          title={tt('删除（级联投递行）')}
+                          aria-label={tt('删除 {v1}', { v1: sub.key })}
+                          disabled={readOnly}
+                          onClick={() => void doDelete(sub)}
+                          data-testid={`wh-delete-${sub.key}`}
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {phase.kind === 'ok' && (
+            <p className="mt-1 text-aux text-muted-foreground" data-testid="wh-count">
+              {subs.length} {tt('个订阅')}
+            </p>
+          )}
+        </>
       )}
 
       <SubscriptionDialog

@@ -1,0 +1,159 @@
+# Artifactory Frontend Route Catalog — machine-derived evidence index (E2)
+#
+# > IMPORTANT (clean-room): this file is an EVIDENCE INDEX of route strings observed in the
+# > reference runtime and decompiled source. It is NOT a design input for BinFlow routing
+# > (program charter §39-41; ADR-0001). Screen behavior specs remain in console-ui.md etc.
+#
+# derivation (reproducible, 2026-09-11, reference http://localhost:8082 = 7.161.20):
+#   curl -s http://localhost:8082/ui/api/v1/imports-map           # MFE asset map
+#   curl -s "http://localhost:8082/ui/api/v1/ui/webapp/js/app.umd.js?v=7.161.12" | grep -o 'path:"[^"]*"'
+#   curl -s "http://localhost:8082/ui/api/v1/access/webapp/js/app.umd.js?v=7.191.14" | grep -o 'path:"[^"]*"'
+# curation: SVG path-data artifacts ("M ...", "Path", ",snippet:") removed; trailing minifier
+# artifacts trimmed (`:repoType(` -> `:repoType`, `:label(` -> `:label`). Route-name pairs from
+# `path:"..." ... name:"..."` extraction (partial — names missing where record shape differs).
+# version skew note: walkthrough source console-ui.md = OSS 7.84.10; MFE bundles = 7.161.12/7.191.14.
+
+meta:
+  host: artifactory-ui (Vue2 SPA, vue-router history mode, base "/ui/", routes:[] registered at runtime by MFEs)
+  mfe_artifactory_version: 7.161.12
+  mfe_access_version: 7.191.14
+  runtime_version: 7.161.20
+  counts: { artifactory_mfe_paths: 89, access_mfe_paths: 26, not_extracted_notes: 4, raw_strings_before_curation: 98 }
+  evidence:
+    A-decompiled-host: reverse-src/artifactory -> frontend/artifactory-ui/src/router/router.ts (mode/base literal)
+    A-decompiled-ssr: reverse-src/artifactory -> frontend/frontend-server/src/Constants/NODE_SERVER_PATH.ts (service prefixes)
+    B-runtime-imports-map: /ui/api/v1/imports-map (systemjs-importmap, 200)
+    B-runtime-mfe-bundles: app.umd.js route records (paths above)
+
+# ---------------------------------------------------------------- artifactory MFE (/ui/*)
+artifactory_mfe:
+  app-entry:
+    - { path: /,                name: app-artifactory, screen: MFE root (Artifactory 应用入口), spec: console-ui §1.1 }
+    - { path: /packages,        screen: Packages 落地页(卡片流), spec: console-ui §3.1 }
+    - { path: /repos/tree/General,  screen: Artifacts 树浏览器, spec: console-ui §3.2 }
+    - { path: /repos/tree/General/, screen: Artifacts 树浏览器(带尾斜杠变体), spec: console-ui §3.2 }
+    - { path: repos,            screen: 树浏览器父路由, spec: console-ui §3.2 }
+    - { path: repos/tree,       screen: 树浏览器父路由, spec: console-ui §3.2 }
+    - { path: "repos/:browser/:tab/:artifact*", screen: 树浏览器 tab 深链变体, spec: console-ui §3.2 }
+    - { path: repos/search-results, screen: 仓库搜索结果, spec: UNKNOWN }
+    - { path: /artifactSearchResults, screen: 搜索结果页, spec: console-ui §3.3 }
+    - { path: artifactSearchResults, screen: 同上(无前导斜杠字面量), spec: console-ui §3.3 }
+    - { path: /builds,         screen: Builds 应用页, spec: console-ui §1.1 (Artifactory 子项) }
+    - { path: ":buildName",    screen: build 详情(父 builds), spec: UNKNOWN }
+    - { path: ":buildNumber/:startTime?/:tab?", screen: build number 详情, spec: UNKNOWN }
+    - { path: ":packageId",       screen: package 详情, spec: UNKNOWN }
+    - { path: ":packageId/:versionId", screen: package 版本详情, spec: UNKNOWN }
+    - { path: /bundles/source, screen: release bundle source 列表, spec: UNKNOWN }
+    - { path: ":bundle",       screen: bundle 详情, spec: UNKNOWN }
+    - { path: ":bundle/:version", screen: bundle 版本详情, spec: UNKNOWN }
+    - { path: native,          screen: Native Browser, spec: console-ui §3.2 (右键菜单入口) }
+    - { path: "native/:artifactPath+", screen: Native Browser 路径深链, spec: UNKNOWN }
+    - { path: quick-setup,     name: quickSetup, screen: 快速设置向导, spec: UNKNOWN }
+    - { path: "*",             screen: 404, spec: UNKNOWN }
+  admin-tree:                       # /ui/admin/artifactory/* 服务自有管理树 (console-ui §1.3)
+    - { path: list,             screen: 管理树根, spec: console-ui §1.3 }
+    - { path: repositories,     name: admin.artifactory.import_export.repositories, screen: 管理树 Repositories 节, spec: console-ui §1.3 }
+    - { path: "edit/:key",        screen: 管理树通用编辑子路由, spec: UNKNOWN }
+    - { path: new,              screen: 管理树通用新建子路由, spec: UNKNOWN }
+    - { path: admin/artifactory/configuration/artifactory_general, screen: General Settings, spec: console-ui §1.3 }
+    - { path: admin/artifactory/configuration/property_sets, screen: Property Sets, spec: console-ui §1.3 }
+    - { path: ":propertySetName/edit", screen: Property Set 编辑, spec: UNKNOWN }
+    - { path: admin/artifactory/configuration/reverse_proxy, screen: HTTP Settings(反向代理), spec: console-ui §1.3 }
+    - { path: admin/artifactory/configuration/user_plugins, name: manage-user-plugins, screen: User Plugins, spec: UNKNOWN }
+    - { path: admin/artifactory/services/backups, screen: Backups 列表/表单, spec: console-ui §3.10 }
+    - { path: admin/artifactory/services/indexer, name: admin.artifactory.services.indexer, screen: Maven Indexer, spec: console-ui §1.3 }
+    - { path: admin/artifactory/import_export, screen: 导入/导出三卡, spec: console-ui §3.16 }
+    - { path: repositories,     name: admin.artifactory.import_export.repositories, screen: Import&Export Repositories 子页, spec: console-ui §3.16 }
+    - { path: system,           name: admin.artifactory.import_export.system, screen: Import&Export System 子页, spec: UNKNOWN (OSS 缺位疑) }
+    - { path: admin/artifactory/security/general, name: admin.artifactory.security.settings, screen: Security Settings, spec: console-ui §1.3 }
+    - { path: "admin/artifactory/security/keys_management/:label", name: admin.artifactory.security.keys_management, screen: Keys Management, spec: console-ui §1.3 }
+    - { path: admin/artifactory/security/certificates, name: admin.artifactory.security.certificates, screen: Certificates, spec: console-ui §1.3 }
+    - { path: admin/artifactory/advanced/log_analytics, name: admin.artifactory.advanced.log_analytics, screen: Log Analytics, spec: console-ui §1.3 }
+    - { path: admin/artifactory/advanced/system_logs, name: admin.artifactory.advanced.system_logs, screen: System Logs(服务树版), spec: console-ui §1.3/§3.12 }
+    - { path: admin/artifactory/advanced/maintenance, name: admin.artifactory.advanced.maintenance, screen: 维护(GC/配额/清理), spec: console-ui §3.9 }
+    - { path: admin/artifactory/advanced/config_descriptor, name: admin.artifactory.advanced.config_descriptor, screen: Config Descriptor(CodeMirror), spec: console-ui §1.3/§5 }
+    - { path: admin/artifactory/advanced/security_descriptor, name: admin.artifactory.advanced.security_descriptor, screen: Security Descriptor, spec: console-ui §1.3 }
+    - { path: admin/artifactory/config_packages, screen: Packages 配置树节, spec: console-ui §1.3 }
+    - { path: admin/artifactory/projects, screen: Artifactory 服务树 Projects 节, spec: UNKNOWN (BinFlow 范围外) }
+    - { path: admin/artifactory/migration_tool, screen: 迁移工具, spec: UNKNOWN }
+    - { path: create_migration, screen: 新建迁移, spec: UNKNOWN }
+  admin-retention:                  # Pro 许可屏 — OSS 走查天然缺位，全部 UNKNOWN
+    - { path: admin/artifactory/services/retention/monitoring, screen: Retention 监控, spec: UNKNOWN }
+    - { path: admin/artifactory/services/retention/cold_storage_monitoring, screen: 冷存储监控, spec: UNKNOWN }
+    - { path: admin/artifactory/services/retention/policies, screen: Retention 策略列表, spec: UNKNOWN }
+    - { path: admin/artifactory/services/retention/policies/cleanup/create, screen: 新建 cleanup 策略, spec: UNKNOWN }
+    - { path: admin/artifactory/services/retention/policies/cleanup/edit, screen: 编辑 cleanup 策略, spec: UNKNOWN }
+    - { path: "admin/artifactory/services/retention/policies/cleanup/edit/:id", screen: 按 id 编辑 cleanup, spec: UNKNOWN }
+    - { path: "admin/artifactory/services/retention/policies/archive/edit/:id", screen: 按 id 编辑 archive, spec: UNKNOWN }
+    - { path: admin/artifactory/services/retention/policies/archivev2/create, screen: 新建 archive v2 策略, spec: UNKNOWN }
+    - { path: admin/artifactory/services/retention/policies/archivev2/edit, screen: 编辑 archive v2, spec: UNKNOWN }
+    - { path: "admin/artifactory/services/retention/policies/archivev2/edit/:id", screen: 按 id 编辑 archive v2, spec: UNKNOWN }
+    - { path: archive,        screen: archive 策略 tab, spec: UNKNOWN }
+    - { path: archivev2,      screen: archivev2 策略 tab, spec: UNKNOWN }
+    - { path: cleanup,        screen: cleanup 策略 tab, spec: UNKNOWN }
+    - { path: clean-up,       screen: cleanup 拼写变体 tab, spec: UNKNOWN }
+    - { path: connection-states, screen: 连接状态子页, spec: UNKNOWN }
+    - { path: /artifactoryRetention/search, screen: Retention 搜索(跨 MFE 链接), spec: UNKNOWN }
+    - { path: artifactoryRetention/search, screen: 同上变体, spec: UNKNOWN }
+    - { path: artifactory/lifecycle, screen: Lifecycle 管理, spec: UNKNOWN }
+    - { path: artifactory/release-bundles, screen: Release Bundles 源侧管理, spec: UNKNOWN }
+    - { path: release-bundles/target, screen: RB target 管理, spec: UNKNOWN }
+    - { path: release-bundles/target-history, screen: RB target 历史, spec: UNKNOWN }
+    - { path: storage, system, screen: retention 树内部子页字面量, spec: UNKNOWN }
+  admin-monitoring-and-config:
+    - { path: admin/monitoring/storage-summary, name: admin.monitoring.storage, screen: 存储概要, spec: console-ui §3.11 }
+    - { path: admin/monitoring/federation-status, screen: Federation 状态, spec: UNKNOWN (Pro) }
+    - { path: admin/configuration/mail, name: admin.configuration.mail, screen: Mail Server, spec: console-ui §1.2 (未走查) }
+    - { path: admin/repositories/layouts, name: layoutList, screen: 仓库布局, spec: console-ui §3.13 }
+    - { path: ":layoutname/edit", screen: 布局编辑, spec: console-ui §3.13 }
+    - { path: /admin/repositories, screen: 仓库管理列表入口(local/remote/virtual 子路由), spec: console-ui §3.4 }
+    - { path: /admin/configuration/general, screen: General Settings, spec: console-ui §3.14 }
+    - { path: ":repoType", screen: 仓库类型子路由(local|remote|virtual), spec: console-ui §3.4 }
+  cross-mfe-links:                  # 在 artifactory MFE 注册但指向其它 MFE 的入口
+    - { path: /admin/management/users/new, screen: 快捷新建用户(落 access MFE), spec: console-ui §1.5 }
+    - { path: /admin/management/groups/new, screen: 快捷新建组, spec: console-ui §1.5 }
+    - { path: /admin/management/permissions/create, screen: 快捷新建权限, spec: console-ui §3.8 }
+    - { path: /pipelinesSearchResults, screen: Pipelines 搜索, spec: 范围外 }
+    - { path: /admin/pipelines/adminIntegrations, screen: Pipelines 集成管理, spec: 范围外 }
+    - { path: /admin/pipelines/nodePools, screen: Pipelines 节点池, spec: 范围外 }
+    - { path: /admin/pipelines/pipelineSources, screen: Pipelines 源, spec: 范围外 }
+    - { path: /admin/xray/general/database_sync, screen: Xray DB 同步, spec: 范围外 }
+    - { path: /admin/xray/general/indexed_resources, screen: Xray 索引资源, spec: 范围外 }
+    - { path: /admin/xray/policiesGovernance/policies, screen: Xray 策略, spec: 范围外 }
+    - { path: /admin/xray/policiesGovernance/watches, screen: Xray Watches, spec: 范围外 }
+
+# ---------------------------------------------------------------- access MFE (/ui/*)
+access_mfe:
+  - { path: /, name: app-access, screen: MFE root (Access 管理域), spec: console-ui §1.2 }
+  - { path: admin/management/users, screen: 用户管理列表, spec: console-ui §3.6 }
+  - { path: "admin/management/users/:username/edit", screen: 用户编辑, spec: console-ui §3.6 }
+  - { path: admin/management/users/new, screen: 新建用户, spec: console-ui §3.6 }
+  - { path: admin/management/groups, screen: 组管理列表, spec: console-ui §3.7 }
+  - { path: "admin/management/groups/:groupname/edit", screen: 组编辑, spec: console-ui §3.7 }
+  - { path: admin/management/groups/new, screen: 新建组, spec: console-ui §3.7 }
+  - { path: admin/management/permissions, screen: 权限管理列表, spec: console-ui §3.8 }
+  - { path: admin/management/permissions/new, screen: 新建权限, spec: console-ui §3.8 (create 拼写见 artifactory MFE 链接) }
+  - { path: admin/management/global_roles, screen: Global Roles(Projects 域), spec: rbac-model §2 }
+  - { path: admin/configuration/security/general, screen: Security General Settings, spec: console-ui §1.2 }
+  - { path: admin/configuration/security/access_tokens, screen: Access Tokens, spec: console-ui §3.17 (走查=中) }
+  - { path: admin/configuration/security/ldap, screen: LDAP 设置, spec: console-ui §3.15 + auth-integration §1.4/§6 }
+  - { path: "admin/configuration/security/ldap/ldap_settings/:label", screen: LDAP 设置编辑, spec: auth-integration §1.4 }
+  - { path: "admin/configuration/security/ldap/ldap_group/:label", screen: LDAP 组设置编辑, spec: auth-integration §1.3/§1.4 }
+  - { path: admin/configuration/security/oauth, screen: OAuth SSO, spec: auth-integration §2.3/§6 }
+  - { path: admin/configuration/security/oauth/new_provider, screen: 新建 OAuth provider, spec: auth-integration §2.2 }
+  - { path: "admin/configuration/security/oauth/:providerName/edit", screen: OAuth provider 编辑, spec: auth-integration §2.2 }
+  - { path: admin/configuration/security/saml, name: admin.configuration.saml_integration, screen: SAML SSO, spec: console-ui §1.2 + auth-integration §3.2 (路径字面量未从 bundle 提取到——route name 实证) }
+  - { path: admin/configuration/security/http_sso, name: admin.configuration.http_sso, screen: HTTP SSO, spec: console-ui §1.2 (未走查) }
+  - { path: admin/configuration/security/crowd_integration, name: admin.configuration.crowd_integration, screen: Crowd/JIRA 集成, spec: console-ui §1.2 (未走查) }
+  - { path: admin/configuration/security/scim, name: admin.configuration.scim, screen: SCIM 用户供给, spec: UNKNOWN (无任何规格) }
+  - { path: admin/configuration/security/vault_integration, screen: Vault 集成, spec: UNKNOWN }
+  - { path: admin/configuration/security/vaults, screen: Vaults 列表, spec: UNKNOWN }
+  - { path: admin/integration/central, screen: 集成中心, spec: UNKNOWN }
+  - { path: "*", screen: 404, spec: UNKNOWN }
+
+# ---------------------------------------------------------------- known-but-not-extracted
+not_extracted:
+  - { scope: host, note: /ui/login/ 与 /ui/user_profile 在 console-ui §2/§3.18 走查实证, 但不在两个 MFE 提取集内(宿主或独立登录 MFE 承载) — 需进一步定位 }
+  - { scope: /ui/admin/onboarding-page, note: console-ui §1.1 走查实证(7.84.10), 未在 7.161 提取集内 }
+  - { scope: /ui/admin/monitoring/system_logs, note: "console-ui §3.12 走查实证; 7.161 artifactory MFE 的是 admin/artifactory/advanced/system_logs — 两入口并存疑, 需 :8082 对拍" }
+  - { scope: other-mfe, note: distribution/insight/catalog/xray/retention(独立)/pipelines 等 MFE 路由表未提取 — BinFlow 范围外为主 }

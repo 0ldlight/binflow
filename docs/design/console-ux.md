@@ -2676,6 +2676,8 @@ group-form-* 全族载体迁移路由页零改名）
 | `search-more` | 搜索基本模式「加载更多」钮（客户端切片增量展开，100/页） | T-100 / v1.39 | T-451（FR-144.7/LC-98，E2 翻案——Q4 出口①）：基本模式结果表改客户端**页窗**（ResultsTable useClientPager + 共享 Pager 页码控件〔pager 族〕），「加载更多」增量范式在管理列表/结果表域退役（制品树分治豁免维持增量——tree-load-more）；m8 auxiliary 单页腿翻新（全链禁置断言代 count 0 反断言） |
 | `search-aql-prev` `search-aql-next` | AQL 模式结果表前后页按钮对（.offset() ± limit 重写） | T-419 / v1.39 | T-451（E2 翻案同源）：翻页改由共享 Pager 页码序列承载（页码 N → .offset((N-1)×limit) 尾缀重写——查询文本仍是唯一事实源；每页行数 = .limit() 重写并清 .offset 回第 1 页）；行为语义锚 `search-aql-range`（start_pos/limit/流式 total 回显）保持零改名；t419 分页腿与 K63 截断通告腿翻新（pager-prev/pager-next 断言） |
 | `audit-more` | 审计日志「加载更多」钮（keyset 游标增量追加，100/页） | T-102 / v1.39 | T-451（E2 翻案同源）：审计改 keyset **页窗**（useAuditPages 游标链——页码 N = 第 N-1 跳取窗；页脚根 = `audit-pager` 挂共享 Pager），增量追加范式退役；路径过滤语义随窗口化改「仅作用于本页窗口」（audit-count 文案同步）；governance.spec 审计腿窗口化改写（B1 晚到丢弃竞态腿保留——alive 守卫语义不变） |
+| `tree-load-more` | 制品树 children 表「Load more」增量钮（TREE_LEVEL_CAP 客户端分窗追加） | T-98 树族 / P2 | FE-Rewrite P2（§10.7「退役登记 2 条」行文已预告、表行锚账收尾批落笔——行文有而表行无即 ledger A3 断链）：Explorer 树迁 AG Grid 无限行模型（首窗渲染 + 滚动到底逐窗揭示，滚动即载），增量钮形态退役；§10.7 行文「TanStack Virtual」系笔误，实态 = AG Grid（artifacts.spec 滚动腿实证）；反检钉死 = artifacts.spec count 0 反断言（对账器退役反检豁免口径——仅无 not. 前缀的 toHaveCount(0) 行不计消费） |
+| `nav-mode-switch` | M8 双模式壳的应用⇄管理模式切换钮（v1.4 壳新锚，§10.5） | T-235 / v1.4 | FE-Rewrite P2（同 §10.7 批行文预告、表行锚账收尾批落笔）：四分组 IA（应用域/管理域同壳常驻分组）裁撤「切换模式」概念——权限可见性替代（nav 族分组按 RBAC 渲染）；shell.spec 分组标签腿反面断言承载（分组标签与切换项不配——v1.24 档位口径延续） |
 
 **回填记录（v1.9.1，T-274——T-267 误杀修正）**：下列 19 族曾以「零 spec 消费」
 入本表处置，实为对账器 spec 抽取正则的形态盲区所致**误杀**（见下方工具局限
@@ -2722,3 +2724,180 @@ src 侧变量模板形态的补收均载于 `web/scripts/anchor-audit.mjs` 头�
 退役并在 T-265 日志补记）；② `--ledger` 通过是 qa 硬门（蕴含 unregistered /
 broken 双零与退役表一致）；③ 死锚处置随大版本回归进行——零消费锚要么补 spec
 消费、要么进退役总表，**不得静默删除、不得长期滞留**（A3/A4 断言兜底）。
+
+### §10.7 重写期锚账批次（FE-Rewrite P2 收编批 + T-512 补账批，conductor 2026-09-08）
+
+**T-512 补账批（builds 域 23 族 + 散件——收编时欠账，本批补入册）**：`builds-page` / `builds-table` / `builds-row-*` / `builds-empty` / `build-runs-page` / `build-runs-table` / `build-run-row-*` / `build-detail-page` / `build-detail-info` / `build-modules` / `build-module-row-*` / `build-artifacts` / `build-artifact-row-*` / `build-dependencies` / `build-dependency-row-*` / `build-statuses` / `build-status-row-*` / `build-status-current` / `build-timeline` / `build-timeline-row-*` / `build-promote-note` / `build-denied` / `build-not-found`（载体 web/src/pages/builds/BuildsPage.tsx；消费 m17/t512-builds-page.spec.ts）。散件：`node-module-id`（NodeDetail，Module ID 行）/ `search-builds-results` `search-builds-row-*` `search-scope` `search-scope-artifacts` `search-scope-builds`（旧 SearchPage——**LegacyBridge 期双实现并存注记**：新 SearchPageV2 承 `search-scope-*` 模板族，旧 SearchPage 静态族随 P3 搜索域收口退役入 §10.6）/ `users-columns-item-lastlogin` / `logs-degraded` / `gc-cron-last-*` / `group-form-readonly-note` / `groups-sort-name` / `pager-size-*`（共享 Pager 档位项——P2 起新旧双载体，终验归新）。
+
+**P2 批（FE-Rewrite 12 族）**：Explorer 批量动作 `tree-bulk-copy` `tree-bulk-move` `tree-bulk-delete`（ChildrenGrid 多选工具条——**解锁面**：api/copy|move 首次 UI 化）；CopyMoveDialog 族 `copy-move-dialog` `copy-move-target-repo` `copy-move-target-path` `copy-move-dry` `copy-move-dry-run` `copy-move-error` `copy-move-run` `copy-move-cancel`（干跑预演+执行+取消——消费 e2e/p2/core-flow.spec.ts）；`topbar-help-menu`（新壳 Topbar——7.161 帮助菜单形态迁移）；`repo-activity-row-*`（RepoDetail Activity Tab 八 Tab 架构成）；`confirm-phrase-input`（新 Confirm 层——四态缺省锚语义延续，消费 core-flow typed 确认腿）。
+
+**退役登记（§10.6 增补 2 条）**：`nav-mode-switch`（应用⇄管理模式切换——P2 四分组 IA 裁撤该概念，权限可见性替代）；`tree-load-more`（客户端 load-more——TanStack Virtual 虚拟化替代，滚动即载）。
+
+**broken 处置（tree-children）**：m17/t512 spec 的宽容选择器回退遮蔽了断链——P2 Explorer 的 ChildrenGrid 容器补挂 `data-testid="tree-children"`（锚延续律：换栈零锚改名），本批修断。
+
+### §10.8 P3 批（FE-Rewrite 管理面收编批，conductor 2026-09-09）
+
+**P3 新锚入册（解锁面 12 域族，载体与消费 e2e/p3/unlocked-faces.spec.ts + 迁移 9 spec）**：
+- **keypair 域（37 族）**：`keypair` 表根族 / `keypair-create` `keypair-import`（导入向导 9 族）/ `keypair-generate`（生成向导 8 族+`keypair-generate-uid` 3 族）/ `keypair-assoc`（仓关联 3 族）/ `keypair-verify` `keypair-row` `keypair-readonly` 等散件——载体 pages/security/KeypairPage.tsx
+- **QRL 面板（12 族）**：`qrl` 根 / `qrl-mode` `qrl-row` `qrl-input` `qrl-readonly`——载体 monitoring/SettingsPage.tsx（query_rate_limiter 三态）
+- **outbox 死信面（12 族）**：`outbox` 根 / `outbox-replay` `outbox-filter` `outbox-filter-event` `outbox-row`——载体 webhooks/OutboxPanel.tsx
+- **Settings 旋钮页（5 族）**：`settings-knob` / `settings-knobs` / `settings` 散件——载体 monitoring/SettingsPage.tsx（/v1/system/settings 六旋钮+QRL 合页）
+- **builds 写面（19 族）**：`build-promote`（11——PromoteDialog）/ `build-retention`（5+2——RetentionDialog）——载体 builds/Promote·RetentionDialog.tsx
+- **bundle 创建（7+ 族）**：`bundle-create`——载体 bundles/CreateBundleDialog.tsx
+- **散件**：`wh-tab`（webhooks Tab×2）/ `users-sort` / `logs` / `license-uninstall`
+- **假阳性注记**：`node-downloads` 族等为**动态构造**（src 在场、对账器词汇表限制——§10.6 工具局限史同款），登记为可见性豁免待工具补形（跟进事项，不阻塞 ledger 门）
+
+**退役登记（§10.6 增补）**：P3 批 git rm 14 旧 MUI 页（LoginPage/DashboardPage/SearchPage 三件/ArtifactsBrowser+NodeDetail+browser.css/RepositoriesPage 三件/AppShell/NavIcons/TransferBox/legacy-bridge）——其独占锚族随载体消亡，对账器 retired 桶自证（本批零改名零断链，145 e2e 终批绿为证）。**LegacyBridge 退役**：零路由消费达成，文件删除——终验强删项提前兑现。
+
+**P3 批逐名补录（对账器精确匹配层——上节按组描述不足以逐族命中，本层逐名）**：
+
+  `- `build-promote-cancel`
+  `- `build-promote-ciuser`
+  `- `build-promote-comment`
+  `- `build-promote-copy`
+  `- `build-promote-dialog`
+  `- `build-promote-failfast`
+  `- `build-promote-result`
+  `- `build-promote-run`
+  `- `build-promote-status`
+  `- `build-promote-submit`
+  `- `build-promote-target`
+  `- `build-retention-cancel`
+  `- `build-retention-count`
+  `- `build-retention-delete-artifacts`
+  `- `build-retention-dialog`
+  `- `build-retention-keep`
+  `- `build-retention-min-date`
+  `- `build-retention-submit`
+  `- `bundle-create-add`
+  `- `bundle-create-cancel`
+  `- `bundle-create-dialog`
+  `- `bundle-create-empty`
+  `- `bundle-create-name`
+  `- `bundle-create-path-*`
+  `- `bundle-create-remove-*`
+  `- `bundle-create-repo-*`
+  `- `bundle-create-row-*`
+  `- `bundle-create-sha-*`
+  `- `bundle-create-submit`
+  `- `bundle-create-version`
+  `- `keypair-assoc-go`
+  `- `keypair-assoc-pair`
+  `- `keypair-assoc-remove-*`
+  `- `keypair-assoc-repo`
+  `- `keypair-create-generate`
+  `- `keypair-create-generate-empty`
+  `- `keypair-create-import`
+  `- `keypair-delete-*`
+  `- `keypair-delete-confirm-name`
+  `- `keypair-empty`
+  `- `keypair-generate-alias`
+  `- `keypair-generate-bits`
+  `- `keypair-generate-cancel`
+  `- `keypair-generate-dialog`
+  `- `keypair-generate-name`
+  `- `keypair-generate-passphrase`
+  `- `keypair-generate-passphrase2`
+  `- `keypair-generate-submit`
+  `- `keypair-generate-uid-comment`
+  `- `keypair-generate-uid-email`
+  `- `keypair-generate-uid-name`
+  `- `keypair-import-alias`
+  `- `keypair-import-cancel`
+  `- `keypair-import-dialog`
+  `- `keypair-import-name`
+  `- `keypair-import-passphrase`
+  `- `keypair-import-private`
+  `- `keypair-import-public`
+  `- `keypair-import-submit`
+  `- `keypair-import-type`
+  `- `keypair-page`
+  `- `keypair-public-dialog`
+  `- `keypair-readonly-note`
+  `- `keypair-table`
+  `- `license-uninstall-confirm`
+  `- `logs-truncated`
+  `- `outbox-empty`
+  `- `outbox-filter-event-type`
+  `- `outbox-filter-status`
+  `- `outbox-filter-subscription`
+  `- `outbox-pager`
+  `- `outbox-panel`
+  `- `outbox-refresh`
+  `- `outbox-replay-note`
+  `- `outbox-table`
+  `- `qrl-mode-disabled`
+  `- `qrl-mode-enabled`
+  `- `qrl-panel`
+  `- `qrl-readonly-note`
+  `- `qrl-reset`
+  `- `qrl-save`
+  `- `qrl-state`
+  `- `qrl-table`
+  `- `settings-knobs-note`
+  `- `settings-page`
+  `- `users-sort-lastlogin`
+  `- `wh-tab-outbox`
+  `- `wh-tab-subs`
+
+**勘误（FE-P3 锚账收尾批，2026-09-10）**：本节与 §10.7 行文的下列 token 经逐点核实非 testid 锚（A3 假阳性清零；对账器停词表同批登记）：
+- **裸名行文短写**（组描述速记词；真身 = 上方逐名补录的带尾实名，均在册在 src）：`users-sort`（真身 users-sort-name、users-sort-status、users-sort-lastlogin——新栈 SortTh prop 形落点）；`wh-tab`（wh-tab-subs、wh-tab-outbox）；`qrl-mode`（qrl-mode-enabled、qrl-mode-disabled）；`qrl-readonly`（qrl-readonly-note）；`keypair-create`（keypair-create-generate、keypair-create-generate-empty、keypair-create-import）；`keypair-import`（导入向导九实名——alias 至 submit 逐名在册）；`keypair-generate`（生成向导八实名逐名在册）；`keypair-generate-uid`（uid 段 name、comment、email 三实名逐名在册）；`keypair-readonly`（keypair-readonly-note）；`outbox-filter` 与 `outbox-filter-event`（outbox-filter-subscription、outbox-filter-status、outbox-filter-event-type）。
+- **文件名与机制词**：`core-flow`（e2e/p2/core-flow.spec.ts 文件名段）；`t512-builds-page`（e2e/m17 的 T-512 spec 文件名段——FE-P3 日志曾误报为「旧页根锚退役」，实为文件名误入册 token，全库零该 testid 落点，退役条目不成立）；`unlocked-faces`（e2e/p3/unlocked-faces.spec.ts 文件名段）；`legacy-bridge`（P3 git rm 文件名段——HEAD 版该文件零 testid，自证非锚）；`load-more`（增量机制名，§10.7「客户端 load-more」行文）。
+- **§10.6 落笔兑现**：§10.7「退役登记（§10.6 增补 2 条）」预告的 tree-load-more 与 nav-mode-switch 表行本批补入（行文预告而表行缺失即 --ledger A3 断链主因）。
+- **对账器缺陷修留痕**：退役反检豁免（count 0 行不计消费）初版 toBeCount( 字面不命中从未生效；二版 toBeHidden() 与子串命中 not.toHaveCount(0) 过宽——活锚隐藏态断言被误除消费（node-download-panel、audit-columns-menu、help-docs 逐点自证为真实消费，退役反检零用例）。终版 = 仅豁免无 not. 前缀的 toHaveCount(0) 行。
+
+### §10.9 P4 批（FE-Rewrite 高级 UX 收编批，FE-P4 2026-09-10）
+
+**P4 新锚入册（14 名；载体与消费面见本节末行）**——逐名补录（对账器精确匹配层）：
+
+  `- `palette-root`
+  `- `palette-input`
+  `- `palette-item-<id>`
+  `- `palette-ai`
+  `- `topbar-search-quick`
+  `- `topbar-search-quick-item-<i>`
+  `- `repo-reindex-card`
+  `- `repo-reindex-run`
+  `- `repo-reindex-result`
+  `- `repo-reindex-note`
+  `- `tree-bulk-archive`
+  `- `tree-context-archive`
+
+**分组注记**：命令面板三件与占位入口（⌘K 面板——开闭态走 Zustand 面板仓；条目族含导航四分组与建仓/上传/新建/偏好动作，偏好组承载主题与语言切换）；顶栏快速结果两件（artifactsearch 快速端点首次 UI 化——输入两字符起防抖打点，命中行点击深链制品树）；仓库详情高级动作四件（reindex 族——四包型呈现，仅全量管理员可发起）；Explorer 归档下载两件（archive 下载端点首次 UI 化——多选工具条在恰好一个目录时启用，右键项挂目录与仓节点）。
+
+**MUI 清场留痕**：六个对话框与节件迁新栈壳（部署/Set Me Up/属性/复制配置/危险确认/吐司桥），锚族与调用方接口逐字保真；九个旧载体文件删除（过渡挂载壳、MUI 主题层、旧主题上下文、配方层、旧四态五件），独占锚为零、retired 桶自证；空态冻结锚的载体移至新栈四态层（prop 缺省值形态保持扫描可见性）。载体：web/src/app/shell/ 与 pages 诸件；消费：web/e2e/p4/ 三 spec。
+
+### §10.10 P5 批（FE-Rewrite AI 基座收编批，FE-P5 2026-09-10）
+
+**P5 新锚入册（28 名；载体与消费面见本节末行）**——逐名补录（对账器精确匹配层 + 家族层）：
+
+  `- `ai-open`
+  `- `ai-drawer`
+  `- `ai-close`
+  `- `ai-context-badge`
+  `- `ai-msg-context-badge`
+  `- `ai-empty`
+  `- `ai-empty-suggest-storage`
+  `- `ai-empty-suggest-create`
+  `- `ai-thread`
+  `- `ai-typing`
+  `- `ai-msg-user-<i>`
+  `- `ai-msg-assistant-<i>`
+  `- `ai-input`
+  `- `ai-send`
+  `- `ai-error`
+  `- `ai-error-retry`
+  `- `ai-code-block`
+  `- `ai-copy-code`
+  `- `ai-md-table`
+  `- `ai-tool-call`
+  `- `ai-tool-call-args`
+  `- `ai-tool-result`
+  `- `ai-tool-result-table`
+  `- `ai-confirm`
+  `- `ai-confirm-params`
+  `- `ai-confirm-cancel`
+  `- `ai-confirm-accept`
+  `- `ai-confirm-result`
+
+**分组注记**：AI 助手右滑抽屉三入口（顶栏 ai-open 钮 / ⌘J 快捷键 / palette-ai 条目〔P4 占位转正〕——开合态走 Zustand AI UI 仓）；上下文徽章两件（头部 ai-context-badge = 路由派生坐标〔domain + repoKey/path/build 链〕，消息首帧 ai-msg-context-badge = 发送时快照注入）；消息流与输入（ai-msg-user-<i>/ai-msg-assistant-<i> 气泡族、ai-thread/ai-input/ai-send、ai-typing 运行态、ai-empty 族空态建议 chip、ai-error 族错误重试）；渲染分层（markdown 表格 ai-md-table、围栏代码块 ai-code-block + 拷贝钮 ai-copy-code、ToolCallCard 折叠族、ToolResultCard 表格族）；结构化确认（ConfirmCard 族——参数表 + [取消][创建仓库] 双钮 + 结果行，确认动作回调 = addResult 抽象）。**边界（audit 盲区②）**：Go 侧无 LLM/chat 端点——mock provider 本地确定性响应、零网络请求（e2e 路由计数断言）。载体：web/src/components/ai/ 与 lib/ai/、app/shell（Topbar/CommandPalette 接线）；消费：web/e2e/p5/ 的 AI 基座 spec。

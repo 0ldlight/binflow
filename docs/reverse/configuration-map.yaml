@@ -1,0 +1,123 @@
+# EVIDENCE INDEX (evidence-index-only) — 仅供发现与对账，禁止作为 BinFlow 结构设计依据（ADR-0001 / 宪章 §39-41）
+# Artifactory 7.x 配置体系图：system.yaml schema 域结构 + JF_* env 映射 + bootstrap 加载序 + secrets 解析链 + 模板差异
+# 证据源（一手实证，2026-09-11 采集）：
+#   B 运行时 :8082（7.161.20）：docker exec artifactory cat /opt/jfrog/artifactory/var/etc/{system.yaml,system.full-template.yaml,system.basic-template.yaml}（只读）
+#   C 安装包 7.161.16：var/etc/ 两模板与 B 逐字节一致（diff 验证 IDENTICAL）；app/bin/systemYamlHelper.sh（transformKeyToEnv / getSystemValue / resolveSystemKeys 函数体直读）
+#   A 反编译 7.161.24：docs/reverse/config-formats.md（binarystore.xml/artifactory.config.xml/artifactory.system.properties 既有规格）
+# 实证命令记录：
+#   docker exec artifactory cat /opt/jfrog/artifactory/var/etc/system.yaml
+#   diff /Users/lzw/Downloads/artifactory-pro-7.161.16/var/etc/system.full-template.yaml <(docker exec artifactory cat …/system.full-template.yaml) → IDENTICAL
+#   grep -n "transformKeyToEnv\|getSystemValue" …/app/bin/systemYamlHelper.sh（行 587/850 函数体取证）
+
+meta:
+  versions: {B: "7.161.20 runtime（:8082）", C: "7.161.16 installer（模板与 B 逐字节一致）", A: "7.161.24 decompiled（经 config-formats.md）"}
+  scope: "system.yaml 体系（平台层）；artifactory 服务层遗留配置（config.xml/binarystore.xml/system.properties）以引用方式收录"
+
+system_yaml:
+  file_layout:
+    live_user_file: "var/etc/system.yaml —— 仅含用户显式配置（活体实例实测：shared.node.ip + shared.database 五键，密码已加密态）"
+    templates: "var/etc/system.full-template.yaml（1518 行，全 schema 参考）与 var/etc/system.basic-template.yaml（71 行，最小集）与用户文件并置"
+    template_usage_note: "模板头自述 HOW TO USE: comment-out any field…（取消注释即生效）——模板作为 schema 文档与默认值来源；运行时解析器是否回退读模板=UNKNOWN（见 pending CFG-2）"
+    config_version: "configVersion: 1（两模板与用户文件均首键）"
+  schema_domains:   # full-template 顶层段全列（22 服务段 + configVersion；默认值取自模板注释——# 前缀即默认）
+  - {section: shared,        role: 全服务共享键, keys: "javaHome/extraJavaOpts/security{joinKey,joinKeyFile,masterKeyFile,masterKeyExternal,bootstrapKeysReadTimeoutSecs,exposeApplicationHeaders}/logging{consoleLog,rotation,enableJsonConsoleLogAppenders}/node{id,ip,name,haEnabled,taskAffinity,primary}/database{allowNonPostgresql,type,driver,url,username,password,kerberosAuth}/script{serviceStartTimeout}/env/metrics{enabled}/healthCheck{intervalSecs,probes.liveness}/jfrogColdStorage{coldInstanceEnabled}/user/group", evidence: full-template L16-184}
+  - {section: artifactory,  role: Artifactory 主服务, keys: "port(8081)/database{maxOpenConnections=100,maxIdleConnections=10,minIdleConnections=1,poolType=tomcat-jdbc}/node{haDataDir,haBackupDir}/tomcat{connector{maxThreads=200,sendReasonPhrase,relaxedPathChars,relaxedQueryChars,extraConfig},maintenanceConnector{port=8091,maxThreads=5},httpsConnector{enabled=false,port=8443,certificateFile,certificateKeyFile,extraConfig,sslHostConfig}}/env/metrics{enabled,logging.lineBreaks.platformDependant}", evidence: full-template L187-281}
+  - {section: access,       role: Access 认证服务, keys: "http.port(8040)/grpc{port=8045,maxInboundMetadataSize=8192}/database{derby 默认,pool 同上}/tomcat.connector/extraJavaOpts/env/metrics/featureAdoption{usage 采集}/startUpSkipDefaultAdmin(false)", evidence: full-template L303-365}
+  - {section: frontend,     role: 前端服务, keys: "port(8070)/session.timeMinutes(30)/logging{application,request}/env/featureToggler.commonProjects(true)", evidence: full-template L368-401}
+  - {section: metadata,     role: Metadata 服务, keys: "port(8086)/database{sqlite 默认,maxOpenConnections,disablePreparedStatementCache,queryTimeoutSecs=1800}/logging{application{level,console,packages{common,daos},rotation},request}/profiling/tokenCache.timeout(115s)", evidence: full-template L404-484}
+  - {section: router,       role: 统一路由（Traefik）, keys: "profiling/proxy{httpUrl,httpsUrl,ignoredHosts}/masterKeyRemoval{heartbeatCount=3,timeoutSecs=600}/entrypoints{internalPort=8046,externalPort=8082,externalHost,traefikApiPort=8049,grpcPort=8047}/serviceRegistry{insecure,requestTimeout=15s,skipJoinConnectivityTest}/topology{local{requiredServiceTypes=jfrt,jfac,jfmd,jffe,jfevt,jfob,healthCheck},external.refresh}/supportBundle/logging{application,traefik,request{verbose,tokenIdLoggingEnabled,forwardedForLogging}}/httpclient.requestTimeoutSecs(30)/env/retry.enabled(true)", evidence: full-template L642-823}
+  - {section: event,        role: 事件服务（webhook 分发）, keys: "port(8061)/grpcPort(8062)/tokenCache.timeoutMillis(60000)/artifactoryClient.request.timeoutMillis(5000)/accessClient{ping,join}/supportBundle/proxyCache|baseUrlCache|domainCache.intervalMillis(300000)/profiling/metrics/logging/rateLimit{frequency=1000.0,burstSize=10000,maxConcurrentHandlers=50000}/webhooks{timeoutMillis=30000,retryCount=5,retryWaitMillis=10000,sizeLimits{headersMaxCount=50,headersMaxSizeBytes=5120}}/customWebhooks{+secretsMaxCount=50,payloadMaxSizeBytes=51200}/security.blacklist.enabled(true,SSRF 防护)/troubleshooting", evidence: full-template L826-1015}
+  - {section: observability, role: 可观测服务, keys: "profiling/httpPort(8036)/grpcPort(8037)/metrics/consumption/logging{application,request,metrics}/shipping{pollingIntervalSecs=60,allow,logsDir,allowedFileSizeBytes}/accessClient/artClient", evidence: full-template L1018-1129}
+  - {section: jfconnect,    role: JFConnect 云连接, keys: "enabled(true)/httpPort(8030)/grpcPort(8035)", evidence: full-template L487-494}
+  - {section: jfmelt,       role: JFMELT 服务, keys: "enabled(true)/profiling/httpPort(8032)/grpcPort(8038)/accessClient{joinTimeoutMins=5,pingTimeoutMins=5,tokenCache}/metrics{tokenVerification 重试退避表}/logging{application,request,requestOut,metrics}/supportBundle/entitlements{enforcementAlwaysOff=true}/usage/myJfrogSso/apiKeyUsage", evidence: full-template L497-617}
+  - {section: mc,           role: Mission Control（默认关）, keys: "port(8080)/enabled(false)/tomcat.connector.maxThreads(50)/database.maxOpenConnections(10)/idgenerator", evidence: full-template L620-639}
+  - {section: topology,     role: 拓扑服务, keys: "enabled(true)/accessClient{connectionTimeoutSecs=5,maxJoinRetries=90,cache}/database(derby 默认,migrationRetry 退避)/grpc{port=8021}/healthCheck/port(8020)/security/tomcat/cleanup{staleNodeThresholdSecs=604800}/metrics/kubernetesFetcher/logging.requestFilter", evidence: full-template L1236-1308}
+  - {section: jfconfig,     role: 配置服务, keys: "enabled(true)/accessClient/database(derby)/grpc{port=8011,maxInboundMessageSize=20000000}/healthCheck/port(8010)/routerHost/newrelic/metrics/sync{HA 同步,channel/token cache}/data.migration.auto/logging.requestFilter", evidence: full-template L1311-1399}
+  - {section: onemodel,     role: OneModel（GraphQL 组合）, keys: "enabled(true)/accessClient{joinTimeoutMillis=360000}/composition/cosmo.router{port=8073,introspectionEnabled=false}/graphql{queryCacheSize=5}/grpcPort(8072)/healthCheck/listenAddr(localhost)/logging{application,consoleLog,metrics,request,requestOut}/supportBundle/metrics/probes/storage{maxRecordsPerOwner=10,supergraphsRetentionDays=365}/port(8071)", evidence: full-template L1140-1233}
+  - {section: grid,         role: Grid 服务（自托管 opt-in，默认关）, keys: "enabled(false)/port(8022)/httpBindInterface(localhost)/profiling/accessClient{join=120000ms,ping=300000ms}/tokenCache/metrics/supportBundle/jobScheduler.masterTokenRefresh{interval=24h,expiryThreshold=720h}/jfConnect/tracing.traceIdSource(auto)/pfed{grpcPort=0 复用 router}/tenantReadiness/topology{healthCheckTimeout=30s,phasedFullSync 轮询表}/jfbus{batchSize=100}/onemodel.graphql/logging", evidence: full-template L1402-1519}
+  - {section: evidence,     role: evidence 服务, keys: "enabled(true)（仅此一键）", evidence: full-template L1132-1134}
+  - {section: rtfs,         role: RTFS, keys: "enabled(false)（仅此一键）", evidence: full-template L1136-1138}
+  - {section: jfbus,        role: JFBus 消息总线, keys: "enabled(false)（仅此一键）", evidence: full-template L283-284}
+  - {section: platformFederation, role: 平台联邦（PFED）, keys: "enabled(false)（仅此一键）", evidence: full-template L287-288}
+  - {section: apptrust,     role: AppTrust, keys: "enabled(false)（仅此一键）", evidence: full-template L291-292}
+  - {section: unifiedpolicy, role: 统一策略, keys: "enabled(false)（仅此一键）", evidence: full-template L295-296}
+  - {section: evaluation,   role: 评估模式, keys: "enabled(false)（仅此一键）", evidence: full-template L299-300}
+  live_etc_dir_listing:   # B 实测（var/etc/ 顶层）
+    platform_services: [access, artifactory, event, evidence, jfconfig, jfconnect, jfmelt, logrotate, metadata, observability, onemodel, router, security, topology]
+    files: [system.yaml, system.full-template.yaml, system.basic-template.yaml]
+  service_etc_dir:        # B 实测（var/etc/artifactory/，服务层文件由播种/运行时生成）
+    seeded_or_runtime: "binarystore.xml, artifactory.system.properties, logback.xml, mimetypes.xml, plugins/, tomcat/, ui/, security/"
+    runtime_state: "artifactory.config.latest.xml（+时间戳变体）、artifactory.repository.config.latest.json（+时间戳变体）、artifactory.lic、artifactory.properties"
+
+env_var_mapping:
+  naming_rule:
+    rule: "system.yaml 键路径 → 环境变量：把键中 `.` 与 `-` 替换为 `_`、全部转大写、加前缀 JF_（若未带）"
+    example: shared.database.username → JF_SHARED_DATABASE_USERNAME
+    evidence: "C 安装包 app/bin/systemYamlHelper.sh transformKeyToEnv（L583-599 函数体直读；注释原文 shared.database.username => JF_SHARED_DATABASE_USERNAME）"
+    confidence: high
+  resolution_order:      # systemYamlHelper.sh getSystemValue（L850-882 函数体直读）
+  - {priority: 1, source: 环境变量, behavior: "getENVValue（transformKeyToEnv 名）命中即返回——注释原文 The highest priority goes to environment variables", confidence: high}
+  - {priority: 2, source: YAML 文件列表, behavior: "按 JF_SYSTEM_YAML 环境变量给出的文件清单顺序逐文件查找（缺省清单=$JF_PRODUCT_HOME/var/etc/system.yaml 单文件）；先到先得", confidence: high}
+  - {priority: 3, source: 调用方默认值, behavior: "全部未命中且调用方传默认值→用默认", confidence: high}
+  - {priority: 4, source: 失败, behavior: "无默认→errorExit（key is not set in …）", confidence: high}
+  placeholder_substitution:
+    behavior: "安装期模板变量 ${key||default}（如 ${node.ip||127.0.0.1}）经 resolveSystemKeys 用 getSystemValue 解析后 sed 替换进目标配置文件；嵌套解析最多 5 轮；artifacts.[0].name 数组形态与 test_name 下划线形态均支持"
+    evidence: systemYamlHelper.sh resolveSystemKeys（L960-1060 函数体直读）
+    confidence: high
+  custom_env_restriction: "shared.env 与各服务 env 段：JF_ 前缀的自定义环境变量被拒绝（ignored with a warning）——模板原文两处注记"
+  java_side_note: "Java 服务进程内是否直接读 JF_* env（还是仅由启动脚本解析后以 -D/替换后配置注入）：反编译集合未定位到通用 env mapper（jfrog-config 模块无 getenv 调用）→ UNKNOWN（pending CFG-1）"
+
+bootstrap:
+  first_boot_seeding:
+  - {layer: 服务配置, behavior: "etc 目录缺 binarystore.xml 时由内置资源 /META-INF/default/binarystore.xml 物化；默认内容 <chain template=\"file-system\"/>；mandatory=true+encrypted=true（HA 共享配置清单）", evidence: config-formats.md §1.1 L2-L3（A 反编译 ArtifactoryConfigurationAdapter#initSharedConfigs）, confidence: high}
+  - {layer: 目录骨架, behavior: "var/etc/ 平台服务目录 + var/etc/artifactory/ 服务目录 + var/etc/security/ 密钥目录随首启创建并播种（B 活体目录实测佐证终态）", evidence: "B ls var/etc 与 var/etc/artifactory", confidence: "high（终态）/ medium（创建时序）"}
+  startup_key_read:
+    behavior: "等待 master.key/join.key 文件就绪最长 bootstrapKeysReadTimeoutSecs（默认 120s）；masterKeyExternal=true 时强制外部供给、缺失不自动生成；router.masterKeyRemoval 在全部平台服务心跳成功 heartbeatCount 次（默认 3）或 timeoutSecs（默认 600s）超时后从文件系统删除 masterkey"
+    evidence: full-template shared.security + router.masterKeyRemoval 注释原文
+    confidence: high
+  java_config_layering:   # config-formats.md §6（中置信，loader 未完整走读）
+    order: "system.yaml（Helm/docker 场景）→ artifactory.system.properties → JVM -D → 内置默认（ConstantValues 枚举数千项）"
+    note: "同键确切优先级未完整走读（config-formats.md 待验证2）→ UNKNOWN（pending CFG-3）"
+
+secrets:
+  key_files:             # B 活体实测 var/etc/security/
+  - {file: master.key, role: 实例主密钥（敏感字段加解密）, provision: 首启未提供时自动生成, evidence: "B ls + full-template shared.security.masterKeyFile 注释 Generated by the product on first startup if not provided"}
+  - {file: join.key,    role: 集群加入密钥, provision: 同上, evidence: "B ls + joinKey/joinKeyFile 键（joinKey 值优先于文件）"}
+  - {file: keys/,       role: 密钥目录（access 侧 keys 等）, evidence: B ls}
+  - {file: "etc/security/access/keys/access.creds", role: Access admin token 凭据, provision: Access 首启, evidence: "config-formats.md §5（A 7.161.16 基线；B 活体未观察到该文件）", confidence: medium}
+  encryption_on_first_read:
+    behavior: "敏感值（password/joinKey 等）首次读取后就地加密回写（模板头原文 Sensitive information … are encrypted on first read）"
+    live_evidence: "B 活体 system.yaml shared.database.password 实值形态 98adfa.aesgcm256.<ciphertext>（算法标识段 aesgcm256）"
+    confidence: high
+  in_place_config_encryption:
+    behavior: "启动时用主密钥对 binarystore.xml 就地加密（云 provider identity/credential 等敏感字段→加密串），后续启动解密读入"
+    evidence: config-formats.md §1.1 L4（A 反编译 ArtifactoryEncryptionServiceImpl#encryptBinaryStoreConfig）
+    confidence: high
+  sensitive_key_logging: "解析日志对敏感键脱敏输出（isKeySensitive → SENSITIVE_KEY_VALUE 占位）——systemYamlHelper.sh resolutionlogger 函数体"
+
+template_diff:
+  full_template: "1518 行；22 服务段全量 + configVersion；段内键以 # 注释形态给出键名与默认值（uncomment-to-use）；少量键默认生效（如 shared.metrics.enabled: true、jfconnect.enabled: true、observability.httpPort: 8036、exposeApplicationHeaders: true）"
+  basic_template: "71 行；仅 4 段：configVersion + shared（javaHome/extraJavaOpts/security{joinKey,joinKeyFile,masterKeyFile,bootstrapKeysReadTimeoutSecs}/node{id,ip,primary,haEnabled}/database{allowNonPostgresql + postgresql 示例五键}）+ access（仅 extraJavaOpts）+ jfconnect（仅 enabled: true）"
+  key_differences:
+  - "basic 无 logging/metrics/healthCheck/script/env/user-group/jfrogColdStorage 段（full 有）"
+  - "basic 的 node 段仅 primary（full 标注 primary 已 deprecated、推荐 taskAffinity）；basic 无 taskAffinity/name 键"
+  - "basic 的 security 段无 masterKeyExternal 与 exposeApplicationHeaders（full 有）"
+  - "basic 的 database 仅 postgresql 示例（full 含 mysql/oracle/mssql/mariadb 全示例 + kerberosAuth）"
+  - "full 独有 20 个服务段（artifactory/router/event/…）——basic 仅 access+jfconnect 服务段"
+  use_note: "两模板均为 schema 文档（安装器随包并置 var/etc/）；用户实际生效面=system.yaml——UNKNOWN：安装器/运行时是否以模板作解析回退（pending CFG-2）"
+
+legacy_service_config_layers:   # 引用既有规格，不重复（config-formats.md 承载）
+- {file: binarystore.xml,        spec: "config-formats.md §1（模板注册表/链组合/默认播种/就地加密）；位置 var/etc/artifactory/binarystore.xml", role: blob 存储链}
+- {file: artifactory.config.xml, spec: "config-formats.md §2 + inv-2 §5（默认模板 291 行：security/backups×2/indexer/repoLayouts×26/gcConfig/cleanupConfig/folderDownloadConfig/trashcanConfig/reverseProxies）", role: 全局配置描述符（GET/POST /api/system/configuration 往返对象）}
+- {file: artifactory.system.properties, spec: "config-formats.md §4 + inv-2 §5（≈120 行为开关；所有 artifactory.* 键=ConstantValues 枚举数千项）", role: JVM 属性微调层}
+- {file: mimetypes.xml,          spec: "config-formats.md §3（缺失回退内置；sha1/sha256/md5→application/x-checksum）", role: 扩展名→Content-Type}
+- {file: logback.xml,            spec: "inv-2 §5（611 行）", role: 日志配置}
+- {file: artifactory.repository.config.latest.json, spec: "config-formats.md §2 尾（7.x repo 定义存 DB 不存 config.xml；导入导出文件名 ARTIFACTORY_REPO_CONFIG_FILE）", role: 仓库配置运行时态（B 活体可见 latest+时间戳双份）}
+- note: "7.x 配置双轨：平台层（system.yaml，router/access/…各服务）+ 服务层遗留（artifactory 上述 XML/properties，binarystore 属强制配置）；两层加载次序细目=config-formats.md §6（中置信）"
+
+pending_verification:
+  - {id: CFG-1, item: "Java 进程内 JF_* env 直读机制", why: "反编译集合无通用 env mapper（jfrog-config 模块 0 个 getenv）；shell 侧 transformKeyToEnv 仅证安装/启动脚本路径", need: "Java 侧 config mapper 库源码（未在反编译集合）或进程 /proc/<pid>/environ + 实测 JF_SHARED_NODE_ID 注入验证"}
+  - {id: CFG-2, item: "full/basic 模板是否参与运行时解析回退", why: "getSystemValue 默认仅查 var/etc/system.yaml；JF_SYSTEM_YAML 可扩展清单但未证模板在清单内", need: "活体：删除 system.yaml 某键观察是否取模板默认值（或 strace/yq 调用链）"}
+  - {id: CFG-3, item: "system.yaml vs artifactory.system.properties 同键优先级", why: "loader 未完整走读（config-formats.md 待验证2 原项）", need: "反编译 ArtifactorySystemProperties/system yaml loader 走读或活体同键对照"}
+  - {id: CFG-4, item: "目录骨架创建时序（首启播种 vs 每次启动校验）", why: "终态实测可见、时序未证（config-formats.md L3 触发条件同源遗留）", need: "干净卷首启前后目录快照对照"}
+  - {id: CFG-5, item: "98adfa 前缀语义（密文信封版本标识？）与 aesgcm256 之外的算法档位", why: "仅活体单样本；反编译加密封装未走读", need: "反编译 jfrog-crypto 加密信封格式 + 多字段样本比对"}

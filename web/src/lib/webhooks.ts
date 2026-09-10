@@ -18,7 +18,7 @@
 // - 事件类型闭集 = 13 域 66 型（eventtypes.go 镜像，唯二事实源之间的静态
 //   拷贝——服务端校验终裁，FE 表仅驱动下拉分组与 wired/dormant 标注）。
 
-import { ApiError } from './api'
+import { ApiError, apiJSON } from './api'
 import { tr } from '../i18n'
 
 const tt = tr('console')
@@ -401,4 +401,56 @@ export function getTroubleshooting(subscription: string, count = 20): Promise<Tr
   return eventJSON<TroubleshootingRecord[]>(
     `/troubleshooting?subscription=${encodeURIComponent(subscription)}&count=${count}`,
   )
+}
+
+// ---- outbox 死信面（M17 T-496 FR-159.2 / LC-109——P3 FE 解锁：管理面根
+// /binflow/api/v1/webhooks/outbox，非事件面根；读面越过 addon 门——锁定实例
+// 可见（操作员先看死信再买槽），replay 写面过 webhook 槽门）。 ----
+
+/** GET /api/v1/webhooks/outbox 行投影（internal/webhook DeliveryView） */
+export interface OutboxDelivery {
+  id: string
+  subscription_id: string
+  subscription_key: string
+  event_type: string
+  /** 闭集 pending | delivering | delivered | dead */
+  status: string
+  attempts: number
+  next_attempt_at: string
+  last_error: string
+  last_status_code: number | null
+  created_at: string
+  delivered_at: string | null
+}
+
+export interface OutboxPage {
+  deliveries: OutboxDelivery[]
+  /** 恒在场；'' = 尾页（audit 信封规则） */
+  nextCursor: string
+}
+
+export interface OutboxFilterInput {
+  subscription?: string
+  status?: string
+  eventType?: string
+  limit?: number
+  cursor?: string
+}
+
+/** 死信行查询（filter + keyset 分页，newest-first；越界 limit/未知 status → 400） */
+export function getOutboxPage(filter: OutboxFilterInput = {}): Promise<OutboxPage> {
+  const params = new URLSearchParams()
+  if (filter.subscription) params.set('subscription', filter.subscription)
+  if (filter.status) params.set('status', filter.status)
+  if (filter.eventType) params.set('event_type', filter.eventType)
+  if (filter.limit) params.set('limit', String(filter.limit))
+  if (filter.cursor) params.set('cursor', filter.cursor)
+  const qs = params.toString()
+  return apiJSON<OutboxPage>(`/v1/webhooks/outbox${qs ? `?${qs}` : ''}`)
+}
+
+/** 重放死信行（reset 为 pending，attempts 清零即刻投递——存档信封原样重发；
+ *  404 无行 / 409 非死态） */
+export function replayOutboxDelivery(id: string): Promise<OutboxDelivery> {
+  return apiJSON<OutboxDelivery>(`/v1/webhooks/outbox/${encodeURIComponent(id)}/replay`, { method: 'POST' })
 }

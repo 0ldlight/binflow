@@ -1,0 +1,23 @@
+# 来源: SOURCE C 安装包 /Users/lzw/Downloads/artifactory-pro-7.161.16/app/misc/service/artifactory.service
+# 版本: 7.161.16 | 证据等级: E2 | 原样摘录（全文）
+# 用途: systemd 单元行为（Type/Restart/PIDFile/ExecStart/ExecStop）的规格依据
+# 注: installService.sh 安装时会 sed 替换 ExecStart/ExecStop 中的绝对路径为实际 bin 目录
+
+[Unit]
+Description=Artifactory service
+After=network.target
+
+[Service]
+SuccessExitStatus=143
+Type=forking
+GuessMainPID=yes
+Restart=always
+RestartSec=60
+TimeoutStartSec=300
+PIDFile=/var/run/artifactory.pid
+ExecStart=/opt/jfrog/artifactory/app/bin/artifactoryManage.sh start
+ExecStop=/opt/jfrog/artifactory/app/bin/artifactoryManage.sh stop
+
+[Install]
+WantedBy=multi-user.target
+Alias=artifactory.service

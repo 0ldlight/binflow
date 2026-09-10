@@ -231,3 +231,78 @@ export function moduleIdsOf(info: BuildInfo, repoKey: string, path: string): str
   }
   return ids
 }
+
+// ---- 写面（P3 解锁——capability matrix 未列域 builds 行：promote/retention
+// 「API 在，旧 FE 明文无 UI」）------------------------------------------------
+//
+// POST /api/build/promote/{name}/{number}：200 + messages[] 流（{level:
+// error|warning|info, message}——failFast=false 的部分失败同乘 200）；?
+// started= 消歧。门 = w(targetRepo,"") ∧ r(buildRepo,buildName)（无 targetRepo
+// 的 status-only 臂免 w 半）。
+// POST /api/build/retention/{name}：四字段窗口体；?async=（缺省 true——
+// 200 应答自「已验证计划」；async=false 同步执行）。成功 = 裸 200 无体。
+
+/** promotion 请求体（build-info.md §2.4——PromotionRequest wire 全字段） */
+export interface PromoteRequest {
+  status: string
+  comment: string
+  ciUser: string
+  /** 规范 UTC Java 形（留空 = 服务端当前时刻） */
+  timestamp: string
+  dryRun: boolean
+  sourceRepo: string
+  /** 空 = status-only 臂（只翻状态不迁制品） */
+  targetRepo: string
+  /** false（缺省）= MOVE；true = COPY */
+  copy: boolean
+  artifacts: boolean | null
+  dependencies: boolean
+  scopes: string[]
+  properties: Record<string, string>
+  failFast: boolean | null
+}
+
+/** promote 回执的 messages[] 行 */
+export interface PromotionMessage {
+  level: string
+  message: string
+}
+
+export async function promoteBuild(
+  name: string,
+  number: string,
+  body: PromoteRequest,
+  opts: { started?: string } = {},
+): Promise<{ messages: PromotionMessage[] }> {
+  const p = new URLSearchParams()
+  if (opts.started) p.set('started', opts.started)
+  const qs = p.toString()
+  return apiJSON<{ messages: PromotionMessage[] }>(
+    `/build/promote/${encodeURIComponent(name)}/${encodeURIComponent(number)}${qs ? `?${qs}` : ''}`,
+    { method: 'POST', body },
+  )
+}
+
+/** retention 窗口体（四字段——build-info.md §2.5） */
+export interface RetentionRequest {
+  deleteBuildArtifacts: boolean
+  /** 保留最近 N 个 run；0 = 不按数窗 */
+  count: number
+  /** 保留此时刻之后的 run（RFC3339；空 = 不按时窗） */
+  minimumBuildDate: string
+  buildNumbersNotToBeDiscarded: string[]
+}
+
+export function setBuildRetention(
+  name: string,
+  body: RetentionRequest,
+  opts: { async?: boolean } = {},
+): Promise<void> {
+  const p = new URLSearchParams()
+  if (opts.async !== undefined) p.set('async', String(opts.async))
+  const qs = p.toString()
+  return apiJSON<void>(
+    `/build/retention/${encodeURIComponent(name)}${qs ? `?${qs}` : ''}`,
+    { method: 'POST', body },
+  )
+}

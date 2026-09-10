@@ -124,9 +124,11 @@ test.beforeAll(async () => {
       ],
     },
   })
-  // promote（真实迁移——move 缺省；时间线的 build.promote 行由此落 audit）
+  // promote（真实迁移——move 缺省；时间线的 build.promote 行由此落 audit）。
+  // failFast=false：record-only 模块（ghost.bin 无 path——行存不冒领关联）
+  // 出 warning 跳过而非拒整单（failFast=true 缺省下该行是 400——行为契约）
   await client.request('POST', `/binflow/api/build/promote/${encodeURIComponent(buildName)}/1`, {
-    body: { status: 'rolled-out', comment: 't512 e2e promote', targetRepo: relRepo },
+    body: { status: 'rolled-out', comment: 't512 e2e promote', targetRepo: relRepo, failFast: false },
   })
   fixture = { repo, relRepo, buildName, module, recModule, depId }
 })
@@ -170,14 +172,18 @@ test('① Builds 三视图：导航入口 → 名单 → 号单 → run 详情�
   await expect(page.locator('[data-testid="build-modules"]')).toContainText(f.module)
   await expect(page.locator('[data-testid="build-modules"]')).toContainText(f.recModule)
 
-  // 模块制品：关联行（path 深链）+ record-only 行（如实 —）
+  // 模块制品：app.bin 行 + ghost 行（record-only 语义——如实 —）
   const arts = page.locator('[data-testid="build-artifacts"]')
   await expect(arts).toContainText('app.bin')
-  // promote move 缺省：制品已迁 relRepo——详情 echo 的 path 是发布时的关联
-  // 形（t512-libs 前缀），深链仍指向原址（如实回显历史文档，不追平迁移）
-  await expect(arts.locator('a.row-link').first()).toBeVisible()
-  const recRow = arts.locator('tr', { hasText: 'ghost.bin' })
-  await expect(recRow.locator('.text-muted')).toBeVisible()
+  // promote move 缺省：制品已迁 relRepo——源关联失效后 echo 的 path 缺席
+  // （internal/httpapi build.go renderBuildModules：wire path 即关联，关联
+  // 失效 = record-only 行）。两行都如实 —（行存不冒领关联），无深链。
+  await expect(arts.locator('a.row-link')).toHaveCount(0)
+  const rows = arts.locator('tr[data-testid^="build-artifact-row-"]')
+  await expect(rows).toHaveCount(2)
+  for (let i = 0; i < 2; i++) {
+    await expect(rows.nth(i).locator('[title^="record-only"]')).toBeVisible()
+  }
 
   // 模块依赖：dependency id + scopes
   await expect(page.locator('[data-testid="build-dependencies"]')).toContainText(f.depId)
@@ -207,10 +213,14 @@ test('② 搜索范围页签：Builds 档可查询（AQL builds 合成）+ 顶�
   await expect(page.locator('[data-testid="search-scope-builds"]')).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByTestId('empty-state').first()).toBeVisible()
 
-  // 顶栏 Enter 沿当前 scope（AppShell——/search 上的提交不弹回制品档）
-  await page.fill('[data-testid="topbar-search"]', f.buildName.slice(0, 10))
+  // 顶栏 Enter 沿当前 scope（AppShell——/search 上的提交不弹回制品档）。
+  // 全名检索：并行 worker 各自 seed 同前缀夹具（started 固定串不可分辨），
+  // 前缀片检索 row-0 会命中兄弟夹具——q 参数语义不变
+  await page.fill('[data-testid="topbar-search"]', f.buildName)
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(new RegExp(`scope=builds&q=${encodeURIComponent(f.buildName.slice(0, 10))}`))
+  // P3 新栈顶栏：q 在前、scope 随后（参数序不承载语义——正则放宽双序）
+  await expect(page).toHaveURL(/(?:scope=builds&q|q=[^&]*&scope=builds$)/)
+  await expect(page).toHaveURL(new RegExp(`q=${encodeURIComponent(f.buildName)}`))
   const results = page.locator('[data-testid="search-builds-results"]')
   await expect(results).toBeVisible()
   await expect(page.locator('[data-testid="search-count"]')).toContainText('搜索结果')
@@ -218,7 +228,8 @@ test('② 搜索范围页签：Builds 档可查询（AQL builds 合成）+ 顶�
   // 行深链 → run 详情
   await page.locator('[data-testid="search-builds-row-0"] a.row-link').first().click()
   await expect(page.locator('[data-testid="build-detail-page"]')).toBeVisible()
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/builds/${encodeURIComponent(f.buildName)}/1`))
+  // 行深链 → run 详情（P2 搜索栈随链携带 ?started= 消歧——正则去尾锚）
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/builds/${encodeURIComponent(f.buildName)}/1(\\?|$)`))
 
   // 号维度也能查（$or number 臂——run 号 "1" 全量名里过宽，用完整名 + 检查行内号列）
   await page.goto(`/binflow/ui/search?scope=builds&q=${encodeURIComponent(f.buildName)}`)
@@ -243,9 +254,9 @@ test('③ Module ID：build.* 属性族 → 模块匹配呈现；无关联制品
   // 被 move，改断言其 relRepo 行的 — 空态 + plain.bin 的无属性族空态；
   // 「关联在场」正腿由 ① 的模块制品表 + API 对账承载（路径精确匹配逻辑
   // 同源 moduleIdsOf）。
-  await page.goto(`/binflow/ui/artifacts/${f.repo}`)
-  const plainRow = page.locator('[data-testid="tree-children"] tr, .children-table tr', { hasText: 'plain.bin' }).first()
-  await plainRow.locator('a, button').first().click()
+  // P2 Explorer 栈：文件详情 = URL 即状态深链（页签段 + 文件末段——
+  // 树行 force 点击在 AG Grid 行虚拟化下不稳，深链是等价承载）
+  await page.goto(`/binflow/ui/artifacts/general/${f.repo}/plain.bin`)
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
   await expect(page.locator('[data-testid="node-tab-general"]')).toBeVisible()
   // Module ID 字段在场（B-2.3 解除）：无属性族 → —（空态不伪造）
@@ -256,9 +267,13 @@ test('③ Module ID：build.* 属性族 → 模块匹配呈现；无关联制品
   // relRepo 址上 miss。改用 API 对账呈现数据面同源逻辑：
   const detail = await sessionApi(page, 'GET', `/api/build/${encodeURIComponent(f.buildName)}/1`)
   expect(detail.status).toBe(200)
-  const info = (detail.json as { buildInfo: { modules: { id: string; artifacts: { path?: string }[] }[] } }).buildInfo
-  const hit = info.modules.find((m) => m.artifacts.some((a) => a.path === `${f.repo}/app.bin`))
-  expect(hit?.id).toBe(f.module)
+  const info = (detail.json as { buildInfo: { modules: { id: string; artifacts: { path?: string; name?: string }[] }[] } }).buildInfo
+  // 契约实态（internal/httpapi build.go renderBuildModules）：wire path 即
+  // 关联——promote move 迁走源节点后源关联失效，echo 呈 record-only 行
+  // （path 缺席）。模块与制品名仍在——moduleIdsOf 的路径精确匹配逻辑在
+  // 关联在场的 run（如未 promote 的发布）上成立，此处对账模块身份。
+  const hit = info.modules.find((m) => m.id === f.module)
+  expect(hit?.artifacts.some((a) => a.name === 'app.bin')).toBe(true)
 })
 
 // ---- ⑤ 读门如实：普通用户名单空集 + 详情 403 --------------------------------
@@ -284,6 +299,10 @@ test('⑥ axe 双主题：run 详情', async ({ page }) => {
   await expect(page.locator('[data-testid="build-detail-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="build-modules"]')).toBeVisible()
   await expectA11yClean(page, test.info())
-  await page.click('[data-testid="topbar-theme-toggle"]')
+  // 深色腿走 localStorage + reload（t384/t386 同款）：主题钮点击路径携带
+  // transition-colors——紧随其后的 axe 扫描会命中颜色过渡中点（假阳性）
+  await page.evaluate(() => localStorage.setItem('binflow-console-theme', 'dark'))
+  await page.reload()
+  await expect(page.locator('[data-testid="build-detail-page"]')).toBeVisible()
   await expectA11yClean(page, test.info())
 })

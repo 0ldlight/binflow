@@ -15,7 +15,19 @@
  * - 与旧 CSS 共存纪律：本层独立于 styles/{base,pages,governance}.css，
  *   零选择器交集（仅 :root/[data-theme] 变量声明，同名同值不冲突）。
  */
-@import 'tailwindcss';
+/*
+ * P2 共存期纪律：preflight 关闭——新栈与旧 MUI 树（LegacyBridge）同页
+ * 共存，Tailwind preflight 的元素重置会与 MUI CssBaseline / 旧 base.css
+ * 的元素基线互相覆盖（注入序不定）。@layer theme+utilities 只引两件，
+ * preflight（base 全量元素重置）在 MUI=0 终验（整页换栈）时恢复——
+ * 恢复点见 frontend-rewrite-architecture §3。
+ */
+@import 'tailwindcss/theme.css' layer(theme);
+/* utilities 去层化：旧栈 styles/{base,pages,governance}.css 是未分层
+ * CSS——layer(utilities) 在级联里恒输给未分层规则（如 a { text-
+ * decoration: none } 压掉 underline 工具类）。去层后按导入序取胜
+ * （tailwind.css 在 main.tsx 最后引入）；MUI=0 终验时恢复分层形态。 */
+@import 'tailwindcss/utilities.css';
 @import './tokens.css';
 
 /* 暗色变体：跟随 <html data-theme="dark">（ADR-0029 Q2：亮色为默认主题） */
