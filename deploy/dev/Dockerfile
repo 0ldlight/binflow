@@ -39,6 +39,9 @@ RUN npm ci
 COPY web/index.html web/vite.config.ts web/tsconfig.json web/tsconfig.node.json ./
 COPY web/scripts ./scripts
 COPY web/src ./src
+# vite public dir — dist/brand/** is distilled from it and
+# wire-brand-assets.mjs fail-fasts when it is empty (DEFECT-L000-1).
+COPY web/public ./public
 # package.json build = vite build && node scripts/relink-assets.mjs (the
 # latter rewrites the emitted /binflow/ui/assets/** URLs onto the shared
 # /binflow/assets mount, see web/vite.config.ts).
