@@ -480,7 +480,8 @@ func (s *Server) handleRepoList(w http.ResponseWriter, r *http.Request) {
 // confidence): the context URL carries the product prefix, the same base
 // storageURI/downloadURI build on. M1 as-built omitted the /binflow segment
 // (the T-445-registered drift ①); the M17 errata (T-493, FR-157①) restores
-// the prefixed form family-wide.
+// the prefixed form family-wide — except a REMOTE row, whose top-level url
+// is the upstream (remoteUpstreamURL, D21/L001-5).
 func (s *Server) repoListItemOf(r *http.Request, row *metadata.Repo) repoListItem {
 	item := repoListItem{
 		Key:         row.RepoKey,
@@ -495,7 +496,32 @@ func (s *Server) repoListItemOf(r *http.Request, row *metadata.Repo) repoListIte
 			item.Configuration = m
 		}
 	}
+	if u, ok := remoteUpstreamURL(row, item.Configuration); ok {
+		item.URL = u
+	}
 	return item
+}
+
+// remoteUpstreamURL is the D21 ruling (L001-5; L000-docker-remote-diff E4):
+// Artifactory's RepoDetails carries the UPSTREAM url as a remote row's
+// top-level url — the self-derived context URL is the local/virtual shape.
+// Reads only the "url" key out of the already-masked canonical config
+// (NFR-S14: no credential field is consulted); anything but a non-empty
+// string falls back to the caller's context URL (the defensive arm for
+// rows seeded outside repo.Service's canonicalizer).
+func remoteUpstreamURL(row *metadata.Repo, cfg any) (string, bool) {
+	if row.Type != repo.TypeRemote {
+		return "", false
+	}
+	m, ok := cfg.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	u, _ := m["url"].(string)
+	if u == "" {
+		return "", false
+	}
+	return u, true
 }
 
 // requestBase is scheme://host as the request presented it (URLs inside
@@ -535,8 +561,8 @@ func (s *Server) handleRepoGet(w http.ResponseWriter, r *http.Request, key strin
 // the service already handed back the masked form (NFR-S14: no password
 // ever crosses this boundary); local rows keep the M1 shape ({} is omitted).
 // The url field rides contextURL like the list entry's (T-493, FR-157① —
-// the baseUrl family aligns on the prefixed context URL; a remote row's
-// UPSTREAM url is a different field and lives inside "configuration").
+// the baseUrl family aligns on the prefixed context URL) except a REMOTE
+// row, whose top-level url is the upstream (remoteUpstreamURL, D21/L001-5).
 func (s *Server) repoConfigOf(r *http.Request, row *metadata.Repo) repoConfig {
 	cfg := repoConfig{
 		Key:         row.RepoKey,
@@ -550,6 +576,9 @@ func (s *Server) repoConfigOf(r *http.Request, row *metadata.Repo) repoConfig {
 		if err := json.Unmarshal([]byte(row.Config), &m); err == nil && len(m) > 0 {
 			cfg.Configuration = m
 		}
+	}
+	if u, ok := remoteUpstreamURL(row, cfg.Configuration); ok {
+		cfg.URL = u
 	}
 	return cfg
 }

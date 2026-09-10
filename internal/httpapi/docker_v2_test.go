@@ -108,7 +108,8 @@ func TestV2PingChallengesUnauthenticated(t *testing.T) {
 		}
 		assertV2Headers(t, resp)
 		ch := resp.Header.Get("WWW-Authenticate")
-		want := fmt.Sprintf(`Bearer realm="%s/v2/token",service="binflow"`, h.srv.URL)
+		want := fmt.Sprintf(`Bearer realm="%s/v2/token",service="%s"`,
+			h.srv.URL, strings.TrimPrefix(h.srv.URL, "http://"))
 		if ch != want {
 			t.Fatalf("%s WWW-Authenticate =\n  %q\nwant\n  %q", path, ch, want)
 		}
@@ -125,7 +126,8 @@ func TestV2PingChallengesUnauthenticated(t *testing.T) {
 // TestV2PingAnonymousClosed (D04 second half, ADR-0010 clause 4): with
 // anonymous access off, the same probe answers 401 + the Bearer challenge
 // whose realm is the adapter's own /v2/token endpoint and whose service is
-// "binflow". The PRD v1.0 wording (realm=/binflow/api/security/token) was
+// the request's host echo (L000-B C01). The PRD v1.0 wording
+// (realm=/binflow/api/security/token) was
 // superseded by ADR-0010 and written back in PRD v1.1 (T-32 risk R1).
 func TestV2PingAnonymousClosed(t *testing.T) {
 	h := newHarnessCfg(t, func(c *mutatedConfig) { c.Security.AnonymousAccess = false }, nil)
@@ -141,7 +143,8 @@ func TestV2PingAnonymousClosed(t *testing.T) {
 		t.Fatalf("error code = %q, want UNAUTHORIZED", eb.Errors[0].Code)
 	}
 	ch := resp.Header.Get("WWW-Authenticate")
-	want := fmt.Sprintf(`Bearer realm="%s/v2/token",service="binflow"`, h.srv.URL)
+	want := fmt.Sprintf(`Bearer realm="%s/v2/token",service="%s"`,
+		h.srv.URL, strings.TrimPrefix(h.srv.URL, "http://"))
 	if ch != want {
 		t.Fatalf("WWW-Authenticate =\n  %q\nwant\n  %q", ch, want)
 	}
@@ -162,7 +165,10 @@ func TestV2PingBaseURLOverride(t *testing.T) {
 	}, nil)
 	resp := h.do(http.MethodGet, "/v2/", "", "", nil, nil)
 	mustGet(t, resp)
-	want := `Bearer realm="https://registry.example.com/v2/token",service="binflow"`
+	// base_url drives the REALM; the service still echoes the request's
+	// host (C01: the service is what the client addressed, not the config).
+	want := fmt.Sprintf(`Bearer realm="https://registry.example.com/v2/token",service="%s"`,
+		strings.TrimPrefix(h.srv.URL, "http://"))
 	if got := resp.Header.Get("WWW-Authenticate"); got != want {
 		t.Fatalf("WWW-Authenticate = %q, want %q", got, want)
 	}

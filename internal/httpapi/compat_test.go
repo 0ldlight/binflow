@@ -148,8 +148,18 @@ func TestRepositoriesCRUD(t *testing.T) {
 			// T-493 (FR-157①): url is the CONTEXT url — the /binflow
 			// prefix is part of it (rest-api.md section 2's
 			// <contextUrl>/<key>; the M1 as-built omitted the segment).
-			if it.PackageType != "generic" || it.URL != h.srv.URL+"/binflow/"+it.Key {
-				t.Fatalf("entry %+v: url = %q, want %q", it, it.URL, h.srv.URL+"/binflow/"+it.Key)
+			// D21 (L001-5): a REMOTE row's top-level url is the UPSTREAM
+			// (the C26 create above pinned http://127.0.0.1:9099), not
+			// the self-derived context URL.
+			if it.PackageType != "generic" {
+				t.Fatalf("entry %+v: packageType = %q, want generic", it, it.PackageType)
+			}
+			wantURL := h.srv.URL + "/binflow/" + it.Key
+			if it.Type == "remote" {
+				wantURL = "http://127.0.0.1:9099"
+			}
+			if it.URL != wantURL {
+				t.Fatalf("entry %+v: url = %q, want %q", it, it.URL, wantURL)
 			}
 		}
 		if items[0].Type != "local" || items[2].Type != "remote" || items[3].Type != "virtual" {
