@@ -4,7 +4,44 @@
 #   UNKNOWN 限期（默认两程）内必须升级分类。
 # 种子期：M3-2 票将各票「契约漂移登记」与 ADR Errata 差异条款收编为条目。
 schema: 1
-entries: []
+entries:
+- id: docker/remote-url-v2-suffix-silent-404
+  surface: docker/helmoci remote 仓配置 url 语义（= registry 根，E4: X-Artifactory-Origin-Remote-Path）
+  classification: UNKNOWN
+  rationale: "上游 url 带 /v2 尾缀时 BinFlow 拼出 /v2/v2/ 静默 404（树内 helmoci fixtures 曾实证）；Artifactory 对尾缀的剥剪行为未取证，按 ADR-0001 不猜测归一化"
+  authority: { type: pending, ref: "LOOP 001 取证票（:8082 建带尾缀 remote 仓观察）" }
+  review_gate: LOOP 002 限期升级
+  evidence: reports/compatibility/L000-docker-remote-diff.md 复验段
+- id: docker/remote-cache-layout
+  surface: remote blob/manifest 缓存布局（C05：tag 目录/marker/library 归一）
+  classification: BUG
+  rationale: 差分 C05 DIVERGENT——BinFlow 无 tag 目录/marker/library 归一；Artifactory marker 驱动缓存（E1 downloadBlobFromMarker + E4）
+  authority: { type: differential, ref: "reports/compatibility/L000-docker-remote-diff.md C05" }
+  review_gate: LOOP 001+ 设计票（缓存语义属 remote-cache-proxy 域架构面）
+- id: docker/remote-manifest-headers
+  surface: remote manifest 响应头集（C06：Etag/Last-Modified/Origin-Remote-Path 缺席）
+  classification: BUG
+  rationale: 差分 C06 DIVERGENT——blob 面已一致，manifest 面头集缺
+  authority: { type: differential, ref: "reports/compatibility/L000-docker-remote-diff.md C06" }
+  review_gate: LOOP 001 实现票
+- id: docker/remote-blob-marker-semantics
+  surface: remote blob 代取门控（C10：BinFlow digest 盲代理+负缓存 vs Artifactory marker 门控）
+  classification: BUG
+  rationale: 差分 C10 DIVERGENT——语义级分歧（未拉 manifest 的 digest 是否上游代取），牵动缓存架构，需 remote-cache-v2 设计输入
+  authority: { type: differential, ref: "reports/compatibility/L000-docker-remote-diff.md C10" }
+  review_gate: LOOP 001 设计票 + 实现票
+- id: docker/remote-error-shapes
+  surface: remote 错误形态族（C11 禁推 405→400 / C12 detail.reference→manifest / C13 detail.digest→blobSum / C15 tags 聚合缺失 / C16 域 404 形态 / D21 url 回显 / P3 service 常量）
+  classification: BUG
+  rationale: 差分 DIVERGENT 族——同一 remote 面错误契约不齐；Artifactory 侧双错误形态并存为 remote 指纹（evidence 报告）
+  authority: { type: differential, ref: "reports/compatibility/L000-docker-remote-diff.md C11-C16/D21" }
+  review_gate: LOOP 001 实现票（一票收族）
+- id: docker/ssrf-private-upstream-stricter
+  surface: 上游私网限制（allowPrivateUpstream）
+  classification: UNKNOWN
+  rationale: BinFlow SSRF 防护严于 Artifactory（Artifactory 允许私网上游）——安全立场候选 INTENTIONAL，需 authority 定谳
+  authority: { type: pending, ref: "用户/ADR 裁定（安全加固 vs 行为兼容）" }
+  review_gate: LOOP 003 限期升级
 # 条目模式（M3-2 落地）：
 # - id: rest/build-batch-delete-date-range
 #   surface: POST /api/build/delete

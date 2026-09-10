@@ -1,0 +1,41 @@
+# LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
+schema: 1
+program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
+updated: 2026-09-11T01:45:00Z
+current_iteration: 000
+current_goal: "P0 双火种（U-STG-01 存储链取证 / U-PROTO-01 docker remote 对拍）+ 主账单一化（M3-1）+ UAT 立起（:8083）"
+
+active_tasks:
+  - { id: L000-A, domain: storage-filestore, owner: reverse-engineer, what: "U-STG-01 取证：binarystore.xml 活体 + C 模板族 + A 常量域 → docs/reverse/storage/binary-provider-chain.md" }
+  - { id: L000-B, domain: package-protocols-oss+remote-cache-proxy, owner: differential-qa-engineer, what: "U-PROTO-01 docker remote v2：证据期（:8082 真实 docker 客户端）→ 差分期（UAT :8083 up 后双发对拍）" }
+  - { id: L000-C, domain: governance-matrix, owner: compatibility-engineer, what: "M3-1 收口：rest-compat-matrix.md v1 冻结 195 行迁入 matrix.yaml rows（四新列），主账单一化" }
+  - { id: L000-D, domain: uat-platform, owner: devops-engineer, what: "UAT 立起 :8083（develop 构建 + deploy/compose 或等价，隔离数据卷——禁碰用户 ./data）+ smoke 出证" }
+
+blocked_tasks: []
+
+completed_tasks:
+  - { id: L000-0, what: "Phase 0 全量审计闭卷（commit 59f33ab5，§49 16/16）——LOOP 000 STEP1~17 的既有输入" }
+  - { id: L000-C, what: "M3-1 主账单一化完成：matrix.yaml rows=193（源 195 中 2 幽灵 tally 行不虚构；1 行冻结后翻态 ◐），P0=53/P1=62/P2=78；契约覆盖率 0/193（contracts/ 空——STEP6 契约面是全量欠账）；P0 absent=0→P0 缺口全在 partial 11 行与核心对拍面" }
+  - { id: L000-A, what: "U-STG-01 → partial：实现库 binary-store-*-4.372.5.jar 容器镜像内定位（24 模板矩阵 + 行为 29 条，高置信 18）；修正旧规格 4 处（cache-fs/s3-storage-v3/409 非 400/大 PUT 直写 _pre）；GC 事件驱动反直觉实证；新 UNKNOWN 8 条入队（U-STG-12~19）；产出 docs/reverse/storage/binary-provider-chain.md + evidence/6 件 + T-L000-A.md" }
+  - { id: L000-D, what: "UAT 立起 :8083 = uat-59f33ab5（conductor 亲验 version/healthz/ui 200，容器 healthy）；隔离卷 binflow-uat_binflow-data，用户 ./data 零接触；docker login/push/pull/匿名读/401 全 smoke 过；指南=reports/agents/AUDIT-L000-D.md（.env.uat gitignored）。附带发现回归缺陷 DEFECT-L000-1 → L000-E" }
+  - { id: L000-B, what: "U-PROTO-01 → partial：首份 E5 差分报告（case 19：SAME 2/DIVERGENT 11/skip 1/UNKNOWN 5）；证据期三硬结论（token 自答 expires_in 9000、marker 驱动缓存、错误双形态指纹）；**P0 BUG 根因=remote.go:141-150 缺 /v2/ 前缀→L000-F**；LOOP 001 票池=P1 tags/_catalog 聚合、P2 错误形态族、P3 service 常量、D21 url 回显；金样候选 C17/C04。环境尾注：UAT 缺 BINFLOW_REMOTE_CREDENTIALS_KEY（上游凭据静默降级匿名——LOOP 001 devops 补配）；SSRF allowPrivateUpstream 严于 Artifactory（INTENTIONAL 候选待裁）" }
+  - { id: L000-E, what: "DEFECT-L000-1 修复收口：根因=vite publicDir 产物未入三 Dockerfile COPY 面；3 文件 +11 行（git diff --stat 实证）；出证=alpine 全量 + compose up --build 19s healthy + favicon 字节级一致 + distroless/dev 镜像产出；prebuilt 路径实判不受影响未改；scratch 环境清理，UAT 未触碰" }
+  - { id: L000-F, what: "P0 wire path 修复收口（含 Review A/B B1 返工）：docker+helmoci 双包 -count=1 全绿；差分重放 SAME 2→6/DIVERGENT 12/UNKNOWN 0（五阻断案闭合）；双审 REQUEST_CHANGES→条件清偿（B1 修复双验 + N1 divergence 登记 6 条目）；C10 marker 门控语义升级为架构级 gap→LOOP 001 设计票" }
+  - { id: LOOP-000, what: "LOOP 000 闭卷：iteration-000.md 落盘；commit×3（fix adapter / fix deploy / docs closeout）；known-divergence 首批 6 条目；UAT=:8083 uat-l000f-59f33ab5" }
+
+  - { id: L000-E, domain: release-packaging, owner: release-engineer, what: "DEFECT-L000-1 修复：deploy/release/Dockerfile.alpine + Dockerfile.distroless + deploy/dev/Dockerfile 补 COPY web/public ./public → compose up -d --build 全路径出证（wire-brand-assets 不再空）" }
+  - { id: L000-F, domain: package-protocols-oss(docker), owner: dev-registry-adapter, what: "P0 修复：internal/adapter/docker/remote.go 上游 wire path 补 /v2/ 前缀（差分 C04/C09 灭因）+ wire path 单测 + registry:3 重放闭合五阻断案（C05~C08/C10）→ diff 报告追加复验段" }
+
+compatibility_score:
+  source: "docs/compatibility/matrix.yaml（L000-C 后唯一事实源；rest-compat-matrix.md 降级历史快照）"
+  before: { compatible: 57, partial: 28, absent: 80, not_applicable: 17, superset: 11, total: 193, note: "迁移后权威基线（含 D06-R13 冻结后翻态）" }
+  after: null   # 本轮收口时填
+
+p0_gaps: ["U-STG-01 BinaryProvider 存储链（已 partial——残余 U-STG-12~19）", "U-PROTO-01 docker remote 代理 v2（L000-B 在途）", "U-ENT-05 entitlement 同源"]
+p1_gaps: 50
+p2_gaps: 65
+unknown_count: 118        # docs/compatibility/unknown.yaml（110+L000-A 8 条）
+divergence_count: "known-divergence.yaml 四分类台账（Phase 0 未动）"
+uat_status: "up（:8083 = uat-59f33ab5，healthy；L000-D 出证 + conductor 亲验）"
+ci_status: "unknown（59f33ab5 推送后未验）"
+next_gap: "LOOP 001 由 L000-B 差分 DIVERGENT + 主账 partial 11 行 P0 面驱动"

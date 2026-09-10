@@ -36,12 +36,61 @@ summary:
 unknowns:
 
 # ───────────────────────── STG 存储（11） ─────────────────────────
-- { unknown_id: U-STG-01, domain: STG, priority: P0, status: open,
+- { unknown_id: U-STG-01, domain: STG, priority: P0, status: partial,
     question: "BinaryProvider 存储链实现类（filestore/S3/Azure/GCS provider 链与组合模板）的真实行为——反编译 Java 树内无实现类",
     why_unknown: "反编译集合仅见 ConstantValues 配置键与引用；实现位于 JFrog 外部 storage-client 库（binary-store-filestore jar），E1 不可达",
     required_evidence: "E4 活体（binarystore.xml 链实配 + 云后端实测）或 E5（binarystore.xml 官方文档模板族）；收口须 E4/E5（P0 门）",
     probe: "docker exec artifactory cat var/etc/artifactory/binarystore.xml（只读）记录默认链；MinIO 后端换链实测 PUT/GET/重定向；对照官方 S3/GCS/Azure binarystore 模板文档",
-    origin: "domain-map.yaml unknown_items#1（BinaryProvider 存储链）", cross_ref: "U-ENT-05" }
+    origin: "domain-map.yaml unknown_items#1（BinaryProvider 存储链）", cross_ref: "U-ENT-05",
+    resolution: "2026-09-11 L000-A：实现库 binary-store-{api,core,filestore,client,rest}-4.372.5.jar 于容器镜像内定位，三份 binarystore-default.xml 模板 + 288 类清单归档（evidence/）；file-system 链与 24 模板矩阵收口 → docs/reverse/storage/binary-provider-chain.md（行为 29 条，高置信 18）。残余=GC 资格窗口/云链运行时/HA 协议，转 U-STG-12~19" }
+- { unknown_id: U-STG-12, domain: STG, priority: P1, status: open,
+    question: "GC 回收资格窗口——零引用 blob 删除数分钟内手动 prune/GC 均不回收（processed 3/cleaned 0 两轮 E4 实证）",
+    why_unknown: "GC 为事件驱动（node_events 分区表），回收资格门槛未定（疑 gc.intervalSecs=86400）",
+    required_evidence: "24h+ 观测窗后的 GC 行为实测（E4）",
+    probe: "建 audit-probe 资产删除后定时触发 GC，跨 24h 窗口记录 cleaned 变化；对照 jf_gc 事件表",
+    origin: "L000-A binary-provider-chain.md G 组残余", cross_ref: "" }
+- { unknown_id: U-STG-13, domain: STG, priority: P2, status: open,
+    question: "_pre 目录周期清理 cron 的触发时机与保留窗",
+    why_unknown: "中断秒级回滚已实证（E4），周期清理由后台任务驱动未观察",
+    required_evidence: "长时间运行实例的 _pre 残留观测 + 任务清单走读",
+    probe: "制造中断上传残留后跨日观测 _pre；jobs/README J-5 出厂 job 全集补全时纳入",
+    origin: "L000-A binary-provider-chain.md A 组残余", cross_ref: "" }
+- { unknown_id: U-STG-14, domain: STG, priority: P2, status: open,
+    question: "tmp 路径（tmp/artifactory-uploads）使用形态——大文件 PUT 实证直写 _pre 不经 tmp",
+    why_unknown: "tmp 在何种链/何种操作下启用未定",
+    required_evidence: "非流式/分块上传路径走读（binary-store-core 类清单已归档）",
+    probe: "binary-store 类清单中 tmp 相关类走读 + 特殊客户端（form/分块）实测",
+    origin: "L000-A binary-provider-chain.md A 组残余", cross_ref: "" }
+- { unknown_id: U-STG-15, domain: STG, priority: P1, status: open,
+    question: "云链运行时行为——redirect/预签名 URL 的有效期与降级直读形态",
+    why_unknown: "云 provider 模板已收口（E1+官方文档），运行时无云后端可实测",
+    required_evidence: "MinIO 后端换链实测（E4）",
+    probe: "容器 binarystore.xml 换 s3-storage-v3 链指向本机 MinIO，PUT/GET 抓 redirect/预签名",
+    origin: "L000-A binary-provider-chain.md C 组残余", cross_ref: "U-STG-01" }
+- { unknown_id: U-STG-16, domain: STG, priority: P2, status: open,
+    question: "_pre/dbRecord* 直写命名的成分源（时间戳/序列/哈希哪几段）",
+    why_unknown: "命名已实证（E4），成分语义未走读",
+    required_evidence: "binary-store-filestore 类清单命名函数走读",
+    probe: "evidence/binary-store-class-inventory.txt 定位 naming 类比对多样本",
+    origin: "L000-A binary-provider-chain.md 布局规则残余", cross_ref: "" }
+- { unknown_id: U-STG-17, domain: STG, priority: P1, status: open,
+    question: "HA 模式 BinaryStoreServlet wire 协议（集群成员间 blob 服务）",
+    why_unknown: "cluster 模板 5 个已收口（E1），wire 协议需多节点实测",
+    required_evidence: "双实例 HA 环境抓包（E4）",
+    probe: "第二容器组 HA 集群后抓 BinaryStoreServlet 流量",
+    origin: "L000-A binary-provider-chain.md H 组残余", cross_ref: "" }
+- { unknown_id: U-STG-18, domain: STG, priority: P2, status: open,
+    question: "超配额 4xx 形态（quotaFull 状态码与错误体）",
+    why_unknown: "quota 配置面已见，越界响应未实测",
+    required_evidence: "小配额仓越界上传实测（E4）",
+    probe: "建 audit-probe 仓设极小配额后上传超限，抓响应",
+    origin: "L000-A binary-provider-chain.md G 组残余", cross_ref: "" }
+- { unknown_id: U-STG-19, domain: STG, priority: P2, status: open,
+    question: "full-db 链行为（blob 全进 DB 的链变体）",
+    why_unknown: "模板在矩阵（E1），行为面无实测",
+    required_evidence: "full-db 链换装实测（E4）",
+    probe: "binarystore.xml 换 full-db 模板重启后上传/下载/GC",
+    origin: "L000-A binary-provider-chain.md 模板矩阵残余", cross_ref: "" }
 - { unknown_id: U-STG-02, domain: STG, priority: P1, status: open,
     question: "MPU（客户端分块续传）wire 协议本体——init/part/complete/abort 逐端点与 checksum-deploy token 用法",
     why_unknown: "s3-storage-layout.md §3 只有配置面与会话语义；REST handler 疑在外部 storage 库不可达",
@@ -534,12 +583,13 @@ unknowns:
     origin: "enterprise/license-behavior.md §8-10", cross_ref: "U-ENT-12" }
 
 # ───────────────────────── PROTO 包型协议（10） ─────────────────────────
-- { unknown_id: U-PROTO-01, domain: PROTO, priority: P0, status: open,
+- { unknown_id: U-PROTO-01, domain: PROTO, priority: P0, status: partial,
     question: "docker remote 代理模式 v2 行为差异（DockerV2RemoteRepoHandler——镜像回源/manifest 重写/缓存键）",
     why_unknown: "docker-registry.md 待验证#3 原挂账；docker 属 P0 协议、remote 面无规格",
     required_evidence: "E4 活体（remote docker 仓实测 pull 链）+ A 源走读；P0 项收口须 E4/E5",
     probe: ":8082 建 remote docker 仓指向 docker.io（写腿需放行）→ docker pull 逐请求抓包对照 local 仓行为；走读 DockerV2RemoteRepoHandler",
-    origin: "protocols/registry.yaml pending_verification REG-1（docker-registry.md 待验证#3）" }
+    origin: "protocols/registry.yaml pending_verification REG-1（docker-registry.md 待验证#3）",
+    resolution: "2026-09-11 L000-B 双期差分（E4+E1+E5，case 19）：token 流自答/marker 驱动缓存/错误面三硬结论入 evidence 报告；BinFlow 侧 11 DIVERGENT（P0=上游 wire path 缺 /v2/ 已定位 remote.go:141-150，L000-F 修复中）。残余 C01b/C03/C14 + 五阻断案待修复后闭合 → reports/compatibility/L000-docker-remote-{evidence,diff}.md" }
 - { unknown_id: U-PROTO-02, domain: PROTO, priority: P1, status: open,
     question: "language-ecosystem-a 15 包型（gems/composer/swift/pub/conda/cran/cocoapods/bower/hex/luarocks/nimmodel/bazelmodules/nix/vcs/gitlfs）的 authorization/delete/search/checksum/cache/error 字段级行为",
     why_unknown: "族级聚合，inv-3 单行证据不足以填 §9 全字段",
