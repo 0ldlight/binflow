@@ -1,8 +1,8 @@
 // 命令面板（⌘/Ctrl+K——frontend-rewrite-architecture §8 / FE-P4 A1）：
 // shadcn Command（cmdk）承载的全局面板——导航（四分组全条目，权限门控
 // 可见性与侧栏同源 nav-model）/ 动作（建仓三预选 · 上传 · 新建用户/组/
-// 权限）/ 偏好（主题切换 · 语言切换）/ AI 入口（P5 占位——不虚构端点，
-// audit 盲区② 边界）。管理资源过滤语义并入：/admin 域侧栏条目全量进
+// 权限）/ 偏好（主题切换 · 语言切换）/ AI 入口（FE-P5 接线：开 AI drawer
+// ——本地 mock 零端点，audit 盲区② 边界）。管理资源过滤语义并入：/admin 域侧栏条目全量进
 // 导航组，子串过滤即 cmdk 自身的模糊匹配——Topbar 管理过滤框原样保留
 // （既有键位与 e2e 面零回退）。
 //
@@ -14,14 +14,16 @@
 //
 // 锚族（新）：palette-root / palette-input / palette-item-<id> / palette-ai。
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { useAuth } from '@/app/AuthContext'
 import { isReadOnlyAdmin } from '@/lib/api'
+import { deriveAiContext } from '@/lib/ai/context'
 import { getLocale, setLocale } from '@/i18n'
 import { useTheme } from '@/app/providers'
+import { useAiStore } from '@/stores/ai-store'
 import { useCommandPaletteStore } from '@/stores/command-palette-store'
 import { tr } from '@/i18n'
 
@@ -33,7 +35,9 @@ export function CommandPalette() {
   const open = useCommandPaletteStore((s) => s.open)
   const closePalette = useCommandPaletteStore((s) => s.closePalette)
   const openPalette = useCommandPaletteStore((s) => s.openPalette)
+  const openAiDrawer = useAiStore((s) => s.openDrawer)
   const navigate = useNavigate()
+  const location = useLocation()
   const { session } = useAuth()
   const { theme, toggle } = useTheme()
 
@@ -145,11 +149,19 @@ export function CommandPalette() {
                 </CommandItem>
               </CommandGroup>
 
-              {/* AI 入口（P5 占位——assistant-ui 壳接管；零后端虚构） */}
+              {/* AI 入口（FE-P5 接线：开 ai-store drawer——本地 mock，零后端虚构） */}
               <CommandGroup heading="AI">
-                <CommandItem data-testid="palette-ai" disabled>
-                  {t('AI 助手（Phase 5 上线）')}
-                  <span className="ml-auto text-aux text-muted-foreground">{t('占位')}</span>
+                <CommandItem
+                  data-testid="palette-ai"
+                  onSelect={() => {
+                    closePalette()
+                    openAiDrawer(deriveAiContext(location.pathname, location.search))
+                  }}
+                >
+                  {t('AI 助手')}
+                  <span className="ml-auto font-mono text-aux text-muted-foreground" aria-hidden="true" lang="en">
+                    ⌘J
+                  </span>
                 </CommandItem>
               </CommandGroup>
             </CommandList>

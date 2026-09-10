@@ -2866,3 +2866,38 @@ broken 双零与退役表一致）；③ 死锚处置随大版本回归进行—
 **分组注记**：命令面板三件与占位入口（⌘K 面板——开闭态走 Zustand 面板仓；条目族含导航四分组与建仓/上传/新建/偏好动作，偏好组承载主题与语言切换）；顶栏快速结果两件（artifactsearch 快速端点首次 UI 化——输入两字符起防抖打点，命中行点击深链制品树）；仓库详情高级动作四件（reindex 族——四包型呈现，仅全量管理员可发起）；Explorer 归档下载两件（archive 下载端点首次 UI 化——多选工具条在恰好一个目录时启用，右键项挂目录与仓节点）。
 
 **MUI 清场留痕**：六个对话框与节件迁新栈壳（部署/Set Me Up/属性/复制配置/危险确认/吐司桥），锚族与调用方接口逐字保真；九个旧载体文件删除（过渡挂载壳、MUI 主题层、旧主题上下文、配方层、旧四态五件），独占锚为零、retired 桶自证；空态冻结锚的载体移至新栈四态层（prop 缺省值形态保持扫描可见性）。载体：web/src/app/shell/ 与 pages 诸件；消费：web/e2e/p4/ 三 spec。
+
+### §10.10 P5 批（FE-Rewrite AI 基座收编批，FE-P5 2026-09-10）
+
+**P5 新锚入册（28 名；载体与消费面见本节末行）**——逐名补录（对账器精确匹配层 + 家族层）：
+
+  `- `ai-open`
+  `- `ai-drawer`
+  `- `ai-close`
+  `- `ai-context-badge`
+  `- `ai-msg-context-badge`
+  `- `ai-empty`
+  `- `ai-empty-suggest-storage`
+  `- `ai-empty-suggest-create`
+  `- `ai-thread`
+  `- `ai-typing`
+  `- `ai-msg-user-<i>`
+  `- `ai-msg-assistant-<i>`
+  `- `ai-input`
+  `- `ai-send`
+  `- `ai-error`
+  `- `ai-error-retry`
+  `- `ai-code-block`
+  `- `ai-copy-code`
+  `- `ai-md-table`
+  `- `ai-tool-call`
+  `- `ai-tool-call-args`
+  `- `ai-tool-result`
+  `- `ai-tool-result-table`
+  `- `ai-confirm`
+  `- `ai-confirm-params`
+  `- `ai-confirm-cancel`
+  `- `ai-confirm-accept`
+  `- `ai-confirm-result`
+
+**分组注记**：AI 助手右滑抽屉三入口（顶栏 ai-open 钮 / ⌘J 快捷键 / palette-ai 条目〔P4 占位转正〕——开合态走 Zustand AI UI 仓）；上下文徽章两件（头部 ai-context-badge = 路由派生坐标〔domain + repoKey/path/build 链〕，消息首帧 ai-msg-context-badge = 发送时快照注入）；消息流与输入（ai-msg-user-<i>/ai-msg-assistant-<i> 气泡族、ai-thread/ai-input/ai-send、ai-typing 运行态、ai-empty 族空态建议 chip、ai-error 族错误重试）；渲染分层（markdown 表格 ai-md-table、围栏代码块 ai-code-block + 拷贝钮 ai-copy-code、ToolCallCard 折叠族、ToolResultCard 表格族）；结构化确认（ConfirmCard 族——参数表 + [取消][创建仓库] 双钮 + 结果行，确认动作回调 = addResult 抽象）。**边界（audit 盲区②）**：Go 侧无 LLM/chat 端点——mock provider 本地确定性响应、零网络请求（e2e 路由计数断言）。载体：web/src/components/ai/ 与 lib/ai/、app/shell（Topbar/CommandPalette 接线）；消费：web/e2e/p5/ 的 AI 基座 spec。

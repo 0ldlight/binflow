@@ -15,6 +15,7 @@
     "assert:i18n": "node scripts/assert-i18n.mjs"
   },
   "dependencies": {
+    "@assistant-ui/react": "^0.15.18",
     "@radix-ui/react-context-menu": "^2.3.7",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-dropdown-menu": "^2.1.24",
@@ -37,7 +38,9 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.87.0",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.6.0",
+    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.6.0",
     "vaul": "^1.1.2",

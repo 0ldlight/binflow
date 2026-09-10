@@ -79,23 +79,32 @@ test('palette: actions navigate, theme item toggles, AI entry disabled', async (
   await page.goto('/binflow/ui/dashboard')
   await expect(page.locator('[data-testid="topbar-search"]')).toBeVisible()
 
-  // 动作：建仓三预选之一 → 表单 ?rclass=local
+  // 动作：建仓三预选之一 → 兼容重定向落 local/new 表单（T-443 RepoCreateCompat：
+  // /new?rclass=local → replace /local/new——断言按确定性终态 URL）
   await page.keyboard.press('Control+k')
   await page.locator('[data-testid="palette-item-new-repo-local"]').click()
-  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/new\?rclass=local$/)
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local\/new$/)
 
-  // 偏好：主题切换条目翻转 data-theme（palette 关闭态断言）
+  // 偏好：主题切换条目翻转 data-theme（palette 关闭态断言；先过滤收窄
+  // 使条目入列视口——35 项列表恒滚动，裸 click 的自动滚动命中 acl 误报）
   const before = await page.evaluate(() => document.documentElement.dataset.theme)
   await page.keyboard.press('Control+k')
+  await page.keyboard.type('主题')
   await page.locator('[data-testid="palette-item-theme"]').click()
   await expect(page.locator('[data-testid="palette-root"]')).toHaveCount(0)
   const after = await page.evaluate(() => document.documentElement.dataset.theme)
   expect(after).not.toBe(before)
 
-  // AI 入口 = P5 占位（恒禁用——不虚构端点）
+  // AI 入口 = FE-P5 接线（可激活且开 AI drawer——本地 mock 零端点；过滤
+  // 「助手」收窄——'AI' 会命中全部 /admin 条目的 URL 段——键盘 Enter 激活）
   await page.keyboard.press('Control+k')
-  await expect(page.locator('[data-testid="palette-ai"]')).toBeDisabled()
+  await page.keyboard.type('助手')
+  await expect(page.locator('[data-testid="palette-ai"]')).toBeEnabled()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('[data-testid="palette-root"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="ai-drawer"]')).toBeVisible()
   await page.keyboard.press('Escape')
+  await expect(page.locator('[data-testid="ai-drawer"]')).toHaveCount(0)
 })
 
 test('palette: plain user sees no admin nav/actions; axe clean both themes', async ({ page }, testInfo) => {

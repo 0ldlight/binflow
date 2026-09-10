@@ -43,8 +43,10 @@ import { useConfirm } from '@/app/providers'
 import { BrandMark } from '@/components/BrandLogo'
 import { errText, isReadOnlyAdmin, quickArtifactSearch } from '@/lib/api'
 import type { QuickSearchHit } from '@/lib/api'
+import { deriveAiContext } from '@/lib/ai/context'
 import { useVersion } from '@/lib/useVersion'
 import { toast } from '@/lib/toast'
+import { useAiStore } from '@/stores/ai-store'
 import { tr } from '@/i18n'
 
 import type { Crumb } from './breadcrumbs'
@@ -115,6 +117,7 @@ export function Topbar({
   const navigate = useNavigate()
   const location = useLocation()
   const version = useVersion()
+  const openAiDrawer = useAiStore((s) => s.openDrawer)
 
   const admin = session?.admin ?? false
   const readOnlyAdmin = isReadOnlyAdmin(session)
@@ -388,6 +391,17 @@ export function Topbar({
           )}
         </div>
       )}
+
+      {/* AI 助手入口（FE-P5：右滑 drawer——⌘J 同源；标题带快捷键提示） */}
+      <Button
+        variant="ghost"
+        size="sm"
+        data-testid="ai-open"
+        title={t('AI 助手（⌘J）')}
+        onClick={() => openAiDrawer(deriveAiContext(location.pathname, location.search))}
+      >
+        <span aria-hidden="true">✦</span> {t('AI 助手')}
+      </Button>
 
       {/* 帮助下拉（Documentation / Online Training 占位 / Release Notes / About） */}
       <DropdownMenu>

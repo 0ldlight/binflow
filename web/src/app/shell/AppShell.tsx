@@ -9,10 +9,12 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 
 import { useAuth } from '@/app/AuthContext'
 import { isReadOnlyAdmin } from '@/lib/api'
+import { deriveAiContext } from '@/lib/ai/context'
 import { useStepUp, abandonStepUp } from '@/lib/stepUpGrant'
 import type { PendingMint } from '@/lib/stepUpGrant'
 import { useVersion } from '@/lib/useVersion'
 import { tr } from '@/i18n'
+import { useAiStore } from '@/stores/ai-store'
 
 import { adminCrumbs, appTitle } from './breadcrumbs'
 import { NAV_GROUPS } from './nav-model'
@@ -24,6 +26,10 @@ const t = tr('console')
 
 // Set Me Up 懒分片（Radix sheet——FE-P4 新栈）
 const SetMeUpDialog = lazy(() => import('@/components/SetMeUpDialog'))
+
+// AI 助手懒分片（FE-P5：assistant-ui runtime + markdown 渲染层整体独立
+// chunk——主壳零增量；首开后常驻挂载，关闭仅隐藏〔会话态本地保持〕）
+const AiAssistant = lazy(() => import('@/components/ai/AiAssistant'))
 
 export function AppShell() {
   const { status, session } = useAuth()
@@ -78,6 +84,22 @@ export function AppShell() {
   }, [resumeOpen, status])
   const smuMounted = smuOpen || (resumeOpen && status === 'authenticated')
 
+  // ---- FE-P5：AI 助手抽屉（⌘J 全局开合 + 懒分片首开常驻） ----
+  const aiMounted = useAiStore((s) => s.mounted)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // ⌘/Ctrl+J = AI drawer 开合（palette ⌘K 与 `/` 聚焦搜索不破——三键并存）
+      if ((e.key === 'j' || e.key === 'J') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        const s = useAiStore.getState()
+        if (s.drawerOpen) s.closeDrawer()
+        else s.openDrawer(deriveAiContext(location.pathname, location.search))
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [location.pathname, location.search])
+
   if (status === 'checking') {
     return (
       <div className="boot-screen">
@@ -126,6 +148,13 @@ export function AppShell() {
         {/* FE-P4 A1：⌘K 命令面板（全局面板——开闭态在 command-palette-store） */}
         <CommandPalette />
       </div>
+      {/* FE-P5：AI 助手右滑抽屉（懒分片首开后常驻——会话态本地保持；
+      ⌘J/palette-ai/顶栏钮三入口同源 ai-store） */}
+      {aiMounted && (
+        <Suspense fallback={null}>
+          <AiAssistant />
+        </Suspense>
+      )}
       {smuMounted && (
         <Suspense fallback={null}>
           <SetMeUpDialog

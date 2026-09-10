@@ -5,8 +5,6 @@ import { registerEn } from '../../index'
 
 registerEn('search', {
   "· 本页": "· this page:",
-  "服务暂不可用": "Service temporarily unavailable",
-  "请求失败（HTTP {v1}）": "Request failed (HTTP {v1})",
   "（快滤自 {v1}）": " (quick-filtered by {v1})",
   "（流式语义 = 本页行数，非全量计数）": " (streaming semantics = rows on this page, not the full count)",
   "）+ build 族三入口 builds/modules/dependencies（T-511 起）；操作符 $eq/$ne/$gt/$gte/$lt/$lte/$match/$nmatch/$and/$or/$msp/$last/$before。 未支持域（statistics/build.promotions/releasebundle…）与语法错 → 400 逐字文案。分页/排序由查询的": ") plus the build-family entries builds/modules/dependencies (since T-511); operators $eq/$ne/$gt/$gte/$lt/$lte/$match/$nmatch/$and/$or/$msp/$last/$before. Unsupported domains (statistics/build.promotions/releasebundle…) and syntax errors → 400 with the verbatim message. Paging/sorting rides the query's",
@@ -21,6 +19,7 @@ registerEn('search', {
   "点击注入/切换 .sort() 子句（字段须在查询输出集内——include('*') 时恒可用）": "Click to inject/toggle a .sort() clause (the field must be in the query output set — always available with include('*'))",
   "顶栏搜索框（⌘K）输入构建名/run 号子串（如 myapp、42）后回车——空关键词不发起查询；AQL 模式可手写 builds.find 查询全字段。": "Type a build-name or run-number substring in the top search box (⌘K) (e.g. myapp, 42) and press Enter — an empty term issues no query; AQL mode accepts hand-written builds.find queries over the full field set.",
   "顶栏搜索框（⌘K）输入子串（如 libcore、acme/app、1.0.3）后回车——空关键词不发起查询；网格内快滤可再窄化已取回的结果。": "Type a substring (e.g. libcore, acme/app, 1.0.3) in the top-bar search box (⌘K) and press Enter — an empty keyword issues no query; the in-grid quick filter can further narrow the fetched results.",
+  "服务暂不可用": "Service temporarily unavailable",
   "复制路径（{v1}）": "Copy path ({v1})",
   "复制全部选中行的 repo 路径（每行一条）": "Copy the repo paths of all selected rows (one per row)",
   "构建仓": "Build repo",
@@ -35,6 +34,8 @@ registerEn('search', {
   "快滤命中": "Quick filter matches",
   "没有匹配「{q}」的构建": "No builds match \"{q}\"",
   "没有匹配「{q}」的制品": "No artifacts match “{q}”",
+  "请求失败（HTTP {v1}）": "Request failed (HTTP {v1})",
+  "全选本页结果": "Select all results on this page",
   "如 items.find({\"repo\":\"<repo-key>\"}).include(\"*\").limit(10)——未命中的仓 key 也回 200 空集（无存在性泄漏）。": "e.g. items.find({\"repo\":\"<repo-key>\"}).include(\"*\").limit(10) — unknown repo keys also return 200 with an empty set (no existence leak).",
   "输入 AQL 查询并执行": "Enter an AQL query and run it",
   "搜索范围": "Search scope",
@@ -46,6 +47,7 @@ registerEn('search', {
   "文案为服务端逐字回显——检查字段/操作符/域（BinFlow 子集：items + property 域 + build 族三入口 builds/modules/dependencies〔T-511〕，$not 与 statistics/build.promotions/releasebundle 等域不支持）与链序 include→sort→offset→limit。": "The message is the server's verbatim echo — check the fields/operators/domain (BinFlow subset: items + property domain + the build-family entries builds/modules/dependencies [T-511]; $not and statistics/build.promotions/releasebundle etc. are unsupported) and the chain order include→sort→offset→limit.",
   "项结果。": "results.",
   "行 · total": "rows · total:",
+  "选择第 {v1} 行": "Select row {v1}",
   "已按结果上限截断——用 .offset()/.limit() 分页继续取全量。": "Truncated at the result cap — page through with .offset()/.limit() to fetch the rest.",
   "已复制 ✓": "Copied ✓",
   "已是默认列集": "Already the default column set",
@@ -58,6 +60,4 @@ registerEn('search', {
   "BinFlow AQL 子集：items 域 + property 域（": "BinFlow AQL subset: items domain + property domain (",
   "Builds 范围：顶栏输入构建名或 run 号子串并 Enter——结果为 build run 行（按你的 build 读权限过滤），点击行进 run 详情。": "Builds scope: type a build-name or run-number substring in the top bar and press Enter — results are build-run rows (filtered by your build read permission); click a row to open the run detail.",
   "range：start_pos": "range: start_pos",
-  "全选本页结果": "Select all results on this page",
-  "选择第 {v1} 行": "Select row {v1}",
 })
