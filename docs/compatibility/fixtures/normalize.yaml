@@ -1,0 +1,44 @@
+# 差分归一规则（docs/compatibility/fixtures/normalize.yaml）——docker-remote 域首批
+# 源：reports/compatibility/L000-docker-remote-evidence.md §10 normalize 段 + L000-docker-remote-diff.md 头部 normalize 行。
+# 消费方：tools/difftest（differential-qa-engineer owns）——双发响应先过本规则再比对，判定 SAME/DIVERGENT。
+schema: normalize/1
+domains:
+  docker-remote:
+    headers:
+      drop:
+        - Date
+        - Age
+        - X-Request-Id
+        - X-Artifactory-Id
+        - X-Artifactory-Node-Id
+        - X-Jfrog-Version            # 实例版本头（参照侧）
+        - Via
+      keep_semantic:
+        - ETag                       # 语义对照保留（值=sha1 校验形态，见契约 derived_rules.etag_is_sha1）
+        - X-Checksum-Md5
+        - X-Checksum-Sha1
+        - X-Checksum-Sha256
+        - Docker-Content-Digest
+        - Docker-Distribution-Api-Version
+        - Content-Range
+        - WWW-Authenticate           # 值内 host 随实例替换为占位符后比对；service 段做 equals_request_host 派生判定
+        - X-Artifactory-Origin-Remote-Path   # 值内 host 替换占位符后比对（路径形态是断言目标）
+        - X-Artifactory-Filename
+        - X-Artifactory-Docker-Registry      # 值=repoKey，保留
+      time_headers:
+        - Last-Modified              # 剔除时间值比对，但保留语义标记（manifest=拉取时刻 / blob=上游 mtime——见契约 derived_rules）
+        - If-Modified-Since
+      superset_policy: tolerate_and_note   # 单侧多出的非语义头（如 BinFlow X-Binflow-Cache: HIT/MISS、token 响应的
+                                            # Docker-Distribution-Api-Version）记 superset_note，不判 DIVERGENT
+                                            # （先例：L000-F C07 判 SAME 时 BinFlow 带 X-Binflow-Cache）
+    body:
+      drop_fields: [token, access_token]    # token 值实例随机，剔除（字段存在性仍在契约 keys 断言判）
+      keep_fields: [expires_in, issued_at(存在性), code, message, status, detail, name, tags, repositories, errors]
+      digest_values: keep                    # digest 值保留（sha256: 前缀 + 64 hex）
+      wire_format: compare                   # compact vs pretty 是可观察面，参与判定（Artifactory 双形态并存是 remote 指纹，E5-4）
+      json_key_order: ignore                 # 键序无关；数组序仅 tags/list 契约声明字典序时比对
+      library_prefix: keep                   # library/ 归一化结果是断言目标（E2-6 泄漏进 detail），不归一
+    timing:
+      compare: magnitude_only                # 时间类只保数量级（diff 报告口径）；upstream_rtt 布尔判定以对拍实例日志为准
+    auth:
+      basic_credentials: redact               # 凭据一律脱敏

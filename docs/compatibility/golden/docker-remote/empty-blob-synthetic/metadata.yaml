@@ -1,0 +1,19 @@
+# 金样元数据——docker remote 空 blob 合成（首批金样 1/2）
+schema: golden/1
+id: docker-remote/empty-blob-synthetic
+contract_ref: contracts/docker-remote.yaml#docker/remote-blob-empty-digest-synthetic
+matrix_ref: matrix.yaml#D12-R01
+capture:
+  mode: derived-from-report         # 书面源推导模式（compatibility-engineering.md §5 认可，confidence 上限 medium）
+  source_artifactory: reports/compatibility/L000-docker-remote-evidence.md#E4-6
+  source_difftest: reports/compatibility/L000-docker-remote-diff.md#C17
+  raw_response_available: false     # 参照实例原始响应未存档；:8082 当前无 docker 仓（仅 example-repo-local/Generic，2026-09-11 核查），
+                                    # 只读边界内不可活体采集
+instance_versions:
+  artifactory_ref: Artifactory-pro 7.161.20（revision 86120900，package_handler 5.675.40）
+  binflow_tested: uat-l000f-59f33ab5（rev 59f33ab5）
+confidence: medium                  # 单源书面推导上限；双侧 SAME 见证在案
+upgrade_path: >-
+  下次差分运行在 :8082 重建 remote 探针仓后以 golden-capture 活体重采（补 pending_capture 头集 + 32B 原始体存档），
+  升 confidence: high——金样更新须 compatibility-engineer 评审（禁止跟实现走的静默改金）。
+review: L001-2（2026-09-11）首批评审落档；evidence.kind=golden-capture 待差分侧回填

@@ -1,0 +1,737 @@
+# BinFlow 兼容契约——docker remote 代理 v2 面（首份契约，L001-2，2026-09-11）
+# schema: compat-contract/1 —— 源模式 docs/ai-engineering/compatibility-engineering.md §2（单契约文件）；
+#   本文件为同域多条目单文件扩展（任务票 L001-2 指定路径），条目键面沿 §2 全集：
+#   id/feature/surface/request/authentication/expect/side_effects/error_behavior/version/evidence/
+#   confidence/status（+binflow_state 记录差分现值，divergence_ref/golden_candidate 按需）。
+# 可执行断言词汇表（供 tools/difftest 消费判定 SAME/DIVERGENT；归一先行，规则见 fixtures/normalize.yaml）：
+#   expect.status            — 精确 HTTP 状态码
+#   expect.headers.literal   — 头名 → 精确值（头名大小写不敏感）
+#   expect.headers.pattern   — 头名 → 锚定正则
+#   expect.headers.present   — 必须存在（值实例可变）
+#   expect.headers.absent    — 必须不存在
+#   expect.headers.derived   — 头名 → 派生规则 id（规则表见本文件 derived_rules）
+#   expect.body.format       — 线格式 compact（无填充）/ pretty（Jackson 缩进）——可观察、参与判定
+#   expect.body.literal      — 整体 body 精确线字节（小 body；源报告逐字存档）
+#   expect.body.json         — 结构断言：keys_exact/keys_present/keys_absent/path_literal（点路径→标量精确值）
+#   expect.timing            — { upstream_rtt: bool, max_ms: int }——上游往返语义（差分时以对拍实例日志+耗时双重判）
+#   error_behavior[].ref     — 指向同域兄弟条目 id（不重复展开错误体）
+# verdict 推导：归一后全部启用断言通过 = SAME；任一失败 = DIVERGENT。
+# evidence kind：probe=参照实例运行观察（evidence 报告 E4）/ difftest=双系统差分（diff 报告 case）。
+derived_rules:
+  service_equals_request_host: 'WWW-Authenticate service 段 = 请求 Host 头回显（C01 分歧点）'
+  etag_is_sha1: 'Etag 值 = X-Checksum-Sha1（带引号 sha1 形态）'
+  manifest_last_modified_is_fetch_time: 'manifest Last-Modified = 本次落缓存拉取时刻（非上游 mtime；E2-3）'
+  token_is_jwt: 'token 值为 JWT 形态（前缀 eyJ…，运行时 B 版实见 eyJ2ZXIiOiIy）'
+domain: docker-remote
+scope: remote 仓（rclass=remote, packageType=docker）repo-path 访问形态——registry host=<host>:<port>，
+  镜像名首段=repoKey；Artifactory 侧 router rewrite /v2/<repoKey>/… → /api/docker/<repoKey>/v2/…。
+  不含 local/virtual 面、不含 /api/docker/{repoKey} API 面（promote/listTag 等——见 matrix D12-R02，本契约未覆盖）。
+  仅收 L000 差分证据覆盖面；未观察行为不立断言（E1-only 项逐条标注）。
+normalize: fixtures/normalize.yaml#docker-remote
+reference_instance: 'Artifactory-pro 7.161.20 (revision 86120900, package_handler 5.675.40)，http://localhost:8082'
+binflow_tested_instance: 'BinFlow UAT uat-l000f-59f33ab5（L000-F 复验）→ uat-l0011-f80c46aa（L001-1 复验，develop f80c46aa；均 http://localhost:8083 容器 binflow-ga 同卷）'
+upstreams_witnessed: 'docker.io（主证据腿）+ 本地 registry:3 127.0.0.1:5588（同源对拍腿，L000-F）'
+contracts:
+# ── L4 Auth：ping / token ────────────────────────────────────────────────────
+- id: docker/remote-v2-ping-anonymous
+  feature: '/v2/ ping 匿名挑战（repo-path 兜底，remote 仓自答不代理上游 auth）'
+  surface: 'GET /v2/'
+  request: { method: GET, path: /v2/, headers: {}, query: {} }
+  authentication: { type: none, role: anonymous }
+  expect:
+    status: 401
+    headers:
+      literal:
+        Docker-Distribution-Api-Version: registry/2.0
+        Content-Type: application/json;charset=ISO-8859-1
+      pattern:
+        WWW-Authenticate: '^Bearer realm="https?://[^"]+/v2/token",service="[^"]+"$'
+      derived:
+        WWW-Authenticate.service: service_equals_request_host
+      present: []
+      absent: []
+    body:
+      format: compact
+      literal: '{"errors":[{"code":"UNAUTHORIZED","message":"authentication required","detail":null}]}'
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: SAME
+    detail: 'L001-1 复验（灭）：service=host 回显（ping 与 token 401 两处挑战构造合一，verbatim `service="localhost:8083"`）；body 不变（E1-1 compact UNAUTHORIZED）。原分歧点（常量 "binflow"）已清偿'
+    witness: '原 C01 DIVERGENT→L001-1 SAME；token 响应多带 Docker-Distribution-Api-Version 仍按 superset_note 容忍'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.f80c46aa }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E1-1/E1-2, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: C01, date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C01（L001-1 复验段，灭）', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+- id: docker/remote-v2-ping-bad-credentials
+  feature: '/v2/ ping 坏凭据（区分匿名与坏凭据）'
+  surface: 'GET /v2/ + Authorization: Basic <bad>'
+  request: { method: GET, path: /v2/, headers: { Authorization: 'Basic <bad-credentials>' }, query: {} }
+  authentication: { type: basic, role: any-recognized-user, credential_state: invalid }
+  expect:
+    status: 401
+    headers:
+      pattern:
+        WWW-Authenticate: '^Bearer realm="https?://[^"]+/v2/token",service="[^"]+"$'
+      present: [Content-Type]
+      absent: []
+    body:
+      format: pretty
+      json:
+        keys_exact: [errors]
+        path_literal:
+          errors[0].status: 401
+          errors[0].message: Bad Credentials
+        keys_absent_at_errors0: [code, detail]
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: SAME
+    detail: 'C02 案级判定 SAME（灭，L001-1）；verbatim 锚 = token 端点 401 pretty "Bad Credentials" + docker login CLI 渲染 unknown: 指纹逐字——ping 臂未单列 verbatim，随 C02 案判定刷新'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.f80c46aa }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E1-5, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: C02, date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C02（L001-1 复验段，灭）', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+- id: docker/remote-token-issue
+  feature: '/v2/token 签发（有效 Basic 凭据）'
+  surface: 'GET /v2/token?service=<host:port>&scope=repository:<repoKey>/<image>:pull&account=<user>'
+  request:
+    method: GET
+    path: /v2/token
+    headers: { Authorization: 'Basic <valid>' }
+    query: { service: '<host:port>', scope: 'repository:<repoKey>/<image>:pull', account: '<user>' }
+  authentication: { type: basic, role: user }
+  expect:
+    status: 200
+    headers:
+      present: [Content-Type]
+      absent: [Docker-Distribution-Api-Version]
+    body:
+      format: any
+      json:
+        keys_exact: [token, expires_in]
+        keys_absent: [issued_at, access_token, scope]
+        path_literal:
+          expires_in: 9000
+      derived:
+        token: token_is_jwt
+  side_effects: []
+  error_behavior:
+    - { when: 'scope 逐项不校验（原样收，权限在资源端点判）', ref: evidence-E1-6 }
+  binflow_state:
+    verdict: DIVERGENT
+    detail: 'BinFlow {token, access_token, expires_in:2592000, issued_at, scope}，token 不透明 hex 非 JWT；docker CLI 实测登录/拉取均兼容（超集字段不破坏客户端）——对齐方向（9000/JWT）待 authority 裁定'
+    reverify_after: '待裁（LOOP 001 输入 #5，非 L001-1 修复项）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.59f33ab5 }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E1-3/E1-6, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: C01b, date: '2026-09-11' }
+  confidence: high
+  status: DIVERGENT
+  divergence_ref: known-divergence.yaml#docker/remote-token-response-shape
+- id: docker/remote-token-bad-credentials
+  feature: '/v2/token 坏凭据（docker errors 数组形态）'
+  surface: 'GET /v2/token?… + Authorization: Basic <bad>'
+  request:
+    method: GET
+    path: /v2/token
+    headers: { Authorization: 'Basic <bad-credentials>' }
+    query: { service: '<host:port>', scope: 'repository:<repoKey>/<image>:pull', account: '<user>' }
+  authentication: { type: basic, role: any, credential_state: invalid }
+  expect:
+    status: 401
+    headers: { present: [Content-Type], absent: [] }
+    body:
+      format: pretty
+      json:
+        keys_exact: [errors]
+        path_literal:
+          errors[0].status: 401
+          errors[0].message: Bad Credentials
+        keys_absent_at_errors0: [code, detail]
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: SAME
+    detail: 'L001-1 复验（灭）：401 pretty {"errors":[{"status":401,"message":"Bad Credentials"}]}——OAuth 形态已转 Artifactory 通用错误模型；真实 docker CLI 27.5.1 坏密码渲染 unknown: Bad Credentials 与 E1-5 客户端指纹逐字（修复前 unauthorized: authentication required）；正确凭据 login 照常'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.f80c46aa }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E1-5, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: C02, date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C02（L001-1 复验段，灭）', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+- id: docker/remote-token-anonymous
+  feature: '/v2/token 匿名请求（无凭据不签发）'
+  surface: 'GET /v2/token?…（无 Authorization）'
+  request:
+    method: GET
+    path: /v2/token
+    headers: {}
+    query: { service: '<host:port>', scope: 'repository:<repoKey>/<image>:pull' }
+  authentication: { type: none, role: anonymous }
+  expect:
+    status: 401
+    headers: { present: [Content-Type], absent: [] }
+    body:
+      format: pretty
+      json:
+        keys_exact: [errors]
+        path_literal:
+          errors[0].status: 401
+          errors[0].message: Authentication is required
+        keys_absent_at_errors0: [code, detail]
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: DIVERGENT
+    detail: 'BinFlow 回 200 签发匿名 token（匿名访问开）——实例匿名策略默认值差异，需产品裁定 BinFlow remote 面默认匿名姿态；wire bug 修复前匿名 pull 端到端无法对照，修复后补'
+    reverify_after: '待裁（LOOP 001 输入 #5；L000-F 后匿名 pull 端到端可对照）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.59f33ab5 }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E1-4, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: C03, date: '2026-09-11' }
+  confidence: high
+  status: DIVERGENT
+  divergence_ref: known-divergence.yaml#docker/remote-anonymous-token-policy
+# ── L5/L6：manifest 拉取 ─────────────────────────────────────────────────────
+- id: docker/remote-manifest-get-tag
+  feature: 'manifest GET by tag（Bearer；Accept 含 list 类型 → 存 list.manifest.json）'
+  surface: 'GET /v2/<repoKey>/<image>/manifests/<tag>'
+  request:
+    method: GET
+    path: '/v2/<repoKey>/<image>/manifests/<tag>'
+    headers: { Authorization: 'Bearer <token>', Accept: 'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, …' }
+    query: {}
+  authentication: { type: bearer, role: user }
+  expect:
+    status: 200
+    headers:
+      literal:
+        Accept-Ranges: bytes
+        Content-Disposition: attachment
+        Docker-Distribution-Api-Version: registry/2.0
+      pattern:
+        Content-Type: '^(application/vnd\.oci\.image\.index\.v1\+json|application/vnd\.docker\.distribution\.manifest\.list\.v2\+json|application/vnd\.docker\.distribution\.manifest\.v2\+json)$（随 Accept 协商）'
+        X-Artifactory-Filename: '^(list\.)?manifest\.json$'
+        X-Artifactory-Origin-Remote-Path: '^https?://[^"]+/v2/<image-normalized>/manifests/<tag-or-digest>$'
+      derived:
+        Etag: etag_is_sha1
+        Last-Modified: manifest_last_modified_is_fetch_time
+      present: [Docker-Content-Digest, X-Checksum-Md5, X-Checksum-Sha1, X-Checksum-Sha256, X-Artifactory-Filename, X-Artifactory-Origin-Remote-Path]
+      absent: []
+    body:
+      format: any
+      json: { note: 'manifest 内容原样（Content-Type 随 Accept list/单构协商）；body 校验按 sha256 锚定 fixture，本条目未固化 fixture（见 risks）' }
+  side_effects:
+    - '首次命中：代取上游 + 落缓存 <repoKey>-cache（tag 路径 list.manifest.json/manifest.json + digest 路径 sha256__ 命名 + config/layers marker 预写 createManifestMarkers）'
+    - '缓存布局形态见 golden 与 known-divergence docker/remote-cache-layout（C05 DIVERGENT）'
+  error_behavior:
+    - { when: '不存在 tag / 不存在镜像', ref: docker/remote-manifest-unknown-404 }
+    - { when: '上游 304（Artifactory 以自身 ETag 对上游条件 GET）', status: 304, note: '仅上游回源链路可触发；客户端 INM 头与此判定无关（E3-3，E1 待动态复证）' }
+  binflow_state:
+    verdict: DIVERGENT
+    detail: 'C06（L000-F 复验）：BinFlow GET/HEAD 仅 Content-Type/Docker-Content-Digest/Docker-Distribution-Api-Version/X-Binflow-Cache；缺 Etag/Last-Modified/Accept-Ranges/X-Checksum-*/X-Artifactory-Filename/X-Artifactory-Origin-Remote-Path——头集窄于参照'
+    reverify_after: 'LOOP 001 实现票（known-divergence docker/remote-manifest-headers）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.59f33ab5 }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E2-2/E2-3, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C06（L000-F 复验段）', date: '2026-09-11' }
+  confidence: high
+  status: DIVERGENT
+  divergence_ref: known-divergence.yaml#docker/remote-manifest-headers
+- id: docker/remote-manifest-head-digest
+  feature: 'manifest HEAD by digest（dockerHeadManifestEnabled=true 快路径）'
+  surface: 'HEAD /v2/<repoKey>/<image>/manifests/sha256:<digest>'
+  request:
+    method: HEAD
+    path: '/v2/<repoKey>/<image>/manifests/sha256:<digest>'
+    headers: { Authorization: 'Bearer <token>' }
+    query: {}
+  authentication: { type: bearer, role: user }
+  expect:
+    status: 200
+    headers:
+      literal:
+        Docker-Distribution-Api-Version: registry/2.0
+        X-Artifactory-Docker-Registry: '<repoKey>'
+      pattern:
+        X-Artifactory-Origin-Remote-Path: '^https?://.+/v2/<image-normalized>/manifests/sha256:<digest>$'
+      derived:
+        Etag: etag_is_sha1
+      present: [Docker-Content-Digest, X-Checksum-Md5, X-Checksum-Sha1, X-Checksum-Sha256, X-Artifactory-Filename]
+      absent: []
+    body: { format: none }
+  side_effects: []
+  error_behavior:
+    - { when: 'digest 不存在', ref: docker/remote-manifest-unknown-404 }
+  binflow_state:
+    verdict: DIVERGENT
+    detail: '同 C06：头集窄于参照（GET 面已证；HEAD 独有头 X-Artifactory-Docker-Registry BinFlow 未带）。GET 与 HEAD 头集差（HEAD 多 Docker-Registry 头）为 E2-4 观察面'
+    reverify_after: 'LOOP 001 实现票（同 docker/remote-manifest-headers）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.59f33ab5 }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E2-4, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C06（L000-F 复验段）', date: '2026-09-11' }
+  confidence: high
+  status: DIVERGENT
+  divergence_ref: known-divergence.yaml#docker/remote-manifest-headers
+- id: docker/remote-manifest-conditional-get
+  feature: 'manifest 条件请求（If-None-Match 不消费，恒 200 全量）'
+  surface: 'GET|HEAD /v2/<repoKey>/<image>/manifests/<ref> + If-None-Match'
+  request:
+    method: GET
+    path: '/v2/<repoKey>/<image>/manifests/<tag-or-digest>'
+    headers: { Authorization: 'Bearer <token>', 'If-None-Match': '"<etag>"（带/不带引号均同判）' }
+    query: {}
+  authentication: { type: bearer, role: user }
+  expect:
+    status: 200
+    headers: { note: '同 docker/remote-manifest-get-tag 全量头集（客户端可见面不回 304）' }
+    body: { format: any, note: '全量 manifest 回体' }
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: SAME
+    detail: 'C08（L000-F）：带引号/不带引号、GET/HEAD 一律 200 全量，永无 304——与参照客户端可见面一致（E3-2）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.59f33ab5 }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E3-2/E3-3, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C08（L000-F 复验段）', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+- id: docker/remote-pull-sequence
+  feature: '真实客户端端到端拉取序列（ping→token→manifest→config blob→layer blob→exit 0，digest 逐字一致）'
+  surface: 'docker pull <host>:<port>/<repoKey>/<image>[:<tag>]（repo-path 形态，dind 经典栈 insecure-registry）'
+  request:
+    method: SEQUENCE
+    steps:
+      - 'GET /v2/（匿名 ping → 401 挑战）'
+      - 'GET /v2/token?service&scope&account（Basic → 200 token）'
+      - 'GET /v2/<repoKey>/<image>/manifests/<tag>（Bearer，Accept 含 list 类型 → 200 index + Docker-Content-Digest）'
+      - 'GET /v2/<repoKey>/<image>/blobs/sha256:<config-digest>（→ 200）'
+      - 'GET /v2/<repoKey>/<image>/blobs/sha256:<layer-digest>（→ 200）'
+    headers: {}
+    query: {}
+  authentication: { type: 'basic→bearer（序列内自动流转）', role: user }
+  expect:
+    status: client-exit-0
+    headers: { note: '逐步头集断言复用兄弟条目（manifest-get-tag / blob-get）' }
+    body: { note: '最终 index digest 与上游参照逐字一致（L000-F：sha256:d1a8d0a4eeb6…9e59e 与上游 registry:3 参照腿一致）' }
+    timing: { note: '首拉含上游代取+落缓存（E2-1 实测 17.0s @docker.io；本地 registry 上游 1.94s）' }
+  side_effects:
+    - '落缓存 <repoKey>-cache：library/<image>/<tag>/list.manifest.json + sha256__ 命名 digest 路径 + config/layers marker（docker.io library/ 命名空间保留）——C05 布局分歧登记在案'
+  error_behavior: []
+  binflow_state:
+    verdict: SAME
+    detail: 'C04 原判 DIVERGENT/BUG（上游 wire path 缺 /v2/ 前缀）；L000-F 修复（v2WireManifestPath/v2WireBlobPath）后复验灭：pull 成功、digest 逐字一致、上游日志 /v2/ 前缀恢复。缓存布局侧效应面 C05 DIVERGENT 另立'
+    witness: '上游 registry 日志实收 GET /v2/hello-world/manifests/latest 200 + blobs 200 ×2（灭因直证）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.59f33ab5 }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E2-1/E2-2, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C04 + L000-F 复验段（灭）', date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C04 回归行（L001-1 复验段：未缓存 tag t2 pull 成功，digest 逐字 sha256:1cfa4e2b…，二次 GET X-Binflow-Cache: HIT）', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+  golden_candidate: golden/docker-remote/pull-sequence
+- id: docker/remote-second-pull-cache-hit
+  feature: '二次拉取缓存快路径（rmi 后重拉不回源）'
+  surface: 'docker pull（第二次）——观察面：耗时量级 + 上游计数冻结 + BinFlow 侧 X-Binflow-Cache 头'
+  request: { method: SEQUENCE, steps: ['同 docker/remote-pull-sequence（rmi 后重放）'], headers: {}, query: {} }
+  authentication: { type: bearer, role: user }
+  expect:
+    status: client-exit-0
+    headers: { note: '逐步头集同首拉；缓存命中时 manifest 头集不缩水（E2-3 适用于缓存内命中）' }
+    body: { note: 'digest 逐字一致' }
+    timing: { upstream_rtt: false, note: 'E3-1：1.54s vs 首拉 17.0s（docker.io）；L000-F 本地上游 1.94s→1.42s + 上游计数冻结 26→26 为硬证据' }
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: SAME
+    detail: 'C07（L000-F）：缓存快路径成立；BinFlow 另有 X-Binflow-Cache: HIT/MISS 显式标记（超集头，superset_note）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.59f33ab5 }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E3-1, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C07（L000-F 复验段）', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+# ── L5/L6：blob 拉取 ─────────────────────────────────────────────────────────
+- id: docker/remote-blob-get
+  feature: 'blob GET by digest（manifest 链内 digest：代取 + 落缓存 + 全套校验和；含 HEAD）'
+  surface: 'GET|HEAD /v2/<repoKey>/<image>/blobs/sha256:<digest>'
+  request:
+    method: GET
+    path: '/v2/<repoKey>/<image>/blobs/sha256:<digest>'
+    headers: { Authorization: 'Bearer <token>' }
+    query: {}
+  authentication: { type: bearer, role: user }
+  expect:
+    status: 200
+    headers:
+      pattern:
+        X-Artifactory-Origin-Remote-Path: '^https?://.+/v2/<image-normalized>/blobs/sha256:<digest>$'
+      derived:
+        Etag: etag_is_sha1
+      present: [Docker-Content-Digest, X-Checksum-Md5, X-Checksum-Sha1, X-Checksum-Sha256, Accept-Ranges, Last-Modified]
+      absent: []
+    body: { format: binary, note: 'sha256(body)==digest（协议不变量）；Last-Modified=上游真实 mtime（E2-5，与 manifest 的拉取时刻语义不同——blob 落缓存承载上游 mtime）' }
+    timing: { upstream_rtt: true, note: '未缓存但链内已见于 manifest（marker 在）→ 上游代取（E4-1 实测 2.6s/3.8s @docker.io）后落缓存' }
+  side_effects:
+    - 'marker 生命周期：blob 首取成功后 marker 被真实内容替换（replaceRepoMarkers/removeMarkerAsSystem）'
+  error_behavior:
+    - { when: 'digest 不见于任何 manifest 链（无 marker）', ref: docker/remote-blob-unknown-digest-404 }
+  binflow_state:
+    verdict: SAME
+    detail: 'C06 blob 面（L000-F）：全量与 206 带全套 X-Checksum-Md5/Sha1/Sha256 + Etag(sha1) + Accept-Ranges——与参照 E2-3/E3-5 面一致；C10a 链内 digest 代取 200 落缓存一致。HEAD 全量头集独立取证仅 C17/E5-2（push 路径 Layer already exists）——HEAD 面按 GET 同头集推断，置信 medium 附注'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.59f33ab5 }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E2-5/E4-1, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C06 blob 面/C09/C10a（L000-F 复验段）', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+- id: docker/remote-blob-get-range
+  feature: 'blob Range 断点请求'
+  surface: 'GET /v2/<repoKey>/<image>/blobs/sha256:<digest> + Range: bytes=0-63'
+  request:
+    method: GET
+    path: '/v2/<repoKey>/<image>/blobs/sha256:<digest>'
+    headers: { Authorization: 'Bearer <token>', Range: 'bytes=0-63' }
+    query: {}
+  authentication: { type: bearer, role: user }
+  expect:
+    status: 206
+    headers:
+      literal:
+        Docker-Distribution-Api-Version: registry/2.0
+      pattern:
+        Content-Range: '^bytes 0-63/<total>$'
+      present: [Docker-Content-Digest, X-Checksum-Md5, X-Checksum-Sha1, X-Checksum-Sha256, Etag, Accept-Ranges]
+      absent: []
+    body: { format: binary, note: '64 字节片段（0-63 含端点）' }
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: SAME
+    detail: 'C09 原判 DIVERGENT/BUG（同 C04 wire 根因）；L000-F 复验灭：206 + Content-Range: bytes 0-63/577 + 64B + Docker-Content-Digest + 全套 X-Checksum-* + Etag——206 头套与参照 E3-5 对齐'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.59f33ab5 }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E3-5, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C09 + L000-F 复验段（灭）', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+- id: docker/remote-blob-empty-digest-synthetic
+  feature: '空层 digest 合成响应（isEmptyBlob 分支，GET/HEAD 直接合成，不查缓存不上游）'
+  surface: 'GET|HEAD /v2/<repoKey>/<image>/blobs/sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4'
+  request:
+    method: GET
+    path: '/v2/<repoKey>/<image>/blobs/sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4'
+    headers: { Authorization: 'Bearer <token>' }
+    query: {}
+  authentication: { type: bearer, role: user }
+  expect:
+    status: 200
+    headers:
+      literal:
+        Docker-Content-Digest: 'sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4'
+      present: []
+      absent: []
+      note: 'E4/E5 观察面止于 status/32B/Docker-Content-Digest；其余头集（校验和族是否在合成路径补齐）未观察，不立断言——待活体重采'
+    body:
+      format: binary
+      bytes: 32
+      sha256: a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
+    timing: { upstream_rtt: false }
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: SAME
+    detail: 'C17：两侧均 200 32B 合成响应 + Docker-Content-Digest——首轮差分即 SAME（不受 wire bug 影响，合成路径本地应答）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.59f33ab5 }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E4-6, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: C17, date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+  golden_candidate: golden/docker-remote/empty-blob-synthetic
+- id: docker/remote-blob-unknown-digest-404
+  feature: '未知 digest blob 404（marker 门控：无上游往返本地快 404 + BLOB_UNKNOWN 形态）'
+  surface: 'GET /v2/<repoKey>/<image>/blobs/sha256:<random-valid-digest>'
+  request:
+    method: GET
+    path: '/v2/<repoKey>/<image>/blobs/sha256:<digest-not-in-any-manifest-chain>'
+    headers: { Authorization: 'Bearer <token>' }
+    query: {}
+  authentication: { type: bearer, role: user }
+  expect:
+    status: 404
+    headers:
+      literal:
+        Docker-Distribution-Api-Version: registry/2.0
+      present: [Content-Type]
+      absent: []
+    body:
+      format: compact
+      json:
+        keys_exact: [errors]
+        path_literal:
+          'errors[0].code': BLOB_UNKNOWN
+          'errors[0].message': blob unknown to registry
+          'errors[0].detail.blobSum': 'sha256:<requested-digest>'
+    timing: { upstream_rtt: false, max_ms: 100, note: 'E4-2：40ms 内本地应答（docker.io RTT 1.7-6.6s 排除上游）；判据=无上游往返' }
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: DIVERGENT
+    detail: 'C13 body 形态已清偿（L001-1 复验灭：detail.digest→blobSum、message 静态串，E6-2 逐字）；残余分歧 = C10b 门控语义——BinFlow digest 盲代理（上游 404 一次往返）+ 负缓存 vs 参照 marker 门控无往返快 404（timing 断言仍未过）'
+    reverify_after: 'LOOP 001 设计票+实现票（known-divergence docker/remote-blob-marker-semantics；C13 子项已结）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.f80c46aa }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E4-2/E4-3/E6-2, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C10b/C13（L000-F 复验段）', date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C13（L001-1 复验段，灭；C10 归另票未触碰）', date: '2026-09-11' }
+  confidence: high
+  status: DIVERGENT
+  divergence_ref: known-divergence.yaml#docker/remote-blob-marker-semantics
+# ── 404 形态族（manifest 面） ────────────────────────────────────────────────
+- id: docker/remote-manifest-unknown-404
+  feature: 'manifest 404 形态（不分 NAME_UNKNOWN/MANIFEST_UNKNOWN；library/ 归一泄漏进 detail）'
+  surface: 'GET /v2/<repoKey>/<image>/manifests/<tag-or-none>'
+  request:
+    method: GET
+    path: '/v2/<repoKey>/<image>/manifests/<tag>'
+    headers: { Authorization: 'Bearer <token>' }
+    query: {}
+  authentication: { type: bearer, role: user }
+  expect:
+    status: 404
+    headers:
+      literal:
+        Docker-Distribution-Api-Version: registry/2.0
+      present: [Content-Type]
+      absent: [Artifactory-Manifest-Handler-Error]
+    body:
+      format: compact
+      json:
+        keys_exact: [errors]
+        path_literal:
+          'errors[0].code': MANIFEST_UNKNOWN
+          'errors[0].message': The named manifest is not known to the registry.
+          'errors[0].detail.manifest': '<image-normalized>（docker.io 上游：library/ 前缀归一化结果；不含 tag）'
+  side_effects: []
+  error_behavior:
+    - { when: '镜像不存在（整镜像而非仅 tag）', status: 404, note: '同 MANIFEST_UNKNOWN——不区分 NAME_UNKNOWN（remote 面词汇表无此项）' }
+  binflow_state:
+    verdict: SAME
+    detail: 'L001-1 复验（灭）：detail.reference→manifest（值=镜像名不含 tag）、message 静态串——E6-1 逐字。注：本轮上游为 registry:3（非 docker.io，无 library/ 前缀，符合 E2-6 归一化条件语义）；library/ 臂的 BinFlow 侧等价复验需上游=docker.io 拓扑（本机 TUN 环境不可达），参照侧证据面 E4 在案'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.f80c46aa }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E6-1/E2-6, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C12（含 L000-F 残留核查）', date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C12（L001-1 复验段，灭）', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+- id: docker/remote-manifest-404-no-negative-cache
+  feature: 'manifest 404 无负缓存（重复 miss 仍每次上游往返）'
+  surface: 'GET /v2/<repoKey>/<image>/manifests/<nonexistent-tag>（重复两次，间隔 << missedRetrievalCachePeriodSecs=1800）'
+  request:
+    method: GET
+    path: '/v2/<repoKey>/<image>/manifests/<nonexistent-tag>'
+    headers: { Authorization: 'Bearer <token>' }
+    query: {}
+  authentication: { type: bearer, role: user }
+  expect:
+    status: 404
+    headers: { note: '同 docker/remote-manifest-unknown-404' }
+    body: { note: '同 docker/remote-manifest-unknown-404' }
+    timing: { upstream_rtt: true, note: 'E6-3：第二次仍 6.6s 上游往返——missedRetrievalCachePeriodSecs=1800 配置在 docker manifest GET 面未生效（E4 实测）' }
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: DIVERGENT
+    detail: 'C14：BinFlow 首次 miss ~200ms（上游往返失败）→ 重复 miss 40-70ms 本地负缓存（missedTTL 生效）——BinFlow 符合其配置语义；参照运行时未负缓存待跨 missedTTL 窗复核定谳（若复核仍无 → BinFlow 更优，INTENTIONAL 候选）'
+    reverify_after: '待裁（LOOP 001 输入 #5：Artifactory 跨 missedTTL 复核票）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.59f33ab5 }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E6-3/E3-4, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: C14, date: '2026-09-11' }
+  confidence: high
+  status: DIVERGENT
+  divergence_ref: known-divergence.yaml#docker/remote-manifest-404-negative-cache
+# ── tags/list 与 _catalog ────────────────────────────────────────────────────
+- id: docker/remote-tags-list
+  feature: 'tags/list 上游聚合（远端全量 tag，非缓存子集）'
+  surface: 'GET /v2/<repoKey>/<image>/tags/list'
+  request:
+    method: GET
+    path: '/v2/<repoKey>/<image>/tags/list'
+    headers: { Authorization: 'Bearer <token>' }
+    query: {}
+  authentication: { type: bearer, role: user }
+  expect:
+    status: 200
+    headers: { present: [Content-Type], absent: [] }
+    body:
+      format: pretty
+      json:
+        keys_exact: [name, tags]
+        path_literal:
+          name: '<image-normalized>（docker.io 上游含 library/ 前缀）'
+        tags: '<上游全量 tag 聚合，字典序>'
+    timing: { upstream_rtt: true, note: 'E7-1：3.2s 往返取 docker.io 全量；上游 Link rel="next" 分页聚合（迭代上限 3/硬 15）' }
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: SAME
+    detail: 'L001-1 复验（灭）：远端实时聚合（Link rel=next 翻页上限 3；pretty；name=上游回显名）——缓存只有 t1、上游实有 t1,t2，复验回 {"name":"busybox","tags":["t1","t2"]}；上游日志实收 GET /v2/busybox/tags/list 200（UA binflow-remote/1.0）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.f80c46aa }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E7-1/E7-3, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C15（含 L000-F 复验段）', date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C15（L001-1 复验段，灭）', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+- id: docker/remote-catalog
+  feature: '_catalog 兼容收尾（上游无 catalog API 时仍 200 空列表）'
+  surface: 'GET /v2/<repoKey>/_catalog'
+  request:
+    method: GET
+    path: '/v2/<repoKey>/_catalog'
+    headers: { Authorization: 'Bearer <token>' }
+    query: {}
+  authentication: { type: bearer, role: user }
+  expect:
+    status: 200
+    headers: { present: [Content-Type], absent: [] }
+    body:
+      format: any
+      json:
+        keys_exact: [repositories]
+        repositories: '[]（上游无 _catalog API：上游失败后仍 200 空列表收尾；fallback 开关 docker.catalogs.tags.fallback.fetch.remote.cache 默认 false）'
+    timing: { upstream_rtt: true, note: 'E7-2：约 3s 上游尝试后回退' }
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: SAME
+    detail: 'L001-1 复验（灭）：repo 域 catalog 上游聚合——200 pretty {"repositories":["busybox","hello-world"]}，上游日志实收 GET /v2/_catalog 200；上游无 catalog API 时 200 空列表臂（E7-2 fallback）保持 E4/E1 证据面（本轮上游有 catalog API，空列表臂未复验）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.f80c46aa }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E7-2, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C16（含 L000-F 复验段）', date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C16（L001-1 复验段，灭）', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+# ── 上传面（remote 禁推三端点） ──────────────────────────────────────────────
+- id: docker/remote-push-blobs-uploads-reject
+  feature: 'remote 禁推——blob 上传发起（POST uploads/ 及 PATCH/PUT/.patch 变体）'
+  surface: 'POST /v2/<repoKey>/<image>/blobs/uploads/'
+  request:
+    method: POST
+    path: '/v2/<repoKey>/<image>/blobs/uploads/'
+    headers: { Authorization: 'Bearer <token>' }
+    query: {}
+  authentication: { type: bearer, role: admin }
+  expect:
+    status: 400
+    headers: { present: [Content-Type], absent: [] }
+    body:
+      format: pretty
+      json:
+        keys_exact: [errors]
+        path_literal:
+          errors[0].status: 400
+          errors[0].message: Unable to upload blobs to a remote repository.
+        keys_absent_at_errors0: [code, detail]
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: SAME
+    detail: 'L001-1 复验（灭）：405/UNSUPPORTED→400 + E5-1 文案逐字（pretty status 形态，无 code/detail）；三端点同场复验（POST uploads / PUT manifest / DELETE manifest 三次 400 三文案）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.f80c46aa }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E5-1/E5-4, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C11（含 L000-F 残留核查）', date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C11（L001-1 复验段，灭）', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+- id: docker/remote-push-manifest-reject
+  feature: 'remote 禁推——manifest PUT（blob HEAD Layer-already-exists 通过后卡点）'
+  surface: 'PUT /v2/<repoKey>/<image>/manifests/<tag>'
+  request:
+    method: PUT
+    path: '/v2/<repoKey>/<image>/manifests/<tag>'
+    headers: { Authorization: 'Bearer <token>', 'Content-Type': '<manifest-media-type>' }
+    query: {}
+  authentication: { type: bearer, role: admin }
+  expect:
+    status: 400
+    headers: { present: [Content-Type], absent: [] }
+    body:
+      format: pretty
+      json:
+        keys_exact: [errors]
+        path_literal:
+          errors[0].status: 400
+          errors[0].message: Unable to upload a manifest to a remote repository.
+        keys_absent_at_errors0: [code, detail]
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: SAME
+    detail: 'L001-1 复验（灭）：PUT manifest → 400 + 文案逐字 Unable to upload a manifest to a remote repository.（pretty status 形态，无 code/detail）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.f80c46aa }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E5-2/E5-4, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C11（含 L000-F 残留核查）', date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C11（L001-1 复验段，灭）', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+- id: docker/remote-delete-manifest-reject
+  feature: 'remote 禁推——manifest DELETE'
+  surface: 'DELETE /v2/<repoKey>/<image>/manifests/<ref>'
+  request:
+    method: DELETE
+    path: '/v2/<repoKey>/<image>/manifests/<ref>'
+    headers: { Authorization: 'Bearer <token>' }
+    query: {}
+  authentication: { type: bearer, role: admin }
+  expect:
+    status: 400
+    headers: { present: [Content-Type], absent: [] }
+    body:
+      format: pretty
+      json:
+        keys_exact: [errors]
+        path_literal:
+          errors[0].status: 400
+          errors[0].message: Unable to delete a manifest from a remote repository.
+        keys_absent_at_errors0: [code, detail]
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: SAME
+    detail: 'L001-1 复验（灭）：DELETE manifest → 400 + 文案逐字 Unable to delete a manifest from a remote repository.——BinFlow 臂运行时实见（原 E5-3 仅 E1）；Artifactory DELETE 臂仍 E1-only（未运行时对拍），置信维持 medium'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.f80c46aa }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E5-3（E1-only）, date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C11（BinFlow 三端点同文案实证；Artifactory DELETE 臂 E1-only）', date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C11（L001-1 复验段，灭；三端点三文案 verbatim）', date: '2026-09-11' }
+  confidence: medium
+  status: VERIFIED
+# ── 收尾说明 ─────────────────────────────────────────────────────────────────
+# 覆盖统计（L001-1 复验刷新，2026-09-11）：21 条目 = SAME/VERIFIED 15（原 6 + L001-1 清偿 9：ping-anon /
+#   ping-bad-creds / token-bad-creds / manifest-unknown-404 / tags-list / catalog / push ×3）+ DIVERGENT 6：
+#   缓存语义族 3（manifest-get-tag / manifest-head-digest / blob-unknown-digest-404——C05/C06/C10 归设计票，
+#   blob-unknown 条目 C13 子项已清偿、残余 timing 门控断言）+ 待裁 3（token-issue / token-anonymous /
+#   manifest-404-no-negative-cache——C01b/C03/C14，authority 缺位维持 DIVERGENT+UNKNOWN 台账双记）。
+# 口径对齐：diff 报告 L001-1 统计 SAME 13 / DIVERGENT 5（C05/C06/C10+D19+D21）/ 待裁 3——本契约不含 D19（SSRF
+#   实例姿态）/D21（REST repo GET 面，转 httpapi 域）；C05 以 side_effects 附记于 pull-sequence 不单列条目。
+# 未收面（差分未覆盖，不立断言）：foreign layer urls 白名单 403（E4-4 E1-only）、上游 429/403 透传文案（E6-4/E6-5
+#   E1-only，C18 skipped）、schema1 拉取阻断、storeArtifactsLocally=false 校验、smart remote 系列（§9 UNKNOWN）、
+#   304 上游透传动态触发（E3-3 标待动态复证）、catalog 空列表降级臂（本轮上游有 catalog API 未复验）、
+#   tags 上游失败→200 "tags":null（L001-1 实现自决，无 E4 观察）。

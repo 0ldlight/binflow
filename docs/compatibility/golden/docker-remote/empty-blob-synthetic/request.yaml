@@ -1,0 +1,16 @@
+# 金样请求——docker remote 空 blob digest 合成响应（C17）
+# schema: golden-request/1（结构沿 compatibility-engineering.md §1；headers+body 合并入 response.yaml，见该文件注）
+feature: 空 layer digest GET/HEAD 合成响应（不查缓存、不回上游）
+mode: repo-path（registry host=<host>:<port>；镜像名首段=repoKey；<image> 可为任意已存在镜像——合成路径不依赖 repo 内容）
+steps:
+- method: GET
+  path: /v2/<repoKey>/<image>/blobs/sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
+  headers: { Authorization: 'Bearer <token>（先经 /v2/token 取）' }
+- method: HEAD
+  path: 同上
+  headers: { Authorization: 'Bearer <token>' }
+precondition: remote 仓（rclass=remote, packageType=docker）已建；<image> 无需预拉（E4-6：合成分支与 local 一致，GET/HEAD 直接应答）
+digest_provenance: >-
+  digest 全值取自 BinFlow 一方源码常量 internal/adapter/docker/blob.go:41 emptyLayerDigestHex——
+  差分 C17 以同一 digest 双发、两侧均 200/32B/Docker-Content-Digest（SAME），此值为双侧共同见证的等价值，
+  非记忆补齐、非参照侧反推。

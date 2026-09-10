@@ -1,0 +1,19 @@
+# 金样期望响应——docker remote 空 blob digest 合成（Artifactory 参照侧观测值）
+# schema: golden-response/1（headers+body 合并单文件；断言词汇表同 contracts/docker-remote.yaml 头部声明）
+get:
+  status: 200
+  headers:
+    observed:                      # E4/E5 观察面止于此——其余头集（校验和族是否在合成路径补齐）未观察，不立断言
+      Docker-Content-Digest: sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
+    pending_capture: [Content-Type, Etag, X-Checksum-Md5, X-Checksum-Sha1, X-Checksum-Sha256, Accept-Ranges, Docker-Distribution-Api-Version]
+  body:
+    bytes: 32
+    sha256: a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4   # 协议不变量：digest 寻址内容 sha256==digest
+    raw_bytes_archive: null        # 32 字节原始体未存档（无活体原始响应可得，见 metadata）——sha256+size 为可执行断言形态
+head:
+  status: 200
+  headers:
+    observed:
+      Docker-Content-Digest: sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
+timing: { upstream_rtt: false }    # 合成路径本地应答，无上游往返
+verdict_witness: 'E5 C17：Artifactory 与 BinFlow 双侧均 200/32B/Docker-Content-Digest——SAME（不受上游 wire path 影响）'

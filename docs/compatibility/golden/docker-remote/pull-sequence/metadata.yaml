@@ -1,0 +1,19 @@
+# 金样元数据——docker remote 拉取序列（首批金样 2/2）
+schema: golden/1
+id: docker-remote/pull-sequence
+contract_ref: contracts/docker-remote.yaml#docker/remote-pull-sequence
+matrix_ref: matrix.yaml#D12-R01
+capture:
+  mode: derived-from-report          # 书面源推导（E4 观测 + E5/L000-F 差分 SAME 见证）；confidence 上限 medium
+  source_artifactory: reports/compatibility/L000-docker-remote-evidence.md#E1-1/E1-3/E2-1/E2-2/E2-3/E2-5
+  source_difftest: reports/compatibility/L000-docker-remote-diff.md#C04（含 L000-F 复验段）
+  raw_response_available: false      # 序列原始响应未存档；index digest 全值在两份源报告中均为截断记法，不补齐（禁猜测）
+instance_versions:
+  artifactory_ref: Artifactory-pro 7.161.20（revision 86120900）
+  binflow_tested: uat-l000f-59f33ab5（rev 59f33ab5）
+confidence: medium
+known_gaps:
+- 'manifest 内容字节未锚 fixture（sha256 锚定待补）——下一步差分运行捕获后固化'
+- '缓存布局侧效应（C05）为 DIVERGENT 在案（known-divergence docker/remote-cache-layout），金样只锚客户端可见面'
+upgrade_path: 下次差分运行 golden-capture 重采（补 digest 全值 + 逐步原始响应），升 high；更新须 compatibility-engineer 评审
+review: L001-2（2026-09-11）首批评审落档

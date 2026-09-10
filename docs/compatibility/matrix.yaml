@@ -145,9 +145,9 @@ summary:
     D14:
       rows: 1
       not_applicable: 1
-  contract_ref_non_null: 0
-  golden_ref_non_null: 0
-  last_difftest_non_null: 0
+  contract_ref_non_null: 1   # L001-2：D12-R01（docker-remote 契约 21 条目）
+  golden_ref_non_null: 1     # L001-2：D12-R01（empty-blob-synthetic / pull-sequence，derived-from-report medium）
+  last_difftest_non_null: 1  # L001-2：D12-R01（L000 批次，SAME 6 / DIVERGENT 12 / skipped 1）
 rows:
 - row_id: D01-R01
   domain: D01
@@ -2117,12 +2117,16 @@ rows:
   capability: Docker Registry v2（/v2/ 全套 16 op：blob/manifest/uploads/catalog/tags/token）
   state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/docker-remote.yaml
+  golden_ref: golden/docker-remote/{empty-blob-synthetic,pull-sequence}
+  last_difftest: reports/compatibility/L000-docker-remote-diff.md（L000 首轮 + L000-F + L001-1 复验：SAME 13 / DIVERGENT 5 / 待裁 3 / skipped 1）
   priority_class: P1
   layer: A
   source_row: "§11.1 行 1"
+  note: L001-2（2026-09-11）首份契约补链——契约覆盖 remote 面子集（ping/token/manifests/blobs/tags/catalog/禁推/404 族 21 条目；
+    local/virtual 面与 /api/docker API 面未契约化）。行态不因差分翻改：差异走 known-divergence 台账与契约条目态。
+    L001-1 复验刷新（同日）：契约 VERIFIED 6→15（C01/C02/C11/C12/C13/C15/C16 族清偿）、DIVERGENT 15→6
+    （缓存语义 3 归另票 + 待裁 3）；D20 凭据缺口已由 L001-3 闭合，D21 转 httpapi 域票（L001-5 修复，复验证据待回填）
 - row_id: D12-R02
   domain: D12
   capability: Docker API 面（/api/docker/{repoKey} promote/listTag/UI 面族）

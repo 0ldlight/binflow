@@ -149,3 +149,36 @@ docker logs difftest-upstream --since 2m   # 观察 GET /hello-world/manifests/l
 ### 统计更新（复验口径）
 
 SAME 2→6（+C04/C07/C08/C09）/ DIVERGENT 11→12（−C04/C09，+C05/C06/C10）/ UNKNOWN（blocked）5→0 / skipped 1 不变。LOOP 001 输入清单不变（P1 tags 聚合、P2 错误形态、P3 service 回显、待裁三项、部署面 D20/D21）。
+
+## 复验（L001-1，2026-09-11）——残余 DIVERGENT 族清偿后重放，原结论不改
+
+- 修复: L001-1 实现票（dev-registry-adapter docker 域）。改动面 `internal/adapter/docker`（errors/token/handler/remote/catalog/virtual/api）+ 必要测试（含 httpapi 测试字面断言，票面明示合法扩散）。UAT 重建为 `uat-l0011-f80c46aa`（develop f80c46aa + 工作树；同端口 :8083、同卷，repo `audit-probe-docker-remote` 与缓存保留）。D20 已由 L001-3 先行闭合（master key 在位）。
+- 拓扑: 同 §10 口径——上游 = 本地 registry:3（`difftest-upstream` 127.0.0.1:5588，busybox:t1,t2 + hello-world:latest，重放后容器已 rm -f）；BinFlow repo `audit-probe-docker-remote` 指向 `http://host.docker.internal:5588`（allowPrivateUpstream:true，缓存里只有 t1——正是 L000-F 复验留下的聚合缺口现场）。
+- 修复前基线（同一拓扑、旧镜像 uat-l000f 实测，与本报告原记录逐字一致）：tags/list 回缓存 `["t1"]`、`_catalog` 404 UNSUPPORTED、token 坏凭据 OAuth 形态、manifest 404 `detail.reference`、blob 404 `detail.digest`、禁推 405/UNSUPPORTED。
+
+### 逐案重放结论（修复后 BinFlow 腿实测）
+
+| case | 修复内容 | 复验观察（verbatim 摘录） | 复验判定 |
+|---|---|---|---|
+| C15 tags/list | 远端实时聚合（Link rel=next 翻页，上限 3；pretty；name=上游回显名） | `GET /v2/audit-probe-docker-remote/busybox/tags/list` → 200 pretty `{"name":"busybox","tags":["t1","t2"]}`——缓存只有 t1，t2 为上游新增，实时聚合直接可见；上游日志实收 `GET /v2/busybox/tags/list` 200（UA binflow-remote/1.0） | **SAME（灭）** |
+| C16 _catalog | repo 域 catalog 上游聚合；上游无 catalog 时 200 空列表（E7-2） | `GET /v2/audit-probe-docker-remote/_catalog` → 200 pretty `{"repositories":["busybox","hello-world"]}`；上游日志实收 `GET /v2/_catalog` 200 | **SAME（灭）** |
+| C02 token 坏凭据 | OAuth 形态→Artifactory 通用错误模型 E4 原样 | `401` pretty `{"errors":[{"status":401,"message":"Bad Credentials"}]}`；挑战头保持 Bearer realm+service；**真实 docker CLI 27.5.1 `docker login` 坏密码渲染 `unknown: Bad Credentials`——与 E1-5 客户端指纹逐字一致（修复前为 `unauthorized: authentication required`）**；正确凭据 login 照常 Succeeded | **SAME（灭）** |
+| C12 manifest 404 | detail `reference`→`manifest`（值=镜像名，不含 tag）；message 静态串 | `{"errors":[{"code":"MANIFEST_UNKNOWN","message":"The named manifest is not known to the registry.","detail":{"manifest":"busybox"}}]}`——E6-1 逐字（上游非 docker.io，无 library/ 前缀，符合 E2-6 的归一化条件语义） | **SAME（灭）** |
+| C13 blob 404 | detail `digest`→`blobSum`；message 静态 | `{"errors":[{"code":"BLOB_UNKNOWN","message":"blob unknown to registry","detail":{"blobSum":"sha256:bbb…"}}]}`——E6-2 逐字 | **SAME（灭）** |
+| C11 禁推三端点 | 405/UNSUPPORTED→400 + E5-1..3 三文案（通用错误模型） | uploads POST / manifest PUT / manifest DELETE → 三次 400，文案逐字 `Unable to upload blobs to a remote repository.` / `Unable to upload a manifest to a remote repository.` / `Unable to delete a manifest from a remote repository.`（无 code/detail，pretty status 形态） | **SAME（灭）** |
+| C01 ping 挑战 service | 常量 `binflow`→host 回显（两处挑战构造合一） | `Www-Authenticate: Bearer realm="http://localhost:8083/v2/token",service="localhost:8083"`（ping 与 token 401 两处均回显）；body 不变（E1-1 compact UNAUTHORIZED） | **SAME（灭）** |
+| C04 回归 | —（pull 路径未改，路由函数重构后复核） | 真实 `docker pull localhost:8083/audit-probe-docker-remote/busybox:t2`（未缓存 tag）成功；wire digest 上游/BinFlow 两侧逐字一致 `sha256:1cfa4e2b…`；二次 GET `X-Binflow-Cache: HIT` | SAME 维持 |
+
+### 残留与边界（本轮不扩张核查）
+
+- **C01b/C03/C14**：未触碰（待裁三项，维持原判）。
+- **C05/C06/C10**：未触碰（缓存布局/manifest 头集/marker 语义归另票）。
+- **D21**：**BLOCKED——修复点在 `internal/httpapi/repositories.go`（repoConfigOf/repoListItemOf 顶层 url 自指派生），非 adapter 域**；实测 UAT repo GET 顶层 url 仍为 `http://localhost:8083/binflow/<key>`（真实上游仍在 configuration.url）。需 conductor 转 httpapi 域票据（一行级：remote 行顶层 url 取 configuration.url）。
+- 伴生登记：`internal/httpapi/router.go:291` 的 no-adapter 兜底挑战仍硬编码 `service="binflow"`（生产装配挂载 docker adapter 后不可达，不影响对拍面）。
+- **unfound 新形态传导至 VIRTUAL 面（L001-1 review B1 补声明）**：C12/C13 的修复落在共享构造函数（manifestUnfound/blobUnfound），virtual 面 walk 终态 404（virtual.go:89/:287）随之携带新形态（detail.manifest/blobSum + 静态 message 前缀 + walk 的 upstream-summary 后缀）。E6 证据仅采自 remote 仓；virtual 面同形态的依据是证据报告 §8 E1 走读（E6 渲染位于共享 v2 REST 层、非 remote 专有 handler）——**属推断非直接观察**，未在 Artifactory virtual 仓上对拍过。已加 TestVirtualUnfoundBodyCarriesRemoteShape（tag+blob 两臂）钉住该传导。
+- 未观察角落的实现自决（已在实现注释声明）：tags 上游失败→200 `"tags":null`（catalog 的空-200 降级类推；null-vs-empty 拼写无 E4 观察）；禁推未观察组合（blob DELETE、upload cancel）保留原 405+Allow；token 端点参数类 400（refresh grant 等）保留 OAuth 形态（无 E4 观察）；pretty JSON 缩进为 Go 2-space（Jackson 字节级空白未取证，normalize 等价）。
+- 根级 `/v2/_catalog`、虚拟面 tags（成员缓存行聚合）行为未动。
+
+### 统计更新（L001-1 复验口径）
+
+SAME 6→13（+C15/C16/C02/C12/C13/C11/C01）/ DIVERGENT 12→5（C05/C06/C10 + D19 INTENTIONAL 候选 + D21 转 httpapi 票）/ UNKNOWN 待裁 3（C01b/C03/C14）不变 / skipped 1 不变。docker remote 代理的客户端可见错误面与列表面已全对齐参照；剩余差异集中在缓存布局语义（另票管辖）。

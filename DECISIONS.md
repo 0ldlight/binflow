@@ -189,6 +189,7 @@
 - 后果: 新增 `internal/remote` 包（fetcher/cache-state/ssrf-guard/credentials，依赖 config+storage+metadata）；003 迁移：remote_configs 加列（content_ttl_seconds/metadata_ttl_seconds/allow_private_upstream/blocked_out 改名）、新表 remote_cache（验证器元数据）、旧明文凭据一次性加密；`X-BinFlow-Cache: HIT/MISS/STALE/REVALIDATED` 响应头供 QA 断言与用户排障；SSRF 清单与豁免逻辑属安全面，变更须 security 意识 review；上游响应的 checksum 校验：上游给 digest 头（Docker-Content-Digest/X-Checksum-*）则强校验，否则信任 TLS + 落盘时自算摘要记账。
 - 勘误一（2026-08-19，T-79 依 PRD v1.1/v1.2 定案回写，决策方向不变、故障语义对齐）: **决策 2 的「无副本 → 502 spec 信封」作废**。PRD 定案（T-60，FR-20-AC5/M44，repo-semantics §7.6 高置信度）：上游 5xx/超时/连接失败 → 仓标记 **assumed-offline**（静默期 `assumedOfflinePeriodSecs` 默认 300s，期内零上游流量——取代本 ADR「不自动熔断」表述，静默期即轻量熔断）；有缓存（**含过期**）→ 服务缓存 + 附 `X-Binflow-Upstream-Error: <摘要>` 头（取代原 `Warning: 111` 方案，网关可观测性头 + 客户端等价感知）；无缓存 → **404**（E-01，message 含 offline/assumed offline 状态）；仅 `hardFail: true`（默认 false）时改 **502**。另补 PRD 定案的负缓存语义：上游 404 → 写负缓存（missedRetrievalCachePeriodSecs）+ 若本地有过期副本仍回发（"expired but serving"）。
 - 勘误二（2026-08-19，T-79）：**决策 3/5 的参数面实现以 PRD v1.2 §6 NFR-S13 为准**，本 ADR 正文数字为设计草案：① 重定向上限 **5 跳**（本文 3 跳作废），每跳完整重过校验链、拒绝即 400；② 超时统一为仓配置 `socketTimeoutSecs` 默认 **15s**（本文连接 10s/响应头 30s 双值作废）；③ 体量上限分型：**非 streaming 缓冲型响应（packument/simple/metadata）64MB**、超限截断报 502（本文「8GB 全局响应体上限」表述作废，artifact 流式落盘不受 64MB 限）；④ 缓存 TTL 默认对齐 PRD C4：`retrievalCachePeriodSecs` **7200** / `missedRetrievalCachePeriodSecs` **1800**（本文 content_ttl 86400/metadata_ttl 600 的默认值列名与数值以 003 迁移实现票为准对齐 PRD 字段名）；⑤ **建仓时只做 scheme/格式校验**（PRD FR-15-AC3：私网 URL 建仓成功，IP 校验全部在**请求时**执行——DNS/网络可变，本文「配置时全 IP 解析拒绝违者 400」弱化为请求时双检的唯一防线；`allowPrivateUpstream` 豁免语义不变，仅 admin 可设 + 审计）。凭据加密（决策 4）经 PRD v1.2 Q1 正式采纳关闭，双方一致无需勘误。
+- 勘误三（2026-09-11，L001-4 依 LOOP 000 差分证据追加，机制轴零翻动——仅默认值分包型细化）: **勘误二 ④ 的「`retrievalCachePeriodSecs` 默认 7200」表述修订为包型默认**——docker/helmoci remote 仓内容类 TTL 默认 **21600s（6h）**（出处：Artifactory `RepoConfigDefaultValues.DEFAULT_DOCKER_REMOTE_RETRIEVAL_CACHE_PERIOD`，E1 反编译 + E4 运行时，7.161.20；L000-docker-remote-evidence §E3-4），其余包型维持 7200s。三边界：① 仅在仓**未显式设置**时生效（显式值优先，`remote_configs.content_ttl_seconds > 0` 即显式）；② 存量行已是显式 7200 **不回改**（合法显式值；不引入「显式 vs 默认」区分列）；③ 新建 docker/helmoci remote 建仓默认取包型默认。解析单点化（internal/remote 导出解析函数，repo facts 与 engine loadRepo 双消费同步——`effectiveV2SocketTimeoutMs`「one order, two consumers」先例）。详细设计见 docs/design/remote-cache-v2.md §5.1。
 
 ## ADR-0013: virtual 仓库解析顺序与 M3 写路由边界
 - 状态: Accepted
@@ -1288,3 +1289,38 @@
   - ④ **E8 Any Distribution 桶值字面锚定（决策 3 注记）**：Artifactory 内部常量 **`ANY DISTRIBUTION`**（`PermissionTarget.ANY_DISTRIBUTION_REPO`）、UI 呈现 `Any Distribution`（t226 活体——与 Any Local/Any Remote 同场）；且 **release-bundle 仓被排除于 ANY 家族回退链**（授权序：精确仓 ACL → buildinfo/release-bundle 仓短路拒绝 → ANY LOCAL → ANY REMOTE → ANY DISTRIBUTION → ANY）——BinFlow 伪键通道**显式承载**的设计与该排除语义同向（ANY 家族不隐式覆盖 bundle 域，授权必须点名通配桶），桶值拼写终裁归 T-491 小评（联动 buildinfo 仓同款排除——ADR-0045 Errata ④㋑）。
   - ⑤ **剩余软缝定案回填**：软缝① 模型字段集 = release-bundle.md §2（name ≤255 首字符字母数字、后续 `字母数字-_:`；version ≤255 无 SemVer 强制；**Artifactory v1 无 description**——决策 1 的 description 列系 BinFlow 自有裁减，留痕维持〔零成本〕；**signature NOT NULL**——BinFlow 以占位承载〔空串或内容 sha256 内校验和〕，wire 兼容 + 无签名语义 C 层留痕；type SOURCE/TARGET 二分——BinFlow 单实例仅 SOURCE 记录〔C 层裁减留痕〕；storing_repo 缺省 `release-bundles` 自动建仓——**BinFlow 不承接**〔载体轴 A：bundle 记录非制品无仓语义 + 零静默写盘〕）；软缝④ 状态闭集字面 = **FAILED / INPROGRESS / COMPLETE / CLOSE_INPROGRESS**（终态 {FAILED, COMPLETE}）——**M17 最小面取 COMPLETE/INPROGRESS 子集起步**（C 层裁减留痕，release-bundle.md §3.2 建议）；软缝⑤ 证实（created 单型 wired、余维持 dormant）；软缝⑥ 证实（官方三源并存——AQL 是源侧一等公民，BinFlow 显式清单为合法子集；AQL 装配形态的联动翻起点归 T-511+ 注记）；软缝⑦ 由③承载；软缝⑧ 由④承载。
   - **软缝对齐清单就本 Errata 关闭**（八项全闭：②③⑦⑧ 勘误回填、①④⑤⑥ 证实/定案）；机制条款不动清单（最小面出口①/记录载体/metadata 表族/CapSystemWrite·Read + 伪键通道/第 20 槽三缝/insights 全项〔K75 会签与 B-1.7 不在本轮对拍面——零触及〕）全部维持。验收锚点联动：T-513 断言面照修正后路径族与冲突三态（含 409 体逐字）。
+
+## ADR-0047: remote 缓存 digest 链门控（DigestChainGate）——C10 修复路径：docker_refs 账本 + node 短路，拒绝 marker 文件逐行翻译
+
+- 状态: Accepted（2026-09-11，conductor 验收收编 L001-4 设计稿 docs/design/remote-cache-v2.md §2/§3；行为出处 = reports/compatibility/L000-docker-remote-evidence.md E1+E4〔7.161.20 rev 86120900〕与 L000-docker-remote-diff.md E5〔BinFlow rev 59f33ab5 复验段〕；known-divergence docker/remote-blob-marker-semantics〔C10〕的修复路径裁定）
+- 日期: 2026-09-11
+- 背景: LOOP 000 差分 C10 判定语义级分歧——Artifactory remote blob 代取是 **marker 门控**（manifest 下载时 `createManifestMarkers` 预写 `.marker`；GET 顺序 = 空层合成 → 缓存 → `downloadBlobFromMarker`〔AQL 查 `<repoKey>-cache` 下 `path matches <image>*` 且 `name == <digest>.marker`〕；无 marker 立即 BLOB_UNKNOWN，40ms 级零上游往返〔E4-2/E4-3〕）；BinFlow 是 **digest 盲代理 + 负缓存**（probe miss 直接按 digest 上游代取，随机 digest 也要一次上游往返）。门控语义如何以 Go-native 形态进入 BinFlow（57 节总令 §41：等价能力对齐，禁 class-to-class 翻译）需要架构定案。
+- 候选方案:
+  - 门控状态载体: A) **marker 文件逐行翻译**——remote 仓缓存命名空间落 `<image>/<digest>.marker` 形态节点，复刻 Artifactory 文件生命周期（预写 → 首取替换 → 清理）；B) **复用 `docker_refs` 引用账本 + node 存在性**——门控 oracle = 「(repo, image) 任何 manifest 链是否声明过该 digest」与「node 是否已取回」的组合查询；C) **新表 `remote_chain_markers`**——专用门控状态表。
+  - 接口位置: A) 进 `adapter.MetadataProvider`（路径纯函数 SPI）；B) repo 层 optional facet（capability discovery by type assertion）。
+  - 跨协议面: A) 泛化为 remote 缓存层普适机制；B) 收敛为 digest-addressed 协议闭集。
+- 决策: 载体 **B**、接口 **B**、跨协议 **B**——门控 oracle = `(repo_key, image)` 作用域的 docker_refs 查询（node 存在即短路，refs 行自然退位、无需删除），经 `repo.DigestChainGate` optional facet 暴露（先例：MultipartUploads/SessionSweeper/V2VirtualPlane；正式签名归实现票并经 go build 验证）：
+  ```go
+  // internal/repo
+  type DigestChainGate interface {
+      // BlobInChain reports whether hex was named by any manifest chain
+      // recorded for (repoKey, image). Read-gated like the plane's own faces.
+      BlobInChain(ctx context.Context, p *Principal, repoKey, image, hex string) (bool, error)
+  }
+  ```
+  消费点 = docker adapter `serveRemoteBlob`（direct/helmoci/virtual 三臂）：probe miss 且无 standing 副本 ⇒ 查 gate ⇒ `false` → 本地 `BLOB_UNKNOWN`（走既有 `blobUnfound` 臂）且**不写负缓存行**（门控应答确定性，无需 TTL 记忆）；`true` → 既有上游代取臂不变。跨协议闭集 = **{docker, helmoci}**（helmoci 复用 docker v2 栈天然覆盖）；maven/npm 等路径寻址协议不引入（不存在凭 digest 探测未命名资源的协议面，泛化为想象买单）。blob streaming 直代面（`docker.remote.blob.streaming.enabled` 默认 false，E4-3）不做，UNSUPPORTED 登记。
+- 理由: **拒绝 A 的裁定理由**——`.marker` 文件是 Artifactory filestore 树的实现投影：为门控引入影子文件状态违反元数据单一事实源（ADR-0006），污染 node 树（UI/REST 可见垃圾行），且 marker 生命周期全套（预写/替换/删除/清理）是新代码面。B 的写入时机与 Artifactory **天然同构**：marker 预写时机 = manifest 下载完成，BinFlow `RecordRemoteManifest` 写 refs 时机 = manifest 落地（`remoteManifestRefs` 已在提取 descriptor digests）；blob 首取后「marker 被真实内容替换」= node 存在即短路（refs 行保留还获得「被逐出后可重取」记忆，语义更优）；GC 零影响（docker_refs 已在 mark 集，002_docker.sql）。C 与 B 等价但多一张表且双写。接口不进 MetadataProvider：门控需要 metadata 查询，不是路径纯函数（该 SPI 的并发纯函数契约，internal/adapter/metadata.go）。
+- 后果: internal/repo 增 DigestChainGate facet + docker_refs 门控查询（现 `idx_docker_refs_blob` 单列索引回行过滤，实现票 EXPLAIN QUERY PLAN 实测、必要时补 (repo_key, image, blob_digest) 复合索引〔双方言迁移〕）；internal/adapter/docker blob 代取臂接 gate；known-divergence C10 修复后 BUG→FIXED（authority 链 = 本 ADR + L001-4 设计稿）。**边缘语义登记**（随本 ADR 定谳 INTENTIONAL）：① refs 记录 best-effort ⇒ 门控耦合（record 失败 → 后续 blob 本地 404），与 Artifactory marker 写失败耦合等价，实现票把该 WARN 升级为可观测（log 字段对齐 cache_result 行），不改 best-effort 契约；② image 作用域**精确匹配** vs Artifactory AQL 前缀匹配更严（仅镜像名互为前缀的构造性场景差异，方向保守）。**验证载体（真实客户端，差分重放 C10/C07）**：dind docker CLI 拉链内未缓存 digest → 上游代取 200；随机合法 digest → 40ms 级本地 404、上游日志零往返；rmi 重拉 HIT。上游 429 文案（C18）与 referrers 面不在本 ADR。
+- 软缝协议: 本 ADR 定机制（门控 oracle + 消费时序 + 闭集），字面契约（BLOB_UNKNOWN detail 键 blobSum 等错误形态）以 C13 错误形态规格票/契约冻结为准；C05 缓存树布局单独立裁不在此预支（门控键 = digest，与布局正交）。
+
+## ADR-0048: docker remote 404 负缓存保留——C14 裁 INTENTIONAL（Artifactory 运行时未生效面不强对齐）
+
+- 状态: Accepted（2026-09-11，conductor 验收收编 L001-4 设计稿 docs/design/remote-cache-v2.md §4；known-divergence C14 的 authority 本体——INTENTIONAL_DIFFERENCE 登记 authority: { type: adr, ref: 本条 }）
+- 日期: 2026-09-11
+- 背景: 差分 C14——Artifactory 侧 `missedRetrievalCachePeriodSecs=1800` 配置在场，但 docker manifest 404 面重复请求仍每次 6.6s 上游往返，**运行时未见负缓存生效**（E4，L000-docker-remote-evidence E6-3/E3-4）；BinFlow 侧负缓存生效（重复 miss 40-70ms 本地，L000-docker-remote-diff C14 DIVERGENT）。对齐方向需裁定：删负缓存复刻「配置在场但不生效」，还是保留并登记有意差异。
+- 候选方案:
+  - A) **对齐删除**：docker 面去掉负缓存，复刻运行时未生效状态。
+  - B) **保留 + INTENTIONAL 登记**：行为保留，差异以本 ADR 为 authority。
+  - C) **分面裁剪**：blob 面保留、manifest 面删除。
+- 决策: **B**。理由：① 客户端可见语义同为 404，唯一差异是时延与上游流量——负缓存是 `missedRetrievalCachePeriodSecs` 配置**承诺**的行为（键名与默认值两侧同名同值），Artifactory 是实现未兑现而非产品语义；② 负缓存保护上游免受重复 miss 风暴（docker hub 限流同域场景，E6-4）；③ ADR-0047 门控落地后 blob 面负缓存自然退居异常记忆（仅「链内声明但上游 404」罕见路径），manifest 面负缓存独立成立，C 的分面复杂度无收益。门控拒绝的 digest（无链成员）**不写**负缓存行（确定性应答，ADR-0047）。
+- 后果: known-divergence C14 转 INTENTIONAL_DIFFERENCE（authority = 本 ADR）；BinFlow 侧零代码变化（现状即目标行为）。**Errata 触发条件（显式登记）**: 本 ADR 附随复测义务——Artifactory 侧需跨 missedTTL 窗（>1800s）复测一次排除窗口内观察误差（差分票附腿）；**若复测翻转（Artifactory 实有负缓存），本 ADR 自动作废、C14 按对齐收**（届时以 Errata 追加作废声明，不静默删改本条）。**验证载体**：差分重放 C14（重复 miss 本地快 404）纳入 docker remote 回归锚。

@@ -1,0 +1,16 @@
+# 金样请求——docker remote 真实客户端拉取序列（C04）
+# schema: golden-request/1（序列型：request=步骤数组；headers+body 合并入 response.yaml）
+feature: 'docker pull 端到端五步序列（repo-path 形态）'
+client: 真实 docker CLI（宿主 containerd daemon 对 :8082/:8083 纯 HTTP 不回退——须 dind 经典栈 + --insecure-registry=<host>:<port>，见证据报告 §0 E0-3）
+image: hello-world（首拉验证腿）；busybox:t1/t2（marker 语义腿，L000-F）
+repo_setup: >-
+  remote 仓（rclass=remote, packageType=docker，enableTokenAuthentication=true）：
+  参照腿 url=https://registry-1.docker.io（匿名上游凭据）；对拍腿 url=http://host.docker.internal:5588（registry:3，
+  allowPrivateUpstream=true——BinFlow 侧）。
+steps:
+- { seq: 1, method: GET, path: /v2/, auth: anonymous, note: ping 兜底 }
+- { seq: 2, method: GET, path: '/v2/token?service=<host:port>&scope=repository:<repoKey>/<image>:pull&account=<user>', auth: basic }
+- { seq: 3, method: GET, path: '/v2/<repoKey>/<image>/manifests/<tag>', auth: bearer, headers: { Accept: '含 list 类型（oci.index / docker manifest.list.v2）' } }
+- { seq: 4, method: GET, path: '/v2/<repoKey>/<image>/blobs/sha256:<config-digest>', auth: bearer }
+- { seq: 5, method: GET, path: '/v2/<repoKey>/<image>/blobs/sha256:<layer-digest>', auth: bearer }
+expected_client_outcome: exit 0；镜像 index digest 与上游参照逐字一致

@@ -2,16 +2,18 @@
 # 规则（docs/ai-engineering/compatibility-engineering.md §4）：
 #   BUG/UNSUPPORTED 由差分证据+contract 判定；INTENTIONAL 必须 authority（用户裁决/ADR/规格票）；
 #   UNKNOWN 限期（默认两程）内必须升级分类。
+#   resolved(parity)（conductor 裁定 2026-09-11，LOOP 001）：差分实证**双侧行为一致**的条目按非分歧
+#   闭环存证——classification 维持 INTENTIONAL_DIFFERENCE、review_gate=resolved、authority 挂
+#   {type: conductor_ruling, ref: <差分报告>}；此类条目不占用四分类语义（它记录的是"无差异"本身）。
 # 种子期：M3-2 票将各票「契约漂移登记」与 ADR Errata 差异条款收编为条目。
 schema: 1
 entries:
 - id: docker/remote-url-v2-suffix-silent-404
-  surface: docker/helmoci remote 仓配置 url 语义（= registry 根，E4: X-Artifactory-Origin-Remote-Path）
-  classification: UNKNOWN
-  rationale: "上游 url 带 /v2 尾缀时 BinFlow 拼出 /v2/v2/ 静默 404（树内 helmoci fixtures 曾实证）；Artifactory 对尾缀的剥剪行为未取证，按 ADR-0001 不猜测归一化"
-  authority: { type: pending, ref: "LOOP 001 取证票（:8082 建带尾缀 remote 仓观察）" }
-  review_gate: LOOP 002 限期升级
-  evidence: reports/compatibility/L000-docker-remote-diff.md 复验段
+  surface: 'docker/helmoci remote 仓配置 url 语义（= registry 根，E4: X-Artifactory-Origin-Remote-Path）'   # L001-2 加引号修复存量 YAML 解析错（原 M3-2 裸冒号，非内容变更）
+  classification: INTENTIONAL_DIFFERENCE
+  rationale: "2026-09-11 L001-3 三形态实测（Artifactory 7.161.20 vs BinFlow UAT，registry:3 上游 + dind 真客户端）：url 带 /v2 或 /v2/ 尾缀时**双侧均双前缀 /v2/v2/ → 404 逐字一致（parity）**——Artifactory 不剥剪/不拒绝/不警告。裁定=BinFlow 照抄即兼容，非实际分歧；条目保留存证防复问。可选超-parity 增强（建仓 WARN 日志，不改行为）留产品单独裁定"
+  authority: { type: conductor_ruling, ref: reports/compatibility/L001-url-suffix-evidence.md }
+  review_gate: resolved（parity，2026-09-11 conductor 裁定）
 - id: docker/remote-cache-layout
   surface: remote blob/manifest 缓存布局（C05：tag 目录/marker/library 归一）
   classification: BUG
@@ -36,11 +38,53 @@ entries:
   rationale: 差分 DIVERGENT 族——同一 remote 面错误契约不齐；Artifactory 侧双错误形态并存为 remote 指纹（evidence 报告）
   authority: { type: differential, ref: "reports/compatibility/L000-docker-remote-diff.md C11-C16/D21" }
   review_gate: LOOP 001 实现票（一票收族）
+  resolved:
+    date: '2026-09-11'
+    evidence: reports/compatibility/L000-docker-remote-diff.md L001-1 复验段（C11/C12/C13/C15/C16/service 七子项全 SAME 灭，verbatim 在案）
+    note: >-
+      C11-C13/C15/C16 与 service 常量由 L001-1 清偿（契约条目已翻 VERIFIED）；D21 由 L001-5 修复（httpapi 双面，
+      conductor 2026-09-11 转达——差分复验证据待下轮回填）。枚举子项零残余，条目结案；伴生登记：httpapi router.go:291
+      no-adapter 兜底挑战 service 仍硬编码（生产装配不可达，不影响对拍面）。
 - id: docker/ssrf-private-upstream-stricter
   surface: 上游私网限制（allowPrivateUpstream）
   classification: UNKNOWN
   rationale: BinFlow SSRF 防护严于 Artifactory（Artifactory 允许私网上游）——安全立场候选 INTENTIONAL，需 authority 定谳
   authority: { type: pending, ref: "用户/ADR 裁定（安全加固 vs 行为兼容）" }
+  review_gate: LOOP 003 限期升级
+- id: docker/remote-token-response-shape
+  surface: docker remote /v2/token 签发响应字段集与 TTL（C01b）
+  classification: UNKNOWN
+  rationale: "参照 {token(JWT), expires_in:9000}，无 issued_at；BinFlow {token(不透明 hex), access_token, expires_in:2592000, issued_at, scope}——docker CLI 实测登录/拉取均兼容（超集字段不破坏客户端）；是否对齐 9000/JWT 形态待 authority 裁定"
+  authority: { type: pending, ref: "用户/产品裁决（token TTL 与形态策略）" }
+  review_gate: LOOP 002 限期升级（契约条目 docker/remote-token-issue）
+  evidence: reports/compatibility/L000-docker-remote-diff.md C01b
+- id: docker/remote-credentials-error-shape
+  surface: docker remote 坏凭据错误形态（C02：ping 与 token 双端点）
+  classification: BUG
+  rationale: 参照两端点均回 401 docker errors 数组 pretty "Bad Credentials"（CLI 渲染 unknown:）；BinFlow token 端点回 OAuth2 形态 {"error":"invalid_client",…}、ping 不区分坏凭据与匿名（重挑战）——token 端点错误体应转 errors 数组；ping 重挑战属次要可接受面
+  authority: { type: differential, ref: "reports/compatibility/L000-docker-remote-diff.md C02" }
+  review_gate: LOOP 001 实现票 L001-1（P2，随错误体族一票收）
+  resolved: { date: '2026-09-11', evidence: 'reports/compatibility/L000-docker-remote-diff.md L001-1 复验段（C02 SAME 灭：token 端点 errors 数组形态 + CLI unknown: 指纹逐字；契约条目已翻 VERIFIED）' }
+  evidence: reports/compatibility/L000-docker-remote-evidence.md E1-5
+- id: docker/remote-anonymous-token-policy
+  surface: docker remote /v2/token 匿名请求策略默认值（C03）
+  classification: UNKNOWN
+  rationale: 参照匿名访问关（无凭据 401 "Authentication is required"）；BinFlow 匿名开（200 签发匿名 token）——实例策略默认值差异，需产品裁定 BinFlow remote 面默认匿名姿态；wire bug 修复后匿名 pull 端到端可对照补证
+  authority: { type: pending, ref: "产品/用户裁决（remote 面匿名默认姿态）" }
+  review_gate: LOOP 002 限期升级（契约条目 docker/remote-token-anonymous）
+  evidence: reports/compatibility/L000-docker-remote-diff.md C03
+- id: docker/remote-manifest-404-negative-cache
+  surface: docker remote manifest 404 负缓存（C14）
+  classification: UNKNOWN
+  rationale: BinFlow 首次 miss 上游往返后负缓存（missedRetrievalCachePeriodSecs=1800 生效，重复 miss 40-70ms 本地）；Artifactory 运行时重复 miss 仍每次上游往返（6.6s，配置未见生效）——需参照侧跨 missedTTL 窗复核；若复核仍无负缓存则 BinFlow 符合配置语义且更优，可裁 INTENTIONAL
+  authority: { type: pending, ref: "参照实例跨 missedTTL 复核票（LOOP 001 输入 #5）" }
+  review_gate: LOOP 002 限期升级（契约条目 docker/remote-manifest-404-no-negative-cache）
+  evidence: reports/compatibility/L000-docker-remote-evidence.md E6-3/E3-4
+- id: docker/remote-tags-catalog-pagination
+  surface: remote tags/list 与 _catalog 的分页参数（n/last/Link 头）
+  classification: UNKNOWN
+  rationale: "Review A（L001-1）发现的未观察角落：BinFlow remote 面无视 n/last 不回 Link（本地面支持两者、无效 n 400）；E7 仅观察裸 GET，Artifactory remote 面分页行为未取证"
+  authority: { type: pending, ref: "LOOP 002 金样采集点（?n= 形态对拍）" }
   review_gate: LOOP 003 限期升级
 # 条目模式（M3-2 落地）：
 # - id: rest/build-batch-delete-date-range

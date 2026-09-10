@@ -1,0 +1,164 @@
+<!--
+  ~ Copyright 2018 JFrog Ltd. All rights reserved.
+  ~ JFROG PROPRIETARY/CONFIDENTIAL. Use is subject to license terms.
+-->
+<!--
+  ~ TAKE CARE! Making changes to this file may result in losing binaries stored in Artifactory!
+  ~ If you are not sure of what you are doing, please contact JFrog Support for assistance.
+  -->
+
+<!-- Default chains for Enterprise version -->
+<config version="v1">
+
+    <!-- s3-storage-v3 default chain based on AWS S3 client-->
+    <chain template="s3-storage-v3">
+        <provider id="cache-fs" type="cache-fs">
+            <provider id="eventual" type="eventual">
+                <provider id="retry" type="retry">
+                    <provider id="s3-storage-v3" type="s3-storage-v3"/>
+                </provider>
+            </provider>
+        </provider>
+    </chain>
+
+    <!-- s3-storage-v3 default chain based on AWS S3 client for archive purposes-->
+    <chain template="s3-storage-v3-archive">
+        <provider id="s3-storage-v3-archive" type="s3-storage-v3-archive">
+            <provider id="s3-storage-v3" type="s3-storage-v3"/>
+        </provider>
+    </chain>
+
+    <!-- s3-storage-v3 default chain based on AWS S3 client with no eventual or retry -->
+    <chain template="s3-storage-v3-direct">
+        <provider id="cache-fs" type="cache-fs">
+            <provider id="s3-storage-v3" type="s3-storage-v3"/>
+        </provider>
+    </chain>
+
+    <!-- s3 sharding default chain -->
+    <chain template="s3-sharding">
+        <provider id="cache-fs" type="cache-fs">
+            <provider type="sharding" id="sharding">
+                <redundancy>2</redundancy>
+                <sub-provider type="state-aware-s3" id="s3-shard1"/>
+                <sub-provider type="state-aware-s3" id="s3-shard2"/>
+            </provider>
+        </provider>
+    </chain>
+
+    <!-- Google Cloud Storage V2 Service default chain -->
+    <chain template="google-storage-v2">
+        <provider id="cache-fs" type="cache-fs">
+            <provider id="eventual" type="eventual">
+                <provider id="retry" type="retry">
+                    <provider id="google-storage-v2" type="google-storage-v2"/>
+                </provider>
+            </provider>
+        </provider>
+    </chain>
+
+    <!-- google-storage-v2 default chain based on GCP client with no eventual or retry -->
+    <chain template="google-storage-v2-direct">
+        <provider id="cache-fs" type="cache-fs">
+            <provider id="google-storage-v2" type="google-storage-v2"/>
+        </provider>
+    </chain>
+
+    <!-- google-archive-storage default chain based on GCP client for archive purposes-->
+    <chain template="google-archive-storage">
+        <provider id="google-archive-storage" type="google-archive-storage">
+            <provider id="google-storage-v2" type="google-storage-v2"/>
+        </provider>
+    </chain>
+
+    <!-- Azure Blob Storage Service default chain -->
+    <chain template="azure-blob-storage">
+        <provider id="cache-fs" type="cache-fs">
+            <provider id="eventual" type="eventual">
+                <provider id="retry" type="retry">
+                    <provider id="azure-blob-storage" type="azure-blob-storage"/>
+                </provider>
+            </provider>
+        </provider>
+    </chain>
+
+    <!-- Azure Blob Storage Service without eventual -->
+    <chain template="azure-blob-storage-direct">
+        <provider id="cache-fs" type="cache-fs">
+            <provider id="azure-blob-storage" type="azure-blob-storage"/>
+        </provider>
+    </chain>
+
+    <!-- Azure Blob Storage V2 Service default chain -->
+    <chain template="azure-blob-storage-v2">
+        <provider id="cache-fs" type="cache-fs">
+            <provider id="eventual" type="eventual">
+                <provider id="retry" type="retry">
+                    <provider id="azure-blob-storage-v2" type="azure-blob-storage-v2"/>
+                </provider>
+            </provider>
+        </provider>
+    </chain>
+
+    <!-- Azure Blob Storage V2 Service without eventual -->
+    <chain template="azure-blob-storage-v2-direct">
+        <provider id="cache-fs" type="cache-fs">
+            <provider id="azure-blob-storage-v2" type="azure-blob-storage-v2"/>
+        </provider>
+    </chain>
+
+    <!-- azure-blob-archive-storage default chain based on Azure client for archive purposes-->
+    <chain template="azure-blob-storage-archive">
+        <provider id="azure-blob-archive-storage" type="azure-blob-archive-storage">
+            <provider id="azure-blob-storage-v2" type="azure-blob-storage-v2"/>
+        </provider>
+    </chain>
+
+    <!-- Pure Sharding with 2 shards default chain, writing to one sub-provider only -->
+    <chain template="double-shards">
+        <provider id="cache-fs" type="cache-fs">
+            <provider id="sharding" type="sharding">
+                <redundancy>1</redundancy>
+                <sub-provider id="shard-fs-1" type="state-aware"/>
+                <sub-provider id="shard-fs-2" type="state-aware"/>
+            </provider>
+        </provider>
+    </chain>
+
+    <provider id="shard-fs-1" type="state-aware">
+        <fileStoreDir>shard-fs-1</fileStoreDir>
+    </provider>
+    <provider id="shard-fs-2" type="state-aware">
+        <fileStoreDir>shard-fs-2</fileStoreDir>
+    </provider>
+
+    <!-- Redundant Sharding with 2 shards default chain, writing to 2 sub-providers -->
+    <chain template="redundant-shards">
+        <provider id="cache-fs" type="cache-fs">
+            <provider id="sharding" type="sharding">
+                <redundancy>2</redundancy>
+                <sub-provider id="shard-state-aware-1" type="state-aware"/>
+                <sub-provider id="shard-state-aware-2" type="state-aware"/>
+            </provider>
+        </provider>
+    </chain>
+
+    <chain template="s3-readonly-testing">
+        <provider id="cache-fs" type="cache-fs">
+            <provider id="s3-readonly-testing" type="s3-readonly-testing">
+                <provider id="s3-storage-v3" type="s3-storage-v3">
+                    <provider id="testing-remote" type="testing-remote"/>
+                </provider>
+            </provider>
+        </provider>
+    </chain>
+
+    <!-- State Aware Shards FS provider configuration -->
+    <provider id="shard-state-aware-1" type="state-aware">
+        <fileStoreDir>shard-state-aware-1</fileStoreDir>
+    </provider>
+    <provider id="shard-state-aware-2" type="state-aware">
+        <fileStoreDir>shard-state-aware-2</fileStoreDir>
+    </provider>
+
+</config>

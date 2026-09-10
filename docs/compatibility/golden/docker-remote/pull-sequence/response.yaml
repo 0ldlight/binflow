@@ -1,0 +1,30 @@
+# 金样期望响应——docker remote 拉取序列（Artifactory 参照侧逐步观测值）
+# schema: golden-response/1；逐步详细断言复用 contracts/docker-remote.yaml 兄弟条目（括注契约 id），此处存档序列级观测
+steps:
+- seq: 1
+  ref: contracts/docker-remote.yaml#docker/remote-v2-ping-anonymous
+  observed: { status: 401, challenge: 'Bearer realm/service', body: 'compact UNAUTHORIZED' }
+- seq: 2
+  ref: contracts/docker-remote.yaml#docker/remote-token-issue
+  observed: { status: 200, body_keys: '[token, expires_in]', expires_in: 9000 }
+- seq: 3
+  ref: contracts/docker-remote.yaml#docker/remote-manifest-get-tag
+  observed:
+    status: 200
+    content_type: application/vnd.oci.image.index.v1+json（Accept 含 list 类型时）
+    header_set: [Docker-Content-Digest, Docker-Distribution-Api-Version, Etag(=sha1), X-Checksum-Md5, X-Checksum-Sha1,
+                 X-Checksum-Sha256, Last-Modified(=拉取时刻), X-Artifactory-Filename(list.manifest.json),
+                 X-Artifactory-Origin-Remote-Path, X-Jfrog-Version, Accept-Ranges, Content-Disposition]
+    cache_side_effect: '落缓存 library/hello-world/latest/list.manifest.json（11062B）+ sha256__ digest 路径（E2-2；docker.io library/ 保留）'
+- seq: 4
+  ref: contracts/docker-remote.yaml#docker/remote-blob-get
+  observed: { status: 200, note: 'config blob：全套校验和 + Origin-Remote-Path；Last-Modified=上游真实 mtime（E2-5）' }
+- seq: 5
+  ref: contracts/docker-remote.yaml#docker/remote-blob-get
+  observed: { status: 200, note: 'layer blob 同上' }
+sequence_outcome:
+  index_digest_observed:
+    docker.io_leg: 'sha256:5e2309035332…cc8f8（源报告 E2-1 截断记法，全值待活体重采）'
+    registry3_leg: 'sha256:d1a8d0a4eeb6…9e59e（L000-F，与上游参照腿逐字一致）'
+  timing: { first_pull: '17.0s（docker.io，含代取+落缓存）', second_pull: '1.54s（缓存快路径）' }
+verdict_witness: 'C04 原判 DIVERGENT/BUG（上游 wire path 缺 /v2/）；L000-F 修复后复验 SAME（灭）——上游日志 /v2/ 前缀恢复、digest 逐字一致'

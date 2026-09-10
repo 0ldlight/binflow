@@ -1,0 +1,181 @@
+<!--
+  ~ Artifactory is a binaries repository manager.
+  ~ Copyright (C) 2016 JFrog Ltd.
+  ~
+  ~ Artifactory is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~  (at your option) any later version.
+  ~
+  ~ Artifactory is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with Artifactory.  If not, see <http://www.gnu.org/licenses/>.
+  ~
+  -->
+
+<!--
+  ~ TAKE CARE! Making changes to this file may result in losing binaries stored in Artifactory!
+  ~ If you are not sure of what you are doing, please contact JFrog Support for assistance.
+  -->
+
+<!--Default chains-->
+<config version="2">
+
+    <chain template="cluster-file-system">
+        <provider id="cache-fs" type="cache-fs">
+            <provider id="sharding-cluster" type="sharding-cluster">
+                <sub-provider id="state-aware" type="state-aware"/>
+                <dynamic-provider id="remote-fs" type="remote"/>
+            </provider>
+        </provider>
+    </chain>
+
+    <chain template="cluster-s3-storage-v3">
+        <provider id="cache-fs-eventual-s3" type="cache-fs">
+            <provider id="sharding-cluster-eventual-s3" type="sharding-cluster">
+                <sub-provider id="eventual-cluster-s3" type="eventual-cluster">
+                    <provider id="retry-s3" type="retry">
+                        <provider id="s3-storage-v3" type="s3-storage-v3"/>
+                    </provider>
+                </sub-provider>
+                <dynamic-provider id="remote-s3" type="remote"/>
+            </provider>
+        </provider>
+    </chain>
+
+    <chain template="cluster-google-storage-v2">
+        <provider id="cache-fs-eventual-google-storage" type="cache-fs">
+            <provider id="sharding-cluster-eventual-google-storage" type="sharding-cluster">
+                <sub-provider id="eventual-cluster-google-storage" type="eventual-cluster">
+                    <provider id="retry-google-storage" type="retry">
+                        <provider id="google-storage-v2" type="google-storage-v2"/>
+                    </provider>
+                </sub-provider>
+                <dynamic-provider id="remote-google-storage" type="remote"/>
+            </provider>
+        </provider>
+    </chain>
+
+    <chain template="cluster-azure-blob-storage">
+        <provider id="cache-fs-eventual-azure-blob-storage" type="cache-fs">
+            <provider id="sharding-cluster-eventual-azure-blob-storage" type="sharding-cluster">
+                <sub-provider id="eventual-cluster-azure-blob-storage" type="eventual-cluster">
+                    <provider id="retry-azure-blob-storage" type="retry">
+                        <provider id="azure-blob-storage" type="azure-blob-storage"/>
+                    </provider>
+                </sub-provider>
+                <dynamic-provider id="remote-azure-blob-storage" type="remote"/>
+            </provider>
+        </provider>
+    </chain>
+
+    <chain template="cluster-azure-blob-storage-v2">
+        <provider id="cache-fs-eventual-azure-blob-storage-v2" type="cache-fs">
+            <provider id="sharding-cluster-eventual-azure-blob-storage-v2" type="sharding-cluster">
+                <sub-provider id="eventual-cluster-azure-blob-storage-v2" type="eventual-cluster">
+                    <provider id="retry-azure-blob-storage-v2" type="retry">
+                        <provider id="azure-blob-storage-v2" type="azure-blob-storage-v2"/>
+                    </provider>
+                </sub-provider>
+                <dynamic-provider id="remote-azure-blob-storage-v2" type="remote"/>
+            </provider>
+        </provider>
+    </chain>
+
+    <!--cluster sharding template-->
+    <!-- Shard local file-system provider configuration -->
+    <provider id="state-aware" type="state-aware">
+        <zone>local</zone>
+    </provider>
+
+    <!-- Shard dynamic remote provider configuration -->
+    <provider id="remote-fs" type="remote">
+        <zone>remote</zone>
+    </provider>
+
+    <provider id="sharding-cluster" type="sharding-cluster">
+        <readBehavior>crossNetworkStrategy</readBehavior>
+        <writeBehavior>crossNetworkStrategy</writeBehavior>
+        <redundancy>2</redundancy>
+        <lenientLimit>1</lenientLimit>
+        <property name="zones" value="local,remote"/>
+    </provider>
+    <!--cluster sharding template-->
+
+    <!--cluster eventual s3 template-->
+    <provider id="sharding-cluster-eventual-s3" type="sharding-cluster">
+        <readBehavior>crossNetworkStrategy</readBehavior>
+        <writeBehavior>crossNetworkStrategy</writeBehavior>
+        <redundancy>2</redundancy>
+        <lenientLimit>1</lenientLimit>
+        <property name="zones" value="local,remote"/>
+    </provider>
+
+    <provider id="remote-s3" type="remote">
+        <zone>remote</zone>
+    </provider>
+
+    <provider id="eventual-cluster-s3" type="eventual-cluster">
+        <zone>local</zone>
+    </provider>
+    <!--cluster eventual template-->
+
+    <!--cluster eventual google storage template-->
+    <provider id="sharding-cluster-eventual-google-storage" type="sharding-cluster">
+        <readBehavior>crossNetworkStrategy</readBehavior>
+        <writeBehavior>crossNetworkStrategy</writeBehavior>
+        <redundancy>2</redundancy>
+        <lenientLimit>1</lenientLimit>
+        <property name="zones" value="local,remote"/>
+    </provider>
+
+    <provider id="remote-google-storage" type="remote">
+        <zone>remote</zone>
+    </provider>
+
+    <provider id="eventual-cluster-google-storage" type="eventual-cluster">
+        <zone>local</zone>
+    </provider>
+    <!--cluster eventual template-->
+
+    <!-- cluster eventual Azure Blob Storage Service default chain -->
+    <provider id="sharding-cluster-eventual-azure-blob-storage" type="sharding-cluster">
+        <readBehavior>crossNetworkStrategy</readBehavior>
+        <writeBehavior>crossNetworkStrategy</writeBehavior>
+        <redundancy>2</redundancy>
+        <lenientLimit>1</lenientLimit>
+        <property name="zones" value="local,remote"/>
+    </provider>
+
+    <provider id="remote-azure-blob-storage" type="remote">
+        <zone>remote</zone>
+    </provider>
+
+    <provider id="eventual-cluster-azure-blob-storage" type="eventual-cluster">
+        <zone>local</zone>
+    </provider>
+    <!--cluster eventual template-->
+
+    <!-- cluster eventual Azure Blob Storage Service default chain -->
+    <provider id="sharding-cluster-eventual-azure-blob-storage-v2" type="sharding-cluster">
+        <readBehavior>crossNetworkStrategy</readBehavior>
+        <writeBehavior>crossNetworkStrategy</writeBehavior>
+        <redundancy>2</redundancy>
+        <lenientLimit>1</lenientLimit>
+        <property name="zones" value="local,remote"/>
+    </provider>
+
+    <provider id="remote-azure-blob-storage-v2" type="remote">
+        <zone>remote</zone>
+    </provider>
+
+    <provider id="eventual-cluster-azure-blob-storage-v2" type="eventual-cluster">
+        <zone>local</zone>
+    </provider>
+    <!-- cluster eventual Azure Blob Storage Service default chain -->
+
+</config>
