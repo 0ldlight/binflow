@@ -1,0 +1,322 @@
+# Artifactory 企业能力全目录（feature-catalog）
+#
+# **证据索引**：本文件是 `docs/reverse/enterprise/` 系列中的「能力 → 支撑模块 → 证据」清单。
+# - A = 反编译源码 `/Users/lzw/workspace/artifactory-decompiled/backend`（7.161.24，只读）。
+# - B = 运行时参照实例 `http://localhost:8082`（7.161.20 Enterprise Plus Trial，凭据经本地环境变量（不入库），E4 实测）。
+# - C = 安装包 `/Users/lzw/Downloads/artifactory-pro-7.161.16`（war/jar 内 META-INF/addon.properties）。
+# - D = JFrog 官方公开文档（REST API / Release Notes）。
+# - E 等级：E1=A+B+C+D 四源印证；E2=A+B 双源；E3=A 单源；E4=B 实测快照；E5=C/D 单源推断。
+# - 对账：inv-4-addons.md 91 条 + artifactory-full-feature-matrix.md 213 条 + inv-2-surface §3 AddonType 80 项 → 融合去重后 142 条能力条目（55 包型 + 87 平台能力，见 reconciliation 字段）。
+# - clean-room：仅记录可观察行为与支撑模块归属，不翻译代码。
+---
+meta:
+  title: Artifactory 企业能力全目录
+  role: evidence-index（能力 → 支撑模块 → 证据）
+  sources:
+    A: "反编译源码 /Users/lzw/workspace/artifactory-decompiled/backend（7.161.24，只读）"
+    B: "运行时参照实例 http://localhost:8082（7.161.20 Enterprise Plus Trial，凭据经本地环境变量，E4 实测）"
+    C: "安装包 /Users/lzw/Downloads/artifactory-pro-7.161.16（war/jar 内 META-INF/addon.properties）"
+    D: "JFrog 官方公开文档（REST API / Release Notes）"
+  evidence_levels:
+    E1: "A+B+C+D 四源印证"
+    E2: "A+B 双源"
+    E3: "A 单源"
+    E4: "B 实测快照"
+    E5: "C/D 单源推断"
+
+addon_type_registry:
+  source: "A=artifactory-common/org/artifactory/addon/AddonType.java（81 枚举值）；C=installer war 中 63 个 addon jar 的 META-INF/addon.properties；B=/api/system/version.addons 返回 55 项激活名"
+  count: 81
+  entries:
+    - { n: 1, addon_name: aol, display_name: "Artifactory Online", type: aol, categories: [all], configure_url_suffix: "pro/aol", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 2, addon_name: build, display_name: "Build Integration", type: pro, categories: [all, features], configure_url_suffix: "pro/Build+Integration", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 3, addon_name: xray, display_name: "JFrog Xray", type: pro, categories: [all, features, ecosystem], configure_url_suffix: "pro/Welcome+to+JFrog+Xray", installer_jar: artifactory-addon-xray, runtime_active: xray, evidence: E1 }
+    - { n: 4, addon_name: multipush, display_name: "Multipush Replication", type: ent, categories: [all, enterprise], configure_url_suffix: "ent/Repository+Replication-Multi-push", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 5, addon_name: license, display_name: "License Control", type: pro, categories: [all, features], configure_url_suffix: "pro/License+Control", installer_jar: artifactory-addon-license, runtime_active: license, evidence: E1 }
+    - { n: 6, addon_name: rest, display_name: "Advanced REST", type: pro, categories: [all, features], configure_url_suffix: "pro/Artifactory+REST+API", installer_jar: artifactory-addon-rest, runtime_active: rest, evidence: E1 }
+    - { n: 7, addon_name: ldap, display_name: "LDAP Groups", type: pro, categories: [all, features], configure_url_suffix: "pro/Ldap+Groups", installer_jar: artifactory-addon-ldap, runtime_active: ldap, evidence: E1 }
+    - { n: 8, addon_name: replication, display_name: "Repository Replication", type: pro, categories: [all, features], configure_url_suffix: "pro/Repository+Replication", installer_jar: artifactory-addon-replication, runtime_active: replication, evidence: E1 }
+    - { n: 9, addon_name: properties, display_name: "Properties", type: pro, categories: [all, features], configure_url_suffix: "pro/Properties", installer_jar: artifactory-addon-properties, runtime_active: properties, evidence: E1 }
+    - { n: 10, addon_name: search, display_name: "Smart Searches", type: pro, categories: [all, features], configure_url_suffix: "pro/Smart+Searches", installer_jar: artifactory-addon-search, runtime_active: search, evidence: E1 }
+    - { n: 11, addon_name: plugins, display_name: "User Plugins", type: pro, categories: [all, features], configure_url_suffix: "pro/User+Plugins", installer_jar: artifactory-addon-plugins, runtime_active: plugins, evidence: E1 }
+    - { n: 12, addon_name: rpm, display_name: "RPM", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/RPM+Repositories", installer_jar: "artifactory-addon-yum (name=rpm)", runtime_active: rpm, evidence: E1 }
+    - { n: 13, addon_name: p2, display_name: "P2", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/P2+Repositories", installer_jar: artifactory-addon-p2, runtime_active: p2, evidence: E1 }
+    - { n: 14, addon_name: nuget, display_name: "NuGet", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Nuget+Repositories", installer_jar: artifactory-addon-nuget, runtime_active: nuget, evidence: E1 }
+    - { n: 15, addon_name: layouts, display_name: "Repository Layouts", type: pro, categories: [all, features], configure_url_suffix: "pro/Repository+Layouts", installer_jar: artifactory-addon-layouts, runtime_active: layouts, evidence: E1 }
+    - { n: 16, addon_name: filtered-resources, display_name: "Filtered Resources", type: pro, categories: [all, features], configure_url_suffix: "pro/Filtered+Resources", installer_jar: artifactory-addon-filtered-resources, runtime_active: filtered-resources, evidence: E1 }
+    - { n: 17, addon_name: sso, display_name: "Crowd & SSO", type: pro, categories: [all], configure_url_suffix: "pro/Atlassian+Crowd+and+JIRA+Integration", installer_jar: artifactory-addon-sso, runtime_active: sso, evidence: E1 }
+    - { n: 18, addon_name: ssh, display_name: "SSH", type: oss, categories: [all, features], configure_url_suffix: "oss/SSH+Integration", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 19, addon_name: watch, display_name: "Watches", type: pro, categories: [all, features], configure_url_suffix: "pro/Watches", installer_jar: artifactory-addon-watch, runtime_active: watch, evidence: E1 }
+    - { n: 20, addon_name: webstart, display_name: "Jar Signing", type: pro, categories: [all, features], configure_url_suffix: "pro/WebStart+and+Jar+Signing", installer_jar: artifactory-addon-webstart, runtime_active: webstart, evidence: E1 }
+    - { n: 21, addon_name: gems, display_name: "RubyGems", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/RubyGems+Repositories", installer_jar: artifactory-addon-gems, runtime_active: gems, evidence: E1 }
+    - { n: 22, addon_name: npm, display_name: "npm", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/NPM+Registry", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 23, addon_name: bower, display_name: "Bower", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Bower+Repositories", installer_jar: artifactory-addon-bower, runtime_active: bower, evidence: E1 }
+    - { n: 24, addon_name: cocoapods, display_name: "CocoaPods", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/CocoaPods+Repositories", installer_jar: artifactory-addon-cocoapods, runtime_active: cocoapods, evidence: E1 }
+    - { n: 25, addon_name: conan, display_name: "Conan", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Conan+Repositories", installer_jar: artifactory-addon-conan, runtime_active: conan, evidence: E1 }
+    - { n: 26, addon_name: debian, display_name: "Debian", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Debian+Repositories", installer_jar: artifactory-addon-debian, runtime_active: debian, evidence: E1 }
+    - { n: 27, addon_name: distribution, display_name: "JFrog Bintray Distribution", type: oss, categories: [all, ecosystem], configure_url_suffix: "oss/Distribution+Repository", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 28, addon_name: opkg, display_name: "Opkg", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Opkg+Repositories", installer_jar: artifactory-addon-opkg, runtime_active: opkg, evidence: E1 }
+    - { n: 29, addon_name: pypi, display_name: "PyPI", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/PyPI+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 30, addon_name: puppet, display_name: "Puppet", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Puppet+Repositories", installer_jar: artifactory-addon-puppet, runtime_active: puppet, evidence: E1 }
+    - { n: 31, addon_name: docker, display_name: "Docker", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Docker+Repositories", installer_jar: artifactory-addon-docker, runtime_active: docker, evidence: E1 }
+    - { n: 32, addon_name: vagrant, display_name: "Vagrant", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Vagrant+Repositories", installer_jar: artifactory-addon-vagrant, runtime_active: vagrant, evidence: E1 }
+    - { n: 33, addon_name: vcs, display_name: "VCS", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/VCS+Repositories", installer_jar: artifactory-addon-vcs, runtime_active: vcs, evidence: E1 }
+    - { n: 34, addon_name: git-lfs, display_name: "Git LFS", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Git+LFS+Repositories", installer_jar: artifactory-addon-git, runtime_active: git, evidence: E1 }
+    - { n: 35, addon_name: ha, display_name: "High Availability", type: ent, categories: [all, enterprise], configure_url_suffix: "ent/Artifactory+High+Availability", installer_jar: artifactory-addon-ha, runtime_active: "null（非 HA 部署强制 DISABLED）", evidence: E1 }
+    - { n: 36, addon_name: tracker, display_name: "Tracker", type: all, categories: [all], configure_url_suffix: "all/JFrog+Peer-to-Peer+%28P2P%29+Downloads", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 37, addon_name: s3fileStore, display_name: "S3 Object Store", type: ent, categories: [all, enterprise], configure_url_suffix: "ent/S3+Object+Storage", installer_jar: "binary-store-filestore (name=filestore)", runtime_active: filestore, evidence: E1 }
+    - { n: 38, addon_name: gcs, display_name: "Google Cloud Storage", type: ent, categories: [all, enterprise], configure_url_suffix: "ent/Google+Cloud+Storage", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 39, addon_name: sharding, display_name: "Sharding", type: ent, categories: [all, enterprise], configure_url_suffix: "ent/Filestore+Sharding", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 40, addon_name: aql, display_name: "AQL", type: oss, categories: [all, features], configure_url_suffix: "oss/Artifactory+Query+Language", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 41, addon_name: maven, display_name: "Maven Plugin", type: oss, categories: [all, ecosystem], configure_url_suffix: "oss/Maven+Artifactory+Plugin", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 42, addon_name: gradle, display_name: "Gradle Plugin", type: oss, categories: [all, ecosystem], configure_url_suffix: "oss/Gradle+Artifactory+Plugin", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 43, addon_name: jenkins, display_name: "Jenkins Plugin", type: oss, categories: [all, ecosystem], configure_url_suffix: "oss/Jenkins+(Hudson)+Artifactory+Plug-in", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 44, addon_name: bamboo, display_name: "Bamboo Plugin", type: oss, categories: [all, ecosystem], configure_url_suffix: "oss/Bamboo+Artifactory+Plug-in", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 45, addon_name: teamcity, display_name: "TeamCity Plugin", type: oss, categories: [all, ecosystem], configure_url_suffix: "oss/TeamCity+Artifactory+Plug-in", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 46, addon_name: msbuild, display_name: "MSBuild/TFS Plugin", type: oss, categories: [all, ecosystem], configure_url_suffix: "oss/MSBuild+Artifactory+Plugin", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 47, addon_name: bintray-integration, display_name: "Bintray Integration", type: oss, categories: [all, ecosystem], configure_url_suffix: "oss/Bintray+Integration", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 48, addon_name: jfrog-cli, display_name: "JFrog CLI", type: jfrog-cli, categories: [all, ecosystem], configure_url_suffix: "jfrog-cli/Welcome+to+JFrog+CLI", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 49, addon_name: smart-repo, display_name: "Smart Remote Repo", type: pro, categories: [all, features], configure_url_suffix: "pro/Smart+Remote+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 50, addon_name: sumo-logic, display_name: "Sumo Logic", type: oss, categories: [all, ecosystem], configure_url_suffix: "oss/Log+Analytics", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 51, addon_name: oauth, display_name: "OAuth", type: pro, categories: [all, features], configure_url_suffix: "pro/OAuth+Integration", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 52, addon_name: sbt, display_name: "SBT", type: oss, categories: [all, packageManagement], configure_url_suffix: "oss/SBT+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 53, addon_name: ivy, display_name: "Ivy Plugin", type: oss, categories: [all, ecosystem], configure_url_suffix: "oss/Working+with+Ivy", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 54, addon_name: composer, display_name: "PHP Composer", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/PHP+Composer+Repositories", installer_jar: artifactory-addon-composer, runtime_active: composer, evidence: E1 }
+    - { n: 55, addon_name: chef, display_name: "Chef Cookbook", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Chef+Supermarket", installer_jar: artifactory-addon-chef, runtime_active: chef, evidence: E1 }
+    - { n: 56, addon_name: helm, display_name: "Helm", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Helm+Charts+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 57, addon_name: cargo, display_name: "Cargo", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Cargo+Crates+Repositories", installer_jar: artifactory-addon-cargo, runtime_active: cargo, evidence: E1 }
+    - { n: 58, addon_name: observability, display_name: "Observability", type: pro, categories: [all, features], configure_url_suffix: "pro/Observability+Repositories", installer_jar: artifactory-addon-observability, runtime_active: observability, evidence: E1 }
+    - { n: 59, addon_name: bazelmodules, display_name: "Bazel Modules", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/BazelModules+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 60, addon_name: nix, display_name: "Nix", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Nix+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 61, addon_name: luarocks, display_name: "LuaRocks", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/LuaRocks+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 62, addon_name: agent-plugins, display_name: "Agent Plugins", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/AgentPlugins+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 63, addon_name: alpine, display_name: "Alpine Linux", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Alpine+Linux+Repositories", installer_jar: artifactory-addon-alpine, runtime_active: alpine, evidence: E1 }
+    - { n: 64, addon_name: go, display_name: "Go", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Go+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 65, addon_name: cran, display_name: "CRAN", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Cran+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 66, addon_name: conda, display_name: "Conda", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Conda+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 67, addon_name: pub, display_name: "Pub", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Pub+Repositories", installer_jar: artifactory-addon-pub, runtime_active: pub, evidence: E1 }
+    - { n: 68, addon_name: swift, display_name: "Swift", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Swift+Repositories", installer_jar: artifactory-addon-swift, runtime_active: swift, evidence: E1 }
+    - { n: 69, addon_name: terraform, display_name: "Terraform", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Terraform+Repositories", installer_jar: artifactory-addon-terraform, runtime_active: terraform, evidence: E1 }
+    - { n: 70, addon_name: oci, display_name: "OCI", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/OCI+Repositories", installer_jar: artifactory-addon-oci, runtime_active: oci, evidence: E1 }
+    - { n: 71, addon_name: huggingfaceml, display_name: "HUGGINGFACEML", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/HuggingFaceML+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 72, addon_name: machinelearning, display_name: "MachineLearning", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/MachineLearning+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 73, addon_name: helmoci, display_name: "HelmOCI", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/HelmOCI+Repositories", installer_jar: artifactory-addon-helmoci, runtime_active: helmoci, evidence: E1 }
+    - { n: 74, addon_name: ansible, display_name: "Ansible", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Ansible+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 75, addon_name: hex, display_name: "Hex", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Hex+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 76, addon_name: nimmodel, display_name: "NimModel", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/NimModel+Repositories", installer_jar: artifactory-addon-nimmodel, runtime_active: null, evidence: E1 }
+    - { n: 77, addon_name: jem, display_name: "Jem", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Jem+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 78, addon_name: aieditorextensions, display_name: "AI-Editor Extensions", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/AIEditorExtensions+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 79, addon_name: jetbrainsplugins, display_name: "JetBrains Plugins", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/JetBrainsPlugins+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 80, addon_name: skills, display_name: "Skills", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/Skills+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+    - { n: 81, addon_name: agentpackages, display_name: "Agent Packages", type: pro, categories: [all, packageManagement], configure_url_suffix: "pro/AgentPackages+Repositories", installer_jar: null, runtime_active: null, evidence: E1 }
+
+dynamic_addons:
+  note: "运行时激活但不在 AddonType 枚举中的 addon（来自 B /api/system/version.addons，由独立 jar 的 META-INF/addon.properties 自描述加载，不走 AddonType 静态登记）"
+  count: 17
+  entries:
+    - { n: 82, addon_name: packages-archive, display_name: "Packages Archive", installer_jar: "packages-archive-7.161.11.jar", remark: "包归档浏览", evidence: E2 }
+    - { n: 83, addon_name: curation, display_name: "Curation", installer_jar: artifactory-addon-curation, remark: "OSS 策展拦截", evidence: E2 }
+    - { n: 84, addon_name: worker, display_name: "Worker", installer_jar: artifactory-addon-worker, remark: "serverless 扩展", evidence: E2 }
+    - { n: 85, addon_name: release-bundle, display_name: "Release Bundle", installer_jar: artifactory-addon-release-bundle, remark: "RB v2", evidence: E2 }
+    - { n: 86, addon_name: jf-connect, display_name: "JFrog Connect", installer_jar: artifactory-addon-jf-connect, remark: "许可/遥测中枢", evidence: E2 }
+    - { n: 87, addon_name: jf-event, display_name: "JFrog Event", installer_jar: artifactory-addon-jf-event, remark: "统一事件总线", evidence: E2 }
+    - { n: 88, addon_name: keys, display_name: "Signing/Trusted Keys", installer_jar: artifactory-addon-keys, remark: "密钥对管理", evidence: E2 }
+    - { n: 89, addon_name: analytics, display_name: "Analytics", installer_jar: artifactory-addon-analytics, remark: "匿名指标", evidence: E2 }
+    - { n: 90, addon_name: lead-artifact-detector, display_name: "Lead Artifact Detector", installer_jar: artifactory-addon-lead-artifact-detector, remark: "联邦 lead 推举", evidence: E2 }
+    - { n: 91, addon_name: package-reroute, display_name: "Package Reroute", installer_jar: artifactory-addon-package-reroute, remark: "请求改路由", evidence: E2 }
+    - { n: 92, addon_name: securityresourceaddon, display_name: "Security Resource", installer_jar: artifactory-addon-security-resource, remark: "安全资源端点", evidence: E2 }
+    - { n: 93, addon_name: policies, display_name: "Policies", installer_jar: "artifactory-addon-cleanup (name=policies)", remark: "Cleanup v2 策略引擎", evidence: E2 }
+    - { n: 94, addon_name: archive, display_name: "Archive", installer_jar: artifactory-addon-archive-v2, remark: "冷存储", evidence: E2 }
+    - { n: 95, addon_name: onboarding, display_name: "OnBoarding", installer_jar: artifactory-addon-onboarding, remark: "首启向导", evidence: E2 }
+    - { n: 96, addon_name: support, display_name: "Support", installer_jar: artifactory-addon-support, remark: "诊断包", evidence: E2 }
+    - { n: 97, addon_name: retention, display_name: "Retention", installer_jar: artifactory-addon-retention, remark: "保留策略", evidence: E2 }
+    - { n: 98, addon_name: federated, display_name: "Federated", installer_jar: artifactory-addon-federated, remark: "联邦仓", evidence: E2 }
+
+capabilities:
+  total: 142
+  domains:
+    - domain: "包型与协议面"
+      count: 55
+      entries:
+        - { n: 1, capability: "Docker Registry v2", module: artifactory-addon-docker, addon_type: docker, entitlement: null, evidence: E1, prior_coverage: "inv-4 / matrix §1.1" }
+        - { n: 2, capability: "Maven/Gradle/Ivy/SBT layout", module: "artifactory-core + layouts addon", addon_type: "layouts/sbt/ivy", entitlement: null, evidence: E1, prior_coverage: "matrix §1.1/§1.2" }
+        - { n: 3, capability: "npm registry", module: "artifactory-core (ph/npm)", addon_type: npm, entitlement: null, evidence: E1, prior_coverage: "matrix §1.1" }
+        - { n: 4, capability: "PyPI simple index", module: "artifactory-core (ph/pypi)", addon_type: pypi, entitlement: null, evidence: E1, prior_coverage: "matrix §1.1" }
+        - { n: 5, capability: "Generic + matrix params", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §1.1" }
+        - { n: 6, capability: "NuGet v2/v3/symbol", module: artifactory-addon-nuget, addon_type: nuget, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 7, capability: "Conan v1+v2", module: artifactory-addon-conan, addon_type: conan, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 8, capability: "Cargo sparse index", module: artifactory-addon-cargo, addon_type: cargo, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 9, capability: "Go GOPROXY + sumdb proxy", module: "artifactory-core (ph/go)", addon_type: go, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 10, capability: "Gems rubygems", module: artifactory-addon-gems, addon_type: gems, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 11, capability: "Composer packagist", module: artifactory-addon-composer, addon_type: composer, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 12, capability: "Swift PM", module: artifactory-addon-swift, addon_type: swift, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 13, capability: "Pub Dart", module: artifactory-addon-pub, addon_type: pub, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 14, capability: "Conda repodata", module: "artifactory-core (ph/conda)", addon_type: conda, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 15, capability: "CRAN src/contrib", module: "artifactory-core (ph/cran)", addon_type: cran, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 16, capability: "CocoaPods CDN specs", module: artifactory-addon-cocoapods, addon_type: cocoapods, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 17, capability: "Bower registry", module: artifactory-addon-bower, addon_type: bower, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 18, capability: "Hex mix registry", module: "artifactory-core (ph/hex)", addon_type: hex, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 19, capability: "LuaRocks api/1", module: "artifactory-core (ph/luarocks)", addon_type: luarocks, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 20, capability: "NimModel", module: artifactory-addon-nimmodel, addon_type: nimmodel, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 21, capability: "Bazel Modules", module: "artifactory-core (ph/bazelmodules)", addon_type: bazelmodules, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 22, capability: "Nix binary cache", module: "artifactory-core (ph/nix)", addon_type: nix, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 23, capability: "VCS GitHub/GitLab refs", module: artifactory-addon-vcs, addon_type: vcs, entitlement: null, evidence: E1, prior_coverage: "inv-4 P1" }
+        - { n: 24, capability: "Git LFS batch/locks", module: artifactory-addon-git, addon_type: "git-lfs/git", entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 25, capability: "Debian apt + By-Hash", module: artifactory-addon-debian, addon_type: debian, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 26, capability: "RPM/YUM repomd", module: artifactory-addon-yum, addon_type: rpm, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 27, capability: "Alpine APKINDEX signed", module: artifactory-addon-alpine, addon_type: alpine, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 28, capability: "Opkg Packages index", module: artifactory-addon-opkg, addon_type: opkg, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 29, capability: "Terraform Registry + Backend state lock", module: artifactory-addon-terraform, addon_type: terraform, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 30, capability: "Ansible galaxy v3", module: "artifactory-core (ph/ansible)", addon_type: ansible, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 31, capability: "Puppet forge v3", module: artifactory-addon-puppet, addon_type: puppet, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 32, capability: "Chef supermarket", module: artifactory-addon-chef, addon_type: chef, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 33, capability: "Vagrant atlas box", module: artifactory-addon-vagrant, addon_type: vagrant, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 34, capability: "P2 Eclipse composite", module: artifactory-addon-p2, addon_type: p2, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 35, capability: "HuggingFace ML + xet CAS", module: "artifactory-core (ph/huggingface)", addon_type: huggingfaceml, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 36, capability: "Machine Learning generic", module: "artifactory-core (ph/machinelearning)", addon_type: machinelearning, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 37, capability: "FROGML internal", module: artifactory-core, addon_type: null, entitlement: null, evidence: E3, prior_coverage: "matrix §1.2" }
+        - { n: 38, capability: "VS Code Extensions marketplace", module: "artifactory-core (ph/vscodeextensions)", addon_type: aieditorextensions, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 39, capability: "JetBrains Plugins", module: "artifactory-core (ph/jetbrains)", addon_type: jetbrainsplugins, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 40, capability: "AI Editor Extensions", module: "artifactory-core (ph/aieditorextensions)", addon_type: aieditorextensions, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 41, capability: "Skills agent API", module: "artifactory-core (ph/skills)", addon_type: skills, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 42, capability: "Agent Plugins layout", module: artifactory-core, addon_type: agent-plugins, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 43, capability: "Agent Packages layout", module: artifactory-core, addon_type: agentpackages, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 44, capability: "JEM internal", module: artifactory-core, addon_type: jem, entitlement: null, evidence: E3, prior_coverage: "matrix §1.2" }
+        - { n: 45, capability: "OCI ORAS artifact", module: artifactory-addon-oci, addon_type: oci, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 46, capability: "Helm classic chart repo", module: "artifactory-core (ph/helm)", addon_type: helm, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 47, capability: "Helm over OCI", module: artifactory-addon-helmoci, addon_type: helmoci, entitlement: null, evidence: E1, prior_coverage: "matrix §1.2" }
+        - { n: 48, capability: "Build Info internal repo", module: artifactory-core, addon_type: build, entitlement: null, evidence: E1, prior_coverage: "inv-4 D1" }
+        - { n: 49, capability: "Release Bundles internal repo", module: artifactory-addon-release-bundle, addon_type: release-bundle, entitlement: null, evidence: E2, prior_coverage: "inv-4 C1" }
+        - { n: 50, capability: "Pipelines info internal", module: artifactory-core, addon_type: null, entitlement: null, evidence: E3, prior_coverage: "matrix §1.2" }
+        - { n: 51, capability: "Support bundle internal storage", module: artifactory-addon-support, addon_type: support, entitlement: null, evidence: E2, prior_coverage: "inv-4 N1" }
+        - { n: 52, capability: "Matrix parameter attribute deploy", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §1.3" }
+        - { n: 53, capability: "Archive path archive!/ inner", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §1.3" }
+        - { n: 54, capability: "Folder/archive download", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §1.3" }
+        - { n: 55, capability: "Checksum deploy three-header variants", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §1.3" }
+    - domain: "仓库模型与横切协议"
+      count: 13
+      entries:
+        - { n: 56, capability: "rclass local/remote/virtual/federated", module: "artifactory-core + federated addon", addon_type: federated, entitlement: null, evidence: E1, prior_coverage: "matrix §2" }
+        - { n: 57, capability: "自定义仓库布局 CRUD", module: artifactory-addon-layouts, addon_type: layouts, entitlement: null, evidence: E1, prior_coverage: "matrix §2" }
+        - { n: 58, capability: "Repo config CRUD v1/v2 + batch", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §2" }
+        - { n: 59, capability: "Copy/Move/flat path ops", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §2" }
+        - { n: 60, capability: "Zap/repairPaths", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §2" }
+        - { n: 61, capability: "Maven/Yum indexer cron", module: "artifactory-core + yum addon", addon_type: rpm, entitlement: null, evidence: E1, prior_coverage: "matrix §2" }
+        - { n: 62, capability: "Virtual/cache cleanup", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §2" }
+        - { n: 63, capability: "Remote offline guard + stats", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §2" }
+        - { n: 64, capability: "Proxy server management", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §2" }
+        - { n: 65, capability: "Versions API", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §2" }
+        - { n: 66, capability: "Property sets", module: artifactory-addon-properties, addon_type: properties, entitlement: null, evidence: E1, prior_coverage: "matrix §2" }
+        - { n: 67, capability: "MPU REST client-side chunked upload", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §1.3/§4.3" }
+        - { n: 68, capability: "Request path normalization hub", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §1.3" }
+    - domain: "安全与认证"
+      count: 17
+      entries:
+        - { n: 69, capability: "Access 服务化认证中枢", module: "access-server-*", addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §3" }
+        - { n: 70, capability: "Token service create/list/revoke", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §3" }
+        - { n: 71, capability: "API Key (deprecated)", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §3" }
+        - { n: 72, capability: "Password policy + lockout", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §3" }
+        - { n: 73, capability: "Master encryption + config encrypt/decrypt", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §3" }
+        - { n: 74, capability: "SAML SSO", module: artifactory-addon-sso, addon_type: sso, entitlement: SAML, evidence: E1, prior_coverage: "matrix §3" }
+        - { n: 75, capability: "Crowd SSO", module: artifactory-addon-sso, addon_type: sso, entitlement: CROWD, evidence: E1, prior_coverage: "inv-4 M1" }
+        - { n: 76, capability: "OAuth2/GHE/HTTP-header SSO", module: artifactory-addon-sso, addon_type: sso, entitlement: OAUTH, evidence: E1, prior_coverage: "matrix §3" }
+        - { n: 77, capability: "OIDC provider integration", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §3" }
+        - { n: 78, capability: "LDAP multi-server + group mapping", module: artifactory-addon-ldap, addon_type: ldap, entitlement: LDAP, evidence: E1, prior_coverage: "matrix §3" }
+        - { n: 79, capability: "Anonymous access", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §3" }
+        - { n: 80, capability: "Users/Groups/Permissions CRUD v1/v2", module: "artifactory-core + access", addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §3" }
+        - { n: 81, capability: "Keypair + Trusted keys signing", module: artifactory-addon-keys, addon_type: keys, entitlement: null, evidence: E1, prior_coverage: "inv-4 M3/M4" }
+        - { n: 82, capability: "Certificate trust store", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §3" }
+        - { n: 83, capability: "Signed URL", module: artifactory-core, addon_type: null, entitlement: SIGNED_URL, evidence: E1, prior_coverage: "matrix §3" }
+        - { n: 84, capability: "Service Trust pairing token", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "inv-4 M6" }
+        - { n: 85, capability: "Audit log", module: "access-server-*", addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §3" }
+    - domain: "治理与运维"
+      count: 25
+      entries:
+        - { n: 86, capability: "Trash can auto-trashcan", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.1" }
+        - { n: 87, capability: "Cleanup v2 policy engine", module: "artifactory-addon-cleanup (policies)", addon_type: policies, entitlement: CLEANUP_POLICY, evidence: E2, prior_coverage: "inv-4 O1" }
+        - { n: 88, capability: "Cleanup v1 cron", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.1" }
+        - { n: 89, capability: "Retention v2 policies", module: artifactory-addon-retention, addon_type: retention, entitlement: RETENTION_WEBHOOKS, evidence: E2, prior_coverage: "inv-4 O2" }
+        - { n: 90, capability: "Cold storage archive", module: artifactory-addon-archive-v2, addon_type: archive, entitlement: "COLD_STORAGE / COLD_STORAGE_CREATE", evidence: E2, prior_coverage: "inv-4 L4" }
+        - { n: 91, capability: "GC + maintenance ops", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.1" }
+        - { n: 92, capability: "Backup set cron", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.1" }
+        - { n: 93, capability: "Import/export system/repo", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.1" }
+        - { n: 94, capability: "Upload session sweep", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.1" }
+        - { n: 95, capability: "Metrics Prometheus", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.2" }
+        - { n: 96, capability: "Traffic accounting DB ledger", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.2" }
+        - { n: 97, capability: "Rate limiting v2 + QRL", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.2" }
+        - { n: 98, capability: "Load Healer overload self-heal", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.2" }
+        - { n: 99, capability: "Inbound request guard OFF/SHADOW/ACTIVE", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.2" }
+        - { n: 100, capability: "Support Bundle collectors", module: artifactory-addon-support, addon_type: support, entitlement: null, evidence: E2, prior_coverage: "inv-4 N1" }
+        - { n: 101, capability: "Live Logs streaming", module: artifactory-core, addon_type: null, entitlement: LIVE_LOGS, evidence: E1, prior_coverage: "matrix §4.2" }
+        - { n: 102, capability: "Runtime debug log level", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.2" }
+        - { n: 103, capability: "System status ping/version/serverTime", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.2" }
+        - { n: 104, capability: "Usage telemetry", module: artifactory-addon-observability, addon_type: observability, entitlement: null, evidence: E2, prior_coverage: "matrix §4.2" }
+        - { n: 105, capability: "Reverse proxy config generation", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.2" }
+        - { n: 106, capability: "Email server + notifications", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "inv-4 N5" }
+        - { n: 107, capability: "Runtime system properties update", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.2" }
+        - { n: 108, capability: "Onboarding wizard", module: artifactory-addon-onboarding, addon_type: onboarding, entitlement: null, evidence: E2, prior_coverage: "inv-4 N6" }
+        - { n: 109, capability: "SetMeUp connection snippets", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §4.2" }
+        - { n: 110, capability: "Watch subscribe notify", module: artifactory-addon-watch, addon_type: watch, entitlement: null, evidence: E1, prior_coverage: "inv-4 O3" }
+    - domain: "企业集成"
+      count: 14
+      entries:
+        - { n: 111, capability: "Xray integration", module: artifactory-addon-xray, addon_type: xray, entitlement: JFXR, evidence: E2, prior_coverage: "inv-4 B1-B7" }
+        - { n: 112, capability: "Release Bundle v2 transactions", module: artifactory-addon-release-bundle, addon_type: release-bundle, entitlement: "RELEASE_BUNDLES_READ/WRITE", evidence: E2, prior_coverage: "inv-4 C1-C8" }
+        - { n: 113, capability: "Air-Gap offline bundle import/export", module: artifactory-addon-release-bundle, addon_type: release-bundle, entitlement: RELEASE_BUNDLES_READ, evidence: E2, prior_coverage: "inv-4 C3" }
+        - { n: 114, capability: "Projects domain via Access gRPC", module: "access-server-* + artifactory-core", addon_type: null, entitlement: null, evidence: E1, prior_coverage: "inv-4 E1-E4" }
+        - { n: 115, capability: "Webhook management in Access", module: "access-server-*", addon_type: null, entitlement: null, evidence: E1, prior_coverage: "inv-4 I2" }
+        - { n: 116, capability: "Unified event bus 36 events", module: artifactory-addon-jf-event, addon_type: jf-event, entitlement: null, evidence: E2, prior_coverage: "inv-4 I1-I4" }
+        - { n: 117, capability: "Curation OSS intercept", module: artifactory-addon-curation, addon_type: curation, entitlement: CURATION, evidence: E2, prior_coverage: "inv-4 O5" }
+        - { n: 118, capability: "Workers serverless TS", module: artifactory-addon-worker, addon_type: worker, entitlement: null, evidence: E2, prior_coverage: "inv-4 I5" }
+        - { n: 119, capability: "Product license + subscription gating", module: "artifactory-addons-manager + license-manager", addon_type: license, entitlement: null, evidence: E1, prior_coverage: "inv-4 J1-J2" }
+        - { n: 120, capability: "Artifact license recognition", module: artifactory-addon-license, addon_type: license, entitlement: null, evidence: E2, prior_coverage: "inv-4 J3" }
+        - { n: 121, capability: "Evidence compliance signatures", module: artifactory-addon-evidence, addon_type: null, entitlement: null, evidence: E2, prior_coverage: "inv-4 O4" }
+        - { n: 122, capability: "Callhome / JFConnect", module: artifactory-addon-jf-connect, addon_type: jf-connect, entitlement: null, evidence: E2, prior_coverage: "inv-4 J4" }
+        - { n: 123, capability: "Mission Control / Pipelines legacy", module: artifactory-core, addon_type: null, entitlement: null, evidence: E3, prior_coverage: "matrix §5" }
+        - { n: 124, capability: "Binary provider chain (binarystore.xml)", module: binary-store-filestore, addon_type: s3fileStore, entitlement: null, evidence: E2, prior_coverage: "inv-4 L1" }
+    - domain: "复制与分发"
+      count: 9
+      entries:
+        - { n: 125, capability: "Push replication V1 full/incremental", module: artifactory-addon-replication, addon_type: replication, entitlement: REPO_REPLICATION, evidence: E2, prior_coverage: "inv-4 F1" }
+        - { n: 126, capability: "Pull remote replication", module: artifactory-addon-replication, addon_type: replication, entitlement: REPO_REPLICATION, evidence: E2, prior_coverage: "inv-4 F2" }
+        - { n: 127, capability: "Replication V2 streaming engine", module: artifactory-addon-replication, addon_type: replication, entitlement: null, evidence: E2, prior_coverage: "inv-4 F3" }
+        - { n: 128, capability: "Replication config REST multiple/enable/execute", module: artifactory-addon-replication, addon_type: replication, entitlement: null, evidence: E2, prior_coverage: "inv-4 F4" }
+        - { n: 129, capability: "Smart Remote Repo fields", module: "artifactory-addon-replication + smartrepo", addon_type: smart-repo, entitlement: EDGE, evidence: E2, prior_coverage: "inv-4 F5" }
+        - { n: 130, capability: "Multipush replication", module: artifactory-addon-replication, addon_type: multipush, entitlement: MULTIPUSH_REPLICATION, evidence: E2, prior_coverage: "inv-4 F1" }
+        - { n: 131, capability: "Event-based pull replication", module: artifactory-addon-replication, addon_type: null, entitlement: EVENT_BASED_PULL_REPLICATION, evidence: E2, prior_coverage: "inv-4 F1" }
+        - { n: 132, capability: "Federation mirrors + full sync", module: artifactory-addon-federated, addon_type: federated, entitlement: FEDERATED_REPOSITORY, evidence: E2, prior_coverage: "inv-4 G1-G3" }
+        - { n: 133, capability: "Build-info promotion + Docker promote", module: artifactory-core, addon_type: build, entitlement: null, evidence: E1, prior_coverage: "inv-4 D1-D6" }
+    - domain: "部署形态与集群"
+      count: 5
+      entries:
+        - { n: 134, capability: "HA cluster heartbeat + primary election", module: artifactory-addon-ha, addon_type: ha, entitlement: HA, evidence: E2, prior_coverage: "inv-4 A1-A10" }
+        - { n: 135, capability: "Derby embedded default", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "inv-4 K2" }
+        - { n: 136, capability: "Multi-DB dialect (6 flavors)", module: artifactory-storage-db, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "inv-4 K1/K5" }
+        - { n: 137, capability: "Outbox pattern reliable events", module: artifactory-storage-db, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "inv-4 K3" }
+        - { n: 138, capability: "Graceful shutdown preStop", module: artifactory-core, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §9" }
+    - domain: "其他"
+      count: 4
+      entries:
+        - { n: 139, capability: "Groovy user plugins", module: artifactory-addon-plugins, addon_type: plugins, entitlement: null, evidence: E1, prior_coverage: "inv-4 H1-H4" }
+        - { n: 140, capability: "Filtered Resources @@token@@", module: artifactory-addon-filtered-resources, addon_type: filtered-resources, entitlement: null, evidence: E1, prior_coverage: "inv-4 P3" }
+        - { n: 141, capability: "Package re-route", module: artifactory-addon-package-reroute, addon_type: package-reroute, entitlement: PACKAGE_REROUTE, evidence: E2, prior_coverage: "inv-4 P4" }
+        - { n: 142, capability: "Addon assembly framework (META-INF/addon.{xml,properties})", module: artifactory-config, addon_type: null, entitlement: null, evidence: E1, prior_coverage: "matrix §10" }
+
+reconciliation:
+  inv4_addons_91: "全部纳入本目录，按域重分组；其中 J4 callhome/jfconnect 拆为 122（Callhome/JFConnect）独立条目；J3 制品 license 识别归入 120"
+  full_feature_matrix_213: "纯包型 55 行 → 包型与协议面域（55 条）；平台能力 158 行去重合并后 → 其余七域（87 条）。matrix 中重复出现的横切能力（如矩阵参数、checksum deploy）在本目录只记一次"
+  inv2_addontype_80: "实际枚举 81 项（含 AOL），全部列入 addon_type_registry；与 matrix/inv-4 重叠的条目不再单独列能力行，仅在 registry 标注其 AddonType 归属"
+  runtime_extra_17: "B /api/system/version.addons 返回但不在 AddonType 枚举的 17 项（dynamic_addons）——属 jar 自描述动态装配 addon，由 META-INF/addon.properties 加载；本目录将其作为能力补遗并按域归类"
+  final_count: "142 条能力条目（55 包型 + 87 平台能力）；AddonType 81 项 + 动态装配 17 项"
+
+pending_verification:
+  - "FROGML / JEM 处理器位置（仅枚举，未见独立 handler 目录）——E3"
+  - "Gradle/Ivy/SBT 是否有隐藏专属端点（当前认为走 Maven/Ivy layout 通道）——E3"
+  - "Cargo git 索引是否仍存活（sparse 已为主流）——E3"
+  - "multitenantinfra 是否随自托管发行版激活——E3"
+  - "binary provider chain 具体组合模板（S3/GCS/Azure）在外部 storage-client 库，本批源码未见——以 binarystore.xml 公开文档为准，E5"
+  - "packagereroute 触发语义与配置模型细节——E3"
+  - "shadow handler 切换条件（新包框架灰度）——E3"
+  - "Grid snapshot/provision 与 Jem 语义——E3"
+  - "virtualCacheCleanupConfig cron 模板注释 vs 实际 cron 不一致（00:12 vs 05:00）——以 cron 为准，E3"
+  - "retentionTools coverage/impact 计算口径——E3"

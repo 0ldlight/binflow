@@ -1,0 +1,395 @@
+# =============================================================================
+# artifactory distribution layout — 目录树 evidence index
+# =============================================================================
+# 声明: evidence-index-only —— 本文件是安装包/运行时目录结构的事实索引，仅服务于
+#       审计对账与证据定位（宪章 §13 / 任务 #3）。它不是 BinFlow 的结构设计输入，
+#       禁止作为目录结构或代码组织的抄袭依据（ADR-0001 clean-room）。
+#
+# 证据等级: E1 反编译 / E2 安装包 / E3 端点 / E4 运行时
+# 版本偏斜: C=7.161.16（安装包全量扫描）/ B=7.161.20（容器实况）/ A=7.161.24（反编译抽验）
+#           C 与 A/B 的结构性差异以 A/B 为准并留痕（本文件无发现级冲突）
+#
+# 证据源:
+#   C: /Users/lzw/Downloads/artifactory-pro-7.161.16（zip 发行包，4.0G，只读）
+#   B: docker 容器 artifactory（releases-docker.jfrog.io/jfrog/artifactory-pro:7.161.20）只读 exec
+#   A: /Users/lzw/workspace/artifactory-decompiled（7.161.24，抽验）
+
+meta:
+  product: artifactory-pro
+  versions:
+    C_package: "7.161.16"
+    B_runtime: "7.161.20"
+    A_decompiled: "7.161.24"
+  package_size: "4.0G (app) + 92K (var)"
+  jf_product_home_default: "/opt/jfrog/artifactory"
+
+root:
+  app:
+    role: "代码与运行时载荷分区（含 23 个子目录）"
+    ev: [E2, E4]
+    src: "C+B"
+  var:
+    role: "可变状态分区（etc/data/log/work/backup/bootstrap）"
+    ev: [E2, E4]
+    src: "C+B"
+
+# =============================================================================
+# app/ 分区
+# =============================================================================
+app:
+  artifactory.product.version.properties:
+    role: "版本指纹（version/revision/timestamp/buildNumber 四键）"
+    ev: [E2]
+    note: "7.161.16 → revision=86116900, timestamp=20260805110505, buildNumber=7.161.16-20260805110505-1"
+
+  bin:
+    artifactory.sh:
+      role: "主编排脚本（start/stop/restart/status/check/run 分派 + 服务编排序）"
+      ev: [E2]
+      src: "C app/bin/artifactory.sh 20.7KB"
+    artifactory.default:
+      role: "默认 env（JF_PRODUCT_HOME/TOMCAT_HOME/JVM 参数），声明不应手改"
+      ev: [E2, E4]
+      evidence: "evidence/C-artifactory.default.sh"
+    artifactoryctl:
+      role: "三级委托入口（systemd→init.d→artifactory.sh）"
+      ev: [E2]
+    artifactoryManage.sh:
+      role: "systemd ExecStart/ExecStop 指向的管理脚本（init 兼容头）"
+      ev: [E2]
+    artifactoryCommon.sh:
+      role: "共享逻辑库（syncEtc/run*/performActionOnScript/waitForDB/hardKillTomcat/prepareTomcat 等 60+ 函数）"
+      ev: [E2]
+      evidence: "evidence/C-service-enablement-defaults.txt"
+    installerCommon.sh:
+      role: "安装器公共库（exportEnv/validateDiskSpace/commonStartupActions/userGroup/log rotation, 189KB）"
+      ev: [E2, E4]
+      note: "entrypoint 也 source 它"
+    systemYamlHelper.sh:
+      role: "system.yaml 读写助手（yq 封装; 解析序 env>yaml>default; JF_ 键名转换）"
+      ev: [E2]
+    installService.sh:
+      role: "服务注册安装器（root; useradd/systemd|init.d/chown/写 shared.user）"
+      ev: [E2]
+    uninstallService.sh:
+      role: "卸载器（停服/注销/备份 etc+data+log/删用户）"
+      ev: [E2]
+    migrate.sh:
+      role: "6.x→7.x 一次性数据迁移器（180KB; 16 步序）"
+      ev: [E2]
+    migrationComposeInfo.yaml:
+      role: "迁移映射表·docker/compose 形态"
+      ev: [E2]
+      evidence: "evidence/C-migrationComposeInfo.yaml"
+    migrationDockerInfo.yaml:
+      role: "迁移映射表·docker 形态（compose 同构，路径前缀异）"
+      ev: [E2]
+    migrationZipInfo.yaml:
+      role: "迁移映射表·zip 形态（增 xmlFiles/defaultFile 节）"
+      ev: [E2]
+    migrationRpmInfo.yaml:
+      role: "迁移映射表·rpm/deb 形态（同 zip 增节）"
+      ev: [E2]
+    diagnostics:
+      role: "启动预检资产（diagnostics.yaml 43 项串行检查 + diagnosticsUtil 执行器）"
+      ev: [E2]
+      evidence: "evidence/C-diagnostics-ports.txt"
+      note: "端口表 8082/8046/8049/8047/8081/8040/8045/8086/8070 + ulimit 32000/1024"
+
+  services:
+    artifactory:
+      payload:
+        form: tomcat-war
+        artifact: "tomcat/webapps/artifactory.war"
+      role: "核心制品服务（Java/Tomcat, 主进程）"
+      ev: [E2, E4]
+      note: "E4 进程 -Xms512m -Xmx2g -XX:+UseG1GC（artifactory.default 默认）"
+    access:
+      payload:
+        form: tomcat-war
+        artifact: "tomcat/webapps/access.war"
+        scripts: [access.sh, accessCommon.sh, access.default]
+      role: "认证授权服务（Java/Tomcat）；master.key/join.key 首启生成方（E4 附录A + E1 A 源印证）"
+      ev: [E2, E4, E1]
+      note: "E4 独立 JVM，-XX:MaxRAMPercentage=25 内存比例模式"
+    router:
+      payload:
+        form: go-binary
+        artifact: "bin/jf-router (177MB)"
+      role: "统一入口/服务发现/拓扑聚合（Go/traefik 系）"
+      ev: [E2, E4]
+    frontend:
+      payload:
+        form: node-app
+        artifact: "bin/client + bin/client-microfrontend + bin/server/dist/bundle.js"
+      role: "控制台前端 SSR 服务（node v22.23.1 @B）"
+      ev: [E2, E4]
+    metadata:
+      payload:
+        form: go-binary
+        artifact: "bin/jf-metadata (106MB)"
+      role: "元数据服务（nodes/licenses/status 面）"
+      ev: [E2, E4]
+    observability:
+      payload:
+        form: go-binary
+        artifact: "bin/jf-observability"
+      role: "指标采集与上报（metrics/log pipeline）"
+      ev: [E2, E4]
+    event:
+      payload:
+        form: go-binary
+        artifact: "bin/jf-event"
+      role: "事件分发（webhook 分发面）"
+      ev: [E2, E4]
+    evidence:
+      payload:
+        form: go-binary
+        artifact: "bin/jf-evidence (80MB) + webapp/"
+      role: "证据链服务（release evidence）"
+      ev: [E2, E4]
+    jfconnect:
+      payload:
+        form: go-binary
+        artifact: "bin/jf-connect"
+      role: "JFrog Connect/边缘代理组件（含自有 keys bootstrap 目录）"
+      ev: [E2, E4]
+    jfmelt:
+      payload:
+        form: go-binary
+        artifact: "bin/jf-melt"
+      role: "melt 组件（依赖 jfbus+jfconnect 同时启用）"
+      ev: [E2, E4]
+    jfbus:
+      payload:
+        form: springboot-jar
+        artifact: "lib/jfbus.jar"
+        launcher: JarLauncher
+      role: "消息总线（Java Spring Boot; 默认端口 8057）"
+      ev: [E2, E4]
+      note: "E4 classpath = var/work/jfbus/lib/* 优先于 app 载荷（驱动热插机制）"
+    jfconfig:
+      payload:
+        form: springboot-war
+        artifact: "bin/jf-jfconfig.war + entrypoint-jfconfig.sh"
+        launcher: FipsModeWarLauncher
+      role: "配置服务（DB 配置面）"
+      ev: [E2, E4]
+      note: "E4 tmpdir=var/work/jfconfig/tomcat/work; tomcat/lib/ 为空（驱动占位目录）"
+    topology:
+      payload:
+        form: springboot-war
+        artifact: "bin/jf-topology.war + entrypoint-topology.sh"
+        launcher: FipsModeWarLauncher
+      role: "拓扑服务（启用时 access.useExternalTopology=true）"
+      ev: [E2, E4]
+    onemodel:
+      payload:
+        form: go-binary
+        artifact: "bin/jf-onemodel-registry + entrypoint-onemodel.sh"
+      role: "OneModel Registry"
+      ev: [E2, E4]
+    rtfs:
+      payload:
+        form: script-only
+        artifact: "bin/rtfs.sh（无二进制/无 jar）"
+      role: "RTFS 服务脚本位（载荷不在包内，默认 enabled=false；仅支持 PostgreSQL）"
+      ev: [E2, E4]
+      note: "E4 无进程; 启用需另行获取载荷——UNKNOWN 载荷分发渠道"
+    platformfederation:
+      payload:
+        form: go-binary
+        artifact: "bin/jf-platformfederation"
+      role: "平台联邦（默认 enabled=false）"
+      ev: [E2, E4]
+    apptrust:
+      payload:
+        form: go-binary
+        artifact: "bin/jf-apptrust"
+      role: "AppTrust（默认 enabled=false）"
+      ev: [E2, E4]
+    unifiedpolicy:
+      payload:
+        form: go-binary
+        artifact: "bin/jf-unifiedpolicy"
+      role: "统一策略（默认 enabled=false; 仅支持 PostgreSQL）"
+      ev: [E2, E4]
+    evaluation:
+      payload:
+        form: go-binary
+        artifact: "bin/jf-evaluation"
+      role: "评估服务（默认 enabled=false; 仅支持 PostgreSQL）"
+      ev: [E2, E4]
+
+  misc:
+    etc:
+      role: "var/etc 的种子配置源（syncEtc 每次 startup/install 强制/不覆盖复制）"
+      children:
+        - "system.full-template.yaml(1402行全键注释版)"
+        - "system.basic-template.yaml"
+        - "artifactory/{artifactory.config.xml, binarystore.xml, logback.xml, mimetypes.xml, artifactory.system.properties}"
+      ev: [E2, E4]
+    db:
+      role: "外部数据库建库脚本（createdb_{postgres,mysql,mariadb,mssql,mssqlBlob,mssqlRecreateBlob}.sql）"
+      ev: [E2]
+    service:
+      role: "OS 服务注册资产（artifactory.service systemd 单元 / artifactory init.d 脚本 / setenv.sh）"
+      ev: [E2]
+      evidence: "evidence/C-artifactory.service"
+    tomcat:
+      role: "Tomcat 配置模板区（server.xml 主/rt 模板/https.custom 模板 + access/ 子树 + mc war 位）"
+      ev: [E2]
+    artifactory.config.template.yml:
+      role: "config.import.yml 模板（应用层导入格式）"
+      ev: [E2]
+
+  third-party:
+    java:
+      role: "捆绑 JDK（Temurin 25.0.3+9 LTS, C 与 B 一致）"
+      ev: [E2, E4]
+    node:
+      role: "捆绑 Node.js（B 实测 v22.23.1）"
+      ev: [E2, E4]
+    yq:
+      role: "捆绑 yq（systemYamlHelper 依赖, YQ_PATH 指向此）"
+      ev: [E2]
+    logrotate:
+      role: "捆绑 logrotate 二进制（ELF x86-64）"
+      ev: [E2]
+    libxml2:
+      role: "捆绑 libxml2（bin/lib/lib64）"
+      ev: [E2]
+    cosmo:
+      role: "npm CLI 组件（cosmo/cli/node_modules）——具体消费方 UNKNOWN（低置信，疑为 GraphQL/路由工具链）"
+      ev: [E2]
+
+  doc:
+    role: "22 个 About-Box HTML（许可/第三方声明）+ README.txt"
+    note: "README.txt 为旧 wiki 指引（wiki.jfrog.org），并声明默认 admin/password——与 7.x 首启改密流并存"
+    ev: [E2]
+
+# =============================================================================
+# var/ 分区（C 包仅含 bootstrap+etc 种子；B 为引导后完整实态）
+# =============================================================================
+var:
+  etc:
+    role: "配置根（system.yaml + 每服务子目录）"
+    ev: [E2, E4]
+    children_e4:
+      - "system.yaml"
+      - "system.full-template.yaml"
+      - "system.basic-template.yaml"
+      - "access/"
+      - "artifactory/"
+      - "event/"
+      - "evidence/"
+      - "jfconfig/"
+      - "jfconnect/"
+      - "jfmelt/"
+      - "metadata/"
+      - "observability/"
+      - "onemodel/"
+      - "router/"
+      - "topology/"
+      - "logrotate/"
+      - "security/"
+    security:
+      role: "密钥根（join.key + master.key + keys/）"
+      ev: [E4]
+      note: "master.key 由 access 首启生成（缺省行为）；敏感值（DB 密码等）首读后被加密回写 system.yaml（aesgcm256 形态）"
+    artifactory_e4_note: >
+      E4 实态: artifactory.config.latest.xml / artifactory.repository.config.latest.json（带时间戳历史副本）、
+      artifactory.lic、artifactory.properties、binarystore.xml、logback.xml
+    logrotate_e4_note: "E4 实态 logrotate.conf 存在但为 0 字节（容器形态未写入轮转条目）"
+
+  data:
+    role: "持久数据根（每服务一目录 + 共享区）"
+    ev: [E4]
+    children_e4:
+      - access
+      - artifactory
+      - event
+      - evidence
+      - frontend
+      - jfbus
+      - jfconfig
+      - jfconnect
+      - jfmelt
+      - metadata
+      - observability
+      - onemodel
+      - router
+      - topology
+      - derby
+      - federated-queues
+      - filestore
+      - git
+      - import
+      - tmp
+      - usage
+    note: "filestore=制品二进制存储根（binarystore.xml 默认 file-system 模板）; router/keys 含首启自生成 server.crt/server.key"
+
+  log:
+    role: "日志根（B 实测 85 文件 + archived/）"
+    ev: [E4]
+    taxonomy_see: "reports/artifactory-full-audit.md 附录A（日志体系逆向归任务 #4）"
+    note: "命名规约 <service>-<facet>.log（service/request/metrics/audit 等 facet）; console.log 为脚本级汇聚流"
+
+  work:
+    role: "运行时工作区（可删可重建）"
+    ev: [E2, E4]
+    children_e4:
+      - run/
+      - access/
+      - artifactory/
+      - event/
+      - evidence/
+      - jfbus/
+      - jfconfig/
+      - jfconnect/
+      - jfmelt/
+      - metadata/
+      - observability/
+      - onemodel/
+      - router/
+      - topology/
+    run:
+      role: "PID 文件区（<service>.pid; B 实测 13 个）"
+      ev: [E2, E4]
+    per_service_tomcat:
+      role: "jfconfig/topology/jfbus 的 tmpdir+lib 热插区（自定义 JDBC 驱动投放点）"
+      ev: [E2, E4]
+
+  backup:
+    role: "应用层备份目标（system.yaml artifactory.backup 键指向; 首启即建 access/ artifactory/ 空骨架）"
+    ev: [E4]
+
+  bootstrap:
+    role: "配置重注入资产（预置自定义密钥/证书/驱动的挂载点; 缺失目录由启动脚本自动补建）"
+    ev: [E2, E4]
+    children_c:
+      - "access/etc/security (README: Custom join.key)"
+      - "jfconnect/etc/keys"
+      - "jfmelt/etc/keys"
+      - "artifactory/tomcat/lib"
+      - "README.md (Service configuration boostrap)"
+    docker_extra: "E4 容器另有 /opt/jfrog/artifactory/var/bootstrap/{etc,router,metadata,event,evidence,observability,onemodel,jfconnect,jfmelt}（镜像预置）"
+
+# =============================================================================
+# Docker 镜像层资产（不在 zip 包内，B 容器取证）
+# =============================================================================
+docker_image_assets:
+  entrypoint-artifactory.sh:
+    role: "容器入口（引导序: helpers→磁盘检查→可选6.x迁移→waitForDB→bootstrap复制→exec artifactory.sh; SIGTERM→preStop→stop）"
+    ev: [E4]
+    evidence: "evidence/B-entrypoint-artifactory.sh"
+  docker_dirs:
+    - "/artifactory_bootstrap"
+    - "/bootstrap"
+
+# =============================================================================
+# 反编译抽验留痕（A 源, 7.161.24）
+# =============================================================================
+a_source_crosschecks:
+  - "access 系 master key 存储与 AES 加密包裹服务存在（access-server-core 下 MasterKeyStorageService / EncryptionWrapperService 定位命中）→ 印证 E4 的 aesgcm256 密文形态与「access 生成 master.key」结论"
+  - "未发现与 C/B 目录结构冲突的结构性事实（抽验范围: master key / 加密链路）"

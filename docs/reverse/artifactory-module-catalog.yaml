@@ -1,0 +1,635 @@
+# Artifactory Module Catalog — machine-generated evidence index (E1)
+#
+# > IMPORTANT (clean-room): this file is an EVIDENCE INDEX of the decompiled reference,
+# > NOT a design input for BinFlow implementation. Structural translation is forbidden
+# > (program charter §39-41; ADR-0001). Behavior specs remain in the sibling *.md files.
+#
+meta:
+  source: /Users/lzw/workspace/artifactory-decompiled (ARTIFACTORY_DECOMPILED_SOURCE)
+  reference_version: 7.161.24 (build 7.161.14; access 7.191.x, jfrog-commons 13.21.0, metadata 7.490.1)
+  generated: 2026-09-10
+  generator: backend-maven/modules.json + filesystem markers (addon.xml, package roots)
+  evidence_level: E1 (static observation of decompiled source)
+  read_only_note: source tree is read-only; regenerate instead of hand-editing
+summary:
+  total_modules: 569
+  total_java_files: 14702
+  access: 14
+  addon: 65
+  artifactory-core: 22
+  jfrog-commons: 37
+  ms-client-federation: 2
+  ms-client-jfconnect: 2
+  ms-client-metadata: 2
+  service-other: 425
+categories:
+  addon: commercial plugin modules (artifactory-addon-*) — ~60, gated by license
+  artifactory-core: core service & REST (artifactory-api/common/core/rest/capi/papi, storage-*)
+  access: authentication/authorization (client side in artifactory.war, server side in access.war)
+  jfrog-commons: platform shared libs (config/crypto/http/db-infra/eventing)
+  ms-client-*: microservice client jars (metadata/jfconnect/platformfederation)
+  service-other: embedded services recovered from topology/jfconfig/jfbus/rtfs wars
+
+artifactory-core:
+  - { id: artifactory-api, group: org.artifactory, ver: 7.161.14, java: 555, res: 1, pom: original }
+  - { id: artifactory-base-api, group: org.artifactory, ver: 1.78.0, java: 46, res: 0, pom: original }
+  - { id: artifactory-base-rest, group: org.artifactory, ver: 7.161.14, java: 9, res: 0, pom: original }
+  - { id: artifactory-capi, group: org.artifactory, ver: 7.161.14, java: 111, res: 0, pom: original }
+  - { id: artifactory-common, group: org.artifactory, ver: 7.161.14, java: 826, res: 7, pom: original }
+  - { id: artifactory-config, group: org.artifactory, ver: 7.161.14, java: 660, res: 12, pom: original }
+  - { id: artifactory-core, group: org.artifactory, ver: 7.161.14, java: 1445, res: 15, pom: original }
+  - { id: artifactory-event-queue-api, group: org.artifactory, ver: 1.78.0, java: 16, res: 0, pom: original }
+  - { id: artifactory-federation-dto, group: org.jfrog.rtfs, ver: 2.26.0, java: 53, res: 0, pom: original }
+  - { id: artifactory-lifecycle, group: org.artifactory, ver: 7.161.14, java: 9, res: 1, pom: original }
+  - { id: artifactory-papi, group: org.artifactory, ver: 7.161.14, java: 71, res: 1, pom: original }
+  - { id: artifactory-rest, group: org.artifactory, ver: 7.161.14, java: 336, res: 7, pom: original }
+  - { id: artifactory-rest-common, group: org.artifactory, ver: 7.161.14, java: 147, res: 1, pom: original }
+  - { id: artifactory-rest-ui, group: org.artifactory, ver: 7.161.14, java: 1189, res: 1, pom: original }
+  - { id: artifactory-storage-common, group: org.artifactory, ver: 7.161.14, java: 184, res: 1, pom: original }
+  - { id: artifactory-storage-db, group: org.artifactory, ver: 7.161.14, java: 651, res: 404, pom: original }
+  - { id: artifactory-support-core, group: org.artifactory, ver: 7.161.14, java: 25, res: 0, pom: original }
+  - { id: artifactory-traffic, group: org.artifactory, ver: 7.161.14, java: 25, res: 0, pom: original }
+  - { id: artifactory-update, group: org.artifactory, ver: 7.161.14, java: 28, res: 0, pom: original }
+  - { id: artifactory-utils, group: org.artifactory, ver: 7.161.14, java: 6, res: 0, pom: original }
+  - { id: artifactory-web-application, group: org.artifactory, ver: 7.161.14, java: 46, res: 165, pom: original }
+  - { id: artifactory-work-queue-api, group: org.artifactory, ver: 1.78.0, java: 13, res: 0, pom: original }
+
+access:
+  - { id: access-application, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: access-client-api, group: org.jfrog.access, ver: 7.191.14, java: 502, res: 15, pom: original }
+  - { id: access-client-core, group: org.jfrog.access, ver: 7.191.14, java: 570, res: 15, pom: original }
+  - { id: access-common-api, group: org.jfrog.access, ver: 7.191.14, java: 83, res: 1, pom: original }
+  - { id: access-common-core, group: org.jfrog.access, ver: 7.191.14, java: 96, res: 0, pom: original }
+  - { id: access-common-grpc, group: org.jfrog.access, ver: 7.191.14, java: 0, res: 0, pom: original }
+  - { id: access-common-mapstruct, group: org.jfrog.access, ver: 7.191.14, java: 2, res: 1, pom: original }
+  - { id: access-common-rest, group: org.jfrog.access, ver: 7.191.14, java: 138, res: 0, pom: original }
+  - { id: access-common-router-client, group: org.jfrog.access, ver: 7.191.14, java: 2, res: 0, pom: original }
+  - { id: access-server-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: access-server-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 2282, res: 1, pom: recovered }
+  - { id: access-server-graphql, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: access-server-grpc, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: access-server-rest, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+
+jfrog-commons:
+  - { id: jfrog-annotation-processing, group: org.jfrog.common, ver: 13.21.0, java: 17, res: 1, pom: original }
+  - { id: jfrog-application, group: org.jfrog.common, ver: 13.21.0, java: 32, res: 0, pom: original }
+  - { id: jfrog-base, group: org.jfrog.common, ver: 13.21.0, java: 5, res: 0, pom: original }
+  - { id: jfrog-cache, group: org.jfrog.common, ver: 13.19.0, java: 20, res: 0, pom: original }
+  - { id: jfrog-centralintegration-grpc-api, group: com.jfrog.centralintegration, ver: 1.320.0, java: 8, res: 4, pom: original }
+  - { id: jfrog-commons-autoconfigure, group: org.jfrog.common, ver: 13.40.0, java: 2, res: 2, pom: original }
+  - { id: jfrog-commons-config-extra, group: org.jfrog.common, ver: 13.40.0, java: 10, res: 1, pom: original }
+  - { id: jfrog-commons-logging-extra, group: org.jfrog.common, ver: 13.40.0, java: 32, res: 9, pom: original }
+  - { id: jfrog-commons-rest, group: org.jfrog.common, ver: 13.21.0, java: 7, res: 0, pom: original }
+  - { id: jfrog-config, group: org.jfrog.configuration, ver: 13.21.0, java: 42, res: 0, pom: original }
+  - { id: jfrog-crypto, group: org.jfrog.security, ver: 13.21.0, java: 72, res: 0, pom: original }
+  - { id: jfrog-crypto-fips, group: org.jfrog.security, ver: 13.19.0, java: 0, res: 1, pom: original }
+  - { id: jfrog-db-infra, group: org.jfrog.storage, ver: 13.21.0, java: 133, res: 67, pom: original }
+  - { id: jfrog-eventing-client-api, group: org.jfrog.eventing, ver: 1.118.0, java: 18, res: 0, pom: original }
+  - { id: jfrog-eventing-client-core, group: org.jfrog.eventing, ver: 1.118.0, java: 9, res: 0, pom: original }
+  - { id: jfrog-eventing-client-jfbus-adapter, group: org.jfrog.eventing, ver: 1.118.0, java: 103, res: 6, pom: original }
+  - { id: jfrog-eventing-facade-api, group: org.jfrog.eventing, ver: 1.118.0, java: 9, res: 0, pom: original }
+  - { id: jfrog-eventing-facade-impl, group: org.jfrog.eventing, ver: 1.118.0, java: 4, res: 1, pom: original }
+  - { id: jfrog-eventing-messagebus, group: org.jfrog.eventing, ver: 1.118.0, java: 12, res: 0, pom: original }
+  - { id: jfrog-eventing-uem, group: org.jfrog.eventing, ver: 1.118.0, java: 10, res: 0, pom: original }
+  - { id: jfrog-http-client, group: org.jfrog.common, ver: 13.21.0, java: 42, res: 0, pom: original }
+  - { id: jfrog-http-client5, group: org.jfrog.common, ver: 13.21.0, java: 35, res: 0, pom: original }
+  - { id: jfrog-iostreams, group: org.jfrog.common, ver: 13.21.0, java: 5, res: 0, pom: original }
+  - { id: jfrog-jersey-config, group: org.jfrog.common, ver: 13.21.0, java: 2, res: 0, pom: original }
+  - { id: jfrog-jfbus-api, group: org.jfrog.jfbus, ver: 1.386.26, java: 0, res: 1, pom: original }
+  - { id: jfrog-jfevent, group: org.jfrog.common, ver: 13.21.0, java: 20, res: 0, pom: original }
+  - { id: jfrog-logging, group: org.jfrog.common, ver: 13.21.0, java: 43, res: 0, pom: original }
+  - { id: jfrog-model, group: org.jfrog.common, ver: 13.21.0, java: 7, res: 0, pom: original }
+  - { id: jfrog-multitenant-infra, group: org.jfrog.common, ver: 13.21.0, java: 27, res: 0, pom: original }
+  - { id: jfrog-onemodelsdk-lib, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jfrog-opensaml-deps, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jfrog-opensaml-deps-fips, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jfrog-platform, group: org.jfrog.common, ver: 13.19.0, java: 3, res: 0, pom: original }
+  - { id: jfrog-topology-common, group: com.jfrog.topology, ver: 1.237.49, java: 4, res: 0, pom: original }
+  - { id: jfrog-topology-environment, group: com.jfrog.topology, ver: 1.237.49, java: 16, res: 1, pom: original }
+  - { id: jfrog-topology-grpc-api, group: com.jfrog.topology, ver: 1.237.49, java: 2, res: 1, pom: original }
+  - { id: jfrog-utils, group: org.jfrog.common, ver: 13.21.0, java: 75, res: 0, pom: original }
+
+ms-client-metadata:
+  - { id: metadata-client-api, group: org.jfrog.metadata, ver: 7.490.1, java: 37, res: 0, pom: original }
+  - { id: metadata-client-core, group: org.jfrog.metadata, ver: 7.490.1, java: 10, res: 0, pom: original }
+
+ms-client-jfconnect:
+  - { id: jfconnect-client-api, group: org.jfrog.jfconnect, ver: 7.158.0, java: 85, res: 4, pom: original }
+  - { id: jfconnect-client-core, group: org.jfrog.jfconnect, ver: 7.158.0, java: 72, res: 5, pom: original }
+
+ms-client-federation:
+  - { id: platformfederation-client-api, group: com.jfrog.platformfederation, ver: 1.202.0, java: 22, res: 0, pom: original }
+  - { id: platformfederation-client-core, group: com.jfrog.platformfederation, ver: 1.202.0, java: 152, res: 7, pom: original }
+
+service-other:
+  - { id: HdrHistogram, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: HikariCP, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: accessors-smart, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: aerogear-otp-java, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: analytics-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: angus-activation, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: animal-sniffer-annotations, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: annotations, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: antlr4-runtime, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: aopalliance-repackaged-4.0.0-M3, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: apache-client, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: apptrust-client-api, group: com.jfrog.apptrust, ver: 1.80.0, java: 59, res: 7, pom: original }
+  - { id: apptrust-client-core, group: com.jfrog.apptrust, ver: 1.80.0, java: 63, res: 8, pom: original }
+  - { id: asm, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: asm-commons, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-annotations, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-config, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-event, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-extras-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-ip, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-johnson-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-password-encoder, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-plugins-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-plugins-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-plugins-servlet, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-plugins-webfragment, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-plugins-webfragment-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-plugins-webresource, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-plugins-webresource-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-plugins-webresource-spi, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-profiling, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-scheduler-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-scheduler-caesium, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-secure-random, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-secure-utils, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-secure-xml, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-spring, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: atlassian-util-concurrent, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: auth, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: aws-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: aws-java-sdk-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: aws-java-sdk-secretsmanager, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: aws-java-sdk-sts, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: aws-query-protocol, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: beehive-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: btf, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: caffeine, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: checker-qual, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: checksums, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: checksums-spi, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: class-model-4.0.0-M3, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: classgraph, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: classmate, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: client-java, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: client-java-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: client-java-proto, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: cloud-compatible-email-validation, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: com.springsource.net.jcip.annotations, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: commons-beanutils, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: commons-cli, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: commons-codec, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: commons-collections, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: commons-collections4, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: commons-compress, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: commons-fileupload, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: commons-io, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: commons-lang3, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: commons-pool2, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: commons-text, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: content-type, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: context-propagation, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-azure-ad, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-common, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-core-tiny, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-events, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-integration-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-integration-client-common, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-integration-client-rest, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-integration-springsecurity, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-integration-springsecurity-common, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-ldap, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-password-encoders, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-persistence, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-remote, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-server-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-server-common, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: crowd-synchronisation, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: cryptacular, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: db-scheduler, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: dnsjava, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: embedded-crowd-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: embedded-crowd-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: embedded-crowd-spi, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: endpoints-spi, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: error_prone_annotations, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: event-client, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: eventstream, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: expressly, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: failsafe, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: failureaccess, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: federation-graphql-java-support, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: findbugs-annotations, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: flyway-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: flyway-database-derby, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: flyway-database-oracle, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: flyway-database-postgresql, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: flyway-mysql, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: flyway-sqlserver, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: graphql-java, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: graphql-java-extended-scalars, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: grpc-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: grpc-context, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: grpc-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: grpc-netty, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: grpc-netty-shaded, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: grpc-protobuf, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: grpc-protobuf-lite, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: grpc-stub, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: grpc-util, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: gson, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: gson-fire, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: guava-32.1.3-jre, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: guava-retrying, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: hibernate-validator-8.0.5.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: hk2-4.0.0-M3, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: hk2-api-4.0.0-M3, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: hk2-core-4.0.0-M3, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: hk2-locator-4.0.0-M3, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: hk2-runlevel-4.0.0-M3, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: hk2-utils-4.0.0-M3, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: http-auth, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: http-auth-aws, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: http-auth-aws-eventstream, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: http-auth-spi, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: http-client-spi, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: httpclient, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: httpclient-cache, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: httpclient5, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: httpclient5-cache, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: httpcore, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: httpcore5, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: httpcore5-h2, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: identity-spi, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: iostreams, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: ipaddress, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: istack-commons-runtime, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: j2objc-annotations, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jackson-annotations, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jackson-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jackson-coreutils, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jackson-coreutils-equivalence, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jackson-databind, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jackson-databind-nullable, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jackson-dataformat-cbor, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jackson-dataformat-yaml, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jackson-datatype-guava, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jackson-datatype-jdk8, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jackson-datatype-jsr310, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jackson-module-jakarta-xmlbind-annotations, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jackson-module-parameter-names, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jaeger-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jakarta.activation, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jakarta.activation-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jakarta.annotation-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jakarta.inject, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jakarta.inject-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jakarta.mail-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jakarta.servlet-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jakarta.validation-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jakarta.ws.rs-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jakarta.xml.bind-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: java-dataloader, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: java-semver, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: javassist-3.30.2-GA, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: javax.activation-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: javax.annotation-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: javers-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jaxb-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jaxb-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jaxb-impl, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jaxb-runtime, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jaxen, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jboss-logging-3.6.3.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jcip-annotations, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jcl-over-slf4j, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jdom2, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jersey-bean-validation, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jersey-client, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jersey-common, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jersey-container-servlet, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jersey-entity-filtering, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jersey-hk2, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jersey-media-json-jackson, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jersey-micrometer, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jersey-server, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jersey-spring6, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jetcd-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jetcd-common, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jetcd-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jetcd-grpc, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jfbus-service, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 383, res: 35, pom: recovered }
+  - { id: jfconfig-service, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 274, res: 14, pom: recovered }
+  - { id: jfmelt-java-client, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jgrapht-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jgrapht-io, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jheaps, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jmespath-java, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jna, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jna-platform, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: joda-time, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jopt-simple, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jose4j, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: json-patch, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: json-schema-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: json-schema-validator, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: json-smart, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: json-utils, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jspecify, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jsr305, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: jul-to-slf4j, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: kotlin-stdlib, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: kotlin-stdlib-jdk7, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: kotlin-stdlib-jdk8, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: lang-tag, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: lettuce-core-6.8.2.RELEASE, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: libphonenumber, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: license-manager, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: listenablefuture-9999.0-empty-to-avoid-conflict-with-guava, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: log4j-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: log4j-to-slf4j, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: logback-classic, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: logback-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: logback-jackson, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: logback-json-classic, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: logback-json-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: logging-interceptor, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: lombok, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: lombok-mapstruct-binding, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: mapstruct, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: maven-artifact, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: metrics, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: metrics-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: metrics-healthchecks, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: metrics-jmx, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: metrics-json, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: metrics-spi, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: micrometer-commons, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: micrometer-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: micrometer-jakarta9, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: micrometer-observation, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: msal4j, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: msg-simple, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-buffer-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-codec-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-codec-base-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-codec-compression-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-codec-dns-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-codec-http-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-codec-http2-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-codec-marshalling-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-codec-protobuf-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-codec-socks-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-common-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-handler-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-handler-proxy-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-nio-client, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-resolver-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-resolver-dns-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-transport-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-transport-classes-epoll-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: netty-transport-native-unix-common-4.2.17.Final, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: nimbus-jose-jwt, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: oauth2-oidc-sdk, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: okhttp, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: okhttp-jvm, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: okio-jvm, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opensaml-core-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opensaml-core-impl, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opensaml-messaging-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opensaml-profile-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opensaml-saml-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opensaml-saml-impl, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opensaml-security-impl, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opensaml-soap-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opensaml-soap-impl, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opensaml-storage-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opensaml-xmlsec-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opensaml-xmlsec-impl, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opentracing-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opentracing-noop, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: opentracing-util, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: osgi-resource-locator, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: oshi-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: panopticon-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: perfmark-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: picocontainer, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: plexus-utils, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: profiles, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: propertyset-1.3-21Nov03, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: proto-google-common-protos, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: protobuf-java, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: protocol-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: rds, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: re2j, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: reactive-streams, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: reactor-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: reactor-extra, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: redis-authx-core-0.1.1-beta2, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: regions, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: resilience4j-circuitbreaker, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: resilience4j-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: resilience4j-retry, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: retries, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: retries-spi, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: router-grpc-api, group: org.jfrog.router, ver: 7.954.0, java: 25, res: 2, pom: original }
+  - { id: rtfs-service, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 3, res: 0, pom: recovered }
+  - { id: sal-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: sal-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: sdk-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: shib-networking, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: shib-security, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: shib-support, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: shib-velocity, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: simpleclient, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: simpleclient_common, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: simpleclient_httpserver, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: simpleclient_tracer_common, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: simpleclient_tracer_otel, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: simpleclient_tracer_otel_agent, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: slf4j-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: snakeyaml, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: sourcemap, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-aop, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-beans, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-actuator, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-actuator-autoconfigure, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-autoconfigure, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-configuration-metadata, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-graphql, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-health, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-http-client, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-http-converter, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-jackson2, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-jersey, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-micrometer-metrics, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-micrometer-observation, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-properties-migrator, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-reactor, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-restclient, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-servlet, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-starter, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-starter-actuator, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-starter-graphql, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-starter-jackson, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-starter-jersey, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-starter-logging, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-starter-micrometer-metrics, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-starter-tomcat, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-starter-tomcat-runtime, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-starter-validation, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-starter-web, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-starter-webmvc, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-tomcat, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-validation, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-web-server, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-boot-webmvc, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-bridge-4.0.0-M3, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-context, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-expression, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-graphql, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-jdbc, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-ldap-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-security-config, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-security-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-security-crypto, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-security-ldap, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-security-oauth2-client, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-security-oauth2-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-security-oauth2-jose, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-security-saml2-service-provider, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-security-web, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-test, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-tx, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-vault-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-web, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: spring-webmvc, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: stax2-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: support-common, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: support-rest, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: swagger-annotations, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: swagger-compat-spec-parser, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: swagger-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: swagger-models, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: swagger-parser, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: swagger-parser-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: swagger-parser-safe-url-resolver, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: swagger-parser-v2-converter, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: swagger-parser-v3, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: sysconf, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: third-party-jackson-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: tomcat-annotations-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: tomcat-embed-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: tomcat-embed-el, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: tomcat-embed-websocket, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: tomcat-jdbc, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: tomcat-juli, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: topology-service, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 252, res: 21, pom: recovered }
+  - { id: txw2, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: uri-template, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: utils, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: utils-lite, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: vavr, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: vavr-match, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: velocity-engine-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: vertx-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: vertx-core-logging, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: vertx-grpc, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: woodstox-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: xmemcached, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: xmlsec, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+  - { id: zstd-jni-1.5.7, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, res: 0, pom: recovered }
+
+addons:  # domain extracted from artifactId suffix; addon_xml = addon.xml descriptor present
+  - { id: artifactory-addon-alpine, domain: alpine, java: 3, addon_xml: no }
+  - { id: artifactory-addon-analytics, domain: analytics, java: 1, addon_xml: no }
+  - { id: artifactory-addon-archive-v2, domain: archive-v2, java: 50, addon_xml: no }
+  - { id: artifactory-addon-bower, domain: bower, java: 39, addon_xml: no }
+  - { id: artifactory-addon-bundle-handler, domain: bundle-handler, java: 37, addon_xml: no }
+  - { id: artifactory-addon-cargo, domain: cargo, java: 18, addon_xml: no }
+  - { id: artifactory-addon-central-integration, domain: central-integration, java: 10, addon_xml: no }
+  - { id: artifactory-addon-chef, domain: chef, java: 23, addon_xml: no }
+  - { id: artifactory-addon-cleanup, domain: cleanup, java: 112, addon_xml: no }
+  - { id: artifactory-addon-cocoapods, domain: cocoapods, java: 22, addon_xml: no }
+  - { id: artifactory-addon-composer, domain: composer, java: 43, addon_xml: no }
+  - { id: artifactory-addon-conan, domain: conan, java: 35, addon_xml: no }
+  - { id: artifactory-addon-curation, domain: curation, java: 12, addon_xml: no }
+  - { id: artifactory-addon-debian, domain: debian, java: 45, addon_xml: no }
+  - { id: artifactory-addon-distribution-handler, domain: distribution-handler, java: 8, addon_xml: no }
+  - { id: artifactory-addon-docker, domain: docker, java: 116, addon_xml: no }
+  - { id: artifactory-addon-dpkg-common, domain: dpkg-common, java: 3, addon_xml: no }
+  - { id: artifactory-addon-evidence, domain: evidence, java: 38, addon_xml: no }
+  - { id: artifactory-addon-federated, domain: federated, java: 134, addon_xml: no }
+  - { id: artifactory-addon-filtered-resources, domain: filtered-resources, java: 7, addon_xml: no }
+  - { id: artifactory-addon-gems, domain: gems, java: 74, addon_xml: no }
+  - { id: artifactory-addon-git, domain: git, java: 18, addon_xml: no }
+  - { id: artifactory-addon-grid, domain: grid, java: 30, addon_xml: no }
+  - { id: artifactory-addon-ha, domain: ha, java: 48, addon_xml: no }
+  - { id: artifactory-addon-helmoci, domain: helmoci, java: 1, addon_xml: no }
+  - { id: artifactory-addon-jf-connect, domain: jf-connect, java: 2, addon_xml: no }
+  - { id: artifactory-addon-jf-event, domain: jf-event, java: 51, addon_xml: no }
+  - { id: artifactory-addon-keys, domain: keys, java: 3, addon_xml: no }
+  - { id: artifactory-addon-layouts, domain: layouts, java: 2, addon_xml: no }
+  - { id: artifactory-addon-ldap, domain: ldap, java: 13, addon_xml: no }
+  - { id: artifactory-addon-lead-artifact-detector, domain: lead-artifact-detector, java: 1, addon_xml: no }
+  - { id: artifactory-addon-license, domain: license, java: 14, addon_xml: no }
+  - { id: artifactory-addon-mirror, domain: mirror, java: 69, addon_xml: no }
+  - { id: artifactory-addon-nimmodel, domain: nimmodel, java: 2, addon_xml: no }
+  - { id: artifactory-addon-nuget, domain: nuget, java: 63, addon_xml: no }
+  - { id: artifactory-addon-observability, domain: observability, java: 13, addon_xml: no }
+  - { id: artifactory-addon-oci, domain: oci, java: 3, addon_xml: no }
+  - { id: artifactory-addon-onboarding, domain: onboarding, java: 3, addon_xml: no }
+  - { id: artifactory-addon-opkg, domain: opkg, java: 20, addon_xml: no }
+  - { id: artifactory-addon-p2, domain: p2, java: 25, addon_xml: no }
+  - { id: artifactory-addon-package-reroute, domain: package-reroute, java: 28, addon_xml: no }
+  - { id: artifactory-addon-plugins, domain: plugins, java: 41, addon_xml: no }
+  - { id: artifactory-addon-properties, domain: properties, java: 3, addon_xml: no }
+  - { id: artifactory-addon-pub, domain: pub, java: 17, addon_xml: no }
+  - { id: artifactory-addon-puppet, domain: puppet, java: 18, addon_xml: no }
+  - { id: artifactory-addon-release-bundle, domain: release-bundle, java: 86, addon_xml: no }
+  - { id: artifactory-addon-replication, domain: replication, java: 137, addon_xml: no }
+  - { id: artifactory-addon-rest, domain: rest, java: 26, addon_xml: no }
+  - { id: artifactory-addon-retention, domain: retention, java: 97, addon_xml: no }
+  - { id: artifactory-addon-retention-common, domain: retention-common, java: 138, addon_xml: no }
+  - { id: artifactory-addon-search, domain: search, java: 4, addon_xml: no }
+  - { id: artifactory-addon-security-resource, domain: security-resource, java: 2, addon_xml: no }
+  - { id: artifactory-addon-sso, domain: sso, java: 51, addon_xml: no }
+  - { id: artifactory-addon-support, domain: support, java: 34, addon_xml: no }
+  - { id: artifactory-addon-swift, domain: swift, java: 24, addon_xml: no }
+  - { id: artifactory-addon-terraform, domain: terraform, java: 32, addon_xml: no }
+  - { id: artifactory-addon-vagrant, domain: vagrant, java: 1, addon_xml: no }
+  - { id: artifactory-addon-vcs, domain: vcs, java: 9, addon_xml: no }
+  - { id: artifactory-addon-watch, domain: watch, java: 19, addon_xml: no }
+  - { id: artifactory-addon-webstart, domain: webstart, java: 10, addon_xml: no }
+  - { id: artifactory-addon-worker, domain: worker, java: 116, addon_xml: no }
+  - { id: artifactory-addon-xray, domain: xray, java: 25, addon_xml: no }
+  - { id: artifactory-addon-yum, domain: yum, java: 50, addon_xml: no }
+  - { id: artifactory-addons-common, domain: artifactory-addons-common, java: 63, addon_xml: no }
+  - { id: artifactory-addons-manager, domain: artifactory-addons-manager, java: 71, addon_xml: no }
+
+go_services:  # Ghidra-decompiled ELF binaries, C pseudocode (backend-go/); see README.md there
+  - { id: jf-event, functions: 59073, pseudocode_mb: 108 }
+  - { id: jf-metadata, functions: 84650, pseudocode_mb: 168 }
+  - { id: jf-observability, functions: 47999, pseudocode_mb: 96 }
+  - { id: jf-unifiedpolicy, functions: 72615, pseudocode_mb: 144 }
+  - { id: jf-evidence, functions: 80041, pseudocode_mb: 144 }
+  - { id: jf-evaluation, functions: 59245, pseudocode_mb: 112 }
+  - { id: jf-platformfederation, functions: 61513, pseudocode_mb: 128 }
+  - { id: jf-apptrust, functions: 70737, pseudocode_mb: 144 }
+  - { id: jf-jfmelt, functions: 58575, pseudocode_mb: 112 }
+  - { id: jf-onemodel, functions: 49058, pseudocode_mb: 96 }
+  - { id: jf-router, functions: 178678, pseudocode_mb: 368 }
+  - { id: jf-jfconnect, functions: 52265, pseudocode_mb: 112 }
+
+frontend:
+  note: source maps lack sourcesContent; secondary-fidelity restore (see decompiled README)
+  artifactory_ui_host: 25 files (micro-frontend host, Vue2)
+  frontend_server: 533 files (SSR, TS structure preserved)

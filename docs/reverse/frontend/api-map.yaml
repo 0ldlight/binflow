@@ -1,0 +1,114 @@
+# Artifactory Frontend Screen-to-API Map — evidence index (E1/E2/E4)
+#
+# > IMPORTANT (clean-room): EVIDENCE INDEX mapping screens to observed backend endpoints.
+# > NOT a design input for BinFlow API design (program charter §39-41; ADR-0001).
+# > Endpoints cited only where a source exists; screens without evidence = api: UNKNOWN (禁猜).
+#
+# two API planes (frontend/README §1):
+#   SSR plane   — /ui/api/v1/... served by frontend-server (session/router-token auth;
+#                 basic auth NOT accepted: E4 probe /ui/api/v1/ui/auth/current -> {"name":"anonymous"})
+#   backend REST— /artifactory/api/* and /access/* consumed by MFEs (basic/bearer/token auth)
+# sources: A = decompiled frontend/frontend-server/src/**; B = runtime bundle strings;
+#          E4 = live probe; spec refs = docs/reverse/*.md sections.
+
+meta:
+  runtime_reference: "http://localhost:8082 (7.161.20)"
+  ssr_gateway: "ExpressLoaders mounts /readiness + ${PREFIX}/api/v1 (PREFIX env JF_NO_LOCAL_ROUTER_PREFIX; platform deploy = /ui) — Loaders/ExpressLoaders.ts (A)"
+  service_prefixes: "Constants/NODE_SERVER_PATH.ts (A): /ui=artifactory, /access, /mds, /event, /xray, /insight, /mc, /pipe, /distribution, /runtime, /worker, /xsc, /catalog, /tracker, /jfconnect, /replicator, /lifecycle, /evidence, ..."
+
+# ---------------------------------------------------------------- SSR plane (frontend-server, E1)
+ssr_plane_artifactory:            # routes/ArtifactoryRoute.ts, mounted /ui/api/v1/ui/*
+  - { method: GET,    path: "/auth/current",                     auth: session, note: "E4 probe: basic-auth returns anonymous body" }
+  - { method: GET,    path: "/auth/screen/footer",               auth: session, note: "E4: 401 without session" }
+  - { method: GET,    path: "/hasValidUserProfileToken",         auth: session }
+  - { method: GET,    path: "/securityconfig/joinKey",           auth: admin-only }
+  - { method: HEAD,   path: "/userApiKey/:userName",             auth: session }
+  - { method: GET,    path: "/artifactactions/downloadfolder",   auth: session, timeout: download }
+  - { method: POST,   path: "/auth/login",                       auth: open }
+  - { method: POST,   path: "/auth/logout",                      auth: session }
+  - { method: POST,   path: "/auth/changePassword",              auth: session }
+  - { method: POST,   path: "/onboarding/changePassword",        auth: session }
+  - { method: POST,   path: "/userProfile",                      auth: session }
+  - { method: PUT,    path: "/userProfile",                      auth: session }
+  - { method: POST,   path: "/userIdentifyToken/:user",          auth: session }
+  - { method: POST,   path: "/userApiKey/:userName",             auth: session }
+  - { method: PUT,    path: "/userApiKey/:user",                 auth: session }
+  - { method: DELETE, path: "/deleteApiKeyForUser/:userName",    auth: session }
+  - { method: POST,   path: "/proxies",                          auth: session }
+  - { method: POST,   path: "/proxies/deleteProxies",            auth: session }
+  - { method: PUT,    path: "/proxies/:id",                      auth: session }
+  - { method: PUT,    path: "/mail",                             auth: session }
+  - { method: PUT,    path: "/securityconfig",                   auth: session }
+  - { method: PUT,    path: "/generalConfig",                    auth: session }
+  - { method: PUT,    path: "/crowd",                            auth: "session (proxied)" }
+  - { method: POST,   path: "/xrayRepo/setXrayEnabled",          auth: session }
+  - { method: POST,   path: "/xrayRepo/setAllowBlockedArtifactsDownload", auth: session }
+  - { method: POST,   path: "/xrayRepo/setAllowWhenUnavailable", auth: session }
+  - { method: GET,    path: "/repodata",                         auth: "session + optional project-admin token elevation (query permission)" }
+  - { method: GET,    path: "/builds/(|names|repository)",       auth: "project-admin elevation" }
+  - { method: GET,    path: "/bundles/repositories",             auth: "project-admin elevation" }
+  - { method: "GET/POST", path: "/permissiontargets/(|releaseBundles|buildPatterns)", auth: "project-admin elevation" }
+  - { method: GET,    path: "/permissiontargets/allUsersGroups", auth: "project-admin elevation" }
+  - { method: ALL,    path: "/redirect*",                        auth: session, note: "artifact redirect head/location handlers" }
+  - { method: ALL,    path: "/systemlogs/downloadFile",          auth: "session (proxied, download timeout)" }
+  - { method: ALL,    path: "/userSupport/downloadBundle/*",     auth: "session (download timeout)" }
+  - { method: ALL,    path: "/* (fallback)",                     auth: session, note: "ARTIFACTORY_PROXY_ROUTES registry + proxied to artifactory backend; unmatched -> 404 Not Found" }
+ssr_plane_auth:                   # routes/LoginRoutes.ts, mounted /ui/api/v1/auth/*
+  - { method: GET,  path: "/logout" }
+  - { method: GET,  path: "/crowd-login" }
+  - { method: GET,  path: "/http-sso-login" }
+  - { method: GET,  path: "/reset-password", note: "renders SPA index" }
+  - { method: GET,  path: "/oauth2/loginResponse" }
+  - { method: POST, path: "/mfa/resetMfaStatus/:username", auth: "admin-only + username validator" }
+  - { method: GET,  path: "/mfa/enroll/:authenticator" }
+  - { method: POST, path: "/mfa/verify/:authenticator" }
+  - { method: GET,  path: "/mfa/config",   auth: admin-only }
+  - { method: POST, path: "/mfa/config",   auth: "admin-only + validator" }
+  - { method: GET,  path: "/reAuthenticationNeeded" }
+  - { method: GET,  path: "/login/autoRedirectState" }
+  - { method: POST, path: "/saml/loginResponse/:name?" }
+  - { method: GET,  path: "/saml/samlLogoutUrl" }
+  - { method: GET,  path: "/saml/samlRegistrationId" }
+ssr_plane_open_routes:            # Constants/AUTHENTICATION.ts OPEN_ROUTES (E1) — 免认证白名单(节选, 全表见源)
+  family:
+    - "/health, /auth/logout, /auth/crowd-login, /auth/http-sso-login, /auth/oauth2/loginResponse, /auth/saml/loginResponse, /auth/saml/samlRegistrationId"
+    - "/auth/mfa/enroll, /auth/mfa/verify, /auth/login/autoRedirectState"
+    - "/ui/auth/login, /ui/auth/logout, /ui/auth/reset-password, /ui/auth/changePassword, /ui/auth/forgotpassword, /ui/auth/loginRelatedData, /ui/auth/validatetoken, /ui/auth/resetpassword"
+    - "/system/getPasswordPolicy, /system/support/bundle, /system/version, /system/readiness, /system/liveness, /system/memory, /system/memory/report"
+    - "/metrics, /system/featuresConfig"
+    - "/{svc}/webapp for distribution pipe catalog xray insight runtime mc worker xsc event access ..."  # MFE 静态资产
+    - "/access/entities/users/invited/setPassword, /access/token/verify, /access/auth/login, /access/auth/mfa/*, /access/realms, /access/mode"
+  open_or_authenticated:
+    - "/system/auth/screen/footer, /ui/auth/current, /ui/auth/screen/systemMessages, /xray/ui/permissions/current, /auth/issaml, /ui/oauth2/loginRequestPlatform"
+
+# ---------------------------------------------------------------- screen -> API
+screens:
+  - { screen: login,               api: ["POST /ui/api/v1/auth/login (A)", "GET /ui/api/v1/auth/saml/* + /oauth2/loginResponse (A)", "/ui/api/v1/auth/mfa/* (A)", "SSO 探测 /jfconnect/api/v1/myjfrogsso/url (B)"], unknown: [] }
+  - { screen: artifacts-tree,      api: [], unknown: ["树节点懒加载/详情面板/tab 精确 wire — MFE API 调用经压缩无字面量, 需 devtools 抓包"] }
+  - { screen: packages,            api: ["/ui/api/v1/mfe/packages/version (B)"], unknown: ["包列表/卡片数据 wire"] }
+  - { screen: artifact-search,     api: ["aql.md §14 UI 搜索族四端点 (spec)"], unknown: [] }
+  - { screen: repositories-list,   api: ["/api/repositories CRUD 族 (rest-api.md §2)"], unknown: ["UI 列表额外列 (Project/Environment/Replications/Shared With) 数据源 wire"] }
+  - { screen: repository-form,     api: ["/api/repositories (rest-api.md §2)"], unknown: ["布局/包型元数据下拉数据源"] }
+  - { screen: users-list,          api: ["GET /api/security/users (auth-model §1.2; 回显字段级见 gap-endpoints.md)"], unknown: ["UI 扇出端点族 (gap-endpoints 记走 Access v2 members——精确路径见该文件)"] }
+  - { screen: user-form,           api: ["PUT/POST /api/security/users/{name} (auth-model §1.2/§1.3)"], unknown: ["User Permissions 矩阵 wire"] }
+  - { screen: groups-list-form,    api: ["/api/security/groups/* (rbac-model §1.2)"], unknown: [] }
+  - { screen: permissions,         api: ["permission targets API (gap-endpoints.md permission 节)"], unknown: ["UI 编辑器 Users/Groups 区块 wire (console-ui §8-10)"] }
+  - { screen: access-tokens,       api: ["GET/POST /api/security/token + POST /api/security/token/revoke (auth-model §3)"], unknown: ["管理页 token 列表的 UI 消费 wire"] }
+  - { screen: user-profile,        api: ["GET/PUT /ui/api/v1/ui/userProfile (A)", "POST /ui/api/v1/ui/userIdentifyToken/:user (A)", "/ui/api/v1/ui/userApiKey 族 (A)"], unknown: ["SSH key CRUD wire"] }
+  - { screen: ldap-config,         api: ["auth-integration.md §1.4 LDAP UI 端点表 (spec)"], unknown: [] }
+  - { screen: oauth-config,        api: ["GET/POST /ui/api/v1/admin/security/oauth (auth-integration §2.1/§2.3)"], unknown: [] }
+  - { screen: saml-config,         api: ["GET/PUT /ui/api/v1/admin/security/saml/config (auth-integration §3.1/§3.2)"], unknown: [] }
+  - { screen: http-sso,            api: [], unknown: ["整页 wire"] }
+  - { screen: crowd-integration,   api: ["PUT /ui/api/v1/ui/crowd (A)"], unknown: ["读取侧 wire"] }
+  - { screen: scim,                api: [], unknown: ["整页 wire"] }
+  - { screen: vault,               api: [], unknown: ["整页 wire"] }
+  - { screen: maintenance,         api: ["GET /ui/api/crontime?cron=<expr> (cron-scheduling §4)"], unknown: ["GC/配额/清理配置读写端点 (疑配置描述符族, 未证)"] }
+  - { screen: backups,             api: ["备份配置经配置描述符 (cron-scheduling §2 出厂值)"], unknown: ["备份 UI 读写 wire"] }
+  - { screen: storage-summary,     api: ["/api/storageinfo 扇出 (gap-endpoints.md)"], unknown: [] }
+  - { screen: import-export,       api: ["import-export-api.md 全族 (spec)"], unknown: [] }
+  - { screen: general-settings,    api: ["PUT /ui/api/v1/ui/generalConfig (A)", "PUT /ui/api/v1/ui/mail (A)"], unknown: ["logo/custom message 读取侧 wire"] }
+  - { screen: set-me-up,           api: ["token 生成 POST /api/security/token (auth-model §3)"], unknown: ["向导会话/包型元数据端点"] }
+  - { screen: deploy-dialog,       api: ["PUT /<repo>/<path> 上传 (rest-api.md §1)"], unknown: ["对话框元数据 (layout 模式串) 数据源"] }
+  - { screen: system-logs-viewer,  api: ["/ui/api/v1/ui/systemlogs/downloadFile (A)"], unknown: ["日志列表/流式读取 wire"] }
+  - { screen: global-footer,       api: ["GET /ui/api/v1/system/version (A; E4 返回前端服务版本 1.652.42)", "GET /ui/api/v1/ui/auth/screen/footer (A,E4)"], unknown: [] }
+  - { screen: pro-screens,         api: [], unknown: ["retention/lifecycle/release-bundles/federation/migration/quick-setup 全部 Pro 屏 wire (screens.yaml route_only 族)"] }

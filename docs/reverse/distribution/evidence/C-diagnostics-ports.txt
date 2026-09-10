@@ -1,0 +1,27 @@
+# 来源: SOURCE C 安装包 /Users/lzw/Downloads/artifactory-pro-7.161.16/app/bin/diagnostics/diagnostics.yaml（33.3KB，摘编）
+# 版本: 7.161.16 | 证据等级: E2 | 摘编：预检端口表 + ulimit 阈值 + 检查类型
+# 用途: 安装/启动预检（diagnosticsUtil 按 diagnostics.yaml 串行执行）的默认端口清单
+# 交叉印证: jfbus 端口 8057 未列入预检表，由 E4 进程命令行 (-Dserver.port=8057) 与 jfbus.sh 默认值补全。
+
+默认端口表（{{键:默认值}}，portbind=占用即失败）:
+  router.entrypoints.externalPort  8082   # 对外入口
+  router.entrypoints.internalPort  8046   # 服务间内部入口
+  router.entrypoints.traefikApiPort 8049  # traefik API
+  router.entrypoints.grpcPort      8047   # router gRPC
+  artifactory.port                 8081   # artifactory Tomcat 直连
+  access.port                      8040   # access HTTP
+  access.grpcPort                  8045   # access gRPC
+  metadata.port                    8086
+  frontend.port                    8070
+  jfbus (server.port)              8057   # 仅 E4/E2 脚本默认值，不在预检表
+
+ulimit 预检:
+  process 数下限 1024（不足=失败）
+  open files 下限 32000（不足=失败）
+  （与 artifactory.sh 启动硬检查 MIN_MAX_OPEN_FILES=32000 / MIN_MAX_OPEN_PROCESSES=1024 一致）
+
+检查类型（system 命令 43 处，串行执行）:
+  portbind        端口可绑定（被占即失败）
+  ulimit          进程数/文件描述符下限
+  firewallport    端口被防火墙拦截检测
+  firewalliptables iptables 规则拦截检测

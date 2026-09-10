@@ -1,0 +1,212 @@
+# Artifactory 三层门控矩阵（feature-gates）
+#
+# **证据索引**：本文件是 `docs/reverse/enterprise/` 系列中的「门控判定」清单。
+# - A = 反编译源码 `/Users/lzw/workspace/artifactory-decompiled/backend`（7.161.24，只读）。
+# - B = 运行时参照实例 `http://localhost:8082`（7.161.20 Enterprise Plus Trial，凭据经本地环境变量（不入库），E4 实测）。
+# - C = 安装包 `/Users/lzw/Downloads/artifactory-pro-7.161.16`。
+# - D = JFrog 官方公开文档。
+# - E 等级：E1=A+B+C+D；E2=A+B；E3=A；E4=B；E5=C/D。
+# - clean-room：仅记录可观察的门控行为与判定路径，不翻译代码。
+# - 生命周期行为规格（lockdown 触发的 API 响应细节）见同目录 license-behavior.md。
+---
+meta:
+  title: Artifactory 三层门控矩阵
+  role: evidence-index（门控判定）
+  sources:
+    A: "反编译源码 /Users/lzw/workspace/artifactory-decompiled/backend（7.161.24，只读）"
+    B: "运行时参照实例 http://localhost:8082（7.161.20 Enterprise Plus Trial，凭据经本地环境变量，E4 实测）"
+    C: "安装包 /Users/lzw/Downloads/artifactory-pro-7.161.16"
+    D: "JFrog 官方公开文档"
+
+three_layer_model:
+  overview: "Artifactory 的功能可见性由三层独立但串联的机制决定，任一层拒绝即功能不可用。"
+  request_flow: "请求 → L1 Addon 装配层 → L2 License Tier 层 → L3 Entitlement 细粒度层 → 业务逻辑（L1 看 addon.xml 是否存在 + addons.disabled + HA 配置；L2 看 Product.Type + SubscriptionType + trial/expiry；L3 看 isEntitled + @Entitlement AOP + JFConnect/legacy fallback）"
+  layers:
+    - name: "L1 Addon 装配层（物理存在 + 开关）"
+      loading: "启动期扫描所有 classpath 下 META-INF/addon.properties，为每个 addon 创建 AddonInfo（A=artifactory-config/org/artifactory/spring/SpringConfigResourceLoader.java:65-130）"
+      initial_state: "默认 INACTIVATED；addon name 出现在系统属性 addons.disabled（CSV）则置 DISABLED；非 HA 部署时 ha 强制 DISABLED（A=同文件 75-79 行）"
+      activation: "license 加载成功后 activateAddons 将所有非 DISABLED 的 addon 置 ACTIVATED；HA addon 额外检查 isEntitled(HA) && isHaConfigured()，否则置 NOT_CONFIGURED 或 NOT_LICENSED（A=artifactory-common/org/artifactory/addon/AddonsManagerBase.java:95-120）"
+      query: "isAddonSupported(AddonType) = addon 存在且 state == ACTIVATED（A=同文件 90-93 行）"
+      runtime_disable: "artifactory.system.properties 中 addons.disabled=<csv> 可在不改代码情况下屏蔽任意 addon（A=artifactory-config/org/artifactory/common/ConstantValues.java:37）"
+    - name: "L2 License Tier 层（产品许可类型）"
+      product_types: [OSS, COMMERCIAL, COMMERCIAL_XWE, ARCHIVE_TRIAL, ARCHIVE, EDGE_TRIAL, EDGE, TRIAL, TRIAL_XWE, ENTERPRISE, ENTERPRISE_PLUS_TRIAL, ENTERPRISE_PLUS]
+      product_types_source: "A=artifactory-addons-manager/org/jfrog/license/api/Product.java:150-206"
+      subscription_types: [NONE, FREE, FREE_XRAY, PRO, PRO_TEAM, PRO_XRAY, PRO_TEAM_WITH_AUTH, ENTERPRISE_TEAM, ENTERPRISE_XRAY_TEAM, ENTERPRISE_PLUS]
+      subscription_types_source: "A=jfrog-platform/org/jfrog/common/platform/subscription/SubscriptionType.java"
+      license_hash_suffix:
+        source: "A=ArtifactoryLicenseProvider.getLicenseKeyHash() 412-446 行"
+        mapping: { "0": OSS, "1": TRIAL, "2": COMMERCIAL, "3": ENTERPRISE, "4": ENTERPRISE_PLUS, "5": ENTERPRISE_PLUS_TRIAL, "6": EDGE, "7": EDGE_TRIAL, "8": ARCHIVE, "9": ARCHIVE_TRIAL }
+        runtime_evidence: "B 实测 /api/system/version.license=26a15afeb8ddffa50e93bc1ad6f20817574b77275（末位 5 = Enterprise Plus Trial），与 /api/system/license.type 一致（E4）"
+      tier_predicates:
+        - { method: isEnterprisePlusInstalled, predicate: "type ∈ {ENTERPRISE_PLUS, ENTERPRISE_PLUS_TRIAL}" }
+        - { method: isEdgeLicensed, predicate: "type ∈ {EDGE, EDGE_TRIAL}" }
+        - { method: isArchiveLicensed, predicate: "type ∈ {ARCHIVE, ARCHIVE_TRIAL}" }
+        - { method: isBasicEnterpriseLicensed, predicate: "type == ENTERPRISE（AOL dedicated 模式下 trial 也算）" }
+        - { method: isEnterpriseLicensed, predicate: "isBasicEnterprise ∨ isTrial ∨ isEdge" }
+        - { method: trialLicenseExpired, predicate: "type.isTrial() && expires < now" }
+        - { method: isReadOnly, predicate: "termedLicense && expired（term license 过期后降级只读）" }
+      license_storage: "单机模式读 $ARTIFACTORY_HOME/etc/artifactory.lic（或 artifactory.cluster.license 回退）；HA 模式走 DB（a.java）。B 实测容器内 /opt/jfrog/artifactory/var/etc/artifactory/artifactory.lic 10760 字节 base64（E4）"
+    - name: "L3 Entitlement 细粒度层"
+      declared_count: 39
+      referenced_count: 45
+      entry_point: "AddonsManager.isEntitled(EntitlementType) → 优先查 EntitlementService（JFConnect），fallback 到 LicenseAddonsManagerImpl.isEntitled() 硬编码 switch（A=AddonsManagerImpl.java:404-430、LicenseAddonsManagerImpl.java:576-638）"
+      enforcement_mode: "当 EntitlementService.isEnforced()==true（JFConnect 服务端开启强制）时完全以 JFConnect 返回值为准，忽略本地 license 判定；否则本地 license 判定为主（A=AddonsManagerImpl.java:268-270,414-430）"
+      entitlement_aop: "REST resource 类标注 @Entitlement(value=...) 时，EntitlementAdvice 拦截方法调用——isEntitled(value)==false 直接返回 403（A=artifactory-rest-common/org/artifactory/rest/common/aop/EntitlementAdvice.java:44-50）"
+      aop_annotated_classes:
+        - { class: SsoAddonImpl, entitlement: OAUTH }
+        - { class: CrowdSsoResource, entitlement: CROWD }
+        - { class: LdapGroupResource, entitlement: LDAP }
+        - { class: SamlResource, entitlement: SAML }
+        - { class: OAuthResource, entitlement: OAUTH }
+        - { class: HaCommonAddon, entitlement: HA }
+        - { class: ArchivePolicyAddon, entitlement: JFRT }
+        - { class: CleanupPolicyAddon, entitlement: JFRT }
+        - { class: DistributionAddon, entitlement: RELEASE_BUNDLES_READ }
+        - { class: KeysAddon, entitlement: RELEASE_BUNDLES_READ }
+        - { class: ReleaseBundleAddon, entitlement: RELEASE_BUNDLES_READ }
+        - { class: ReplicationAddon, entitlement: REPO_REPLICATION }
+        - { class: ArtifactRetentionAddon, entitlement: JFRT }
+        - { class: EdgeSmartRepoAddon, entitlement: EDGE }
+        - { class: XrayAddon, entitlement: JFXR }
+        - { class: SecurityResourceAddon, entitlement: JFRT }
+      gating_annotations:
+        - { annotation: "@EnterprisePlusAddon", semantics: "要求 Enterprise Plus tier", classes: [DistributionAddon, KeysAddon, ReleaseBundleAddon] }
+        - { annotation: "@EdgeAddon", semantics: "要求 Edge tier", classes: [EdgeSmartRepoAddon] }
+        - { annotation: "@EdgeBlockedAddon", semantics: "Edge tier 下禁用", classes: [ArchivePolicyAddon, CleanupPolicyAddon, ReplicationAddon, ArtifactRetentionAddon, XrayAddon] }
+        - { annotation: "@SubscriptionTypeBlockedAddon", semantics: "指定订阅类型下禁用", classes: "SsoAddonImpl blocks FREE/FREE_XRAY/PRO_TEAM" }
+      annotation_dispatch_source: "A=LicenseAddonsManagerImpl.a(Collection,Class,...) 799-873 行"
+
+gate_matrix:
+  note: "被门控能力条目一览。l1/l2/l3 为 null 表示该层不参与判定。"
+  count: 39
+  entries:
+    - { n: 1, capability: "HA cluster", l1_addon: ha, l2_license_tier: "ENTERPRISE+（hash suffix 3/4/5/6/7/8/9 via hashIsFromHaFamily）", l3_entitlement: HA, evidence_refs: "AddonsManagerBase.updateHaAddonState; LicenseAddonsManagerImpl.isEntitled(HA)", evidence: E1 }
+    - { n: 2, capability: "Multipush replication", l1_addon: replication, l2_license_tier: "ENTERPRISE+ or hash suffix 1/3/4/5（isLicenseKeyHashSupportMultiPush）", l3_entitlement: MULTIPUSH_REPLICATION, evidence_refs: "ArtifactoryLicenseProvider.isLicenseKeyHashSupportMultiPush; VersionResource.replicationEntitlements", evidence: E1 }
+    - { n: 3, capability: "Event-based pull replication", l1_addon: replication, l2_license_tier: "licensed & !edge & !archive", l3_entitlement: EVENT_BASED_PULL_REPLICATION, evidence_refs: "LicenseAddonsManagerImpl.isEntitled case; VersionResource", evidence: E1 }
+    - { n: 4, capability: "Repo replication (push/pull)", l1_addon: replication, l2_license_tier: "licensed & !edge & !archive", l3_entitlement: REPO_REPLICATION, evidence_refs: "LicenseAddonsManagerImpl.isEntitled(REPO_REPLICATION); @Entitlement on ReplicationAddon", evidence: E1 }
+    - { n: 5, capability: "Smart Remote Repo", l1_addon: "smart-repo (implicit)", l2_license_tier: null, l3_entitlement: "EDGE（via EdgeSmartRepoAddon @Entitlement）", evidence_refs: "EdgeSmartRepoAddon annotation", evidence: E2 }
+    - { n: 6, capability: "S3 Object Store", l1_addon: "s3fileStore (binary-store-filestore jar)", l2_license_tier: ENTERPRISE+, l3_entitlement: null, evidence_refs: "AddonType.s3fileStore type=ent", evidence: E1 }
+    - { n: 7, capability: "GCS", l1_addon: gcs, l2_license_tier: ENTERPRISE+, l3_entitlement: null, evidence_refs: "AddonType.gcs type=ent", evidence: E1 }
+    - { n: 8, capability: "Sharding", l1_addon: sharding, l2_license_tier: ENTERPRISE+, l3_entitlement: null, evidence_refs: "AddonType.sharding type=ent", evidence: E1 }
+    - { n: 9, capability: "Xray integration", l1_addon: xray, l2_license_tier: "!edge & licensed & !expired", l3_entitlement: JFXR, evidence_refs: "LicenseAddonsManagerImpl.h(); @Entitlement(JFXR) on XrayAddon", evidence: E2 }
+    - { n: 10, capability: "Release Bundle v2 read", l1_addon: release-bundle, l2_license_tier: "ENTERPRISE_PLUS or (edge & !mixed)", l3_entitlement: RELEASE_BUNDLES_READ, evidence_refs: "LicenseAddonsManagerImpl.isEntitled; @EnterprisePlusAddon + @Entitlement on ReleaseBundleAddon", evidence: E2 }
+    - { n: 11, capability: "Release Bundle v2 write", l1_addon: release-bundle, l2_license_tier: ENTERPRISE_PLUS, l3_entitlement: RELEASE_BUNDLES_WRITE, evidence_refs: "LicenseAddonsManagerImpl.isEntitled", evidence: E2 }
+    - { n: 12, capability: "Federation mirrors", l1_addon: federated, l2_license_tier: "basicEnterprise or entPlus；AOL requires subscription >= enterprise", l3_entitlement: FEDERATED_REPOSITORY, evidence_refs: "LicenseAddonsManagerImpl.i(); ArtifactoryLicenseProvider.isFederatedSupported", evidence: E2 }
+    - { n: 13, capability: "Cleanup v2 policies", l1_addon: "cleanup (policies jar)", l2_license_tier: "entPlus OR (xray-supported & basicEnterprise)", l3_entitlement: CLEANUP_POLICY, evidence_refs: "LicenseAddonsManagerImpl.k(); @Entitlement(JFRT) on CleanupPolicyAddon", evidence: E2 }
+    - { n: 14, capability: "Retention v2", l1_addon: retention, l2_license_tier: "entPlus or archive or (retentionEnabled & !policyArchivePackage & enterprise)", l3_entitlement: RETENTION_WEBHOOKS, evidence_refs: "LicenseAddonsManagerImpl.c(); @Entitlement(JFRT) on ArtifactRetentionAddon", evidence: E2 }
+    - { n: 15, capability: "Cold storage archive", l1_addon: archive-v2, l2_license_tier: "archiveLicensed OR jfrogColdStorageEnabled", l3_entitlement: "COLD_STORAGE / COLD_STORAGE_CREATE", evidence_refs: "LicenseAddonsManagerImpl.isEntitled(COLD_STORAGE/COLD_STORAGE_CREATE)", evidence: E2 }
+    - { n: 16, capability: "Binary provider download redirect", l1_addon: binary-store-filestore, l2_license_tier: "entPlus or edge", l3_entitlement: BINARY_PROVIDER_DOWNLOAD_REDIRECT, evidence_refs: "LicenseAddonsManagerImpl.isEntitled", evidence: E2 }
+    - { n: 17, capability: "CDN", l1_addon: null, l2_license_tier: "enterprise (basic)", l3_entitlement: CDN, evidence_refs: "LicenseAddonsManagerImpl.b(true)", evidence: E2 }
+    - { n: 18, capability: "Anonymous CDN", l1_addon: null, l2_license_tier: "edge or entPlus or basicEnterprise", l3_entitlement: ANONYMOUS_CDN, evidence_refs: "LicenseAddonsManagerImpl.isEntitled", evidence: E2 }
+    - { n: 19, capability: "Checksum-based storage replication", l1_addon: null, l2_license_tier: "entPlus or edge", l3_entitlement: CHECKSUM_BASED_STORAGE_REPLICATION, evidence_refs: "LicenseAddonsManagerImpl.isEntitled", evidence: E2 }
+    - { n: 20, capability: "Access Federation", l1_addon: null, l2_license_tier: "edge or entPlus", l3_entitlement: ACCESS_FEDERATION, evidence_refs: "LicenseAddonsManagerImpl.isEntitled", evidence: E2 }
+    - { n: 21, capability: "Live Logs", l1_addon: null, l2_license_tier: "enterprise (basic)", l3_entitlement: LIVE_LOGS, evidence_refs: "LicenseAddonsManagerImpl.b(false)", evidence: E2 }
+    - { n: 22, capability: "MTLS", l1_addon: null, l2_license_tier: "enterprise (basic)", l3_entitlement: MTLS, evidence_refs: "LicenseAddonsManagerImpl.b(false)", evidence: E2 }
+    - { n: 23, capability: "Signed URL", l1_addon: null, l2_license_tier: "enterprise (basic)", l3_entitlement: SIGNED_URL, evidence_refs: "LicenseAddonsManagerImpl.b(false)", evidence: E2 }
+    - { n: 24, capability: "SSO (OAuth/Crowd/SAML/LDAP)", l1_addon: "sso / ldap", l2_license_tier: "always true (hardcoded)", l3_entitlement: "OAUTH/CROWD/SAML/LDAP", evidence_refs: "LicenseAddonsManagerImpl.isEntitled line 636; @Entitlement on resources", evidence: E1 }
+    - { n: 25, capability: "User Plugins", l1_addon: plugins, l2_license_tier: "licensed", l3_entitlement: "DISABLE_PLUGIN_INFRA (negative gate)", evidence_refs: "LicenseAddonsManagerImpl.isEntitled", evidence: E2 }
+    - { n: 26, capability: "Package re-route", l1_addon: package-reroute, l2_license_tier: null, l3_entitlement: PACKAGE_REROUTE, evidence_refs: "EntitlementType enum; caller check", evidence: E2 }
+    - { n: 27, capability: "AI Catalog", l1_addon: null, l2_license_tier: null, l3_entitlement: AI_CATALOG, evidence_refs: "EntitlementType enum", evidence: E3 }
+    - { n: 28, capability: "Packages IDE Extension", l1_addon: null, l2_license_tier: null, l3_entitlement: PACKAGES_IDE_EXTENSION, evidence_refs: "EntitlementType enum", evidence: E3 }
+    - { n: 29, capability: "Hardened Artifactory Events", l1_addon: null, l2_license_tier: null, l3_entitlement: HARDENED_ARTIFACTORY_EVENTS, evidence_refs: "EntitlementType enum", evidence: E3 }
+    - { n: 30, capability: "Hardened User Plugin Events", l1_addon: null, l2_license_tier: null, l3_entitlement: HARDENED_ARTIFACTORY_USER_PLUGIN_EVENTS, evidence_refs: "EntitlementType enum", evidence: E3 }
+    - { n: 31, capability: "Alibaba Artifactory identity", l1_addon: null, l2_license_tier: null, l3_entitlement: ALIBABA_ARTIFACTORY, evidence_refs: "c/a.java identity verifier; EntitlementType enum", evidence: E3 }
+    - { n: 32, capability: "Binary provider RSH", l1_addon: null, l2_license_tier: "enterprise (basic)", l3_entitlement: BINARY_PROVIDER_RSH, evidence_refs: "LicenseAddonsManagerImpl.b(true)", evidence: E2 }
+    - { n: 33, capability: "Binary provider custom endpoint", l1_addon: null, l2_license_tier: "enterprise (basic)", l3_entitlement: BINARY_PROVIDER_CUSTOM_ENDPOINT, evidence_refs: "LicenseAddonsManagerImpl.b(true)", evidence: E2 }
+    - { n: 34, capability: "Edge mixed mode", l1_addon: null, l2_license_tier: "edge or mixed flag", l3_entitlement: EDGE_MIXED, evidence_refs: "LicenseAddonsManagerImpl.isEntitled", evidence: E2 }
+    - { n: 35, capability: "Release Bundles Write Mix", l1_addon: null, l2_license_tier: "cluster entPlus", l3_entitlement: RELEASE_BUNDLES_WRITE_MIX, evidence_refs: "LicenseAddonsManagerImpl.isEntitled", evidence: E2 }
+    - { n: 36, capability: "Binary Provider Download Redirect Mix", l1_addon: null, l2_license_tier: "cluster entPlus or edge", l3_entitlement: BINARY_PROVIDER_DOWNLOAD_REDIRECT_MIX, evidence_refs: "LicenseAddonsManagerImpl.isEntitled", evidence: E2 }
+    - { n: 37, capability: "Curation intercept", l1_addon: curation, l2_license_tier: null, l3_entitlement: CURATION, evidence_refs: "EntitlementType enum; curation addon caller", evidence: E2 }
+    - { n: 38, capability: "All pro-tier package types (40+)", l1_addon: "per-package addon jars", l2_license_tier: "licensed (any non-OSS)", l3_entitlement: null, evidence_refs: "AddonType.type=pro; activateAddons requires isLicenseInstalled", evidence: E1 }
+    - { n: 39, capability: "All oss-tier features (AQL/SSH/plugins ecosystem)", l1_addon: null, l2_license_tier: "OSS allowed", l3_entitlement: null, evidence_refs: "AddonType.type=oss; OssAddonsManager bypasses license check", evidence: E1 }
+
+entitlement_types:
+  source: "A=artifactory-common/org/artifactory/entitlement/EntitlementType.java（39 声明）；access 内部值来自 access-server-core org/jfrog/access/server/service/entitlements/Result.java 及 EntitlementServiceImpl"
+  version_api_note: "B 实测 /api/system/version.entitlements 仅返回 4 项（EVENT_BASED_PULL_REPLICATION/SMART_REMOTE_TARGET_FOR_EDGE/REPO_REPLICATION/MULTIPUSH_REPLICATION），其余 entitlement 不在此端点显示（E4）"
+  count: 45
+  entries:
+    - { name: LIVE_LOGS, declared: true, referenced: true, l2_logic: "b(false) → enterprise licensed", evidence: E2 }
+    - { name: BINARY_PROVIDER_DOWNLOAD_REDIRECT, declared: true, referenced: true, l2_logic: "entPlus or edge", evidence: E2 }
+    - { name: CDN, declared: true, referenced: true, l2_logic: "b(true) → enterprise licensed", evidence: E2 }
+    - { name: ANONYMOUS_CDN, declared: true, referenced: true, l2_logic: "edge or entPlus or basicEnterprise", evidence: E2 }
+    - { name: CHECKSUM_BASED_STORAGE_REPLICATION, declared: true, referenced: true, l2_logic: "entPlus or edge", evidence: E2 }
+    - { name: EDGE, declared: true, referenced: true, l2_logic: "isEdgeLicensed()", evidence: E2 }
+    - { name: COLD_STORAGE, declared: true, referenced: true, l2_logic: "archiveLicensed or jfrogColdStorageEnabled", evidence: E2 }
+    - { name: CURATION, declared: true, referenced: true, l2_logic: "default false (caller checks separately)", evidence: E2 }
+    - { name: RELEASE_BUNDLES_READ, declared: true, referenced: true, l2_logic: "clusterEntPlus or (!mixed & edge)", evidence: E2 }
+    - { name: RELEASE_BUNDLES_WRITE, declared: true, referenced: true, l2_logic: "entPlusInstalled", evidence: E2 }
+    - { name: ACCESS_FEDERATION, declared: true, referenced: true, l2_logic: "edge or entPlus", evidence: E2 }
+    - { name: BINARY_PROVIDER_CUSTOM_ENDPOINT, declared: true, referenced: true, l2_logic: "b(true)", evidence: E2 }
+    - { name: JFXR, declared: true, referenced: true, l2_logic: "h() → xraySupported or (termed & JFRT entitled)", evidence: E2 }
+    - { name: FEDERATED_REPOSITORY, declared: true, referenced: true, l2_logic: "i() → isFederatedSupported", evidence: E2 }
+    - { name: COLD_STORAGE_CREATE, declared: true, referenced: true, l2_logic: "c(retentionEnabledOnSaas)", evidence: E2 }
+    - { name: RETENTION_WEBHOOKS, declared: true, referenced: true, l2_logic: "b(false)", evidence: E2 }
+    - { name: SIGNED_URL, declared: true, referenced: true, l2_logic: "b(false)", evidence: E2 }
+    - { name: HA, declared: true, referenced: true, l2_logic: "b(true)", evidence: E2 }
+    - { name: JFRT, declared: true, referenced: true, l2_logic: "licensed & !edge & !mixed & !archive", evidence: E2 }
+    - { name: MULTIPUSH_REPLICATION, declared: true, referenced: true, l2_logic: "b(true)", evidence: E2 }
+    - { name: EVENT_BASED_PULL_REPLICATION, declared: true, referenced: true, l2_logic: "b(true)", evidence: E2 }
+    - { name: LDAP, declared: true, referenced: true, l2_logic: "true (always)", evidence: E1 }
+    - { name: SAML, declared: true, referenced: true, l2_logic: "true (always)", evidence: E1 }
+    - { name: CROWD, declared: true, referenced: true, l2_logic: "true (always)", evidence: E1 }
+    - { name: OAUTH, declared: true, referenced: true, l2_logic: "true (always)", evidence: E1 }
+    - { name: BINARY_PROVIDER_RSH, declared: true, referenced: true, l2_logic: "b(true)", evidence: E2 }
+    - { name: MTLS, declared: true, referenced: true, l2_logic: "b(false)", evidence: E2 }
+    - { name: ALIBABA_ARTIFACTORY, declared: true, referenced: true, l2_logic: "default false (identity verifier separate)", evidence: E3 }
+    - { name: CLEANUP_POLICY, declared: true, referenced: true, l2_logic: "k() → entPlus or (xray & basicEnt) or (AOL ent_xray_team)", evidence: E2 }
+    - { name: REPO_REPLICATION, declared: true, referenced: true, l2_logic: "licensed & !edge & !mixed & !archive", evidence: E2 }
+    - { name: SMART_REMOTE_TARGET_FOR_EDGE, declared: true, referenced: true, l2_logic: "default false (version API reports)", evidence: E2 }
+    - { name: EDGE_MIXED, declared: true, referenced: true, l2_logic: "edge or mixedEdge flag", evidence: E2 }
+    - { name: RELEASE_BUNDLES_WRITE_MIX, declared: true, referenced: true, l2_logic: "clusterEntPlus", evidence: E2 }
+    - { name: BINARY_PROVIDER_DOWNLOAD_REDIRECT_MIX, declared: true, referenced: true, l2_logic: "clusterEntPlus or edge", evidence: E2 }
+    - { name: HARDENED_ARTIFACTORY_EVENTS, declared: true, referenced: true, l2_logic: "default false", evidence: E3 }
+    - { name: HARDENED_ARTIFACTORY_USER_PLUGIN_EVENTS, declared: true, referenced: true, l2_logic: "default false", evidence: E3 }
+    - { name: DISABLE_PLUGIN_INFRA, declared: true, referenced: true, l2_logic: "default false", evidence: E3 }
+    - { name: PACKAGES_IDE_EXTENSION, declared: true, referenced: true, l2_logic: "default false", evidence: E3 }
+    - { name: AI_CATALOG, declared: true, referenced: true, l2_logic: "default false", evidence: E3 }
+    - { name: PACKAGE_REROUTE, declared: false, referenced: true, l2_logic: "default false (access-side only)", evidence: E3 }
+    - { name: ENTITLEMENT, declared: false, referenced: true, l2_logic: "access Result type marker", evidence: E3 }
+    - { name: SUBSCRIPTION, declared: false, referenced: true, l2_logic: "access Result type marker", evidence: E3 }
+    - { name: TRIAL, declared: false, referenced: true, l2_logic: "access Result type marker", evidence: E3 }
+    - { name: LICENSE, declared: false, referenced: true, l2_logic: "access Result type marker", evidence: E3 }
+    - { name: NONE, declared: false, referenced: true, l2_logic: "access Result default", evidence: E3 }
+
+lockdown:
+  note: "license 失效时的全局拦截行为（触发条件 → HTTP 响应）；API 行为细节见 license-behavior.md §4"
+  conditions:
+    - { condition: "无 license 安装", http_status: 503, message: "No license installed!", evidence_ref: "LicenseAddonsManagerImpl.a(boolean) 710-713 行", evidence: E1 }
+    - { condition: "Trial license 过期", http_status: 503, message: "Trial license expired!", evidence_ref: "同上 714-717 行", evidence: E1 }
+    - { condition: "License 版本不匹配", http_status: 503, message: "No license installed!", evidence_ref: "同上 718-721 行", evidence: E1 }
+    - { condition: "上传请求 + readOnly license（termed expired）", http_status: 503, message: "Unable to upload to Artifactory due to an expired license...", evidence_ref: "同上 722-725 行", evidence: E1 }
+    - { condition: "AOL 订阅流量超限", http_status: 429, message: "You have reached your monthly quota for Data Transfer...", evidence_ref: "同上 698-701 行", evidence: E2 }
+    - { condition: "离线模式", http_status: 503, message: "Artifactory is in offline state...", evidence_ref: "同上 758-759 行", evidence: E1 }
+  intercept_points:
+    - "UploadServiceImpl 调用 interceptResponse(response, request, true)——lockdown 检查含 readOnly（A=artifactory-core/org/artifactory/engine/UploadServiceImpl.java:249）"
+    - "DownloadServiceImpl 调用 interceptResponse(response, request, false)——lockdown 检查不含 readOnly（下载允许）（A=artifactory-core/org/artifactory/engine/DownloadServiceImpl.java:451）"
+    - "LicenseRestFilter 对所有 REST 路径调用 interceptRestResponse——对 trialExpirationRestCallToBlock 列表中的路径前缀额外拦截（A=artifactory-rest/org/artifactory/rest/filter/LicenseRestFilter.java:59-66）"
+    - "PingResource 在 skipLicenseCheck=false 时检查 lockdown()——返回 503（A=artifactory-rest/org/artifactory/rest/resource/system/PingResource.java:98）"
+  trial_expiration_blocklist:
+    source: "A=AddonsManager.java:48"
+    prefixes: [nuget, npm, yum, deb, docker, gems, pypi, vcs, cran, conda, composer, conan, puppet, chef, pub, cargo, terraform, pods, lfs, helm, alpine, release, "blob/info", "security/keys/trusted"]
+
+addon_selection_priority:
+  note: "同一 Addon 接口有多个实现（default + 企业版）时的选择优先级（A=LicenseAddonsManagerImpl.a(Collection,Class,...) 799-824 行）"
+  steps:
+    - "若 running mode == HA 且请求 HaCommonAddon → 直接返回企业实现"
+    - "若未安装 license → 跳过企业实现，选 default"
+    - "检查 @SubscriptionTypeBlockedAddon——当前订阅类型在 blocked 列表中 → 跳过该实现"
+    - "若类标 @EdgeAddon——要求 edge 或 mixedEdge"
+    - "若类标 @EnterprisePlusAddon——要求 entPlus 且非 mixedEntPlus"
+    - "若类标 @EdgeBlockedAddon——edge 或 mixedEdge 时跳过"
+    - "以上均通过 → 返回该企业实现"
+    - "无任何企业实现通过 → 返回 default 实现；若 default 也为 null → IllegalStateException"
+
+unknowns:
+  - "JFConnect enforcement=true 时的完整行为——当前参照实例未开启 enforcement，无法观察纯 JFConnect 裁决路径；需 JFrog SaaS 或启用 enforcement 的实例验证（E4 缺失）"
+  - "Partner license（AWS Marketplace）的完整门控差异——代码中多处 assertNotPartnerLicense() 阻止操作，但未观察到 partner license 实例的实际行为（E3）"
+  - "AOL dedicated server 模式——ConstantValues.aolDedicatedServer 影响多个 tier 判定，但自托管实例无法触发（E3）"
+  - "termLicenseDynamicExpiryDateEnabled——动态过期日开关改变 readOnly 判定，需 termed license 实例验证（E3）"
+  - "Mixed license cluster 行为细节——isMixedLicenseTypeInCluster / isMixedEdgeLicenseTypeInCluster 的具体降级策略仅在 footer message 中有描述，实际功能限制范围需多节点集群验证（E3）"
+  - "Identity blocker（Alibaba Cloud）——c/a.java 每 5 分钟校验身份，blocked 时禁止上传；非阿里云环境无法触发（E3）"
+  - "EntitlementType 中 default false 的 8 项（AI_CATALOG, PACKAGES_IDE_EXTENSION, HARDENED_*, DISABLE_PLUGIN_INFRA, ALIBABA_ARTIFACTORY, PACKAGE_REROUTE）——代码中未见显式 true 路径，可能由 JFConnect 服务端动态授予；需 SaaS 实例验证（E3）"
+  - "addons.disabled 运行时热更新——代码仅在启动期读取一次，运行时修改是否生效未验证（E3）"

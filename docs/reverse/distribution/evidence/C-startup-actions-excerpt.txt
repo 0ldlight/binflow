@@ -1,0 +1,99 @@
+# 来源: SOURCE C 安装包 /Users/lzw/Downloads/artifactory-pro-7.161.16/app/bin/artifactory.sh（节选，带原始行号）
+# 版本: 7.161.16 | 证据等级: E2 | 关键节摘录（非全文）
+# 用途: 主编排脚本的启动动作序 / start-stop-restart 分派 / 服务脚本编排顺序
+
+--- [323-346] startupActions 序列（逐项依序执行）---
+startupActions () {
+    checkJavaVersion
+    checkULimits "${MIN_MAX_OPEN_FILES}" "${MIN_MAX_OPEN_PROCESSES}"
+    validateSystemYaml
+    validateDbconnection "${JF_PRODUCT_HOME}"
+    testPermissions
+    syncEtc
+    setupNodeDetails
+    setupHA
+    addConfFiles
+    addExtraJavaArgs
+    setFipsEnvandProperty
+    prepareArtConfigYaml
+    addLogRotation
+    addCertsToJavaKeystore
+    prepareTomcat
+    configureServerXml
+    bootstrapJavaSecurity
+    bootstrapJfconnectCustomCerts
+    exportEnv "shared"
+    exportEnv "${ARTIFACTORY_NAME}"
+    setRouterToplogy
+    displayEnv
+}
+
+--- [348-398] start()（无参=前台运行模式）---
+start() {
+    databaseChecks
+    export JF_ARTIFACTORY_PID=${JF_PRODUCT_HOME}/var/work/run/${ARTIFACTORY_NAME}.pid
+    ...
+    if [ -z "$@" ]; then
+        startupActions
+        for serviceScript in ${JF_RT_SERVICE_DEPENDENT_SERVICES} ${JF_RT_SERVICE_NON_DEP_SERVICES}; do
+            local action="start"
+            if [ "${serviceScript}" == "${accessScript}" ]; then
+                action=""       # access 以前台（& 后台挂起）方式启动
+            fi
+            performActionOnScript "${serviceScript}" "${action}"
+        done
+        waitForDefaultTLSCertsGeneration
+        setCatalinaOpts
+        if $(isConsoleLogDisabled >/dev/null 2>&1); then
+            $TOMCAT_HOME/bin/catalina.sh run
+        else
+            $TOMCAT_HOME/bin/catalina.sh run > >(tee >(redirectServiceLogsToFile)) 2>&1
+        fi
+    ...
+}
+
+--- [262-298] stop()---
+stop() {
+    CATALINA_MGNT_PORT=8015
+    ...shutdown.sh + hardKillTomcat + rm pid...
+    # 移除 logrotation 后对全部受管服务脚本执行 stop
+    for serviceScript in ${JF_RT_SERVICE_DEPENDENT_SERVICES} ${JF_RT_SERVICE_NON_DEP_SERVICES}; do
+        performActionOnScript "${serviceScript}" "stop"
+    done
+}
+
+--- [484-486] 服务编排基线 ---
+JF_RT_SERVICE_DEPENDENT_SERVICES="${routerScript}"
+JF_RT_SERVICE_NON_DEP_SERVICES="${metadataScript} ${frontendScript} ${observabilityScript}"
+
+--- [500-554] 条件编排放缩（摘录）---
+if runAccess; then
+    JF_RT_SERVICE_DEPENDENT_SERVICES="${accessScript} ${JF_RT_SERVICE_DEPENDENT_SERVICES}"
+fi
+if runJfconfig; then
+    JF_RT_SERVICE_DEPENDENT_SERVICES="${jfconfigScript} ${JF_RT_SERVICE_DEPENDENT_SERVICES}"
+fi
+# runOnemodel/runTopology/runRtfs/runEvent/runJFConnect/runEvidence/runPlatformFederation/
+# runJfbus/runJfmelt/runAppTrust/runUnifiedPolicy/runEvaluation 为真时逐一追加进 NON_DEP 列表
+
+--- [563-571, 590-612] 信号捕获与 CLI 分派 ---
+terminate () { ...对所有受管服务脚本执行 stop... }
+trap terminate SIGINT SIGTERM SIGHUP
+
+if [[ $# == 0 ]]; then start; exit 0; fi
+case "$@" in
+  start|stop) start "$@" ;;
+  restart)    start "stop"; start "start" ;;
+  status|check) check ;;
+  help) usage ;;
+  *) usage; exit 1 ;;
+esac
+
+--- [28-59] 6.x 环境变量→7.x system.yaml 键映射（ART_ENV_MAP，摘首尾）---
+ART_ENV_MAP="""
+    shared.node.primary=HA_IS_PRIMARY
+    shared.node.id=HA_NODE_ID
+    ...
+    shared.database.password=DB_PASSWORD
+    access.database.maxIdleConnections=DB_POOL_MAX_IDLE
+"""

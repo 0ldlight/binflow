@@ -1,0 +1,575 @@
+# ============================================================
+# Artifactory 依赖图 — EVIDENCE INDEX (evidence-index-only)
+# 仅供发现与对账，禁止作为 BinFlow 结构设计依据（ADR-0001 / 宪章 §39-41）。
+# 行为规格见 docs/reverse/*.md；本文件只回答「哪个模块编译期依赖哪个模块」。
+# ============================================================
+# 证据等级：E1（静态观察 backend-maven/*/pom.original.xml 的 <dependencies> 声明）
+# 抽取方法：python3 + xml.etree 解析 138 个组内模块的 pom.original.xml，
+#   仅保留目标 (groupId:artifactId) 能解析到 modules.json 569 模块树内的边（org 内依赖）；
+#   groupId 缺省时按 Maven 规则继承本模块 groupId；
+#   目标为 recovered.thirdparty 三方占位的边不展开（spec），仅在 thirdparty_referenced 列节点+引用计数。
+# 已知局限：
+#   1) access-server-* 6 模块 + access-application + jfrog-onemodelsdk-lib 为 recovered 占位 pom，
+#      组内边不可抽取（其代码存在与否见 module-catalog）；标 pom: recovered。
+#   2) Maven <dependencyManagement>/BOM、classifier、optional 细节未展开；test 边保留并标 (test)。
+#   3) 同一 (from,to,scope) 的重复声明已去重：全边集 14 处重复（org 内占 10），org 内 475 原始边 -> 465 唯一边。
+meta:
+  source: /Users/lzw/workspace/artifactory-decompiled/backend-maven (ARTIFACTORY_DECOMPILED_SOURCE)
+  reference_version: 7.161.24 (module versions per modules.json)
+  generated: 2026-09-11
+  evidence_level: E1 (pom.original.xml static extraction)
+  read_only_note: source tree is read-only; regenerate instead of hand-editing
+summary:
+  modules_in_graph: 138   # artifactory-core 22 + access 14 + jfrog-commons 37 + addons 65
+  modules_with_original_pom: 131
+  modules_pom_recovered: 7   # access-server-{api,core,graphql,grpc,rest}, access-application, jfrog-onemodelsdk-lib
+  org_internal_edges: 465    # dedup (from,to,scope); raw 475, thirdparty-target edges 439 excluded
+  edges_by_from_group: { access: 34, addons: 257, artifactory-core: 125, jfrog-commons: 49 }
+  edges_by_scope: { compile: 428, test: 33, runtime: 4 }
+  distinct_target_modules: 92
+  thirdparty_referenced_nodes: 133   # node-only, no edges (spec)
+
+
+# ==========================================================
+# 组：artifactory-core（22 模块）
+# ==========================================================
+artifactory_core:
+  nodes:  # pom: original = 反编译自原始 pom；recovered = 占位 pom，无组内边
+    - { id: artifactory-api, group: org.artifactory, ver: 7.161.14, java: 555, pom: original }
+    - { id: artifactory-base-api, group: org.artifactory, ver: 1.78.0, java: 46, pom: original }
+    - { id: artifactory-base-rest, group: org.artifactory, ver: 7.161.14, java: 9, pom: original }
+    - { id: artifactory-capi, group: org.artifactory, ver: 7.161.14, java: 111, pom: original }
+    - { id: artifactory-common, group: org.artifactory, ver: 7.161.14, java: 826, pom: original }
+    - { id: artifactory-config, group: org.artifactory, ver: 7.161.14, java: 660, pom: original }
+    - { id: artifactory-core, group: org.artifactory, ver: 7.161.14, java: 1445, pom: original }
+    - { id: artifactory-event-queue-api, group: org.artifactory, ver: 1.78.0, java: 16, pom: original }
+    - { id: artifactory-federation-dto, group: org.jfrog.rtfs, ver: 2.26.0, java: 53, pom: original }
+    - { id: artifactory-lifecycle, group: org.artifactory, ver: 7.161.14, java: 9, pom: original }
+    - { id: artifactory-papi, group: org.artifactory, ver: 7.161.14, java: 71, pom: original }
+    - { id: artifactory-rest, group: org.artifactory, ver: 7.161.14, java: 336, pom: original }
+    - { id: artifactory-rest-common, group: org.artifactory, ver: 7.161.14, java: 147, pom: original }
+    - { id: artifactory-rest-ui, group: org.artifactory, ver: 7.161.14, java: 1189, pom: original }
+    - { id: artifactory-storage-common, group: org.artifactory, ver: 7.161.14, java: 184, pom: original }
+    - { id: artifactory-storage-db, group: org.artifactory, ver: 7.161.14, java: 651, pom: original }
+    - { id: artifactory-support-core, group: org.artifactory, ver: 7.161.14, java: 25, pom: original }
+    - { id: artifactory-traffic, group: org.artifactory, ver: 7.161.14, java: 25, pom: original }
+    - { id: artifactory-update, group: org.artifactory, ver: 7.161.14, java: 28, pom: original }
+    - { id: artifactory-utils, group: org.artifactory, ver: 7.161.14, java: 6, pom: original }
+    - { id: artifactory-web-application, group: org.artifactory, ver: 7.161.14, java: 46, pom: original }
+    - { id: artifactory-work-queue-api, group: org.artifactory, ver: 1.78.0, java: 13, pom: original }
+  edges:  # from -> deps（非 compile scope 以 "to (scope)" 标注；目标可为跨组模块）
+    - from: artifactory-api
+      deps: [artifactory-base-api, artifactory-base-rest, artifactory-capi, artifactory-config, artifactory-work-queue-api, jfrog-commons-rest, jfrog-model]
+    - from: artifactory-base-api
+      deps: [jfrog-utils]
+    - from: artifactory-base-rest
+      deps: [artifactory-utils, jfrog-utils]
+    - from: artifactory-capi
+      deps: [artifactory-base-api, artifactory-papi]
+    - from: artifactory-common
+      deps: [artifactory-api, artifactory-base-api, artifactory-base-rest, artifactory-config, artifactory-event-queue-api, artifactory-federation-dto, artifactory-utils, jfconnect-client-api, jfrog-base, jfrog-eventing-facade-impl, jfrog-http-client, jfrog-utils, metadata-client-api]
+    - from: artifactory-config
+      deps: [access-client-core, artifactory-base-api, artifactory-capi, artifactory-federation-dto, artifactory-papi, artifactory-utils, jfrog-annotation-processing, jfrog-config, jfrog-db-infra, jfrog-logging, jfrog-utils]
+    - from: artifactory-core
+      deps: [apptrust-client-core, artifactory-api, artifactory-capi, artifactory-common, artifactory-config, artifactory-event-queue-api, artifactory-federation-dto, artifactory-lifecycle, artifactory-storage-common, artifactory-storage-db, artifactory-support-core, artifactory-traffic, artifactory-update, artifactory-work-queue-api, jfconnect-client-api, jfconnect-client-core, jfrog-application, jfrog-eventing-facade-impl, jfrog-eventing-messagebus, jfrog-eventing-uem, jfrog-http-client, jfrog-http-client5, jfrog-iostreams, jfrog-utils, metadata-client-core (runtime), platformfederation-client-core]
+    - from: artifactory-event-queue-api
+      deps: [artifactory-base-api]
+    - from: artifactory-federation-dto
+      deps: [jfrog-utils]
+    - from: artifactory-lifecycle
+      deps: [artifactory-common, artifactory-config, artifactory-config (test), artifactory-storage-common, artifactory-storage-db, jfrog-utils (test)]
+    - from: artifactory-papi
+      deps: [artifactory-base-api, artifactory-utils, jfrog-annotation-processing, jfrog-http-client]
+    - from: artifactory-rest
+      deps: [artifactory-base-api, artifactory-config (test), artifactory-core, artifactory-federation-dto, artifactory-rest-common, jfrog-annotation-processing, jfrog-application, jfrog-jersey-config]
+    - from: artifactory-rest-common
+      deps: [artifactory-common, artifactory-config, artifactory-core, artifactory-storage-common]
+    - from: artifactory-rest-ui
+      deps: [artifactory-api, artifactory-capi, artifactory-common, artifactory-config, artifactory-core, artifactory-rest-common, artifactory-storage-common, artifactory-support-core]
+    - from: artifactory-storage-common
+      deps: [artifactory-capi, artifactory-common, artifactory-config]
+    - from: artifactory-storage-db
+      deps: [artifactory-config, artifactory-storage-common, jfrog-iostreams, jfrog-utils, metadata-client-api]
+    - from: artifactory-support-core
+      deps: [artifactory-common, artifactory-storage-common, artifactory-storage-db]
+    - from: artifactory-traffic
+      deps: [artifactory-api, artifactory-common, artifactory-config, artifactory-storage-common (runtime)]
+    - from: artifactory-update
+      deps: [artifactory-api, artifactory-config, artifactory-storage-common (runtime)]
+    - from: artifactory-utils
+      deps: [jfrog-http-client, jfrog-utils]
+    - from: artifactory-web-application
+      deps: [access-client-core, artifactory-common, artifactory-config, artifactory-core, artifactory-lifecycle, artifactory-rest, artifactory-rest-ui (runtime), artifactory-traffic, jfrog-utils]
+    - from: artifactory-work-queue-api
+      deps: [artifactory-base-api, jfrog-utils]
+  no_org_internal_edges: []
+
+# ==========================================================
+# 组：access（14 模块）
+# ==========================================================
+access:
+  nodes:  # pom: original = 反编译自原始 pom；recovered = 占位 pom，无组内边
+    - { id: access-application, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, pom: recovered }
+    - { id: access-client-api, group: org.jfrog.access, ver: 7.191.14, java: 502, pom: original }
+    - { id: access-client-core, group: org.jfrog.access, ver: 7.191.14, java: 570, pom: original }
+    - { id: access-common-api, group: org.jfrog.access, ver: 7.191.14, java: 83, pom: original }
+    - { id: access-common-core, group: org.jfrog.access, ver: 7.191.14, java: 96, pom: original }
+    - { id: access-common-grpc, group: org.jfrog.access, ver: 7.191.14, java: 0, pom: original }
+    - { id: access-common-mapstruct, group: org.jfrog.access, ver: 7.191.14, java: 2, pom: original }
+    - { id: access-common-rest, group: org.jfrog.access, ver: 7.191.14, java: 138, pom: original }
+    - { id: access-common-router-client, group: org.jfrog.access, ver: 7.191.14, java: 2, pom: original }
+    - { id: access-server-api, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, pom: recovered }
+    - { id: access-server-core, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 2282, pom: recovered }
+    - { id: access-server-graphql, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, pom: recovered }
+    - { id: access-server-grpc, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, pom: recovered }
+    - { id: access-server-rest, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, pom: recovered }
+  edges:  # from -> deps（非 compile scope 以 "to (scope)" 标注；目标可为跨组模块）
+    - from: access-client-api
+      deps: [access-common-api, access-common-core, access-common-rest, jfrog-http-client, jfrog-multitenant-infra, jfrog-platform, jfrog-utils]
+    - from: access-client-core
+      deps: [access-application (test), access-client-api, access-common-core, access-common-core (test), access-common-grpc, access-common-router-client, access-server-core (test), jfrog-db-infra, jfrog-db-infra (test), jfrog-utils]
+    - from: access-common-api
+      deps: [jfrog-annotation-processing, jfrog-cache, jfrog-http-client5, jfrog-multitenant-infra, jfrog-utils]
+    - from: access-common-core
+      deps: [access-common-api, access-common-api (test), jfrog-cache, jfrog-db-infra, jfrog-http-client5]
+    - from: access-common-grpc
+      deps: [router-grpc-api]
+    - from: access-common-rest
+      deps: [access-common-api, access-common-mapstruct, jfrog-utils]
+    - from: access-common-router-client
+      deps: [access-common-api, access-common-grpc, router-grpc-api]
+  no_org_internal_edges: [access-application, access-common-mapstruct, access-server-api, access-server-core, access-server-graphql, access-server-grpc, access-server-rest]
+
+# ==========================================================
+# 组：jfrog-commons（37 模块）
+# ==========================================================
+jfrog_commons:
+  nodes:  # pom: original = 反编译自原始 pom；recovered = 占位 pom，无组内边
+    - { id: jfrog-annotation-processing, group: org.jfrog.common, ver: 13.21.0, java: 17, pom: original }
+    - { id: jfrog-application, group: org.jfrog.common, ver: 13.21.0, java: 32, pom: original }
+    - { id: jfrog-base, group: org.jfrog.common, ver: 13.21.0, java: 5, pom: original }
+    - { id: jfrog-cache, group: org.jfrog.common, ver: 13.19.0, java: 20, pom: original }
+    - { id: jfrog-centralintegration-grpc-api, group: com.jfrog.centralintegration, ver: 1.320.0, java: 8, pom: original }
+    - { id: jfrog-commons-autoconfigure, group: org.jfrog.common, ver: 13.40.0, java: 2, pom: original }
+    - { id: jfrog-commons-config-extra, group: org.jfrog.common, ver: 13.40.0, java: 10, pom: original }
+    - { id: jfrog-commons-logging-extra, group: org.jfrog.common, ver: 13.40.0, java: 32, pom: original }
+    - { id: jfrog-commons-rest, group: org.jfrog.common, ver: 13.21.0, java: 7, pom: original }
+    - { id: jfrog-config, group: org.jfrog.configuration, ver: 13.21.0, java: 42, pom: original }
+    - { id: jfrog-crypto, group: org.jfrog.security, ver: 13.21.0, java: 72, pom: original }
+    - { id: jfrog-crypto-fips, group: org.jfrog.security, ver: 13.19.0, java: 0, pom: original }
+    - { id: jfrog-db-infra, group: org.jfrog.storage, ver: 13.21.0, java: 133, pom: original }
+    - { id: jfrog-eventing-client-api, group: org.jfrog.eventing, ver: 1.118.0, java: 18, pom: original }
+    - { id: jfrog-eventing-client-core, group: org.jfrog.eventing, ver: 1.118.0, java: 9, pom: original }
+    - { id: jfrog-eventing-client-jfbus-adapter, group: org.jfrog.eventing, ver: 1.118.0, java: 103, pom: original }
+    - { id: jfrog-eventing-facade-api, group: org.jfrog.eventing, ver: 1.118.0, java: 9, pom: original }
+    - { id: jfrog-eventing-facade-impl, group: org.jfrog.eventing, ver: 1.118.0, java: 4, pom: original }
+    - { id: jfrog-eventing-messagebus, group: org.jfrog.eventing, ver: 1.118.0, java: 12, pom: original }
+    - { id: jfrog-eventing-uem, group: org.jfrog.eventing, ver: 1.118.0, java: 10, pom: original }
+    - { id: jfrog-http-client, group: org.jfrog.common, ver: 13.21.0, java: 42, pom: original }
+    - { id: jfrog-http-client5, group: org.jfrog.common, ver: 13.21.0, java: 35, pom: original }
+    - { id: jfrog-iostreams, group: org.jfrog.common, ver: 13.21.0, java: 5, pom: original }
+    - { id: jfrog-jersey-config, group: org.jfrog.common, ver: 13.21.0, java: 2, pom: original }
+    - { id: jfrog-jfbus-api, group: org.jfrog.jfbus, ver: 1.386.26, java: 0, pom: original }
+    - { id: jfrog-jfevent, group: org.jfrog.common, ver: 13.21.0, java: 20, pom: original }
+    - { id: jfrog-logging, group: org.jfrog.common, ver: 13.21.0, java: 43, pom: original }
+    - { id: jfrog-model, group: org.jfrog.common, ver: 13.21.0, java: 7, pom: original }
+    - { id: jfrog-multitenant-infra, group: org.jfrog.common, ver: 13.21.0, java: 27, pom: original }
+    - { id: jfrog-onemodelsdk-lib, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, pom: recovered }
+    - { id: jfrog-opensaml-deps, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, pom: recovered }
+    - { id: jfrog-opensaml-deps-fips, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 0, pom: recovered }
+    - { id: jfrog-platform, group: org.jfrog.common, ver: 13.19.0, java: 3, pom: original }
+    - { id: jfrog-topology-common, group: com.jfrog.topology, ver: 1.237.49, java: 4, pom: original }
+    - { id: jfrog-topology-environment, group: com.jfrog.topology, ver: 1.237.49, java: 16, pom: original }
+    - { id: jfrog-topology-grpc-api, group: com.jfrog.topology, ver: 1.237.49, java: 2, pom: original }
+    - { id: jfrog-utils, group: org.jfrog.common, ver: 13.21.0, java: 75, pom: original }
+  edges:  # from -> deps（非 compile scope 以 "to (scope)" 标注；目标可为跨组模块）
+    - from: jfrog-annotation-processing
+      deps: [jfrog-utils]
+    - from: jfrog-application
+      deps: [jfrog-annotation-processing, jfrog-base, jfrog-config, jfrog-crypto, jfrog-http-client, jfrog-http-client5, jfrog-logging, jfrog-utils]
+    - from: jfrog-commons-autoconfigure
+      deps: [jfrog-commons-config-extra, jfrog-commons-logging-extra]
+    - from: jfrog-commons-logging-extra
+      deps: [jfrog-logging]
+    - from: jfrog-config
+      deps: [jfrog-annotation-processing, jfrog-crypto, jfrog-db-infra, jfrog-http-client, jfrog-logging, jfrog-utils]
+    - from: jfrog-crypto
+      deps: [jfrog-utils]
+    - from: jfrog-crypto-fips
+      deps: [jfrog-crypto]
+    - from: jfrog-db-infra
+      deps: [jfrog-base, jfrog-multitenant-infra, jfrog-utils]
+    - from: jfrog-eventing-client-core
+      deps: [jfrog-eventing-client-api]
+    - from: jfrog-eventing-client-jfbus-adapter
+      deps: [access-common-api, jfrog-eventing-client-core, jfrog-eventing-facade-api, jfrog-jfbus-api]
+    - from: jfrog-eventing-facade-api
+      deps: [jfrog-eventing-client-api, jfrog-eventing-client-core, jfrog-utils]
+    - from: jfrog-eventing-facade-impl
+      deps: [jfrog-eventing-client-jfbus-adapter, jfrog-eventing-facade-api]
+    - from: jfrog-eventing-messagebus
+      deps: [jfrog-eventing-client-core, jfrog-eventing-facade-api, jfrog-eventing-uem, jfrog-utils]
+    - from: jfrog-eventing-uem
+      deps: [jfrog-eventing-facade-api]
+    - from: jfrog-http-client
+      deps: [jfrog-crypto]
+    - from: jfrog-http-client5
+      deps: [jfrog-crypto]
+    - from: jfrog-jfevent
+      deps: [jfrog-utils]
+    - from: jfrog-logging
+      deps: [jfrog-multitenant-infra, jfrog-utils]
+    - from: jfrog-multitenant-infra
+      deps: [jfrog-utils]
+    - from: jfrog-topology-environment
+      deps: [jfrog-logging, jfrog-multitenant-infra, jfrog-topology-common, jfrog-utils]
+    - from: jfrog-utils
+      deps: [jfrog-base]
+  no_org_internal_edges: [jfrog-base, jfrog-cache, jfrog-centralintegration-grpc-api, jfrog-commons-config-extra, jfrog-commons-rest, jfrog-eventing-client-api, jfrog-iostreams, jfrog-jersey-config, jfrog-jfbus-api, jfrog-model, jfrog-onemodelsdk-lib, jfrog-opensaml-deps, jfrog-opensaml-deps-fips, jfrog-platform, jfrog-topology-common, jfrog-topology-grpc-api]
+
+# ==========================================================
+# 组：addons（65 模块）
+# ==========================================================
+addons:
+  nodes:  # pom: original = 反编译自原始 pom；recovered = 占位 pom，无组内边
+    - { id: artifactory-addon-alpine, group: org.artifactory.addons, ver: 7.161.14, java: 3, pom: original }
+    - { id: artifactory-addon-analytics, group: org.artifactory.addons, ver: 7.161.14, java: 1, pom: original }
+    - { id: artifactory-addon-archive-v2, group: org.artifactory.addons, ver: 7.161.14, java: 50, pom: original }
+    - { id: artifactory-addon-bower, group: org.artifactory.addons, ver: 7.161.14, java: 39, pom: original }
+    - { id: artifactory-addon-bundle-handler, group: org.artifactory.addons, ver: 7.161.14, java: 37, pom: original }
+    - { id: artifactory-addon-cargo, group: org.artifactory.addons, ver: 7.161.14, java: 18, pom: original }
+    - { id: artifactory-addon-central-integration, group: org.artifactory.addons, ver: 7.161.14, java: 10, pom: original }
+    - { id: artifactory-addon-chef, group: org.artifactory.addons, ver: 7.161.14, java: 23, pom: original }
+    - { id: artifactory-addon-cleanup, group: org.artifactory.addons, ver: 7.161.14, java: 112, pom: original }
+    - { id: artifactory-addon-cocoapods, group: org.artifactory.addons, ver: 7.161.14, java: 22, pom: original }
+    - { id: artifactory-addon-composer, group: org.artifactory.addons, ver: 7.161.14, java: 43, pom: original }
+    - { id: artifactory-addon-conan, group: org.artifactory.addons, ver: 7.161.14, java: 35, pom: original }
+    - { id: artifactory-addon-curation, group: org.artifactory.addons, ver: 7.161.14, java: 12, pom: original }
+    - { id: artifactory-addon-debian, group: org.artifactory.addons, ver: 7.161.14, java: 45, pom: original }
+    - { id: artifactory-addon-distribution-handler, group: org.artifactory.addons, ver: 7.161.14, java: 8, pom: original }
+    - { id: artifactory-addon-docker, group: org.artifactory.addons, ver: 7.161.14, java: 116, pom: original }
+    - { id: artifactory-addon-dpkg-common, group: org.artifactory.addons, ver: 7.161.14, java: 3, pom: original }
+    - { id: artifactory-addon-evidence, group: org.artifactory.addons, ver: 7.161.14, java: 38, pom: original }
+    - { id: artifactory-addon-federated, group: org.artifactory.addons, ver: 7.161.14, java: 134, pom: original }
+    - { id: artifactory-addon-filtered-resources, group: org.artifactory.addons, ver: 7.161.14, java: 7, pom: original }
+    - { id: artifactory-addon-gems, group: org.artifactory.addons, ver: 7.161.14, java: 74, pom: original }
+    - { id: artifactory-addon-git, group: org.artifactory.addons, ver: 7.161.14, java: 18, pom: original }
+    - { id: artifactory-addon-grid, group: org.artifactory.addons, ver: 7.161.14, java: 30, pom: original }
+    - { id: artifactory-addon-ha, group: org.artifactory.addons, ver: 7.161.14, java: 48, pom: original }
+    - { id: artifactory-addon-helmoci, group: org.artifactory.addons, ver: 7.161.14, java: 1, pom: original }
+    - { id: artifactory-addon-jf-connect, group: org.artifactory.addons, ver: 7.161.14, java: 2, pom: original }
+    - { id: artifactory-addon-jf-event, group: org.artifactory.addons, ver: 7.161.14, java: 51, pom: original }
+    - { id: artifactory-addon-keys, group: org.artifactory.addons, ver: 7.161.14, java: 3, pom: original }
+    - { id: artifactory-addon-layouts, group: org.artifactory.addons, ver: 7.161.14, java: 2, pom: original }
+    - { id: artifactory-addon-ldap, group: org.artifactory.addons, ver: 7.161.14, java: 13, pom: original }
+    - { id: artifactory-addon-lead-artifact-detector, group: org.artifactory.addons, ver: 7.161.14, java: 1, pom: original }
+    - { id: artifactory-addon-license, group: org.artifactory.addons, ver: 7.161.14, java: 14, pom: original }
+    - { id: artifactory-addon-mirror, group: org.artifactory.addons, ver: 7.161.14, java: 69, pom: original }
+    - { id: artifactory-addon-nimmodel, group: org.artifactory.addons, ver: 7.161.14, java: 2, pom: original }
+    - { id: artifactory-addon-nuget, group: org.artifactory.addons, ver: 7.161.14, java: 63, pom: original }
+    - { id: artifactory-addon-observability, group: org.artifactory.addons, ver: 7.161.14, java: 13, pom: original }
+    - { id: artifactory-addon-oci, group: org.artifactory.addons, ver: 7.161.14, java: 3, pom: original }
+    - { id: artifactory-addon-onboarding, group: org.artifactory.addons, ver: 7.161.14, java: 3, pom: original }
+    - { id: artifactory-addon-opkg, group: org.artifactory.addons, ver: 7.161.14, java: 20, pom: original }
+    - { id: artifactory-addon-p2, group: org.artifactory.addons, ver: 7.161.14, java: 25, pom: original }
+    - { id: artifactory-addon-package-reroute, group: org.artifactory.addons, ver: 7.161.14, java: 28, pom: original }
+    - { id: artifactory-addon-plugins, group: org.artifactory.addons, ver: 7.161.14, java: 41, pom: original }
+    - { id: artifactory-addon-properties, group: org.artifactory.addons, ver: 7.161.14, java: 3, pom: original }
+    - { id: artifactory-addon-pub, group: org.artifactory.addons, ver: 7.161.14, java: 17, pom: original }
+    - { id: artifactory-addon-puppet, group: org.artifactory.addons, ver: 7.161.14, java: 18, pom: original }
+    - { id: artifactory-addon-release-bundle, group: org.artifactory.addons, ver: 7.161.14, java: 86, pom: original }
+    - { id: artifactory-addon-replication, group: org.artifactory.addons, ver: 7.161.14, java: 137, pom: original }
+    - { id: artifactory-addon-rest, group: org.artifactory.addons, ver: 7.161.14, java: 26, pom: original }
+    - { id: artifactory-addon-retention, group: org.artifactory.addons, ver: 7.161.14, java: 97, pom: original }
+    - { id: artifactory-addon-retention-common, group: org.artifactory.addons, ver: 7.161.14, java: 138, pom: original }
+    - { id: artifactory-addon-search, group: org.artifactory.addons, ver: 7.161.14, java: 4, pom: original }
+    - { id: artifactory-addon-security-resource, group: org.artifactory.addons, ver: 7.161.14, java: 2, pom: original }
+    - { id: artifactory-addon-sso, group: org.artifactory.addons, ver: 7.161.14, java: 51, pom: original }
+    - { id: artifactory-addon-support, group: org.artifactory.addons, ver: 7.161.14, java: 34, pom: original }
+    - { id: artifactory-addon-swift, group: org.artifactory.addons, ver: 7.161.14, java: 24, pom: original }
+    - { id: artifactory-addon-terraform, group: org.artifactory.addons, ver: 7.161.14, java: 32, pom: original }
+    - { id: artifactory-addon-vagrant, group: org.artifactory.addons, ver: 7.161.14, java: 1, pom: original }
+    - { id: artifactory-addon-vcs, group: org.artifactory.addons, ver: 7.161.14, java: 9, pom: original }
+    - { id: artifactory-addon-watch, group: org.artifactory.addons, ver: 7.161.14, java: 19, pom: original }
+    - { id: artifactory-addon-webstart, group: org.artifactory.addons, ver: 7.161.14, java: 10, pom: original }
+    - { id: artifactory-addon-worker, group: org.artifactory.addons, ver: 7.161.14, java: 116, pom: original }
+    - { id: artifactory-addon-xray, group: org.artifactory.addons, ver: 7.161.14, java: 25, pom: original }
+    - { id: artifactory-addon-yum, group: org.artifactory.addons, ver: 7.161.14, java: 50, pom: original }
+    - { id: artifactory-addons-common, group: org.artifactory.addons, ver: 7.161.14, java: 63, pom: original }
+    - { id: artifactory-addons-manager, group: recovered.thirdparty, ver: 7.161.24-recovered, java: 71, pom: recovered }
+  edges:  # from -> deps（非 compile scope 以 "to (scope)" 标注；目标可为跨组模块）
+    - from: artifactory-addon-alpine
+      deps: [artifactory-addons-common, artifactory-config (test)]
+    - from: artifactory-addon-analytics
+      deps: [artifactory-addons-common, artifactory-config (test), artifactory-core, artifactory-rest]
+    - from: artifactory-addon-archive-v2
+      deps: [artifactory-addon-evidence, artifactory-addon-rest, artifactory-addon-retention, artifactory-addon-retention-common, artifactory-config]
+    - from: artifactory-addon-bower
+      deps: [artifactory-addon-vcs, artifactory-addons-common, artifactory-config (test), artifactory-core, artifactory-rest]
+    - from: artifactory-addon-bundle-handler
+      deps: [artifactory-addon-evidence, artifactory-addon-jf-connect, artifactory-addon-jf-event, artifactory-addon-xray, artifactory-addons-common, artifactory-common, artifactory-core, artifactory-rest-common, platformfederation-client-api]
+    - from: artifactory-addon-cargo
+      deps: [artifactory-addon-git, artifactory-addon-vcs, artifactory-addons-common, artifactory-config (test)]
+    - from: artifactory-addon-central-integration
+      deps: [artifactory-addons-common, artifactory-addons-manager, artifactory-config (test), artifactory-core, artifactory-event-queue-api, jfrog-centralintegration-grpc-api]
+    - from: artifactory-addon-chef
+      deps: [artifactory-addons-common, artifactory-config (test), artifactory-core, artifactory-rest, artifactory-storage-common, artifactory-storage-db]
+    - from: artifactory-addon-cleanup
+      deps: [artifactory-addon-rest, artifactory-addon-retention-common, artifactory-config]
+    - from: artifactory-addon-cocoapods
+      deps: [artifactory-addon-vcs, artifactory-addons-common, artifactory-config, artifactory-core, artifactory-rest]
+    - from: artifactory-addon-composer
+      deps: [artifactory-addon-vcs, artifactory-addons-common, artifactory-config, artifactory-core, artifactory-core (test), artifactory-rest]
+    - from: artifactory-addon-conan
+      deps: [artifactory-addons-common, artifactory-config]
+    - from: artifactory-addon-curation
+      deps: [artifactory-common, artifactory-config (test), artifactory-core, jfrog-application]
+    - from: artifactory-addon-debian
+      deps: [artifactory-addon-dpkg-common, artifactory-addons-common, artifactory-config (test), artifactory-core, artifactory-rest]
+    - from: artifactory-addon-distribution-handler
+      deps: [artifactory-addons-common, artifactory-common, artifactory-core]
+    - from: artifactory-addon-docker
+      deps: [artifactory-addons-common, artifactory-config, artifactory-core, artifactory-core (test), artifactory-rest, artifactory-web-application]
+    - from: artifactory-addon-dpkg-common
+      deps: [artifactory-addons-common, artifactory-api, artifactory-core, artifactory-rest]
+    - from: artifactory-addon-evidence
+      deps: [artifactory-addons-common, artifactory-addons-manager, artifactory-core, artifactory-event-queue-api]
+    - from: artifactory-addon-federated
+      deps: [artifactory-addon-mirror, artifactory-addon-replication, artifactory-addons-common, artifactory-config (test), artifactory-federation-dto]
+    - from: artifactory-addon-filtered-resources
+      deps: [artifactory-core]
+    - from: artifactory-addon-gems
+      deps: [artifactory-addons-common, artifactory-config (test), artifactory-core, artifactory-rest, artifactory-web-application, jfrog-iostreams]
+    - from: artifactory-addon-git
+      deps: [artifactory-addon-rest, artifactory-addons-common, artifactory-config (test), artifactory-web-application]
+    - from: artifactory-addon-grid
+      deps: [artifactory-config, artifactory-core, artifactory-rest, artifactory-storage-db]
+    - from: artifactory-addon-ha
+      deps: [artifactory-addon-archive-v2, artifactory-addon-cleanup, artifactory-addon-replication, artifactory-addon-retention, artifactory-addon-retention-common, artifactory-config, artifactory-core, artifactory-rest, artifactory-storage-db, artifactory-web-application]
+    - from: artifactory-addon-helmoci
+      deps: [artifactory-addon-oci]
+    - from: artifactory-addon-jf-connect
+      deps: [artifactory-addons-common, artifactory-core, artifactory-rest-common, jfconnect-client-api, jfconnect-client-core]
+    - from: artifactory-addon-jf-event
+      deps: [artifactory-addon-docker, artifactory-addons-common, artifactory-config (test), artifactory-core, artifactory-rest-common, jfrog-jfevent]
+    - from: artifactory-addon-keys
+      deps: [artifactory-addons-common, artifactory-core, artifactory-rest, artifactory-rest-common]
+    - from: artifactory-addon-layouts
+      deps: [artifactory-core]
+    - from: artifactory-addon-ldap
+      deps: [artifactory-config (test), artifactory-core]
+    - from: artifactory-addon-lead-artifact-detector
+      deps: [artifactory-addons-common, artifactory-config (test), artifactory-core]
+    - from: artifactory-addon-license
+      deps: [artifactory-config, artifactory-core, artifactory-web-application]
+    - from: artifactory-addon-mirror
+      deps: [artifactory-config (test), artifactory-core, artifactory-federation-dto, artifactory-rest]
+    - from: artifactory-addon-nimmodel
+      deps: [artifactory-common, artifactory-config, artifactory-core]
+    - from: artifactory-addon-nuget
+      deps: [artifactory-addons-common, artifactory-base-rest, artifactory-config, artifactory-core, artifactory-rest, artifactory-web-application]
+    - from: artifactory-addon-observability
+      deps: [artifactory-common, artifactory-core, artifactory-rest]
+    - from: artifactory-addon-oci
+      deps: [artifactory-addon-docker, artifactory-addons-common, artifactory-config, artifactory-core, artifactory-core (test), artifactory-rest, artifactory-web-application]
+    - from: artifactory-addon-onboarding
+      deps: [artifactory-addons-common, artifactory-config (test), artifactory-core, artifactory-rest]
+    - from: artifactory-addon-opkg
+      deps: [artifactory-addon-dpkg-common, artifactory-addons-common, artifactory-config, artifactory-core, artifactory-rest]
+    - from: artifactory-addon-p2
+      deps: [artifactory-core, artifactory-web-application]
+    - from: artifactory-addon-package-reroute
+      deps: [artifactory-addons-common, artifactory-web-application]
+    - from: artifactory-addon-plugins
+      deps: [artifactory-config, artifactory-core, artifactory-papi, artifactory-web-application, jfrog-utils]
+    - from: artifactory-addon-properties
+      deps: [artifactory-config (test), artifactory-core, artifactory-rest-common]
+    - from: artifactory-addon-pub
+      deps: [artifactory-addons-common, artifactory-config (test), artifactory-core, artifactory-rest]
+    - from: artifactory-addon-puppet
+      deps: [artifactory-addons-common, artifactory-core, artifactory-rest]
+    - from: artifactory-addon-release-bundle
+      deps: [artifactory-addons-common, artifactory-config, artifactory-core, artifactory-rest-common]
+    - from: artifactory-addon-replication
+      deps: [artifactory-addon-rest, artifactory-config]
+    - from: artifactory-addon-rest
+      deps: [artifactory-addon-filtered-resources (test), artifactory-addon-security-resource, artifactory-addons-common, artifactory-config, artifactory-core, artifactory-rest]
+    - from: artifactory-addon-retention
+      deps: [artifactory-addon-jf-event, artifactory-addon-rest, artifactory-config]
+    - from: artifactory-addon-retention-common
+      deps: [artifactory-addon-evidence, artifactory-addon-rest, artifactory-addon-retention, artifactory-config]
+    - from: artifactory-addon-search
+      deps: [artifactory-addon-federated, artifactory-web-application]
+    - from: artifactory-addon-security-resource
+      deps: [artifactory-core, artifactory-rest-common]
+    - from: artifactory-addon-sso
+      deps: [artifactory-addon-ldap, artifactory-config, artifactory-core, artifactory-rest, artifactory-web-application]
+    - from: artifactory-addon-support
+      deps: [artifactory-config, artifactory-core]
+    - from: artifactory-addon-swift
+      deps: [artifactory-addons-common, artifactory-config, artifactory-core, artifactory-rest]
+    - from: artifactory-addon-terraform
+      deps: [artifactory-addon-vcs, artifactory-addons-common, artifactory-config (test), artifactory-core, artifactory-rest, artifactory-web-application]
+    - from: artifactory-addon-vagrant
+      deps: [artifactory-addons-common, artifactory-core, artifactory-rest, artifactory-web-application]
+    - from: artifactory-addon-vcs
+      deps: [artifactory-addons-common, artifactory-core, artifactory-rest]
+    - from: artifactory-addon-watch
+      deps: [artifactory-core, artifactory-web-application]
+    - from: artifactory-addon-webstart
+      deps: [artifactory-config, artifactory-core]
+    - from: artifactory-addon-worker
+      deps: [artifactory-common, artifactory-config (test), artifactory-core, artifactory-papi, jfrog-utils]
+    - from: artifactory-addon-xray
+      deps: [artifactory-config (test), artifactory-core]
+    - from: artifactory-addon-yum
+      deps: [artifactory-addons-common, artifactory-config, artifactory-core, jfrog-iostreams, jfrog-utils]
+    - from: artifactory-addons-common
+      deps: [artifactory-api, artifactory-config, artifactory-core, artifactory-rest, artifactory-work-queue-api]
+  no_org_internal_edges: [artifactory-addons-manager]
+
+# ---------- 三方占位节点（只列节点不展开边；括号内 = 被四组模块引用的次数） ----------
+thirdparty_referenced:  # recovered.thirdparty 组占位（真实三方库，版本见 module-catalog service-other 节）
+  - jakarta.servlet-api (x46)
+  - lombok (x25)
+  - commons-lang3 (x17)
+  - slf4j-api (x17)
+  - jackson-databind (x14)
+  - sysconf (x12)
+  - jersey-server (x11)
+  - logback-classic (x11)
+  - commons-io (x10)
+  - jakarta.annotation-api (x10)
+  - spring-context (x10)
+  - httpclient (x8)
+  - jcl-over-slf4j (x7)
+  - logback-core (x6)
+  - metrics-core (x6)
+  - spring-tx (x6)
+  - caffeine (x5)
+  - commons-compress (x5)
+  - grpc-stub (x5)
+  - jackson-annotations (x5)
+  - jackson-datatype-jsr310 (x5)
+  - joda-time (x5)
+  - jsr305 (x5)
+  - plexus-utils (x5)
+  - commons-collections4 (x4)
+  - grpc-protobuf (x4)
+  - httpclient5 (x4)
+  - jackson-module-parameter-names (x4)
+  - jdom2 (x4)
+  - spring-beans (x4)
+  - tomcat-embed-core (x4)
+  - HikariCP (x3)
+  - commons-collections (x3)
+  - httpcore (x3)
+  - java-semver (x3)
+  - jersey-spring6 (x3)
+  - mapstruct (x3)
+  - maven-artifact (x3)
+  - protobuf-java (x3)
+  - spring-core (x3)
+  - spring-jdbc (x3)
+  - spring-test (x3)
+  - spring-web (x3)
+  - client-java (x2)
+  - commons-beanutils (x2)
+  - commons-codec (x2)
+  - dnsjava (x2)
+  - ipaddress (x2)
+  - jackson-dataformat-yaml (x2)
+  - jackson-module-jakarta-xmlbind-annotations (x2)
+  - jaeger-core (x2)
+  - jakarta.mail-api (x2)
+  - jakarta.validation-api (x2)
+  - jakarta.xml.bind-api (x2)
+  - javax.annotation-api (x2)
+  - json-patch (x2)
+  - metrics (x2)
+  - micrometer-core (x2)
+  - okhttp (x2)
+  - rds (x2)
+  - simpleclient_common (x2)
+  - snakeyaml (x2)
+  - spring-aop (x2)
+  - spring-boot-starter-actuator (x2)
+  - spring-boot-starter-webmvc (x2)
+  - spring-boot-tomcat (x2)
+  - spring-boot-web-server (x2)
+  - spring-security-core (x2)
+  - support-rest (x2)
+  - tomcat-jdbc (x2)
+  - vavr (x2)
+  - woodstox-core (x2)
+  - aws-java-sdk-secretsmanager (x1)
+  - aws-java-sdk-sts (x1)
+  - client-java-api (x1)
+  - commons-cli (x1)
+  - commons-pool2 (x1)
+  - commons-text (x1)
+  - crowd-integration-client-rest (x1)
+  - cryptacular (x1)
+  - event-client (x1)
+  - flyway-core (x1)
+  - flyway-database-derby (x1)
+  - flyway-database-oracle (x1)
+  - flyway-database-postgresql (x1)
+  - flyway-mysql (x1)
+  - flyway-sqlserver (x1)
+  - grpc-api (x1)
+  - grpc-core (x1)
+  - grpc-netty (x1)
+  - gson-fire (x1)
+  - iostreams (x1)
+  - jackson-databind-nullable (x1)
+  - jackson-datatype-guava (x1)
+  - jackson-datatype-jdk8 (x1)
+  - jakarta.activation-api (x1)
+  - jakarta.inject (x1)
+  - jakarta.ws.rs-api (x1)
+  - javers-core (x1)
+  - jaxb-api (x1)
+  - jaxb-impl (x1)
+  - jaxb-runtime (x1)
+  - jersey-bean-validation (x1)
+  - jersey-hk2 (x1)
+  - jersey-media-json-jackson (x1)
+  - jetcd-core (x1)
+  - kotlin-stdlib (x1)
+  - kotlin-stdlib-jdk8 (x1)
+  - license-manager (x1)
+  - log4j-api (x1)
+  - metrics-healthchecks (x1)
+  - metrics-jmx (x1)
+  - nimbus-jose-jwt (x1)
+  - opensaml-saml-impl (x1)
+  - resilience4j-circuitbreaker (x1)
+  - resilience4j-retry (x1)
+  - spring-boot-jackson2 (x1)
+  - spring-boot-starter (x1)
+  - spring-boot-starter-jersey (x1)
+  - spring-expression (x1)
+  - spring-security-config (x1)
+  - spring-security-ldap (x1)
+  - spring-security-saml2-service-provider (x1)
+  - spring-security-web (x1)
+  - spring-vault-core (x1)
+  - support-common (x1)
+  - swagger-annotations (x1)
+  - swagger-models (x1)
+  - tomcat-embed-el (x1)
+  - tomcat-embed-websocket (x1)
+  - velocity-engine-core (x1)
+  - xmemcached (x1)
+  - xmlsec (x1)
+
+# ---------- 跨组观察（E1 备注，非边） ----------
+observations:
+  - artifactory-config 是组内最高入度模块（63 条边指向它）——几乎所有模块依赖其 ConstantValues/配置模型
+  - artifactory-core 入度 58、artifactory-addons-common 入度 36——addon 全部回调 core，core 不依赖任何 addon（编译期无环）
+  - access 组被 artifactory-core 依赖（认证走 access client），access 不依赖 artifactory-core（方向单向）
+  - jfrog-commons 为纯被依赖方（无指向 artifactory-*/access 的边）
+  - sysconf (x12) / license-manager / support-common / support-rest / rds / iostreams / event-client 等占位名
+    形似 JFrog 内部库但按 recovered.thirdparty 占位处理——其真实 groupId 证据不足，标 UNKNOWN 待活体验证
+

@@ -1,0 +1,234 @@
+### artifactory-request (jfrt)
+2026-09-10T16:12:03.664Z|000000000000000032542520e1300a6c|127.0.0.1|non_authenticated_user|GET|/api/v1/system/readiness|200|-1|0|2|JFrog-Router/v7.729.47
+2026-09-10T16:12:08.664Z|0000000000000000538a6e2771eb74b8|127.0.0.1|non_authenticated_user|GET|/api/v1/system/readiness|200|-1|0|1|JFrog-Router/v7.729.47
+2026-09-10T16:12:13.664Z|00000000000000004e2325ab373552b2|127.0.0.1|non_authenticated_user|GET|/api/v1/system/readiness|200|-1|0|1|JFrog-Router/v7.729.47
+2026-09-10T16:12:18.664Z|00000000000000001481ce195acabb77|127.0.0.1|non_authenticated_user|GET|/api/v1/system/readiness|200|-1|0|1|JFrog-Router/v7.729.47
+2026-09-10T16:12:23.668Z|00000000000000005c808050643184a8|127.0.0.1|non_authenticated_user|GET|/api/v1/system/readiness|200|-1|0|1|JFrog-Router/v7.729.47
+2026-09-10T16:12:28.676Z|000000000000000033511482040df452|127.0.0.1|non_authenticated_user|GET|/api/v1/system/readiness|200|-1|0|4|JFrog-Router/v7.729.47
+2026-09-10T16:12:33.675Z|00000000000000001f8be998592b76fe|127.0.0.1|non_authenticated_user|GET|/api/v1/system/readiness|200|-1|0|0|JFrog-Router/v7.729.47
+2026-09-10T16:12:38.692Z|00000000000000001c9a4200307b8ed7|127.0.0.1|non_authenticated_user|GET|/api/v1/system/readiness|200|-1|0|1|JFrog-Router/v7.729.47
+
+### access-request (jfac)
+2026-09-10T16:12:24.447Z|7dcd6dabb90be920d861c1fc837cb8d8|127.0.0.1|anonymous|GET|/access/api/v1/system/readiness|200|13|-1|5|JFrog Access Java Client/7.189.4 88904900  Artifactory/7.161.12 86112900
+2026-09-10T16:12:28.736Z|33511482040df452|127.0.0.1|anonymous|GET|/access/api/v1/system/readiness|200|13|-1|52|JFrog-Router/v7.729.47
+2026-09-10T16:12:33.686Z|1f8be998592b76fe|127.0.0.1|anonymous|GET|/access/api/v1/system/readiness|200|13|-1|12|JFrog-Router/v7.729.47
+2026-09-10T16:12:35.830Z|ab5c71794825aa38d7230e0983cbcd84|127.0.0.1|jfmelt@01m1hjpmfbgrck12yqhfjn1hn2|GET|/access/api/v1/config/shared|200|117|-1|46|JFrog Access Go Client/v7.289.0 Jfrog Melt/1.12.6 0bfcf48800
+2026-09-10T16:12:38.695Z|1c9a4200307b8ed7|127.0.0.1|anonymous|GET|/access/api/v1/system/readiness|200|13|-1|11|JFrog-Router/v7.729.47
+2026-09-10T16:12:39.456Z|baefe38e78c9f9068d2ba4236e806f68|127.0.0.1|anonymous|GET|/access/api/v1/system/readiness|200|13|-1|6|JFrog Access Java Client/7.189.4 88904900  Artifactory/7.161.12 86112900
+
+### access-audit
+2026-09-10T16:05:45.382Z [AUDIT] Token created by 'jffe@01m1hjpmfbgrck12yqhfjn1hn2': tokenId='5dcd9b65-2685-4ac5-b56d-23de9a1f42f7', issuer='jffe@01m1hjpmfbgrck12yqhfjn1hn2', subject='jffe@01m1hjpmfbgrck12yqhfjn1hn2/users/admin', expiry=1789056945379, refreshable=false
+2026-09-10T16:05:46.255Z [AUDIT] Token created by 'jfmelt@01m1hjpmfbgrck12yqhfjn1hn2': tokenId='af340bfb-9026-4a0c-97d1-801f62a10e51', issuer='jfmelt@01m1hjpmfbgrck12yqhfjn1hn2', subject='jfmelt@01m1hjpmfbgrck12yqhfjn1hn2', expiry=1789056646253, refreshable=false
+2026-09-10T16:06:15.035Z [AUDIT] Token revoked by 'jffe@01m1hjpmfbgrck12yqhfjn1hn2': tokenId='2a53d638-3ff7-4eb1-b457-f430fcbae6cb', issuer='jffe@01m1hjpmfbgrck12yqhfjn1hn2', subject='jffe@01m1hjpmfbgrck12yqhfjn1hn2/users/admin', expiry=1789057395872, refreshable=true
+2026-09-10T16:10:46.244Z [AUDIT] Token created by 'jfmelt@01m1hjpmfbgrck12yqhfjn1hn2': tokenId='4e831281-7d01-437d-9d3e-5882c7f02d7a', issuer='jfmelt@01m1hjpmfbgrck12yqhfjn1hn2', subject='jfmelt@01m1hjpmfbgrck12yqhfjn1hn2', expiry=1789056946240, refreshable=false
+
+### access-security-audit
+2026-09-10T16:05:45.394Z|cf28a4b3f019137c7f66dbfc1fb683a2|UNKNOWN|UNKNOWN|jffe@01m1hjpmfbgrck12yqhfjn1hn2|jffe@01m1hjpmfbgrck12yqhfjn1hn2/users/admin|C|TKN|{"added":{"owner":"jffe@01m1hjpmfbgrck12yqhfjn1hn2","created":"1789056345379","expirationTime":"1789056945379","subject":"jffe@01m1hjpmfbgrck12yqhfjn1hn2/users/admin","scope":"applied-permissions/user internal:impersonation/user/\"admin\":x api:*","id":"5dcd9b65-2685-4ac5-b56d-23de9a1f42f7","type":"generic","username":"admin"}}
+2026-09-10T16:05:46.271Z|0000000000000000257a98f191d7531e|UNKNOWN|UNKNOWN|jfmelt@01m1hjpmfbgrck12yqhfjn1hn2|jfmelt@01m1hjpmfbgrck12yqhfjn1hn2|C|TKN|{"added":{"owner":"jfmelt@01m1hjpmfbgrck12yqhfjn1hn2","created":"1789056346253","expirationTime":"1789056646253","subject":"jfmelt@01m1hjpmfbgrck12yqhfjn1hn2","scope":"applied-permissions/admin","id":"af340bfb-9026-4a0c-97d1-801f62a10e51","type":"generic"}}
+2026-09-10T16:06:15.048Z|cf28a4b3f019137c7f66dbfc1fb683a2|UNKNOWN|UNKNOWN|jffe@01m1hjpmfbgrck12yqhfjn1hn2|jffe@01m1hjpmfbgrck12yqhfjn1hn2/users/admin|D|TKN|{"removed":{"owner":"jffe@01m1hjpmfbgrck12yqhfjn1hn2","created":"1789055595872","expirationTime":"1789057395872","subject":"jffe@01m1hjpmfbgrck12yqhfjn1hn2/users/admin","scope":"HASHED:69c537d45f36a316ac544a2b6271540eb3e94abefcdbeef93d300f9ccea7c38e","id":"2a53d638-3ff7-4eb1-b457-f430fcbae6cb","type":"session","username":"admin"}}
+2026-09-10T16:10:46.259Z|0000000000000000257a98f191d7531e|UNKNOWN|UNKNOWN|jfmelt@01m1hjpmfbgrck12yqhfjn1hn2|jfmelt@01m1hjpmfbgrck12yqhfjn1hn2|C|TKN|{"added":{"owner":"jfmelt@01m1hjpmfbgrck12yqhfjn1hn2","created":"1789056646240","expirationTime":"1789056946240","subject":"jfmelt@01m1hjpmfbgrck12yqhfjn1hn2","scope":"applied-permissions/admin","id":"4e831281-7d01-437d-9d3e-5882c7f02d7a","type":"generic"}}
+
+### artifactory-access (rt security view)
+2026-09-10T16:05:42.360Z [696b2297d06dd6f0281db677d0f6a2ba] [ACCEPTED DELETE] example-repo-local:audit-probe-20260911000113  for client : _system_ / 
+2026-09-10T16:05:44.507Z [cf28a4b3f019137c7f66dbfc1fb683a2] [ACCEPTED LOGIN]   for client : jffe@01m1hjpmfbgrck12yqhfjn1hn2 / 192.168.65.1 [token]
+2026-09-10T16:05:45.519Z [e7b6ae71c991d3fb9ef2376cb157c8f9] [ACCEPTED LOGIN]   for client : admin / 192.168.65.1 [token]
+2026-09-10T16:05:45.577Z [cf28a4b3f019137c7f66dbfc1fb683a2] [ACCEPTED LOGIN]   for client : admin / 192.168.65.1 [token]
+2026-09-10T16:06:11.956Z [c7e49837993d6df092a2c0f4acb1ea4a] [ACCEPTED LOGIN]   for client : admin / 192.168.65.1 [token]
+2026-09-10T16:10:10.095Z [7357581bb27f7254182b9d17de269193] [ACCEPTED LOGIN]   for client : admin / 192.168.65.1
+
+### artifactory-service (jfrt text)
+2026-09-10T16:05:03.479Z [jfrt ] [INFO ] [b96b746577740980e1641633c926c96f] [r.s.RepositoryServiceImpl:4191] [26c96f|art-exec-3339] - Rebuild release bundle repositories took: 0ms
+2026-09-10T16:05:03.490Z [jfrt ] [INFO ] [b96b746577740980e1641633c926c96f] [r.s.RepositoryServiceImpl:4196] [26c96f|art-exec-3339] - Rebuild all repo keys cache took: 0ms
+2026-09-10T16:05:03.497Z [jfrt ] [INFO ] [b96b746577740980e1641633c926c96f] [r.s.RepositoryServiceImpl:4198] [26c96f|art-exec-3339] - Rebuild repo type repositories map took: 1ms
+2026-09-10T16:05:03.510Z [jfrt ] [INFO ] [b96b746577740980e1641633c926c96f] [r.s.RepositoryServiceImpl:2345] [26c96f|art-exec-3339] - Rebuilt repositories cache in 52 ms
+
+### access-service (jfac text)
+2026-09-10T16:09:14.755Z [jfac ] [INFO ] [664c2ad0f4cd80d6] [TokenExpiryWorkerNotifyTask:80] [task-pool-6-thread-3] - Running notify on token expiry task
+2026-09-10T16:10:14.757Z [jfac ] [INFO ] [4d6aafcb57d7bc04] [TokenExpiryWorkerNotifyTask:80] [task-pool-6-thread-4] - Running notify on token expiry task
+2026-09-10T16:11:44.791Z [jfac ] [INFO ] [f89e5188b1cc87d8] [TokenExpiryWorkerNotifyTask:80] [task-pool-6-thread-5] - Running notify on token expiry task
+2026-09-10T16:12:14.805Z [jfac ] [INFO ] [fc810f2877ea6fdd] [TokenExpiryWorkerNotifyTask:80] [task-pool-6-thread-6] - Running notify on token expiry task
+
+### frontend-request (jffe Go, micro-second duration)
+2026-09-10T16:05:46.254Z||127.0.0.1|admin|GET|/api/v1/ui/auth/current|200|651|-|1534.909|Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36
+2026-09-10T16:06:11.967Z||127.0.0.1|admin|GET|/api/v1/ui/auth/screen/globalState|200|-|-|89.333|Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36
+2026-09-10T16:06:12.169Z||127.0.0.1|admin|GET|/api/v1/jfconnect/notifications|200|20|-|31.979|Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36
+2026-09-10T16:06:12.415Z||127.0.0.1|admin|GET|/api/v1/ui/storagesummary/projects|200|-|-|65.202|Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36
+
+### frontend-service (jffe Go text, padded)
+2026-09-10T15:52:42.532Z [jffe ] [^[[31M[WARN ]^[[39M] [a83d6ebbbb0dbed2352b90829aaca1c9] [frontend-service.log] [main                ] - SystemHAService.isNodeStale fallback to Date.now(); missing statusEvaluationTimeMs for node_id=2054644c2318, service_id=jfevt@01m1hjpmfbgrck12yqhfjn1hn2
+2026-09-10T15:52:42.534Z [jffe ] [^[[31M[WARN ]^[[39M] [a83d6ebbbb0dbed2352b90829aaca1c9] [frontend-service.log] [main                ] - SystemHAService.isNodeStale fallback to Date.now(); missing statusEvaluationTimeMs for node_id=90f95f994e80, service_id=jfbus@01m1hjn66kmdw71k5zfgxh1tn9
+
+### jfconfig-service (Java microsvc text)
+2026-09-10T15:00:33.433Z [jfcfg] [INFO ] [                ] [j.j.JFConfigStartUpListener:58] [main                ] - Creating new server entry for server: 90f95f994e80
+2026-09-10T15:00:33.448Z [jfcfg] [INFO ] [                ] [j.j.JFConfigStartUpListener:49] [main                ] - jfconfig (jfcfg) service initialization completed in 133.125 seconds. Listening on port: 8010
+
+### topology-service (jftpl Java text)
+2026-09-10T15:00:17.238Z [jftpl] [INFO ] [00000000000000003cc90ddd3f08d87b] [c.j.t.s.a.AccessJoiner:49     ] [jf-common-pool-0    ] - Successfully joined Access
+2026-09-10T15:58:36.508Z [jftpl] [INFO ] [474e22ce0d2cb44770292c93cf07c7f1] [.SingleTenantCleanupService:31] [topology-scheduler-1] - Cleaning up stale nodes
+
+### event-service (jfevt Go)
+2026-09-10T15:00:35.445Z [jfevt] [INFO ] [16547f9633dd200e] [platform_config_stream.go:105 ] [main                ] [                ] - Starting Platform Config stream Recv loop [access_client]
+2026-09-10T15:00:35.445Z [jfevt] [INFO ] [16547f9633dd200e] [platform_config_stream.go:137 ] [main                ] [                ] - Starting Platform Config checkKeepAlive [access_client]
+
+### evidence-service (jfevd Go)
+2026-09-10T15:00:45.587Z [jfevd] [INFO ] [45580b30ffefdf02] [subgraph_registrar.go:233     ] [main                ] [                ] - Supergraph composition includes JFEVD version 7.1225.4 (polling took 8.511346569s) [onemodel_subgraph_registrar]
+2026-09-10T15:00:45.830Z [jfevd] [INFO ] [45580b30ffefdf02] [subgraph_registrar.go:169     ] [main                ] [                ] - Successfully registered evidence public v1 schema [onemodel_subgraph_registrar]
+
+### metadata-service (jfmd Go)
+2026-09-10T16:12:33.673Z [jfmd ] [WARN ] [00000000000000001f8be998592b76fe] [router_middlewares.go:165     ] [main                ] - Context error when processing request: 'context canceled'. Status code: '200'.
+2026-09-10T16:12:38.694Z [jfmd ] [WARN ] [00000000000000001c9a4200307b8ed7] [router_middlewares.go:165     ] [main                ] - Context error when processing request: 'context canceled'. Status code: '200'.
+
+### jfconnect-service (jfcon Go)
+2026-09-10T16:02:21.200Z [jfcon] [INFO ] [2f882f91e3cb38c3] [fetch_entitlements_synced_acti] [main                ] [                ] - Setting next action to fetch entitlements with delay: 32m0s [entitlement_service]
+2026-09-10T16:02:21.204Z [jfcon] [INFO ] [2f882f91e3cb38c3] [entitlements_service.go:364   ] [main                ] [                ] - Synced action 'fetch entitlements' - finished execution [entitlement_service]
+
+### jfmelt-service (jfmel Go + spanId spanTraceId)
+2026-09-10T15:00:46.118Z [jfmel] [INFO ] [257a98f191d7531e] [jfconnect_client.go:73        ] [main                ] [                ] - JFConnect client created successfully [jfconnect-client-initializer] [spanId][622264f7a9e75dde] [spanTraceId][257a98f191d7531e]
+2026-09-10T15:00:46.119Z [jfmel] [INFO ] [257a98f191d7531e] [jfconnect_client.go:53        ] [main                ] [                ] - JFConnect client created successfully [jfconnect-client-initializer] [spanId][622264f7a9e75dde] [spanTraceId][257a98f191d7531e]
+
+### observability-service (jfob Go)
+2026-09-10T15:01:23.564Z [jfob ] [INFO ] [158234985547ada1] [platform_config_stream.go:105 ] [main                ] - Starting Platform Config stream Recv loop [access_client] [spanId][158234985547ada1] [spanTraceId][158234985547ada1]
+2026-09-10T15:01:23.564Z [jfob ] [INFO ] [158234985547ada1] [platform_config_stream.go:137 ] [main                ] - Starting Platform Config checkKeepAlive [access_client] [spanId][158234985547ada1] [spanTraceId][158234985547ada1]
+
+### onemodel-service (jfomr Go)
+2026-09-10T15:00:45.823Z [jfomr] [INFO ] [081040f86c9a91e1e3dcefed344d7044] [platform_config_service.go:282] [main                ] [                ] - Invalidating cache for the key: {}%!(EXTRA string=jfrog.onemodel.registry.subgraphs) [access_client]
+2026-09-10T15:00:46.933Z [jfomr] [INFO ] [081040f86c9a91e1e3dcefed344d7044] [handler.go:67                 ] [main                ] [                ] - Subgraph successfully registered: jfmd_7.490.9 [subgraph_grpc]
+
+### router-service (jfrou Go, empty extra slot)
+2026-09-10T15:09:43.136Z [jfrou] [INFO ] [4f63ead0adf40556] [auth_middleware.go:57         ] [main                ] [] - Creating a new dedicated gRPC connection for localhost:8046
+2026-09-10T16:00:27.543Z [jfrou] [INFO ] [b4b0975e87a47459b2a0366a15db7ebe] [local_topology.go:249         ] [main                ] [] - Adding local service. Service ID: jfbus@01m1hjn66kmdw71k5zfgxh1tn9 , Node ID: 90f95f994e80
+
+### router-request (traefik JSON)
+{"ClientAddr":"127.0.0.1:60632","DownstreamContentSize":37,"DownstreamStatus":200,"Duration":114580602,"Overhead":362980,"RequestMethod":"POST","RequestPath":"/com.jfrog.access.v1.serviceregistry.ServiceRegistryResource/SendHeartbeat","ServiceAddr":"localhost:8021","SpanId":"cc3d42ee627531e9","StartUTC":"2026-09-10T16:12:38.75974759Z","TraceId":"00000000000000001c9a4200307b8ed7","level":"info","msg":"","request_Uber-Trace-Id":"1c9a4200307b8ed7:53a7c1dd99bbd537:1c9a4200307b8ed7:0","request_User-Agent":"grpc-go/1.82.1","time":"2026-09-10T16:12:38Z"}
+{"ClientAddr":"127.0.0.1:60638","DownstreamContentSize":13,"DownstreamStatus":200,"Duration":18988222,"Overhead":1007624,"RequestMethod":"GET","RequestPath":"/access/api/v1/system/readiness","ServiceAddr":"localhost:8040","SpanId":"4eaf2a0fdc3ff63e","StartUTC":"2026-09-10T16:12:39.446227983Z","TraceId":"baefe38e78c9f9068d2ba4236e806f68","level":"info","msg":"","request_User-Agent":"JFrog Access Java Client/7.189.4 88904900  Artifactory/7.161.12 86112900","time":"2026-09-10T16:12:39Z"}
+
+### router-traefik (traefik own, ANSI, cat -v)
+^[[90m3:00PM^[[0m ^[[32mINF^[[0m ^[[1mgithub.com/traefik/traefik/v3@v3.7.11/pkg/provider/aggregator/aggregator.go:219^[[0m^[[36m >^[[0m ^[[1mStarting provider *templates.UnhealthyNodeConfProvider^[[0m ^[[36mlogger=^[[0m"[main                ]" ^[[36mservice_type=^[[0m"\x1b[36m[jfrou]\x1b[0m" ^[[36mtenant_id=^[[0m ^[[36mtraceid=^[[0m
+^[[90m3:00PM^[[0m ^[[32mINF^[[0m ^[[1mgithub.com/traefik/traefik/v3@v3.7.11/pkg/provider/aggregator/aggregator.go:219^[[0m^[[36m >^[[0m ^[[1mStarting provider *templates.RouterRoutesProvider^[[0m ^[[36mlogger=^[[0m"[main                ]" ^[[36mservice_type=^[[0m"\x1b[36m[jfrou]\x1b[0m" ^[[36mtenant_id=^[[0m ^[[36mtraceid=^[[0m
+
+### jfbus-service (Java broker, full class names, [INFO] not padded)
+2026-09-10T16:00:27.366Z [jfbus] [INFO] [45a671dfe5a5b9ba6b8e3acce9484bff] [org.jfrog.access.client.AccessClientBootstrap:191] [tomcat-handler-1015] - Cluster join: Successfully joined the cluster
+ - Cluster join: Successfully joined the cluster
+2026-09-10T16:00:27.586Z [jfbus] [INFO] [45a671dfe5a5b9ba6b8e3acce9484bff] [org.jfrog.jfbus.broker.security.AccessClientProvider:96] [tomcat-handler-1015] - Successfully joined Access
+ - Successfully joined Access
+
+### jfbus-request
+2026-09-10T15:00:45.995Z|8a61942089182230e303f92056a39a93|0:0:0:0:0:0:0:1|jfbus-client-default-tenant-id|GET|/events/receive/jfmelt/jfmelt-snowplow-consumer?ack-timeout=P0DT0H0M300.000S&consumer=4&group=1&timeout=P0DT0H0M25.000S|200|0|860|20591|JFMelt Consumer JFBus Go Client 1.661.0
+2026-09-10T15:00:48.869Z|401543ca09bc59c31762fb657c7b5cda|0:0:0:0:0:0:0:1|jfbus-client-default-tenant-id|POST|/events/acknowledge/jfmelt/jfmelt-snowplow-consumer?consumer=4&event-id=2&is-last-in-batch=true&partition=0&topic=snowplow_events|200|0|0|151|JFMelt Consumer JFBus Go Client 1.661.0
+
+### jfbus-ack/consume/publish (JSON objects)
+-- jfbus-ack-events.log
+{}
+-- jfbus-consume-events.log
+{}
+-- jfbus-publish-events.log
+{}
+
+### jfbus-receive-polling
+2026-09-10T16:12:34.094Z|ce6ed8d54effa3df6c877313e7662465|0:0:0:0:0:0:0:1|jfbus-client-default-tenant-id|GET|/events/receive/jfmelt/jfmelt-snowplow-consumer?ack-timeout=P0DT0H0M300.000S&consumer=4&group=1&timeout=P0DT0H0M25.000S|200|0|2|25011|JFMelt Consumer JFBus Go Client 1.661.0
+2026-09-10T16:12:34.643Z|4646e030687ca683a25c9629bdc34f13|0:0:0:0:0:0:0:1|jfbus-client-default-tenant-id|GET|/events/receive/jfmelt/jfmelt-audit-consumer?ack-timeout=P0DT0H0M300.000S&consumer=3&group=2&timeout=P0DT0H0M25.000S|200|0|2|25009|JFMelt Consumer JFBus Go Client 1.661.0
+
+### metadata-request (32hex zero-padded)
+2026-09-10T16:12:33.673Z|00000000000000001f8be998592b76fe|127.0.0.1|anonymous|GET|/api/v1/system/readiness|200|26|0|0|JFrog-Router/v7.729.47
+2026-09-10T16:12:38.694Z|00000000000000001c9a4200307b8ed7|127.0.0.1|anonymous|GET|/api/v1/system/readiness|200|26|0|0|JFrog-Router/v7.729.47
+
+### event-request (2 trailing empty fields)
+2026-09-10T16:12:33.673Z|1f8be998592b76fe|127.0.0.1|anonymous|GET|/api/v1/system/readiness|200|13|0|0|JFrog-Router/v7.729.47||
+2026-09-10T16:12:38.673Z|1c9a4200307b8ed7|127.0.0.1|anonymous|GET|/api/v1/system/readiness|200|13|0|0|JFrog-Router/v7.729.47||
+
+### onemodel-request (2 trailing empty fields)
+2026-09-10T16:12:33.671Z|1f8be998592b76fe|127.0.0.1|anonymous|GET|/api/v1/system/readiness|200|13|0|0|JFrog-Router/v7.729.47||
+2026-09-10T16:12:38.672Z|1c9a4200307b8ed7|127.0.0.1|anonymous|GET|/api/v1/system/readiness|200|13|0|0|JFrog-Router/v7.729.47||
+
+### jfconfig-request (Java microsvc 11 fields)
+2026-09-10T16:12:38.729Z|42b7ab55ffee81d8|/127.0.0.1:51316|anonymous|--UNA|com.jfrog.jfconfig.v1.health.HealthResource/Ping|0|-1|-1|1|grpc-java-netty/1.82.2
+2026-09-10T16:12:38.746Z|1c9a4200307b8ed7|0:0:0:0:0:0:0:1|anonymous|GET|/jfconfig/api/v1/system/readiness|200|28|-1|49|JFrog-Router/v7.729.47
+
+### topology-request (Java microsvc)
+2026-09-10T16:12:38.869Z|00000000000000001c9a4200307b8ed7|/[0:0:0:0:0:0:0:1]:34440|jfrou@01m1hjpa8fmr1cn8ydj10k9qb1|--CST|com.jfrog.access.v1.serviceregistry.ServiceRegistryResource/SendHeartbeat|0|-1|-1|106|grpc-go/1.82.1
+2026-09-10T16:12:39.077Z|00000000000000007e2b21416272fa73|0:0:0:0:0:0:0:1|jfrou@01m1hjpa8fmr1cn8ydj10k9qb1|GET|/topology/api/v1/topology|200|11191|-1|27|JFrog-Router/v7.729.47
+
+### evidence-request (Go)
+2026-09-10T16:12:33.671Z|1f8be998592b76fe|127.0.0.1|anonymous|GET|/api/v1/system/readiness|200|2|0|0|JFrog-Router/v7.729.47
+2026-09-10T16:12:38.674Z|1c9a4200307b8ed7|127.0.0.1|anonymous|GET|/api/v1/system/readiness|200|2|0|0|JFrog-Router/v7.729.47
+
+### evidence-request-out (Go fmt anomalies)
+2026-09-10T15:00:35Z|45580b30ffefdf02|/com.jfrog.access.v1.config.PlatformConfigResource/GetConfig|--UNA|0|%!s(int=0)|40|838|%!d(string=)|%!s(MISSING)
+2026-09-10T15:00:35Z|45580b30ffefdf02|/com.jfrog.access.v1.config.PlatformConfigResource/OnConfigAffected|--CST|0|%!s(int=-1)|-1|1|%!d(string=)|%!s(MISSING)
+2026-09-10T15:00:37Z|45580b30ffefdf02|/com.jfrog.access.v1.token.TokenResource/CreateOrRefreshToken|--UNA|0|%!s(int=794)|66|63|%!d(string=)|%!s(MISSING)
+2026-09-10T15:00:37Z|45580b30ffefdf02|/com.jfrog.access.v1.token.TokenResource/CreateOrRefreshToken|--UNA|0|%!s(int=787)|99|61|%!d(string=)|%!s(MISSING)
+
+### jfconnect-request-out
+2026-09-10T15:31:26.014Z|2f882f91e3cb38c3|https://jes.jfrog.io/api/v1/get_entitlements|POST|200|-1|756|3839
+2026-09-10T16:02:20.143Z|2f882f91e3cb38c3|https://jes.jfrog.io/api/v1/get_entitlements|POST|200|-1|756|3255
+
+### topology-request-out
+2026-09-10T16:10:23.711Z||http://localhost:8046/access/api/v1/config/shared|GET|200|OK|23
+2026-09-10T16:12:03.766Z|000000000000000032542520e1300a6c|http://localhost:8046/access/api/v1/registry/versions/90f95f994e80|GET|200|OK|47
+
+### artifactory-metrics (prometheus text)
+jfsh_binaries_bytes_download_total{id="file-system",name="file-system"} 0 1788370272989
+jfsh_binaries_bytes_upload_total{id="file-system",name="file-system"} 0 1788370272989
+jfsh_binaries_download_total{id="file-system",name="file-system"} 0 1788370272989
+
+### frontend-metrics
+app_self_metrics_calc_seconds 0.006 1788370282957
+app_self_metrics_count_total 2 1788370282957
+nodejs_heap_read_only_space_total 0 1788370282957
+
+### metadata-metrics (histogram buckets)
+app_async_converter_batch_duration_seconds_bucket{le="0.1",node_id="2054644c2318",success="true",task_key="VersionBaseModelCompleteIndexTaskKey",worker_number="1"} 1 1788572943990
+app_async_converter_batch_duration_seconds_bucket{le="0.25",node_id="2054644c2318",success="true",task_key="VersionBaseModelCompleteIndexTaskKey",worker_number="1"} 1 1788572943990
+app_async_converter_batch_duration_seconds_bucket{le="0.5",node_id="2054644c2318",success="true",task_key="VersionBaseModelCompleteIndexTaskKey",worker_number="1"} 1 1788572943990
+
+### jfconfig-metrics (tenant label)
+jfcfg_connected_observers_count_total{tenant_id="single_tenant"} 15 1788482232811
+jfcfg_connected_observers_disconnected_total_total 73 1788482232811
+jfcfg_connected_observers_evicted_total_total{reason="cancelled"} 73 1788482232811
+
+### artifactory-metrics_events
+jfrt_artifacts_gc_next_run_seconds 8926 1788370272989
+jfrt_stg_summary_checkpoint_binaries_total 0 1788370272989
+jfrt_stg_summary_checkpoint_binaries_size_bytes 0 1788370272989
+
+### tomcat-catalina file (JULI OneLine)
+10-Sep-2026 14:58:42.964 INFO [main] org.apache.coyote.AbstractProtocol.start Starting ProtocolHandler ["http-nio-8081"]
+10-Sep-2026 14:58:43.042 INFO [main] org.apache.coyote.AbstractProtocol.start Starting ProtocolHandler ["http-nio-127.0.0.1-8091"]
+10-Sep-2026 16:04:05.673 WARNING [2026-09-10T16:04:02.294Z|d8efa380619a54b8b10627015f9693b3|/artifactory/api/repositories/audit-probe-repo-20260911|http-nio-8081-exec-1] jakarta.persistence.spi.PersistenceProviderResolverHolder$DefaultPersistenceProviderResolver.log jakarta.persistence.spi::No valid providers found.
+
+### tomcat-access-catalina file
+10-Sep-2026 14:59:52.820 INFO [main] org.apache.catalina.startup.HostConfig.deployDirectory Deployment of web application directory [/opt/jfrog/artifactory/app/access/tomcat/webapps/ROOT] has finished in [88] ms
+10-Sep-2026 14:59:52.845 INFO [main] org.apache.coyote.AbstractProtocol.start Starting ProtocolHandler ["http-nio-127.0.0.1-8040"]
+
+### tomcat-localhost file
+10-Sep-2026 14:54:26.687 INFO [Catalina-utility-1] org.apache.catalina.valves.rewrite.RewriteValve.startInternal rewriteValve.noConfiguration
+10-Sep-2026 14:58:33.023 INFO [Catalina-utility-1] org.apache.catalina.valves.rewrite.RewriteValve.startInternal rewriteValve.noConfiguration
+
+### derby.log
+----------------------------------------------------------------
+Wed Sep 02 17:22:01 UTC 2026:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.17.1.0 - (1913217): instance a816c00e-01a0-6324-4f7e-00001b231cb8 
+on database directory /var/opt/jfrog/artifactory/data/artifactory/derby with class loader java.net.URLClassLoader@2dda6444 
+Loaded from file:/opt/jfrog/artifactory/app/artifactory/tomcat/lib/derby-10.17.1.0.jar
+java.vendor=Eclipse Adoptium
+java.runtime.version=25.0.3+9-LTS
+user.dir=/var/opt/jfrog/artifactory
+os.name=Linux
+os.arch=amd64
+os.version=6.12.76-linuxkit
+derby.system.home=null
+derby.stream.error.file=/opt/jfrog/artifactory/var/log/derby.log
+Database Class Loader started - derby.database.classpath=''
+
+### topology-derby.log
+----------------------------------------------------------------
+Wed Sep 02 17:22:16 UTC 2026:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.17.1.0 - (1913217): instance a816c00e-01a0-6324-2a4b-000000d40130 
+on database directory /var/opt/jfrog/artifactory/data/topology/derby with class loader org.springframework.boot.loader.launch.LaunchedClassLoader@5caf905d 
+Loaded from jar:nested:/opt/jfrog/artifactory/app/topology/bin/jf-topology.war/!WEB-INF/lib/derby-10.17.1.0.jar!/
+java.vendor=Eclipse Adoptium
+java.runtime.version=25.0.3+9-LTS
+user.dir=/var/opt/jfrog/artifactory
+
+### dummy.log
+(0 bytes)

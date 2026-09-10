@@ -1,0 +1,648 @@
+# EVIDENCE INDEX (evidence-index-only) — 仅供发现与对账，禁止作为 BinFlow 结构设计依据（ADR-0001 / 宪章 §39-41）
+# Artifactory 7.x 包型协议注册表（宪章 §9 字段全量；57 包型一个不丢）
+# 派生源（零新增取证）：docs/reverse/inv-3-protocols.md（57 包型 + 22 横切）
+#   + 13 份既有协议规格：docker-registry.md / maven-npm-pypi.md / npm.md / helm.md / nuget.md / conan.md
+#   / debian.md / rpm.md / goproxy.md / cargo.md / rest-api.md(generic) / aql.md / build-info.md。
+# 证据源版本：A=反编译 7.161.24｜B=运行时 :8082 7.161.20｜C=安装包 7.161.16。
+# P0 协议（既有厚实规格）逐条填全 22 字段；其余按族聚合（protocols: 列出全部包型名，UNKNOWN 字段=需逐包型规格票取证）。
+# confidence 词汇表：high=官方规范+反编译双证｜medium=仅反编译/仅规格单源｜low=推断/枚举名无处理器目录。
+
+meta:
+  package_type_enum_evidence: "org.artifactory.common.repo.PackageType（batch1-core）共 57 枚举值（inv-3 §1）"
+  name_aliases: "rpm = 枚举名 YUM（同一包型，inv-3 §2.4 行名「YUM (RPM)」，规格文件名 rpm.md）"
+  counts: {total: 57, p0_full_spec: 13, semi_full: 2, family_aggregated: 42, cross_cutting: 22}
+  p0_protocols: [docker, maven, npm, pypi, generic, helm, helmoci, nuget, go, conan, debian, rpm, cargo]
+  semi_full_protocols: [terraform, terraformbackend]
+  evidence_shortcuts:
+    DIST-API: "Docker Registry HTTP API V2（distribution.github.io）"
+    OCI-SPEC: "OCI distribution-spec（github.com/opencontainers/distribution-spec）"
+    MVN-MD: "Apache Repository Metadata（maven.apache.org/repositories/metadata.html）"
+    NPM-API: "npm registry HTTP API（github.com/npm/registry docs）"
+    PEP503: "PEP 503 Simple Repository API / PEP 592 / PEP 691 / PyPI Upload API"
+    HELM-DOC: "helm.sh Chart Repository Guide + Use OCI-based registries + JFrog Helm Repositories 文档"
+    NUGET-WIKI: "NuGet/Home wiki（SemVer2 server side + Semver 2.0.0 Protocol）+ Microsoft Learn NuGet Server API"
+    GOPROXY-SPEC: "go.dev/ref/mod GOPROXY protocol 章"
+    CARGO-DOC: "Cargo Book Registry Index + Registry Web API"
+    DEB-FORMAT: "Debian Wiki DebianRepository/Format"
+
+p0_protocols:
+# ───────────────────────── docker ─────────────────────────
+- protocol: docker
+  category: 容器/OCI
+  entry_point: "三形态：路径前缀 /<repoKey>/v2/（默认）｜子域 /<repoKey>.host/v2/｜直连 /artifactory/api/docker/<repoKey>/v2/；token=/api/docker/<repoKey>/{v1|v2}/token"
+  repository_type: [local, remote, virtual（含 remote-cache）]
+  transport: "HTTP；全端点强制 Docker-Distribution-Api-Version: registry/2.0 头"
+  authentication: "401 Bearer challenge（realm=自身 token 端点、service=host、scope 按端点推导 repository:<image>:pull[,push,delete] / registry:catalog:*）；Basic 凭据换 token（expires_in 3600）"
+  authorization: "scope 不逐项校验，资源端点判 r/w/d；manifest 覆盖需 DELETE 权限（strict tag overwrite）"
+  upload: "POST /v2/<name>/blobs/uploads（202+Location+Docker-Upload-UUID=<uuid>.patch）→ PATCH 追加（Content-Range 起点严格=已存字节数，错 416 空 body）→ PUT ?digest= 收尾（sha256 不符 400 BLOB_UPLOAD_INVALID+删临时文件）；POST ?digest= 单体一步 201；会话=仓内 <image>/_uploads/<uuid>.patch 文件本体，重启存活"
+  download: "GET blob/manifest；manifest Accept 协商 6 媒体类型 + UA 覆盖开关 + schema2→1 转换；HEAD blob 附全套 X-Checksum 头（blob 搜索默认全 repo 跨仓复用）；空层 digest sha256:a3ed95ca… 直接合成"
+  delete: "manifest by-digest（搜全部副本逐一删，202/500 INTERNAL_ERROR）；by-tag 为 Artifactory 私有扩展；单 blob DELETE 不支持（依赖 GC）"
+  search: "_catalog 与 tags/list（缓存文件 .jfrog/repository_v2.catalog 与 tags_v2.json，懒构建）；权限过滤；TreeSet 字典序 last/n 分页 + Link 头；n 缺省=全量（官方 100，偏离）；空 tags=404 NO_TAGS_FOUND（官方 200 空数组，偏离）"
+  metadata: "manifest 存 <image>/<tag>/manifest.json|list.manifest.json；blob=<alg>__<hex>；属性 docker.manifest.type/docker.label.*/docker.referrers.*"
+  checksum: "digest=sha256（blob PUT 收尾强校验）；manifest Docker-Content-Digest 头；HEAD 附 X-Checksum-Md5/Sh1/Sha256"
+  range: "GET 上传状态 204+Range 0-<len-1>（.patch 变体，官方标准端点未实现）"
+  streaming: "PATCH 全量流式上传（无 Content-Range）；追加=SequenceInputStream 串接重存非原地 append"
+  cache: "catalog/tags 索引文件缓存；_uploads 24h 过期清理（cron 每日 + manifest PUT 成功同步清理）"
+  remote: "DockerV2RemoteRepoHandler 代理模式 v2 差异——M3 逆向待补（docker-registry.md 待验证#3，UNKNOWN）"
+  error: '{"errors":[{code,message,detail}]}；私有码 SIZE_INVALID/NO_TAGS_FOUND/NOT FOUND（含空格）/INTERNAL_ERROR；无 BLOB_UPLOAD_UNKNOWN（404 BLOB_UNKNOWN 替代）；manifest 校验缺 blob=MANIFEST_INVALID 而非官方 BLOB_UNKNOWN'
+  client: "docker CLI（push/pull/login）；老 docker UA 兼容规则 ^(docker/1.3-1.7|Go )"
+  configuration: "blockPushingSchema1(默认true)/maxUniqueTags/dockerTagRetention(默认1)/resolveDockerTagsByTimestamp/cachingLocalForeignLayers/dockerApiVersion(默认V2)/dockerEnforceSearchBlobUnderImage/dockerCopyBlobToUploadsEnabled(默认false)/oci.accepted.user.agents.list"
+  tests: "BinFlow 侧：docker×16 ops 已 ✅（rest-compat D12 行1）；v1 兼容面不实现"
+  evidence: docker-registry.md 全文（官方 [DIST-API]/[OCI] 为基准）/ inv-3 §2.2 DOCKER / rest-compat §11.1 行1
+  confidence: high
+# ───────────────────────── maven ─────────────────────────
+- protocol: maven
+  category: JVM/构建系
+  entry_point: "存储命名空间 /<repoKey>/<orgPath>/<module>/<version>/<file>（无 /api 段）；管理面 /api/maven/calculateMetadata|generatePom"
+  repository_type: [local, remote, virtual]
+  transport: HTTP（普通文件 GET/PUT/DELETE）
+  authentication: "通用认证链（Basic/Bearer）；仓级 forceMavenAuthentication 开关（默认 false）"
+  authorization: "路径 r/w/d；handleReleases/handleSnapshots=false 时 PUT→409"
+  upload: "PUT 直传（jar/pom/maven-metadata.xml/.sha1/.md5）；snapshot 文件名按 snapshotVersionBehavior 改写（unique=时间戳-buildNumber，buildNumber 取 metadata+1，可注入 build.timestamp 矩阵参数；non-unique/deployer 原样）"
+  download: "GET/HEAD；checksum 伴随文件 GET=服务端自算值下发（remote 仓绝不回源 checksum，404 Checksums are not downloadable.）；最新版 token SNAPSHOT/[RELEASE]/[INTEGRATION] 路径解析（BinFlow 缺位）"
+  delete: "DELETE + 受影响目录 metadata 异步重算"
+  search: "AQL + /api/search/{gavc,versions,latestVersion,artifact}；UI artifactsearch"
+  metadata: "三级 maven-metadata.xml 服务端主动计算（版本组目录/版本目录/virtual 合并）：versions=含 *.pom 子目录集、latest/release 按 Maven 版本序、snapshot buildNumber 连续性、snapshotVersions（Maven 3）；virtual 合并去重重排不缓存"
+  checksum: ".sha1/.md5 伴随上传走通用校验和文件链（>1024B 409）；metadata 伴随含 .sha512；client-checksums 策略不匹配 409"
+  range: "通用内容面 Range 语义（rest-api.md §1.4）"
+  streaming: 通用内容面流式
+  cache: "remote 元数据可过期缓存（repo-semantics §7.4）；virtual metadata 每请求现算"
+  remote: "代理 Maven central 等上游；checksum 文件不代理（见 download）；unique snapshot 解析"
+  error: "统一 errors[] 信封；409 SnapshotPolicy（handleReleases/Snapshots 拒绝）"
+  client: mvn/gradle（deploy/resolve）
+  configuration: "suppressPomConsistencyChecks/fetchJarsEagerly/fetchSourcesEagerly/rejectInvalidJars/pomRepositoryReferencesCleanupPolicy(默认discard_active_reference)/snapshotVersionBehavior(默认unique)/checksumPolicyType(默认client-checksums)"
+  tests: "BinFlow 侧已有（元数据计算自动链 ✅；显式 REST 触发 ◐）"
+  evidence: maven-npm-pypi.md §1（[MVN-MD] 为基准）/ inv-3 §2.1 MAVEN / rest-api.md §1
+  confidence: high
+# ───────────────────────── npm ─────────────────────────
+- protocol: npm
+  category: 语言生态管理器
+  entry_point: "/api/npm/<repoKey>/…（域根 GET 200 空 body 探测）；认证族 /-/…"
+  repository_type: [local, remote, virtual]
+  transport: HTTP（JSON 文档 + tarball 流）
+  authentication: "Basic/Bearer + legacy couch login：PUT /-/user/org.couchdb.user:<username>（body 凭据，无认证头）→ 201 {ok,id,token}；/-/whoami 401+Basic challenge；/-/v1/login 不实现（客户端 ENYI 回落 couch，正确姿态）"
+  authorization: "tarball 路径 w 权限；dist-tags 写=annotate；publish 到已存在版本=403"
+  upload: "PUT /{name}（publish 十步校验链：JSON 解析/attachments+versions/写权限/重复版本 403/semver/deprecate 201/integrity sha512/shasum→400）；-rev PUT 恒 200 假成功（rev-dance 占位）"
+  download: "GET tarball（.tgz/.tar.gz、scoped 全路径、_external/_relative 私有形态）；dist.tarball 重写为本服务地址（remote 四分支改写算法）；packument ETag=包文档 sha1、304"
+  delete: "DELETE 版本/整包（-rev 形态）；unpublish 族"
+  search: "/-/v1/search?text=&size=&from=（text 必填 400）；/-/all 旧版全量"
+  metadata: ".npm/{name}/package.json（聚合文档）+ .npm/{name}/{name}-{version}.json；属性 npm.name/npm.version/npm.disttag/sha512；SLIM Accept=application/vnd.npm.install-v1+json（npm ci 优化）"
+  checksum: "integrity sha512-<base64> 校验（默认信任不强制拒）；dist.shasum→client checksum；ETag/X-Checksum-Sha1=包文档 sha1（非 tarball）"
+  range: 不适用（整文件下载）
+  streaming: tarball 流式
+  cache: "virtual 合并缓存 .npm/{name}/package-{hash}-{STRATEGY}.json，TTL=virtualRetrievalCachePeriodSecs（<600s 视为禁用）；单飞+120s 冲突锁"
+  remote: "tarball URL 重写四分支（上游前缀剥离/smart remote /api/npm/ 剥离/同 host _relative/外域重建）+ ?dl= 替代下载模式；X-Artifactory-Origin-Remote-Path 头"
+  error: "统一 errors[] 信封 + npm notice 头；重复版本 403 Cannot modify pre-existing version"
+  client: npm CLI 10.x（login/publish/install/whoami 实测锚 npm.md live 抓包）
+  configuration: 无独立 force 开关（走全局匿名策略）
+  tests: "BinFlow 侧 npm×5 认证族 + npm×4 包面 ✅（K60 六条定案）；dist-tags 显式端点族 ◐"
+  evidence: maven-npm-pypi.md §2 + npm.md（[NPM-API]/客户端源码即规范）/ inv-3 §2.3 NPM / rest-compat §11.1 行3–5
+  confidence: high
+# ───────────────────────── pypi ─────────────────────────
+- protocol: pypi
+  category: 语言生态管理器
+  entry_point: "/api/pypi/<repoKey>/…；请求路径层另接受 list/<repo>/ 与 simple/<repo>/ 前缀并剥离（pip 兼容，路径归一化中枢）；域根 GET 200 空"
+  repository_type: [local, remote, virtual]
+  transport: "HTTP；simple HTML（PEP 503）+ gzip 预压缩（Accept-Encoding 协商）+ multipart 上传"
+  authentication: 通用认证链；上传需认证
+  authorization: simple 索引读=仓读权限（403 {"error":"Forbidden",...}）；上传=deploy
+  upload: "POST multipart（:action 必须严格=file_upload 否则 400 unknown action；content=文件体；md5_digest 可缺失〔twine≥6.2〕；其余字段→属性）；路径={name}/{version}/{filename} 原始名不 normalize；响应统一 200"
+  download: "GET /packages/{path}（scoped devpi 形态 {user}/{scope}/…）；simple/{name} 无尾斜杠 302 补斜杠"
+  delete: 通用内容面 DELETE
+  search: "/pypi/{name}/json legacy warehouse JSON API；XML-RPC POST 搜索（中置信）"
+  metadata: ".pypi/{norm}/{norm}.html|.json、simple.html、latest.json、upload_times；normalizePackageName=PEP 503（lower+[-_.]+→-）；属性 pypi.name/pypi.normalized.name/pypi.version/pypi.summary/pypi.requires.python/pypi.yanked"
+  checksum: "simple 链接 fragment #sha256= 优先（无 sha256 才 #md5=）；上传只收 md5_digest，sha256 服务端算"
+  range: 不适用（整文件）
+  streaming: 文件流；gzip 预压缩缓存
+  cache: "remote 包不存在负缓存（默认开 TTL 28800s=8h 容量 50000）；virtual 索引合并格式回退（JSON↔HTML）"
+  remote: "代理 pypi.org；skipUrlTranslation 参数（poetry UA）；上游索引链接改写为本地"
+  error: "统一 errors[] 信封；simple/{name}/{version} 恒 404（保留端点）"
+  client: pip/twine（PEP 503/Upload API 实测锚）
+  configuration: "repositorySuffix(默认simple)/pyPIRegistryUrl(默认pypi.org)/pypi.simple.json.format.enabled(默认false)/pypi.enforce.layout|naming.normalization(默认false)/负缓存参数"
+  tests: "BinFlow 侧 pypi×4 ✅（rest-compat D12 行6）；JSON 元数据两臂 ❌"
+  evidence: maven-npm-pypi.md §3（[PEP503] 族为基准）/ inv-3 §2.3 PYPI / rest-compat §11.1 行6–7
+  confidence: high
+# ───────────────────────── generic ─────────────────────────
+- protocol: generic
+  category: 通用
+  entry_point: "/<repoKey>/<path>（纯存储命名空间，无 API 段）"
+  repository_type: [local, remote, virtual]
+  transport: HTTP（任意文件 PUT/GET/HEAD/DELETE）
+  authentication: 通用认证链（Basic/Bearer/匿名按仓策略）
+  authorization: "路径 r/w/n/d；矩阵参数属性随 PUT 存储；属性键非法 400"
+  upload: "PUT（201+Location+FileInfo）；矩阵参数 ;k=v 属性化部署；X-Checksum 三头/通用头按长度识别；X-Checksum-Deploy 零 body；.sha1 旁车；X-Explode-Archive 解包（zip,tar,tar.gz,tgz）"
+  download: "GET/HEAD（ETag=sha1 无引号、Last-Modified、Accept-Ranges、X-Checksum 头族、X-Artifactory-Filename、mimetypes.xml 映射）；Range/If-Range 206/416；304；归档内路径 !/ 语法（横切 XC-3）"
+  delete: "DELETE（?atomic 单事务）；进回收站（trashcanConfig）"
+  search: "AQL + 老搜索族（artifact/checksum/pattern 等）"
+  metadata: "FileInfo/FolderInfo JSON；properties（矩阵参数或 REST 属性 API）；simple-default layout（[orgPath]/[module]/[module]-[baseRev].[ext]，仅展示不强约束）"
+  checksum: "sha1/md5/sha256 三算；X-Checksum-Sha1 客户端声明服务端比对；client-checksums 策略不匹配 409"
+  range: "单区间 206+Content-Range；非法 416+Content-Range: bytes */<total>"
+  streaming: "全流式；Expect: 100-continue 去重加速（blob 已存在跳 body）"
+  cache: "remote-cache 仓；ETag/304；目录 zip 下载（folderDownloadConfig 默认关：1024MB/5000 文件/10 并发）"
+  remote: "远端仓 pull-through（miss 回源→缓存→服务）；downloadRedirect/CDN 重定向可选"
+  error: '统一 {"errors":[{status,message}]}；404/403→匿名 401 挑战；blackedOut→404；virtual 无部署仓 PUT→405+Allow: GET'
+  client: curl/jf CLI/任意 HTTP 客户端
+  configuration: "includesPattern(**/*)/excludesPattern/checksumPolicyType/archiveBrowsingEnabled/propertySets/repoLayoutRef(simple-default)"
+  tests: BinFlow 五包型基座（generic adapter ✅）
+  evidence: rest-api.md §1 全节 / inv-3 §2.2 GENERIC
+  confidence: high
+# ───────────────────────── helm（经典仓） ─────────────────────────
+- protocol: helm
+  category: 容器/OCI
+  entry_point: "经典仓=$BASE/artifactory/api/helm/<repoKey>/（index.yaml/tgz/_external/_transitive 下载面）；上传走内容面 curl -T PUT <repoKey>/<path>.tgz；管理面 POST /api/helm/{repoKey}/reindex[/{path}]"
+  repository_type: [local, remote, virtual]
+  transport: "HTTP；index.yaml（text/yaml）+ tgz 流"
+  authentication: 通用认证链
+  authorization: "读=仓读；上传/删除=路径 w/d；reindex=MANAGE"
+  upload: "PUT .tgz（201+触发 index 重算事件链：读仓根 index→解析归档根 Chart.yaml+requirements.yaml→写 chart.* 属性→条目覆盖回写）；.prov 普通文件存储不进 index；enforce layout 两开关（forceMetadataNameVersion/forceNonDuplicateChart）403 族"
+  download: "GET index.yaml（local=仓根文件/remote=回源/virtual=聚合）；GET tgz/.prov；_external/_transitive 外部依赖代理（模式白名单外 400）"
+  delete: "DELETE tgz → 按 chart.name+version 属性从 index 移除条目（属性缺失告警跳过）"
+  search: "无独立搜索 API；Packages UI 视图走 chart.* 属性"
+  metadata: "index.yaml（apiVersion v1/entries/generated；版本条目 SemVer 降序；digest=sha256 裸 hex；urls 绝对或 relative 开关）；chart.* 属性 13 个；virtual 聚合缓存 .index/<sha256(contextUrl)>/<permissionHashCode>/index.yaml"
+  checksum: "index 条目 digest=tgz sha256（无前缀）；上传走统一 checksum 头链"
+  range: 不适用
+  streaming: tgz 流式
+  cache: "virtual 聚合缓存（不同对外 base/权限集各自一条）；local 写事件清缓存；remote URL 变更清缓存；实例 base 变更全仓 reindex"
+  remote: "index.yaml 回源原样缓存（可过期元数据）；tgz 回源地址=chartsBaseUrl+相对路径（缺省仓 URL）；_external 回源 <protocol>://<url> 落盘同路径"
+  error: "统一 errors[] 信封；virtual index 非仓根请求 404 The index file is being requested from an unsupported location"
+  client: "helm 3（repo add/pull/push；tag 严格 SemVer）"
+  configuration: "chartsBaseUrl/helm.relative.urls.enabled(代码快照默认false)/forceMetadataNameVersion/forceNonDuplicateChart/useNamespaces(virtual)/externalDependencies{Enabled,Patterns,RemoteRepo}"
+  tests: "BinFlow 侧 reindex×2 ✅（rest-compat D12 行9）；经典仓面 M11 议程"
+  evidence: helm.md 全文（[HELM-DOC] 为基准）/ inv-3 §2.2 HELM / rest-compat §11.1 行9
+  confidence: high
+# ───────────────────────── helmoci ─────────────────────────
+- protocol: helmoci
+  category: 容器/OCI
+  entry_point: "复用 docker v2 全套 REST（oci://$HOST/<repoKey>）；isDockerGroup=Docker|OCI|HelmOCI"
+  repository_type: [local, remote, virtual]
+  transport: 同 docker（registry v2）
+  authentication: 同 docker bearer token 流
+  authorization: 同 docker（scope/manifest 权限）
+  upload: "helm push（chart 打成 OCI artifact：config/layer media type 为 helm 类型）；.prov 作为附加 layer 自动上传；tag=chart 语义化版本"
+  download: "helm pull oci://…@digest 或 tag；digest 安装"
+  delete: 同 docker manifest/blob 删除
+  search: "同 docker（catalog/tags）+ chart 语义打点（UI 按 config layer media type 区分）"
+  metadata: "manifest 内 chart.yaml 为 config blob；分析打点按 Helm 归类"
+  checksum: 同 docker digest sha256
+  range: 同 docker
+  streaming: 同 docker
+  cache: 同 docker（addon 壳复用 OCI 栈）
+  remote: 同 docker remote 代理
+  error: 同 docker 错误信封
+  client: "helm 3（OCI registries 模式）"
+  configuration: "addon/helmoci 壳（HelmOciAddonImpl）；仓配置同 docker 族"
+  tests: BinFlow 未实现（登记）
+  evidence: helm.md §1.2 + inv-3 §2.2 HELMOCI（addon 壳复用 OCI 栈，中置信补充）
+  confidence: medium
+# ───────────────────────── nuget ─────────────────────────
+- protocol: nuget
+  category: 语言生态管理器（.NET）
+  entry_point: "v2=$BASE/artifactory/api/nuget/<repoKey>/（OData 全 18 路由）；v3=$BASE/artifactory/api/nuget/v3/<repoKey>/index.json（service index）"
+  repository_type: [local, remote, virtual]
+  transport: "HTTP；v2=OData atom/xml（application/atom+xml + DataServiceVersion 头）+ $batch multipart/mixed；v3=JSON"
+  authentication: "两道门固定顺序：forceAuthentication 门（401+Basic realm）→ hasAnyAuthorizedRepo 门（403）；例外：根 service doc 匿名 GET 豁免（repoAllowsAnonymousRootGet）、裸 .nupkg 下载不走门"
+  authorization: "读=仓读；publish/DELETE=deploy/delete；重复臂=exists&&!canDelete→409、有 d 权限→覆盖 201（D-10 终裁）"
+  upload: "PUT multipart（字段名严格 package；身份取包内 nuspec；deployPath=<前缀/><id>.<version>.nupkg）；virtual 路由 defaultDeploymentRepo（未配 400，路径不合法 409 Unacceptable path.）"
+  download: "GET Download/{id}/{ver} 与任意 .nupkg 路径（透传存储层）；v3 flatcontainer/{id}/{ver}/<file>.nupkg"
+  delete: "DELETE 前两段=坐标硬删版本（200 Successfully removed '<path>'；无 listed/unlisted 翻转）"
+  search: "v2 Search()/GetUpdates()/Packages()/FindPackagesById()（OData 参数 $filter/$orderby/$top/$skip/$inlinecount/$skiptoken；semVerLevel 语义官方 wiki；nuget.ignoreIsLatestVersionFilter 默认 true）；v3 SearchQueryService（remote/virtual 上游代理）"
+  metadata: "v2 $metadata EDMX + service document；v3 service index（SearchQueryService/registrations/flatcontainer/repository-signatures）；enableNormalizedVersion"
+  checksum: "nuspec 内哈希；v3 签名索引 repository-signatures"
+  range: 不适用（整包）
+  streaming: 包流式
+  cache: "v3 service index 动态解析（base=server.base_url 或请求推导，X-Forwarded-Proto 认可）；remote 搜索上游代理缓存"
+  remote: "nuget.org 代理（v2/v3 双上游）；GetUpdates 聚合"
+  error: "v2 空结果=404（feed 空）；id 参数缺失 404（非 400）；$batch 不支持子形态 400 Unsupported batch entry."
+  client: "dotnet/nuget CLI/Visual Studio（dotnet 8 实测直推 v2 PUT）"
+  configuration: "feedContextPath(默认api/v2)/enableNormalizedVersion/forceNugetAuthentication(默认true)/symbolServerUrl(默认symbols.nuget.org)"
+  tests: "BinFlow as-built v2 子集（FindPackagesById/$metadata/service doc/push/Download）；T-337 全路由在途"
+  evidence: nuget.md 全文（[NUGET-WIKI] 为基准）/ inv-3 §2.3 NUGET / rest-compat §11.1
+  confidence: high
+# ───────────────────────── go（GOPROXY） ─────────────────────────
+- protocol: go
+  category: 语言生态管理器
+  entry_point: "Artifactory=$BASE/artifactory/api/go/<repoKey>/…（官方挂载点）；协议形态 $base/<module>/@v/…；sumdb 代理 sumdb/sum.golang.org/*"
+  repository_type: [local, remote, virtual]
+  transport: "HTTP 纯读协议（官方 GOPROXY 无上传；PUT 为厂商扩展）；错误体 text/plain"
+  authentication: 通用认证链；addon go 槽位门控（BinFlow 门控决策：建仓/push 403、既有内容 pull 200）
+  authorization: 读=仓读；扩展 PUT=deploy
+  upload: "PUT <module>/@v/<version>.{zip,mod,info}（厂商扩展，官方协议只读）"
+  download: "GET @v/list（纯文本行；不含 pseudo-version）/.info（缺失由 .zip lastModified 合成并回写）/.mod（无则合成 module 单行）/.zip；GET @latest（官方可选）；HEAD .mod 未命中 410"
+  delete: 通用内容面 DELETE
+  search: "无协议级搜索；go.name/go.version 属性支撑 @v/list 聚合"
+  metadata: "存储用解码形态（!lower 大写还原）；属性 go.name/go.version/package.lowercase；remote 内部标记 <module>/@v/.versionList 与 <module>@latest.latest（不可作为模块内容访问）"
+  checksum: "go.sum 校验链走 sumdb 代理（lookup/tile/supported）；.info/.zip 逐字节回读保证 sha256 对账"
+  range: 不适用
+  streaming: zip 流式
+  cache: "可过期路径集合=.info/.versionList/.latest；.mod/.zip 不可过期（官方要求同版本恒同内容）；404/410 触发 GOPROXY 列表回退、其余 4xx/5xx 终止"
+  remote: "回源 URL 重新 !lower 转义拼接上游；虚拟仓 external dependencies 重定向（GoExternalDependenciesHelper）"
+  error: "404/410=可回退缺失；text/plain 错误体；!! 连续叹号畸形模块名 400"
+  client: "go 命令（GOPROXY/GOSUMDB）；goproxy.md 客户端矩阵"
+  configuration: "无独立 force 开关；go-default layout（@v 段）"
+  tests: BinFlow goproxy adapter ✅（M10 落地；存储面直答 rest-compat D12 行11）
+  evidence: goproxy.md 全文（[GOPROXY-SPEC] 为基准）/ inv-3 §2.3 GO
+  confidence: high
+# ───────────────────────── conan ─────────────────────────
+- protocol: conan
+  category: 语言生态管理器（C/C++）
+  entry_point: "Artifactory=$BASE/artifactory/api/conan/<repoKey>/…（v1 与 v2 两族端点共用存储）；握手三端点 {v1,v2}/{ping,users/authenticate,users/check_credentials} 三类仓同服务"
+  repository_type: "v1 数据面仅 local（remote/virtual→400 Unsupported Conan v1 repository request）；v2 三类仓"
+  transport: "HTTP；JSON + 文件流；认证=Basic 换 token（200 体纯文本即 token）→ Bearer"
+  authentication: "握手三端点类无关；forceConanAuthentication 开关→匿名 401；能力头 X-Conan-Server-Capabilities（revisions/checksum_deploy/matrix_params/complex_search；不支持 v1 的仓追加 only_v2）"
+  authorization: "写=路径 w；删除=canWrite→403；reindex=MANAGE"
+  upload: "v2：PUT <ref>/revisions/{rRev}/files/{path}（recipe）与 …/packages/{pid}/revisions/{pRev}/files/{path}（包），201；v1：POST upload_urls 换绝对 URL → PUT files/ 直传通道"
+  download: "v2：GET/HEAD revisions/{rRev}[…]/files/{path}；v1：download_urls/digest 换地址再 GET；latest 链由 .timestamp 排序"
+  delete: "v2 DELETE <ref>=坐标根整树删（全部修订，T-369 对齐）；单修订/包修订删除；v1 packages/delete 幂等 200（混批无树 pid 静默跳过）"
+  search: "v2 search?q=（* 通配匹配 name/version@user/channel；尾缀 /* 服务端剥离）；v1 conans/search 同形态"
+  metadata: "存储布局 <user>/<name>/<version>/<channel>/{index.json,<rRev>/{.timestamp,export/,package/<pid>/{index.json,<pRev>/…}}}；`_` 字面段约定"
+  checksum: "v1 snapshot=文件名→md5（排 .timestamp）；matrix_params 能力；conanmanifest.txt"
+  range: 不适用
+  streaming: 文件流式
+  cache: "Artifactory 有 ConanV2 迁移 job（v1→v2 元数据重算）+ 未迁移闸门（BinFlow 绿地无迁移无闸门）"
+  remote: "conan 2 remote login 硬依赖 authenticate（握手端点类无关的原因）"
+  error: "404 逐字族（Couldn't find revisions/Couldn't find path/Couldn't find packages for deletion）；v1 数据面到 remote/virtual 400"
+  client: "conan 1.66 / conan 2.31.2（双客户端真机实证锚）"
+  configuration: forceConanAuthentication / conan-default layout（含 package_id 段）
+  tests: "BinFlow 侧 v1 十七端点+files 直传（CN-1 终裁）+v2 修订链 ✅；reindex×2 ✅"
+  evidence: conan.md 全文（Conan revisions 官方文档 + GitLab v2 API 为基准）/ inv-3 §2.3 CONAN
+  confidence: high
+# ───────────────────────── debian ─────────────────────────
+- protocol: debian
+  category: OS 包管理（apt）
+  entry_point: "纯存储路径协议：$BASE/<repoKey>/dists/… 与 /pool/…（无 API 挂载点）；管理面 $BASE/api/deb/…；sources.list archive-root=仓根"
+  repository_type: [local, remote, virtual]
+  transport: "HTTP；索引 Packages(.gz/.bz2/.xz/.lzma) + Release + InRelease"
+  authentication: 通用认证链
+  authorization: "读=仓读；debPUT=deploy；索引路径建议禁客户端直写（BinFlow 裁决项）"
+  upload: "PUT .deb 任意路径 + 矩阵参数坐标 ;deb.distribution=stable;deb.component=main;deb.architecture=amd64（多值重复键）；解析 DEBIAN/control→回填 sha256→增量索引重算（异步）；.dsc 同链；缺坐标属性静默跳过索引（Artifactory 行为，BinFlow 建议改 400）"
+  download: "GET 任意仓内路径（apt 按 Packages Filename 字段取）；by-hash/MD5Sum|SHA1|SHA256/<digest> 历史地址"
+  delete: "DELETE → 增量 REMOVE 事件 → 索引/Release 重算"
+  search: 无协议级搜索（apt 用索引）
+  metadata: "Release 元索引（Suite/Codename=dist、Components/Architectures、MD5Sum/SHA1/SHA256 清单 size 右对齐 17）；坐标属性 deb.*/dsc.*；trivial 布局（debianTrivialLayout：Packages 在仓根）"
+  checksum: "By-Hash 三档枚举 ALL/SHA256/NONE（Acquire-By-Hash: yes 声明）；索引文件三哈希"
+  range: 通用内容面 Range
+  streaming: 文件流式
+  cache: "索引增量重算（事件 ADD/DELETE/OVERRIDE per (dist,comp,arch)）；Release 重算与签名"
+  remote: "apt 上游镜像代理；By-Hash 防撕裂"
+  error: 通用 errors[] 信封；GPG 签名链（Release.gpg/InRelease 有密钥时）
+  client: apt/dpkg（sources.list 形态实测锚）
+  configuration: "debianTrivialLayout/optionalIndexCompressionFormats(默认[bz2])/byHash 三档/debianDefaultArchitectures(默认i386,amd64)/ddebSupported/deb.release.origin|label 属性"
+  tests: "BinFlow reindex-deb ✅（rest-compat D12 行9）；包型面 M11 议程"
+  evidence: debian.md 全文（[DEB-FORMAT] 为基准）/ inv-3 §2.4 DEBIAN
+  confidence: high
+# ───────────────────────── rpm（yum） ─────────────────────────
+- protocol: rpm
+  category: OS 包管理（yum/dnf）
+  entry_point: "纯存储路径协议：$BASE/<repoKey>/[<depth 前缀>/]repodata/repomd.xml；管理面 POST $BASE/api/yum/{repoKey}?path=&async="
+  repository_type: [local, remote, virtual]
+  transport: "HTTP；索引仅 gzip（.xml.gz）；repomd.xml 骨架（data type=location/checksum/open-checksum/timestamp/size/open-size 链）"
+  authentication: 通用认证链；reindex=MANAGE（X-GPG-PASSPHRASE 头可选）
+  authorization: "读=仓读；PUT/DELETE=路径 w/d；reindex=MANAGE"
+  upload: "PUT 任意路径 .rpm（201+触发重算：解析 RPM header 写 rpm.metadata.* 9 属性→增量索引）；PUT repodata/<group>.xml comps 组文件（触发组处理链改名）"
+  download: "GET repomd.xml/.asc/.key + 索引（dnf 按 location href）+ 任意 .rpm；checksum 后缀不回源 404"
+  delete: "DELETE .rpm → 增量重算（NEVRA 来自属性）"
+  search: 无协议级搜索（dnf 用 primary.xml）
+  metadata: "primary/filelists/other 三索引（namespace linux.duke.edu/metadata/*）；索引文件名=<摘要>-<indexName>.xml.gz；modules.yaml 透传；comps 组文件；<revision> 输出空内容；根 packages=N 属性；.rpmcache 实例级解析缓存（sha1+mtime 失效）"
+  checksum: "默认 SHA-1（type=sha）；enableSha256 开启后 SHA-256；open-checksum=未压缩 XML 摘要"
+  range: 通用内容面 Range
+  streaming: 文件流式
+  cache: "原子性：_tmp_<nanoTime><hash>/ 临时目录整体 move；历史代数保留最近 N 代（默认 3，防撕裂）；每次计算先删 *.sqlite.bz2 遗留"
+  remote: "上游镜像代理；合并成员索引可解压 xml/gz/xz/bz2/zst 五形态"
+  error: 'reindex 文案族：repoKey 空 400 Target repository key cannot be blank；async=1 202 accepted；async=0+自动计算开 409；virtual path 自动补 /repodata'
+  client: "yum/dnf（baseurl/$releasever/$basearch 客户端展开）"
+  configuration: "yumRootDepth(默认0)/calculateYumMetadata/enableFileListsIndexing(默认false)/yumGroupFilenames/enableSha256(默认false)/rpm.metadata.history.cycles.to.keep(默认3)"
+  tests: "BinFlow reindex-yum ✅（rest-compat D12 行9）；包型面 M11 议程"
+  evidence: rpm.md 全文（社区 repomd 事实规范 + dnf.conf(5) 为基准）/ inv-3 §2.4 YUM
+  confidence: high
+# ───────────────────────── cargo ─────────────────────────
+- protocol: cargo
+  category: 语言生态管理器（Rust）
+  entry_point: "Artifactory=$BASE/artifactory/api/cargo/<repoKey>/…；sparse 入口 index/config.json（dl/api 自指）；git 索引已弃用（404+迁移文案）"
+  repository_type: [local, remote, virtual]
+  transport: "HTTP；NDJSON 索引 + 长度前缀帧上传（[u32 JSON len][JSON][u32 crate len][gzip tarball]）"
+  authentication: "config.json auth-required:true 匿名握手（cargo 裸取 401 后带凭据重试）；search 官方不带 Authorization"
+  authorization: "publish/yank=deploy；401（匿名）/403（实名）分形"
+  upload: "PUT api/v1/crates/new（帧解析→存储→异步索引器重写 index/<pkgPath> 全版本行）；cksum=服务端实测 .crate sha256；成功体 {warnings:…} 禁 errors 键（真机实证：errors 键存在即失败）"
+  download: "GET v1/crates/{name}/{version}/download（.crate 流）"
+  delete: "无硬删；yank/unyank=DELETE/PUT api/v1/crates/{name}/{version}/{yank,unyank}（200 {ok:true}；不存在 404 errors 信封 TL-6；翻转该版本行 yanked 布尔）"
+  search: "GET api/v1/crates?q=&per_page= → {crates:[{name,max_version,description}],meta:{total}}"
+  metadata: "存储 crates/<name>/<name>-<version>.crate + .cargo/crates/…json 长元数据 + index/{1|2|3|ab/cd}/<name> 索引行；属性 crate.name/version/description/keywords(;)/categories(;)/yanked"
+  checksum: "索引行 cksum=服务端实测 sha256（声明=存储闭环）；SemVer build metadata 不区分重版"
+  range: 不适用
+  streaming: gzip tarball 流式
+  cache: "索引行条件请求 ETag/Last-Modified→304（官方缓存语义）；发布后索引异步（cargo 轮询短窗口容忍）"
+  remote: "crates.io 上游代理；cargoInternalIndex（git 索引兼容）已弃用"
+  error: '{"errors":[{"detail":"<msg>"}]}；CG-2 双轨（处理失败=同形 200+错误入 warnings.other；权限族=401/403 信封；帧畸形=500）'
+  client: cargo 1.98（真机实证锚）
+  configuration: "cargoAnonymousAccess/cargoInternalIndex(默认false→git 面 404)/public_key 端点（索引签名公钥）"
+  tests: "BinFlow 侧 CG-2 终裁双轨已固化（T-316 as-built）；重索引缺位（rest-compat D12 行10）"
+  evidence: cargo.md 全文（[CARGO-DOC] 为基准）/ inv-3 §2.3 CARGO
+  confidence: high
+
+# ═════════════════ 半全量条目（有 inv-3 厚行但无独立规格文件） ═════════════════
+semi_full_protocols:
+- protocol: terraform
+  category: 基础设施/配置管理
+  entry_point: "Registry：/.well-known/terraform.json 服务发现 + v1/modules + v1/providers；管理面 POST /api/terraform/{repoKey}/reindex（官方 calc 条目群）"
+  repository_type: [local, remote, virtual]
+  transport: HTTP（JSON + zip 流）
+  authentication: 通用认证链
+  authorization: UNKNOWN（逐包型规格票取证）
+  upload: "module/provider 包上传（内容面 PUT）；state 版本创建 v2/state-versions（backend）"
+  download: "v1/modules/{ns}/{name}/{provider}/versions/download；providers transitive/external 下载代理"
+  delete: 通用内容面；state 删除形态 UNKNOWN
+  search: v1/modules search 端点
+  metadata: "terraformType 区分 MODULE/PROVIDER 双 layout（terraform-module-default/terraform-provider-default）"
+  checksum: UNKNOWN（模块签名/提供者 sha 摘要面——需逐包型规格票）
+  range: 通用内容面
+  streaming: 通用内容面
+  cache: UNKNOWN
+  remote: "terraformRegistryUrl 默认 registry.terraform.io；providers 默认 releases.hashicorp.com"
+  error: 通用 errors[] 信封（细节 UNKNOWN）
+  client: terraform CLI（init/provider）
+  configuration: "terraformType/terraformRegistryUrl/providers 上游 URL/TerraformLoginV1（registry auth 协议）"
+  tests: BinFlow 未实现（登记）
+  evidence: inv-3 §2.5 TERRAFORM 行 / inv-2 §1.J / api-inventory.yaml D12
+  confidence: medium
+- protocol: terraformbackend
+  category: 基础设施/配置管理（Terraform HTTP state 后端）
+  entry_point: "v2/state-versions（+current）、workspaces 列表/详情、{stateId}/state-download"
+  repository_type: [local]
+  transport: "HTTP；state JSON 流"
+  authentication: "JWT caller 身份（auth/v3/keys/get-caller-info）+ 通用链"
+  authorization: state 锁所有权（细节 UNKNOWN）
+  upload: state 版本上传（v2/state-versions）
+  download: "{stateId}/state-download；current-state-version"
+  delete: UNKNOWN
+  search: 无
+  metadata: workspaces 清单/详情
+  checksum: UNKNOWN
+  range: 不适用
+  streaming: state 流
+  cache: UNKNOWN
+  remote: 不适用（本地后端语义）
+  error: 通用信封（细节 UNKNOWN）
+  client: terraform CLI（backend http）
+  configuration: "state 锁参数（actions/lock|unlock|force-unlock + locks/verify）"
+  tests: BinFlow 未实现（登记）
+  evidence: inv-3 §2.5 TERRAFORMBACKEND 行
+  confidence: medium
+
+# ═════════════════ 其余包型（按族聚合，57 全列——证据=inv-3 §2 逐行 + PackageTypeConfigFields） ═════════════════
+family_protocols:
+- family: maven-layout-family        # 无独立 HTTP 面，复用 maven/ivy layout 的 PUT/GET
+  protocols: [gradle, ivy, sbt]
+  category: JVM/构建系（layout 型）
+  entry_point: "存储命名空间（gradle 无独立面；ivy=ivy-default layout 14 位时间戳 integration；sbt=sbt-default+sbt-ivy-default scala_/sbt_ 路径段）"
+  repository_type: [local, remote, virtual]
+  transport: 同 maven（普通文件）
+  authentication: 同 maven（forceMavenAuthentication 同开关）
+  authorization: 同 generic 内容面
+  upload: 同 maven PUT（无 snapshot 改写的证据=UNKNOWN）
+  download: 同 maven（最新版 token 语义 UNKNOWN）
+  delete: 同 generic
+  search: UNKNOWN（疑走 gavc/layout 搜索，需验证）
+  metadata: "ivy.xml/sbt 坐标（descriptor 解析细节 UNKNOWN）"
+  checksum: 同 maven 伴随文件链（推测，UNKNOWN）
+  range: 通用内容面
+  streaming: 通用内容面
+  cache: 同 maven remote-cache
+  remote: 同 maven
+  error: 同 maven 信封
+  client: gradle/ivy/sbt resolver
+  configuration: "仓 packageType 枚举区分（UI/语义）；布局见 artifactory.config.xml <repoLayouts>"
+  tests: 无（BinFlow 走 maven 通道部分覆盖）
+  evidence: inv-3 §2.1 GRADLE/IVY/SBT 行 / inv-3 §4 内置 layout 表
+  confidence: "medium（gradle 无独立面为当前判断）/ high（ivy/sbt layout 字段）"
+  unknown_fields: [search, metadata 细节, checksum 伴随, 最新版 token]
+- family: oci-standalone
+  protocols: [oci]
+  category: 容器/OCI
+  entry_point: "OciResource + OciV2AuthenticationFilter（addon/oci）"
+  repository_type: [local, remote, virtual]
+  transport: 同 docker v2 栈（ORAS 类工件，非 docker 语义）
+  authentication: "OciV2AuthenticationFilter（bearer 流同 docker，细节 UNKNOWN）"
+  authorization: UNKNOWN
+  upload: ORAS push（manifest/blob 同 registry v2 语义，细节 UNKNOWN）
+  download: 同上
+  delete: UNKNOWN
+  search: UNKNOWN
+  metadata: UNKNOWN
+  checksum: 同 registry digest 语义（推测）
+  range: 同 docker
+  streaming: 同 docker
+  cache: 同 docker
+  remote: 同 docker remote
+  error: 同 docker 信封（推测）
+  client: ORAS CLI
+  configuration: addon oci（display.ordinal 150）
+  tests: 无
+  evidence: inv-3 §2.2 OCI 行 / inv-2 §1.J
+  confidence: medium
+  unknown_fields: [authorization, upload/download 细节, delete, search, metadata]
+- family: language-ecosystem-a       # 每包型独立协议栈，行为要点见 inv-3 §2.3 逐行
+  protocols: [gems, composer, swift, pub, conda, cran, cocoapods, bower, hex, luarocks, nimmodel, bazelmodules, nix, vcs, gitlfs]
+  category: 语言生态管理器
+  per_protocol_notes:
+    gems: "rubygems：gem push=multipart POST api/v1/gems；quick/Marshal 索引；gems_helper.rb 辅助脚本 + staticgems 引导集"
+    composer: "packagist 元数据：packages.json、p/{ns}/{pkg}.json、p2/、registration{,-semver2}/；enableComposerV1Indexing；默认上游 packagist.org"
+    swift: "/api/package 面：{scope}/{name}/{ver}.zip/.json/Package.swift、@{scope}{slash}{name} 转义、_external 依赖代理；swift-default layout"
+    pub: "/api/packages/{name}、versions、tarballs/；dist-tags（-/package/{name}/dist-tags/{tag}）；PubSpec 索引合并"
+    conda: "repodata.json/.bz2/.zst/current_repodata 四形态正则识别；curated repodata 过滤（按允许 build 列表重写）；通道认证"
+    cran: "CRAN 源布局 src/contrib + simple 索引 + 版本下载；CranSpecification 解析"
+    cocoapods: "CDN specs（index/{pkg} 哈希分片、Specs/…podspec.json、registration CDN 端点）；/pod/git、/pod/external、/pod/pkg 代理；默认 GitHub Specs + cdn.cocoapods.org"
+    bower: "bower-default layout；packages.json、packages/{path} 元数据；默认上游 registry.bower.io"
+    hex: "mix registry：packages/{name}、names、api/packages/versions/new；内置 hexPublicKey 默认值（repo.hex.pm 签名验证）"
+    luarocks: "api/1/{key}/upload、upload_rock/{versionId}、check_rockspec、status"
+    nimmodel: "NimModelHttpRepo + 专用 API 面（addon/nimmodel + ph/nimmodel）"
+    bazelmodules: "Bazel Central Registry 风格：modules/{repoKey}__{namespace} 元数据"
+    nix: "二进制缓存协议：nix-cache-info、{hash}.narinfo、nar/{hash}.nar.{xz,zst}；nix-default layout 以 narinfoHash 为路径"
+    vcs: "GitHub/GitLab 原始码代理：三类 tarball 端点（vcs-dists/direct-dists/source-dists）、refs/{org}/{repo}、downloadTag/downloadBranch、api/v1/roles/downloads+getToken、external+transitive 通配代理；vcsGitProvider 默认 GITHUB"
+    gitlfs: "LFS batch API（objects/batch）+ 单对象 GET/PUT + verify + 锁协议全套（locks 增删查/verify/{id}/unlock/actions/unlock|lock|force-unlock）"
+  repository_type: [local, remote, virtual]
+  transport: HTTP（各协议自有媒体形态）
+  authentication: "通用链 + 按型开关（cargoAnonymousAccess 同族反向放行、hex 公钥校验）；细节 per-protocol UNKNOWN"
+  authorization: UNKNOWN（逐包型规格票）
+  upload: 见 per_protocol_notes（仅 gems/composer/swift/pub/luarocks/vcs/gitlfs 有明确上传面；conda/cran/cocoapods/bower/hex/nimmodel/bazelmodules/nix 上传面 UNKNOWN）
+  download: 见 per_protocol_notes
+  delete: UNKNOWN
+  search: UNKNOWN（需逐包型取证）
+  metadata: 见 per_protocol_notes（索引/元数据形态各异）
+  checksum: UNKNOWN（nix narinfo 哈希、gitlfs sha256 摘要等逐包型待取证）
+  range: 通用内容面（适用文件下载型）
+  streaming: 通用内容面
+  cache: UNKNOWN（remote 缓存语义逐包型待取证）
+  remote: "上游默认值见 per_protocol_notes（packagist.org/registry.bower.io/cdn.cocoapods.org/repo.hex.pm 等）"
+  error: 统一 errors[] 信封（框架层）；细节 UNKNOWN
+  client: "gem/composer/swift package/dart pub/conda/R/pod/bower/mix/luarocks/nix/git/git-lfs"
+  configuration: PackageTypeConfigFields 78 键中各包型子集（默认值见 inv-3 §1 锚）
+  tests: 无（BinFlow 均未实现）
+  evidence: inv-3 §2.3 全表（15 行逐项）/ inv-2 §1.J
+  confidence: medium（协议形态可见；字段级细节未取证）
+  unknown_fields: [authorization, delete, search, checksum 细节, cache, error 细节, 部分包型 upload]
+- family: os-package-extra
+  protocols: [alpine, opkg]
+  category: OS 包管理
+  per_protocol_notes:
+    alpine: "APKINDEX.tar.gz 索引 + RSA 签名索引（.SIGN.RSA. 与 .rsa.pub 公钥文件模式、APKINDEX.unsigned.tar.gz 中间产物）"
+    opkg: "Packages 索引型轻量协议（ph/opkg + repomd/opkg）"
+  repository_type: [local, remote, virtual]
+  transport: HTTP（索引文件 + 包文件）
+  authentication: 通用链（细节 UNKNOWN）
+  authorization: UNKNOWN
+  upload: UNKNOWN（apk 直接 PUT + 自动重算的推断，需验证）
+  download: 通用内容面（APKINDEX 按路径 GET）
+  delete: 通用内容面
+  search: 无协议级搜索（索引驱动）
+  metadata: 见 per_protocol_notes
+  checksum: "alpine RSA 签名索引（摘要细节 UNKNOWN）"
+  range: 通用内容面
+  streaming: 通用内容面
+  cache: UNKNOWN
+  remote: UNKNOWN（alpine 上游镜像语义）
+  error: 统一信封（细节 UNKNOWN）
+  client: apk/opkg
+  configuration: PackageTypeConfigFields 子集
+  tests: 无
+  evidence: inv-3 §2.4 ALPINE/OPKG 行
+  confidence: medium
+  unknown_fields: [authorization, upload, checksum 细节, cache, remote 细节]
+- family: infra-config-management
+  protocols: [ansible, puppet, chef, vagrant, p2]
+  category: 基础设施/配置管理
+  per_protocol_notes:
+    ansible: "galaxy v3 API（api/v3/collections 全套 + artifacts、api/v3/imports、published index docs-blob）；v1 cookbooks 兼容面；ansible-default layout collections/{ns}/{name}/{ver}/…"
+    puppet: "forge 协议 v3（v3/releases、v3/modules）+ v1；puppet-default layout [orgPath]/[module]/[orgPath]-[module]-[baseRev].tar.gz"
+    chef: "supermarket API（api/v1/cookbooks 及版本下载、api/v1/search、universe 端点）"
+    vagrant: "atlas/box API（{boxName} 查询与 box 文件下载）"
+    p2: "Eclipse p2 composite 仓（p2/{ns}/{pkg}.json、artifacts/content 元数据、$metadata/$batch OData 端点）；forceP2Authentication；p2Urls/p2OriginalUrl"
+  repository_type: [local, remote, virtual]
+  transport: HTTP（JSON/元数据文件）
+  authentication: "通用链 + forceP2Authentication（p2）；其余 UNKNOWN"
+  authorization: UNKNOWN
+  upload: UNKNOWN（ansible collection/puppet module 上传面需逐包型取证）
+  download: 见 per_protocol_notes
+  delete: UNKNOWN
+  search: "chef api/v1/search、puppet forge 搜索（形态 UNKNOWN）"
+  metadata: 见 per_protocol_notes
+  checksum: UNKNOWN
+  range: 通用内容面
+  streaming: 通用内容面
+  cache: UNKNOWN
+  remote: UNKNOWN（galaxy/forge/supermarket 上游代理语义）
+  error: 统一信封（细节 UNKNOWN）
+  client: "ansible-galaxy/puppet/chef/vagrant/p2（Eclipse）"
+  configuration: PackageTypeConfigFields 子集
+  tests: 无
+  evidence: inv-3 §2.5 全行 / inv-2 §1.J
+  confidence: medium
+  unknown_fields: [authorization, upload, delete, checksum, cache, remote, error 细节]
+- family: ai-ml-editor-ecosystem
+  protocols: [huggingfaceml, machinelearning, frogml, vscode, vscodeextensions, jetbrains, jetbrainsplugins, aieditorextensions, skills, agentplugins, agentpackages, jem]
+  category: AI/ML/编辑器生态（7.x 后期增量）
+  per_protocol_notes:
+    huggingfaceml: "HF 协议克隆：api/models/{name}/preupload|commit|branch（可断点提交）、{org}/{model}/resolve/{rev}/{file}、model-manifest、xet CAS 子协议（xet-read/write-token、xorbs、chunks/shards）；42 op"
+    machinelearning: "models/datasets 双实体、api/models/datasets preupload/commit/branch/complete_multipart、tree/paths-info；isMlRepoLayout 配置"
+    frogml: "JFrog 自家 ML 工件类型；未见独立 ph 目录（推断复用 machinelearning 栈）"
+    vscode: "VS Code marketplace 协议（_apis/public/gallery、extensionquery；external patterns 默认 **/*vsassets.io/**）"
+    vscodeextensions: "同上 vscode 变体（独立包型名）"
+    jetbrains: "JetBrains 插件市场（files/{pluginId}/meta.json、brokenPlugins.json、api/products/intellij、pluginManager、compatibleUpdates 搜索）"
+    jetbrainsplugins: "同上 jetbrains 变体（独立包型名）"
+    aieditorextensions: "_apis/public/gallery/vscode 变体（AI 编辑器扩展市场）"
+    skills: "agent skills API（api/v1/skills/{slug}/versions/file）"
+    agentplugins: "agent 插件分发（agent-plugins-default layout，文件型 API）"
+    agentpackages: "agent 包分发（agent-packages-default layout，文件型 API）"
+    jem: "内部新类型，未见独立处理器目录（仅枚举）"
+  repository_type: [local, remote, virtual]
+  transport: "HTTP（JSON + 大文件流；HF xet CAS 分块协议）"
+  authentication: 通用链 + HF token 面（细节 UNKNOWN）
+  authorization: UNKNOWN
+  upload: 见 per_protocol_notes（huggingfaceml/machinelearning 有 preupload/commit 链；其余文件型）
+  download: "resolve/{rev}/{file}（HF）/文件路径（其余）"
+  delete: UNKNOWN
+  search: UNKNOWN
+  metadata: "model/dataset 清单（machinelearning）；plugin meta（jetbrains）"
+  checksum: "HF xet CAS chunk 哈希（细节 UNKNOWN）；其余 UNKNOWN"
+  range: 通用内容面
+  streaming: "HF 大文件分块（xet）；其余通用"
+  cache: UNKNOWN
+  remote: "上游 huggingface.co/marketplace.visualstudio.com/plugins.jetbrains.com 代理（细节 UNKNOWN）"
+  error: 统一信封（细节 UNKNOWN）
+  client: "huggingface CLI/VS Code/JetBrains IDE"
+  configuration: PackageTypeConfigFields 子集 + isMlRepoLayout
+  tests: 无（BinFlow 均未实现；PRODUCT 可整体缓议——inv-3 §5 优先级4）
+  evidence: inv-3 §2.6 全表 / inv-2 §1.J
+  confidence: "medium（huggingfaceml/machinelearning/vscode/jetbrains/skills/agent*）/ low（frogml、jem——枚举存在无处理器目录）"
+  unknown_fields: [authorization, delete, search, checksum 细节, cache, remote 细节, error 细节, frogml/jem 处理器位置]
+- family: internal-system-types
+  protocols: [buildinfo, releasebundles, pipeinfo, support]
+  category: 内部/系统型（非对外协议）
+  per_protocol_notes:
+    buildinfo: "build-info 仓（CI 构建元数据存储，供 /api/build 读写）——行为面全量见 build-info.md"
+    releasebundles: "Distribution 发布包内部类型——行为面见 release-bundle.md"
+    pipeinfo: "Pipelines 集成内部类型（仅枚举）"
+    support: "support bundle 内部存储类型（addon/support）"
+  repository_type: internal（不对外建仓协议面）
+  transport: 内部存储
+  authentication: 不适用（内部类型）
+  authorization: 不适用
+  upload: "buildinfo 经 PUT /api/build；releasebundles 经 /api/release/*"
+  download: "build GET 详情；release bundle 查询族"
+  delete: 对应管理 API
+  search: "AQL builds 域（aql.md §15）；无独立协议搜索"
+  metadata: buildinfo JSON 模型（build-info.md §3 字段集）
+  checksum: build 模块 sha1/md5 关联（build-info.md）
+  range: 不适用
+  streaming: 不适用
+  cache: 不适用
+  remote: 不适用
+  error: 对应管理 API 信封
+  client: "jf CLI（build-upload/release-bundle）"
+  configuration: 不适用
+  tests: "BinFlow：D07/D08 在途（T-505+/T-513）"
+  evidence: inv-3 §2.7 / build-info.md / release-bundle.md
+  confidence: "medium（buildinfo/releasebundles/support）/ low（pipeinfo）"
+  unknown_fields: [pipeinfo 行为面]
+
+# ═════════════════ 横切协议传输面（22 项，inv-3 §3 全量） ═════════════════
+cross_cutting:
+  path_normalization:   # ArtifactoryRequestBase.calculateRepoPath 中枢，6 项
+  - {id: XC-1, capability: 矩阵参数, behavior: "路径（含 repoKey 段）;k=v;k2=v2 整体剥离转部署属性随 PUT 存储；属性键校验失败 400", confidence: high}
+  - {id: XC-2, capability: pypi-前缀剥离, behavior: "请求路径以 list/ 或 simple/ 开头时跳过该前缀再取 repoKey", confidence: high}
+  - {id: XC-3, capability: 归档内路径, behavior: "<name>.<archExt>!/inner/path 按需解包成员读取；strictArchiveDotSlash 开关；扩展名集合来自 mimeTypes 配置", confidence: high}
+  - {id: XC-4, capability: dot-segment-归一化, behavior: "/./ 与结尾 /. 折叠；矩阵参数段外路径先归一化再拼回", confidence: high}
+  - {id: XC-5, capability: plus-号解码, behavior: "URL 解码前把 + 换成 %2B 再还原（防 query 语义污染路径）", confidence: high}
+  - {id: XC-6, capability: repoKey-别名, behavior: substituteRepoKeys 映射表路径层 repoKey 替换, confidence: medium}
+  upload_features:      # UploadServiceUtils + mpu，4 项
+  - {id: XC-7, capability: checksum-部署, behavior: "X-Checksum-Deploy: true 零 body；按 sha1/sha256 库内寻 blob 建引用；找不到失败", confidence: high}
+  - {id: XC-8, capability: filestore-存在性检查, behavior: "X-Check-Binary-Existence-In-Filestore 布尔头仅查不建条目", confidence: high}
+  - {id: XC-9, capability: 客户端断点续传, behavior: "/api/v1/uploads 六件（token→urlPart→status/abort/complete(sha1)）；scope internal:mpu:x", confidence: high}
+  - {id: XC-10, capability: 属性部署校验, behavior: "矩阵参数属性键经 PropertyNameValidator，非法键 400", confidence: high}
+  download_cache:      # 5 项
+  - {id: XC-11, capability: 条件请求, behavior: "ETag/If-None-Match（W/ 与引号剥离）；If-Modified-Since 与 Last-Modified 并存取 max", confidence: high}
+  - {id: XC-12, capability: Range, behavior: "Range 头存在即 byte range 切片 206", confidence: high}
+  - {id: XC-13, capability: 目录下载, behavior: "folderDownloadConfig 整目录 zip（默认关：1024MB/5000 文件/10 并发/匿名单独开关/空目录开关）", confidence: high}
+  - {id: XC-14, capability: 下载重定向, behavior: "downloadRedirect（>阈值重定向源站）与 CDN 重定向（CdnRedirectRepoConfig）", confidence: medium}
+  - {id: XC-15, capability: 递归环防护, behavior: "X-Artifactory-Originated/Origin-Artifactory 头识别；多 origin 且含本机 hostId 判递归", confidence: medium}
+  protocol_auth:       # 3 项
+  - {id: XC-16, capability: docker-bearer-challenge, behavior: '401 WWW-Authenticate: Bearer realm=…,service=…(,scope=…)+Docker-Distribution-Api-Version；token URL 模板 {repoKey}/{v1|v2}/token', confidence: high}
+  - {id: XC-17, capability: 按型强制认证, behavior: "forceMaven/Conan/Nuget/P2Authentication、cargoAnonymousAccess（反向放行）、hex 公钥校验", confidence: high}
+  - {id: XC-18, capability: 外部依赖重定向, behavior: "externalDependenciesEnabled+Patterns+RemoteRepoRef：虚拟仓匹配模式重定向指定远端仓（Go/VCS/npm/bower/helm/swift/p2/vscode 各自实现）", confidence: high}
+  events:              # 4 项
+  - {id: XC-19, capability: webhook, behavior: "反编译集合缺 addon/webhook 模块；公开文档定义 artifact/docker/property/release-bundle/retention 事件族——以官方文档为唯一来源（webhook.md 承载）", confidence: "low(代码侧)/文档侧存在"}
+  - {id: XC-20, capability: watch-邮件通知, behavior: "watch 标记 + events.properties HTML 邮件模板汇总", confidence: medium}
+  - {id: XC-21, capability: jfevent-内部总线, behavior: "artifact/docker/retention/release.bundle 事件模型消费面", confidence: medium}
+  - {id: XC-22, capability: X-Artifactory-头族, behavior: "29 个内部头（Created/Modified-By/Trace-Id/HA-Originated*/Project-Key/Pass-Through 等）用于复制/HA/追踪/云直传", confidence: high}
+
+# ═════════════════ 待验证清单（UNKNOWN 汇总，供逐包型规格票/活体取证） ═════════════════
+pending_verification:
+  - {id: REG-1,  item: "docker remote 代理模式 v2 行为差异", why: docker-registry.md 待验证#3, need: "M3 remote 逆向票"}
+  - {id: REG-2,  item: "family language-ecosystem-a 15 包型的 authorization/delete/search/checksum/cache/error 字段", why: 族级聚合未逐包型取证, need: "逐包型规格票（inv-3 单行证据不足以填 §9 全字段）"}
+  - {id: REG-3,  item: "alpine/opkg 上传链与缓存语义", why: 仅索引形态可见, need: "反编译 ph/alpine、ph/opkg indexer 走读 + 活体 apk add 实测"}
+  - {id: REG-4,  item: "ansible/puppet/chef/vagrant/p2 上传面与上游代理", why: 仅下载/元数据面可见, need: 逐包型规格票}
+  - {id: REG-5,  item: "terraform/terraformbackend checksum/authorization/delete 细节", why: 半全量条目缺字段, need: "ph/terraform registry+backend 走读"}
+  - {id: REG-6,  item: "frogml/jem 处理器位置", why: "仅枚举无 ph 目录（inv-3 §6 待验证1）", need: "新版本反编译或活体建仓探测"}
+  - {id: REG-7,  item: "gradle/ivy/sbt 隐藏专属端点", why: "当前判断纯 layout 型（inv-3 §6 待验证3）", need: 活体路由探测}
+  - {id: REG-8,  item: "cargo internal git index 是否仍暴露 git 协议面", why: cargoGitIndexEnabled 语义待确认, need: 活体探测}
+  - {id: REG-9,  item: "helmoci 与 docker 栈的精确差异点", why: addon 壳复用结论为中置信, need: "addon/helmoci 接线走读"}
+  - {id: REG-10, item: "webhook addon 反编译材料缺失", why: "三 batch 无该模块", need: "补 reverse-src 或以官方文档为唯一来源（webhook.md 已按此口径承载）"}

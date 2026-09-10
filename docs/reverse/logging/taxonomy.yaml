@@ -1,0 +1,178 @@
+# =====================================================================
+# Artifactory 7.161.x 日志文件 taxonomy（evidence-index，非设计输入）
+# =====================================================================
+# 头注声明（evidence-index-only）：本文件是运行时观察 + 配置实证的对账索引，
+# 服务于日志复刻的文件清单对账。禁止作为 BinFlow 结构设计依据；行为语义见
+# format-spec.md。写入者：reverse-engineer（Phase 0 审计任务 #4）。
+#
+# 证据等级：
+#   E1 = 反编译可见（/Users/lzw/workspace/artifactory-decompiled，7.161.24）
+#   E2 = 运行时配置实证（容器 var/etc 与 app/*/tomcat/conf，7.161.20）
+#   E3 = 安装包模板实证（artifactory-pro-7.161.16）
+#   E4 = 运行时活体观察（容器 var/log 实文件 + 主动探针，7.161.20）
+# 多等级并列 = 多源印证；结论随主证据源版本标注。
+#
+# 轮转策略代号：
+#   LOGBACK-FW-DATE : logback FixedWindowWithDateRollingPolicy（%i=UTC 时间戳）
+#   LOGBACK-FW-NUM  : logback FixedWindowRollingPolicy（%i=数字序号）
+#   GO-Rotate       : Go 族内建轮转（system.yaml rotation 五元组）
+#   JULI-Date       : Tomcat JULI FileHandler 按日期分文件
+#   Traefik-Rotate  : router traefik 自身轮转（system.yaml router.logging.traefik）
+#   Interval        : MetricTimeBased/TrafficTimeBased 定长间隔强制轮转
+#   None            : 无轮转
+# 存档位置：LOGBACK* → var/log/archived/；GO-Rotate → var/log/archived/（连字符命名）；
+#           JULI-Date → var/log/tomcat/ 内就地按日分文件（不压缩）。
+---
+meta:
+  product: artifactory-pro
+  versions: { runtime: "7.161.20", decompiled: "7.161.24", installer: "7.161.16" }
+  log_root: var/log/            # 容器内 /opt/jfrog/artifactory/var/log
+  archived_dir: var/log/archived/
+  tomcat_dir: var/log/tomcat/
+  usage_roots: [var/data/artifactory/usage/, var/data/access/usage/, var/data/<svc>/usage/]
+  services:                      # 服务 tag（行内 [tag] 槽的实测值）
+    jfrt: artifactory (Java, tomcat webapp 8081)
+    jfac: access (Java, tomcat webapp 8040)
+    jfcfg: jfconfig (Java 微服务)
+    jftpl: topology (Java 微服务)
+    jfbus: jfbus 事件总线 (Java)
+    jffe: frontend (Go)
+    jfmd: metadata (Go)
+    jfevt: event (Go)
+    jfevd: evidence (Go)
+    jfcon: jfconnect (Go)
+    jfmel: jfmelt (Go)
+    jfob: observability (Go)
+    jfomr: onemodel (Go)
+    jfrou: router (Go, traefik 内嵌)
+    tomcat: tomcat JULI（两个 webapp 共写 var/log/tomcat/）
+
+files:
+  # ---------- access 服务族（Java，logback: var/etc/access/logback.xml，E2 全文存档） ----------
+  - { file: access-service.log,           service: jfac,  category: service,           format: jftext,  rotation: "LOGBACK-FW-DATE, 25MB或23h, maxIndex=10, compressLatest=false", evidence: "E2+E4" }
+  - { file: access-request.log,           service: jfac,  category: request,           format: pipe11,  rotation: "LOGBACK-FW-DATE, 25MB或23h, maxIndex=10", evidence: "E2+E4" }
+  - { file: access-request-out.log,       service: jfac,  category: request-out,       format: pipe8,   rotation: "LOGBACK-FW-DATE, 25MB或23h, maxIndex=10", evidence: "E2" }
+  - { file: access-audit.log,             service: jfac,  category: audit,             format: audit-text, rotation: "LOGBACK-FW-DATE, 25MB或23h, maxIndex=10", evidence: "E2+E4" }
+  - { file: access-security-audit.log,    service: jfac,  category: security-audit,    format: pipe8-audit, rotation: "LOGBACK-FW-DATE, 25MB或23h, maxIndex=10", evidence: "E2+E4" }
+  - { file: access-metrics.log,           service: jfac,  category: metrics,           format: prometheus, rotation: "Interval 15min + 25MB, maxIndex=10", evidence: "E2" }
+  - { file: access-metrics_events.log,    service: jfac,  category: metrics-events,    format: prometheus, rotation: "Interval 15min + 25MB, maxIndex=10", evidence: "E2" }
+  - { file: access-thread-dump.log,       service: jfac,  category: diagnostics,       format: thread-dump, rotation: "LOGBACK-FW-DATE, 25MB或23h, maxIndex=10", evidence: "E2" }
+
+  # ---------- artifactory 主服务族（Java，logback: var/etc/artifactory/logback.xml，E2 全文存档） ----------
+  - { file: artifactory-service.log,        service: jfrt, category: service,          format: jftext, rotation: "LOGBACK-FW-DATE, 25MB或23h, maxIndex=10", evidence: "E2+E4" }
+  - { file: artifactory-request.log,        service: jfrt, category: request,          format: pipe11, rotation: "LOGBACK-FW-DATE, 25MB或23h, maxIndex=10", evidence: "E2+E4" }
+  - { file: artifactory-request-trace.log,  service: jfrt, category: request-trace,    format: "text(带日期前缀)", rotation: "LOGBACK-FW-DATE, 25MB, compressLatest=true", evidence: "E2" }
+  - { file: artifactory-request-out.log,    service: jfrt, category: request-out,      format: pipe11, rotation: "LOGBACK-FW-DATE, 25MB或23h, compressLatest=true", evidence: "E2" }
+  - { file: artifactory-access.log,         service: jfrt, category: security-audit,   format: rt-access-text, rotation: "LOGBACK-FW-DATE, 25MB或23h, maxIndex=10", evidence: "E2+E4" }
+  - { file: artifactory-event.log,          service: jfrt, category: event-warn,       format: "trace|msg", rotation: "LOGBACK-FW-DATE, 25MB, maxIndex=10", evidence: "E2" }
+  - { file: artifactory-binarystore.log,    service: jfrt, category: storage,          format: jftext, rotation: "LOGBACK-FW-DATE, 10MB, compressLatest=true", evidence: "E2" }
+  - { file: artifactory-cleanup-audit.log,  service: jfrt, category: cleanup-audit,    format: json-line, rotation: "LOGBACK-FW-NUM, %i=1..1000, 1GB", evidence: E2 }
+  - { file: artifactory-import-export.log,  service: jfrt, category: import-export,    format: "date [LVL] (logger:line) msg", rotation: "LOGBACK-FW-DATE, 25MB, compressLatest=true", evidence: "E2" }
+  - { file: artifactory-shadow.log,         service: jfrt, category: shadow-testing,   format: jftext, rotation: "LOGBACK-FW-DATE, 10MB, compressLatest=true", evidence: "E2" }
+  - { file: artifactory-sha256-migration.log, service: jfrt, category: migration,      format: jftext, rotation: "LOGBACK-FW-DATE, 10MB, compressLatest=true", evidence: "E2" }
+  - { file: artifactory-path-checksum-migration.log, service: jfrt, category: migration, format: jftext, rotation: "LOGBACK-FW-DATE, 10MB, compressLatest=true", evidence: "E2" }
+  - { file: artifactory-conan-v2-migration.log, service: jfrt, category: migration,    format: jftext, rotation: "LOGBACK-FW-DATE, 10MB, compressLatest=true", evidence: "E2+E4" }
+  - { file: artifactory-service-federation.log, service: jfrt, category: federation,   format: jftext, rotation: "LOGBACK-FW-DATE, 25MB或23h, compressLatest=true", evidence: "E2+E4" }
+  - { file: artifactory-metrics.log,        service: jfrt, category: metrics,          format: prometheus, rotation: "Interval 15min + 1GB, maxIndex=150, compressLatest=true", evidence: "E2+E4" }
+  - { file: artifactory-metrics_events.log, service: jfrt, category: metrics-events,   format: prometheus, rotation: "LOGBACK-FW-DATE, 25MB, compressLatest=true", evidence: "E2+E4" }
+  - { file: artifactory-federation-metrics.log, service: jfrt, category: metrics,      format: prometheus, rotation: "Interval 15min + 1GB, maxHistory=1, maxIndex=1", evidence: "E2" }
+  - { file: artifactory-federation-metrics_events.log, service: jfrt, category: metrics-events, format: prometheus, rotation: "LOGBACK-FW-DATE, 25MB, maxHistory=1", evidence: "E2" }
+  - { file: artifactory-storage-request-out.log, service: jfrt, category: request-out, format: pipe11-storage, rotation: "LOGBACK-FW-DATE, 25MB或23h, compressLatest=true", evidence: "E2" }
+  - { file: artifactory-traffic.<epoch-ms>.log, service: jfrt, category: traffic,      format: "UNKNOWN(行格式未观察)", rotation: "TrafficTimeBased 按日, 归档名 yyyyMMdd", evidence: "E2(名)+E4(文件在)" }
+  - { file: artifactory-traffic-v2.log,     service: jfrt, category: traffic,          format: "UNKNOWN", rotation: "Interval 15min + 100MB, maxIndex=500, 归档不压缩", evidence: "E2(配置)+E4(文件在)" }
+  - { file: artifactory-traffic-v3.log,     service: jfrt, category: traffic,          format: "UNKNOWN", rotation: "Interval 15min + 100MB, maxIndex=500, 归档不压缩", evidence: "E2(配置)+E4(文件在)" }
+  - { file: artifactory-xray-traffic.<epoch-ms>.log, service: jfrt, category: traffic, format: "UNKNOWN", rotation: "TrafficTimeBased 按日", evidence: "E2(配置)+E4(文件在)" }
+
+  # ---------- frontend（Go，jffe；request 时长为毫秒小数(3位)——族内特例） ----------
+  - { file: frontend-service.log,        service: jffe, category: service,  format: "jftext-go(文件内含ANSI色码)", rotation: "GO-Rotate 25MB/10文件/365天/压缩/留1未压 (frontend: 10MB)", evidence: "E3+E4" }
+  - { file: frontend-request.log,        service: jffe, category: request,  format: pipe11-ms-frac, rotation: "GO-Rotate", evidence: "E3+E4" }
+  - { file: frontend-metrics.log,        service: jffe, category: metrics,  format: prometheus, rotation: "Interval 15min", evidence: "E3+E4" }
+  - { file: frontend-metrics-events.log, service: jffe, category: metrics-events, format: prometheus, rotation: GO-Rotate, evidence: "E3+E4" }
+
+  # ---------- metadata（Go，jfmd；request trace-id 32hex 左补零——族内特例） ----------
+  - { file: metadata-service.log,   service: jfmd, category: service, format: jftext-go, rotation: "GO-Rotate (maxFiles=100 默认模板值)", evidence: "E3+E4" }
+  - { file: metadata-request.log,   service: jfmd, category: request, format: pipe11, rotation: "GO-Rotate", evidence: "E3+E4" }
+  - { file: metadata-metrics.log,   service: jfmd, category: metrics, format: prometheus, rotation: "Interval 15min", evidence: "E3+E4" }
+  - { file: metadata-traffic.log,   service: jfmd, category: traffic, format: "UNKNOWN(空)", rotation: "GO-Rotate", evidence: E4 }
+
+  # ---------- event（Go，jfevt；request 行尾多两个空字段——族内特例） ----------
+  - { file: event-service.log,     service: jfevt, category: service, format: jftext-go, rotation: "GO-Rotate 25MB/10文件/365天", evidence: "E3+E4" }
+  - { file: event-request.log,     service: jfevt, category: request, format: pipe13, rotation: "GO-Rotate", evidence: "E3+E4" }
+  - { file: event-metrics.log,     service: jfevt, category: metrics, format: prometheus, rotation: "GO-Rotate", evidence: "E3" }
+  - { file: event-webhook-request-out.log, service: jfevt, category: request-out, format: "UNKNOWN(空)", rotation: "GO-Rotate", evidence: "E3+E4" }
+
+  # ---------- evidence（Go，jfevd；默认 console format=json——族内特例） ----------
+  - { file: evidence-service.log,      service: jfevd, category: service, format: jftext-go, rotation: GO-Rotate, evidence: "E3+E4" }
+  - { file: evidence-request.log,      service: jfevd, category: request, format: pipe11, rotation: GO-Rotate, evidence: "E3+E4" }
+  - { file: evidence-request-out.log,  service: jfevd, category: request-out, format: pipe9-go-fmt-bugs, rotation: GO-Rotate, evidence: "E3+E4" }
+  - { file: evidence-metrics.log,      service: jfevd, category: metrics, format: prometheus, rotation: GO-Rotate, evidence: "E3" }
+
+  # ---------- jfconnect / jfmelt / observability / onemodel（Go 四兄弟，格式同构） ----------
+  - { file: jfconnect-service.log,     service: jfcon, category: service, format: jftext-go, rotation: GO-Rotate, evidence: "E3+E4" }
+  - { file: jfconnect-request.log,     service: jfcon, category: request, format: pipe11, rotation: GO-Rotate, evidence: "E3+E4" }
+  - { file: jfconnect-request-out.log, service: jfcon, category: request-out, format: pipe8-out, rotation: GO-Rotate, evidence: "E3+E4" }
+  - { file: jfconnect-metrics.log,     service: jfcon, category: metrics, format: prometheus, rotation: GO-Rotate, evidence: E3 }
+  - { file: jfmelt-service.log,        service: jfmel, category: service, format: "jftext-go(+[spanId][..][spanTraceId][..])", rotation: GO-Rotate, evidence: "E3+E4" }
+  - { file: jfmelt-request.log,        service: jfmel, category: request, format: pipe11, rotation: GO-Rotate, evidence: "E3+E4" }
+  - { file: jfmelt-request-out.log,    service: jfmel, category: request-out, format: pipe8-out, rotation: GO-Rotate, evidence: E3 }
+  - { file: jfmelt-metrics.log,        service: jfmel, category: metrics, format: prometheus, rotation: GO-Rotate, evidence: E3 }
+  - { file: observability-service.log,     service: jfob, category: service, format: jftext-go, rotation: GO-Rotate, evidence: "E3+E4" }
+  - { file: observability-request.log,     service: jfob, category: request, format: pipe11, rotation: GO-Rotate, evidence: "E3+E4" }
+  - { file: observability-request-out.log, service: jfob, category: request-out, format: pipe8-out, rotation: GO-Rotate, evidence: E3 }
+  - { file: observability-metrics.log,     service: jfob, category: metrics, format: prometheus, rotation: GO-Rotate, evidence: E3 }
+  - { file: onemodel-service.log,      service: jfomr, category: service, format: jftext-go, rotation: GO-Rotate, evidence: "E3+E4" }
+  - { file: onemodel-request.log,      service: jfomr, category: request, format: pipe13, rotation: GO-Rotate, evidence: "E3+E4" }
+  - { file: onemodel-request-out.log,  service: jfomr, category: request-out, format: pipe8-out, rotation: GO-Rotate, evidence: E3 }
+  - { file: onemodel-metrics.log,      service: jfomr, category: metrics, format: prometheus, rotation: GO-Rotate, evidence: E3 }
+
+  # ---------- jfconfig（Java 微服务；独立 logback: var/etc/jfconfig/logback.xml） ----------
+  - { file: jfconfig-service.log,   service: jfcfg, category: service,  format: jftext, rotation: "LOGBACK-FW-DATE, SizeBased, maxIndex=10", evidence: "E2+E4" }
+  - { file: jfconfig-request.log,   service: jfcfg, category: request,  format: pipe11, rotation: "LOGBACK-FW-DATE, SizeBased, maxIndex=10", evidence: "E2+E4" }
+  - { file: jfconfig-request-out.log, service: jfcfg, category: request-out, format: pipe8, rotation: "LOGBACK-FW-DATE, SizeBased, maxIndex=10", evidence: E2 }
+  - { file: jfconfig-metrics.log,   service: jfcfg, category: metrics,  format: "prometheus(tenant_id label)", rotation: "LOGBACK-FW-DATE, 25MB, maxIndex=10", evidence: "E2+E4" }
+
+  # ---------- topology（Java 微服务；独立 logback: var/etc/topology/logback.xml） ----------
+  - { file: topology-service.log,      service: jftpl, category: service, format: jftext, rotation: "LOGBACK-FW-DATE, SizeBased, maxIndex=10", evidence: "E2+E4" }
+  - { file: topology-request.log,      service: jftpl, category: request, format: pipe11, rotation: "LOGBACK-FW-DATE, SizeBased, maxIndex=10", evidence: "E2" }
+  - { file: topology-request-out.log,  service: jftpl, category: request-out, format: pipe7, rotation: "LOGBACK-FW-DATE, SizeBased, maxIndex=10", evidence: "E2+E4" }
+  - { file: topology-metrics.log,      service: jftpl, category: metrics, format: prometheus, rotation: "LOGBACK-FW-DATE, 25MB, maxIndex=10", evidence: E2 }
+  - { file: topology-derby.log,        service: jftpl, category: db-diagnostics, format: derby-stream, rotation: None, evidence: E4 }
+
+  # ---------- jfbus（Java 事件总线；文件在 var/log，格式族内独立） ----------
+  - { file: jfbus-service.log,        service: jfbus, category: service, format: "jftext-jfbus([INFO]不补齐+全限定类名)", rotation: "E2配置未取(无独立etc/logback文件)", evidence: "E4(格式)+UNKNOWN(轮转)" }
+  - { file: jfbus-request.log,        service: jfbus, category: request, format: pipe11, rotation: UNKNOWN, evidence: E4 }
+  - { file: jfbus-receive-polling.log, service: jfbus, category: request, format: pipe11, rotation: UNKNOWN, evidence: E4 }
+  - { file: jfbus-ack-events.log,     service: jfbus, category: event-bus, format: json-object, rotation: UNKNOWN, evidence: E4 }
+  - { file: jfbus-consume-events.log, service: jfbus, category: event-bus, format: json-object, rotation: UNKNOWN, evidence: E4 }
+  - { file: jfbus-publish-events.log, service: jfbus, category: event-bus, format: json-object, rotation: UNKNOWN, evidence: E4 }
+
+  # ---------- router（jfrou + 内嵌 traefik） ----------
+  - { file: router-request.log, service: jfrou, category: request, format: "traefik-json(访问日志)", rotation: "GO-Rotate (router 专属 600 权限)", evidence: "E3+E4" }
+  - { file: router-service.log, service: jfrou, category: service, format: jftext-go, rotation: GO-Rotate, evidence: "E3+E4" }
+  - { file: router-traefik.log, service: jfrou, category: service, format: "traefik-lgmz(ANSI,文件内含色码)", rotation: "Traefik-Rotate (router.logging.traefik)", evidence: "E3+E4" }
+
+  # ---------- tomcat（两个 webapp 的 JULI，共写 var/log/tomcat/） ----------
+  - { file: "tomcat/tomcat-catalina-YYYY-MM-DD.log",        service: tomcat-jfrt, category: container, format: juli-oneline, rotation: "JULI-Date(每日新文件, 无压缩, 无上限配置)", evidence: "E2+E4" }
+  - { file: "tomcat/tomcat-localhost-YYYY-MM-DD.log",       service: tomcat-jfrt, category: container, format: juli-oneline, rotation: JULI-Date, evidence: "E2+E4" }
+  - { file: "tomcat/tomcat-access-catalina-YYYY-MM-DD.log", service: tomcat-jfac, category: container, format: juli-oneline, rotation: JULI-Date, evidence: "E2+E4" }
+  - { file: "tomcat/tomcat-access-localhost-YYYY-MM-DD.log", service: tomcat-jfac, category: container, format: juli-oneline, rotation: JULI-Date, evidence: "E2+E4" }
+
+  # ---------- 内嵌数据库 / 杂项 ----------
+  - { file: derby.log,   service: jfrt-derby,  category: db-diagnostics, format: derby-stream, rotation: None, evidence: "E2(derby.stream.error.file)+E4" }
+  - { file: dummy.log,   service: go-runtime,  category: placeholder,    format: empty, rotation: None, evidence: "E4(0字节常驻)+E1(Go串表占位名)" }
+
+  # ---------- usage 域（独立于 var/log，data/<svc>/usage/；E2 logback 定义 + E4 在册） ----------
+  - { file: "data/artifactory/usage/artifactory-usage.log",          service: jfrt, category: usage, format: "UNKNOWN(空文件)", rotation: "TrafficTimeBased 6h + 10MB, maxIndex=150, compressLatest=true", evidence: "E2+E4" }
+  - { file: "data/artifactory/usage/usage-metrics.log",              service: jfrt, category: usage-metrics, format: prometheus, rotation: "Interval 6h + 1GB, maxIndex=150", evidence: "E2+E4(在册)" }
+  - { file: "data/artifactory/usage/artifactory-consumption-usage.log", service: jfrt, category: usage, format: "UNKNOWN(空文件)", rotation: "Interval 15min + 25MB, maxIndex=150", evidence: "E2+E4" }
+  - { file: "data/access/usage/usage-metrics.log",                   service: jfac, category: usage-metrics, format: prometheus, rotation: "Interval 6h + 1GB, maxIndex=150", evidence: "E2+E4" }
+  - { file: "data/access/usage/{aggregated,raw}-{usage,consumption}-metrics.log", service: jfac, category: usage, format: "UNKNOWN(空文件)", rotation: UNKNOWN, evidence: E4 }
+
+  # ---------- 条件文件（本容器未启用，安装脚本 E3 定义） ----------
+  - { file: console.log, service: all, category: console-aggregate, format: mixed, rotation: "logrotate(daily/copytruncate/rotate=shared.logging.rotation.maxFiles默认10/compress+delaycompress/size 25MB默认)", evidence: E3 }
+
+# 原样证据存档见 ./evidence/：var-log-inventory.txt（87 项全清单）、
+# format-samples-runtime.txt（各族行样本）、logback-*.xml（四份运行时配置原文）、
+# tomcat-logging-properties.txt、system-template-logging-sections.txt、
+# logrotate-installer-template.txt、console-stream-samples.txt、
+# archived-and-tomcat-inventory.txt、e4-probe-causal-pairs.md（操作→日志行因果对）。

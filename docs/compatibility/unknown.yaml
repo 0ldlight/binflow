@@ -1,0 +1,731 @@
+# =====================================================================
+# Artifactory 全量重实现 — UNKNOWN 队列（宪章 §44）
+# =====================================================================
+# 唯一 ID 体系：U-<域码>-<序号>。域码：STG 存储 / SEC 安全认证 / FE 前端 /
+#   LOG 日志审计 / DIST 发行生命周期 / ENT 企业许可 / PROTO 包型协议 /
+#   API REST 表面与模块 / CFG 配置体系 / JOB 异步调度。
+# 纪律（宪章 §44 + 既有 Compatibility Policy 同构）：
+#   - 每条 UNKNOWN 禁止顺手实现成猜测；收口必须给出 probe/取证证据。
+#   - P0 行为项收口证据等级必须达到 E4（活体实证）或 E5（安装包/官方文档单源推断）；
+#     仅 E1~E3 证据不得关闭 P0 项。
+#   - priority：P0=阻塞协议/存储核心或架构 v2 关键裁决；P1=差分与契约化主路径；
+#     P2=边缘/档位/跨版本稳定性类。
+# 收割范围：Phase 0 六条发现线全部 UNKNOWN（domain/dependency-map、distribution、
+#   logging、enterprise 三件、api-inventory/protocols/configuration 三清单、
+#   frontend/security/storage/jobs 四 README）。原编号保留在 origin 字段溯源。
+# 既有各规格「待验证」段与 matrix UNKNOWN 行**不收割**，仅在 existing_sources 引用计数。
+# 凭据纪律：一切 probe 凭据经本地环境变量（如 $RT_TOKEN），永不入库。
+# 写入者：compatibility-engineer（Phase 0 任务 #8，2026-09-11）。
+meta:
+  program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
+  phase: 0-audit-closure
+  charter_ref: "§44 UNKNOWN 队列"
+  generated: 2026-09-11
+  evidence_sources:
+    A: "反编译 7.161.24（/Users/lzw/workspace/artifactory-decompiled，只读）"
+    B: "运行时参照 :8082（7.161.20，凭据经本地环境变量不入库）"
+    C: "安装包 7.161.16（/Users/lzw/Downloads/artifactory-pro-7.161.16）"
+  id_scheme: "U-<域码>-<序号>（域内连续编号，跨文件去重靠 origin 溯源 + cross_ref）"
+  status_vocabulary: [open, in-probe, resolved, closed-with-evidence]
+  harvest_total: 110
+
+summary:
+  by_domain: { STG: 11, SEC: 12, FE: 7, LOG: 15, DIST: 8, ENT: 28, PROTO: 10, API: 8, CFG: 5, JOB: 6 }
+  by_priority: { P0: 3, P1: 50, P2: 57 }
+
+unknowns:
+
+# ───────────────────────── STG 存储（11） ─────────────────────────
+- { unknown_id: U-STG-01, domain: STG, priority: P0, status: open,
+    question: "BinaryProvider 存储链实现类（filestore/S3/Azure/GCS provider 链与组合模板）的真实行为——反编译 Java 树内无实现类",
+    why_unknown: "反编译集合仅见 ConstantValues 配置键与引用；实现位于 JFrog 外部 storage-client 库（binary-store-filestore jar），E1 不可达",
+    required_evidence: "E4 活体（binarystore.xml 链实配 + 云后端实测）或 E5（binarystore.xml 官方文档模板族）；收口须 E4/E5（P0 门）",
+    probe: "docker exec artifactory cat var/etc/artifactory/binarystore.xml（只读）记录默认链；MinIO 后端换链实测 PUT/GET/重定向；对照官方 S3/GCS/Azure binarystore 模板文档",
+    origin: "domain-map.yaml unknown_items#1（BinaryProvider 存储链）", cross_ref: "U-ENT-05" }
+- { unknown_id: U-STG-02, domain: STG, priority: P1, status: open,
+    question: "MPU（客户端分块续传）wire 协议本体——init/part/complete/abort 逐端点与 checksum-deploy token 用法",
+    why_unknown: "s3-storage-layout.md §3 只有配置面与会话语义；REST handler 疑在外部 storage 库不可达",
+    required_evidence: "JFrog CLI 源码/抓包（E5）+ 反编译 MPU REST handler（若不可达转 CLI 侧）",
+    probe: "jf rt upload --min-checksum-deploy / 大文件分块参数抓包 :8082（只读上传到专用探针仓，写腿需 conductor 放行）；读 jf CLI 开源仓库 upload session 实现",
+    origin: "storage/README.md §2.2-1" }
+- { unknown_id: U-STG-03, domain: STG, priority: P1, status: open,
+    question: "GC 运行时行为——运行中与并发上传的互斥锁、GC 报告格式与落盘、prune checkpoint 语义、quota 触发后是否加压",
+    why_unknown: "storage-layout §5 覆盖 prune 端点语义，运行时锁与报告未录；checkpoint 属性存在但行为未走读",
+    required_evidence: "反编译 GC/prune 任务类 + :8082 触发观测（写腿需授权）",
+    probe: "curl -X POST :8082/artifactory/api/system/storage/gc（授权写腿）并 tail var/log/artifactory-service.log 与 binarystore 日志；grep artifactory-core storage/gc 包类名走读",
+    origin: "storage/README.md §2.2-2" }
+- { unknown_id: U-STG-04, domain: STG, priority: P1, status: open,
+    question: "corruption 面——bit-rot/静默损坏周期校验是否存在、Sha256MigrationJob 行为（时机/断点/范围）、MissingBinaryException 降级全景",
+    why_unknown: "检测机制无规格；迁移 job 类已定位但行为未录；异常引用散见未汇总（Storage 票分类硬门要求 corruption 验证）",
+    required_evidence: "专项反编译票（类路径锚 artifactory-core .../storage/jobs/migration/sha256/Sha256MigrationJob.java）+ 损坏注入实验",
+    probe: "走读 Sha256MigrationJob 与 MissingBinaryException 全部 catch 点（A 源 grep）；:8082 探针仓外置篡改一个 blob 字节后 GET 观察响应",
+    origin: "storage/README.md §2.2-3" }
+- { unknown_id: U-STG-05, domain: STG, priority: P1, status: open,
+    question: "recovery 面——系统级备份→恢复全流程（中断续恢/版本兼容）、PersistentQueueErrorService 持久队列错误恢复、federation 断网恢复腿",
+    why_unknown: "import-export-api.md 覆盖 REST 面，恢复语义未录；恢复操作细节官方灾备文档未取证（同 U-DIST-04）",
+    required_evidence: "官方 backup/restore 文档（E5）+ 一次 E4 恢复实录 + PersistentQueueErrorService 走读",
+    probe: "WebFetch JFrog backup/restore 官方文档；docker exec 读 var/backup 骨构；走读 artifactory-core/queue/error 包",
+    origin: "storage/README.md §2.2-4", cross_ref: "U-DIST-04" }
+- { unknown_id: U-STG-06, domain: STG, priority: P2, status: open,
+    question: "_pre 暂存目录清理触发点（上传中断残留何时被扫）",
+    why_unknown: "storage-layout 待验证#2 原挂账；疑在未反编译的 storage.binstore 库",
+    required_evidence: "E4 观测（造中断上传后观察清理周期）或库源走读",
+    probe: ":8082 探针仓造中断 PUT（curl --abort 中途断开），定时 ls filestore/_pre 观察消失时刻（写腿需放行）",
+    origin: "storage/README.md §2.2-5（storage-layout 待验证#2）" }
+- { unknown_id: U-STG-07, domain: STG, priority: P2, status: open,
+    question: "gcConfig.cronExp=0 0 /4 * * ? 的调度语义（每 4 小时 on-the-hour？Quartz 语义确认）",
+    why_unknown: "storage-layout 与 cron-scheduling 交叉挂账 C-d；表达式语义无走读",
+    required_evidence: "Quartz CronExpression 语义走读或活体 next-run 核对",
+    probe: "curl :8082/ui/api/crontime?cron=0+0+/4+*+*+?（只读）取官方 next-run 序列与推断对拍",
+    origin: "storage/README.md §2.2-6（cron-scheduling C-d）" }
+- { unknown_id: U-STG-08, domain: STG, priority: P2, status: open,
+    question: "cached-fs / sharding / 双缓存（cache-fs+external）provider 链的路由、降级与健康检查行为",
+    why_unknown: "s3-storage-layout 待验证#4/5/6；实现库不可达",
+    required_evidence: "官方 binarystore 文档（E5）+ 运行时 MinIO/多盘实例观测",
+    probe: "对照官方 sharding/cached-fs 模板配置文档；如可行在 :8082 换双 provider 链实测降级（高风险写腿——须用户确认）",
+    origin: "storage/README.md §2.2-7（s3 待验证#4/5/6）" }
+- { unknown_id: U-STG-09, domain: STG, priority: P2, status: open,
+    question: "云存储下载重定向——预签名 URL 生成规则与有效期",
+    why_unknown: "仅配置属性（重定向阈值 200KB 等）可见；生成行为未抓包",
+    required_evidence: "运行时抓包（MinIO 后端 + 大文件下载）",
+    probe: "配置 MinIO 直连后 PUT >200KB 对象并 curl -v GET 观察 302 Location 形态与签名参数",
+    origin: "storage/README.md §2.2-8（s3 待验证#3）" }
+- { unknown_id: U-STG-10, domain: STG, priority: P1, status: open,
+    question: "配额（quota）运行时——超配额时上传拒绝的 HTTP 状态码与逐字文案",
+    why_unknown: "无规格；需低配额实例触发（写腿）",
+    required_evidence: "E4 触发实录（4xx 码/文案逐字）",
+    probe: ":8082 建低配额探针仓 PUT 超限采集响应体（写腿需放行）；grep A 源 quota 异常类定位候选码",
+    origin: "storage/README.md §2.2-9" }
+- { unknown_id: U-STG-11, domain: STG, priority: P2, status: open,
+    question: "HA 下主备 filestore 同步（EFS/NFS 场景）与 binarystore 锁语义",
+    why_unknown: "企业域（单节点实例不可观察）；需双节点实验环境",
+    required_evidence: "HA 专项票 + 双节点实验（E4）；与 ENT 域 HA 条目协同",
+    probe: "暂无活体路径；走读 db/locks 包（storage-db）+ HaAddonImpl；标注 blocked-on-environment",
+    origin: "storage/README.md §2.2-10（与企业域任务#5 交叉）" }
+
+# ───────────────────────── SEC 安全认证（12） ─────────────────────────
+- { unknown_id: U-SEC-01, domain: SEC, priority: P2, status: open,
+    question: "access 服务端组（access-server-{api,core,graphql,grpc,rest}+access-application）组内依赖关系与装配",
+    why_unknown: "recovered 占位 pom 无依赖边；access-server-core 2282 java 可读但依赖 UNKNOWN",
+    required_evidence: "access-server-core 走读（import 静态抽取）或运行时 classpath 清单",
+    probe: "docker exec artifactory ls /opt/jfrog/artifactory/app/access/webapps 取 war 清单；对 access-server-core 批量抽 import 边重建组内依赖图",
+    origin: "domain-map.yaml unknown_items#2（pom-recovered）" }
+- { unknown_id: U-SEC-02, domain: SEC, priority: P1, status: open,
+    question: "OIDC 登录失败 wire 级 negative 矩阵（token exchange 失败/issuer 不匹配/JWKS 拉取失败 → 登录页形态与响应码）",
+    why_unknown: "规格只有「断言异常」语义级描述；参照实例未配真实 IdP",
+    required_evidence: ":8082 配置真实 IdP 的失败腿抓包，或反编译 OAuthHandlerImpl 错误分支细读",
+    probe: "以 keycloak/testoidc 指向 :8082 OAuth 设置触发三失败腿抓包（配置写腿需放行）；A 源走读 oauth handler error 分支",
+    origin: "security/README.md §2.2-1" }
+- { unknown_id: U-SEC-03, domain: SEC, priority: P1, status: open,
+    question: "SAML 断言签名无效/时钟偏移/NameID 不匹配时用户可见错误形态与 HTTP 码",
+    why_unknown: "未记录；需 IdP 模拟器或反编译 SamlLogin 错误路径",
+    required_evidence: "testshib 类 IdP 打 :8082 或 A 源错误路径走读",
+    probe: "配置 testshib IdP 后改签名/时间偏移触发断言失败，抓登录页与 302/400 形态（配置写腿需放行）",
+    origin: "security/README.md §2.2-2" }
+- { unknown_id: U-SEC-04, domain: SEC, priority: P1, status: open,
+    question: "登录锁定策略——触发阈值/窗口、锁定时长、admin 解锁端点行为",
+    why_unknown: "用户状态机有 locked 但触发条件未规格化；活体暴力触发属写操作",
+    required_evidence: "反编译锁定计数器 + 活体暴力触发（写腿需授权）",
+    probe: "A 源 grep lockout/LoginLock 走读计数器；:8082 对探针用户连发错密观察 423/403 形态与解锁 API",
+    origin: "security/README.md §2.2-3" }
+- { unknown_id: U-SEC-05, domain: SEC, priority: P1, status: open,
+    question: "MFA 全域行为（enroll/verify/resetMfaStatus/config 五端点）",
+    why_unknown: "端点 E1 实证存在（frontend-server LoginRoutes），行为规格为零",
+    required_evidence: "反编译 Access MFA 控制器 + 活体走查",
+    probe: "curl :8082/access/api/v1/mfa/config 等五端点（带 $RT_TOKEN）取 wire；A 源走读 mfa 控制器",
+    origin: "security/README.md §2.2-4" }
+- { unknown_id: U-SEC-06, domain: SEC, priority: P1, status: open,
+    question: "过期/被吊销 token 使用时 401 body 逐字形态",
+    why_unknown: "auth-model §3.5/3.6 有语义（含 audience 不符族），wire 逐字未录",
+    required_evidence: ":8082 只读探针（携过期 token GET 任意 API）",
+    probe: "curl -H \"Authorization: Bearer <expired>\" :8082/artifactory/api/system/version -i 采 body；过期 token 可由短 expires_in 创建",
+    origin: "security/README.md §2.2-5" }
+- { unknown_id: U-SEC-07, domain: SEC, priority: P1, status: open,
+    question: "SCIM 2.0 供给行为（用户/组 CRUD 映射、filter 语义、错误信封）",
+    why_unknown: "7.161 access MFE 有 scim 页；行为零规格",
+    required_evidence: "反编译 access SCIM 资源 + RFC 7644 交叉",
+    probe: "curl :8082/access/api/scim/v2/Users?filter=... （带 $RT_TOKEN）探活；A 源走读 ScimResource",
+    origin: "security/README.md §2.2-6" }
+- { unknown_id: U-SEC-08, domain: SEC, priority: P2, status: open,
+    question: "Vault 集成行为（vault_integration/vaults 页对应 API 面）",
+    why_unknown: "零规格；7.161 新页",
+    required_evidence: "反编译 access vault 资源 + 官方文档",
+    probe: "curl :8082/ui/api/v1/vaults（带 $RT_TOKEN）探端点形态；A 源走读 vault 资源",
+    origin: "security/README.md §2.2-7" }
+- { unknown_id: U-SEC-09, domain: SEC, priority: P2, status: open,
+    question: "HTTP SSO / Crowd 认证腿行为（/auth/http-sso-login、/ui/crowd PUT）",
+    why_unknown: "端点存在，认证行为零覆盖",
+    required_evidence: "auth-integration v3 候选票（反编译 + 活体）",
+    probe: "curl -i :8082/artifactory/auth/http-sso-login 观察无头/带头两态；A 源走读 HttpSsoResource",
+    origin: "security/README.md §2.2-8" }
+- { unknown_id: U-SEC-10, domain: SEC, priority: P1, status: open,
+    question: "API Key 生命周期（userApiKey 五端点：生成/再生成/吊销/过期）与 token 的差异语义",
+    why_unknown: "端点 E1 实证；行为未规格化（deprecated 面仍需 parity）",
+    required_evidence: "反编译 ArtifactoryApiKeyController + 活体只读探针",
+    probe: "curl :8082/artifactory/api/security/apiKey（GET 带 $RT_TOKEN）；A 源走读 ApiKeyResource",
+    origin: "security/README.md §2.2-9" }
+- { unknown_id: U-SEC-11, domain: SEC, priority: P1, status: open,
+    question: "匿名/越权集中 negative 矩阵——非 admin 对各安全端点的 403 面全集",
+    why_unknown: "散在三份规格无集中矩阵；契约化时需汇总",
+    required_evidence: "compatibility-engineer 契约票：以受限用户逐端点扫描 :8082（只读）",
+    probe: "建只读探针用户（写腿需放行一次），脚本化 GET 全部 /api/security/*、/access/api/* 记录 401/403/200 三态",
+    origin: "security/README.md §2.2-10" }
+- { unknown_id: U-SEC-12, domain: SEC, priority: P1, status: open,
+    question: "SSR 面认证模型——frontend-server session/router-token 与 basic auth 的精确边界体系化",
+    why_unknown: "E4 已证 basic→anonymous 单点；中间件链整体未读",
+    required_evidence: "frontend-server/src/Middlewares Authentication 细读（A 源前端树）",
+    probe: "curl 三态对照（无凭据/basic/token）打 /ui/api/v1/ui/auth/current、/ui/api/v1/auth/screen/footer 等开放表端点；读 Middlewares/Authentication.ts",
+    origin: "security/README.md §2.2-11" }
+
+# ───────────────────────── FE 前端（7） ─────────────────────────
+- { unknown_id: U-FE-01, domain: FE, priority: P2, status: open,
+    question: "distribution/insight/catalog/xray/retention 独立 MFE 的路由表（仅 artifactory/access 两 MFE 已提取）",
+    why_unknown: "imports-map 实证各 MFE 存在，路由未逐一提取；多数属 BinFlow 范围外（retention 例外）",
+    required_evidence: "imports-map 拉取各 MFE app.umd.js 提取路由（E2）",
+    probe: "curl :8082/ui/api/v1/imports-map（只读）→ 按 map 逐 MFE 拉 bundle，routes.yaml 同法提取",
+    origin: "frontend/README.md §5-1" }
+- { unknown_id: U-FE-02, domain: FE, priority: P1, status: open,
+    question: "retention/lifecycle/release-bundles 屏行为规格（路由已实证 5+2+N 条，屏内容零规格）",
+    why_unknown: "console-ui.md 走查基线是 OSS 7.84.10，Pro 功能天然缺位",
+    required_evidence: ":8082（Pro trial）活体走查（只读）",
+    probe: "Playwright 只读走查 :8082 /ui/admin/artifactory/services/retention/* 与 artifactory/lifecycle、release-bundles 屏，录四态与 API 调用",
+    origin: "frontend/README.md §5-2" }
+- { unknown_id: U-FE-03, domain: FE, priority: P1, status: open,
+    question: "7.161 管理树形态与 7.84.10 走查稿的偏斜对拍（access MFE 已见 scim/vaults/global_roles 新页）",
+    why_unknown: "console-ui.md §1.2/1.3 基线版本旧；差集未成文",
+    required_evidence: ":8082 走查对拍增补（只读）",
+    probe: "Playwright 遍历 :8082 /ui/admin 两 MFE 树，与 console-ui.md §1.2 树做 diff 出增补清单",
+    origin: "frontend/README.md §5-3" }
+- { unknown_id: U-FE-04, domain: FE, priority: P2, status: open,
+    question: "逐屏交互四态（加载/空/错误/成功）取证——多数屏仅模式级推断",
+    why_unknown: "失败/空数据注入难，部分态只能反推；screens.yaml 已逐行标注 UNKNOWN 处",
+    required_evidence: "Playwright 走查补态（部分态标注不可注入）",
+    probe: "对 screens.yaml 标 UNKNOWN 的态逐屏走查；可注入态（空仓/断网）录 DOM 快照",
+    origin: "frontend/README.md §5-4（screens.yaml 承载）" }
+- { unknown_id: U-FE-05, domain: FE, priority: P2, status: open,
+    question: "屏→API 映射全集（MFE bundle 压缩混淆，无常量可 grep）",
+    why_unknown: "逐屏 wire 只能抓包或 SSR 路由反推；api-map.yaml 仅 SSR 面 E1 全量",
+    required_evidence: "浏览器 devtools 网络面板走查（:8082）",
+    probe: "Playwright+网络监听逐屏采集 XHR 清单回填 api-map.yaml REST 面列",
+    origin: "frontend/README.md §5-5（api-map.yaml 承载）" }
+- { unknown_id: U-FE-06, domain: FE, priority: P1, status: open,
+    question: "宿主 navigationConstraints 机制——管理树按许可/权限裁剪的行为语义",
+    why_unknown: "artifactory-ui store 模块 E1 可见，行为未提取（影响 UI 权限可见性 parity）",
+    required_evidence: "A 源前端树 navigationConstraints/{contextBuilder,module,utils} 走读 + 活体对照",
+    probe: "读 reverse-src/artifactory/frontend/artifactory-ui/src/store/navigationConstraints/；:8082 以受限用户登录对照树裁剪",
+    origin: "frontend/README.md §5-6" }
+- { unknown_id: U-FE-07, domain: FE, priority: P2, status: open,
+    question: "onboarding/quick-setup/create_migration/migration_tool 屏内容（路由实证存在）",
+    why_unknown: "零规格；部分屏仅首次安装可达",
+    required_evidence: ":8082 走查（onboarding 可能需重置状态——谨慎，写腿）",
+    probe: "curl :8082/ui/api/v1/onboarding?quickstart（带 $RT_TOKEN）读态；Playwright 走查可达屏",
+    origin: "frontend/README.md §5-7" }
+
+# ───────────────────────── LOG 日志审计（15） ─────────────────────────
+- { unknown_id: U-LOG-01, domain: LOG, priority: P1, status: open,
+    question: "经典审计日志服务端实现（AuditLogServiceImpl/audit 表 DAO）——树内未定位，audit 落库链不可证",
+    why_unknown: "反编译树仅见 request/audit HttpHeadersAudit* 与 traffic；domain-map 标 partial",
+    required_evidence: "A 源复扫（rest resource audit/）+ :8082 audit 查询 API 对照落库表",
+    probe: "curl :8082/artifactory/api/system/audit（带 $RT_TOKEN）与 UI audit 页抓包；grep A 源 audit 包树；postgres 只读查表清单",
+    origin: "domain-map.yaml unknown_items#4（AuditLogServiceImpl 未定位）" }
+- { unknown_id: U-LOG-02, domain: LOG, priority: P1, status: open,
+    question: "artifactory-traffic / -v2 / -v3 / -xray-traffic 行格式（活体全 0 字节）",
+    why_unknown: "流量收集未触发，无样本",
+    required_evidence: "开启 Traffic 收集后取样（admin UI 写腿）或反编译 traffic entry writer 序列化走读",
+    probe: ":8082 UI 开 Traffic（写腿需放行）→ 触发下载 → cat var/log/artifactory-traffic-v2.log 取行；A 源走读 artifactory-traffic writer",
+    origin: "logging/format-spec.md §13-1" }
+- { unknown_id: U-LOG-03, domain: LOG, priority: P1, status: open,
+    question: "access-security-audit 完整事件词表（C/D 与 TKN/PRS/LGN 之外的全部组合）",
+    why_unknown: "E4 窗口仅触发 6 种组合",
+    required_evidence: "构造用户/组/权限/密码策略变更等操作逐类取样（写腿）",
+    probe: "脚本化对 :8082 依次执行建用户/建组/改权限/改密码策略（探针资源，写腿需放行），tail access-security-audit.log 收词表",
+    origin: "logging/format-spec.md §13-2" }
+- { unknown_id: U-LOG-04, domain: LOG, priority: P1, status: open,
+    question: "artifactory-access.log DENIED/REJECTED 事件词（窗口内无拒绝成功样本）",
+    why_unknown: "全激活实例+admin 凭据下难触发拒绝；需无权限探针",
+    required_evidence: "无权限请求 + 错误凭据探针（E4）",
+    probe: "匿名/受限 token GET/PUT 受保护路径，tail artifactory-access.log 收 DENIED/REJECTED 行",
+    origin: "logging/format-spec.md §13-3" }
+- { unknown_id: U-LOG-05, domain: LOG, priority: P2, status: open,
+    question: "jfevt/jfomr request 行尾两个空字段语义（request-id/extra 预留？）",
+    why_unknown: "恒空，无非空样本",
+    required_evidence: "触发带 request-id 的事件路径（UI 长轮询）",
+    probe: "Playwright 开 :8082 UI 事件订阅类页面，tail event-request.log 找 13 字段非空行",
+    origin: "logging/format-spec.md §13-4" }
+- { unknown_id: U-LOG-06, domain: LOG, priority: P2, status: open,
+    question: "Go 族调用点槽精确补齐宽度与组件槽补齐规则",
+    why_unknown: "Go 源不在反编译树（仅 Ghidra 伪码）；实测目测 28~30 不定",
+    required_evidence: "jf-go-commons logger 源或足量样本列宽统计",
+    probe: "对 var/log 各 Go service.log 采样 100 行 awk 统计槽宽分布；如伪码可读则读 backend-go logger 串表",
+    origin: "logging/format-spec.md §13-6" }
+- { unknown_id: U-LOG-07, domain: LOG, priority: P2, status: open,
+    question: "jfbus 三事件文件（ack/consume/publish-events.log）负载 JSON schema",
+    why_unknown: "实测恒 {} 空对象；事件未触发",
+    required_evidence: "触发事件订阅（webhook/分发）后取样",
+    probe: "建一个 webhook（写腿需放行）触发制品事件，tail jfbus-publish-events.log 取负载",
+    origin: "logging/format-spec.md §13-7" }
+- { unknown_id: U-LOG-08, domain: LOG, priority: P2, status: open,
+    question: "jfbus 各文件轮转策略（无独立 etc/logback 可读）",
+    why_unknown: "安装目录 logback 配置未定位",
+    required_evidence: "app/jfbus 安装目录定位 logback 或反编译 jfbus 模块",
+    probe: "docker exec artifactory find /opt/jfrog/artifactory/app -name 'logback*' -path '*jfbus*'；无则查 var/log/archived jfbus 归档名反推策略",
+    origin: "logging/format-spec.md §13-8" }
+- { unknown_id: U-LOG-09, domain: LOG, priority: P2, status: open,
+    question: "dummy.log 创建时机（Go 进程初始化早期占位）",
+    why_unknown: "0 字节无内容；仅 Go 串表佐证常量名",
+    required_evidence: "启动期 strace/lsof 观测 open 调用",
+    probe: "docker restart artifactory 后立刻 ls -la var/log/dummy.log 连续采样；如可 strace 则跟踪 Go 服务子进程",
+    origin: "logging/format-spec.md §13-9" }
+- { unknown_id: U-LOG-10, domain: LOG, priority: P2, status: open,
+    question: "frontend 调用点槽为何打印字面 frontend-service.log（caller 关闭占位）",
+    why_unknown: "成因未定位（Go logger caller=false 分支行为）",
+    required_evidence: "Go 侧 logger caller 关闭分支伪码确认",
+    probe: "读 backend-go 伪码 frontend 服务 logger 初始化段；或对照其他 caller 关闭服务",
+    origin: "logging/format-spec.md §13-10" }
+- { unknown_id: U-LOG-11, domain: LOG, priority: P2, status: open,
+    question: "jfac trace 转换 15 hex 样本成因（f44175438aa0e125 恒 15 位？）",
+    why_unknown: "单样本奇长；自定义转换器宽度规则未见源码",
+    required_evidence: "多样本统计 + access 日志转换器伪码",
+    probe: "awk 统计 access-service/request.log 全量 trace 槽长度直方图（含 15 位计数）",
+    origin: "logging/format-spec.md §13-11" }
+- { unknown_id: U-LOG-12, domain: LOG, priority: P1, status: open,
+    question: "仓库创建不产生 PRS_C 审计是否跨版本稳定（运行观察未见文档背书）",
+    why_unknown: "单版本单实例观察（7.161.20）",
+    required_evidence: "7.161.16/24 重复探针 4（PUT /api/repositories 后查 access-security-audit.log）",
+    probe: "在 :8082 建探针仓（写腿需放行）→ grep 'PRS|.*C' access-security-audit.log 验证无 C 行；结果回填 format-spec §7.2",
+    origin: "logging/format-spec.md §13-12" }
+- { unknown_id: U-LOG-13, domain: LOG, priority: P2, status: open,
+    question: "tomcat JULI 归档保留是否真无上限（5 天样本全在）",
+    why_unknown: "未见清理事件；需长期实例",
+    required_evidence: ">1 月实例核对 var/log/tomcat/ 文件数",
+    probe: "docker exec artifactory ls var/log/tomcat/ | wc -l（当前 5 天基线）；长期跟踪或对照配置注释",
+    origin: "logging/format-spec.md §13-13" }
+- { unknown_id: U-LOG-14, domain: LOG, priority: P2, status: open,
+    question: "evidence-request-out 的 Go 格式化动词错配（%!s/%!d/MISSING）是否上游缺陷常态",
+    why_unknown: "仅 4 行样本",
+    required_evidence: "更长窗口采样确认稳定性（复刻需按原样落盘）",
+    probe: "运行 24h 后 wc -l + head var/log/evidence-request-out.log 确认错配形态持续",
+    origin: "logging/format-spec.md §13-14" }
+- { unknown_id: U-LOG-15, domain: LOG, priority: P2, status: open,
+    question: "access-request gRPC 行 --UNA 槽语义（未认证标记 vs 其他值域）",
+    why_unknown: "仅见未认证 grpc 行",
+    required_evidence: "构造已认证 gRPC 调用对比（同一转换器两态）",
+    probe: "以服务 token 发起 access gRPC 调用（可用 jf CLI 触发），tail access-request.log 比对方法槽取值",
+    origin: "logging/format-spec.md §13-5" }
+
+# ───────────────────────── DIST 发行生命周期（8） ─────────────────────────
+- { unknown_id: U-DIST-01, domain: DIST, priority: P2, status: open,
+    question: "Helm/Deb/RPM 渠道是否存在「版本化 app 目录 + 软链原子换装」升级机制",
+    why_unknown: "zip 与 docker 形态均无该资产；证据源不含 helm chart 与 deb/rpm 包",
+    required_evidence: "E5：artifactory helm chart 实物（immutable versioned dirname + symlink）或 deb/rpm 安装器脚本",
+    probe: "WebFetch charts.jfrog.io / 官方 helm chart 源码仓查 deployment 模板与 volume 布局；rpm2cpio 官方 rpm 包解出 scriptlets",
+    origin: "distribution/behavior.md 待验证 UPG-1" }
+- { unknown_id: U-DIST-02, domain: DIST, priority: P2, status: open,
+    question: "6.x→7.x 迁移后能否回退 6.x（官方口径）",
+    why_unknown: "迁移器只有正向 16 步序与清理表，无反向资产",
+    required_evidence: "E5：JFrog 官方升级/回滚知识库文档",
+    probe: "WebSearch/WebFetch JFrog KB「rollback Artifactory 7 to 6」取官方声明",
+    origin: "distribution/behavior.md 待验证 RBK-1" }
+- { unknown_id: U-DIST-03, domain: DIST, priority: P2, status: open,
+    question: "跨补丁/次版本降级时 var 中新版 schema/标记与旧版代码的兼容行为",
+    why_unknown: "需双版本实验；实例仅一版本",
+    required_evidence: "E4 双版本实测：7.161.20 引导后换 7.161.16 app 分区观察启动",
+    probe: "备份 var 卷后以 7.161.16 镜像挂既有 var 启动（破坏性实验——须用户确认；建议先做卷快照）",
+    origin: "distribution/behavior.md 待验证 RBK-2" }
+- { unknown_id: U-DIST-04, domain: DIST, priority: P1, status: open,
+    question: "官方灾备恢复精确步骤（var + DB + 密钥最小恢复序）",
+    why_unknown: "包内无 restore 工具；官方灾备文档未取证",
+    required_evidence: "E5：官方 backup/restore 文档 + 一次 E4 实录",
+    probe: "WebFetch jfrog.com 官方 backup and restore 章；有条件时对探针实例做一次 var+DB 恢复演练（破坏性——须用户确认）",
+    origin: "distribution/behavior.md 待验证 RST-1", cross_ref: "U-STG-05" }
+- { unknown_id: U-DIST-05, domain: DIST, priority: P1, status: open,
+    question: "非 PostgreSQL 库缺省时应用层的精确阻断行为（报错文案/时机/端点范围）",
+    why_unknown: "脚本层只做安装期提示与 rtfs/unifiedpolicy/evaluation 检查；通用阻断在应用层未取证",
+    required_evidence: "E4：Derby 显式配置引导一次，或 A 源定位数据库类型校验逻辑",
+    probe: "克隆实例改 shared.database 为 derby 引导（破坏性——须用户确认）；或 A 源 grep allowNonPostgresql 校验点",
+    origin: "distribution/behavior.md 待验证 CFG-1（发行域；与配置域 U-CFG-* 编号撞车已消歧）" }
+- { unknown_id: U-DIST-06, domain: DIST, priority: P2, status: open,
+    question: "third-party/cosmo（npm CLI）的消费方与用途",
+    why_unknown: "包内只有 node_modules，无引用脚本",
+    required_evidence: "容器内全局搜 cosmo 调用点或前端构建产物引用检索",
+    probe: "docker exec artifactory grep -rl \"cosmo\" /opt/jfrog/artifactory/app/third-party --include=*.sh --include=*.js -m1 | head",
+    origin: "distribution/behavior.md 待验证 LAY-1" }
+- { unknown_id: U-DIST-07, domain: DIST, priority: P2, status: open,
+    question: "rtfs 载荷的分发渠道（发行包含脚本无二进制）",
+    why_unknown: "rtfs 默认关且载荷不在包内",
+    required_evidence: "E5：JFrog 官方 rtfs/addon 文档或 Pro+ 高级许可安装包对比",
+    probe: "WebFetch 官方文档 rtfs/Raft File System 章；对照 :8082 system.yaml rtfs.enabled=false 注释原文",
+    origin: "distribution/behavior.md 待验证 LAY-2" }
+- { unknown_id: U-DIST-08, domain: DIST, priority: P2, status: open,
+    question: "console.log 与各 <service>-console.log 的完整分流规则（哪些服务 tee、哪些直写）",
+    why_unknown: "metadata.sh 样板 + console.log 存在已证，13 个 pid 服务逐服务差异未全核对",
+    required_evidence: "E2 补扫：逐服务脚本 redirectServiceLogsToFile 分支比对",
+    probe: "安装包 C：grep -l redirectServiceLogsToFile app/bin/*.sh 逐文件读分支列 13 行对照表",
+    origin: "distribution/behavior.md 待验证 START-1" }
+
+# ───────────────────────── ENT 企业许可（28） ─────────────────────────
+- { unknown_id: U-ENT-01, domain: ENT, priority: P2, status: open,
+    question: "FROGML / JEM 处理器位置（仅枚举无独立 handler 目录）",
+    why_unknown: "E3 单源；未见 ph 目录",
+    required_evidence: "新版本反编译或活体建仓探测（repo type 可否建）",
+    probe: "curl -X PUT :8082/artifactory/api/repositories/frogml-probe（body rclass+packageType=frogml，写腿需放行）看是否接受；cross-ref registry",
+    origin: "enterprise/feature-catalog.yaml pending_verification#1", cross_ref: "U-PROTO-06" }
+- { unknown_id: U-ENT-02, domain: ENT, priority: P2, status: open,
+    question: "Gradle/Ivy/SBT 是否有隐藏专属端点（当前判断走 Maven/Ivy layout 通道）",
+    why_unknown: "E3 推断；无路由证据",
+    required_evidence: "活体路由探测（E4）",
+    probe: "curl -i :8082/artifactory/api/gradle / api/ivy / api/sbt 探 404 vs 405/200；与 A 源 resource 目录对拍",
+    origin: "enterprise/feature-catalog.yaml pending_verification#2", cross_ref: "U-PROTO-07" }
+- { unknown_id: U-ENT-03, domain: ENT, priority: P2, status: open,
+    question: "Cargo git 索引是否仍存活（sparse 已为主流）",
+    why_unknown: "E3；cargoInternalIndex 默认 false",
+    required_evidence: "活体探测 git 协议面",
+    probe: "curl -i :8082/artifactory/api/cargo/<repo>/index/info/refs（git smart http 探针）",
+    origin: "enterprise/feature-catalog.yaml pending_verification#3", cross_ref: "U-PROTO-08" }
+- { unknown_id: U-ENT-04, domain: ENT, priority: P2, status: open,
+    question: "multitenant-infra 是否随自托管发行版激活",
+    why_unknown: "E3；模块在树但激活路径未见",
+    required_evidence: "运行时观察（system.yaml tenant 键 / B 实例行为）",
+    probe: "grep tenant 相关配置：docker exec artifactory grep -i tenant var/etc/system.yaml 与 full-template 对照默认值",
+    origin: "enterprise/feature-catalog.yaml pending_verification#4" }
+- { unknown_id: U-ENT-05, domain: ENT, priority: P0, status: open,
+    question: "binary provider chain 具体组合模板（S3/GCS/Azure/双向缓存/分片）——外部 storage-client 库未随包",
+    why_unknown: "E5 口径：本批源码未见实现；以 binarystore.xml 官方文档为准的模板族未逐一取证",
+    required_evidence: "E5：官方 binarystore.xml 模板族文档全量取证 + E4 活体链验证（P0 门）",
+    probe: "WebFetch 官方 S3/Azure/GCS/分片/缓存 binarystore 模板章；docker exec 读 :8082 var/etc/artifactory/binarystore.xml 默认链",
+    origin: "enterprise/feature-catalog.yaml pending_verification#5", cross_ref: "U-STG-01" }
+- { unknown_id: U-ENT-06, domain: ENT, priority: P1, status: open,
+    question: "package-reroute 触发语义与配置模型（REST package-reroute/config/{type}）",
+    why_unknown: "E3；资源类可见流转未录",
+    required_evidence: "反编译 addon 走读 + 活体 curl 配置面",
+    probe: "curl :8082/artifactory/api/package_reroute/config/npm（带 $RT_TOKEN，只读）；读 addon/package-reroute 资源",
+    origin: "enterprise/feature-catalog.yaml pending_verification#6" }
+- { unknown_id: U-ENT-07, domain: ENT, priority: P2, status: open,
+    question: "shadow handler 切换条件（新包框架灰度——artifactory-shadow.log 对应机制）",
+    why_unknown: "E3；触发开关未见",
+    required_evidence: "A 源 shadow 相关 ConstantValues 走读",
+    probe: "grep A 源 artifactory.shadow / ShadowHandler 键与默认值；:8082 artifactory.system.properties 对照",
+    origin: "enterprise/feature-catalog.yaml pending_verification#7" }
+- { unknown_id: U-ENT-08, domain: ENT, priority: P2, status: open,
+    question: "Grid snapshot/provision 语义与 Jem addon 关系",
+    why_unknown: "E3；仅资源类",
+    required_evidence: "活体 curl + 企业档实例走读",
+    probe: "curl :8082/artifactory/api/v1/grid/repos（带 $RT_TOKEN）探面；读 addon/grid 资源类",
+    origin: "enterprise/feature-catalog.yaml pending_verification#8", cross_ref: "U-API-01" }
+- { unknown_id: U-ENT-09, domain: ENT, priority: P2, status: open,
+    question: "virtualCacheCleanupConfig cron 模板注释（00:12）与实际出厂 cron（05:00）不一致的裁定点",
+    why_unknown: "两源冲突；spec 判「以 cron 为准」待证",
+    required_evidence: "活体 GET 配置现值（E4）",
+    probe: "curl :8082/artifactory/api/system/configuration（带 $RT_TOKEN）取 virtualCacheCleanupConfig.cron 现值",
+    origin: "enterprise/feature-catalog.yaml pending_verification#9" }
+- { unknown_id: U-ENT-10, domain: ENT, priority: P1, status: open,
+    question: "retentionTools coverage/impact 计算口径",
+    why_unknown: "仅资源类；服务端计算未走读",
+    required_evidence: "反编译服务端复检 + 活体对照",
+    probe: "curl :8082/artifactory/api/retentionTools/coverage（带 $RT_TOKEN，只读）取现值形态；A 源走读 RetentionToolsResource",
+    origin: "enterprise/feature-catalog.yaml pending_verification#10", cross_ref: "U-API-04" }
+- { unknown_id: U-ENT-11, domain: ENT, priority: P1, status: open,
+    question: "JFConnect enforcement=true 时的完整裁决行为（本地 license 判定被完全旁路的路径）",
+    why_unknown: "参照实例未开启 enforcement；需 SaaS 或强制实例",
+    required_evidence: "开启 enforcement 的实例验证（E4 缺失）；或以 mock jfconnect 端点诱导",
+    probe: "读 AddonsManagerImpl.a(EntitlementType,boolean) 分支推演 + 如可行以 hosts 劫持诱导 enforcement（实验性，须 conductor 放行）",
+    origin: "enterprise/feature-gates.yaml unknowns#1" }
+- { unknown_id: U-ENT-12, domain: ENT, priority: P2, status: open,
+    question: "Partner license（AWS Marketplace）完整门控差异（assertNotPartnerLicense 阻止面）",
+    why_unknown: "无 partner license 实例可观察",
+    required_evidence: "E3 走读断言点全集 + （理想）partner 实例",
+    probe: "grep A 源 assertNotPartnerLicense 全调用点列资源清单；AWS 文档交叉",
+    origin: "enterprise/feature-gates.yaml unknowns#2", cross_ref: "U-ENT-28" }
+- { unknown_id: U-ENT-13, domain: ENT, priority: P2, status: open,
+    question: "AOL dedicated server 模式对 tier 判定的影响面（aolDedicatedServer 常量）",
+    why_unknown: "自托管实例无法触发",
+    required_evidence: "E3 走读常量引用点 + SaaS 文档",
+    probe: "grep A 源 aolDedicatedServer 引用清单；按 isBasicEnterpriseLicensed 谓词推演影响面",
+    origin: "enterprise/feature-gates.yaml unknowns#3" }
+- { unknown_id: U-ENT-14, domain: ENT, priority: P1, status: open,
+    question: "termLicenseDynamicExpiryDateEnabled 动态过期日行为（readOnly 判定改变）",
+    why_unknown: "需 termed license 实例",
+    required_evidence: "termed license 实例（E4）或走读 getLicenseValidUntil 分支",
+    probe: "读 AddonsManagerImpl.getLicenseValidUntil():452-460 与 EntitlementService 动态日接口；构造 termed license 请求 JFrog trial（外部动作——须用户同意）",
+    origin: "enterprise/feature-gates.yaml unknowns#4" }
+- { unknown_id: U-ENT-15, domain: ENT, priority: P2, status: open,
+    question: "Mixed license cluster 功能降级范围（footer 之外哪些 API 返回错误）",
+    why_unknown: "需多节点混合许可集群",
+    required_evidence: "E4 多节点集群验证（环境缺）",
+    probe: "暂无活体；走读 isMixedLicenseTypeInCluster 调用点推演降级面；标注 blocked-on-environment",
+    origin: "enterprise/feature-gates.yaml unknowns#5", cross_ref: "U-ENT-26" }
+- { unknown_id: U-ENT-16, domain: ENT, priority: P2, status: open,
+    question: "Identity blocker（Alibaba Cloud c/a.java 每 5 分钟身份校验、blocked 禁上传）触发面",
+    why_unknown: "非阿里云环境无法触发",
+    required_evidence: "阿里云环境（不可行）或走读校验器",
+    probe: "读 A 源 c/a.java identity verifier 判定条件；标记 environment-infeasible 候选 UNSUPPORTED 裁定",
+    origin: "enterprise/feature-gates.yaml unknowns#6" }
+- { unknown_id: U-ENT-17, domain: ENT, priority: P1, status: open,
+    question: "EntitlementType default-false 8 项（AI_CATALOG/PACKAGES_IDE_EXTENSION/HARDENED_×2/DISABLE_PLUGIN_INFRA/ALIBABA_ARTIFACTORY/PACKAGE_REROUTE）的 true 授予路径",
+    why_unknown: "代码无显式 true 路径，疑 JFConnect 服务端动态授予",
+    required_evidence: "SaaS 实例验证或 jfconnect 协议走读",
+    probe: "读 EntitlementServiceImpl/Result 类型解析；对 :8082 GET /api/system/version.entitlements 对照 4 项现值",
+    origin: "enterprise/feature-gates.yaml unknowns#7" }
+- { unknown_id: U-ENT-18, domain: ENT, priority: P1, status: open,
+    question: "addons.disabled 运行时热更新是否生效（代码仅启动期读一次）",
+    why_unknown: "未做改后不重启验证",
+    required_evidence: "E4：改 artifactory.system.properties 后不重启观察 addon 状态",
+    probe: "docker exec 改 addons.disabled=webhooks（写腿需放行）→ 不重启 GET /api/system/version.addons 对照；验毕还原",
+    origin: "enterprise/feature-gates.yaml unknowns#8", cross_ref: "U-ENT-27" }
+- { unknown_id: U-ENT-19, domain: ENT, priority: P1, status: open,
+    question: "无 license 503 的实际响应体格式（错误 envelope 有无/Content-Type）",
+    why_unknown: "A 证据仅给状态码与消息字符串；参照实例全激活",
+    required_evidence: "降级实例 E4（拔 lic 后 curl 采样）",
+    probe: "备份 var/etc/artifactory/artifactory.lic 后移出并 restart（破坏性——须用户确认）→ curl -i 采 body；验毕还原",
+    origin: "enterprise/license-behavior.md §8-1" }
+- { unknown_id: U-ENT-20, domain: ENT, priority: P1, status: open,
+    question: "Trial 过期时 24 个路径前缀的逐一拦截验证（path 匹配是 URI 全路径还是相对路径）",
+    why_unknown: "E3；LicenseRestFilter 匹配语义未证",
+    required_evidence: "过期 trial 实例逐前缀探针",
+    probe: "走读 LicenseRestFilter.doFilter 路径取值；等 trial 临近过期窗口（2026-11-03 前后）逐前缀 curl 复验",
+    origin: "enterprise/license-behavior.md §8-2" }
+- { unknown_id: U-ENT-21, domain: ENT, priority: P1, status: open,
+    question: "Termed license 过期 readOnly：上传 503 与下载放行的实测确认（含远程回源拒绝）",
+    why_unknown: "E3 代码依据；无 termed 实例",
+    required_evidence: "termed 过期实例（E4）",
+    probe: "同 U-ENT-14 环境；对照 GET（放行）/PUT（503）/remote 回源（拒）三腿",
+    origin: "enterprise/license-behavior.md §8-3" }
+- { unknown_id: U-ENT-22, domain: ENT, priority: P2, status: open,
+    question: "haConfiguredNotHaLicense（HA 集群装非 HA license）实际 API 表现",
+    why_unknown: "需 HA 集群环境",
+    required_evidence: "双节点实验（环境缺）",
+    probe: "暂无活体；走读 verifyAllArtifactoryServers 分支；blocked-on-environment",
+    origin: "enterprise/license-behavior.md §8-4" }
+- { unknown_id: U-ENT-23, domain: ENT, priority: P2, status: open,
+    question: "JCR EULA 未签署时 503 触发范围（是否含 /api/system/ping）",
+    why_unknown: "需 JCR 版本实例",
+    required_evidence: "JCR 镜像（artifactory-jcr）引导实测",
+    probe: "docker 拉 artifactory-jcr 同版引导（新容器新卷，不触碰参照实例）→ 未签 EULA 前 curl ping 与各 API",
+    origin: "enterprise/license-behavior.md §8-5" }
+- { unknown_id: U-ENT-24, domain: ENT, priority: P2, status: open,
+    question: "License 安装时在线验证失败（网络不通 JFrog）的具体错误码/文案",
+    why_unknown: "E3；需断网实例装 license",
+    required_evidence: "断网腿 E4",
+    probe: "POST /api/system/licenses 同时以 iptables/hosts 阻断 jfrog.com（容器网络改动——须用户确认）采响应",
+    origin: "enterprise/license-behavior.md §8-6" }
+- { unknown_id: U-ENT-25, domain: ENT, priority: P2, status: open,
+    question: "License hash 后缀新旧客户端互操作（UA <6.0 折叠为 3）的实际值",
+    why_unknown: "E3；需旧 UA 实测",
+    required_evidence: "E4：伪 UA curl -A 'Artifactory/5.x' 对照 /api/system/version.license",
+    probe: "curl -A 'Artifactory/5.9.0' :8082/artifactory/api/system/version | jq .license 与无 UA 版对照（只读）",
+    origin: "enterprise/license-behavior.md §8-7" }
+- { unknown_id: U-ENT-26, domain: ENT, priority: P2, status: open,
+    question: "集群 mixed license 的具体功能降级范围（footer 之外哪些 API 报错）",
+    why_unknown: "同 U-ENT-15（license-behavior 侧表述）",
+    required_evidence: "多节点混合集群（环境缺）",
+    probe: "同 U-ENT-15；合并取证",
+    origin: "enterprise/license-behavior.md §8-8", cross_ref: "U-ENT-15" }
+- { unknown_id: U-ENT-27, domain: ENT, priority: P1, status: open,
+    question: "addons.disabled 运行时修改后是否需重启生效（license-behavior 侧表述，与 U-ENT-18 同源）",
+    why_unknown: "E3",
+    required_evidence: "同 U-ENT-18 实测",
+    probe: "同 U-ENT-18；合并取证",
+    origin: "enterprise/license-behavior.md §8-9", cross_ref: "U-ENT-18" }
+- { unknown_id: U-ENT-28, domain: ENT, priority: P2, status: open,
+    question: "Partner（AWS）license 的 license API 返回形态",
+    why_unknown: "无 partner 实例",
+    required_evidence: "AWS Marketplace 文档 + （理想）partner 实例",
+    probe: "读 PartnerLicenseProvider 走读返回组装；WebFetch AWS Marketplace JFrog 页",
+    origin: "enterprise/license-behavior.md §8-10", cross_ref: "U-ENT-12" }
+
+# ───────────────────────── PROTO 包型协议（10） ─────────────────────────
+- { unknown_id: U-PROTO-01, domain: PROTO, priority: P0, status: open,
+    question: "docker remote 代理模式 v2 行为差异（DockerV2RemoteRepoHandler——镜像回源/manifest 重写/缓存键）",
+    why_unknown: "docker-registry.md 待验证#3 原挂账；docker 属 P0 协议、remote 面无规格",
+    required_evidence: "E4 活体（remote docker 仓实测 pull 链）+ A 源走读；P0 项收口须 E4/E5",
+    probe: ":8082 建 remote docker 仓指向 docker.io（写腿需放行）→ docker pull 逐请求抓包对照 local 仓行为；走读 DockerV2RemoteRepoHandler",
+    origin: "protocols/registry.yaml pending_verification REG-1（docker-registry.md 待验证#3）" }
+- { unknown_id: U-PROTO-02, domain: PROTO, priority: P1, status: open,
+    question: "language-ecosystem-a 15 包型（gems/composer/swift/pub/conda/cran/cocoapods/bower/hex/luarocks/nimmodel/bazelmodules/nix/vcs/gitlfs）的 authorization/delete/search/checksum/cache/error 字段级行为",
+    why_unknown: "族级聚合，inv-3 单行证据不足以填 §9 全字段",
+    required_evidence: "逐包型规格票（反编译 + 官方规范 + 活体客户端实测）",
+    probe: "按包型开票：每型一条「真实客户端对 :8082 全动词走查」+ addon 走读；gem/composer/swift 已有 per_protocol_notes 起点",
+    origin: "protocols/registry.yaml pending_verification REG-2" }
+- { unknown_id: U-PROTO-03, domain: PROTO, priority: P1, status: open,
+    question: "alpine/opkg 上传链与缓存语义（索引重算触发/签名公钥/上游镜像）",
+    why_unknown: "仅索引形态可见",
+    required_evidence: "反编译 ph/alpine、ph/opkg indexer 走读 + 活体 apk add 实测",
+    probe: ":8082 建 alpine 仓 PUT .apk + 矩阵坐标（写腿需放行）观察 APKINDEX 重算；apk --allow-untrusted add 对照签名链",
+    origin: "protocols/registry.yaml pending_verification REG-3" }
+- { unknown_id: U-PROTO-04, domain: PROTO, priority: P1, status: open,
+    question: "ansible/puppet/chef/vagrant/p2 上传面与上游代理语义",
+    why_unknown: "仅下载/元数据面可见",
+    required_evidence: "逐包型规格票",
+    probe: "ansible-galaxy collection publish / puppet module push 对 :8082 实测（建仓写腿需放行）；读各 addon 资源类",
+    origin: "protocols/registry.yaml pending_verification REG-4" }
+- { unknown_id: U-PROTO-05, domain: PROTO, priority: P1, status: open,
+    question: "terraform（registry）/terraformbackend 的 checksum/authorization/delete 细节（模块签名/provider sha 摘要/state 删除）",
+    why_unknown: "半全量条目缺字段",
+    required_evidence: "ph/terraform registry+backend 走读",
+    probe: "terraform CLI init/push 对 :8082 实测抓取 /.well-known/terraform.json 族与 state 锁端点行为（建仓写腿需放行）",
+    origin: "protocols/registry.yaml pending_verification REG-5" }
+- { unknown_id: U-PROTO-06, domain: PROTO, priority: P2, status: open,
+    question: "frogml/jem 处理器位置（registry 侧同源）",
+    why_unknown: "仅枚举无 ph 目录",
+    required_evidence: "新版本反编译或活体建仓探测",
+    probe: "同 U-ENT-01",
+    origin: "protocols/registry.yaml pending_verification REG-6（inv-3 §6 待验证1）", cross_ref: "U-ENT-01" }
+- { unknown_id: U-PROTO-07, domain: PROTO, priority: P1, status: open,
+    question: "gradle/ivy/sbt 隐藏专属端点有无（纯 layout 型判断的验证）",
+    why_unknown: "E3 推断（inv-3 §6 待验证3）",
+    required_evidence: "活体路由探测（E4）",
+    probe: "同 U-ENT-02；gradle build --refresh-dependencies 对 :8082 抓请求路径全集",
+    origin: "protocols/registry.yaml pending_verification REG-7", cross_ref: "U-ENT-02" }
+- { unknown_id: U-PROTO-08, domain: PROTO, priority: P1, status: open,
+    question: "cargo internal git index 是否仍暴露 git 协议面（cargoGitIndexEnabled 语义）",
+    why_unknown: "默认 false→404 的判断待确认",
+    required_evidence: "活体探测",
+    probe: "同 U-ENT-03；另 grep A 源 cargoInternalIndex 引用点",
+    origin: "protocols/registry.yaml pending_verification REG-8", cross_ref: "U-ENT-03" }
+- { unknown_id: U-PROTO-09, domain: PROTO, priority: P1, status: open,
+    question: "helmoci 与 docker 栈的精确差异点（addon 壳复用结论为中置信）",
+    why_unknown: "helmoci addon 仅 1 java；接线未走读",
+    required_evidence: "addon/helmoci 接线走读 + helm push oci:// 对 :8082 实测",
+    probe: "helm push oci://localhost:8082/<helmoci-repo> 实测（建仓写腿需放行）对照 docker push 差异；读 HelmOciAddonImpl",
+    origin: "protocols/registry.yaml pending_verification REG-9" }
+- { unknown_id: U-PROTO-10, domain: PROTO, priority: P1, status: open,
+    question: "webhook addon 反编译材料缺失（三 batch 无该模块）——系统 webhook 实现归属",
+    why_unknown: "反编译集合缺 addon/webhook 模块；webhook.md 按官方文档唯一来源口径承载",
+    required_evidence: "补 reverse-src（新版本反编译）或维持官方文档为唯一来源（E5 口径裁定）",
+    probe: "curl :8082/artifactory/api/webhooks/...（带 $RT_TOKEN）核对官方文档端点面；确认 access 侧 /access/api/v1/webhooks 承载形态",
+    origin: "protocols/registry.yaml pending_verification REG-10", cross_ref: "U-API-06" }
+
+# ───────────────────────── API REST 表面与模块（8） ─────────────────────────
+- { unknown_id: U-API-01, domain: API, priority: P2, status: open,
+    question: "grid（v1/grid/repos snapshot/provision）与 Jem addon 语义",
+    why_unknown: "仅见资源类未见流转",
+    required_evidence: "活体 curl + 企业档实例",
+    probe: "同 U-ENT-08",
+    origin: "api-inventory.yaml pending_verification INV-API-1", cross_ref: "U-ENT-08" }
+- { unknown_id: U-API-02, domain: API, priority: P2, status: open,
+    question: "artifact-metadata（PUT /api/metadata/{path}）写动词与权限",
+    why_unknown: "inv-2 仅记资源名；行内已标 UNKNOWN",
+    required_evidence: "反编译 ArtifactMetadataResource 方法注解复检",
+    probe: "读 A 源 ArtifactMetadataResource 注解（@PUT/@POST + 权限注解）；curl -X PUT :8082/artifactory/api/metadata/<探针路径> 双身份（admin/user）验证",
+    origin: "api-inventory.yaml pending_verification INV-API-2" }
+- { unknown_id: U-API-03, domain: API, priority: P1, status: open,
+    question: "package-handlers-remaining 族逐包型认证面（api-inventory D12 行 auth=UNKNOWN）",
+    why_unknown: "族级聚合未逐包型取证（与 REG-2 同源）",
+    required_evidence: "逐包型规格票",
+    probe: "同 U-PROTO-02",
+    origin: "api-inventory.yaml pending_verification INV-API-3", cross_ref: "U-PROTO-02" }
+- { unknown_id: U-API-04, domain: API, priority: P1, status: open,
+    question: "retentionTools/*（coverage/impact）计算口径（服务端）",
+    why_unknown: "仅资源类",
+    required_evidence: "反编译服务端复检",
+    probe: "同 U-ENT-10",
+    origin: "api-inventory.yaml pending_verification INV-API-4", cross_ref: "U-ENT-10" }
+- { unknown_id: U-API-05, domain: API, priority: P1, status: open,
+    question: "system.yaml 优先级 vs artifactory.system.properties（跨清单与 CFG-3 同源）",
+    why_unknown: "loader 未完整走读",
+    required_evidence: "反编译 ArtifactorySystemProperties/system yaml loader 走读或活体同键对照",
+    probe: "同 U-CFG-03",
+    origin: "api-inventory.yaml pending_verification INV-API-5", cross_ref: "U-CFG-03" }
+- { unknown_id: U-API-06, domain: API, priority: P1, status: open,
+    question: "经典 WebhookService（system webhooks REST 面）实现归属——树内仅 plugins addon 与 access 侧引用",
+    why_unknown: "domain-map 标 partial；独立管理实现未定位",
+    required_evidence: "活体验证 access 侧承载形态（/access/api/v1/webhooks）+ 补反编译",
+    probe: "curl :8082/access/api/v1/webhooks（带 $RT_TOKEN）与 /artifactory/api/system/webhooks 两面探活；对照官方 webhooks API 文档",
+    origin: "domain-map.yaml unknown_items#3（WebhookService partial）", cross_ref: "U-PROTO-10" }
+- { unknown_id: U-API-07, domain: API, priority: P2, status: open,
+    question: "jfrog-onemodelsdk-lib 职能（recovered 占位 0 java）",
+    why_unknown: "无代码无文档",
+    required_evidence: "运行时 classpath 出现点或官方制品库比对",
+    probe: "docker exec artifactory find /opt/jfrog/artifactory/app -name '*onemodel*' 列实物；onemodel 服务 GraphQL schema 探查（:8082/onemodel）",
+    origin: "domain-map.yaml unknown_items#5（onemodelsdk unknown）" }
+- { unknown_id: U-API-08, domain: API, priority: P2, status: open,
+    question: "形似 JFrog 内部库的三方占位真实身份（sysconf×12/license-manager/support-common/support-rest/rds/event-client/checksums 等 + 嵌入式服务占位组）",
+    why_unknown: "artifactId 命中 recovered.thirdparty；真实 groupId/职能证据不足",
+    required_evidence: "运行时 classpath 或官方制品库（releases.jfrog.io）比对",
+    probe: "docker exec artifactory ls /opt/jfrog/artifactory/app/artifactory/tomcat/webapps/*/WEB-INF/lib | grep -i -e sysconf -e license-manager -e support- 取实物 jar 名与 groupId",
+    origin: "domain-map.yaml unknown_items#6（needs-verification）" }
+
+# ───────────────────────── CFG 配置体系（5） ─────────────────────────
+- { unknown_id: U-CFG-01, domain: CFG, priority: P1, status: open,
+    question: "Java 进程内 JF_* 环境变量直读机制（jfrog-config 模块 0 个 getenv）",
+    why_unknown: "shell 侧 transformKeyToEnv 已证；Java 侧 mapper 库不在反编译集合",
+    required_evidence: "Java 侧 config mapper 源码或 /proc/<pid>/environ + 实测 JF_SHARED_NODE_ID 注入验证",
+    probe: "docker exec artifactory sh -c 'cat /proc/$(pgrep -f artifactory.tomcat)/environ | tr \"\\0\" \"\\n\" | grep ^JF_' 列进程实收变量；对照 system.yaml 键集合",
+    origin: "configuration-map.yaml pending_verification CFG-1" }
+- { unknown_id: U-CFG-02, domain: CFG, priority: P2, status: open,
+    question: "full/basic 模板是否参与运行时解析回退（getSystemValue 缺省仅查 system.yaml）",
+    why_unknown: "JF_SYSTEM_YAML 可扩展清单但未证模板在清单内",
+    required_evidence: "活体：删 system.yaml 某键观察是否取模板默认（或 strace/yq 调用链）",
+    probe: "备份后从 var/etc/system.yaml 暂移 shared.metrics.enabled（写腿需放行+还原）→ 重启观察 metrics 行为是否仍按模板 true",
+    origin: "configuration-map.yaml pending_verification CFG-2" }
+- { unknown_id: U-CFG-03, domain: CFG, priority: P1, status: open,
+    question: "system.yaml vs artifactory.system.properties 同键优先级（config-formats 待验证2 原项）",
+    why_unknown: "loader 未完整走读",
+    required_evidence: "反编译 ArtifactorySystemProperties/system yaml loader 或活体同键对照",
+    probe: "同键（如 gcConfig 相关）在两文件设不同值重启观察生效者（写腿需放行+还原）；A 源走读 config loader 合并序",
+    origin: "configuration-map.yaml pending_verification CFG-3", cross_ref: "U-API-05" }
+- { unknown_id: U-CFG-04, domain: CFG, priority: P2, status: open,
+    question: "目录骨架创建时序（首启播种 vs 每次启动校验）",
+    why_unknown: "终态实测可见、时序未证",
+    required_evidence: "干净卷首启前后目录快照对照（E4）",
+    probe: "docker 起新卷旁路实例（不碰参照实例）首启前后 find var/etc -type d 双快照 diff",
+    origin: "configuration-map.yaml pending_verification CFG-4" }
+- { unknown_id: U-CFG-05, domain: CFG, priority: P2, status: open,
+    question: "98adfa 密文前缀语义（信封版本标识？）与 aesgcm256 之外的算法档位",
+    why_unknown: "仅活体单样本；加密封装未走读",
+    required_evidence: "反编译 jfrog-crypto 加密信封格式 + 多字段样本比对",
+    probe: "读 A 源 jfrog-crypto org.jfrog.security 信封编码；docker exec grep -o '98adfa\\.[a-z0-9256]*\\.' var/etc/system.yaml | sort -u 列前缀族",
+    origin: "configuration-map.yaml pending_verification CFG-5" }
+
+# ───────────────────────── JOB 异步调度（6） ─────────────────────────
+- { unknown_id: U-JOB-01, domain: JOB, priority: P1, status: open,
+    question: "work-queue 队列语义与可观测面（重试/退避/上限/死信、队列名约定、持久化与否、mbean JMX 属性）",
+    why_unknown: "仅模块存在性定位（work-queue-api + 20 消费模块）",
+    required_evidence: "work-queue-api 全模块细读专项票 + JMX 活体查询",
+    probe: "A 源走读 artifactory-work-queue-api 全接口与 mbean；:8082 触发一次包索引计算后 JMX/日志观察队列指标",
+    origin: "jobs/README.md §3 J-1" }
+- { unknown_id: U-JOB-02, domain: JOB, priority: P1, status: open,
+    question: "事件总线拓扑与消费链（jfbus 主题/订阅模型、内部事件产生→投递→消费、outbox 持久化与重投、event 服务分工）",
+    why_unknown: "模块族庞大未展开（eventstream/event-client/jfbus-adapter/outbox scheduler）",
+    required_evidence: "event-stream/jfbus 专项逆向票 + :8082 var/log/event* 样本（E4 与任务#4 协同）",
+    probe: "tail :8082 var/log/jfbus-*.log + event-service.log 观察订阅日志；读 jfrog-eventing-client-jfbus-adapter outbox scheduler",
+    origin: "jobs/README.md §3 J-2" }
+- { unknown_id: U-JOB-03, domain: JOB, priority: P2, status: open,
+    question: "db-scheduler（Access 侧）承载的 job 清单、任务表 schema 与抢占语义；caesium 使用方",
+    why_unknown: "access-server-core jobs 包未细读",
+    required_evidence: "access-server-core 专项票 + :8082 postgres 只读查表",
+    probe: "psql（只读）\\dt 列 access 库 scheduled_tasks 类表；读 org.jfrog.access.server.jobs 包",
+    origin: "jobs/README.md §3 J-3" }
+- { unknown_id: U-JOB-04, domain: JOB, priority: P2, status: open,
+    question: "HA 下「同 job 单节点执行」保证机制（Quartz JDBC clustered store 与自有守卫叠加）与任务接管/错过不补跑语义",
+    why_unknown: "类存在（HaQuartzTask/QuartzConflictsGuard）机制未读；需双节点环境",
+    required_evidence: "反编译 HaQuartzTask/ConflictsGuard + 双节点实验（环境缺）",
+    probe: "A 源走读 schedule/quartz 守卫类推演；活体腿标注 blocked-on-environment",
+    origin: "jobs/README.md §3 J-4" }
+- { unknown_id: U-JOB-05, domain: JOB, priority: P2, status: open,
+    question: "出厂 job 全集与触发时刻（cron-scheduling §2 覆盖 5+2 项，内部 job 如 VCS/索引/MPU 清理未穷举）",
+    why_unknown: "config-templates 未全扫",
+    required_evidence: "config-templates 全扫 + 运行时 scheduler mbean",
+    probe: "grep A 源所有 Cron 注解/CRON_ 常量列全集；GET :8082 /artifactory/api/schedules（带 $RT_TOKEN）对照",
+    origin: "jobs/README.md §3 J-5" }
+- { unknown_id: U-JOB-06, domain: JOB, priority: P2, status: open,
+    question: "/ui/api/crontime 现值与行为（C-a 挂账）",
+    why_unknown: "未探针",
+    required_evidence: "E4 只读探针",
+    probe: "curl ':8082/ui/api/crontime?cron=0+0+2+*+*+'（带 $RT_TOKEN 或按开放表判断）取 next-run 序列",
+    origin: "jobs/README.md §3 J-6（cron-scheduling C-a）" }
+
+# ───────────────────────── 既有来源（只引用计数，不复制） ─────────────────────────
+existing_sources:
+- { file: docs/compatibility/matrix.yaml, section: frozen_rowset_v1（rows 待 M3-1 迁移）, count: "195 冻结行（✅57/◐27/❌83/⛔17/超集11）", theme: "四态主账；❌83 absent 行即既有差距 backlog，无独立 UNKNOWN 列——唯一账不在此复制" }
+- { file: docs/reverse/rest-compat-matrix.md, section: §16 待验证清单, count: 11, theme: "REST 面低置信/待复核行（矩阵本体，M3-1 迁移源）" }
+- { file: docs/reverse/aql.md, section: §12 待验证清单, count: "8（V-a~h）", theme: "AQL 429 body/分页边界/pattern 空集等 wire 级未复现项" }
+- { file: docs/reverse/rest-api.md, section: 待验证清单, count: 3, theme: "atomic 删除中间态/GC 响应流式格式/checksumDeployed 外显" }
+- { file: docs/reverse/repo-semantics.md, section: 待验证清单, count: "7（2 项已收敛划线）", theme: "blacked-out 上传码/virtual DELETE 遍历/remote 5xx 分支/cache 仓可见性" }
+- { file: docs/reverse/webhook.md, section: §12 待验证清单, count: 8, theme: "webhook 事件族/重试/签名头未复现项（官方文档唯一来源口径）" }
+- { file: docs/reverse/docker-registry.md, section: 待验证清单, count: 3, theme: "remote 代理模式（→U-PROTO-01）等 docker 面挂账" }
+- { file: docs/reverse/storage-layout.md, section: 待验证清单, count: 3, theme: "_pre 清理触发（→U-STG-06）/gcConfig cron（→U-STG-07）等" }
+- { file: docs/reverse/s3-storage-layout.md, section: 待验证清单, count: 6, theme: "云重定向（→U-STG-09）/cached-fs/sharding/MPU 运行腿（→U-STG-02/08）" }
+- { file: docs/reverse/cron-scheduling.md, section: §5 C-a~d, count: 4, theme: "crontime 现值（→U-JOB-06）/出厂时刻动态验证" }
+- { file: docs/reverse/config-formats.md, section: 待验证, count: 2, theme: "配置加载次序细目（→U-CFG-03 原项）" }
+- { file: docs/reverse/logging/format-spec.md, section: 正文散点 UNKNOWN, count: "若干（行内标注，已随 §13 收割）", theme: "正文行内低置信注记已并入 LOG 域收割" }

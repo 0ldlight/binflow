@@ -1,0 +1,61 @@
+    # Method available in _ioOperations.sh
+    LC_ALL=C type io_setYQPath > /dev/null 2>&1 || return 1
+
+    io_setYQPath
+
+    # Method available in _systemYamlHelper.sh
+    LC_ALL=C type getSystemValue > /dev/null 2>&1 || return 1
+
+    local frequency="daily"
+    local archiveFolder="archived"
+
+    local compressLogFiles=
+    local delaycompressEnable=
+    getSystemValue "shared.logging.rotation.compress" "true"
+    if [[ "${YAML_VALUE}" == "true" ]]; then
+        compressLogFiles="compress"
+        delaycompressEnable="delaycompress"
+    fi
+
+    getSystemValue "shared.logging.rotation.maxFiles" "10"
+    local noOfBackupFiles="${YAML_VALUE}"
+
+    getSystemValue "shared.logging.rotation.maxSizeMb" "25"
+    local sizeOfFile="${YAML_VALUE}M"
+
+    logDebug "Adding logrotate configuration for [$logFile] to [$confFile]"
+
+    # Add configuration to file
+    local confContent=$(cat << LOGROTATECONF
+$logFile {
+    $frequency
+    missingok
+    copytruncate
+    rotate $noOfBackupFiles
+    $compressLogFiles
+    $delaycompressEnable
+    notifempty
+    olddir $archiveFolder
+    dateext
+    extension .log
+    dateformat -%Y-%m-%d-%s
+    size ${sizeOfFile}
+}
+LOGROTATECONF
+) 
+    echo "${confContent}" > ${confFile} || return 1
+}
+
+_operationIsBySameUser() {
+    local targetUser="$1"
+    local currentUserID=$(id -u)
+    local currentUserName=$(id -un)
+
+    if [ $currentUserID == $targetUser ] || [ $currentUserName == $targetUser ]; then
+        echo -n "yes"
+    else   
+        echo -n "no"
+    fi
+}
+
+_addCronJobForLogrotate() {
