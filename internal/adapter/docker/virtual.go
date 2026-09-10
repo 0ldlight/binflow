@@ -366,6 +366,13 @@ func (h *Handler) serveVirtualRemoteBlob(w http.ResponseWriter, r *http.Request,
 			h.serveVirtualBlobCopy(w, r, member, standingNode, remote.CacheStale, summary)
 		}
 	}
+	// The marker gate, member-scoped (ADR-0047 §3): a cold miss the MEMBER's
+	// chains never named is unfound for this member — walk on, no upstream
+	// contact, no negative-cache row, no summary (the deterministic answer
+	// keeps the terminal body plain, the E4-2 shape).
+	if standingNode == nil && !h.memberChainAdmits(ctx, p, ref, member, hex) {
+		return virtualMemberUnfound, ""
+	}
 	path := blobNodePath(ref.image, hex)
 	stream, ferr := entry.fetchBlobStream(ctx, ref.image, hex)
 	if ferr != nil {
@@ -402,6 +409,25 @@ func (h *Handler) serveVirtualRemoteBlob(w http.ResponseWriter, r *http.Request,
 		}
 		return virtualMemberUnfound, fmt.Sprintf("upstream answered %d %s", stream.StatusCode, stream.Status)
 	}
+}
+
+// memberChainAdmits is blobChainAdmits' membership-guarded twin for the
+// virtual walk: the gate query addresses the REMOTE member's
+// (repoKey, image), never the virtual key (ADR-0047 §3). The same
+// fault-admits posture as the direct arm.
+func (h *Handler) memberChainAdmits(ctx context.Context, p *Principal, ref nameRef, member, hex string) bool {
+	gate := h.chainGate()
+	if gate == nil {
+		return true
+	}
+	in, err := gate.V2MemberBlobInChain(ctx, p, ref.repoKey, member, ref.image, hex)
+	if err != nil {
+		h.log.WarnContext(ctx, "docker virtual: member chain gate unavailable (fetching)",
+			"repo", ref.repoKey, "member", member, "image", ref.image, "path", blobNodePath(ref.image, hex),
+			"cache_result", "chain-gate-error", "error", err.Error())
+		return true
+	}
+	return in
 }
 
 // virtualMemberSession resolves one remote MEMBER's upstream session

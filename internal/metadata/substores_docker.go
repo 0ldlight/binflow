@@ -241,6 +241,21 @@ func (s *dockerStore) RefsByBlob(ctx context.Context, repoKey, blobDigest string
 	return exists, nil
 }
 
+// BlobInImageChain is the ADR-0047 DigestChainGate oracle's ledger read:
+// did any manifest chain recorded for (repo_key, image) name the digest?
+// Image-scoped EXACT match — stricter than Artifactory's AQL
+// `path matches <image>*` prefix scope by design (ADR-0047 edge ②, the
+// constructive name-prefix case only, direction conservative).
+func (s *dockerStore) BlobInImageChain(ctx context.Context, repoKey, image, blobDigest string) (bool, error) {
+	var exists bool
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT EXISTS (SELECT 1 FROM docker_refs WHERE repo_key = ? AND image = ? AND blob_digest = ?)`,
+		repoKey, image, blobDigest).Scan(&exists); err != nil {
+		return false, wrapExec("docker refs in-image-chain", repoKey+"/"+image, err)
+	}
+	return exists, nil
+}
+
 // ---- catalog / teardown ----
 
 // ListImages is the /v2/_catalog source: DISTINCT image names with at least

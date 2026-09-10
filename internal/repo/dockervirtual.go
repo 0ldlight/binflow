@@ -275,6 +275,30 @@ func (s *service) V2CacheMemberMiss(ctx context.Context, p *Principal, virtualKe
 	return s.cacheRemoteMissCore(ctx, m.key, path)
 }
 
+// V2MemberBlobInChain implements DigestChainGate: the chain oracle against
+// one REMOTE member of a virtual walk (BlobInChain's membership-guarded
+// twin — the walk was already gated on the VIRTUAL key, membership
+// replaces the member's own permission pair; ADR-0047 §3's per-member
+// scope: the gate query addresses the member's (repoKey, image)).
+func (s *service) V2MemberBlobInChain(ctx context.Context, p *Principal, virtualKey, member, image, hex string) (bool, error) {
+	_ = p // membership-guarded by contract
+	m, err := s.v2VirtualGuard(ctx, virtualKey, member)
+	if err != nil {
+		return false, err
+	}
+	if m.typ != TypeRemote {
+		return false, fmt.Errorf("%w: member %s of virtual %s is %s, not a remote pull-through",
+			ErrRepoTypeNotSupported, member, virtualKey, m.typ)
+	}
+	if err := validateDockerImage(image); err != nil {
+		return false, err
+	}
+	if err := validateDigest(hex); err != nil {
+		return false, err
+	}
+	return s.blobInChainCore(ctx, m.key, image, hex)
+}
+
 // V2WriteRefusal implements V2VirtualPlane: the /v2 write refusal's exact
 // rendering. Un-routed virtuals keep the C5 405 verbatim (refuseVirtualWrite
 // — the one spelling the generic plane's RE-08 answer carries); a virtual

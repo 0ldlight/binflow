@@ -487,17 +487,16 @@ contracts:
   side_effects: []
   error_behavior: []
   binflow_state:
-    verdict: DIVERGENT
-    detail: 'C13 body 形态已清偿（L001-1 复验灭：detail.digest→blobSum、message 静态串，E6-2 逐字）；残余分歧 = C10b 门控语义——BinFlow digest 盲代理（上游 404 一次往返）+ 负缓存 vs 参照 marker 门控无往返快 404（timing 断言仍未过）'
-    reverify_after: 'LOOP 001 设计票+实现票（known-divergence docker/remote-blob-marker-semantics；C13 子项已结）'
-  version: { artifactory_ref: 7.161.20, binflow_tested: uat.f80c46aa }
+    verdict: SAME
+    detail: 'C13 body 形态 L001-1 清偿；C10b 门控语义 L002-1 清偿（ADR-0047 DigestChainGate：docker_refs 账本 oracle + node 存在性短路）——链外 digest 本地快 404 零上游往返（4.5-15.9ms 实测过 timing 断言）、门控拒绝不写负缓存行（ADR-0048 交界）、manifest 首拉后同 digest 代取 200。image 作用域精确匹配比参照 AQL 前缀更严（ADR-0047 边缘② INTENTIONAL）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.l0021-5f9c48d0 }
   evidence:
     - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E4-2/E4-3/E6-2, date: '2026-09-10' }
     - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C10b/C13（L000-F 复验段）', date: '2026-09-11' }
     - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C13（L001-1 复验段，灭；C10 归另票未触碰）', date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C10（L002-1 复验段，灭——门控重放五步含上游日志零往返直证）', date: '2026-09-11' }
   confidence: high
-  status: DIVERGENT
-  divergence_ref: known-divergence.yaml#docker/remote-blob-marker-semantics
+  status: VERIFIED
 # ── 404 形态族（manifest 面） ────────────────────────────────────────────────
 - id: docker/remote-manifest-unknown-404
   feature: 'manifest 404 形态（不分 NAME_UNKNOWN/MANIFEST_UNKNOWN；library/ 归一泄漏进 detail）'

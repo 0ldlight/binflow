@@ -1033,6 +1033,33 @@ type V2MemberBlob struct {
 	Cache string
 }
 
+// DigestChainGate is the marker-gate oracle of remote-cache-v2 (ADR-0047,
+// docs/design/remote-cache-v2.md §2/§3): may a blob digest be fetched
+// upstream for this image? Artifactory answers this with
+// downloadBlobFromMarker over pre-written `.marker` files (E4-3/E1);
+// BinFlow answers it from the docker_refs ledger instead — the refs rows
+// RecordRemoteManifest writes at manifest-landing time are the structural
+// equivalent of the markers, and a digest that landed (the node stands)
+// never reaches the gate at all (the caller probes first). The oracle is
+// consulted ONLY on a cache miss with no standing copy; a false answer is
+// the local BLOB_UNKNOWN the adapter serves with zero upstream contact
+// and no negative-cache row (the answer is deterministic, ADR-0048).
+//
+// The consumer resolves the capability by type-asserting Service (the
+// RemoteV2Plane/V2VirtualPlane precedent — an optional SPI segment, so
+// test doubles that embed the interfaces keep compiling and an assembly
+// without the facet keeps the pre-ADR fetch posture instead of wedging).
+type DigestChainGate interface {
+	// BlobInChain reports whether hex was named by any manifest chain
+	// recorded for (repoKey, image) — read-gated like the plane's own
+	// faces. Only REMOTE registry-v2 family repositories carry chains.
+	BlobInChain(ctx context.Context, p *Principal, repoKey, image, hex string) (bool, error)
+	// V2MemberBlobInChain is the membership-guarded twin the virtual walk
+	// consults per remote member (membership replaces the member's own
+	// permission pair as the guard — the V2VirtualPlane contract).
+	V2MemberBlobInChain(ctx context.Context, p *Principal, virtualKey, member, image, hex string) (bool, error)
+}
+
 // RemoteUpstream is the upstream fact bundle of one registry-v2 remote
 // repository (RemoteV2Plane.RemoteUpstream's result). Password is plaintext
 // in memory for the adapter's session only — the caller must never log or

@@ -1032,24 +1032,35 @@ func (h *Handler) landFetchedManifest(w http.ResponseWriter, r *http.Request, re
 	}
 	// The ref edges are best-effort cache population (helm.md 8.3: the
 	// upstream is the structural authority; a body this plane cannot parse
-	// still serves verbatim).
-	refs := remoteManifestRefs(fetched.body)
+	// still serves verbatim). The NEGOTIATED media type feeds the parse —
+	// the refs ledger is the ADR-0047 chain gate's substrate, and an
+	// untyped parse would silently starve it (best-effort means the failure
+	// must at least be real, not an always-on input bug).
+	refs := remoteManifestRefs(mediaType, fetched.body)
 	tag := ""
 	if !isDigestRef {
 		tag = reference
 	}
 	if rerr := sink.record(dgst, tag, mediaType, int64(len(fetched.body)), refs); rerr != nil {
-		h.log.WarnContext(ctx, "docker remote: manifest index rows not recorded (serving the landed copy)",
-			"repo", ref.repoKey, "image", ref.image, "digest", dgst, "error", rerr.Error())
+		// The chain gate consumes these rows (ADR-0047): a manifest whose
+		// refs never landed makes its uncached blobs locally unfetchable —
+		// the same coupling Artifactory's marker-write failure carries
+		// (INTENTIONAL, ADR-0047 edge ①). The WARN carries the engine's
+		// cache_result field so an operator alerting on that line sees the
+		// degradation; best-effort stands (the landed copy serves).
+		h.log.WarnContext(ctx, "docker remote: manifest index rows not recorded (serving the landed copy; the chain gate will refuse this manifest's uncached blobs)",
+			"repo", ref.repoKey, "image", ref.image, "digest", dgst,
+			"cache_result", "chain-unrecorded", "error", rerr.Error())
 	}
 	serve(w, r, node, mediaType, dgst, int64(len(fetched.body)), remote.CacheMiss, "")
 }
 
 // remoteManifestRefs extracts a fetched manifest's descriptor digests
 // (best-effort: the pass-through parse the local plane owns, degraded to
-// no refs when the body does not parse — the upstream already served it).
-func remoteManifestRefs(body []byte) []*metadata.DockerRef {
-	parsed, err := parseManifest("", body)
+// no refs when the body does not parse against mediaType — the upstream
+// already served it). These rows are the ADR-0047 chain gate's ledger.
+func remoteManifestRefs(mediaType string, body []byte) []*metadata.DockerRef {
+	parsed, err := parseManifest(mediaType, body)
 	if err != nil {
 		return nil
 	}
@@ -1156,6 +1167,18 @@ func (h *Handler) serveRemoteBlob(w http.ResponseWriter, r *http.Request, ref na
 		standing = &remoteStanding{node: probe.Node, dgst: hex, size: probe.Node.Size}
 	}
 
+	// The marker gate (ADR-0047, C10): a cold miss must be named by a
+	// manifest chain of this image — the refs ledger RecordRemoteManifest
+	// keeps is the structural marker, and a digest no chain ever named
+	// answers the unfound family LOCALLY: zero upstream contact, no
+	// negative-cache row (the answer is deterministic, ADR-0048). A
+	// standing copy never asks — the probe IS the node-existence
+	// short-circuit, the landed blob its own marker.
+	if standing == nil && !h.blobChainAdmits(ctx, p, ref, hex) {
+		unfound.write(w, "")
+		return
+	}
+
 	entry, _, serr := h.remoteSession(ctx, p, ref.repoKey)
 	if serr != nil {
 		h.writeRemoteServeError(w, r, serr, ref)
@@ -1199,6 +1222,33 @@ func (h *Handler) serveRemoteBlob(w http.ResponseWriter, r *http.Request, ref na
 		}
 		unfound.write(w, fmt.Sprintf("upstream answered %d %s", stream.StatusCode, stream.Status))
 	}
+}
+
+// chainGate resolves the service's ADR-0047 marker-gate oracle facet; nil
+// when the assembled service predates the seam (a bare test double).
+func (h *Handler) chainGate() repo.DigestChainGate {
+	gate, _ := h.svc.(repo.DigestChainGate)
+	return gate
+}
+
+// blobChainAdmits answers the ADR-0047 gate question for one digest on the
+// DIRECT remote plane: false = the unfound family locally. An oracle fault
+// must not wedge pulls — it admits (the upstream decides, the pre-ADR
+// fetch posture) with the observability line the design asks for
+// (cache_result-aligned fields, remote-cache-v2 §2.1.1).
+func (h *Handler) blobChainAdmits(ctx context.Context, p *Principal, ref nameRef, hex string) bool {
+	gate := h.chainGate()
+	if gate == nil {
+		return true
+	}
+	in, err := gate.BlobInChain(ctx, p, ref.repoKey, ref.image, hex)
+	if err != nil {
+		h.log.WarnContext(ctx, "docker remote: chain gate unavailable (fetching)",
+			"repo", ref.repoKey, "image", ref.image, "path", blobNodePath(ref.image, hex),
+			"cache_result", "chain-gate-error", "error", err.Error())
+		return true
+	}
+	return in
 }
 
 // serveRemoteBlobCopy streams one blob copy through the local plane's

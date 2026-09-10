@@ -182,3 +182,28 @@ SAME 2→6（+C04/C07/C08/C09）/ DIVERGENT 11→12（−C04/C09，+C05/C06/C10�
 ### 统计更新（L001-1 复验口径）
 
 SAME 6→13（+C15/C16/C02/C12/C13/C11/C01）/ DIVERGENT 12→5（C05/C06/C10 + D19 INTENTIONAL 候选 + D21 转 httpapi 票）/ UNKNOWN 待裁 3（C01b/C03/C14）不变 / skipped 1 不变。docker remote 代理的客户端可见错误面与列表面已全对齐参照；剩余差异集中在缓存布局语义（另票管辖）。
+
+## 复验（L002-1，2026-09-11）——C10 marker 门控语义修复（ADR-0047 DigestChainGate）落地重放
+
+- 修复: L002-1 实现票（dev-registry-adapter docker+helmoci 域唯一实例）。改动面 `internal/repo`（DigestChainGate facet：BlobInChain/V2MemberBlobInChain + blobInChainCore）+ `internal/metadata`（DockerStore.BlobInImageChain——EXPLAIN QUERY PLAN 实测走 PK covering (repo_key,image) 前缀 seek，零新索引）+ `internal/adapter/docker`（serveRemoteBlob direct 臂 + serveVirtualRemoteBlob virtual 臂接 gate；门控拒绝走既有 blobUnfound 臂且**不写负缓存行**）。**伴生根因修复**：`remoteManifestRefs` 此前以空 Content-Type 调 parseManifest（恒失败、refs 账本在 remote manifest 落地时从未写入——潜伏缺口，gate 是其首个消费者），改为传入协商 media type。
+- UAT 重建: `uat-l0021-5f9c48d0`（develop 5f9c48d0 + 工作树；同端口 :8083、同卷，repo `audit-probe-docker-remote` 与缓存保留）。
+- 拓扑: 同 §10 口径——上游 = 本地 registry:3（`difftest-upstream` 127.0.0.1:5588，busybox:t1,t2,t3 + hello-world:latest + 本轮新推 `l0021-probe:t1`〔busybox 同内容换名——同 digest 异 image，正好压实 image 作用域〕）；上游日志以 OTel span 逐路径核对（每请求一行，含 url.path 与 UA）。
+
+### C10 原案重放（修复后 BinFlow 腿实测，probe image l0021-probe:t1，config digest `sha256:c6348fa8…`）
+
+| 步骤 | 请求 | 实测 | 上游往返 |
+|---|---|---|---|
+| 1 门未开（manifest 从未拉取） | `GET …/l0021-probe/blobs/sha256:c6348fa8…` | **404 `BLOB_UNKNOWN`（E6-2 逐字：静态 message + detail.blobSum）in 4.99ms——本地应答** | **零**（上游日志无该 digest 任何请求） |
+| 2 manifest 拉取（链落地时刻） | `GET …/l0021-probe/manifests/t1`（Accept 双型） | 200，`Docker-Content-Digest: sha256:1cfa4e2b…`，`X-Binflow-Cache: MISS` | 1（`GET /v2/l0021-probe/manifests/t1`，UA binflow-remote/1.0） |
+| 3 同一 digest 再取（门已开） | `GET …/l0021-probe/blobs/sha256:c6348fa8…` | **200 459B `X-Binflow-Cache: MISS`——上游代取落缓存（E4-1 形态）** | 1（`GET /v2/l0021-probe/blobs/sha256:c6348fa8…`） |
+| 4 随机 digest（链外）×3 | `GET …/l0021-probe/blobs/sha256:d42f83cc…`（sha256("l0021-random-never-in-any-chain")） | 三次均 **404 BLOB_UNKNOWN in 4.5/12.2/15.9ms——本地快应答** | **零**（上游日志全量核对：该 digest 请求数=0；修复前形态=盲代理先打一次上游 404 再负缓存） |
+| 5 真实客户端 | dind docker CLI 27.x `docker pull host.docker.internal:8083/audit-probe-docker-remote/l0021-probe:t1` | 成功；`rmi` 后重拉 0.157s 全缓存（层 blob 与 busybox:t3 同 digest 已缓存，零上游往返） | 0 |
+
+判定：**C10 DIVERGENT→SAME（灭）**——门控语义（未拉 manifest 的 digest 不代取、随机 digest 无往返本地快 404、首次 manifest 拉取后 blob 门开、链内代取 200）与 Artifactory E4-1/E4-2 marker 门控逐案对齐；且 image 作用域精确匹配（l0021-probe 与 busybox 同 digest 异链，步骤 1 对 busybox 链内同 digest 仍拒绝——比 Artifactory AQL 前缀匹配更严，ADR-0047 边缘② INTENTIONAL）。门控拒绝**不写负缓存行**（ADR-0048 交界）：重复随机 digest 三连测零上游往返由门控直接保证，非负缓存记忆。UAT 服务日志零 `chain gate` WARN。
+
+### 残留与边界（本轮）
+
+- **C05/C06**：未触碰（缓存布局/manifest 头集，归另票）。
+- **C01b/C03/C14**：未触碰（C14 已由 ADR-0048 裁 INTENTIONAL，差分面维持）。
+- 上游日志在重放窗口内另见 `busybox/tags/list`、`/v2/_catalog`、`hello-world/manifests/latest` 三请求——非本重放路径（LOOP 002 并行轨共享 difftest-upstream 的旁路流量），按路径核对不污染上述零往返判定。
+- 差分统计：SAME 13→14（+C10）/ DIVERGENT 5→4（C05/C06 + D19 INTENTIONAL 候选 + D21 转 httpapi 票）。

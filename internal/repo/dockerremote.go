@@ -32,6 +32,9 @@ import (
 // Compile-time pin: the service implements the adapter-facing capability.
 var _ RemoteV2Plane = (*service)(nil)
 
+// Compile-time pin: the service implements the ADR-0047 chain gate facet.
+var _ DigestChainGate = (*service)(nil)
+
 // loadV2ReadRepo resolves repoKey and admits the registry-v2 family's READ
 // plane classes: LOCAL (the push plane), REMOTE since T-363 (the
 // pull-through — a cached manifest/tag row is resolution state like any
@@ -417,6 +420,37 @@ func (s *service) recordRemoteManifestCore(ctx context.Context, repoKey, image, 
 		}
 	}
 	return nil
+}
+
+// BlobInChain implements DigestChainGate (ADR-0047): the marker-gate
+// oracle over the docker_refs ledger. The caller reaches this ONLY on a
+// cache probe miss with no standing copy (the probe IS the node-existence
+// short-circuit — a digest that landed never asks), so the refs rows are
+// the whole answer: true = some manifest chain of (repoKey, image) named
+// the digest (fetch upstream), false = the local BLOB_UNKNOWN with zero
+// upstream contact and no negative-cache row. Read-gated like the plane's
+// own faces.
+func (s *service) BlobInChain(ctx context.Context, p *Principal, repoKey, image, hex string) (bool, error) {
+	if err := validateDockerImage(image); err != nil {
+		return false, err
+	}
+	if err := validateDigest(hex); err != nil {
+		return false, err
+	}
+	if _, err := s.loadRemoteV2Repo(ctx, p, repoKey, dockerPermPath(image)); err != nil {
+		return false, err
+	}
+	return s.blobInChainCore(ctx, repoKey, image, hex)
+}
+
+// blobInChainCore is the ledger read without the permission gate (the
+// virtual seam's member-scoped twin, V2MemberBlobInChain).
+func (s *service) blobInChainCore(ctx context.Context, repoKey, image, hex string) (bool, error) {
+	in, err := s.md.Docker().BlobInImageChain(ctx, repoKey, image, hex)
+	if err != nil {
+		return false, fmt.Errorf("remote %s: chain gate %s/%s: %w", repoKey, image, hex, err)
+	}
+	return in, nil
 }
 
 // remoteContentTTL resolves the repository's content TTL off its config row
