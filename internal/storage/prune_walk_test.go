@@ -171,6 +171,52 @@ func TestPruneUncertainLiveAnswerSkipsDeletionAndErrors(t *testing.T) {
 	}
 }
 
+// deleteOnLiveMarker simulates the competing sweeper of review N3: at the
+// walk's per-candidate Live recheck, another gc/prune has JUST collected
+// the candidate — the file vanishes between this walk's ReadDir and its
+// Delete, the loser-of-two-sweepers shape.
+type deleteOnLiveMarker struct {
+	path  string
+	fired bool
+}
+
+func (m *deleteOnLiveMarker) Mark() (map[string]struct{}, error) {
+	return map[string]struct{}{}, nil
+}
+
+func (m *deleteOnLiveMarker) Live(string) (bool, error) {
+	if !m.fired {
+		m.fired = true
+		_ = os.Remove(m.path) // the competing sweeper's deletion lands now
+	}
+	return false, nil
+}
+
+func TestPruneLostDeleteRaceIsBenignSkip(t *testing.T) {
+	root := t.TempDir()
+	eng, err := OpenEngine(root, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer eng.Close() //nolint:errcheck // test
+
+	sha := writeBlobFile(t, root, "lost-race", 0o600, time.Now().Add(-48*time.Hour))
+	out, err := pruneOf(t, eng).Prune(context.Background(), PruneOptions{
+		Marker: &deleteOnLiveMarker{path: filepath.Join(root, "blobs", sha[:2], sha)},
+		Grace:  time.Nanosecond,
+		Apply:  true,
+	})
+	if err != nil {
+		t.Fatalf("a delete lost to a concurrent sweeper must be a benign skip, got the pass's error: %v", err)
+	}
+	if out.Totals.BinariesCleaned != 0 || len(out.Deleted) != 0 {
+		t.Fatalf("the losing walk must not claim the deletion: %+v %v", out.Totals, out.Deleted)
+	}
+	if out.Totals.BinariesProcessed != 1 {
+		t.Fatalf("processed = %d, want 1 (the candidate was examined)", out.Totals.BinariesProcessed)
+	}
+}
+
 func TestPruneStopMarkerLandsWithinOneDirectory(t *testing.T) {
 	root := t.TempDir()
 	eng, err := OpenEngine(root, Options{})
@@ -306,36 +352,54 @@ func TestPruneConcurrentWithPublishNeverDeletesLiveBlob(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer eng.Close() //nolint:errcheck // test
+	// Resolved on the test thread: pruneOf's t.Fatal must never fire from
+	// inside a racer goroutine (FailNow off the test goroutine is
+	// undefined — the review N1 companion fix).
+	pr := pruneOf(t, eng)
 
 	// The publisher's timeline: acquire(hold) -> publish(rename) ->
-	// metadata commit -> release. The test holds at "committed" while the
-	// prunes run: the mark set already carries the reference, and the
-	// unreferenced reference-holder is the hold set.
+	// metadata commit -> release. The test parks at "committed": the hold
+	// is still up AND the mark set carries the reference, while four
+	// prunes race through the same shards deleting the orphan.
 	old := time.Now().Add(-48 * time.Hour)
 	orphan := writeBlobFile(t, root, "race-orphan", 0o600, old)
+	live := writeBlobFile(t, root, "race-live", 0o600, old)
+	e := eng.(*engine)
+	e.holds.acquire(live)
+	defer e.holds.release(live)
+	marked := fixedMarker{set: map[string]struct{}{live: {}}}
+
 	var wg sync.WaitGroup
 	for i := 0; i < 4; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = pruneOf(t, eng).Prune(context.Background(), PruneOptions{
-				Marker: fixedMarker{set: map[string]struct{}{}},
+			_, _ = pr.Prune(context.Background(), PruneOptions{
+				Marker: marked,
 				Grace:  time.Nanosecond,
 				Apply:  true,
 			})
 		}()
 	}
 	wg.Wait()
-	// The orphan may be deleted by exactly one racer; the file either is
-	// gone or survives — never half. The concurrency assertion is the race
-	// detector's: no data race across the walk and the holds.
-	if !fileExists(t, root, orphan) {
-		if out, err := pruneOf(t, eng).Prune(context.Background(), PruneOptions{
-			Marker: fixedMarker{set: map[string]struct{}{}},
-			Grace:  time.Nanosecond,
-		}); err == nil && out.Totals.BinariesProcessed != 0 {
-			t.Fatal("orphan still counted after deletion")
-		}
+
+	// The name's promise: the held+referenced live blob survives every
+	// racer. The orphan is collected by the first racer through its shard
+	// or survives whole — never half — and the losers' ErrBlobNotFound
+	// answers ride the benign-skip arm, surfacing no pass error.
+	if !fileExists(t, root, live) {
+		t.Fatal("concurrent prunes deleted the held+referenced live blob")
+	}
+	out, err := pr.Prune(context.Background(), PruneOptions{Marker: marked})
+	if err != nil {
+		t.Fatalf("post-race estimate: %v", err)
+	}
+	want := int64(1) // the live blob
+	if fileExists(t, root, orphan) {
+		want = 2
+	}
+	if out.Totals.BinariesProcessed != want {
+		t.Fatalf("post-race estimate processed = %d, want %d (on-disk truth)", out.Totals.BinariesProcessed, want)
 	}
 }
 

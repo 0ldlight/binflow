@@ -180,8 +180,10 @@ func (e *engine) Prune(ctx context.Context, opts PruneOptions) (*PruneOutcome, e
 // apply-mode deletions pass the same hold→Live delete gate. Estimate mode
 // (apply=false) never evaluates candidacy — the spec's dry-run report has
 // processed counts and cleaned=0. The returned error is the shard's first
-// fault (unreadable directory, uncertain Live answer, failed delete); the
-// walk continues past it and the caller reports it as the pass's error.
+// fault (unreadable directory, uncertain Live answer, failed delete — a
+// delete lost to a concurrent sweeper's ErrBlobNotFound is NOT a fault, it
+// skips); the walk continues past it and the caller reports it as the
+// pass's error.
 func (e *engine) pruneShard(ctx context.Context, shardRoot, name string, refs map[string]struct{}, gate *gcDeleteGate, grace time.Duration, apply bool, out *PruneOutcome) (stats PruneDirStats, firstErr error) {
 	stats.StartedAt = e.opts.now()
 	defer func() { stats.FinishedAt = e.opts.now() }() // named return: the defer must land on the returned value
@@ -229,6 +231,14 @@ func (e *engine) pruneShard(ctx context.Context, shardRoot, name string, refs ma
 			continue
 		}
 		if err := e.Delete(ctx, sum); err != nil {
+			if errors.Is(err, ErrBlobNotFound) {
+				// Lost the delete race to a concurrent sweeper (a manual
+				// gc, another prune): the blob is gone — the deletion won,
+				// just elsewhere. A benign skip, not a shard fault: an
+				// error here would land the REST report in its error
+				// terminal state for a deletion that succeeded.
+				continue
+			}
 			if firstErr == nil {
 				firstErr = fmt.Errorf("delete %s: %w", sum, err)
 			}

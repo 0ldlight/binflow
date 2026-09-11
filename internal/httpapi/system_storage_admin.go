@@ -195,6 +195,11 @@ type pruneManager struct {
 func newPruneManager(dataDir string, log interface {
 	WarnContext(ctx context.Context, msg string, args ...any)
 }) *pruneManager {
+	// Single-process assumption (review N4): the report, the single-flight
+	// flag and the stop marker are per-process state — two BinFlow
+	// processes sharing one data directory sit outside the standing
+	// deployment boundary (the datalock still serializes their maintenance
+	// passes; neither sees the other's marker or running flag).
 	return &pruneManager{
 		path: filepath.Join(dataDir, "prune_report.json"),
 		log:  log,
@@ -355,7 +360,11 @@ func (m *pruneManager) observe(stats storage.PruneDirStats) {
 		return
 	}
 	now := m.now()
-	m.state.Progress = stats.Index
+	// Monotonic clamp (review N2): a resumed run begins at its startFrom
+	// position while the walk's skipped-directory observations arrive with
+	// indices below it (00..startFrom-1) — the raw assignment would drag
+	// the progress numerator backwards for the whole skip span.
+	m.state.Progress = max(m.state.Progress, stats.Index)
 	m.state.TotalBinariesProcessed += stats.BinariesProcessed
 	m.state.TotalBinariesCleaned += stats.BinariesCleaned
 	m.state.TotalBytesCleaned += stats.BytesCleaned
@@ -698,6 +707,19 @@ func (s *Server) handleStorageGCStream(w http.ResponseWriter, r *http.Request) {
 		s.log.InfoContext(ctx, "httpapi: storage gc stream complete",
 			"processed", out.Totals.BinariesProcessed, "cleaned", out.Totals.BinariesCleaned,
 			"bytes_cleaned", out.Totals.BytesCleaned, "error", fmt.Sprintf("%t", perr != nil))
+	} else {
+		// Mark-phase failure (review N6): the pass never reached a
+		// directory, but the attempt still lands its gc.run row — an
+		// operator reading the audit trail must see the failed run, not
+		// silence.
+		s.audit.Record(ctx, audit.Event{
+			Actor:  p.Name,
+			Action: audit.ActionGCRun,
+			Detail: fmt.Sprintf(`{"apply":true,"processed":0,"cleaned":0,"bytesCleaned":0,"error":%t}`, perr != nil),
+		})
+		if perr != nil {
+			s.log.ErrorContext(ctx, "httpapi: storage gc stream failed before walk", "error", perr.Error())
+		}
 	}
 }
 

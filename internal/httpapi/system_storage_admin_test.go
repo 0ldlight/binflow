@@ -14,6 +14,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/httpapi"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/storage"
@@ -618,4 +620,76 @@ func TestStoragePruneBadBodyAndStartFrom(t *testing.T) {
 	if code != http.StatusBadRequest {
 		t.Fatalf("start malformed body = %d, want 400", code)
 	}
+}
+
+func TestStoragePruneStopIdleWithHistoryAccepted(t *testing.T) {
+	// E4's idle arm (review N5): a historical report exists but no task is
+	// running — the stop request still lands as 202 (the historical report
+	// is the discriminator against the never-ran 412), and the leftover
+	// marker must not stop the next run before its first directory.
+	h := newHarness(t)
+	if code, _, obj := adminJSON(t, h, http.MethodPost, "/binflow/api/system/storage/prune/start",
+		[]byte(`{"dryRun":true}`)); code != http.StatusAccepted {
+		t.Fatalf("start = %d %v", code, obj)
+	}
+	eventually(t, "finished run", func() bool {
+		code, obj := pruneStatus(t, h)
+		return code == http.StatusOK && obj["status"] == "finished"
+	})
+
+	code, _, obj := adminJSON(t, h, http.MethodPost, "/binflow/api/system/storage/prune/stop", nil)
+	if code != http.StatusAccepted || obj["info"] != "Prune task stop request submitted" {
+		t.Fatalf("idle stop with history = %d %v, want 202", code, obj)
+	}
+
+	// The idle marker dies with the next run (begin clears stopReq): the
+	// fresh pass finishes, it does not land stopped.
+	if code, _, _ := adminJSON(t, h, http.MethodPost, "/binflow/api/system/storage/prune/start",
+		[]byte(`{"dryRun":true}`)); code != http.StatusAccepted {
+		t.Fatalf("start after idle stop = %d, want 202", code)
+	}
+	eventually(t, "finished second run", func() bool {
+		code, obj := pruneStatus(t, h)
+		return code == http.StatusOK && obj["status"] == "finished"
+	})
+}
+
+// markFailingPruner wraps the real engine with a Prune that dies in its
+// Mark phase (out==nil, no directory ever walked) — the review N6 arm.
+type markFailingPruner struct {
+	storage.Engine
+}
+
+func (f *markFailingPruner) Prune(context.Context, storage.PruneOptions) (*storage.PruneOutcome, error) {
+	return nil, errors.New("mark phase failed: referenced set unavailable")
+}
+
+func TestStorageGCStreamMarkFailureAudited(t *testing.T) {
+	// Review N6: a gc stream whose Prune dies before the walk (out==nil)
+	// must still land its gc.run audit row — an operator reading the
+	// trail would otherwise see silence for a run that was attempted.
+	h := newHarnessFull(t, nil, nil, nil, func(d *httpapi.Deps) {
+		d.GC = &markFailingPruner{Engine: d.GC.(storage.Engine)}
+	}, nil)
+	resp := h.do(http.MethodPost, "/binflow/api/system/storage/gc", adminUser, adminPass, nil, nil)
+	defer func() { _ = resp.Body.Close() }()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read gc body: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("gc mark failure status = %d, want 200 (pinned)", resp.StatusCode)
+	}
+	if !strings.Contains(string(raw), "\n500 : mark phase failed") {
+		t.Fatalf("gc mark failure body = %q, want the in-stream error line", raw)
+	}
+	eventually(t, "gc.run audit row for the failed attempt", func() bool {
+		page, qerr := audit.New(h.md, true).Query(context.Background(),
+			audit.Filter{Action: audit.ActionGCRun, Limit: 10})
+		if qerr != nil || len(page.Events) == 0 {
+			return false
+		}
+		ev := page.Events[len(page.Events)-1]
+		return ev.Actor == adminUser && strings.Contains(ev.Detail, `"error":true`)
+	})
 }
