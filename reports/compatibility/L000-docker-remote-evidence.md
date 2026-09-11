@@ -8,6 +8,17 @@
 - 测试仓: `audit-probe-docker-remote`（rclass=remote, packageType=docker, url=https://registry-1.docker.io, 匿名上游凭据, enableTokenAuthentication=true；本报告发布后已删除）
 - 凭据: 命令行内使用，本报告一律脱敏为 `admin/***`
 
+> **ERRATA（2026-09-12，compatibility-engineer 注记；正文保留原貌不回改）**
+> - **E3-2 已证伪（superseded by reports/compatibility/L004-304-ping-diff.md §1）**：「If-None-Match（带/不带引号、
+>   GET/HEAD）一律 200 全量回，永不见 304」与活体不符——2026-09-11 双端矩阵实证：新窗口内副本对 quoted 匹配/
+>   unquoted 匹配/IMS 三种拼写均回 **304 本地应答（上游零往返）**。E3-2 的存活子集仅为：非匹配 INM（quoted/unquoted）
+>   →200、HEAD→200、过期窗重验证服务→200 全量。原观察最可能系校验值错配（docker.io 腿 tag/digest 两文件 sha1 不同，
+>   §1.3 三机理排序在案）。消费方注意：凡锚 E3-2 的结论（L000-F C08「双端恒 200 SAME」——该复验只测了 BinFlow 腿）需按
+>   L004-1 重估；契约处置见 docs/compatibility/contracts/docker-remote.yaml#docker/remote-manifest-conditional-get（翻 DIVERGENT）。
+> - **E3-3 半勘误（同报告 §1.3/§3）**：「304 只在上游回源时透传（条件 GET→304）」两处修正：① 客户端 304 是本地判定
+>   （M1 上游零往返直证）；② 参照过期窗重验证的活体形状是**上游 HEAD 探查**，反编译的 returnResponseGettingManifest
+>   条件 GET→304 路径在活体流中未被走及。
+
 ## 0. 环境事实（复现前提）
 
 | # | 事实 | 影响 |

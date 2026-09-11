@@ -1,6 +1,6 @@
 # 存储 v2 设计——binary provider 链差距裁定与 KEEP/REFACTOR/REWRITE 终案（Phase 1 架构族 / L001-4）
 
-- 状态: Proposed（终案建议；裁定性 ADR 建议稿见 §6，正式裁定走 DECISIONS.md 流程——本文不写 DECISIONS.md）
+- 状态: Accepted（裁定性内容已由 **ADR-0049** 正式化收编——2026-09-11，LOOP 004 L004-4；本文裁定总表/终案建议以 ADR 为准，§4-1 的 progress sink 措辞由 ADR-0049 注记 A〔Pruner optional facet〕取代、正文不回改；§6 建议稿位维持历史记录）
 - 日期: 2026-09-11
 - 作者: architect（L001-4）
 - 输入证据:

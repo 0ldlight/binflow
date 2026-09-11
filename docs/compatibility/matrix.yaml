@@ -47,14 +47,14 @@ priority_policy:
 summary:
   total_rows: 193
   state_counts:
-    compatible: 57
-    partial: 28
-    absent: 80
+    compatible: 59
+    partial: 27
+    absent: 79
     not_applicable: 17
     superset: 11
   confidence_counts:
-    high: 126
-    medium: 67
+    high: 127
+    medium: 66
     low: 0
   priority_counts:
     P0: 53
@@ -62,15 +62,16 @@ summary:
     P2: 78
   by_state_x_priority:
     compatible:
-      P0: 42
+      P0: 43
       P1: 15
+      P2: 1
     partial:
-      P0: 11
+      P0: 10
       P1: 12
       P2: 5
     absent:
       P1: 35
-      P2: 45
+      P2: 44
     superset:
       P2: 11
     not_applicable:
@@ -78,9 +79,9 @@ summary:
   by_domain:
     D01:
       rows: 37
-      compatible: 13
-      partial: 7
-      absent: 12
+      compatible: 15
+      partial: 6
+      absent: 11
       superset: 2
       not_applicable: 3
     D02:
@@ -431,25 +432,32 @@ rows:
 - row_id: D01-R26
   domain: D01
   capability: POST /api/system/storage/gc（Artifactory 路径别名；BinFlow 走 /api/v1/system/gc）
-  state: partial
+  state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/storage-admin.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E1（SAME 形态：200 同步 + text/plain;charset=utf-8 点流双端；点数粒度按归一口径不判；409 臂 V-7 无活体不立断言）
   priority_class: P0
   layer: A
   source_row: "§2 行 26"
+  note: 'L004-3（2026-09-11）行态翻 partial→compatible：Artifactory 路径 /api/system/storage/gc 已落地（commit 6ca8f8666，
+    路由 router.go:452）且 L003-1 差分判 SAME（形态）。旧 /api/v1/system/gc 自有面并存（D06-R22 超集行不动）。
+    并发 409 信封形态分歧挂 V-7（contracts/storage-admin.yaml unobserved_reference_arms）。'
 - row_id: D01-R27
   domain: D01
   capability: POST /api/system/storage/prune/start + GET status + POST stop（PUD 三态）
-  state: absent
-  confidence: medium
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  state: compatible
+  confidence: high
+  contract_ref: contracts/storage-admin.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E2/E3/E4（三行全 SAME：202 族文案逐字 + 26 字段 schema 逐键对照 + 412 两臂 + 跨重启持久化实测）
   priority_class: P2
   layer: A
   source_row: "§2 行 27"
+  note: 'L004-3（2026-09-11）行态翻 absent→compatible + confidence medium→high：PUD 三端点落地（commit 6ca8f8666）
+    且 L003-1 差分三行全 SAME（202/412 文案逐字、26 字段/4 对象 schema、dryRun 极性按 Artifactory、停止语义、
+    报告持久化重启实测）。V-4（error 态形态）/V-5（续跑分子口径）挂 contracts/storage-admin.yaml
+    unobserved_reference_arms。'
 - row_id: D01-R28
   domain: D01
   capability: GET /api/storageinfo + POST /api/storageinfo/calculate
@@ -478,12 +486,16 @@ rows:
   capability: POST /api/system/storage/compact（在线压缩）
   state: absent
   confidence: medium
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/storage-admin.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E5（compress FORM-SAME——compact 语义并入 E5，见 note）
   priority_class: P2
   layer: A
   source_row: "§2 行 30"
+  note: 'L004-3（2026-09-11）勘误补链（行态不翻——本行无独立差分判定）：规格澄清（docs/reverse/storage/prune-gc-admin.md §1）
+    Artifactory **不存在** POST /api/system/storage/compact——老版 Derby compact 已并入 POST /compress（E5）；
+    本行系冻结行集幽灵能力，建议 conductor 裁 absent→not_applicable 重分类。在线压缩现行为 E5 compress
+    （contracts/storage-admin.yaml storage-admin/compress，BinFlow 载体 sqlite VACUUM，L003-1 判 FORM-SAME）。'
 - row_id: D01-R31
   domain: D01
   capability: GET /api/system/metrics + Open Metrics 面
@@ -2119,15 +2131,18 @@ rows:
   confidence: high
   contract_ref: contracts/docker-remote.yaml
   golden_ref: golden/docker-remote/{empty-blob-synthetic,pull-sequence}
-  last_difftest: reports/compatibility/L003-remote-face-diff.md（L003-2 双端活体：票面 5 项全过；前置 L002-contract-replay 21/21 全量重放 + L000 系列 L000-F/L001-1 复验）
+  last_difftest: reports/compatibility/L004-304-ping-diff.md（L004-1 双端活体：新窗口 304 矩阵 18 臂 SAME 15/DIVERGENT 3 + 过期窗 4 臂客户端可见全 SAME + ping 四臂消息矩阵；E3-2 勘误在案）；前置 L003-remote-face-diff.md（L003-2）+ L002-contract-replay 21/21 + L000 系列 L000-F/L001-1 复验
   priority_class: P1
   layer: A
   source_row: "§11.1 行 1"
-  note: L001-2（2026-09-11）首份契约补链——契约覆盖 remote 面子集（ping/token/manifests/blobs/tags/catalog/禁推/404 族/分页），
-    local/virtual 面与 /api/docker API 面未契约化。行态不因差分翻改：差异走 known-divergence 台账与契约条目态。
-    清偿轨迹（同日）：L001-1 错误形态族 9 条 → L002-1 门控（ADR-0047）→ L003-2 头集三面（ping charset/manifest GET 全集/
-    HEAD 窄集+超集/blob 面）+ 分页新条目 2——契约现 23 条目 VERIFIED 20 / DIVERGENT 3（token TTL/匿名姿态待裁 +
-    C14 负缓存待 conductor parity 裁定）；D20/D21 均已闭（L001-3/L001-5+L002-2 复验回填）
+  note: L001-2（2026-09-11）首份契约补链——契约覆盖 remote 面子集（ping/token/manifests/blobs/tags/catalog/禁推/404 族/分页/
+    条件请求矩阵/过期重验证），local/virtual 面与 /api/docker API 面未契约化。行态不因差分翻改：差异走 known-divergence
+    台账与契约条目态。清偿轨迹：L001-1 错误形态族 9 条 → L002-1 门控（ADR-0047）→ L003-2 头集三面 + 分页新条目 2 →
+    L004-1（2026-09-12）E3-2 勘误三连：条目 8 manifest-conditional-get 重写翻 DIVERGENT（D1 unquoted INM BUG）、
+    条目 2 ping 泛化四臂（P1-P3 分型清偿、P4b revoked 翻 DIVERGENT 挂 D2 模型级）、新立 blob-conditional-get +
+    manifest-revalidation-serve 双 VERIFIED（§8-C 透传活体直证）——契约现 25 条目 VERIFIED 20 / DIVERGENT 5
+    （token TTL/匿名姿态待裁 + D1/D14 负缓存补写待实现票 + D2 revoked 待产品裁）；D20/D21 均已闭（L004-2
+    C14 定谳见 known-divergence#docker/remote-manifest-404-negative-cache）
 - row_id: D12-R02
   domain: D12
   capability: Docker API 面（/api/docker/{repoKey} promote/listTag/UI 面族）

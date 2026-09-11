@@ -29,7 +29,7 @@ scope: remote 仓（rclass=remote, packageType=docker）repo-path 访问形态�
   仅收 L000 差分证据覆盖面；未观察行为不立断言（E1-only 项逐条标注）。
 normalize: fixtures/normalize.yaml#docker-remote
 reference_instance: 'Artifactory-pro 7.161.20 (revision 86120900, package_handler 5.675.40)，http://localhost:8082'
-binflow_tested_instance: 'BinFlow UAT uat-l000f-59f33ab5（L000-F 复验）→ uat-l0011-f80c46aa（L001-1 复验，develop f80c46aa；均 http://localhost:8083 容器 binflow-ga 同卷）'
+binflow_tested_instance: 'BinFlow UAT uat-l000f-59f33ab5（L000-F 复验）→ uat-l0011-f80c46aa（L001-1 复验，develop f80c46aa；均 http://localhost:8083 容器 binflow-ga 同卷）→ uat-l0041-worktree（L004-1 复验，c81119b7+工作树——镜像含新 ping 消息字面量，strings 在案）'
 upstreams_witnessed: 'docker.io（主证据腿）+ 本地 registry:3 127.0.0.1:5588（同源对拍腿，L000-F）'
 contracts:
 # ── L4 Auth：ping / token ────────────────────────────────────────────────────
@@ -67,39 +67,72 @@ contracts:
   confidence: high
   status: VERIFIED
 - id: docker/remote-v2-ping-bad-credentials
-  feature: '/v2/ ping 坏凭据（区分匿名与坏凭据）'
-  surface: 'GET /v2/ + Authorization: Basic <bad>'
-  request: { method: GET, path: /v2/, headers: { Authorization: 'Basic <bad-credentials>' }, query: {} }
-  authentication: { type: basic, role: any-recognized-user, credential_state: invalid }
+  feature: '/v2/ ping 拒绝凭据四臂消息矩阵（L004-1 泛化：坏 Basic / unknown bearer / expired bearer / revoked bearer；id 保留防历史报告引用断链）'
+  surface: 'GET /v2/ + Authorization: Basic <bad> | Bearer <unknown> | Bearer <expired> | Bearer <revoked>'
+  request:
+    method: GET
+    path: /v2/
+    headers: { Authorization: '按臂：Basic <bad> / Bearer <token-各拒因>' }
+    query: {}
+  authentication: { type: 'basic|bearer', role: any, credential_state: 'invalid-按类分型（unknown/expired/revoked）' }
   expect:
-    status: 401
-    headers:
-      pattern:
-        WWW-Authenticate: '^Basic realm="Artifactory Realm"$'
-      literal:
-        Content-Type: application/json;charset=ISO-8859-1
-      present: []
-      absent: []
-    body:
-      format: pretty
-      json:
-        keys_exact: [errors]
-        path_literal:
-          errors[0].status: 401
-          errors[0].message: Bad Credentials
-        keys_absent_at_errors0: [code, detail]
+    arms:
+    - when: 'Basic <bad-credentials>（P1）'
+      status: 401
+      headers:
+        pattern: { WWW-Authenticate: '^Basic realm="Artifactory Realm"$' }
+        literal: { Content-Type: application/json;charset=ISO-8859-1 }
+        present: []
+        absent: []
+      body:
+        format: pretty
+        json:
+          keys_exact: [errors]
+          path_literal:
+            errors[0].status: 401
+            'errors[0].message': Bad Credentials
+          keys_absent_at_errors0: [code, detail]
+    - when: 'Bearer <unknown-value>（P2）'
+      status: 401
+      headers: { note: '同 P1 挑战头/CT（Basic realm + charset）' }
+      body:
+        format: pretty
+        json:
+          path_literal: { 'errors[0].message': Props Authentication Token not found }
+          note: '与 P1 同形不同消息——凭据类分型'
+    - when: 'Bearer <expired>（P3）'
+      status: 401
+      headers: { note: '同 P1/P2 头面' }
+      body:
+        format: pretty
+        json:
+          path_literal: { 'errors[0].message': 'Token failed verification: expired' }
+    - when: 'Bearer <revoked>（P4b）'
+      status: 401
+      headers: { note: '同族头面' }
+      body:
+        format: pretty
+        json:
+          path_literal: { 'errors[0].message': 'Token failed verification: revoked' }
+          note: '参照臂（吊销态可验模型）；BinFlow revoke=删行 → 此臂不可达（恒走 P2 消息）——模型级差异 D2'
+    note: >-
+      pretty JSON 方言差异（Jackson 折叠式 vs Go Encoder 展开式，80B vs 90B）为既有 accepted 指纹（N3，
+      同一 writer 早于本票即此形态）；api-version 头超集 tolerated（L003 起）。
   side_effects: []
   error_behavior: []
   binflow_state:
-    verdict: SAME
-    detail: 'L003 双端活体逐字（a_pingbad.h vs f_pingbad*）：401 + WWW-Authenticate: Basic realm="Artifactory Realm" + pretty Bad Credentials + charset——api-version 头为 BinFlow 超集 tolerated。expect 勘误：原 pattern 锚 Bearer 形系 L001-2 从匿名臂类推的未观察假设（E1-5 未采 ping 坏凭据挑战头），L003 活体证伪后改锚 Basic realm——坏凭据臂不走 Bearer 挑战'
-  version: { artifactory_ref: 7.161.20, binflow_tested: uat.952e556d }
+    verdict: 'SAME×3 + DIVERGENT×1（P4b revoked 臂，模型级）'
+    detail: 'L004-1 双端活体（uat-l0041-worktree）：P1/P2/P3 三臂消息串逐字节一致（Bad Credentials / Props Authentication Token not found / Token failed verification: expired），挑战头+charset CT 一致——known-divergence docker/remote-ping-credential-class-message-granularity 就此清偿（L004-1 实现分型）。P4b：参照 "Token failed verification: revoked" vs BinFlow "Props Authentication Token not found"（revoke=删行使 revoked 验定恒走 unknown 臂）——第四臂在 BinFlow 模型下不可达，D2 挂 known-divergence 待产品裁（对齐需吊销态可验模型）。泛化史：原条目=Basic 坏凭据单臂（L001-2 立，L003 勘误 expect 锚 Basic realm），L004-1 扩四臂'
+    witness: 'P2/P3 分型 known-divergence（UNKNOWN）→ L004-1 实现落地 → 本轮双端活体三臂逐字节 SAME；revoked 臂新立 D2'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.l0041-worktree }
   evidence:
     - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E1-5, date: '2026-09-10' }
     - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C02（L001-1 复验段，灭）', date: '2026-09-11' }
     - { kind: difftest, report: reports/compatibility/L003-remote-face-diff.md, anchor: '③ #2 ping 坏凭据臂（双端活体逐字）', date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L004-304-ping-diff.md, anchor: '§4 ping 消息臂（P1-P4b 四臂逐字 + revoked 模型级差异）', date: '2026-09-12' }
   confidence: high
-  status: VERIFIED
+  status: DIVERGENT
+  divergence_ref: known-divergence.yaml#docker/remote-v2-ping-revoked-arm-unreachable
 - id: docker/remote-token-issue
   feature: '/v2/token 签发（有效 Basic 凭据）'
   surface: 'GET /v2/token?service=<host:port>&scope=repository:<repoKey>/<image>:pull&account=<user>'
@@ -236,7 +269,7 @@ contracts:
     - '缓存布局形态见 golden 与 known-divergence docker/remote-cache-layout（C05 DIVERGENT）'
   error_behavior:
     - { when: '不存在 tag / 不存在镜像', ref: docker/remote-manifest-unknown-404 }
-    - { when: '上游 304（Artifactory 以自身 ETag 对上游条件 GET）', status: 304, note: '仅上游回源链路可触发；客户端 INM 头与此判定无关（E3-3，E1 待动态复证）' }
+    - { when: '上游 304（Artifactory 以自身 ETag 对上游条件 GET）', status: 304, note: 'L004-1 半勘误：参照活体重验证实为上游 HEAD 探查（E3-3 反编译路径未走及）；BinFlow 臂=条件 GET→上游 304→客户端 200 全量——两端客户端可见面同（详见 docker/remote-manifest-revalidation-serve）' }
   binflow_state:
     verdict: SAME
     detail: 'L003 双端活体逐头逐值（f_mf.h vs a_mf.h，fresh MISS 同参数同刻）：Accept-Ranges/Content-Disposition(filename)/Etag(=sha1 无引号)/Last-Modified(=拉取时刻，与 Date 同秒)/X-Artifactory-Filename/Origin-Remote-Path(请求引用逐字回显)/Checksum 三值/Docker-Content-Digest 全一致；body sha256==上游回执==Docker-Content-Digest，Etag 经 shasum 独立核算。HIT 面头集不缩水（二拉全套 face 维持）。X-Binflow-Cache/X-Request-Id 超集 tolerated'
@@ -284,27 +317,96 @@ contracts:
   confidence: high
   status: VERIFIED
 - id: docker/remote-manifest-conditional-get
-  feature: 'manifest 条件请求（If-None-Match 不消费，恒 200 全量）'
-  surface: 'GET|HEAD /v2/<repoKey>/<image>/manifests/<ref> + If-None-Match'
+  feature: 'manifest 条件请求矩阵（新窗口内副本：INM 匹配→304 裸头本地应答、IMS→304、非匹配 INM 在场→200 且封死日期臂、HEAD 恒 200）——L004-1 重写（原「INM 不消费恒 200」前提经双端活体证伪）'
+  surface: 'GET|HEAD /v2/<repoKey>/<image>/manifests/<tag-or-digest> + If-None-Match[+If-Modified-Since]'
   request:
     method: GET
     path: '/v2/<repoKey>/<image>/manifests/<tag-or-digest>'
-    headers: { Authorization: 'Bearer <token>', 'If-None-Match': '"<etag>"（带/不带引号均同判）' }
+    headers:
+      Authorization: 'Bearer <token>'
+      If-None-Match: '"<etag>" 或 <etag>（quoted/unquoted 两拼写）'
+      If-Modified-Since: '<Last-Date 值（可选，与 INM 组合臂）'
+    query: {}
+  authentication: { type: bearer, role: user }
+  expect:
+    arms:
+    - when: 'GET + INM quoted 匹配（tag 面 M1 / by digest M1d）'
+      status: 304
+      headers: { literal: { Docker-Distribution-Api-Version: registry/2.0 }, present: [], absent: [] }
+      body: { format: none, note: '304 裸头（仅 api-version），上游零往返——本地判定' }
+    - when: 'GET + INM unquoted 匹配（M2/M2d）'
+      status: 304
+      headers: { note: '参照按值不区分引号匹配（与 blob 面同构）——同 M1 形态' }
+      body: { format: none }
+    - when: 'GET + IMS（=LM，M3）'
+      status: 304
+      headers: { note: '同裸头形态' }
+      body: { format: none }
+    - when: 'GET + INM quoted 非匹配（无/有 IMS 匹配，M4/M4b）'
+      status: 200
+      headers: { note: '同 manifest-get-tag 全量头集' }
+      body: { format: any, note: '全量回体；INM 在场即封死日期臂（带匹配 IMS 也 200）' }
+    - when: 'GET + INM unquoted 非匹配 + IMS 匹配（M2c）'
+      status: 200
+      headers: { note: 'unquoted 在场同样封死日期臂——参照不丢弃 unquoted 拼写' }
+      body: { format: any, note: '全量回体' }
+    - when: 'GET + INM 匹配 + IMS 陈旧/匹配（M5/M6）'
+      status: 304
+      headers: { note: 'etag 优先于日期判定' }
+      body: { format: none }
+    - when: 'HEAD + INM quoted 匹配（M7）'
+      status: 200
+      body: { format: none, note: 'HEAD 永不 304' }
+    scope_note: '本矩阵限新窗口内副本（检索窗未到期）；过期窗条件服务见 docker/remote-manifest-revalidation-serve'
+  side_effects: []
+  error_behavior: []
+  unobserved_reference_arms: []
+  binflow_state:
+    verdict: DIVERGENT
+    detail: 'L004-1 双端活体 18 臂矩阵：SAME 15 / DIVERGENT 3——M2/M2c/M2d 三臂全为 unquoted INM：参照按值不区分引号匹配→304（且在场封死日期臂），BinFlow manifestClientNotModified 只解析带引号 entity-tag、unquoted 解析为零标签被丢弃落日期臂（M2/M2d→200 全量反转；M2c→304 反转）。blob 面同构不受影响（B2/B5 SAME）；M6/M2b BinFlow 结果偶合同判。真实 docker/containerd/oras 客户端均发 quoted etag（RFC 9110），实际客户端影响面低——矩阵口径可观察面分歧，D1 挂 known-divergence'
+    witness: '原判 VERIFIED/SAME 锚 E3-2（「恒 200 永不见 304」）——L004-1 双端活体推翻（E3-2 勘误：三拼写均本地 304）；L000-F C08 复验只测 BinFlow 腿未重测参照（账实缺口存证）；翻 DIVERGENT 待 D1 修复后复验翻绿'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.l0041-worktree }
+  evidence:
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: 'E3-2/E3-3（已被 L004-1 勘误 superseded——报告头部 errata 注记在案）', date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C08（L000-F 复验段——仅 BinFlow 腿，参照未重测；结论随 E3-2 勘误失效）', date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L004-304-ping-diff.md, anchor: '§1 E3-2 勘误（双证并排）+ §2 新窗口 18 臂矩阵（SAME 15/DIVERGENT 3，STABLE×2）', date: '2026-09-12' }
+  confidence: high
+  status: DIVERGENT
+  divergence_ref: known-divergence.yaml#docker/remote-manifest-inm-unquoted
+- id: docker/remote-manifest-revalidation-serve
+  feature: '过期 tag 重验证服务（检索窗到期：上游 ×1 往返 + 客户端 200 全量 + 客户端条件不被消费）——§8-C 上游 304 透传的契约落点'
+  surface: 'GET /v2/<repoKey>/<image>/manifests/<tag>（副本 retrievalCachePeriodSecs 窗口到期后，无/有客户端条件头）'
+  request:
+    method: GET
+    path: '/v2/<repoKey>/<image>/manifests/<tag>'
+    headers: { Authorization: 'Bearer <token>', 'If-None-Match': '"<etag>"（X2 臂：在场但不被消费）' }
     query: {}
   authentication: { type: bearer, role: user }
   expect:
     status: 200
-    headers: { note: '同 docker/remote-manifest-get-tag 全量头集（客户端可见面不回 304）' }
-    body: { format: any, note: '全量 manifest 回体' }
-  side_effects: []
+    headers: { note: '同 manifest-get-tag 全量 artifact 头集（重验证服务臂回全量）' }
+    body: { format: any, note: '全量 manifest 回体（tag 未变时与缓存副本逐字节同）' }
+    upstream:
+      rtt_count: 1
+      bytes: 0
+      shape_note: >-
+        N1（形状差异，客户端不可见）：BinFlow=条件 GET（If-None-Match=quoted digest etag）→上游 304（0 字节）
+        →窗口滑动重落（上游 access 行 "GET … 304 0" 直证）；参照=上游 HEAD 探查（HEAD 200 即续窗）。
+        同为 1 往返 0 字节；tag 变更时 BinFlow 单往返拿新内容、参照需二次 GET
+    client_conditions: '不被消费（X2：带 quoted 匹配 INM 也 200 全量，cacheState≠HIT 不评估客户端条件）——双端同姿'
+  side_effects:
+    - '窗口滑动重落（重验证成功后续窗）'
   error_behavior: []
+  unobserved_reference_arms:
+    - 'tag 实际变更时的重验证臂（本轮上游无变更场景；BinFlow 条件 GET 直接拿新 manifest、参照 HEAD 察觉后二次 GET——形状推演未经活体）'
   binflow_state:
     verdict: SAME
-    detail: 'C08（L000-F）：带引号/不带引号、GET/HEAD 一律 200 全量，永无 304——与参照客户端可见面一致（E3-2）'
-  version: { artifactory_ref: 7.161.20, binflow_tested: uat.59f33ab5 }
+    detail: 'L004-1 过期窗矩阵 X1/X2（retrievalCachePeriodSecs=60 双端配置回读确认）：客户端可见面双端全同（200 全量、条件不消费）；上游计数 1v1；形状差异（条件 GET→304 vs HEAD 探查）为 N1 note 客户端不可见。§8-C 收编实现 serveRevalidatedManifest 声明与活体一致；E3-3「304 仅经上游回源透传」半勘误（客户端 304=本地判定 M1；参照活体重验证=HEAD 探查，反编译条件 GET→304 路径未走及）'
+    witness: 'E3-3 标「待动态复证」→ L004-1 活体收口（过期窗臂）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.l0041-worktree }
   evidence:
-    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E3-2/E3-3, date: '2026-09-10' }
-    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C08（L000-F 复验段）', date: '2026-09-11' }
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: 'E3-3（半勘误：活体形状=HEAD 探查；报告头部 errata 注记在案）', date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L004-304-ping-diff.md, anchor: '§3 过期窗矩阵 X1/X2（上游 access 行 304 直证）+ §0 结论速览', date: '2026-09-12' }
   confidence: high
   status: VERIFIED
 - id: docker/remote-pull-sequence
@@ -434,6 +536,57 @@ contracts:
     - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C09 + L000-F 复验段（灭）', date: '2026-09-11' }
   confidence: high
   status: VERIFIED
+- id: docker/remote-blob-conditional-get
+  feature: 'blob 条件请求矩阵（INM quoted/unquoted 匹配→304 完整 artifact 面、IMS→304、非匹配 INM 在场→200 封死日期臂、HEAD 恒 200）——L004-1 新立'
+  surface: 'GET|HEAD /v2/<repoKey>/<image>/blobs/sha256:<digest> + If-None-Match[+If-Modified-Since]'
+  request:
+    method: GET
+    path: '/v2/<repoKey>/<image>/blobs/sha256:<digest>'
+    headers:
+      Authorization: 'Bearer <token>'
+      If-None-Match: '"<etag>" 或 <etag>（quoted/unquoted 两拼写——blob 面双端均 quote 不敏感）'
+      If-Modified-Since: '<Last-Date 值（可选）'
+    query: {}
+  authentication: { type: bearer, role: user }
+  expect:
+    arms:
+    - when: 'GET + INM quoted 匹配（B1）'
+      status: 304
+      headers:
+        present: [Etag, Last-Modified, X-Checksum-Md5, X-Checksum-Sha1, X-Checksum-Sha256, X-Artifactory-Filename, Docker-Content-Digest, Accept-Ranges]
+        absent: [Content-Type, Content-Length]
+        note: 'blob 面 304=**完整 artifact 面**（与 manifest 面 304 裸头不同——面间形态差异属参照指纹，双端同构）'
+      body: { format: none }
+    - when: 'GET + INM unquoted 匹配（B2）'
+      status: 304
+      headers: { note: '同 B1 头集——blob 面双端 quote 不敏感（与 manifest 面 BinFlow 缺口不同，不受 D1 影响）' }
+      body: { format: none }
+    - when: 'GET + IMS（B3）'
+      status: 304
+      headers: { note: '同 B1 头集' }
+      body: { format: none }
+    - when: 'GET + INM quoted 非匹配（B4）'
+      status: 200
+      body: { format: binary, note: '全量 blob 回体' }
+    - when: 'GET + INM unquoted 非匹配 + IMS 匹配（B5）'
+      status: 200
+      body: { format: binary, note: 'INM 在场封死日期臂（双端同）' }
+    - when: 'HEAD + INM quoted 匹配（B6）'
+      status: 200
+      body: { format: none, note: 'HEAD 恒不 304（与 manifest 面同律）' }
+    timing: { upstream_rtt: false, note: '新窗口 18 臂矩阵中 blob 臂双端上游计数全 0（304/200 均本地应答）' }
+  side_effects: []
+  error_behavior: []
+  unobserved_reference_arms:
+    - '过期 blob 的条件臂（归 docker/remote-blob-expired-revalidation 差异面——X3：BinFlow TTL 回源重取后再判 304 vs 参照本地零回源 304；客户端可见 304 形态本轮双端同）'
+  binflow_state:
+    verdict: SAME
+    detail: 'L004-1 双端活体 B1-B7 七臂全 SAME（quote 不敏感/封日期臂/HEAD 恒 200/304 完整 artifact 面无 CT-CL；对照臂 B7 body sha256 逐字节一致）；X-Binflow-Cache 超集头 tolerated'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.l0041-worktree }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L004-304-ping-diff.md, anchor: '§2 新窗口矩阵 blob 臂 B1-B7（SAME 全，STABLE×2）', date: '2026-09-12' }
+  confidence: high
+  status: VERIFIED
 - id: docker/remote-blob-empty-digest-synthetic
   feature: '空层 digest 合成响应（isEmptyBlob 分支，GET/HEAD 直接合成，不查缓存不上游）'
   surface: 'GET|HEAD /v2/<repoKey>/<image>/blobs/sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4'
@@ -545,8 +698,8 @@ contracts:
   confidence: high
   status: VERIFIED
 - id: docker/remote-manifest-404-no-negative-cache
-  feature: 'manifest 404 无负缓存（重复 miss 仍每次上游往返）'
-  surface: 'GET /v2/<repoKey>/<image>/manifests/<nonexistent-tag>（重复两次，间隔 << missedRetrievalCachePeriodSecs=1800）'
+  feature: 'manifest 404 负缓存（missedRetrievalCachePeriodSecs 生效：已知 image 的 tag miss 首问后本地负缓存；未知 image 名确定性本地 404 零上游）——L004-2 定谳重写（原「无负缓存恒回源」前提证伪）'
+  surface: 'GET /v2/<repoKey>/<image>/manifests/<nonexistent-tag>（重复 ×3，间隔 << missedRetrievalCachePeriodSecs）'
   request:
     method: GET
     path: '/v2/<repoKey>/<image>/manifests/<nonexistent-tag>'
@@ -557,17 +710,31 @@ contracts:
     status: 404
     headers: { note: '同 docker/remote-manifest-unknown-404' }
     body: { note: '同 docker/remote-manifest-unknown-404' }
-    timing: { upstream_rtt: true, note: 'E6-3：第二次仍 6.6s 上游往返——missedRetrievalCachePeriodSecs=1800 配置在 docker manifest GET 面未生效（E4 实测）' }
-  side_effects: []
+    timing:
+      upstream_rtt: false
+      arms:
+        known_image_tag_miss: '参照 M-a：首问 1 次上游探查，miss 后负缓存行落（missedRetrievalCachePeriodSecs 窗内重复 miss 本地应答 0 上游；TTL 到期回源——跨 TTL 复核通过）'
+        unknown_image_name: '参照 M-b：未知 image 名确定性本地 404（0/3 上游，含首问）'
+      judgment: '上游 access 行计数为主判据——本地上游 RTT（30-40ms）与本地负缓存应答同量级不可分（L000-B 误判机理）'
+  side_effects:
+    - 'miss 负缓存行落（参照侧；TTL 到期失效回源）'
   error_behavior: []
   binflow_state:
     verdict: DIVERGENT
-    detail: 'C14：BinFlow 首次 miss ~200ms（上游往返失败）→ 重复 miss 40-70ms 本地负缓存（missedTTL 生效）——BinFlow 符合其配置语义；参照运行时未负缓存待跨 missedTTL 窗复核定谳（若复核仍无 → BinFlow 更优，INTENTIONAL 候选）'
-    reverify_after: '待裁（LOOP 001 输入 #5：Artifactory 跨 missedTTL 复核票）'
-  version: { artifactory_ref: 7.161.20, binflow_tested: uat.59f33ab5 }
+    detail: >-
+      L004-2 双臂探针定谳（uat-l0042-c81119b7）：参照负缓存**双面生效**（M-a 1/3 上游、M-b 0/3；B1/B2 blob 面
+      双端 SAME——链外门控+链内负缓存均兑现）；BinFlow manifest 冷 miss 面 3/3、M-b 3/3 全回源——docker /v2
+      链自 T-363（d2746341）诞生起 404 写恒带 standing 守卫，冷 miss 从不写行（git log -S 实证，无 commit 删除过）。
+      历史弧全勘误：L000「BinFlow 40-70ms 本地负缓存」=本地上游 RTT 误读（同量级不可分）；L002-2「双端趋同/消失」
+      =该观察不复现（贴齐条件重测参照 1/3 上游）。**ADR-0048（裁 B 保留负缓存）Errata 触发条件成立自作废——
+      C14 按对齐收：LOOP 005 实现票补 manifest 冷 miss 负缓存写入**（M-a/M-b 同一缺口；M-b 未知 image 名确定性
+      本地 404 面的分类归 conductor，见探针报告 §3.3）。
+    reverify_after: 'LOOP 005 实现票（冷 miss 负缓存写入）→ 本条目复验翻绿；ADR-0048 处置（作废声明）归 conductor/ADR 流程'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.l0042-c81119b7 }
   evidence:
-    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: E6-3/E3-4, date: '2026-09-10' }
-    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: C14, date: '2026-09-11' }
+    - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: 'E6-3/E3-4（已被 L004-2 证伪归档——RTT 误判机理在案）', date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C14（原判依据证伪；L002-2 趋同观察亦不复现）', date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L004-negative-cache-probe.md, anchor: '§0 结论速览 + §1 代码定谳 + §2 双臂矩阵（M-a/M-b/B1/B2）+ §3 三选一裁定', date: '2026-09-11' }
   confidence: high
   status: DIVERGENT
   divergence_ref: known-divergence.yaml#docker/remote-manifest-404-negative-cache
@@ -820,19 +987,26 @@ contracts:
   confidence: high
   status: VERIFIED
 # ── 收尾说明 ─────────────────────────────────────────────────────────────────
-# 覆盖统计（L003-2 收编刷新，2026-09-11）：23 条目 = VERIFIED 20 / DIVERGENT 3。
-#   清偿轨迹：L001-1 错误形态族 9 条 → L002-1 门控（#14）→ L003-2 头集三面（#1 charset/#6 GET 全集/#7 HEAD 窄集+
-#   超集口径/#11 blob 面）+ 分页新条目 2（#22/#23）。
-#   残余 DIVERGENT 3：#3 token-issue（C01b 待裁）/ #5 token-anonymous（C03 待裁）/
-#   #16 manifest-404-no-negative-cache（C14——L002-2 观察双端运行时均已「每次 miss 上游往返」趋同，
-#   翻态待 conductor resolved(parity) 裁定，参照 url-suffix 先例）。
+# 覆盖统计（L004-1 收编刷新，2026-09-12）：25 条目 = VERIFIED 20 / DIVERGENT 5。
+#   清偿轨迹：L001-1 错误形态族 9 条 → L002-1 门控（#14）→ L003-2 头集三面 + 分页新条目 2 →
+#   L004-1 304/ping 双端矩阵（E3-2 勘误：#8 重写翻 DIVERGENT（D1 unquoted 三臂）；#2 ping 泛化四臂
+#   （P1-P3 SAME 清偿分型挂账、P4b revoked 翻 DIVERGENT 挂 D2）；新立 blob 条件矩阵 + 过期 tag 重验证服务）。
+#   残余 DIVERGENT 5：#3 token-issue（C01b 待裁）/ #5 token-anonymous（C03 待裁）/
+#   #8 manifest-conditional-get（D1 unquoted INM——BUG 待实现票）/ #2 ping（D2 revoked 臂——模型级待产品裁）/
+#   #16 manifest-404-no-negative-cache（C14——L004-2 定谳重写：参照双面兑现 missedTTL、BinFlow 冷 miss 面自 T-363
+#   起从未存在；ADR-0048 Errata 自动作废、按对齐收——LOOP 005 实现票补冷 miss 负缓存后复验翻绿）。
 #   #7 口径：expect 收窄至参照活体窄集，BinFlow=窄集+GET 全集超集 tolerated（E2-4 全集口径被两轮活体推翻）。
 #   #11 勘误：blob Last-Modified=落缓存时刻（两轮 registry:3 活体双端一致）；E2-5「上游 mtime」（docker.io 腿
 #   单侧）冲突存疑，docker.io 腿复核前按双端活体断言。
+#   E3-2/E3-3 勘误（L004-1）：evidence 报告头部 errata 注记在案（superseded by L004-304-ping-diff.md §1）——
+#   E3-2「恒 200 永不见 304」证伪（三拼写本地 304）；E3-3「304 仅上游回源透传」半勘误（客户端 304=本地判定；
+#   参照活体重验证=HEAD 探查）。
 # 口径对齐：报告口径不含 D19（SSRF 实例姿态）/D21（REST 面，已闭）；C05 布局以 side_effects 附记。
 # 未收面（差分未覆盖，不立断言）：foreign layer urls 白名单 403（E4-4 E1-only）、上游 429/403 透传文案（E6-4/E6-5
 #   E1-only，C18 skipped）、schema1 拉取阻断（含 schema1 HEAD 无 Accept 参照怪癖——BinFlow 回正确 v2 manifest，
 #   L002-2 #7 附注维持上报）、storeArtifactsLocally=false 校验、smart remote 系列（§9 UNKNOWN）、
-#   304 上游透传动态触发（E3-3 标待动态复证）、catalog 空列表降级臂（本轮上游有 catalog API 未复验）、
-#   tags 上游失败→200 "tags":null（L001-1 实现自决，无 E4 观察）、catalog last/invalid-n 参照臂（对称实现未拍）、
-#   虚拟面（virtual 经 remote member 服出）头集（L003-2 附注：fetch 臂带 Origin-Remote-Path、HIT 臂缺省——证据出现时补）。
+#   过期 tag 实际变更臂（重验证形状推演未活体，见 revalidation-serve unobserved_reference_arms）、
+#   catalog 空列表降级臂（上游有 catalog API 未复验）、tags 上游失败→200 "tags":null（L001-1 实现自决）、
+#   catalog last/invalid-n 参照臂（对称实现未拍）、虚拟面头集（L003-2 附注维持）。
+#   notes 不立条目：N1 重验证形状（入 revalidation-serve detail）/ N2 参照 blob 冷取双 GET / N3 ping pretty
+#   方言（accepted）/ N4 参照有效 ping 200=0 字节无 CT vs BinFlow `{}`+CT（超集 tolerated，L004-1 §4 P0d/P0s）。

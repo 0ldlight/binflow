@@ -42,3 +42,29 @@ domains:
       compare: magnitude_only                # 时间类只保数量级（diff 报告口径）；upstream_rtt 布尔判定以对拍实例日志为准
     auth:
       basic_credentials: redact               # 凭据一律脱敏
+  storage-admin:                              # L004-3（contracts/storage-admin.yaml E1-E10）——源：L003-storage-admin-diff.md 判 SAME 的归一口径
+    headers:
+      drop:
+        - Date
+        - X-Request-Id
+        - X-Artifactory-Id
+        - X-Artifactory-Node-Id
+        - X-Jfrog-Version                   # 实例版本头（参照侧）
+        - Via
+        - Server
+      keep_semantic:
+        - Content-Type                      # text/plain;charset=utf-8（流式族）/ application/json（prune 族）是断言面
+      superset_policy: tolerate_and_note    # 单侧多出的非语义头记 superset_note，不判 DIVERGENT（沿 docker-remote 先例）
+    body:
+      wire_format: normalize_indent          # JSON 缩进风格差异归一（Go Encoder vs Jackson 空格冒号——L003-1 E3 判 SAME 的口径；与 docker-remote 的 compare 相反：本域无 compact/pretty 双形态指纹）
+      json_key_order: compare               # 字段名/顺序是断言面（prune 26 字段逐键对照、info 11 字段同序）
+      state_values: placeholder             # 实例状态值 → 占位符后比对结构：prune 的 timing 双时间戳+双 millis/duration/report 三计数/progress 分子/lastHandledDirectory.name；size 裸数字；info 的路径与 statfs 五值（诚实值非翻译，L003-1 E9 口径）
+      stringified_numbers: keep             # info 全字符串化数值形态是断言面（不反序列化回数字比对）
+      literals: keep                        # info 文案（Pruning Unreferenced Data…/No Prune task found/No backup identified…/Export data is no longer supported）逐字保留比对
+    streams:
+      gc_dot_stream: collapse_runs          # 点流：`.` 连跑+换行折叠为形态记号——点数不比（参照每事件一点 vs BinFlow 每目录一点，L003-1 E1 判 SAME 口径）；CT 与 80 点换行形态保留
+      compress_lines: form_only             # compress 流内行文案不比（参照 Derby 行形态无活体 V-1；BinFlow 行为自决形态）
+    timing:
+      compare: magnitude_only               # 同步阻塞时长只保数量级（gc 活体 0.017s—数秒随工作量）
+    auth:
+      basic_credentials: redact

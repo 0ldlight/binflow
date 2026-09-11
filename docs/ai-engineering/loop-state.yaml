@@ -1,21 +1,27 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-11T08:00:00Z
-current_iteration: 004
-current_goal: "§8-C docker 304 补票+ping 消息分型 + C14/ADR-0048 双臂探针 + storage-admin 契约化 + storage-v2 ADR 正式化"
-iteration_003_seal: "四轨+收口小票全收；双审 APPROVE×2（战绩 4/4）；契约 VERIFIED 20/23；storage 管理面 10 端点；iteration-003.md 落盘"
+updated: 2026-09-12T03:00:00Z
+current_iteration: 005
+current_goal: "C14+D1 合票实现（修后全矩阵重跑）+ backup 复验 + 台账增量（6 行/D01-R30）+ storage 微票批"
+iteration_004_seal: "四轨全收（L004-1 三振 conductor 接管制首战）；契约 25 条目两文件；matrix 翻态累计 4 行；ADR-0049+Errata×2+设计稿勘误；E3-2/E3-3 证伪闭账；iteration-004.md 落盘"
+loop_005_tracks:
+  - { id: L005-1, domain: docker-remote-face, owner: dev-registry-adapter, what: "C14+D1 合票：manifest 冷 miss 负缓存写入（M-a/M-b）+ unquoted INM 按值匹配 + 三处证伪注释连修 + **修后全 304-matrix 重跑**（M6/M2b 偶合验证）" }
+  - { id: L005-2, domain: differential, owner: devops-engineer, what: "backup 成功臂装配实例复验（UAT :8083 → E7 200 调度 + 报告产物验证）→ storage-admin/backup 契约翻 VERIFIED" }
+  - { id: L005-3, domain: ledger-increment, owner: compatibility-engineer, what: "台账增量：6 新端点行入账（compress/optimize/backup/size/info/exportds）+ D01-R30 ⛔ 重分类 + matrix partial P0 面（11 行）契约化排程评估" }
+  - { id: L005-4, domain: storage-nits, owner: dev-go-storage, what: "storage N1-N8 微票批：progress 单调钳制/ErrBlobNotFound 良性分类/E5 空闲 stop 202 测试/gc mark 期审计行/双进程报告锁注记/N1 测试改名补种" }
 loop_004_tracks:
-  - { id: L004-1, domain: docker-remote-face, owner: dev-registry-adapter, what: "§8-C docker 面 304 透传补票（Review B 上报①：引擎腿≠docker 面交付）+ ping 消息粒度分型（Props Authentication Token not found 臂）+ adapter 侧 nits（虚拟面 HEAD 注记/HIT 臂惰性 face）" }
-  - { id: L004-2, domain: differential, owner: differential-qa-engineer, what: "C14/ADR-0048 双臂探针：manifest+blob 重复 miss 时延+缓存行状态，双端对照+missedTTL（>1800s）窗口复核 + 消失机理定谳（CacheRemoteMiss 考古 vs L002-2 观察）→ 出证后 conductor 裁 parity+ADR-0048 处置" }
-  - { id: L004-3, domain: storage-contract, owner: compatibility-engineer, what: "storage-admin 面契约化（10 端点→contracts/storage-admin.yaml，26 字段 schema/D6 极性/gc 409 全收）+ matrix 行翻态 + 台账修正（C14 rationale 因果倒置改写/契约 #16 旧文刷新）" }
-  - { id: L004-4, domain: architecture, owner: architect, what: "storage-v2 终案 ADR 正式化（prune 族契约 authority 锚：26 字段/D6/409 信封；as-built 注记=独立 Pruner walk 替代 GCSweep progress sink）" }
+  - { id: L004-1, domain: docker-remote-face, owner: dev-registry-adapter→conductor 接管, what: "§8-C 304 透传 + ping 三臂消息分型：**原 agent 三振（2×负载尖峰失速+1×限额）→ conductor 收编半成品**（client_conditional.go 304 面三臂 + handler.go bearerRefusalMessage 单决策点分型 + auth 接线；gosec G101 误报 #nosec 注记）；全串行门绿（docker 36s/auth 73s/httpapi V2 32s/helmoci 10.8s/race 子集/lint 0）；**中断前翻案发现=活体参照处理带引号 INM/IMS 回 304 与 E3-2 相反**——差分复验腿在途（differential-qa：304 矩阵+ping 三臂+E3-2 勘误双证并排）；revoked 第四臂模型级差异待报告登记", status: in_flight }
+  - { id: L004-2, domain: differential, owner: differential-qa-engineer, what: "✅ 探针定谳：**消失是幻象**（manifest 冷 miss 负缓存自 T-363 诞生即缺，git log -S 实证；L000-B 40-70ms 系本地上游 RTT 误读）；参照双面兑现负缓存（E6-3 证伪闭账）；B1 门控/B2 链内负缓存双端全过（ADR-0047 边界活体验证）；**conductor 裁定：C14=BUG+实现票（LOOP 005 首票——manifest 冷 miss 臂补写入，M-a/M-b 同缺口）；ADR-0048 Errata 触发已触发→自动作废（architect 追加中）**；双份旧证据观察（L000 C14/E6-3）闭账", status: done }
+  - { id: L004-3, domain: storage-contract, owner: compatibility-engineer, what: "✅ storage-admin.yaml 契约 10 条目（VERIFIED 9+IMPLEMENTED 1 待 backup 成功臂装配复验）+ normalize 新域；**matrix 首次行级翻态**（D01-R26 partial→compatible、D01-R27 absent→compatible）；C14 因果修正+#16 旧文退役+ping 粒度 delta 入台账（UNKNOWN→L004-1）；conductor 裁定：D01-R30 幽灵行准 ⛔ 重分类、6 新端点行准 LOOP 005 增量入账", status: done }
+  - { id: L004-4, domain: architecture, owner: architect, what: "✅ ADR-0049 入册：storage-v2 终案（INTENTIONAL 5+1 定谳=sha256 寻址/uploads 暂存/GC 非事件驱动/不复刻资格窗/云链 Go-native 合并+空 blob 不特化；prune 族冻结字面量源入锚；交叉引用净——ADR-0015 Errata 候选 1 条可选未执行）；KEEP 计数勘误=16 行（11 纯+5 复合）非 14；storage-v2.md 状态 Accepted" }
 loop_003_tracks:
   - { id: L003-1, domain: storage-admin, owner: dev-go-storage, what: "prune/gc 管理面实现票：10 端点族（prune start/stop/status 202 异步 + gc 200 同步点流 + size/info/optimize/compress/backup/exportds）按 docs/reverse/storage/prune-gc-admin.md 规格清偿差异 10 条；引擎 §8 B/C/D（21600s TTL 接线/304 透传/Invalidate 删 refs）串行接续" }
   - { id: L003-2, domain: docker-remote-face, owner: dev-registry-adapter, what: "remote 面头集+分页票族：C06/#11 manifest+blob 头集（Etag/Last-Modified/Origin-Remote-Path）、#1 ping charset、#2 ping 坏凭据 Basic realm 臂、tags/_catalog n/last 透传（无效 n=404 pretty）+ Review A 微票三件（parse 失败 WARN/重复链外测试腿/T-log 17→16 勘误）" }
   - { id: L003-3, domain: uat+cloud-evidence, owner: devops-engineer, what: "UAT 重建至已提交树 + MinIO 云链取证票（binarystore.xml 换 s3-storage-v3 指向本机 MinIO：PUT/GET/redirect/预签名形态——解 R-6 依赖 U-STG-15）" }
 interruptions:
   - { at: 2026-09-11T05:48~05:50Z, what: "三轨全被 API 5h 用量上限 429 击落（限额 06:28:17 重置）；conductor 核实工作树零半成品（皆死于调查/设计段）→ 三轨 SendMessage 断点复活（05:5x 用户令「继续」）" }
+  - { at: 2026-09-11T12:28Z, what: "第二波限额击落 L004-1/L004-2（限额 15:24:11 重置）；树零半成品（取证段）；断点复活。**L004-1 中断前翻案级发现：活体参照处理带引号 INM/IMS 回 304，与 L000-B E3-2 相反——复活指令要求双证并排+条件差异矩阵后实现**" }
 infra_fixes:
   - { at: 2026-09-11, what: "lint 钩子修复（update-config 技能流程）：.claude/settings.json 的 if 条件运行时不生效致红树期全 Bash 被封（L003-3 上报，20min 实损）→ 改命令侧 jq 门控（case git commit* → make lint，其余 exit 0）+ if 用文档化语法；非 commit 放行已实证" }
 completed_loop_003_partial:

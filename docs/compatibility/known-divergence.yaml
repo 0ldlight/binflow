@@ -79,15 +79,17 @@ entries:
   evidence: reports/compatibility/L000-docker-remote-diff.md C03
 - id: docker/remote-manifest-404-negative-cache
   surface: docker remote manifest 404 负缓存（C14）
-  classification: UNKNOWN
+  classification: BUG
   rationale: >-
-    BinFlow 首次 miss 上游往返后负缓存（missedRetrievalCachePeriodSecs=1800 生效，重复 miss 40-70ms 本地）；
-    Artifactory 运行时重复 miss 仍每次上游往返（6.6s，配置未见生效）。观察更新（L002-2，2026-09-11）：双端运行时
-    均已「每次 miss 上游往返」趋同（BinFlow 负缓存随 ADR-0048 落地消失）——原「BinFlow 更优」前提已不成立亦无分歧面，
-    待 conductor 按 resolved(parity) 先例裁定闭环（翻态动作：契约 #16 timing 断言已与双端现状一致）。
-  authority: { type: pending, ref: "参照实例跨 missedTTL 复核票（LOOP 001 输入 #5）" }
-  review_gate: LOOP 002 限期升级（契约条目 docker/remote-manifest-404-no-negative-cache）
-  evidence: reports/compatibility/L000-docker-remote-evidence.md E6-3/E3-4
+    L004-2 双臂探针定谳（2026-09-11，reports/compatibility/L004-negative-cache-probe.md）：**消失是幻象**——
+    docker /v2 面 manifest 冷 miss 负缓存自 T-363（d2746341）诞生即不存在（404 写入恒包 standing 守卫，git log -S
+    实证）；L000-B「40-70ms 本地负缓存」系本地上游 RTT 误读（同量级时延不可分）。参照侧双面兑现
+    missedRetrievalCachePeriodSecs（M-a tag miss 1/3 回源+TTL 到期回源；M-b 未知 image 0/3 确定性本地）——
+    E6-3「参照未生效」双双证伪闭账。分歧实锤：BinFlow M-a 3/3、M-b 3/3 回源。**ADR-0048 自带 Errata 触发条件
+    （复测翻转→ADR 自动作废、C14 按对齐收）已触发**——blob 臂 B1/B2 维持现状（门控+无条件负缓存+TTL 过期全过）。
+  authority: { type: differential, ref: reports/compatibility/L004-negative-cache-probe.md }
+  review_gate: LOOP 005 实现票（manifest 冷 miss 臂补负缓存写入——M-a/M-b 同一缺口；键法设计归 dev，参照 Path 形态可参考）
+  evidence: reports/compatibility/L004-negative-cache-probe.md（代码定谳+双臂矩阵+TTL 复核；原始观察 L000-docker-remote-evidence.md E6-3/E3-4 已被证伪归档）
 - id: docker/remote-tags-catalog-pagination
   surface: remote tags/list 与 _catalog 的分页参数（n/last/Link 头）
   classification: BUG
@@ -105,6 +107,58 @@ entries:
     note: 残余待拍臂：catalog last/无效 n 参照侧未单拍（BinFlow 对称实现，契约 unobserved_reference_arms 备查）；
       tags n=0/负数并入 404 家族为实现自决（参照未观察）。
   evidence: reports/compatibility/L002-contract-replay.md 分页取证段
+- id: docker/remote-ping-credential-class-message-granularity
+  surface: docker remote /v2/ ping 拒绝凭据的消息分型（Bearer 未知值 vs 坏 Basic，L003-2 轮活体）
+  classification: UNKNOWN
+  rationale: >-
+    Artifactory 活体（:8082，/v2/ + Authorization: Bearer <未知值>）= 同 Basic realm 挑战 + charset CT +
+    pretty "Props Authentication Token not found"——与坏 Basic 臂的 "Bad Credentials" 同形不同消息（凭据类
+    分型）。BinFlow 现实现将所有被拒凭据类渲染同一 "Bad Credentials"（挑战头/信封形态已对齐，消息粒度未分）。
+    实现归 L004-1（304 补票+ping 分型）；L003-2 收编时按 conductor 指令 test-only 更新 internal/httpapi
+    四处期望为 BinFlow 实测形态（挑战头+信封与差分一致——差异仅消息文本分型面）。
+  authority: { type: pending, ref: "L004-1 实现票（ping 分型落地：Bearer 拒绝臂按凭据类分消息）" }
+  review_gate: LOOP 005 限期升级（分型落地后于 contracts/docker-remote.yaml #2 邻位扩臂/补条目并复验）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      reports/compatibility/L004-304-ping-diff.md §4（L004-1 实现分型 + 双端活体：P1/P2/P3 三臂消息串逐字节一致——
+      Bad Credentials / Props Authentication Token not found / Token failed verification: expired）
+    note: 契约条目 docker/remote-v2-ping-bad-credentials 泛化为四臂消息矩阵（P1-P3 SAME）；残余 revoked 第四臂
+      为模型级差异，另立 docker/remote-v2-ping-revoked-arm-unreachable（D2）。
+  evidence: reports/compatibility/L003-remote-face-diff.md 残留段（ping 面拒绝凭据的 Bearer 类臂消息差）
+- id: docker/remote-manifest-inm-unquoted
+  surface: docker remote manifest 条件请求 unquoted If-None-Match 拼写（L004-1 新窗口矩阵 M2/M2c/M2d）
+  classification: BUG
+  rationale: >-
+    参照 manifest 面按值不区分引号匹配（unquoted 匹配→304 裸头本地应答；unquoted 非匹配在场→封死日期臂 200）；
+    BinFlow manifestClientNotModified 只解析带引号 entity-tag，unquoted 拼写解析为零标签被丢弃落日期臂——
+    M2/M2d（200 全量 vs 304）、M2c（304 vs 200）三臂反转。blob 面两侧同构不受影响（B2/B5 SAME）。
+    真实 docker/containerd/oras 客户端均发 quoted etag（RFC 9110），实际客户端影响面低——矩阵口径可观察面分歧。
+  authority: { type: differential, ref: "reports/compatibility/L004-304-ping-diff.md §2（SAME 15/DIVERGENT 3，STABLE×2）" }
+  review_gate: LOOP 005 实现票（unquoted 按值匹配 + 任意 INM 在场封死日期臂）→ 契约 docker/remote-manifest-conditional-get 复验翻绿。**修复后必须重跑全 304-matrix：M6/M2b 现判 SAME 系经「丢弃→日期臂」路径的偶合，语义统一后可能翻面**（L004-304-ping-diff.md Risks ③/Next ①）；随票修 client_conditional.go:8-11/:95-96 与测试文件头三处以参照口吻陈述已证伪行为的注释（Review A N1）
+  evidence: reports/compatibility/L004-304-ping-diff.md §2
+- id: docker/remote-v2-ping-revoked-arm-unreachable
+  surface: 'docker /v2/ ping revoked bearer 第四臂消息（"Token failed verification: revoked"，L004-1 P4b）'
+  classification: UNKNOWN
+  rationale: >-
+    参照 token 吊销保留吊销态可验（第四臂消息独立：Token failed verification: revoked——产品 revoke API 活体
+    坐实）；BinFlow revoke=删行模型，revoked 验定恒走 unknown 臂 → 客户端恒见 "Props Authentication Token
+    not found"——第四臂在 BinFlow 模型下不可达。INTENTIONAL 候选（模型级）：若裁对齐参照需引入吊销态可验
+    模型（表结构+验定链改动）。P1/P2/P3 三臂已逐字节一致（分型挂账已清偿）。
+  authority: { type: pending, ref: "产品/用户裁决（token 吊销模型：删行 vs 吊销态可验）" }
+  review_gate: LOOP 005 限期升级（INTENTIONAL 终裁需 authority；裁对齐则开实现票）
+  evidence: reports/compatibility/L004-304-ping-diff.md §4 P4b（含参照侧复现要点：mint 须带 scope/吊销剩余寿命阈值 6h）
+- id: docker/remote-blob-expired-revalidation
+  surface: docker remote 过期 blob 回源行为（retrievalCachePeriodSecs 窗口到期，L004-1 X3/X4）
+  classification: UNKNOWN
+  rationale: >-
+    BinFlow 对已缓存 blob 的检索窗到期后按 TTL 回源重取（上游 GET +1）再本地应答；活体参照对已缓存 blob
+    不按该窗回源（本地 200/304 应答——内容寻址不可变语义）。客户端可见面双端全同（X3 双端 304 / X4 双端
+    200），纯上游行为分歧。对齐方向待裁：BinFlow 现状=兑现自家 retrievalCachePeriodSecs 承诺；参照=不回源。
+    manifest 面 X1/X2 双端均 ×1 回源（仅形状差异 N1，不立账）。
+  authority: { type: pending, ref: "产品/架构裁（blob TTL 回源 vs 内容寻址不回源——上游流量/新鲜度权衡）" }
+  review_gate: LOOP 005 限期升级
+  evidence: reports/compatibility/L004-304-ping-diff.md §3 X3/X4
 # 条目模式（M3-2 落地）：
 # - id: rest/build-batch-delete-date-range
 #   surface: POST /api/build/delete

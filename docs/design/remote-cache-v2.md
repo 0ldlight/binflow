@@ -107,6 +107,8 @@ Artifactory：docker remote 检索缓存默认 **21600s（6h）**（`RepoConfigD
 
 **冲突登记**：ADR-0012 勘误二 ④ 写死「`retrievalCachePeriodSecs` 默认 7200」不分包型 ⇒ 新 ADR（§7）显式引用修订该句（ADR-0012 本体不动，按 Errata 协议在新 ADR 留痕）。
 
+> **2026-09-12 勘误：E3-2 经 L004-1 双端活体证伪（reports/compatibility/L004-304-ping-diff.md ERRATA 段），客户端条件面按新证据实现，本节禁止条款作废；§5.3/§7④ 客户端应答同步勘误为 200 全量+REVALIDATED。**（正文不回改——只追加纪律）补充两句：① §9 验证锚 3/5 的同前提句（「INM 恒 200 全量」「上游 304 → 客户端 304」）随本勘误一并作废，验证锚按 L004-1 §2 十八臂矩阵与 X1/X2 重写（契约 `docker/remote-manifest-conditional-get` 重写归 compatibility-engineer，L004-1 §5.2-1）；② as-built `client_conditional.go` 即新证据实现本体（匹配 INM/IMS → 本地 304，新窗口内本地判定零上游往返），与本节旧禁令的冲突以本勘误为准。
+
 ### 5.2 客户端 If-None-Match：不消费，恒 200
 
 两侧已一致（Artifactory E3-2 E4：带/不带引号、GET/HEAD 一律 200 全量；BinFlow E5 复验 C08 SAME）。**钉死为回归锚**，随契约票冻结进 `docs/compatibility/contracts/`（compatibility-engineer 域）；实现票禁止「顺手优化」成 304。
