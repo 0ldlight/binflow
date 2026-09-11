@@ -678,6 +678,12 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	if rs, ok := stack.st.(httpapi.ReplayStatsSource); ok {
 		deps.Replay = rs
 	}
+	// The E7 backup fire (POST /api/system/storage/backup, L003): the REST
+	// success arm schedules through the SAME export kernel the scheduler's
+	// backup domain rides (the one-carrier law — one carrier shape, the
+	// exportSnapshot kernel both faces share). Without this seam the
+	// endpoint answers its honest 503 no-runner arm.
+	deps.BackupRunner = &backupRunner{cfg: cfg, md: stack.md, log: logger}
 	return httpapi.New(deps, logger)
 }
 

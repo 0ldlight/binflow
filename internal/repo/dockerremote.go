@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/remote"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
@@ -133,10 +134,12 @@ func (s *service) remoteUpstreamCore(ctx context.Context, repoKey string) (*Remo
 		}
 		password = plain
 	}
-	contentTTL := cfg.ContentTTLSeconds
-	if contentTTL <= 0 {
-		contentTTL = defaultRetrievalCachePeriodSecs
-	}
+	// The content TTL resolves through the single point the engine's
+	// loadRepo reads (remote.ResolveContentTTLSeconds, ADR-0012 erratum
+	// three): an explicit row value wins; an unset or hand-mangled row
+	// takes the package type's default — the registry-v2 family here means
+	// docker/helmoci's 21600, never a flat 7200.
+	contentTTL := remote.ResolveContentTTLSeconds(cfg.ContentTTLSeconds, row.PackageType)
 	return &RemoteUpstream{
 		URL:                  cfg.URL,
 		Username:             cfg.Username,
@@ -454,13 +457,20 @@ func (s *service) blobInChainCore(ctx context.Context, repoKey, image, hex strin
 }
 
 // remoteContentTTL resolves the repository's content TTL off its config row
-// (the create-time canonicalization writes the product default; hand-mangled
-// rows fall back to it here too).
+// through the single point the engine's loadRepo reads
+// (remote.ResolveContentTTLSeconds, ADR-0012 erratum three): an explicit
+// stored value wins; an unset or hand-mangled row takes the package type's
+// default — docker/helmoci's 21600 on this v2-family plane, 7200 elsewhere.
 func (s *service) remoteContentTTL(ctx context.Context, repoKey string) int64 {
-	if cfg, err := s.md.Remote().GetConfig(ctx, repoKey); err == nil && cfg != nil && cfg.ContentTTLSeconds > 0 {
-		return cfg.ContentTTLSeconds
+	var explicit int64
+	if cfg, err := s.md.Remote().GetConfig(ctx, repoKey); err == nil && cfg != nil {
+		explicit = cfg.ContentTTLSeconds
 	}
-	return defaultRetrievalCachePeriodSecs
+	pkgType := ""
+	if row, err := s.md.Repos().Get(ctx, repoKey); err == nil && row != nil {
+		pkgType = row.PackageType
+	}
+	return remote.ResolveContentTTLSeconds(explicit, pkgType)
 }
 
 // remoteMissedTTL resolves the negative-cache window off the repository

@@ -63,8 +63,12 @@ func TestT392DockerRemoteCreateCommunity(t *testing.T) {
 	if !cfg.AllowPrivateUpstream {
 		t.Fatal("allowPrivateUpstream did not reach the typed row")
 	}
-	if cfg.ContentTTLSeconds != 7200 {
-		t.Fatalf("content TTL = %d, want the product default 7200", cfg.ContentTTLSeconds)
+	// LOOP 003 (T-L003-1 handoff patch, ADR-0012 erratum three): the
+	// create-time content-TTL default is the docker package type's 21600
+	// (remote.DefaultContentTTLSecondsFor — the same single point the
+	// engine's loadRepo reads), no longer the flat 7200.
+	if cfg.ContentTTLSeconds != 21600 {
+		t.Fatalf("content TTL = %d, want the docker package-type default 21600", cfg.ContentTTLSeconds)
 	}
 
 	// The list filters see the row on both axes (the console's remote face

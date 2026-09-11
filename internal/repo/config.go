@@ -22,12 +22,14 @@ import (
 // shared fields type-checked here.
 
 // Product-level defaults of the remote repository fields (PRD v1.2 C4 per the
-// ADR-0012 T-79 errata: retrieval 7200 / missed 1800 / socket 15s / assumed
-// offline 300s). The remote_configs DDL defaults (86400/600) are schema-level
-// fallbacks for rows created outside this service — the service always writes
-// the product values (003 migration comment, T-62).
+// ADR-0012 T-79 errata: missed 1800 / socket 15s / assumed offline 300s; the
+// retrieval TTL default is PER PACKAGE TYPE — remote.DefaultContentTTLSecondsFor,
+// the single point the fetch engine's loadRepo also reads, ADR-0012 erratum
+// three: docker/helmoci 21600, every other type 7200). The remote_configs DDL
+// defaults (86400/600) are schema-level fallbacks for rows created outside
+// this service — the service always writes the product values (003 migration
+// comment, T-62).
 const (
-	defaultRetrievalCachePeriodSecs       int64 = 7200
 	defaultMissedRetrievalCachePeriodSecs int64 = 1800
 	defaultSocketTimeoutSecs              int64 = 15
 	defaultAssumedOfflinePeriodSecs       int64 = 300
@@ -343,9 +345,13 @@ func parseRemoteConfig(config, packageType string) (remoteConfig, string, error)
 	}
 
 	out := remoteConfig{
-		URL:                              strings.TrimRight(u.String(), "/"),
-		Username:                         in.Username,
-		RetrievalCachePeriodSecs:         defaultRetrievalCachePeriodSecs,
+		URL:      strings.TrimRight(u.String(), "/"),
+		Username: in.Username,
+		// The create-time content-TTL default resolves per package type
+		// (remote.DefaultContentTTLSecondsFor — ADR-0012 erratum three's
+		// one-resolver rule: this write and the engine's fetch TTL are the
+		// two consumers of one source; docker/helmoci 21600, else 7200).
+		RetrievalCachePeriodSecs:         remote.DefaultContentTTLSecondsFor(packageType),
 		MissedRetrievalCachePeriodSecs:   defaultMissedRetrievalCachePeriodSecs,
 		SocketTimeoutMillis:              defaultSocketTimeoutSecs * 1000,
 		SocketTimeoutSecs:                defaultSocketTimeoutSecs,
