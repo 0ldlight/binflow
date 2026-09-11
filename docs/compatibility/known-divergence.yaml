@@ -26,6 +26,7 @@ entries:
   rationale: 差分 C06 DIVERGENT——blob 面已一致，manifest 面头集缺
   authority: { type: differential, ref: "reports/compatibility/L000-docker-remote-diff.md C06" }
   review_gate: LOOP 001 实现票
+  resolved: { date: '2026-09-11', evidence: 'reports/compatibility/L003-remote-face-diff.md ① 段（L003-2 实现票：GET 全集/Etag=sha1/Last-Modified=拉取时刻/Origin-Remote-Path 逐头逐值双端活体一致，HIT 面不缩水；blob 面与 HEAD 窄集+超集口径同场清偿——契约 #6/#7/#11 翻 VERIFIED）' }
 - id: docker/remote-blob-marker-semantics
   surface: remote blob 代取门控（C10：BinFlow digest 盲代理+负缓存 vs Artifactory marker 门控）
   classification: BUG
@@ -79,21 +80,30 @@ entries:
 - id: docker/remote-manifest-404-negative-cache
   surface: docker remote manifest 404 负缓存（C14）
   classification: UNKNOWN
-  rationale: BinFlow 首次 miss 上游往返后负缓存（missedRetrievalCachePeriodSecs=1800 生效，重复 miss 40-70ms 本地）；Artifactory 运行时重复 miss 仍每次上游往返（6.6s，配置未见生效）——需参照侧跨 missedTTL 窗复核；若复核仍无负缓存则 BinFlow 符合配置语义且更优，可裁 INTENTIONAL
+  rationale: >-
+    BinFlow 首次 miss 上游往返后负缓存（missedRetrievalCachePeriodSecs=1800 生效，重复 miss 40-70ms 本地）；
+    Artifactory 运行时重复 miss 仍每次上游往返（6.6s，配置未见生效）。观察更新（L002-2，2026-09-11）：双端运行时
+    均已「每次 miss 上游往返」趋同（BinFlow 负缓存随 ADR-0048 落地消失）——原「BinFlow 更优」前提已不成立亦无分歧面，
+    待 conductor 按 resolved(parity) 先例裁定闭环（翻态动作：契约 #16 timing 断言已与双端现状一致）。
   authority: { type: pending, ref: "参照实例跨 missedTTL 复核票（LOOP 001 输入 #5）" }
   review_gate: LOOP 002 限期升级（契约条目 docker/remote-manifest-404-no-negative-cache）
   evidence: reports/compatibility/L000-docker-remote-evidence.md E6-3/E3-4
 - id: docker/remote-tags-catalog-pagination
   surface: remote tags/list 与 _catalog 的分页参数（n/last/Link 头）
-  classification: UNKNOWN
+  classification: BUG
   rationale: >-
-    Review A（L001-1）发现的未观察角落：BinFlow remote 面无视 n/last 不回 Link（本地面支持两者、无效 n 400）；
-    E7 仅观察裸 GET，Artifactory remote 面分页行为未取证。L002-2 第一手对拍（2026-09-11，registry:3 上游 3 tag）：
-    Artifactory remote 面【尊重】n 与 last（?n=2→["t1","t2"]；?n=2&last=t1→["t2","t3"]；无 Link 头回出），
-    无效 n=abc→404 pretty status 形态 "Not Found"（非 docker errors 数组）；BinFlow 同参无视（200 全量列表）——
-    分歧已实锤为双侧行为差异，不再是观察空白。
-  authority: { type: pending, ref: "契约补条目 + 实现裁定（n/last 透传语义 + 无效 n 错误形态）" }
+    L002-2 第一手对拍实锤：Artifactory remote 面尊重 n/last、无效 n=abc→404 pretty "Not Found"；BinFlow 同参
+    无视（200 全量）——双侧行为差异。勘误存证：L002-2 报告分页表「无 Link 头回出」行与其自身原始捕获矛盾
+    （a_tagsn.h 实带 Link rel=next）——Artifactory remote 面截断即发 Link，该行系笔误；L003 活体复现同形。
+  authority: { type: differential, ref: "reports/compatibility/L002-contract-replay.md 分页取证段" }
   review_gate: LOOP 003 限期升级
+  resolved:
+    date: '2026-09-11'
+    evidence: reports/compatibility/L003-remote-face-diff.md ④ 段（L003-2 实现票双端活体：tags n/last/Link/无效 n 四臂
+      逐字节一致含 Link；catalog ?n=2 Link→/v2/_catalog registry 级路径 quirk 照抄、裸 GET 活体聚合一致；
+      契约补条目 docker/remote-tags-list-pagination + docker/remote-catalog-pagination 双 VERIFIED）
+    note: 残余待拍臂：catalog last/无效 n 参照侧未单拍（BinFlow 对称实现，契约 unobserved_reference_arms 备查）；
+      tags n=0/负数并入 404 家族为实现自决（参照未观察）。
   evidence: reports/compatibility/L002-contract-replay.md 分页取证段
 # 条目模式（M3-2 落地）：
 # - id: rest/build-batch-delete-date-range

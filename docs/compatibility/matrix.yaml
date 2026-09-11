@@ -2119,14 +2119,15 @@ rows:
   confidence: high
   contract_ref: contracts/docker-remote.yaml
   golden_ref: golden/docker-remote/{empty-blob-synthetic,pull-sequence}
-  last_difftest: reports/compatibility/L000-docker-remote-diff.md（L000 首轮 + L000-F + L001-1 复验：SAME 13 / DIVERGENT 5 / 待裁 3 / skipped 1）
+  last_difftest: reports/compatibility/L003-remote-face-diff.md（L003-2 双端活体：票面 5 项全过；前置 L002-contract-replay 21/21 全量重放 + L000 系列 L000-F/L001-1 复验）
   priority_class: P1
   layer: A
   source_row: "§11.1 行 1"
-  note: L001-2（2026-09-11）首份契约补链——契约覆盖 remote 面子集（ping/token/manifests/blobs/tags/catalog/禁推/404 族 21 条目；
-    local/virtual 面与 /api/docker API 面未契约化）。行态不因差分翻改：差异走 known-divergence 台账与契约条目态。
-    L001-1 复验刷新（同日）：契约 VERIFIED 6→15（C01/C02/C11/C12/C13/C15/C16 族清偿）、DIVERGENT 15→6
-    （缓存语义 3 归另票 + 待裁 3）；D20 凭据缺口已由 L001-3 闭合，D21 转 httpapi 域票（L001-5 修复，复验证据待回填）
+  note: L001-2（2026-09-11）首份契约补链——契约覆盖 remote 面子集（ping/token/manifests/blobs/tags/catalog/禁推/404 族/分页），
+    local/virtual 面与 /api/docker API 面未契约化。行态不因差分翻改：差异走 known-divergence 台账与契约条目态。
+    清偿轨迹（同日）：L001-1 错误形态族 9 条 → L002-1 门控（ADR-0047）→ L003-2 头集三面（ping charset/manifest GET 全集/
+    HEAD 窄集+超集/blob 面）+ 分页新条目 2——契约现 23 条目 VERIFIED 20 / DIVERGENT 3（token TTL/匿名姿态待裁 +
+    C14 负缓存待 conductor parity 裁定）；D20/D21 均已闭（L001-3/L001-5+L002-2 复验回填）
 - row_id: D12-R02
   domain: D12
   capability: Docker API 面（/api/docker/{repoKey} promote/listTag/UI 面族）

@@ -1,14 +1,29 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-11T06:00:00Z
-current_iteration: 003
-current_goal: "prune/gc 管理面实现（10 端点族）+ docker remote 头集/分页票族 + remote-cache 引擎 §8 B/C/D + MinIO 云链取证与 UAT 重建"
-iteration_002_seal: "四轨全收；C10 双审 APPROVE；契约 VERIFIED 16/21；divergence resolved 5；双审战绩 3/3；iteration-002.md 落盘"
+updated: 2026-09-11T08:00:00Z
+current_iteration: 004
+current_goal: "§8-C docker 304 补票+ping 消息分型 + C14/ADR-0048 双臂探针 + storage-admin 契约化 + storage-v2 ADR 正式化"
+iteration_003_seal: "四轨+收口小票全收；双审 APPROVE×2（战绩 4/4）；契约 VERIFIED 20/23；storage 管理面 10 端点；iteration-003.md 落盘"
+loop_004_tracks:
+  - { id: L004-1, domain: docker-remote-face, owner: dev-registry-adapter, what: "§8-C docker 面 304 透传补票（Review B 上报①：引擎腿≠docker 面交付）+ ping 消息粒度分型（Props Authentication Token not found 臂）+ adapter 侧 nits（虚拟面 HEAD 注记/HIT 臂惰性 face）" }
+  - { id: L004-2, domain: differential, owner: differential-qa-engineer, what: "C14/ADR-0048 双臂探针：manifest+blob 重复 miss 时延+缓存行状态，双端对照+missedTTL（>1800s）窗口复核 + 消失机理定谳（CacheRemoteMiss 考古 vs L002-2 观察）→ 出证后 conductor 裁 parity+ADR-0048 处置" }
+  - { id: L004-3, domain: storage-contract, owner: compatibility-engineer, what: "storage-admin 面契约化（10 端点→contracts/storage-admin.yaml，26 字段 schema/D6 极性/gc 409 全收）+ matrix 行翻态 + 台账修正（C14 rationale 因果倒置改写/契约 #16 旧文刷新）" }
+  - { id: L004-4, domain: architecture, owner: architect, what: "storage-v2 终案 ADR 正式化（prune 族契约 authority 锚：26 字段/D6/409 信封；as-built 注记=独立 Pruner walk 替代 GCSweep progress sink）" }
 loop_003_tracks:
   - { id: L003-1, domain: storage-admin, owner: dev-go-storage, what: "prune/gc 管理面实现票：10 端点族（prune start/stop/status 202 异步 + gc 200 同步点流 + size/info/optimize/compress/backup/exportds）按 docs/reverse/storage/prune-gc-admin.md 规格清偿差异 10 条；引擎 §8 B/C/D（21600s TTL 接线/304 透传/Invalidate 删 refs）串行接续" }
   - { id: L003-2, domain: docker-remote-face, owner: dev-registry-adapter, what: "remote 面头集+分页票族：C06/#11 manifest+blob 头集（Etag/Last-Modified/Origin-Remote-Path）、#1 ping charset、#2 ping 坏凭据 Basic realm 臂、tags/_catalog n/last 透传（无效 n=404 pretty）+ Review A 微票三件（parse 失败 WARN/重复链外测试腿/T-log 17→16 勘误）" }
   - { id: L003-3, domain: uat+cloud-evidence, owner: devops-engineer, what: "UAT 重建至已提交树 + MinIO 云链取证票（binarystore.xml 换 s3-storage-v3 指向本机 MinIO：PUT/GET/redirect/预签名形态——解 R-6 依赖 U-STG-15）" }
+interruptions:
+  - { at: 2026-09-11T05:48~05:50Z, what: "三轨全被 API 5h 用量上限 429 击落（限额 06:28:17 重置）；conductor 核实工作树零半成品（皆死于调查/设计段）→ 三轨 SendMessage 断点复活（05:5x 用户令「继续」）" }
+infra_fixes:
+  - { at: 2026-09-11, what: "lint 钩子修复（update-config 技能流程）：.claude/settings.json 的 if 条件运行时不生效致红树期全 Bash 被封（L003-3 上报，20min 实损）→ 改命令侧 jq 门控（case git commit* → make lint，其余 exit 0）+ if 用文档化语法；非 commit 放行已实证" }
+completed_loop_003_partial:
+  - { id: L003-3a, what: "UAT 基线 = uat-l0033-952e556d（纯净已提交树证明：vcs.revision=952e556d，WIP mtime 晚于构建 4.5h）；重建指南在 reports/agents/L003-3.md §2" }
+  - { id: L003-3b, what: "MinIO 取证 BLOCKED（两次换链失败-恢复，根因链收敛：path-style 未入参→DNS；httpsOnly 默认 true→TLS 打明文）；静态面已收（直读为默认、S3Presigner 族、signedUrlExpirySeconds 键、阈值 204800）；恢复证明字节级一致×2；重跑配方在案——conductor 已批第三次（配方版）" }
+  - { id: L003-3b-final, what: "第三次换链终态 BLOCKED（httpsOnly XML 两形态均不生效，真开关收敛 JVM 系统属性三候选 binary.provider.s3.https.only——evidence §5）；三度恢复 sha256 一致（conductor 复验 2d1409c6…）+ 双实例 200；R-6 维持 evidence-blocked 不裁（ADR-0001）；新规格素材=path-style property 形态无效/子元素有效、httpsOnly 子元素无效→s3-storage-layout" }
+  - { id: L003-2, what: "remote 面票族 5+3 全落地（manifest/blob 头集逐头逐值、ping charset 收窄、ping 坏凭据 Basic realm 逐字、分页 n/last/Link——**勘误 L002-2 报告自相矛盾：Artifactory 截断实发 Link 头，按 ground truth 实现**）；双端活体对拍=独立 :8084 实例；httpapi 零触碰（v2AuthFailure seam）；契约翻绿建议已转 compatibility-engineer 执行；三包 -count=1 绿+race 子集绿；残留=Last-Modified 语义待裁/n=0 对称臂未拍；**跨包破损返工中：httpapi 4 测试旧期望（/binflow 信封）待更新为实证形态**" }
+  - { id: L003-1, what: "prune/gc 管理面大票：10 端点全交付（prune 族 202 异步+26 字段 schema+跨重启持久化+并发 412、gc 200 点流、真删验证 cleaned=1）；**race 前置抓到 snapshot() 活指针真竞争已修**；引擎腿 B（TTL 单点解析）/C（条件 GET 再验证）落地；D=blocked 禁域转票（metadata DeleteRefsByImage+repo Invalidate 载体）；差异清偿 6 全清+D10 端点落；S3 装配该族诚实 503；UAT 未重建（并行轨占用，:8084 隔离实例完成对拍）；escalation=E7 backup 成功臂 3 行接线（dev-go-core）+§8-B repo 双消费+§8-D 整票→LOOP 004 池；双审待派（测试修复后）" }
 
 active_tasks:
   - { id: L000-A, domain: storage-filestore, owner: reverse-engineer, what: "U-STG-01 取证：binarystore.xml 活体 + C 模板族 + A 常量域 → docs/reverse/storage/binary-provider-chain.md" }
