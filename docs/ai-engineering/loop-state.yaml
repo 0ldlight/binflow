@@ -1,15 +1,19 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-12T03:00:00Z
-current_iteration: 005
-current_goal: "C14+D1 合票实现（修后全矩阵重跑）+ backup 复验 + 台账增量（6 行/D01-R30）+ storage 微票批"
-iteration_004_seal: "四轨全收（L004-1 三振 conductor 接管制首战）；契约 25 条目两文件；matrix 翻态累计 4 行；ADR-0049+Errata×2+设计稿勘误；E3-2/E3-3 证伪闭账；iteration-004.md 落盘"
+updated: 2026-09-12T05:00:00Z
+current_iteration: 006
+current_goal: "攻坚排程票 A+B（仓配置 round-trip + 经典路径别名五清）+ docker 微票池（seam/virtual 读探针/star）+ by-digest 补臂"
+iteration_005_seal: "四轨全收零中断；docker-remote 契约 22/25 VERIFIED（残余全待裁）；storage-admin 10/10 满；matrix 199 行 ✅65；divergence resolved 累计 11；双审战绩 6/6；iteration-005.md 落盘"
+loop_006_tracks:
+  - { id: L006-1, domain: repo-config-rest, owner: dev-go-core, what: "攻坚票 A+B 串行双包：A=D02-R03+R04 仓配置 PUT/POST round-trip（maxUniqueSnapshots/repoLayoutRef/blackedOut/archiveBrowsingEnabled 四域静默丢弃）双清；B=D04-R17+R18+D06-R17 经典路径别名挂载（/api/permissions 与 /api/system/backup/{key} 族——衔接 T-504 别名核定）三清" }
+  - { id: L006-2, domain: docker-remote-face, owner: dev-registry-adapter, what: "docker 微票池：repo 面 CacheRemoteMiss doc 行票（tag 键口径）+ virtual 读探针 seam 票（tag+digest 两形）+ star 未观察臂（契约注记+测试补锁 IMS 组合）+ 过时文本三处（helm.md §8.3/remote.go:1067/virtual.go:267 注释 only 不真）+ by-digest 冷 miss 差分补臂" }
+  - { id: L006-3, domain: rulings, owner: conductor, what: "案头裁定：M-b 口径复核（L004-2 §2.1 观察条件考古）/ D3（过期 blob 回源）裁定 / E4 空闲 stop UNKNOWN 挂账 / 待裁 9 项催办" }
 loop_005_tracks:
-  - { id: L005-1, domain: docker-remote-face, owner: dev-registry-adapter, what: "C14+D1 合票：manifest 冷 miss 负缓存写入（M-a/M-b）+ unquoted INM 按值匹配 + 三处证伪注释连修 + **修后全 304-matrix 重跑**（M6/M2b 偶合验证）" }
-  - { id: L005-2, domain: differential, owner: devops-engineer, what: "backup 成功臂装配实例复验（UAT :8083 → E7 200 调度 + 报告产物验证）→ storage-admin/backup 契约翻 VERIFIED" }
-  - { id: L005-3, domain: ledger-increment, owner: compatibility-engineer, what: "台账增量：6 新端点行入账（compress/optimize/backup/size/info/exportds）+ D01-R30 ⛔ 重分类 + matrix partial P0 面（11 行）契约化排程评估" }
-  - { id: L005-4, domain: storage-nits, owner: dev-go-storage, what: "storage N1-N8 微票批：progress 单调钳制/ErrBlobNotFound 良性分类/E5 空闲 stop 202 测试/gc mark 期审计行/双进程报告锁注记/N1 测试改名补种" }
+  - { id: L005-1, domain: docker-remote-face, owner: dev-registry-adapter, what: "C14+D1 合票：manifest 冷 miss 负缓存写入（M-a/M-b）+ unquoted INM 按值匹配 + 三处证伪注释连修 + **修后全 304-matrix 重跑**（M6/M2b 偶合验证）", status: in_flight }
+  - { id: L005-2, domain: differential, owner: devops-engineer, what: "✅ backup 成功臂**双端活体**坐实（参照 backup-daily 实跑 current/ 刷新+access.backup 新件；UAT 装配实例 200+manifest/blobs/metadata.db 产物+调度日志）——schedule-and-return 语义同构；字面差（chunked Activating/uuid vs scheduled）为可选 polish；V-2 信封族双实例收束；**附带发现：调度面与载体失败面正交**（exportPath 无权→200 照发+detached ERROR 诚实落日志）；契约翻 VERIFIED+D01-R40 翻态已转 compat 执行；遗留=daocloud 镜像源间歇 EOF（canonical 覆盖参数绕过中，持续则改 build-release 默认源另开票）", status: done }
+  - { id: L005-3, domain: ledger-increment, owner: compatibility-engineer, what: "✅ 6 新行入账（matrix 193→199，✅59→64）+ D01-R30 ⛔ 勘误重分类 + **P0 partial 攻坚排程**（11 行→票 A~F 拆法：A=D02-R03+R04 仓配置 round-trip 双清〔证据最厚〕/B=D04-R17+18+D06-R17 经典路径别名三清/C=users 字段集/D=list 参数两段/E+F=裁定先行——A/B 建议 LOOP 006 首发）+ L004-3 三计数器勘正；**追加轮：backup 契约 VERIFIED（10/10 满）+ D01-R40 翻 compatible（matrix 现 ✅65/◐27/❌78/⛔18/超集11）**；字面差裁量=不入台账（四分类无位+先例同族三例），三处留痕契约与矩阵", status: done }
+  - { id: L005-4, domain: storage-nits, owner: dev-go-storage, what: "✅ 六微票全清（N1 hold 门真种子+主线程 t.Fatal/N2 progress 单调钳制/N3 ErrBlobNotFound 良性分类/N5 空闲 stop 202 测试/N6 gc mark 失败审计行/N4 单进程注记）；**双向测试有效性证明**（禁用守卫→FAIL 两例）；race 全绿（storage 112s）；E4 空闲 stop 跨重启=内存态活体 UNKNOWN→LOOP 006 挂账候选", status: done }
 loop_004_tracks:
   - { id: L004-1, domain: docker-remote-face, owner: dev-registry-adapter→conductor 接管, what: "§8-C 304 透传 + ping 三臂消息分型：**原 agent 三振（2×负载尖峰失速+1×限额）→ conductor 收编半成品**（client_conditional.go 304 面三臂 + handler.go bearerRefusalMessage 单决策点分型 + auth 接线；gosec G101 误报 #nosec 注记）；全串行门绿（docker 36s/auth 73s/httpapi V2 32s/helmoci 10.8s/race 子集/lint 0）；**中断前翻案发现=活体参照处理带引号 INM/IMS 回 304 与 E3-2 相反**——差分复验腿在途（differential-qa：304 矩阵+ping 三臂+E3-2 勘误双证并排）；revoked 第四臂模型级差异待报告登记", status: in_flight }
   - { id: L004-2, domain: differential, owner: differential-qa-engineer, what: "✅ 探针定谳：**消失是幻象**（manifest 冷 miss 负缓存自 T-363 诞生即缺，git log -S 实证；L000-B 40-70ms 系本地上游 RTT 误读）；参照双面兑现负缓存（E6-3 证伪闭账）；B1 门控/B2 链内负缓存双端全过（ADR-0047 边界活体验证）；**conductor 裁定：C14=BUG+实现票（LOOP 005 首票——manifest 冷 miss 臂补写入，M-a/M-b 同缺口）；ADR-0048 Errata 触发已触发→自动作废（architect 追加中）**；双份旧证据观察（L000 C14/E6-3）闭账", status: done }

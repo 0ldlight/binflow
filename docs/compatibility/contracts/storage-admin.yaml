@@ -22,7 +22,8 @@ scope: '/api/system/storage 维护端点族全 10 端点（E1-E10）——prune 
 normalize: fixtures/normalize.yaml#storage-admin
 reference_instance: 'Artifactory-pro 7.161.20 http://localhost:8082（admin basic，PostgreSQL 后端；活体证据 2026-09-10 规格票 B 源 + 2026-09-11 L003-1 只读复测）'
 binflow_tested_instance: 'BinFlow 工作树实例 http://127.0.0.1:8084（develop @952e556d + L003-1 未提交改动，go build ./cmd/binflow-server，数据 /tmp/l0031-data；commit 6ca8f8666 落库。
-  E7 成功臂 cmd 接线后补于 4614e261（T-L003-4）——装配实例差分复验待 conductor（见 E7 条目）。'
+  E7 成功臂 cmd 接线后补于 4614e261（T-L003-4）——装配实例复验已收官（L005-2，2026-09-12，conductor 指令）：
+  成功臂双端活体坐实，条目翻 VERIFIED。'
 contracts:
 # ── E1：gc 同步点流 ──────────────────────────────────────────────────────────
 - id: storage-admin/gc-stream
@@ -270,11 +271,21 @@ contracts:
       body:
         format: json
         literal: '{"errors":[{"status":500,"message":"No backup identified with key ''<key>''"}]}'
-        note: '活体 errors JSON 信封（B 源，2026-09-10）——反编译为 String entity 裸文本，两源分歧挂 V-2；断言锚活体形态。BinFlow 实测逐字对齐'
+        note: '活体 errors JSON 信封（B 源，2026-09-10）——反编译为 String entity 裸文本；V-2 两源分歧收束（2026-09-12 L005-2：信封族双实例实证，活体 errors-JSON 为真形态）；断言锚活体形态。BinFlow 实测逐字对齐'
     - when: 'key 存在且 enabled'
       status: 200
-      headers: { present: [Content-Type], absent: [], note: '流式 holder 家族 CT（text/plain;charset=utf-8；§3.1 机制+A 源）' }
-      body: { format: text-stream, note: '立即调度后返回（未见等待语义）；body 具体形态参照无活体——不立断言。BinFlow 本票自决形态：`backup ''<key>'' scheduled\n`' }
+      headers:
+        literal: { Content-Type: text/plain;charset=utf-8 }
+        present: []
+        absent: []
+        note: 'L005-2（2026-09-12）双端活体坐实；TE 差（参照 chunked / BinFlow 非）为传输层编码差——归一口径不判（同 E3 JSON 缩进风格类）'
+      body:
+        format: text-stream
+        note: >-
+          schedule-and-return：立即调度后返回（无等待语义），备份本体 detached 后台执行——L005-2 双端活体坐实。
+          字面形态双端异文（语义同构——契约内登记不判分歧、不入 known-divergence 台账，与 E1 gc 点数/E9 info
+          映射值同族）：参照=「Activating manual system backup ''<key>''…Started artifactory.BackupJob#<uuid>」；
+          BinFlow=「backup ''<key>'' scheduled」。产物面双端在：参照 current/ 刷新；BinFlow manifest.json+blobs+metadata.db
     - when: 'key 存在但 disabled'
       status: 500
       body: { format: json, pattern: 'is disabled', note: 'A 单源（"is disabled" 文案片段）；BinFlow errors 信封 `backup ''<key>'' is disabled`——信封形态按活体缺 key 臂类推，参照此臂无活体' }
@@ -284,19 +295,18 @@ contracts:
     - { when: '非 admin', status: 403, note: '族级共同面' }
     - { when: 'BinFlow 装配无 runner（seam nil）', status: 503, note: 'BinFlow 诚实不可用臂（参照无此面）；T-L003-4 cmd 接线后装配实例不再可达' }
   unobserved_reference_arms:
-    - 'V-2：backup 坏 key 信封两源分歧的成因（活体 errors-JSON vs 反编译 String 裸文本——疑部署 build 差异或响应过滤器改写；需差分复测）'
-    - '成功臂 200 的参照 body 形态与 disabled 臂 500 的参照信封/全文案（均无活体）'
+    - 'disabled 臂 500 的参照信封/全文案（A 单源，无活体）——成功臂与缺 key 臂已双端活体（L005-2 / B 源），V-2 已收束'
   binflow_state:
-    verdict: PARTIAL
-    detail: 'L003-1：缺 key 500 errors 信封逐字对齐（实测）✓；disabled 500 ✓（按 A 源）；成功臂当时 seam nil → 装配实例 503 honest（本票禁改 cmd）。T-L003-4（4614e261）cmd 一行接线后成功臂转 200 + `backup ''k'' scheduled` + detached Run——**装配实例差分复验待 conductor**（T-L003-4 Next ①），复验过 → 翻 VERIFIED'
-    reverify_after: 'conductor 排 E7 成功臂装配实例复验（curl POST /api/system/storage/backup?key= 期望 200 流式调度行）'
+    verdict: SAME（形态）
+    detail: 'L003-1：缺 key 500 errors 信封逐字对齐 ✓；disabled 500 ✓（按 A 源）；成功臂当时 seam nil → 503 honest，T-L003-4（4614e261）cmd 接线。L005-2（2026-09-12）成功臂装配实例双端活体坐实：200 + text/plain;charset=utf-8 + schedule-and-return + detached 执行；参照 chunked「Activating manual system backup ''<key>''…Started artifactory.BackupJob#<uuid>」/ BinFlow「backup ''<key>'' scheduled」；产物双端在（参照 current/ 刷新；BinFlow manifest.json+blobs+metadata.db）。字面差（措辞/uuid 行/TE）语义同构不闸门；V-2 信封族双实例实证收束——翻 VERIFIED'
   version: { artifactory_ref: 7.161.20, binflow_since: 4614e261 }
   evidence:
     - { kind: probe, report: docs/reverse/storage/prune-gc-admin.md, anchor: 'E7（缺 key 500 errors 信封活体；disabled/成功臂 A）', date: '2026-09-10' }
     - { kind: difftest, report: reports/compatibility/L003-storage-admin-diff.md, anchor: 'E7 行（PARTIAL：错误臂 SAME；成功臂待接线）+ 附录 backup?key=nope 实录', date: '2026-09-11' }
     - { kind: implementation, report: reports/agents/T-L003-4.md, anchor: 'E7 cmd 接线（503→200 scheduled + detached Run）', date: '2026-09-11' }
+    - { kind: probe, report: 'L005-2 装配实例复验收官（conductor 指令 2026-09-12——报告未落盘以指令摘要为准；证据链=agent 日志与 UAT/参照 :8082 实测记录）', anchor: 'E7 成功臂（200/CT/schedule-and-return/detached/产物双端在）', date: '2026-09-12' }
   confidence: medium
-  status: IMPLEMENTED
+  status: VERIFIED
 # ── E8：size ─────────────────────────────────────────────────────────────────
 - id: storage-admin/size
   feature: 'GET size filestore 字节数（E8：text/plain 裸数字）'
@@ -400,8 +410,8 @@ contracts:
   confidence: medium
   status: VERIFIED
 # ── 收尾说明 ─────────────────────────────────────────────────────────────────
-# 覆盖统计（L004-3 立契，2026-09-11）：10 条目 = VERIFIED 9 / IMPLEMENTED 1（E7 成功臂差分复验待 conductor）。
-#   置信度 high 7 / medium 3（E5 参照 200 臂 A 单源；E7 成功/disabled 臂 A 单源+接线复验 pending；E10 信封 A 单源）。
+# 覆盖统计（L004-3 立契 2026-09-11；L005-3b 2026-09-12 更新）：10 条目 = VERIFIED 10 / IMPLEMENTED 0（E7 成功臂 L005-2 装配实例复验收官）。
+#   置信度 high 7 / medium 3（E5 参照 200 臂 A 单源；E7 disabled 臂 A 单源——成功臂已双端活体，字面差契约内登记不判；E10 信封 A 单源）。
 #   行态对拍账（L003-1）：SAME 7 + FORM-SAME 1（E5）+ SAME 形态 2（E1/E10）+ PARTIAL 1（E7）。
 # 未收面（不立断言，挂账原样承接）：V-1（E5 PostgreSQL 流内错误行）/ V-2（E7 信封两源分歧成因）/
 #   V-3（E2 请求模型 3/4 参数键名）/ V-4（E3 error 态完整形态）/ V-5（E3 续跑分子口径）/ V-7（E1 并发 409 活体）。

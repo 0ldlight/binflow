@@ -362,17 +362,17 @@ contracts:
   error_behavior: []
   unobserved_reference_arms: []
   binflow_state:
-    verdict: DIVERGENT
-    detail: 'L004-1 双端活体 18 臂矩阵：SAME 15 / DIVERGENT 3——M2/M2c/M2d 三臂全为 unquoted INM：参照按值不区分引号匹配→304（且在场封死日期臂），BinFlow manifestClientNotModified 只解析带引号 entity-tag、unquoted 解析为零标签被丢弃落日期臂（M2/M2d→200 全量反转；M2c→304 反转）。blob 面同构不受影响（B2/B5 SAME）；M6/M2b BinFlow 结果偶合同判。真实 docker/containerd/oras 客户端均发 quoted etag（RFC 9110），实际客户端影响面低——矩阵口径可观察面分歧，D1 挂 known-divergence'
-    witness: '原判 VERIFIED/SAME 锚 E3-2（「恒 200 永不见 304」）——L004-1 双端活体推翻（E3-2 勘误：三拼写均本地 304）；L000-F C08 复验只测 BinFlow 腿未重测参照（账实缺口存证）；翻 DIVERGENT 待 D1 修复后复验翻绿'
-  version: { artifactory_ref: 7.161.20, binflow_tested: uat.l0041-worktree }
+    verdict: SAME
+    detail: 'L004-1 双端活体 18 臂矩阵判 DIVERGENT（M2/M2c/M2d unquoted INM 三臂反转，D1 挂账）。L005-1 修复（manifestClientNotModified 两读面统一按值不区分引号匹配 + 任意 INM 在场封死日期臂）后全矩阵重跑：20/20 臂 SAME（status+body+归一头集+上游计数全 0）——M2/M2c/M2d 全收敛；M6/M2b 偶合未翻面（M6 304 由「日期臂偶合」变为「按值匹配直判」、M2b 200 维持——可观察面不变）；blob B1-B6 复证 SAME；过期窗 6/6 客户端可见 SAME 无回归'
+    witness: 'D1 闭环：known-divergence#docker/remote-manifest-inm-unquoted resolved（review_gate 硬要求=修后全矩阵重跑，L005-1 兑现——M6/M2b 偶合闭合）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.l0051-792c347c }
   evidence:
     - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: 'E3-2/E3-3（已被 L004-1 勘误 superseded——报告头部 errata 注记在案）', date: '2026-09-10' }
     - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C08（L000-F 复验段——仅 BinFlow 腿，参照未重测；结论随 E3-2 勘误失效）', date: '2026-09-11' }
     - { kind: difftest, report: reports/compatibility/L004-304-ping-diff.md, anchor: '§1 E3-2 勘误（双证并排）+ §2 新窗口 18 臂矩阵（SAME 15/DIVERGENT 3，STABLE×2）', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/L005-c14-d1-diff.md, anchor: '§1 新窗口 304 矩阵 round 2：20/20 臂 SAME（D1 三臂收敛、上游计数全 0；M6/M2b 偶合未翻面）+ §2 过期窗 6/6 客户端可见 SAME', date: '2026-09-12' }
   confidence: high
-  status: DIVERGENT
-  divergence_ref: known-divergence.yaml#docker/remote-manifest-inm-unquoted
+  status: VERIFIED
 - id: docker/remote-manifest-revalidation-serve
   feature: '过期 tag 重验证服务（检索窗到期：上游 ×1 往返 + 客户端 200 全量 + 客户端条件不被消费）——§8-C 上游 304 透传的契约落点'
   surface: 'GET /v2/<repoKey>/<image>/manifests/<tag>（副本 retrievalCachePeriodSecs 窗口到期后，无/有客户端条件头）'
@@ -698,7 +698,7 @@ contracts:
   confidence: high
   status: VERIFIED
 - id: docker/remote-manifest-404-no-negative-cache
-  feature: 'manifest 404 负缓存（missedRetrievalCachePeriodSecs 生效：已知 image 的 tag miss 首问后本地负缓存；未知 image 名确定性本地 404 零上游）——L004-2 定谳重写（原「无负缓存恒回源」前提证伪）'
+  feature: 'manifest 404 负缓存（missedRetrievalCachePeriodSecs 生效：tag miss 与未知 image 名均「首问一次 → 窗口内本地 → TTL 到期回源+行重写+再冻结」）——L004-2 定谳立账 + L005-1 实现收官翻绿（M-b 口径按 L005-1 修正）'
   surface: 'GET /v2/<repoKey>/<image>/manifests/<nonexistent-tag>（重复 ×3，间隔 << missedRetrievalCachePeriodSecs）'
   request:
     method: GET
@@ -709,35 +709,38 @@ contracts:
   expect:
     status: 404
     headers: { note: '同 docker/remote-manifest-unknown-404' }
-    body: { note: '同 docker/remote-manifest-unknown-404' }
+    body: { note: '同 docker/remote-manifest-unknown-404（MANIFEST_UNKNOWN / detail=IMAGE——L005-1 §3.1 双端复核）' }
     timing:
       upstream_rtt: false
       arms:
-        known_image_tag_miss: '参照 M-a：首问 1 次上游探查，miss 后负缓存行落（missedRetrievalCachePeriodSecs 窗内重复 miss 本地应答 0 上游；TTL 到期回源——跨 TTL 复核通过）'
-        unknown_image_name: '参照 M-b：未知 image 名确定性本地 404（0/3 上游，含首问）'
+        known_image_tag_miss: '首问一次上游（参照 HEAD / BinFlow GET——探查形状差归 N1 类不判）→ missedTTL 窗口内重复 miss 本地应答（0 上游）→ TTL 到期回源 +1 并重写行、再冻结（L005-1 §3.1/§3.2 双端同语义）'
+        unknown_image_name: '与 M-a 同形：首问一次（参照 HEAD / BinFlow GET）→ 窗口内本地 → 到期回源（L005-1 §3.3 双端 1/3 同形——干净专属仓与 _catalog 聚合后两态一致。勿按「未知名零回源」强读法立断言：L004-2 参照 0/3 观察未复现已废弃，复现条件差注记见 known-divergence resolved note）'
       judgment: '上游 access 行计数为主判据——本地上游 RTT（30-40ms）与本地负缓存应答同量级不可分（L000-B 误判机理）'
   side_effects:
-    - 'miss 负缓存行落（参照侧；TTL 到期失效回源）'
+    - 'miss 负缓存行落（双端；TTL 到期回源并重写行——BinFlow sqlite 行直证：tag 引用→image/tags/<tag> 键、digest 引用→image/manifests/<hex> 节点，TTL 沿 missedRetrievalCachePeriodSecs）'
   error_behavior: []
   binflow_state:
-    verdict: DIVERGENT
+    verdict: SAME
     detail: >-
-      L004-2 双臂探针定谳（uat-l0042-c81119b7）：参照负缓存**双面生效**（M-a 1/3 上游、M-b 0/3；B1/B2 blob 面
-      双端 SAME——链外门控+链内负缓存均兑现）；BinFlow manifest 冷 miss 面 3/3、M-b 3/3 全回源——docker /v2
+      L004-2 双臂探针定谳（uat.l0042-c81119b7）：参照负缓存**双面生效**（M-a 1/3 上游；B1/B2 blob 面
+      双端 SAME——链外门控+链内负缓存均兑现）；BinFlow manifest 冷 miss 面 3/3 全回源——docker /v2
       链自 T-363（d2746341）诞生起 404 写恒带 standing 守卫，冷 miss 从不写行（git log -S 实证，无 commit 删除过）。
       历史弧全勘误：L000「BinFlow 40-70ms 本地负缓存」=本地上游 RTT 误读（同量级不可分）；L002-2「双端趋同/消失」
       =该观察不复现（贴齐条件重测参照 1/3 上游）。**ADR-0048（裁 B 保留负缓存）Errata 触发条件成立自作废——
-      C14 按对齐收：LOOP 005 实现票补 manifest 冷 miss 负缓存写入**（M-a/M-b 同一缺口；M-b 未知 image 名确定性
-      本地 404 面的分类归 conductor，见探针报告 §3.3）。
-    reverify_after: 'LOOP 005 实现票（冷 miss 负缓存写入）→ 本条目复验翻绿；ADR-0048 处置（作废声明）归 conductor/ADR 流程'
-  version: { artifactory_ref: 7.161.20, binflow_tested: uat.l0042-c81119b7 }
+      C14 按对齐收：LOOP 005 实现票补 manifest 冷 miss 负缓存写入**（M-a/M-b 同一缺口）。
+      L005-1 实现收官（uat.l0051-792c347c）：冷 miss 负缓存行写入 + 二问起本地应答（virtual 面 V2CacheMemberMiss
+      同臂写成员作用域行）。M-a 双端 1/3 回源同形（参照 HEAD / BinFlow GET）；missedTTL 60s 到期回源+行重写+再
+      冻结（sqlite 行直证：重写时刻=复问时刻、窗长恰 60s）；M-b 双端 1/3 同形（L004-2 参照 0/3 未复现——口径
+      修正存证，分类问句随同形消解）；真实 CLI 腿上游恰 1 往返（HEAD 落行、GET 本地应答，manifest-unknown
+      错误族）。ADR-0048 Errata 处置（作废声明）归 conductor/ADR 流程——翻 VERIFIED。
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat.l0051-792c347c }
   evidence:
     - { kind: probe, report: reports/compatibility/L000-docker-remote-evidence.md, anchor: 'E6-3/E3-4（已被 L004-2 证伪归档——RTT 误判机理在案）', date: '2026-09-10' }
     - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C14（原判依据证伪；L002-2 趋同观察亦不复现）', date: '2026-09-11' }
     - { kind: difftest, report: reports/compatibility/L004-negative-cache-probe.md, anchor: '§0 结论速览 + §1 代码定谳 + §2 双臂矩阵（M-a/M-b/B1/B2）+ §3 三选一裁定', date: '2026-09-11' }
+    - { kind: difftest, report: reports/compatibility/L005-c14-d1-diff.md, anchor: '§3 C14 两形态新证（M-a/M-b 双端 1/3 同形 + missedTTL 到期回源重写 sqlite 行直证 + 真实 CLI 腿）', date: '2026-09-12' }
   confidence: high
-  status: DIVERGENT
-  divergence_ref: known-divergence.yaml#docker/remote-manifest-404-negative-cache
+  status: VERIFIED
 # ── tags/list 与 _catalog ────────────────────────────────────────────────────
 - id: docker/remote-tags-list
   feature: 'tags/list 上游聚合（远端全量 tag，非缓存子集）'

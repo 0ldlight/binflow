@@ -89,6 +89,19 @@ entries:
     （复测翻转→ADR 自动作废、C14 按对齐收）已触发**——blob 臂 B1/B2 维持现状（门控+无条件负缓存+TTL 过期全过）。
   authority: { type: differential, ref: reports/compatibility/L004-negative-cache-probe.md }
   review_gate: LOOP 005 实现票（manifest 冷 miss 臂补负缓存写入——M-a/M-b 同一缺口；键法设计归 dev，参照 Path 形态可参考）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      reports/compatibility/L005-c14-d1-diff.md §3（L005-1 实现票修后重跑，uat.l0051-792c347c）：M-a tag miss
+      双端 1/3 回源同形（参照 try1 HEAD / BinFlow try1 GET，try2/3 本地）——L004-2 的 BinFlow 3/3 分歧关闭；
+      missedTTL 60s 到期回源 +1 + 行重写 + 再冻结（BinFlow sqlite 行直证：重写时刻=复问时刻、窗长恰 60s）；
+      M-b 未知 image 名双端 1/3 同形。authority 链：本报告 + L004-negative-cache-probe.md + ADR-0048 Errata。
+    note: >-
+      M-b 复现条件差存证：L004-2 的参照侧 0/3（未知名零回源、确定性本地）本轮未复现——干净专属仓与 _catalog
+      聚合后两态均为首问一次（HEAD）后窗口内本地，与 M-a 同形；「未知名不外问」强读法按第一手双证据废弃，
+      疑 L004-2 §2.1 M-b 子臂计数过滤或前置状态所致（同其 §1.3 自记误读类），登记供 conductor 复核。
+      真实 CLI 腿：docker CLI 拉缺失 tag 上游恰 1 往返（HEAD 落行、GET 本地应答），manifest-unknown 错误族渲染。
+      契约 docker/remote-manifest-404-no-negative-cache expect 已按「首问一次→窗口内本地→到期回源」重写并翻 VERIFIED。
   evidence: reports/compatibility/L004-negative-cache-probe.md（代码定谳+双臂矩阵+TTL 复核；原始观察 L000-docker-remote-evidence.md E6-3/E3-4 已被证伪归档）
 - id: docker/remote-tags-catalog-pagination
   surface: remote tags/list 与 _catalog 的分页参数（n/last/Link 头）
@@ -136,6 +149,14 @@ entries:
     真实 docker/containerd/oras 客户端均发 quoted etag（RFC 9110），实际客户端影响面低——矩阵口径可观察面分歧。
   authority: { type: differential, ref: "reports/compatibility/L004-304-ping-diff.md §2（SAME 15/DIVERGENT 3，STABLE×2）" }
   review_gate: LOOP 005 实现票（unquoted 按值匹配 + 任意 INM 在场封死日期臂）→ 契约 docker/remote-manifest-conditional-get 复验翻绿。**修复后必须重跑全 304-matrix：M6/M2b 现判 SAME 系经「丢弃→日期臂」路径的偶合，语义统一后可能翻面**（L004-304-ping-diff.md Risks ③/Next ①）；随票修 client_conditional.go:8-11/:95-96 与测试文件头三处以参照口吻陈述已证伪行为的注释（Review A N1）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      reports/compatibility/L005-c14-d1-diff.md §1/§2（L005-1 修后全矩阵重跑，uat.l0051-792c347c）：新窗口
+      304 矩阵 20/20 臂 SAME——D1 三臂 M2/M2c/M2d 全收敛（manifestClientNotModified 两读面统一按值不区分
+      引号匹配 + 任意 INM 在场封死日期臂）；review_gate 硬要求的全矩阵重跑通过，**M6/M2b 偶合未翻面**（M6 304
+      由「日期臂偶合」变为「按值匹配直判」、M2b 200 维持——可观察面不变）；blob B1-B6 复证 SAME；过期窗
+      6/6 客户端可见 SAME 无回归。契约 docker/remote-manifest-conditional-get 翻 VERIFIED。
   evidence: reports/compatibility/L004-304-ping-diff.md §2
 - id: docker/remote-v2-ping-revoked-arm-unreachable
   surface: 'docker /v2/ ping revoked bearer 第四臂消息（"Token failed verification: revoked"，L004-1 P4b）'

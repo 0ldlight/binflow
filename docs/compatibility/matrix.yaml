@@ -5,6 +5,11 @@
 # 四新列说明：contract_ref/golden_ref → docs/compatibility/{contracts,golden}/（现为空=全覆盖缺口，见 summary）；
 #   last_difftest → 差分报告引用（differential-qa-engineer 回填）；priority_class → LOOP 宪章 §23（见 priority_policy）。
 # 行态口径沿源：compatible=✅ partial=◐ absent=❌ not_applicable=⛔ superset=超集(C)。
+# L005-3（LOOP 005，2026-09-12）增量三件：① +6 新行 D01-R38..R43（storage-admin E5-E10——冻结行集外新行提案落账，
+#   提案源 contracts/storage-admin.yaml 收尾「新行提案」节，conductor 派票授权）；② D01-R30 幽灵行重分类
+#   absent→not_applicable（ghost-row 勘误，行内 note 留痕）；③ summary 非空计数勘正（L004-3 加链 3 行漏记 1→4）。
+#   冻结纪律维持：195 冻结行集不增删不改判（R30 翻态系 conductor 勘误裁定非改判；D01-R40 系本程新行，
+#   依 L005-2 复验收官证据翻 partial→compatible，非冻结行）。
 
 ---
 schema: 1
@@ -45,24 +50,24 @@ priority_policy:
   - D07/D08 缺位行（build-info/release-bundle）→P1（major enterprise 链，FR-152/153 在途）
   default: P1
 summary:
-  total_rows: 193
+  total_rows: 199
   state_counts:
-    compatible: 59
+    compatible: 65
     partial: 27
-    absent: 79
-    not_applicable: 17
+    absent: 78
+    not_applicable: 18
     superset: 11
   confidence_counts:
-    high: 127
-    medium: 66
+    high: 130
+    medium: 69
     low: 0
   priority_counts:
-    P0: 53
+    P0: 59
     P1: 62
     P2: 78
   by_state_x_priority:
     compatible:
-      P0: 43
+      P0: 49
       P1: 15
       P2: 1
     partial:
@@ -71,19 +76,19 @@ summary:
       P2: 5
     absent:
       P1: 35
-      P2: 44
+      P2: 43
     superset:
       P2: 11
     not_applicable:
-      P2: 17
+      P2: 18
   by_domain:
     D01:
-      rows: 37
-      compatible: 15
+      rows: 43
+      compatible: 21
       partial: 6
-      absent: 11
+      absent: 10
       superset: 2
-      not_applicable: 3
+      not_applicable: 4
     D02:
       rows: 13
       partial: 3
@@ -146,9 +151,9 @@ summary:
     D14:
       rows: 1
       not_applicable: 1
-  contract_ref_non_null: 1   # L001-2：D12-R01（docker-remote 契约 21 条目）
-  golden_ref_non_null: 1     # L001-2：D12-R01（empty-blob-synthetic / pull-sequence，derived-from-report medium）
-  last_difftest_non_null: 1  # L001-2：D12-R01（L000 批次，SAME 6 / DIVERGENT 12 / skipped 1）
+  contract_ref_non_null: 10  # L005-3：D12-R01 + D01-R26/R27/R30（L004-3 加链 3 行原计数漏记，一并勘正）+ 新增 D01-R38..R43 六行
+  golden_ref_non_null: 1     # D12-R01（empty-blob-synthetic / pull-sequence）——storage-admin 十端点无金样，形态断言锚 L003 差分报告
+  last_difftest_non_null: 10 # L005-3：D12-R01（L000/L004 批次）+ D01-R26/R27/R30 + 新增六行（L003-storage-admin-diff E1-E10 批次）
 rows:
 - row_id: D01-R01
   domain: D01
@@ -483,8 +488,8 @@ rows:
   note: 源 P3→P2
 - row_id: D01-R30
   domain: D01
-  capability: POST /api/system/storage/compact（在线压缩）
-  state: absent
+  capability: POST /api/system/storage/compact（在线压缩——ghost row，参照面不存在）
+  state: not_applicable
   confidence: medium
   contract_ref: contracts/storage-admin.yaml
   golden_ref:
@@ -492,10 +497,11 @@ rows:
   priority_class: P2
   layer: A
   source_row: "§2 行 30"
-  note: 'L004-3（2026-09-11）勘误补链（行态不翻——本行无独立差分判定）：规格澄清（docs/reverse/storage/prune-gc-admin.md §1）
-    Artifactory **不存在** POST /api/system/storage/compact——老版 Derby compact 已并入 POST /compress（E5）；
-    本行系冻结行集幽灵能力，建议 conductor 裁 absent→not_applicable 重分类。在线压缩现行为 E5 compress
-    （contracts/storage-admin.yaml storage-admin/compress，BinFlow 载体 sqlite VACUUM，L003-1 判 FORM-SAME）。'
+  note: 'L004-3（2026-09-11）勘误补链 + L005-3（2026-09-12）重分类 absent→not_applicable（ghost-row 勘误，
+    conductor L005-3 裁定）：M3-1 迁移期冻结行集幽灵能力——规格澄清（docs/reverse/storage/prune-gc-admin.md §1）
+    Artifactory **不存在** POST /api/system/storage/compact（老版 Derby compact 已并入 POST /compress=E5）。
+    参照面不存在 → 无对齐工作 pending，按 ⛔ 口径落位（勘误裁定非改判——冻结行集 v1 审计锚 frozen_rowset_v1
+    保留原值不动）。在线压缩现行面=E5 compress（D01-R38，L003-1 判 FORM-SAME）。'
 - row_id: D01-R31
   domain: D01
   capability: GET /api/system/metrics + Open Metrics 面
@@ -578,6 +584,88 @@ rows:
   layer: D
   source_row: "§2 脚注"
   note: 同 D01-R35
+- row_id: D01-R38
+  domain: D01
+  capability: POST /api/system/storage/compress（内部库压缩流——E5）
+  state: compatible
+  confidence: medium
+  contract_ref: "contracts/storage-admin.yaml#storage-admin/compress"
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E5（FORM-SAME：码 200 + text/plain;charset=utf-8 流双端；Derby/sqlite 载体差异登记不判；V-1 参照 PostgreSQL 臂无活体）
+  priority_class: P0
+  layer: A
+  source_row: "新行入账（L005-3）——冻结行集无行；提案源 contracts/storage-admin.yaml 收尾「新行提案」"
+  note: 'L005-3（2026-09-12）入账：E5 判 FORM-SAME——客户端可见面（200 钉码 + CT + 流式形态）双端一致，
+    后端载体差异（Derby compact / BinFlow sqlite VACUUM）不涉可见面 → compatible。confidence 沿契约 medium
+    （参照 200 臂反编译单源，V-1 挂账）。priority 按 priority_policy 规则 2（D01 ✅ 面机械归类）。'
+- row_id: D01-R39
+  domain: D01
+  capability: POST /api/system/storage/optimize（sharding 均衡手动触发——E6）
+  state: compatible
+  confidence: high
+  contract_ref: "contracts/storage-admin.yaml#storage-admin/optimize"
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E6（SAME：202 空体无 CT 逐字对齐；单 provider no-op 语义差异登记不判）
+  priority_class: P0
+  layer: A
+  source_row: "新行入账（L005-3）——冻结行集无行；提案源 contracts/storage-admin.yaml 收尾「新行提案」"
+  note: 'L005-3（2026-09-12）入账：E6 判 SAME——202/CT 缺位/0 字节逐字对齐；BinFlow 无 sharding → 触发即
+    诚实 no-op（语义差异登记在案，无客户端可见分歧）。'
+- row_id: D01-R40
+  domain: D01
+  capability: POST /api/system/storage/backup?key=（备份立即调度——E7）
+  state: compatible
+  confidence: medium
+  contract_ref: "contracts/storage-admin.yaml#storage-admin/backup"
+  golden_ref:
+  last_difftest: 'L005-2 装配实例复验收官（2026-09-12，conductor 指令摘要——证据链=agent 日志与 UAT/参照 :8082 实测记录）：成功臂双端活体 200 + text/plain;charset=utf-8 + schedule-and-return + detached + 产物双端在；前置 reports/compatibility/L003-storage-admin-diff.md E7（错误臂 SAME：缺 key 500 信封逐字 + disabled 500）'
+  priority_class: P0
+  layer: A
+  source_row: "新行入账（L005-3）——冻结行集无行；提案源 contracts/storage-admin.yaml 收尾「新行提案」"
+  note: 'L005-3（2026-09-12）入账判 partial；同日 L005-2 收官联动翻 compatible——note 翻态条件已满足（装配实例
+    复验：成功臂双端活体坐实，契约同翻 VERIFIED）。字面差（参照「Activating…BackupJob#<uuid>」vs BinFlow
+    「scheduled」/TE）语义同构——契约内登记不判分歧、不入 known-divergence 台账（裁量理由见 L005-3 回报）；
+    V-2 信封族双实例实证收束。confidence 维持 medium（disabled 臂参照 A 单源）。与 D06-R17（备份配置 CRUD 族
+    /api/system/backup/{key}）为不同端点面。'
+- row_id: D01-R41
+  domain: D01
+  capability: GET /api/system/storage/size（filestore 字节总数——E8）
+  state: compatible
+  confidence: high
+  contract_ref: "contracts/storage-admin.yaml#storage-admin/size"
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E8（SAME：200 text/plain 裸数字双端——参照只读复测 + BinFlow 实测随真实删除变化）
+  priority_class: P0
+  layer: A
+  source_row: "新行入账（L005-3）——冻结行集无行；提案源 contracts/storage-admin.yaml 收尾「新行提案」"
+  note: 'L005-3（2026-09-12）入账：E8 判 SAME——text/plain 裸数字形态双端活体。'
+- row_id: D01-R42
+  domain: D01
+  capability: GET /api/system/storage/info（binary provider 树投影——E9）
+  state: compatible
+  confidence: high
+  contract_ref: "contracts/storage-admin.yaml#storage-admin/info"
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E9（SAME：text/plain + 11 字段全字符串化/type=file-system/statfs 恒等式；映射值差异=诚实值非翻译）
+  priority_class: P0
+  layer: A
+  source_row: "新行入账（L005-3）——冻结行集无行；提案源 contracts/storage-admin.yaml 收尾「新行提案」"
+  note: 'L005-3（2026-09-12）入账：E9 判 SAME——键集/顺序/类型/百分比对齐（uploads/_pre、blobs/filestore 为
+    各自真实布局，登记不判分歧）。'
+- row_id: D01-R43
+  domain: D01
+  capability: POST /api/system/storage/exportds（@Deprecated 恒败面——E10）
+  state: compatible
+  confidence: medium
+  contract_ref: "contracts/storage-admin.yaml#storage-admin/exportds"
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E10（SAME 形态：恒 500 同文案双端一致「Export data is no longer supported」+ 重复调用恒定；信封形状参照无活体——A 单源中置信）
+  priority_class: P0
+  layer: A
+  source_row: "新行入账（L005-3）——冻结行集无行；提案源 contracts/storage-admin.yaml 收尾「新行提案」"
+  note: 'L005-3（2026-09-12）入账：恒败端点双端一致（500+同文案+可重复实测）→ compatible；信封形状（errors
+    JSON vs 参照渲染路径未捕获）待参照臂活体，confidence 沿契约 medium。BinFlow export 真身在 CLI（ADR-0015），
+    REST 面按参照恒败。'
 - row_id: D02-R01
   domain: D02
   capability: GET /api/repositories?type=&packageType=&project=
@@ -2131,7 +2219,7 @@ rows:
   confidence: high
   contract_ref: contracts/docker-remote.yaml
   golden_ref: golden/docker-remote/{empty-blob-synthetic,pull-sequence}
-  last_difftest: reports/compatibility/L004-304-ping-diff.md（L004-1 双端活体：新窗口 304 矩阵 18 臂 SAME 15/DIVERGENT 3 + 过期窗 4 臂客户端可见全 SAME + ping 四臂消息矩阵；E3-2 勘误在案）；前置 L003-remote-face-diff.md（L003-2）+ L002-contract-replay 21/21 + L000 系列 L000-F/L001-1 复验
+  last_difftest: reports/compatibility/L005-c14-d1-diff.md（L005-1 修后重跑：新窗口 304 矩阵 20/20 臂 SAME + 过期窗 6/6 客户端可见 SAME + C14 M-a/M-b 双形态双端 1/3 同形 + missedTTL 到期回源重写 sqlite 行直证）；前置 L004-304-ping-diff.md（L004-1）+ L003-remote-face-diff.md（L003-2）+ L002-contract-replay 21/21 + L000 系列 L000-F/L001-1 复验
   priority_class: P1
   layer: A
   source_row: "§11.1 行 1"
@@ -2142,7 +2230,13 @@ rows:
     条目 2 ping 泛化四臂（P1-P3 分型清偿、P4b revoked 翻 DIVERGENT 挂 D2 模型级）、新立 blob-conditional-get +
     manifest-revalidation-serve 双 VERIFIED（§8-C 透传活体直证）——契约现 25 条目 VERIFIED 20 / DIVERGENT 5
     （token TTL/匿名姿态待裁 + D1/D14 负缓存补写待实现票 + D2 revoked 待产品裁）；D20/D21 均已闭（L004-2
-    C14 定谳见 known-divergence#docker/remote-manifest-404-negative-cache）
+    C14 定谳见 known-divergence#docker/remote-manifest-404-negative-cache）。
+    L005-1（2026-09-12）修后重跑收官（uat.l0051-792c347c）：manifest-conditional-get（D1）与
+    manifest-404-no-negative-cache（C14）双 DIVERGENT 翻 VERIFIED——304 矩阵 20/20 臂 SAME（M2/M2c/M2d 收敛、
+    M6/M2b 偶合未翻面）+ C14 M-a/M-b 双端 1/3 同形 + missedTTL 到期回源重写再冻结；#16 expect 重写为
+    「首问一次→窗口内本地→到期回源」（M-b「未知名零回源」强读法按 L005-1 双端反证废弃，复现条件差注记在
+    known-divergence resolved note）；D1/C14 台账条目 resolved。契约现 25 条目 VERIFIED 22 / DIVERGENT 3
+    （token TTL/匿名姿态两族 + D2 revoked 待产品裁）。
 - row_id: D12-R02
   domain: D12
   capability: Docker API 面（/api/docker/{repoKey} promote/listTag/UI 面族）
