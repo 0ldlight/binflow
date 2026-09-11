@@ -158,6 +158,23 @@ func v2WireBlobPath(image, hex string) string {
 	return "/v2/" + image + "/blobs/" + digestPrefixHex(hex)
 }
 
+// manifestMissNodePath is the negative-cache key of one manifest
+// reference's cold miss (C14, the L004-2 verdict): a digest request keys
+// the digest-keyed manifest node path (the standing arm's own key — the
+// miss record and a later landed copy address the same path), and a tag
+// request keys a row under the image's tags/ namespace — a TAG has no
+// landed copy to key, and this namespace cannot collide with the
+// digest-keyed node layout (nodes live under manifests/<hex> and
+// blobs/<hex> only; the tags/list ROUTE is a wire path, never a cache-row
+// key). Both spellings stay legal node paths by construction (the image
+// and tag characters were validated at the edge).
+func manifestMissNodePath(image, reference string, isDigestRef bool, wantHex string) string {
+	if isDigestRef {
+		return manifestNodePath(image, wantHex)
+	}
+	return image + "/tags/" + reference
+}
+
 // upstreamAnswer is one classified upstream outcome shared by the two
 // fetch arms: the status line plus, on the buffered (manifest) arm only,
 // the body.
@@ -983,7 +1000,21 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 		}
 		standing = &remoteStanding{node: probe.Node, mediaType: mediaType, dgst: dgst, size: size}
 	case isMissError(rerr):
-		// No local rows: the upstream conversation decides.
+		// No local rows: the cold-miss negative memory decides first (C14,
+		// the L004-2 verdict — the reference answers repeated misses locally
+		// inside missedRetrievalCachePeriodSecs): a fresh miss record for
+		// THIS reference was written by an earlier upstream 404 and answers
+		// the unfound family with zero upstream contact until it expires.
+		missProbe, mperr := plane.ProbeRemoteCache(ctx, p, ref.repoKey, manifestMissNodePath(ref.image, reference, isDigestRef, wantHex))
+		if mperr != nil {
+			h.writeManifestReadError(w, r, mperr, ref, reference)
+			return
+		}
+		if missProbe.State == repo.RemoteProbeNegative {
+			unfound.write(w, "")
+			return
+		}
+		// The upstream conversation decides.
 	default:
 		h.writeManifestReadError(w, r, rerr, ref, reference)
 		return
@@ -1041,6 +1072,12 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 				remote.CacheStale, "upstream 404 (expired copy served)")
 			return
 		}
+		// The cold miss records the reference-keyed miss row (C14): the
+		// next ask of the same tag/digest answers locally inside the
+		// missedTTL window, then re-asks the upstream — the standing arm's
+		// digest-keyed write above is the same memory for a copy that
+		// expired between asks.
+		_ = plane.CacheRemoteMiss(ctx, p, ref.repoKey, manifestMissNodePath(ref.image, reference, isDigestRef, wantHex)) //nolint:errcheck // best-effort bookkeeping; the serve stands
 		unfound.write(w, "")
 	case http.StatusUnauthorized, http.StatusForbidden:
 		// Credentials refused upstream: unfound with the summary (the
@@ -1226,7 +1263,7 @@ func (h *Handler) serveRemoteManifestCopy(w http.ResponseWriter, r *http.Request
 	// no validators, no body. Every non-HIT serve (the revalidation, stale
 	// and just-fetched arms) answers 200 full without evaluating the
 	// client's conditionals, the live reference's own revalidation posture.
-	if cacheState == remote.CacheHit && manifestClientNotModified(r, etag, nodeLastModified(node)) {
+	if cacheState == remote.CacheHit && clientConditionalNotModified(r, etag, nodeLastModified(node)) {
 		hdr := w.Header()
 		writeAPIVersionHdr(hdr)
 		hdr.Set(remote.HdrCacheState, remote.CacheHit)
@@ -1446,7 +1483,7 @@ func (h *Handler) serveRemoteBlobCopy(w http.ResponseWriter, r *http.Request, fa
 	// the manifest face's bare 304 is NOT this face's shape), the token
 	// comparison quote-insensitive, any If-None-Match blocking the date
 	// arm, HEAD never conditional. No Content-Length: a 304 has no body.
-	if blobClientNotModified(r, blob.Sha1, lm) {
+	if clientConditionalNotModified(r, blob.Sha1, lm) {
 		hdr := w.Header()
 		writeAPIVersionHdr(hdr)
 		if cacheState != "" {

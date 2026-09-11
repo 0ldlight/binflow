@@ -2,55 +2,42 @@ package docker
 
 // The remote read face's CLIENT-side conditional semantics (L004-1, live
 // reference :8082 Artifactory-pro 7.161.20 — the overturn of L000-B E3-2's
-// "If-None-Match 恒不被消费"): a GET against a VALID cached copy answers
-// 304 when the client's validator matches, and the two faces evaluate
-// preconditions differently — the manifest face parses If-None-Match as an
-// entity-tag list (a tag must be QUOTED, W/ tolerated, compared on the
-// inner value; an unquoted or `*` spelling parses to zero tags and is
-// DROPPED, falling through to If-Modified-Since; a present non-matching
-// list answers 200 with the date precondition ignored) and answers a BARE
-// 304 (the api-version header alone); the blob face compares tokens
-// quote-insensitively (an unquoted etag matches), a present If-None-Match
-// of any spelling blocks If-Modified-Since entirely, and the 304 keeps the
-// FULL artifact face. HEAD never answers 304 on either face, and the
-// expired-window revalidation serves never evaluate client conditionals
-// (they answer 200 full — the copy the client holds was just reconfirmed
-// upstream, a different arm than the fresh-window conditional).
+// "If-None-Match 恒不被消费"; the D1 verdict of LOOP 005, authority
+// reports/compatibility/L004-304-ping-diff.md §2): a GET against a VALID
+// cached copy answers 304 when the client's validator matches, and the two
+// read faces evaluate preconditions IDENTICALLY — the If-None-Match
+// comparison is by VALUE, quote- and weak-prefix-insensitive (the unquoted
+// sha1 spelling matches, the M2/M2d arms), and ANY present If-None-Match —
+// matching or not, quoted or not — seals the If-Modified-Since arm (the
+// M4b/M2b/M2c arms). Only the 304 RESPONSE shapes differ: the manifest face
+// answers a BARE 304 (the api-version header alone), the blob face a 304
+// carrying the FULL artifact face. HEAD never answers 304 on either face,
+// and the expired-window revalidation serves never evaluate client
+// conditionals (they answer 200 full — the copy the client holds was just
+// reconfirmed upstream, a different arm than the fresh-window conditional).
+//
+// D1 history: the first cut parsed the manifest face's If-None-Match as a
+// QUOTED-tag-only list and dropped unquoted spellings onto the date arm —
+// live-falsified (M2/M2c/M2d were the three DIVERGENT arms of the 18-arm
+// matrix; real docker/containerd/oras clients send quoted etags, so the
+// impact was matrix-observable rather than client-felt). The verdict and
+// the overturning capture live in reports/compatibility/L004-304-ping-diff.md
+// §1/§2/§5.1 (divergence D1); this file implements it.
 
 import (
 	"net/http"
 	"strings"
 )
 
-// manifestClientNotModified evaluates the manifest face's GET
-// preconditions against the copy about to be served: etag is the face's
-// served validator (the unquoted sha1; "" when the ledger has no row —
-// then only the date arm can answer), lastModified its Last-Modified
-// spelling. See the file comment for the reference matrix this implements.
-func manifestClientNotModified(r *http.Request, etag, lastModified string) bool {
-	if r.Method != http.MethodGet {
-		return false
-	}
-	if inm := r.Header.Get("If-None-Match"); inm != "" {
-		if tags := quotedEntityTags(inm); len(tags) > 0 {
-			for _, tag := range tags {
-				if tag == etag {
-					return true
-				}
-			}
-			return false // a present non-matching list: the date arm is ignored
-		}
-		// Zero parseable tags (the unquoted/`*` spellings): dropped, and the
-		// date arm decides.
-	}
-	return notModifiedSince(r.Header.Get("If-Modified-Since"), lastModified)
-}
-
-// blobClientNotModified evaluates the blob face's GET preconditions: the
-// token comparison is quote-INSENSITIVE (the live capture's unquoted sha1
-// answers 304, unlike the manifest face), and any present If-None-Match —
-// matching or not, quoted or not — blocks If-Modified-Since entirely.
-func blobClientNotModified(r *http.Request, etag, lastModified string) bool {
+// clientConditionalNotModified evaluates the GET preconditions both read
+// faces share (the D1 verdict: the faces differ only in their 304 response
+// shape, not in evaluation): etag is the face's served validator (the
+// unquoted sha1; "" when the ledger has no row — then only the date arm
+// can answer), lastModified its Last-Modified spelling. A present
+// If-None-Match compares token-by-token on the inner value (quotes and the
+// W/ prefix stripped — the unquoted spelling matches), and — matching or
+// not — blocks the If-Modified-Since arm entirely.
+func clientConditionalNotModified(r *http.Request, etag, lastModified string) bool {
 	if r.Method != http.MethodGet {
 		return false
 	}
@@ -66,7 +53,7 @@ func blobClientNotModified(r *http.Request, etag, lastModified string) bool {
 				return true
 			}
 		}
-		return false
+		return false // a present non-matching list: the date arm is sealed
 	}
 	return notModifiedSince(r.Header.Get("If-Modified-Since"), lastModified)
 }
@@ -87,20 +74,4 @@ func notModifiedSince(ims, lastModified string) bool {
 		return false
 	}
 	return !lm.After(t)
-}
-
-// quotedEntityTags parses an If-None-Match value into its QUOTED
-// entity-tag inner values (W/ prefix tolerated, weak comparison): a token
-// without surrounding quotes is not an entity-tag and parses to nothing —
-// the live reference drops it rather than failing the precondition.
-func quotedEntityTags(inm string) []string {
-	var tags []string
-	for _, tok := range strings.Split(inm, ",") {
-		v := strings.TrimSpace(tok)
-		v = strings.TrimPrefix(v, "W/")
-		if len(v) >= 2 && strings.HasPrefix(v, `"`) && strings.HasSuffix(v, `"`) {
-			tags = append(tags, strings.Trim(v, `"`))
-		}
-	}
-	return tags
 }

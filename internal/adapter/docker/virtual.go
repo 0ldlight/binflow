@@ -272,6 +272,12 @@ func (h *Handler) serveVirtualRemoteManifest(w http.ResponseWriter, r *http.Requ
 				remote.CacheStale, "upstream 404 (expired copy served)")
 			return virtualMemberServed, ""
 		}
+		// The cold miss records the reference-keyed miss row in the MEMBER's
+		// cache (C14 — the member's own direct face probes it; the walk's
+		// member-facts seam does not re-probe tag-keyed rows on a cold miss
+		// yet, so the walk itself keeps asking the member's upstream until
+		// the seam learns the key).
+		_ = plane.V2CacheMemberMiss(ctx, p, ref.repoKey, member, manifestMissNodePath(ref.image, reference, isDigestRef, wantHex)) //nolint:errcheck // best-effort bookkeeping; the serve stands
 		return virtualMemberUnfound, fmt.Sprintf("upstream answered 404 %s", fetched.statusT)
 	case http.StatusUnauthorized, http.StatusForbidden:
 		// Credentials refused upstream (the engine's 401/403 posture — no

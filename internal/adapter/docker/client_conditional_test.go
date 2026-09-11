@@ -1,17 +1,25 @@
 package docker
 
-// L004-1 (live reference :8082, Artifactory-pro 7.161.20 — the overturn of
-// L000-B E3-2's "If-None-Match 恒不被消费"): the remote read face's CLIENT
-// conditional matrix. A GET against a valid cached copy answers 304 when
-// the client's validator matches, with the two faces evaluating
-// preconditions differently — the manifest face parses quoted entity-tags
-// (unquoted/`*` dropped, falling to the date arm; a present non-matching
-// list blocks it) and answers a BARE 304; the blob face compares tokens
-// quote-insensitively, blocks the date arm on any present If-None-Match,
-// and answers a 304 carrying the FULL artifact face. HEAD is never
-// conditional on either face, and the upstream-revalidation arm (an
+// L004-1 + LOOP 005 D1 (live reference :8082, Artifactory-pro 7.161.20 —
+// the overturn of L000-B E3-2's "If-None-Match 恒不被消费"; the D1 verdict
+// reports/compatibility/L004-304-ping-diff.md §2): the remote read face's
+// CLIENT conditional matrix. A GET against a valid cached copy answers 304
+// when the client's validator matches, and the two faces evaluate
+// preconditions IDENTICALLY — the If-None-Match comparison is by VALUE,
+// quote- and weak-prefix-insensitive (the unquoted sha1 matches), and any
+// present If-None-Match — matching or not — seals the If-Modified-Since
+// arm; only the 304 RESPONSE shapes differ (the manifest face answers a
+// BARE 304, the blob face one carrying the FULL artifact face). HEAD is
+// never conditional on either face, and the upstream-revalidation arm (an
 // upstream 304 on the expired tag path) slides the window and serves 200
 // full with the REVALIDATED marker instead.
+//
+// D1 history: the first implementation parsed the manifest face's
+// If-None-Match as a quoted-tag-only list and DROPPED unquoted spellings
+// onto the date arm — live-falsified by the M2/M2c/M2d arms of the
+// 18-arm matrix (the reference matches unquoted values and seals the date
+// arm on ANY present If-None-Match); the falsified expectations were
+// corrected with the fix in the same change.
 
 import (
 	"context"
@@ -50,17 +58,19 @@ func TestClientConditionalManifestMatrix(t *testing.T) {
 	}{
 		{"quoted etag matches", map[string]string{"If-None-Match": `"` + etag + `"`}, http.StatusNotModified},
 		{"weak quoted etag matches", map[string]string{"If-None-Match": `W/"` + etag + `"`}, http.StatusNotModified},
-		{"unquoted etag is dropped, no date arm", map[string]string{"If-None-Match": etag}, http.StatusOK},
-		{"star is dropped (not a quoted tag)", map[string]string{"If-None-Match": "*"}, http.StatusOK},
+		{"unquoted etag matches by value (D1: M2/M2d)", map[string]string{"If-None-Match": etag}, http.StatusNotModified},
+		{"star does not match and seals the date arm", map[string]string{"If-None-Match": "*"}, http.StatusOK},
 		{"quoted digest-form etag does not match", map[string]string{"If-None-Match": `"sha256:` + sha256Hex(manifest) + `"`}, http.StatusOK},
 		{"quoted mismatch blocks the matching date arm", map[string]string{
 			"If-None-Match": `"deadbeef"`, "If-Modified-Since": lm}, http.StatusOK},
+		{"unquoted mismatch also seals the date arm (D1: M2c)", map[string]string{
+			"If-None-Match": "deadbeef", "If-Modified-Since": lm}, http.StatusOK},
 		{"date arm matches Last-Modified", map[string]string{"If-Modified-Since": lm}, http.StatusNotModified},
 		{"date arm older than Last-Modified", map[string]string{
 			"If-Modified-Since": "Thu, 01 Jan 2020 00:00:00 GMT"}, http.StatusOK},
 		{"future date trivially matches", map[string]string{
 			"If-Modified-Since": "Fri, 11 Sep 2027 04:25:03 GMT"}, http.StatusNotModified},
-		{"unquoted etag dropped, date arm decides", map[string]string{
+		{"unquoted etag match with the date arm riding along (D1: M6)", map[string]string{
 			"If-None-Match": etag, "If-Modified-Since": lm}, http.StatusNotModified},
 		{"no preconditions", nil, http.StatusOK},
 	}
@@ -103,9 +113,10 @@ func TestClientConditionalManifestMatrix(t *testing.T) {
 }
 
 // TestClientConditionalBlobMatrix: the blob face's precondition table —
-// quote-INSENSITIVE token comparison (the unquoted sha1 matches, unlike
-// the manifest face), any present If-None-Match blocking the date arm,
-// and the 304 keeping the FULL artifact face.
+// the same by-value, quote-insensitive token comparison the manifest face
+// runs post-D1 (the faces differ only in the 304 response shape), any
+// present If-None-Match blocking the date arm, and the 304 keeping the
+// FULL artifact face.
 func TestClientConditionalBlobMatrix(t *testing.T) {
 	down, _, _, manifest, cfg, _ := newDockerRemoteFixture(t)
 	// Pull the manifest first: the chain gate (ADR-0047) admits an uncached
