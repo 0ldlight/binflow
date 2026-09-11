@@ -372,7 +372,10 @@ func TestV2TokenRevocation(t *testing.T) {
 	}
 	after := h.do(http.MethodGet, "/v2/", "", "", nil,
 		map[string]string{"Authorization": "Bearer " + tok.Token})
-	assertPingRefusedFace(t, after, mustGet(t, after))
+	// L004-1: revocation deletes the row, so the revoked Bearer answers the
+	// unknown wording (the reference's "revoked" wording is the registered
+	// model-level divergence).
+	assertPingRefusedFace(t, after, mustGet(t, after), "Props Authentication Token not found")
 }
 
 // TestV2ScopedChallengeMatrix (AC2, table-driven): the 401 challenge on a

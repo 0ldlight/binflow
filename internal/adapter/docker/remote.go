@@ -177,14 +177,23 @@ var errUpstreamAuth = errors.New("upstream refused the negotiated credential")
 // answers 401 with a Bearer challenge, the token exchange and exactly one
 // retry. accept is the CLIENT's Accept set, forwarded verbatim (upstream
 // content negotiation is the registry's business; BinFlow never converts).
+// ifNoneMatch is the REVALIDATION arm's upstream validator (remote-cache-v2
+// §5.3): non-empty only on the expired tag path, it rides the hop as
+// If-None-Match — the digest-etag spelling `sha256:<hex>` is what
+// distribution-family registries serve as the manifest ETag, so an
+// unchanged tag answers 304 upstream and the caller slides the window
+// instead of re-transferring the body.
 // The manifest body is the buffered class — the local plane's 4MB ceiling
 // applies to proxied ones too.
-func (e *remoteSessionEntry) fetchManifest(ctx context.Context, image, ref string, accept []string) (*upstreamAnswer, error) {
+func (e *remoteSessionEntry) fetchManifest(ctx context.Context, image, ref string, accept []string, ifNoneMatch string) (*upstreamAnswer, error) {
 	wire := v2WireManifestPath(image, ref)
 	scope := "repository:" + image + ":pull"
 	hdr := http.Header{}
 	for _, v := range accept {
 		hdr.Add("Accept", v)
+	}
+	if ifNoneMatch != "" {
+		hdr.Set("If-None-Match", ifNoneMatch)
 	}
 	res, usedToken, err := e.attempt(ctx, e.buffered, wire, scope, hdr)
 	if err != nil {
@@ -204,6 +213,53 @@ func (e *remoteSessionEntry) fetchManifest(ctx context.Context, image, ref strin
 		_ = usedToken // the retry below drops the cache entry itself
 		return e.attemptWithToken(ctx, e.buffered, wire, token, hdr)
 	})
+}
+
+// revalidationValidator is the tag-path revalidation arm's upstream
+// If-None-Match value off one standing copy: the quoted digest etag, or ""
+// when the arm does not apply (no standing copy, or a digest-addressed
+// request — digest content is immutable and its expired refetch stays
+// unconditional, ADR-0012 decision 1's resolution-window reading).
+func revalidationValidator(standing *remoteStanding, isDigestRef bool) string {
+	if standing == nil || standing.node == nil || standing.dgst == "" || isDigestRef {
+		return ""
+	}
+	return `"` + digestPrefix + standing.dgst + `"`
+}
+
+// serveRevalidatedManifest is the upstream-304 arm both manifest planes
+// share (remote-cache-v2 §5.3, the docker-face client half the engine leg
+// already signals as CacheRevalidated): the upstream confirmed the expired
+// copy still stands, so the retrieval window slides — the standing body is
+// re-landed through the arm's own sink, the one adapter-reachable TTL
+// write (LandRemoteBlob refreshes the remote_cache row's clock; same
+// digest, so the landing is the idempotent overwrite the direct 200 path
+// performs) — and the copy serves 200 full with the REVALIDATED marker.
+// Client conditionals are NOT evaluated on this arm: the live reference's
+// revalidation serve answers 200 full regardless of the client's
+// validators (L004-1 evidence), the E3-3 decompile's unconditional
+// notModifiedResponse being a path the live flow's HEAD-first
+// revalidation never reaches against a distribution upstream.
+func (h *Handler) serveRevalidatedManifest(w http.ResponseWriter, r *http.Request, ref nameRef, standing *remoteStanding, reland func(mediaType string, body io.Reader) error, serve manifestCopyServer) {
+	mediaType := standing.mediaType
+	if mediaType == "" {
+		mediaType = standing.node.Mime
+	}
+	if rc, oerr := h.openRemoteBlob(r.Context(), standing.node); oerr == nil {
+		func() {
+			defer rc.Close() //nolint:errcheck // read-only fd
+			if lerr := reland(mediaType, rc); lerr != nil {
+				// The serve stands on the confirmed copy; only the window
+				// slide was lost (the next request revalidates again).
+				h.log.WarnContext(r.Context(), "docker remote: revalidation window slide failed (serving the confirmed copy)",
+					"repo", ref.repoKey, "image", ref.image, "digest", standing.dgst, "error", lerr.Error())
+			}
+		}()
+	} else {
+		h.log.WarnContext(r.Context(), "docker remote: revalidation window slide could not open the standing copy",
+			"repo", ref.repoKey, "image", ref.image, "digest", standing.dgst, "error", oerr.Error())
+	}
+	serve(w, r, standing.node, mediaType, standing.dgst, standing.size, remote.CacheRevalidated, "")
 }
 
 // fetchBlobStream performs the blob conversation: one streaming attempt
@@ -897,7 +953,7 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 
 	ctx := r.Context()
 	p := principalOf(r)
-	face := h.manifestFace(ctx, p, ref, reference)
+	face := h.manifestFace(ref, reference)
 	plane := h.remotePlane()
 	if plane == nil {
 		h.log.ErrorContext(ctx, "docker: remote manifest without the v2 plane seam", "repo", ref.repoKey)
@@ -938,7 +994,8 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 		h.writeRemoteServeError(w, r, serr, ref)
 		return
 	}
-	fetched, ferr := entry.fetchManifest(ctx, ref.image, reference, r.Header.Values("Accept"))
+	fetched, ferr := entry.fetchManifest(ctx, ref.image, reference, r.Header.Values("Accept"),
+		revalidationValidator(standing, isDigestRef))
 	if ferr != nil {
 		var serveStale func(string)
 		if standing != nil && standing.node != nil {
@@ -960,6 +1017,21 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 	case http.StatusOK:
 		h.landRemoteManifest(w, r, ref, reference, isDigestRef, wantHex, fetched, face)
 		return
+	case http.StatusNotModified:
+		// The revalidation arm's answer (§5.3): upstream confirmed the
+		// standing copy — slide the window, serve it REVALIDATED. An
+		// unsolicited 304 (no standing copy was offered a validator) is the
+		// anomaly family below it.
+		if standing != nil && standing.node != nil {
+			h.serveRevalidatedManifest(w, r, ref, standing, func(mediaType string, body io.Reader) error {
+				_, lerr := plane.LandRemoteBlob(ctx, p, ref.repoKey, manifestNodePath(ref.image, standing.dgst), standing.dgst, mediaType, body)
+				return lerr
+			}, func(w http.ResponseWriter, r *http.Request, node *metadata.Node, mediaType, dgst string, size int64, cacheState, upstreamError string) {
+				h.serveRemoteManifestCopy(w, r, face, node, mediaType, dgst, size, cacheState, upstreamError)
+			})
+			return
+		}
+		unfound.write(w, fmt.Sprintf("upstream answered 304 %s without a validator being offered", fetched.statusT))
 	case http.StatusNotFound:
 		// The engine's step: record the miss (digest-keyed paths only),
 		// then an expired copy still serves (STALE).
@@ -1142,6 +1214,25 @@ func remoteManifestRefs(mediaType string, body []byte) ([]*metadata.DockerRef, e
 // superset the contract's HEAD expectations read as present-tolerated).
 // HEAD carries the headers only.
 func (h *Handler) serveRemoteManifestCopy(w http.ResponseWriter, r *http.Request, face remoteFace, node *metadata.Node, mediaType, dgst string, size int64, cacheState, upstreamError string) {
+	// The ledger row feeds both the conditional arm and the checksum face —
+	// one lookup, two consumers.
+	var etag, md5 string
+	if row := h.ledgerRow(r.Context(), dgst); row != nil {
+		etag, md5 = row.Sha1, row.Md5
+	}
+	// The client-conditional arm (L004-1, the live reference's fresh-window
+	// matrix): a HIT copy answers the manifest face's BARE 304 when the
+	// client's validator matches — api-version and the cache marker alone,
+	// no validators, no body. Every non-HIT serve (the revalidation, stale
+	// and just-fetched arms) answers 200 full without evaluating the
+	// client's conditionals, the live reference's own revalidation posture.
+	if cacheState == remote.CacheHit && manifestClientNotModified(r, etag, nodeLastModified(node)) {
+		hdr := w.Header()
+		writeAPIVersionHdr(hdr)
+		hdr.Set(remote.HdrCacheState, remote.CacheHit)
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
 	rc, err := h.openRemoteBlob(r.Context(), node)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "docker remote: open cached manifest",
@@ -1165,14 +1256,12 @@ func (h *Handler) serveRemoteManifestCopy(w http.ResponseWriter, r *http.Request
 		mediaType = mimeOctetStream
 	}
 	hdr.Set("Content-Type", mediaType)
-	if row := h.ledgerRow(r.Context(), dgst); row != nil {
-		if row.Sha1 != "" {
-			hdr.Set(hdrChecksumSha1, row.Sha1)
-			hdr.Set("ETag", row.Sha1)
-		}
-		if row.Md5 != "" {
-			hdr.Set(hdrChecksumMd5, row.Md5)
-		}
+	if etag != "" {
+		hdr.Set(hdrChecksumSha1, etag)
+		hdr.Set("ETag", etag)
+	}
+	if md5 != "" {
+		hdr.Set(hdrChecksumMd5, md5)
 	}
 	hdr.Set(hdrChecksumSha256, dgst)
 	if lm := nodeLastModified(node); lm != "" {
@@ -1181,8 +1270,8 @@ func (h *Handler) serveRemoteManifestCopy(w http.ResponseWriter, r *http.Request
 	hdr.Set("Accept-Ranges", "bytes")
 	hdr.Set(hdrContentDisposition, `attachment; filename="`+manifestFilename(mediaType)+`"`)
 	hdr.Set(hdrFilename, manifestFilename(mediaType))
-	if face.origin != "" {
-		hdr.Set(hdrOriginRemotePath, face.origin)
+	if o := face.originPath(r.Context(), principalOf(r)); o != "" {
+		hdr.Set(hdrOriginRemotePath, o)
 	}
 	if r.Method == http.MethodHead {
 		hdr.Set(hdrDockerRegistry, face.registry)
@@ -1221,7 +1310,7 @@ func (h *Handler) serveRemoteBlob(w http.ResponseWriter, r *http.Request, ref na
 
 	ctx := r.Context()
 	p := principalOf(r)
-	face := h.blobFace(ctx, p, ref, hex)
+	face := h.blobFace(ref, hex)
 	plane := h.remotePlane()
 	if plane == nil {
 		h.log.ErrorContext(ctx, "docker: remote blob without the v2 plane seam", "repo", ref.repoKey)
@@ -1340,6 +1429,54 @@ func (h *Handler) blobChainAdmits(ctx context.Context, p *Principal, ref nameRef
 // pair (sha256__<hex>) and X-Artifactory-Origin-Remote-Path — set before
 // the delegation so they ride both the 200 and the 206 window.
 func (h *Handler) serveRemoteBlobCopy(w http.ResponseWriter, r *http.Request, face remoteFace, node *metadata.Node, cacheState, upstreamError string) {
+	hex := digestHexOfNode(node)
+	lm := nodeLastModified(node)
+	blob := storage.BlobRef{Sha256: hex, Size: node.Size}
+	if row := h.ledgerRow(r.Context(), blob.Sha256); row != nil {
+		if row.Sha1 != "" {
+			blob.Sha1 = row.Sha1
+		}
+		if row.Md5 != "" {
+			blob.Md5 = row.Md5
+		}
+	}
+	// The client-conditional arm (L004-1): a standing blob copy answers
+	// 304 with the FULL artifact face riding it (the live capture's blob
+	// 304 keeps Etag/Last-Modified/the checksum family/the filename pair —
+	// the manifest face's bare 304 is NOT this face's shape), the token
+	// comparison quote-insensitive, any If-None-Match blocking the date
+	// arm, HEAD never conditional. No Content-Length: a 304 has no body.
+	if blobClientNotModified(r, blob.Sha1, lm) {
+		hdr := w.Header()
+		writeAPIVersionHdr(hdr)
+		if cacheState != "" {
+			hdr.Set(remote.HdrCacheState, cacheState)
+		}
+		if upstreamError != "" {
+			hdr.Set(remote.HdrUpstreamError, upstreamError)
+		}
+		hdr.Set(hdrContentDigest, digestPrefixHex(hex))
+		if blob.Sha1 != "" {
+			hdr.Set(hdrChecksumSha1, blob.Sha1)
+			hdr.Set("ETag", blob.Sha1)
+		}
+		if blob.Md5 != "" {
+			hdr.Set(hdrChecksumMd5, blob.Md5)
+		}
+		hdr.Set(hdrChecksumSha256, hex)
+		hdr.Set("Accept-Ranges", "bytes")
+		hdr.Set("Content-Type", mimeOctetStream)
+		if lm != "" {
+			hdr.Set("Last-Modified", lm)
+		}
+		hdr.Set(hdrContentDisposition, `attachment; filename="`+blobFilename(hex)+`"`)
+		hdr.Set(hdrFilename, blobFilename(hex))
+		if face.origin != "" {
+			hdr.Set(hdrOriginRemotePath, face.origin)
+		}
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
 	rc, err := h.openRemoteBlob(r.Context(), node)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "docker remote: open cached blob",
@@ -1356,23 +1493,13 @@ func (h *Handler) serveRemoteBlobCopy(w http.ResponseWriter, r *http.Request, fa
 	if upstreamError != "" {
 		hdr.Set(remote.HdrUpstreamError, upstreamError)
 	}
-	hex := digestHexOfNode(node)
-	if lm := nodeLastModified(node); lm != "" {
+	if lm != "" {
 		hdr.Set("Last-Modified", lm)
 	}
 	hdr.Set(hdrContentDisposition, `attachment; filename="`+blobFilename(hex)+`"`)
 	hdr.Set(hdrFilename, blobFilename(hex))
-	if face.origin != "" {
-		hdr.Set(hdrOriginRemotePath, face.origin)
-	}
-	blob := storage.BlobRef{Sha256: hex, Size: node.Size}
-	if row := h.ledgerRow(r.Context(), blob.Sha256); row != nil {
-		if row.Sha1 != "" {
-			blob.Sha1 = row.Sha1
-		}
-		if row.Md5 != "" {
-			blob.Md5 = row.Md5
-		}
+	if o := face.originPath(r.Context(), principalOf(r)); o != "" {
+		hdr.Set(hdrOriginRemotePath, o)
 	}
 	h.serveBlobBody(w, r, rc, blob)
 }

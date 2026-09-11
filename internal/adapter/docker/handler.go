@@ -1,6 +1,8 @@
 package docker
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -61,6 +63,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // "Bad Credentials" body, NOT a Bearer re-challenge: a client that
 // presented credentials is told the credential failed, not that
 // negotiation is needed.
+// L004-1: the refused-BEARER arms split by token state (live reference
+// :8082, 7.161.20) — unknown "Props Authentication Token not found",
+// expired "Token failed verification: expired" — while the Basic family
+// keeps "Bad Credentials"; see bearerRefusalMessage.
 func (h *Handler) RenderAuthFailure(w http.ResponseWriter, r *http.Request) {
 	if r.URL != nil && isTokenRoute(r.URL.EscapedPath()) {
 		h.renderTokenAuthFailure(w, r)
@@ -68,21 +74,64 @@ func (h *Handler) RenderAuthFailure(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL != nil {
 		if path := r.URL.EscapedPath(); path == "/v2" || path == "/v2/" {
-			h.pingBadCredentials(w)
+			h.pingRefusedCredential(w, r)
 			return
 		}
 	}
 	h.challenge(w, r, "")
 }
 
-// pingBadCredentials renders the ping route's refused-credential arm
-// (capture a_pingbad.h): `Basic realm="Artifactory Realm"` — the realm
-// string verbatim from the reference, what a docker client surfaces in
-// its login prompt — plus the generic error model's pretty "Bad
-// Credentials" and the ping face's charset Content-Type.
-func (h *Handler) pingBadCredentials(w http.ResponseWriter) {
+// The refused-credential message families of the reference's /v2 faces
+// (L004-1 live captures a_ping_unknownbearer/a_ping_expiredbearer/
+// a_ping_revokedbearer/a_pingbad): the Basic arm and every unobserved
+// Bearer corner keep the L000-B C02 wording; the two OBSERVED Bearer
+// states carry their own messages verbatim. The reference's fourth arm —
+// "Token failed verification: revoked" — is unreachable under BinFlow's
+// revocation model (revoke deletes the row, so revoked verifies as
+// unknown): a model-level divergence registered in the L004-1 report.
+const (
+	// Wire-level message literals (parity strings probed from the reference),
+	// not credentials; gosec's name heuristic misfires on the word
+	// Credentials/Token — per-spec annotations below.
+	msgBadCredentials     = "Bad Credentials"                      // #nosec G101 -- parity message literal
+	msgPropsTokenNotFound = "Props Authentication Token not found" // #nosec G101 -- parity message literal
+	msgTokenFailedExpired = "Token failed verification: expired"   // #nosec G101 -- parity message literal
+)
+
+// bearerRefusalMessage classifies one refused Bearer credential for the
+// message-typed 401 arms: the middleware already refused it; the adapter
+// re-verifies through the SAME TokenRegistry decision point (no second
+// state machine) only to learn WHICH arm the refusal was. A non-Bearer
+// scheme, a missing registry, a re-verify that races valid, and every
+// unobserved corner (owner disabled, scope unusable) answer the generic
+// Basic-family wording.
+func (h *Handler) bearerRefusalMessage(ctx context.Context, r *http.Request) string {
+	scheme, value, found := strings.Cut(r.Header.Get("Authorization"), " ")
+	if !found || !strings.EqualFold(scheme, "Bearer") || value == "" || h.tokens == nil {
+		return msgBadCredentials
+	}
+	_, err := h.tokens.Verify(ctx, value)
+	switch {
+	case err == nil:
+		return msgBadCredentials // lost the race with the middleware's refusal
+	case errors.Is(err, auth.ErrTokenExpired):
+		return msgTokenFailedExpired
+	case errors.Is(err, auth.ErrTokenUnknown):
+		return msgPropsTokenNotFound
+	default:
+		return msgBadCredentials
+	}
+}
+
+// pingRefusedCredential renders the ping route's refused-credential arm
+// (capture a_pingbad.h + the L004-1 Bearer captures): `Basic realm=
+// "Artifactory Realm"` — the realm string verbatim from the reference,
+// what a docker client surfaces in its login prompt — plus the generic
+// error model's pretty body with the arm's own message and the ping
+// face's charset Content-Type.
+func (h *Handler) pingRefusedCredential(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("WWW-Authenticate", `Basic realm="Artifactory Realm"`)
-	writeStatusFormErrorCT(w, http.StatusUnauthorized, "Bad Credentials", contentTypeJSONCharset)
+	writeStatusFormErrorCT(w, http.StatusUnauthorized, h.bearerRefusalMessage(r.Context(), r), contentTypeJSONCharset)
 }
 
 // servePing implements DE-01 (D44-1/C6 errata form): an AUTHENTICATED

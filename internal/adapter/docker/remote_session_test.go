@@ -150,7 +150,7 @@ func TestSessionBearerDance(t *testing.T) {
 	entry := newTestSession(t, up.url)
 	ctx := context.Background()
 
-	res, err := entry.fetchManifest(ctx, "mychart", "0.1.0", []string{"application/vnd.oci.image.manifest.v1+json"})
+	res, err := entry.fetchManifest(ctx, "mychart", "0.1.0", []string{"application/vnd.oci.image.manifest.v1+json"}, "")
 	if err != nil {
 		t.Fatalf("fetchManifest: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestSessionBearerDance(t *testing.T) {
 	}
 
 	// The cached token: the second fetch rides it without another 401.
-	if _, err := entry.fetchManifest(ctx, "mychart", "0.1.0", nil); err != nil {
+	if _, err := entry.fetchManifest(ctx, "mychart", "0.1.0", nil, ""); err != nil {
 		t.Fatalf("second fetchManifest: %v", err)
 	}
 	if up.hits401.Load() != 1 || up.exchanges.Load() != 1 {
@@ -197,7 +197,7 @@ func TestSessionDanceRefusedCredential(t *testing.T) {
 	if err != nil {
 		t.Fatalf("forRepo: %v", err)
 	}
-	_, err = entry.fetchManifest(context.Background(), "mychart", "0.1.0", nil)
+	_, err = entry.fetchManifest(context.Background(), "mychart", "0.1.0", nil, "")
 	if err == nil {
 		t.Fatal("fetchManifest with a refused credential succeeded")
 	}
@@ -221,11 +221,11 @@ func TestSessionPlainUpstream(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	entry := newTestSession(t, srv.URL)
-	res, err := entry.fetchManifest(context.Background(), "mychart", "0.1.0", nil)
+	res, err := entry.fetchManifest(context.Background(), "mychart", "0.1.0", nil, "")
 	if err != nil || res.status != http.StatusOK || string(res.body) != string(manifest) {
 		t.Fatalf("plain fetch = (%v, %d, %q)", err, res.status, res.body)
 	}
-	res2, err := entry.fetchManifest(context.Background(), "mychart", "9.9.9", nil)
+	res2, err := entry.fetchManifest(context.Background(), "mychart", "9.9.9", nil, "")
 	if err != nil || res2.status != http.StatusNotFound {
 		t.Fatalf("plain miss = (%v, %d), want the upstream 404 passed through", err, res2.status)
 	}

@@ -481,14 +481,16 @@ type statusFormEnvelope struct {
 
 // assertPingRefusedFace pins the PING route's refused-credential arm
 // (L003-2, evidence reports/compatibility/L003-remote-face-diff.md ③ +
-// captures /tmp/l0022/a_pingbad.h): 401 + `Basic realm="Artifactory
-// Realm"` + application/json;charset=ISO-8859-1 + the generic error
-// model's pretty "Bad Credentials". The bad-basic arm is verbatim parity
-// with the reference; BinFlow renders the same form for every refused
-// credential class (the reference's live stale-bearer wording — "Props
-// Authentication Token not found" — is a measured message-level delta
-// left to a follow-up; the challenge shape and envelope are aligned).
-func assertPingRefusedFace(t *testing.T, resp *http.Response, body string) {
+// captures /tmp/l0022/a_pingbad.h; message split by L004-1): 401 +
+// `Basic realm="Artifactory Realm"` + application/json;charset=ISO-8859-1
+// + the generic error model's pretty body. The MESSAGE is arm-relative
+// (L004-1 live reference :8082): bad Basic answers "Bad Credentials"
+// verbatim, an unknown-or-revoked Bearer answers "Props Authentication
+// Token not found", an expired Bearer answers "Token failed verification:
+// expired" — the envelope and challenge stay one shape across the arms.
+// (The reference's fourth wording, "Token failed verification: revoked",
+// is unreachable under BinFlow's revoke-deletes-the-row model.)
+func assertPingRefusedFace(t *testing.T, resp *http.Response, body, wantMessage string) {
 	t.Helper()
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("status = %d; body=%s", resp.StatusCode, body)
@@ -504,8 +506,8 @@ func assertPingRefusedFace(t *testing.T, resp *http.Response, body string) {
 		t.Fatalf("body %q is not the generic error model: %v", body, err)
 	}
 	if len(eb.Errors) != 1 || eb.Errors[0].Status != http.StatusUnauthorized ||
-		eb.Errors[0].Message != "Bad Credentials" {
-		t.Fatalf("body = %q, want the pretty Bad Credentials status form", body)
+		eb.Errors[0].Message != wantMessage {
+		t.Fatalf("body = %q, want the pretty status form %q", body, wantMessage)
 	}
 }
 
@@ -524,11 +526,13 @@ func TestV2RejectedCredentialRendersSpecBody(t *testing.T) {
 		name string
 		open bool
 		hdr  map[string]string
+		want string
 	}{
-		{name: "bad basic, anonymous open", open: true, hdr: map[string]string{"Authorization": badBasic}},
-		{name: "bad basic, anonymous closed", open: false, hdr: map[string]string{"Authorization": badBasic}},
-		{name: "stale bearer, anonymous open", open: true, hdr: map[string]string{"Authorization": "Bearer not-a-real-token"}},
-		{name: "stale bearer, anonymous closed", open: false, hdr: map[string]string{"Authorization": "Bearer not-a-real-token"}},
+		{name: "bad basic, anonymous open", open: true, hdr: map[string]string{"Authorization": badBasic}, want: "Bad Credentials"},
+		{name: "bad basic, anonymous closed", open: false, hdr: map[string]string{"Authorization": badBasic}, want: "Bad Credentials"},
+		// L004-1: an unknown Bearer answers the reference's own wording.
+		{name: "stale bearer, anonymous open", open: true, hdr: map[string]string{"Authorization": "Bearer not-a-real-token"}, want: "Props Authentication Token not found"},
+		{name: "stale bearer, anonymous closed", open: false, hdr: map[string]string{"Authorization": "Bearer not-a-real-token"}, want: "Props Authentication Token not found"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -537,7 +541,7 @@ func TestV2RejectedCredentialRendersSpecBody(t *testing.T) {
 			}, nil)
 			// The ping face: the reference's refused-credential arm.
 			resp := h.do(http.MethodGet, "/v2/", "", "", nil, tc.hdr)
-			assertPingRefusedFace(t, resp, mustGet(t, resp))
+			assertPingRefusedFace(t, resp, mustGet(t, resp), tc.want)
 
 			// Every other route: the Bearer re-challenge + spec body.
 			path := "/v2/somerepo/app/manifests/latest"
@@ -588,7 +592,8 @@ func TestV2ExpiredBearerRendersSpecBody(t *testing.T) {
 
 	resp := h.do(http.MethodGet, "/v2/", "", "", nil,
 		map[string]string{"Authorization": "Bearer " + plaintext})
-	assertPingRefusedFace(t, resp, mustGet(t, resp))
+	// L004-1: the expired Bearer answers the reference's own wording.
+	assertPingRefusedFace(t, resp, mustGet(t, resp), "Token failed verification: expired")
 }
 
 // TestV2RevokedBearerRendersSpecBody (review B1 + D23 preview; re-anchored
@@ -605,7 +610,11 @@ func TestV2RevokedBearerRendersSpecBody(t *testing.T) {
 	}
 	resp := h.do(http.MethodGet, "/v2/", "", "", nil,
 		map[string]string{"Authorization": "Bearer " + tok.AccessToken})
-	assertPingRefusedFace(t, resp, mustGet(t, resp))
+	// L004-1: BinFlow's revocation deletes the row, so a revoked Bearer
+	// verifies as UNKNOWN — the reference's distinct "Token failed
+	// verification: revoked" wording is a model-level divergence (the
+	// L004-1 report registers it for the contract face).
+	assertPingRefusedFace(t, resp, mustGet(t, resp), "Props Authentication Token not found")
 }
 
 // TestV2PanicRendersSpecBody (review B1 same-family): a panicking /v2

@@ -40,9 +40,33 @@ const (
 // would answer the wrong key) and the full upstream URL the copy traces to
 // (X-Artifactory-Origin-Remote-Path; "" omits the header — a face that
 // cannot resolve its upstream degrades the header, never the serve).
+//
+// N7 (L003-2 review B): the DIRECT arm resolves its origin LAZILY — the
+// plane facts lookup (two row reads through the RemoteV2Plane seam) runs
+// only when a serve actually emits the header, so the unfound, negative
+// and fault arms that never serve a copy never pay it. The VIRTUAL walk
+// keeps the eager value: its facts are already in hand by the time the
+// face is built (the member session resolved them).
 type remoteFace struct {
 	registry string
+	// origin is the eager path value (the virtual walk's facts-derived
+	// spelling); originFn the lazy direct-arm resolver. originPath folds
+	// the two into the one read the copy servers perform.
 	origin   string
+	originFn func(ctx context.Context, p *Principal) string
+}
+
+// originPath resolves the face's X-Artifactory-Origin-Remote-Path value at
+// serve time: the eager value wins, the lazy resolver runs only when there
+// is one, "" omits the header (the degradation contract above).
+func (f remoteFace) originPath(ctx context.Context, p *Principal) string {
+	if f.origin != "" {
+		return f.origin
+	}
+	if f.originFn != nil {
+		return f.originFn(ctx, p)
+	}
+	return ""
 }
 
 // remoteOriginBase resolves the upstream registry root of one direct
@@ -64,19 +88,23 @@ func (h *Handler) remoteOriginBase(ctx context.Context, p *Principal, repoKey st
 // repository key plus the upstream manifest URL (the reference echoes the
 // REQUESTED reference — the tag verbatim, the digest re-prefixed — never
 // the resolved digest; capture a_mf.h ends in /manifests/t1 for a tag
-// request).
-func (h *Handler) manifestFace(ctx context.Context, p *Principal, ref nameRef, reference string) remoteFace {
+// request). The origin stays lazy (N7 above).
+func (h *Handler) manifestFace(ref nameRef, reference string) remoteFace {
 	return remoteFace{
 		registry: ref.repoKey,
-		origin:   originRemotePath(h.remoteOriginBase(ctx, p, ref.repoKey), v2WireManifestPath(ref.image, reference)),
+		originFn: func(ctx context.Context, p *Principal) string {
+			return originRemotePath(h.remoteOriginBase(ctx, p, ref.repoKey), v2WireManifestPath(ref.image, reference))
+		},
 	}
 }
 
-// blobFace builds the blob copy face of one request.
-func (h *Handler) blobFace(ctx context.Context, p *Principal, ref nameRef, hex string) remoteFace {
+// blobFace builds the blob copy face of one request (the origin lazy, N7).
+func (h *Handler) blobFace(ref nameRef, hex string) remoteFace {
 	return remoteFace{
 		registry: ref.repoKey,
-		origin:   originRemotePath(h.remoteOriginBase(ctx, p, ref.repoKey), v2WireBlobPath(ref.image, hex)),
+		originFn: func(ctx context.Context, p *Principal) string {
+			return originRemotePath(h.remoteOriginBase(ctx, p, ref.repoKey), v2WireBlobPath(ref.image, hex))
+		},
 	}
 }
 

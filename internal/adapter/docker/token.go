@@ -286,9 +286,14 @@ func (h *Handler) writeOAuthError(w http.ResponseWriter, status int, code, descr
 // superseding the PRD v1.2/C3 OAuth-form ruling for the credential 401s;
 // the parameter 400s below stay OAuth — unobserved client-facing corners
 // keep their standing shape).
+// L004-1: the Bearer arms message-split exactly like the ping face (live
+// capture a_tok_expiredbearer.h answers "Token failed verification:
+// expired" on this endpoint too); the challenge header keeps the T-55
+// Bearer form — the live reference's Basic realm on this endpoint is
+// reported for adjudication, not changed here.
 func (h *Handler) renderTokenAuthFailure(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("WWW-Authenticate", h.bearerChallenge(r, ""))
-	writeStatusFormError(w, http.StatusUnauthorized, "Bad Credentials")
+	writeStatusFormError(w, http.StatusUnauthorized, h.bearerRefusalMessage(r.Context(), r))
 }
 
 // isTokenRoute reports whether path belongs to the token endpoint's route

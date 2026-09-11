@@ -216,7 +216,8 @@ func (h *Handler) serveVirtualRemoteManifest(w http.ResponseWriter, r *http.Requ
 		return virtualMemberFault, serr.Error()
 	}
 	origin := originRemoteOf(facts, v2WireManifestPath(ref.image, reference))
-	fetched, ferr := entry.fetchManifest(ctx, ref.image, reference, r.Header.Values("Accept"))
+	fetched, ferr := entry.fetchManifest(ctx, ref.image, reference, r.Header.Values("Accept"),
+		revalidationValidator(standing, isDigestRef))
 	if ferr != nil {
 		var serveStale func(string)
 		if standing != nil {
@@ -249,6 +250,19 @@ func (h *Handler) serveVirtualRemoteManifest(w http.ResponseWriter, r *http.Requ
 			h.serveVirtualManifestCopy(w, r, member, origin, node, mediaType, dgst, size, cacheState, upstreamError)
 		})
 		return virtualMemberServed, ""
+	case http.StatusNotModified:
+		// The revalidation arm (§5.3), member-scoped: slide the member's
+		// window through the V2 seam and serve the confirmed copy.
+		if standing != nil && standing.node != nil {
+			h.serveRevalidatedManifest(w, r, ref, standing, func(mediaType string, body io.Reader) error {
+				_, lerr := plane.V2LandMemberBlob(ctx, p, ref.repoKey, member, manifestNodePath(ref.image, standing.dgst), standing.dgst, mediaType, body)
+				return lerr
+			}, func(w http.ResponseWriter, r *http.Request, node *metadata.Node, mediaType, dgst string, size int64, cacheState, upstreamError string) {
+				h.serveVirtualManifestCopy(w, r, member, origin, node, mediaType, dgst, size, cacheState, upstreamError)
+			})
+			return virtualMemberServed, ""
+		}
+		return virtualMemberUnfound, fmt.Sprintf("upstream answered 304 %s without a validator being offered", fetched.statusT)
 	case http.StatusNotFound:
 		// The engine's step: record the miss (digest-keyed paths only),
 		// then an expired copy still serves (STALE).
@@ -498,6 +512,18 @@ func upstreamFaultSummary(err error) string {
 // serveVirtualManifestCopy serves one member's manifest copy through the
 // remote plane's copy server with the resolution hint on top (the walk's
 // winning member — the diagnostic the generic virtual face carries too).
+//
+// Review B #4 semantic note: on the VIRTUAL plane the copy face's registry
+// key — what a manifest HEAD's X-Artifactory-Docker-Registry spells — is
+// the WINNING MEMBER's key, not the repository the client addressed. That
+// is a different answer than the DIRECT remote face's (remote_face.go: the
+// client-addressed repoKey), and it is deliberate: the virtual walk's
+// whole face is resolution-relative (X-Resolved-From carries the same
+// member), the member key being the resolution's own registry. The face
+// here has no live-capture backing for the member-key spelling (L003-2
+// noted the virtual evidence gap) — the note pins the semantics so the
+// contract review does not read the two spellings as an accident to
+// "fix".
 func (h *Handler) serveVirtualManifestCopy(w http.ResponseWriter, r *http.Request, member, origin string, node *metadata.Node, mediaType, dgst string, size int64, cacheState, upstreamError string) {
 	w.Header().Set(repo.HdrResolvedFrom, member)
 	h.serveRemoteManifestCopy(w, r, remoteFace{registry: member, origin: origin}, node, mediaType, dgst, size, cacheState, upstreamError)

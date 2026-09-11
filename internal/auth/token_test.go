@@ -103,6 +103,12 @@ func TestTokenLifecycle(t *testing.T) {
 	if _, err := f.svc.Verify(f.ctx, tok.AccessToken); !errors.Is(err, auth.ErrInvalidCredentials) {
 		t.Fatalf("verify after revoke err = %v, want ErrInvalidCredentials", err)
 	}
+	// L004-1: revocation deletes the row, so the revoked arm is the typed
+	// unknown family (the reference's separate "revoked" message is a
+	// model-level divergence, registered in the L004-1 report).
+	if _, err := f.svc.Verify(f.ctx, tok.AccessToken); !errors.Is(err, auth.ErrTokenUnknown) {
+		t.Fatalf("verify after revoke err = %v, want errors.Is(auth.ErrTokenUnknown)", err)
+	}
 	// B-1: not-found must satisfy errors.Is for BOTH sentinel spellings —
 	// auth.ErrTokenNotFound aliases metadata.ErrTokenNotFound; no string
 	// fallback allowed.
@@ -145,6 +151,14 @@ func TestTokenExpiry(t *testing.T) {
 	time.Sleep(2 * time.Millisecond)
 	if _, err := f.svc.Verify(f.ctx, tok.AccessToken); !errors.Is(err, auth.ErrInvalidCredentials) {
 		t.Fatalf("expired token err = %v, want ErrInvalidCredentials", err)
+	}
+	// L004-1: the expired arm carries its typed refinement (the /v2 ping
+	// plane's message split) while staying an ErrInvalidCredentials.
+	if _, err := f.svc.Verify(f.ctx, tok.AccessToken); !errors.Is(err, auth.ErrTokenExpired) {
+		t.Fatalf("expired token err = %v, want errors.Is(auth.ErrTokenExpired)", err)
+	}
+	if _, err := f.svc.Verify(f.ctx, "never-issued-value"); !errors.Is(err, auth.ErrTokenUnknown) {
+		t.Fatalf("unknown token err = %v, want errors.Is(auth.ErrTokenUnknown)", err)
 	}
 
 	// ttl <= 0 means never: sentinel expires_at verifies forever.
