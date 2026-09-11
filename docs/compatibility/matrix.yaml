@@ -10,6 +10,11 @@
 #   absent→not_applicable（ghost-row 勘误，行内 note 留痕）；③ summary 非空计数勘正（L004-3 加链 3 行漏记 1→4）。
 #   冻结纪律维持：195 冻结行集不增删不改判（R30 翻态系 conductor 勘误裁定非改判；D01-R40 系本程新行，
 #   依 L005-2 复验收官证据翻 partial→compatible，非冻结行）。
+# LOOP 006 收官联动（L006-1/L006-2，2026-09-12，conductor 指令）：D02-R03/R04、D04-R17 翻 compatible（四域
+#   round-trip + v1 别名面闭合——L006-a-b-diff.md）；D04-R18 裁量维持 partial（残余收窄至三臂渲染族账
+#   known-divergence#rest/permissions-v1-response-shape-residuals）；D06-R17 前提证伪重分类 partial→not_applicable
+#   （参照无 /api/system/backup* REST 族——活体+反编译双证，同 ghost-row 勘误款；BinFlow /api/v1/system/backups
+#   超集面建议新行提案报 conductor）；新立台账三条（update-merge/invalid-value/permissions-residuals，LOOP 007 池）。
 
 ---
 schema: 1
@@ -52,26 +57,26 @@ priority_policy:
 summary:
   total_rows: 199
   state_counts:
-    compatible: 65
-    partial: 27
+    compatible: 68
+    partial: 23
     absent: 78
-    not_applicable: 18
+    not_applicable: 19
     superset: 11
   confidence_counts:
-    high: 130
-    medium: 69
+    high: 131
+    medium: 68
     low: 0
   priority_counts:
-    P0: 59
+    P0: 58
     P1: 62
-    P2: 78
+    P2: 79
   by_state_x_priority:
     compatible:
-      P0: 49
+      P0: 52
       P1: 15
       P2: 1
     partial:
-      P0: 10
+      P0: 6
       P1: 12
       P2: 5
     absent:
@@ -80,7 +85,7 @@ summary:
     superset:
       P2: 11
     not_applicable:
-      P2: 18
+      P2: 19
   by_domain:
     D01:
       rows: 43
@@ -91,8 +96,8 @@ summary:
       not_applicable: 4
     D02:
       rows: 13
-      partial: 3
-      compatible: 2
+      partial: 1
+      compatible: 4
       absent: 6
       not_applicable: 1
       superset: 1
@@ -103,8 +108,8 @@ summary:
       not_applicable: 2
     D04:
       rows: 35
-      compatible: 16
-      partial: 6
+      compatible: 17
+      partial: 5
       superset: 1
       absent: 12
     D05:
@@ -116,9 +121,9 @@ summary:
     D06:
       rows: 29
       compatible: 4
-      partial: 4
+      partial: 3
       absent: 11
-      not_applicable: 4
+      not_applicable: 5
       superset: 6
     D07:
       rows: 11
@@ -691,25 +696,34 @@ rows:
 - row_id: D02-R03
   domain: D02
   capability: PUT /api/repositories/{key}（创建，200 纯文本）
-  state: partial
+  state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L006-a-b-diff.md §1.1/§1.2（四域三 rclass round-trip 闭合：所设值全回显、remote/virtual 修复前丢弃→现回显、裸建仓默认 remote canonical 注入对齐；virtual 参照自弃三域照抄留证）
   priority_class: P0
   layer: A
   source_row: "§3 行 3"
+  note: 'L006-1（2026-09-12）翻态 partial→compatible：configJSON 四域（repoLayoutRef/blackedOut/
+    maxUniqueSnapshots/archiveBrowsingEnabled）round-trip 缺口闭合（FR-156① 收口）。残余两族已立台账另票：
+    更新合并语义（known-divergence#rest/repo-config-update-merge-semantics）+ 非法值形态族
+    （#rest/repo-config-invalid-value-family）——族级/裁定量不占本行主面。'
 - row_id: D02-R04
   domain: D02
   capability: POST /api/repositories/{key}（更新）
-  state: partial
+  state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L006-a-b-diff.md §1.1（POST 更新全字段新值→四域全更新 SAME）+ §1.4（残余：更新合并语义族）
   priority_class: P0
   layer: A
   source_row: "§3 行 4"
+  note: 'L006-1（2026-09-12）翻态 partial→compatible（带 §1.4 注记）：更新臂四域全量更新实测 SAME。
+    §1.4——更新合并语义为族级既有差异：参照 POST 省略字段=保留存量（remote 四域 keep 实测）vs BinFlow
+    全量替换回落默认（影响 remote 全字段，非四域特例），已立账
+    known-divergence#rest/repo-config-update-merge-semantics 转 LOOP 007 另票；非法值形态族另账
+    #rest/repo-config-invalid-value-family。'
 - row_id: D02-R05
   domain: D02
   capability: DELETE /api/repositories/{key}
@@ -1198,25 +1212,33 @@ rows:
 - row_id: D04-R17
   domain: D04
   capability: GET /api/security/permissions（v1 列表，admin）
-  state: partial
+  state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L006-a-b-diff.md §2.1（别名挂载：GET /api/security/permissions 200 [{name,uri}] 值/形双端 SAME；/api/permissions 拼写双端 404 同判）
   priority_class: P0
   layer: A
   source_row: "§5 行 17"
+  note: 'L006-1（2026-09-12）翻态 partial→compatible：经典路径别名挂载 + {name,uri} 形对齐（uri=contextUrl+
+    转义名）；真实 v1 路径=/api/security/permissions（任务书原述 /api/permissions 双端 404）。行内残余渲染差
+    归 {name} 面账（known-divergence#rest/permissions-v1-response-shape-residuals，挂 D04-R18）。'
 - row_id: D04-R18
   domain: D04
   capability: GET/PUT/DELETE /api/security/permissions/{name}
   state: partial
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L006-a-b-diff.md §2.1（GET v1 形/PUT 201 两态 + 409 逐字 SAME；残余三臂=DELETE 204vs200、GET 未知名体裁、POST 死动词）
   priority_class: P0
   layer: A
   source_row: "§5 行 18"
+  note: 'L006-1（2026-09-12）裁量维持 partial（残余收窄）：GET/PUT 主臂 SAME（letters 动作/扁平 patterns/
+    includes 空→**；PUT create/replace 皆 201、路径名≠body 名 409 逐字同），但残余非 pattern 分隔注记级——
+    DELETE 状态码分歧（参照 200 纯文本 vs BinFlow 204）+ GET 未知名错误体裁 + POST 死动词三臂为客户端可见
+    实质分歧，已立账 known-divergence#rest/permissions-v1-response-shape-residuals（BUG，LOOP 007 一票三臂）
+    → 残余收窄至该账内三臂，翻绿随台账 resolved。'
 - row_id: D04-R19
   domain: D04
   capability: "/api/v2/security/permissions 族（8 条目 + per-user/per-group 6 端点）"
@@ -1715,15 +1737,21 @@ rows:
   source_row: "§7 行 16"
 - row_id: D06-R17
   domain: D06
-  capability: 备份族 GET/PUT/DELETE /api/system/backup/{key}（+列表；BinFlow /api/v1/system/backups）
-  state: partial
-  confidence: medium
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
-  priority_class: P0
+  capability: 备份族 GET/PUT/DELETE /api/system/backup/{key}（+列表）——ghost 前提：参照无此 REST 面
+  state: not_applicable
+  confidence: high
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L006-a-b-diff.md §2.1/§2.2（/api/system/backup[/{key}] 与 /api/system/backups 双端全 404 同判；反编译 SecurityResource 亦无 backup CRUD——活体+反编译双证）
+  priority_class: P2
   layer: A
   source_row: "§7 行 17"
+  note: 'L006-1（2026-09-12）重分类 partial→not_applicable（前提证伪勘误，同 D01-R30 ghost-row 款）：
+    「经典路径别名」前提不成立——参照（活体+反编译双证）无 /api/system/backup* REST 配置 CRUD 族：公开
+    /api 面唯一 backup 端点=POST /api/system/storage/backup?key=（D01-R40 已挂已验）；备份配置 CRUD 只在
+    UI 内部面（artifactory-rest-ui cfx 平面，界外）。BinFlow /api/v1/system/backups 为 BinFlow-native 超集面
+    ——建议 conductor 走新行提案转 superset 登记行（本票不越权立）。confidence medium→high（双源证伪）；
+    priority P0→P2（⛔ 终态口径）。'
 - row_id: D06-R18
   domain: D06
   capability: 维护模式族 GET/PUT /api/system/maintenance（BinFlow /api/v1/system/maintenance）
@@ -2219,7 +2247,7 @@ rows:
   confidence: high
   contract_ref: contracts/docker-remote.yaml
   golden_ref: golden/docker-remote/{empty-blob-synthetic,pull-sequence}
-  last_difftest: reports/compatibility/L005-c14-d1-diff.md（L005-1 修后重跑：新窗口 304 矩阵 20/20 臂 SAME + 过期窗 6/6 客户端可见 SAME + C14 M-a/M-b 双形态双端 1/3 同形 + missedTTL 到期回源重写 sqlite 行直证）；前置 L004-304-ping-diff.md（L004-1）+ L003-remote-face-diff.md（L003-2）+ L002-contract-replay 21/21 + L000 系列 L000-F/L001-1 复验
+  last_difftest: reports/compatibility/L006-by-digest-cold-miss-diff.md（by-digest 冷 miss 补臂：×3 连发 1/3 + 60s 到期重写双端同形全 SAME）；前置 reports/compatibility/L005-c14-d1-diff.md（L005-1 修后重跑：304 矩阵 20/20 臂 SAME + 过期窗 6/6 + C14 tag/未知名双形态）+ L004-304-ping-diff.md（L004-1）+ L003-remote-face-diff.md（L003-2）+ L002-contract-replay 21/21 + L000 系列 L000-F/L001-1 复验
   priority_class: P1
   layer: A
   source_row: "§11.1 行 1"

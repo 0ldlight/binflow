@@ -177,9 +177,47 @@ entries:
     不按该窗回源（本地 200/304 应答——内容寻址不可变语义）。客户端可见面双端全同（X3 双端 304 / X4 双端
     200），纯上游行为分歧。对齐方向待裁：BinFlow 现状=兑现自家 retrievalCachePeriodSecs 承诺；参照=不回源。
     manifest 面 X1/X2 双端均 ×1 回源（仅形状差异 N1，不立账）。
-  authority: { type: pending, ref: "产品/架构裁（blob TTL 回源 vs 内容寻址不回源——上游流量/新鲜度权衡）" }
-  review_gate: LOOP 005 限期升级
+  authority: { type: pending, ref: "LOOP 007 定向探针后裁（conductor 2026-09-12 裁定：不接受单臂观察上的 INTENTIONAL 裁定——ADR-0048 教训）" }
+  review_gate: LOOP 007 定向探针（过期 blob 臂双端 × missedTTL 窗复核——参照是否在某窗后/条件下回源未验；探针出证后三选一：INTENTIONAL（BinFlow 兑现 TTL 承诺）/ 对齐收 / 维持分歧面登记）
   evidence: reports/compatibility/L004-304-ping-diff.md §3 X3/X4
+- id: rest/repo-config-update-merge-semantics
+  surface: 'PUT/POST /api/repositories/{key} 更新合并语义（省略字段=保留存量 vs 全量替换回落默认）'
+  classification: BUG
+  rationale: >-
+    L006-1 票 A 双端实测（reports/compatibility/L006-a-b-diff.md §1.4，2026-09-12）：参照 POST 更新省略字段
+    =保留存量（remote 四域 keep 实测）；BinFlow remote 更新=全量替换回落默认（hardFail/missed 等全字段同族，
+    四域修复前已如此）、local 更新=调用方 blob 整体替换。族级既有差异（影响全部 remote 字段，非四域
+    round-trip 特例）——客户端省略字段即静默丢配置，行为面实质分歧。矩阵 D02-R03/R04 翻绿不吸收本账
+    （行 note 指针互锚）。
+  authority: { type: differential, ref: "reports/compatibility/L006-a-b-diff.md §1.4" }
+  review_gate: LOOP 007 设计+实现票（merge 语义族：省略字段保留 vs 全量替换——影响 remote 全字段）
+  evidence: reports/compatibility/L006-a-b-diff.md §1.4
+- id: rest/repo-config-invalid-value-family
+  surface: 仓配置标量非法值形态族（maxUniqueSnapshots 非数字 / blackedOut 宽容布尔 / repoLayoutRef 未知名）
+  classification: UNKNOWN
+  rationale: >-
+    L006-1 §1.3 三臂（2026-09-12）：① maxUniqueSnapshots:"seven"——参照 500（Java 转换器报文）vs BinFlow
+    400（decode 报文带字段名——全域统一 decode 姿态，非四域特例）；② blackedOut:"yes"——参照接受且转 true
+    （commons-lang 布尔宽容，Java 库癖性）vs BinFlow 400；③ repoLayoutRef 未知名——参照 400 "Unable to find
+    repository layout by the name: <n>" vs BinFlow 接受并存读（无布局注册表；K73 已定谳 presentation-only，
+    参照 /api/repo_layouts 在本实例亦 404）。三臂均客户端可见分歧，对齐方向需产品裁（复刻 500 报文/宽容
+    布尔的兼容收益存疑）。
+  authority: { type: pending, ref: "产品/架构裁（非法值姿态：统一 decode 400 vs 复刻参照 500/宽容转换）" }
+  review_gate: LOOP 007 限期升级（INTENTIONAL 终裁需 authority；裁对齐则开实现票）
+  evidence: reports/compatibility/L006-a-b-diff.md §1.3
+- id: rest/permissions-v1-response-shape-residuals
+  surface: v1 permissions 面残余渲染族（DELETE 码+文 / GET 未知名体裁 / POST 死动词）
+  classification: BUG
+  rationale: >-
+    L006-1 票 B 别名挂载（D04-R17/R18 面）后残余三臂（§2.1，2026-09-12）：① DELETE
+    /api/security/permissions/{name}——参照 200 纯文本 "Successfully deleted permission Target 'x'" vs
+    BinFlow 204（与现行 v1 面 handler 同体）；② GET 未知名——参照 404 errors-envelope "Not Found" vs
+    BinFlow 404 纯文本（本面既定姿态）；③ POST 死动词——参照 400 "Bad Request"（参照自身不可用）vs
+    BinFlow 404（E-26 不挂载——挂载任一形态都非对齐，留痕）。GET/PUT 主臂已 SAME（letters 动作/扁平
+    patterns、PUT 201 两态+409 逐字同）。
+  authority: { type: differential, ref: "reports/compatibility/L006-a-b-diff.md §2.1" }
+  review_gate: LOOP 007 实现票（一票三臂收口；resolved 后矩阵 D04-R18 随翻）
+  evidence: reports/compatibility/L006-a-b-diff.md §2.1
 # 条目模式（M3-2 落地）：
 # - id: rest/build-batch-delete-date-range
 #   surface: POST /api/build/delete

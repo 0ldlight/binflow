@@ -360,7 +360,8 @@ contracts:
     scope_note: '本矩阵限新窗口内副本（检索窗未到期）；过期窗条件服务见 docker/remote-manifest-revalidation-serve'
   side_effects: []
   error_behavior: []
-  unobserved_reference_arms: []
+  unobserved_reference_arms:
+    - 'star 腿（If-None-Match: *）未活体（L006-2 ③ 注记）：BinFlow 按「任意 INM 在场封死日期臂」实现——star 在场必 200、IMS 单独可 304，沿用 blob 面外推 + client_conditional_test star 组合腿锁定；待参照臂一次带 * 的活体捕获'
   binflow_state:
     verdict: SAME
     detail: 'L004-1 双端活体 18 臂矩阵判 DIVERGENT（M2/M2c/M2d unquoted INM 三臂反转，D1 挂账）。L005-1 修复（manifestClientNotModified 两读面统一按值不区分引号匹配 + 任意 INM 在场封死日期臂）后全矩阵重跑：20/20 臂 SAME（status+body+归一头集+上游计数全 0）——M2/M2c/M2d 全收敛；M6/M2b 偶合未翻面（M6 304 由「日期臂偶合」变为「按值匹配直判」、M2b 200 维持——可观察面不变）；blob B1-B6 复证 SAME；过期窗 6/6 客户端可见 SAME 无回归'
@@ -579,6 +580,7 @@ contracts:
   error_behavior: []
   unobserved_reference_arms:
     - '过期 blob 的条件臂（归 docker/remote-blob-expired-revalidation 差异面——X3：BinFlow TTL 回源重取后再判 304 vs 参照本地零回源 304；客户端可见 304 形态本轮双端同）'
+    - 'star 腿（If-None-Match: *）未活体（L006-2 ③ 注记）：star 在场必 200（任意 INM 封死日期臂）、IMS 单独可 304——本面为 manifest 面「按值匹配+封日期臂」语义的外推源，client_conditional_test star 组合腿锁定；待参照臂一次带 * 的活体捕获'
   binflow_state:
     verdict: SAME
     detail: 'L004-1 双端活体 B1-B7 七臂全 SAME（quote 不敏感/封日期臂/HEAD 恒 200/304 完整 artifact 面无 CT-CL；对照臂 B7 body sha256 逐字节一致）；X-Binflow-Cache 超集头 tolerated'
@@ -698,11 +700,11 @@ contracts:
   confidence: high
   status: VERIFIED
 - id: docker/remote-manifest-404-no-negative-cache
-  feature: 'manifest 404 负缓存（missedRetrievalCachePeriodSecs 生效：tag miss 与未知 image 名均「首问一次 → 窗口内本地 → TTL 到期回源+行重写+再冻结」）——L004-2 定谳立账 + L005-1 实现收官翻绿（M-b 口径按 L005-1 修正）'
-  surface: 'GET /v2/<repoKey>/<image>/manifests/<nonexistent-tag>（重复 ×3，间隔 << missedRetrievalCachePeriodSecs）'
+  feature: 'manifest 404 负缓存（missedRetrievalCachePeriodSecs 生效：tag miss / by-digest 缺席引用 / 未知 image 名均「首问一次 → 窗口内本地 → TTL 到期回源+行重写+再冻结」）——L004-2 定谳立账 + L005-1 实现收官翻绿（M-b 口径修正）+ L006 by-digest 补臂'
+  surface: 'GET /v2/<repoKey>/<image>/manifests/<nonexistent-tag-or-digest>（重复 ×3，间隔 << missedRetrievalCachePeriodSecs）'
   request:
     method: GET
-    path: '/v2/<repoKey>/<image>/manifests/<nonexistent-tag>'
+    path: '/v2/<repoKey>/<image>/manifests/<nonexistent-tag-or-digest>'
     headers: { Authorization: 'Bearer <token>' }
     query: {}
   authentication: { type: bearer, role: user }
@@ -714,6 +716,7 @@ contracts:
       upstream_rtt: false
       arms:
         known_image_tag_miss: '首问一次上游（参照 HEAD / BinFlow GET——探查形状差归 N1 类不判）→ missedTTL 窗口内重复 miss 本地应答（0 上游）→ TTL 到期回源 +1 并重写行、再冻结（L005-1 §3.1/§3.2 双端同语义）'
+        known_image_digest_miss: '与 tag 形完全同形：首问一次（参照 HEAD / BinFlow GET，N1 类）→ 窗口内本地 → 到期回源 +1 + 行重写 + 再冻结（L006 by-digest 冷 miss 补臂：×3 连发上游 1/3、60s 到期重写 sqlite 行直证、404 体逐字节同）——键=digest→image/manifests/<hex> 节点（与 standing 臂同键，L006 §2/§3 活体直证）'
         unknown_image_name: '与 M-a 同形：首问一次（参照 HEAD / BinFlow GET）→ 窗口内本地 → 到期回源（L005-1 §3.3 双端 1/3 同形——干净专属仓与 _catalog 聚合后两态一致。勿按「未知名零回源」强读法立断言：L004-2 参照 0/3 观察未复现已废弃，复现条件差注记见 known-divergence resolved note）'
       judgment: '上游 access 行计数为主判据——本地上游 RTT（30-40ms）与本地负缓存应答同量级不可分（L000-B 误判机理）'
   side_effects:
@@ -739,6 +742,7 @@ contracts:
     - { kind: difftest, report: reports/compatibility/L000-docker-remote-diff.md, anchor: 'C14（原判依据证伪；L002-2 趋同观察亦不复现）', date: '2026-09-11' }
     - { kind: difftest, report: reports/compatibility/L004-negative-cache-probe.md, anchor: '§0 结论速览 + §1 代码定谳 + §2 双臂矩阵（M-a/M-b/B1/B2）+ §3 三选一裁定', date: '2026-09-11' }
     - { kind: difftest, report: reports/compatibility/L005-c14-d1-diff.md, anchor: '§3 C14 两形态新证（M-a/M-b 双端 1/3 同形 + missedTTL 到期回源重写 sqlite 行直证 + 真实 CLI 腿）', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/L006-by-digest-cold-miss-diff.md, anchor: '§1 结果矩阵 + §2 sqlite 行直证（by-digest 冷 miss ×3+60s 到期双端同语义全 SAME）', date: '2026-09-12' }
   confidence: high
   status: VERIFIED
 # ── tags/list 与 _catalog ────────────────────────────────────────────────────

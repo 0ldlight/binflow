@@ -127,6 +127,12 @@ unknowns:
     required_evidence: "双 gc 并发实测（E4）",
     probe: "并行两个 POST /api/system/storage/gc 抓第二响应",
     origin: "L002-3 prune-gc-admin.md V-7", cross_ref: "" }
+- { unknown_id: U-STG-26, domain: STG, priority: P2, status: open,
+    question: "prune 空闲 stop（202 臂）的 stop 标记是否跨重启存活——实现为内存态，重启后空闲 stop 是否退回 412",
+    why_unknown: "BinFlow 实现为内存 marker（L005-4 N4 注记）；Artifactory 侧未观察",
+    required_evidence: "双端实测：空闲 stop 后重启实例再 stop（E4）",
+    probe: "参照 :8082 prune/stop（空闲）→ 容器 restart → 再 stop 抓形态；BinFlow 同拓扑对照",
+    origin: "L005-4 T-L005-4.md Risks（E4 空闲 stop marker 不跨重启）", cross_ref: "" }
 - { unknown_id: U-STG-02, domain: STG, priority: P1, status: open,
     question: "MPU（客户端分块续传）wire 协议本体——init/part/complete/abort 逐端点与 checksum-deploy token 用法",
     why_unknown: "s3-storage-layout.md §3 只有配置面与会话语义；REST handler 疑在外部 storage 库不可达",

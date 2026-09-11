@@ -1,14 +1,19 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-12T05:00:00Z
-current_iteration: 006
-current_goal: "攻坚排程票 A+B（仓配置 round-trip + 经典路径别名五清）+ docker 微票池（seam/virtual 读探针/star）+ by-digest 补臂"
-iteration_005_seal: "四轨全收零中断；docker-remote 契约 22/25 VERIFIED（残余全待裁）；storage-admin 10/10 满；matrix 199 行 ✅65；divergence resolved 累计 11；双审战绩 6/6；iteration-005.md 落盘"
+updated: 2026-09-12T07:30:00Z
+current_iteration: 007
+current_goal: "permissions residuals 三臂 + D3 定向探针 + update-merge 设计票 + 票 C/D + invalid-value 族裁定包"
+iteration_006_seal: "三轨全收零中断；matrix ✅68/◐23（P0 partial→6 行）；攻坚五行清偿+v1 方言真兼容；C14 三面闭环；D06-R17 前提证伪重分类；双审战绩 7/7；iteration-006.md 落盘"
+loop_007_tracks:
+  - { id: L007-1, domain: permissions-rest, owner: dev-go-core, what: "permissions residuals 三臂票（DELETE 204-vs-200/未知名错误体裁/admin 主体 400——台账 rest/permissions-v1-response-shape-residuals）+ 票 C（D04-R02 GET users/{name} 字段集：status 枚举闭集/enabled 布尔/lastLoggedIn 条件/groups 空集形态）" }
+  - { id: L007-2, domain: differential, owner: differential-qa-engineer, what: "D3 定向探针（过期 blob 臂×missedTTL 窗双端复核——known-divergence docker/remote-blob-expired-revalidation 的 LOOP 007 门）+ virtual 面冷 miss 活体差分（L006-2 挂账）" }
+  - { id: L007-3, domain: architecture, owner: architect, what: "update-merge 语义设计票（remote 更新省略=保留 vs 全量替换——族级影响全字段，ADR 候选稿）+ invalid-value 族裁定素材整理（mistyped 400-vs-500/'yes'→true/未知布局名——产品 authority 输入）" }
+  - { id: L007-4, domain: ledger-increment, owner: compatibility-engineer, what: "superset 新行提案（/api/v1/system/backups 超集面）+ security 读族姿态登记（CapSecurityRead vs 参照 admin-only——范围外上报收编）+ D04-R18 残余收窄注记" }
 loop_006_tracks:
   - { id: L006-1, domain: repo-config-rest, owner: dev-go-core, what: "攻坚票 A+B 串行双包：A=D02-R03+R04 仓配置 PUT/POST round-trip（maxUniqueSnapshots/repoLayoutRef/blackedOut/archiveBrowsingEnabled 四域静默丢弃）双清；B=D04-R17+R18+D06-R17 经典路径别名挂载（/api/permissions 与 /api/system/backup/{key} 族——衔接 T-504 别名核定）三清" }
-  - { id: L006-2, domain: docker-remote-face, owner: dev-registry-adapter, what: "docker 微票池：repo 面 CacheRemoteMiss doc 行票（tag 键口径）+ virtual 读探针 seam 票（tag+digest 两形）+ star 未观察臂（契约注记+测试补锁 IMS 组合）+ 过时文本三处（helm.md §8.3/remote.go:1067/virtual.go:267 注释 only 不真）+ by-digest 冷 miss 差分补臂" }
-  - { id: L006-3, domain: rulings, owner: conductor, what: "案头裁定：M-b 口径复核（L004-2 §2.1 观察条件考古）/ D3（过期 blob 回源）裁定 / E4 空闲 stop UNKNOWN 挂账 / 待裁 9 项催办" }
+  - { id: L006-2, domain: docker-remote-face, owner: dev-registry-adapter, what: "✅ 五件全清：virtual 读探针 seam（V2MemberManifest !ok 臂 C14 双形读探针，变异验证区分性）/repo doc 行双键法改准/star IMS 组合腿锁封臂+unobserved 注记/过时注释两处直改+helm.md §8.3 建议文本回报/**by-digest 冷 miss 补臂全 SAME（C14 双键法活体证据齐）**；契约建议三条候 compat 增量（star 注记×2/digest 臂补/§8.3 文本）", status: done }
+  - { id: L006-3, domain: rulings, owner: conductor, what: "✅ 案头裁定三件：M-b 复核=两轮条件不同（同仓 M-a 后 curl vs 干净仓+聚合），机制不可远程定谳——契约已弃强读法不超载主张，ledger 旗标关闭；**D3 维持 UNKNOWN**（拒绝单臂观察上的 INTENTIONAL——ADR-0048 教训），re-gate LOOP 007 定向探针（过期 blob 臂×missedTTL 窗）；E4 空闲 stop 跨重启入队 U-STG-26；待裁 9 项仍候用户", status: done }
 loop_005_tracks:
   - { id: L005-1, domain: docker-remote-face, owner: dev-registry-adapter, what: "C14+D1 合票：manifest 冷 miss 负缓存写入（M-a/M-b）+ unquoted INM 按值匹配 + 三处证伪注释连修 + **修后全 304-matrix 重跑**（M6/M2b 偶合验证）", status: in_flight }
   - { id: L005-2, domain: differential, owner: devops-engineer, what: "✅ backup 成功臂**双端活体**坐实（参照 backup-daily 实跑 current/ 刷新+access.backup 新件；UAT 装配实例 200+manifest/blobs/metadata.db 产物+调度日志）——schedule-and-return 语义同构；字面差（chunked Activating/uuid vs scheduled）为可选 polish；V-2 信封族双实例收束；**附带发现：调度面与载体失败面正交**（exportPath 无权→200 照发+detached ERROR 诚实落日志）；契约翻 VERIFIED+D01-R40 翻态已转 compat 执行；遗留=daocloud 镜像源间歇 EOF（canonical 覆盖参数绕过中，持续则改 build-release 默认源另开票）", status: done }
