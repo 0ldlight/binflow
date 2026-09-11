@@ -326,8 +326,11 @@ func (s *service) cacheBusyRetry(ctx context.Context, op string, fn func(context
 
 // CacheRemoteMiss implements RemoteV2Plane: the negative-cache write of the
 // engine's step 5 (an upstream 404 answers from the miss record inside its
-// window, zero upstream packets). Digest-keyed paths only — a TAG miss has
-// no storage path to key and simply answers 404 (helm.md 8.3).
+// window, zero upstream packets). The key is reference-shaped (L005-1): a
+// digest miss keys the manifest node path (image/manifests/<hex>), a tag
+// miss the row <image>/tags/<tag> — the two spellings the adapter's
+// manifestMissNodePath builds; the fresh row is what the cold-miss read
+// probe (and the virtual walk's member-facts seam, L006-2) consults.
 func (s *service) CacheRemoteMiss(ctx context.Context, p *Principal, repoKey, path string) error {
 	if err := validateNodePath(path); err != nil {
 		return err

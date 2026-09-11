@@ -45,6 +45,18 @@ const (
 	// metadataRetrievalTimeoutSecs 60) — the engine-wide constant becomes a
 	// per-repository knob with the same product default.
 	defaultMetadataRetrievalTimeoutSecs int64 = 60
+	// defaultRepoLayoutRef is the artifactory.xsd default of repoLayoutRef
+	// (L006-A live evidence: a bare REST create of a local OR remote
+	// repository echoes maven-2-default on every package type tried —
+	// generic, npm, docker; the per-package layouts the UI offers never
+	// reach the REST default). The virtual arm has NO default — the
+	// reference's own virtual echo omits the key when it was not set. The
+	// LOCAL arm also keeps no injected default: its caller-owned blob
+	// (nested-configuration echo, no materialized defaults) is the shape
+	// D02-R02 already rules compatible — the remote canonical form here is
+	// the only arm whose always-present-with-defaults posture matches the
+	// reference's own flat echo.
+	defaultRepoLayoutRef = "maven-2-default"
 )
 
 // remoteConfig is the canonical remote repository configuration (FR-15; the
@@ -121,6 +133,24 @@ type remoteConfig struct {
 	// trap). deb/rpm are the official-setting types (remote-browsing.md
 	// section 2); helm is BinFlow's L2 superset leg, registered there.
 	ListRemoteFolderItems bool `json:"listRemoteFolderItems"`
+	// L006-A (D02-R03/R04, the P0 round-trip debt): the four cross-rclass
+	// domains ride the REMOTE canonical form always-present, like every
+	// default the family echoes. Scope is the live reference's own: all
+	// four round-trip on local and remote; the VIRTUAL arm keeps only
+	// repoLayoutRef (the reference drops the other three there — BinFlow
+	// copies that drop, evidence over invention). repoLayoutRef defaults
+	// to the artifactory.xsd default maven-2-default (live evidence: a
+	// bare REST create echoes it on every package type tried — generic,
+	// npm, docker); blackedOut/maxUniqueSnapshots/archiveBrowsingEnabled
+	// default false/0/false; a negative maxUniqueSnapshots stores verbatim
+	// (the reference echoes -1 back — no refusal to mirror). No
+	// layout-name validation: the reference's unknown-layout 400 consults
+	// a layout registry BinFlow does not carry (K73: presentation-only),
+	// recorded as a ruled divergence.
+	RepoLayoutRef          string `json:"repoLayoutRef"`
+	BlackedOut             bool   `json:"blackedOut"`
+	MaxUniqueSnapshots     int    `json:"maxUniqueSnapshots"`
+	ArchiveBrowsingEnabled bool   `json:"archiveBrowsingEnabled"`
 }
 
 // ContentSynchronisation is the smart remote content-sync policy (T-317,
@@ -204,6 +234,14 @@ type remoteConfigInput struct {
 	// counts as absent (keeps the 600s product default), a negative value
 	// refuses by name with a 400.
 	MetadataRetrievalCachePeriodSecs *int64 `json:"metadataRetrievalCachePeriodSecs"`
+	// L006-A: the four round-trip domains' input seats. Pointers keep an
+	// explicit false/0 distinct from absent so the flip-off update works
+	// (unlike the period knobs above, 0 IS the maxUniqueSnapshots value —
+	// K71's posture, no 0-as-absent rule here).
+	RepoLayoutRef          *string `json:"repoLayoutRef"`
+	BlackedOut             *bool   `json:"blackedOut"`
+	MaxUniqueSnapshots     *int    `json:"maxUniqueSnapshots"`
+	ArchiveBrowsingEnabled *bool   `json:"archiveBrowsingEnabled"`
 }
 
 // validateRemoteConfigShape is the strict single-JSON-value gate of the
@@ -362,6 +400,7 @@ func parseRemoteConfig(config, packageType string) (remoteConfig, string, error)
 		AllowPrivateUpstream:             false,
 		PriorityResolution:               false,
 		MetadataRetrievalCachePeriodSecs: defaultMetadataTTLSeconds,
+		RepoLayoutRef:                    defaultRepoLayoutRef,
 	}
 
 	// missRetrievalCachePeriodSecs alias (T-290): one knob, two spellings;
@@ -472,6 +511,22 @@ func parseRemoteConfig(config, packageType string) (remoteConfig, string, error)
 	}
 	out.ContentSynchronisation = cs
 	out.ChartsBaseURL = chartsBase
+	// L006-A: the four round-trip domains — verbatim collect, no
+	// value-domain gates (the reference accepts a negative snapshot cap
+	// and echoes it back; it validates layout names against a registry
+	// BinFlow deliberately does not carry, K73).
+	if in.RepoLayoutRef != nil && *in.RepoLayoutRef != "" {
+		out.RepoLayoutRef = *in.RepoLayoutRef
+	}
+	if in.BlackedOut != nil {
+		out.BlackedOut = *in.BlackedOut
+	}
+	if in.MaxUniqueSnapshots != nil {
+		out.MaxUniqueSnapshots = *in.MaxUniqueSnapshots
+	}
+	if in.ArchiveBrowsingEnabled != nil {
+		out.ArchiveBrowsingEnabled = *in.ArchiveBrowsingEnabled
+	}
 	return out, in.Password, nil
 }
 
@@ -541,6 +596,14 @@ func maskRemoteConfig(config string) string {
 type virtualConfig struct {
 	Repositories          []string `json:"repositories"`
 	DefaultDeploymentRepo string   `json:"defaultDeploymentRepo,omitempty"`
+	// L006-A (D02-R03/R04): repoLayoutRef is the ONLY one of the four
+	// round-trip domains the virtual arm keeps — the live reference's own
+	// virtual echo carries it when set and OMITS it when not (no xsd
+	// default on this arm, unlike local/remote's maven-2-default), and it
+	// drops blackedOut/maxUniqueSnapshots/archiveBrowsingEnabled entirely.
+	// BinFlow copies that scope verbatim: omitempty here, no seats for
+	// the other three anywhere on the virtual path.
+	RepoLayoutRef string `json:"repoLayoutRef,omitempty"`
 }
 
 // virtualConfigInput adds the write-routing aliases Artifactory's REST body
@@ -552,6 +615,10 @@ type virtualConfigInput struct {
 	DefaultDeploymentRepo    string   `json:"defaultDeploymentRepo"`
 	DefaultDeploymentRepoRef string   `json:"defaultDeploymentRepoRef"`
 	DeploymentRepository     string   `json:"deploymentRepository"`
+	// L006-A: the virtual arm's repoLayoutRef input seat (the other three
+	// domains' spellings are accepted-and-dropped here like every unknown
+	// field — the reference's own virtual behavior).
+	RepoLayoutRef string `json:"repoLayoutRef"`
 }
 
 // parseVirtualConfig validates the virtual repository config blob's shape.
@@ -586,7 +653,7 @@ func parseVirtualConfig(config string) (virtualConfig, error) {
 				ErrInvalidRepoConfig, def, alias)
 		}
 	}
-	return virtualConfig{Repositories: in.Repositories, DefaultDeploymentRepo: def}, nil
+	return virtualConfig{Repositories: in.Repositories, DefaultDeploymentRepo: def, RepoLayoutRef: in.RepoLayoutRef}, nil
 }
 
 // byHashPolicies is the closed value domain of the deb by-hash policy key

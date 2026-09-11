@@ -858,6 +858,35 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true},
 			s.withName(rest, "v1/permissions/", s.handlePermissionDelete))
 
+	// ---- /api/security/permissions (L006-B, D04-R17/R18 — the classic v1
+	// alias family; gap-endpoints section 4 + SecurityResource.java,
+	// 7.161.20 live-verified 2026-09-12) ----
+	// Artifactory's original permission-target plane, mounted ALONGSIDE the
+	// BinFlow-native /api/v1/permissions: the list (GET, the {name, uri}
+	// skeleton), the detail (GET {name}, the v1 shape with letter actions),
+	// the keyed create-or-replace (PUT {name} — the path key governs, a
+	// disagreeing body name answers the reference's 409) and the delete
+	// (DELETE {name}). The write verbs keep the v1 plane's required-only
+	// route (the family-4 exception gate lives in the shared handler); the
+	// reads gate on security:read. POST {name} answers the reference's own
+	// bare 400 (the addon layer's updateSecurityEntity serves only users
+	// and groups — mounting the same answer is the alignment, Review B).
+	// Every other spelling falls to the E-26 404.
+	case rest == "security/permissions" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead}, s.handlePermissionListV1)
+	case strings.HasPrefix(rest, "security/permissions/") && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
+			s.withNameUnescaped(rest, "security/permissions/", s.handlePermissionGetV1))
+	case strings.HasPrefix(rest, "security/permissions/") && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
+			s.withNameUnescaped(rest, "security/permissions/", s.handlePermissionPostV1))
+	case strings.HasPrefix(rest, "security/permissions/") && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true},
+			s.withNameUnescaped(rest, "security/permissions/", s.handlePermissionPutV1))
+	case strings.HasPrefix(rest, "security/permissions/") && r.Method == http.MethodDelete:
+		s.enforce(w, r, routeAuth{required: true},
+			s.withNameUnescaped(rest, "security/permissions/", s.handlePermissionDelete))
+
 	// ---- /api/repositories (E-04..E-08) ----
 	// The list sits on repo:read (family 5, D2/C22b): readonly_admin sees
 	// the full inventory; a plain user must not (M1 has no per-repository
@@ -1670,6 +1699,26 @@ func (s *Server) withName(rest, prefix string, h func(http.ResponseWriter, *http
 		if name == "" || tail != "" {
 			notImplemented(w, "/binflow/api/"+rest)
 			return
+		}
+		h(w, r, name)
+	}
+}
+
+// withNameUnescaped is withName for name segments the wire carries
+// percent-encoded (L006-B): the classic /api/security/permissions face
+// emits {name, uri} with the name URL-escaped (a target may carry spaces,
+// e.g. "Any Remote"), and JAX-RS decodes the path parameter back before the
+// lookup — the reference's own round-trip. rest arrives from EscapedPath,
+// so the decode happens here, at the seam.
+func (s *Server) withNameUnescaped(rest, prefix string, h func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name, tail := splitAPIName(rest, prefix)
+		if name == "" || tail != "" {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		if decoded, err := url.PathUnescape(name); err == nil {
+			name = decoded
 		}
 		h(w, r, name)
 	}

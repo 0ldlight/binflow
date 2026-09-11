@@ -20,6 +20,12 @@ package docker
 // 18-arm matrix (the reference matches unquoted values and seals the date
 // arm on ANY present If-None-Match); the falsified expectations were
 // corrected with the fix in the same change.
+//
+// The `*` spelling is the matrix's one UNOBSERVED leg (no capture ever
+// sent it — L005-1 review B's finding): its 200-with-matching-IMS rides
+// the same present-but-non-matching seal the observed mismatch legs carry,
+// the blob face's existing extrapolation; the IMS combo legs below LOCK
+// the seal, and the contract owes the leg an unobserved note.
 
 import (
 	"context"
@@ -59,7 +65,8 @@ func TestClientConditionalManifestMatrix(t *testing.T) {
 		{"quoted etag matches", map[string]string{"If-None-Match": `"` + etag + `"`}, http.StatusNotModified},
 		{"weak quoted etag matches", map[string]string{"If-None-Match": `W/"` + etag + `"`}, http.StatusNotModified},
 		{"unquoted etag matches by value (D1: M2/M2d)", map[string]string{"If-None-Match": etag}, http.StatusNotModified},
-		{"star does not match and seals the date arm", map[string]string{"If-None-Match": "*"}, http.StatusOK},
+		{"star does not match and seals the date arm (unobserved arm — the blob face's extrapolation)", map[string]string{
+			"If-None-Match": "*", "If-Modified-Since": lm}, http.StatusOK},
 		{"quoted digest-form etag does not match", map[string]string{"If-None-Match": `"sha256:` + sha256Hex(manifest) + `"`}, http.StatusOK},
 		{"quoted mismatch blocks the matching date arm", map[string]string{
 			"If-None-Match": `"deadbeef"`, "If-Modified-Since": lm}, http.StatusOK},
@@ -141,7 +148,8 @@ func TestClientConditionalBlobMatrix(t *testing.T) {
 		{"quoted etag matches", map[string]string{"If-None-Match": `"` + etag + `"`}, http.StatusNotModified},
 		{"unquoted etag ALSO matches (quote-insensitive)", map[string]string{"If-None-Match": etag}, http.StatusNotModified},
 		{"weak quoted etag matches", map[string]string{"If-None-Match": `W/"` + etag + `"`}, http.StatusNotModified},
-		{"star does not match", map[string]string{"If-None-Match": "*"}, http.StatusOK},
+		{"star does not match and seals the date arm (unobserved arm)", map[string]string{
+			"If-None-Match": "*", "If-Modified-Since": lm}, http.StatusOK},
 		{"digest-form etag does not match", map[string]string{
 			"If-None-Match": `"sha256:` + sha256Hex(cfg) + `"`}, http.StatusOK},
 		{"mismatch blocks the matching date arm", map[string]string{

@@ -264,8 +264,11 @@ func (h *Handler) serveVirtualRemoteManifest(w http.ResponseWriter, r *http.Requ
 		}
 		return virtualMemberUnfound, fmt.Sprintf("upstream answered 304 %s without a validator being offered", fetched.statusT)
 	case http.StatusNotFound:
-		// The engine's step: record the miss (digest-keyed paths only),
-		// then an expired copy still serves (STALE).
+		// The engine's step: record the miss (the standing arm keys the
+		// digest's manifest node path; the cold-miss arm below keys the
+		// reference shape — digest the same node path, tag the image's
+		// tags/ row), member-scoped, then an expired copy still serves
+		// (STALE).
 		if standing != nil {
 			_ = plane.V2CacheMemberMiss(ctx, p, ref.repoKey, member, manifestNodePath(ref.image, standing.dgst)) //nolint:errcheck // best-effort bookkeeping; the serve stands
 			h.serveVirtualManifestCopy(w, r, member, origin, standing.node, standing.mediaType, standing.dgst, standing.size,
@@ -273,10 +276,11 @@ func (h *Handler) serveVirtualRemoteManifest(w http.ResponseWriter, r *http.Requ
 			return virtualMemberServed, ""
 		}
 		// The cold miss records the reference-keyed miss row in the MEMBER's
-		// cache (C14 — the member's own direct face probes it; the walk's
-		// member-facts seam does not re-probe tag-keyed rows on a cold miss
-		// yet, so the walk itself keeps asking the member's upstream until
-		// the seam learns the key).
+		// cache (C14 — both reference shapes: the digest at the manifest
+		// node path, the tag under the image's tags/ row). The member-facts
+		// seam probes the row on the next ask (L006-2), so the walk reuses
+		// the member's miss record inside its window — the same memory the
+		// member's own direct face consults, cross-face consistent.
 		_ = plane.V2CacheMemberMiss(ctx, p, ref.repoKey, member, manifestMissNodePath(ref.image, reference, isDigestRef, wantHex)) //nolint:errcheck // best-effort bookkeeping; the serve stands
 		return virtualMemberUnfound, fmt.Sprintf("upstream answered 404 %s", fetched.statusT)
 	case http.StatusUnauthorized, http.StatusForbidden:

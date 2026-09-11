@@ -325,6 +325,15 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 		// blob — repo.Service's parseRemoteConfig owns its typing gate (a
 		// `true` outside the batch-1 set refuses by name there).
 		setBool(m, "listRemoteFolderItems", c.ListRemoteFolderItems)
+		// L006-A (D02-R03/R04): the four round-trip domains ride the REMOTE
+		// arm too — the live reference echoes all four on a remote
+		// repository (repoLayoutRef defaulting to maven-2-default,
+		// blackedOut/maxUniqueSnapshots/archiveBrowsingEnabled verbatim).
+		// repo.Service's parseRemoteConfig owns defaults and typing.
+		setStr(m, "repoLayoutRef", c.RepoLayoutRef)
+		setBool(m, "blackedOut", c.BlackedOut)
+		setInt(m, "maxUniqueSnapshots", c.MaxUniqueSnapshots)
+		setBool(m, "archiveBrowsingEnabled", c.ArchiveBrowsingEnabled)
 	case repo.TypeVirtual:
 		if c.Repositories != nil {
 			m["repositories"] = c.Repositories
@@ -332,6 +341,14 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 		setStr(m, "defaultDeploymentRepo", c.DefaultDeploymentRepo)
 		setStr(m, "defaultDeploymentRepoRef", c.DefaultDeploymentRepoRef)
 		setStr(m, "deploymentRepository", c.DeploymentRepository)
+		// L006-A (D02-R03/R04): the VIRTUAL arm keeps repoLayoutRef ONLY —
+		// the live reference's virtual echo carries it when set, omits it
+		// when not, and DROPS blackedOut/maxUniqueSnapshots/
+		// archiveBrowsingEnabled sent to a virtual repository. BinFlow
+		// copies that scope (those three spellings fall to the unknown-key
+		// tolerance inside parseVirtualConfig, same as every field the
+		// reference itself ignores).
+		setStr(m, "repoLayoutRef", c.RepoLayoutRef)
 	default:
 		// local: the cross-cutting member mark plus the maven policy
 		// family (T-67's consumers read them verbatim out of the config

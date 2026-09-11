@@ -1064,8 +1064,10 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 		}
 		unfound.write(w, fmt.Sprintf("upstream answered 304 %s without a validator being offered", fetched.statusT))
 	case http.StatusNotFound:
-		// The engine's step: record the miss (digest-keyed paths only),
-		// then an expired copy still serves (STALE).
+		// The engine's step: record the miss (the standing arm keys the
+		// digest's manifest node path; the cold-miss arm below keys the
+		// reference shape — digest the same node path, tag the image's
+		// tags/ row), then an expired copy still serves (STALE).
 		if standing != nil && standing.node != nil {
 			_ = plane.CacheRemoteMiss(ctx, p, ref.repoKey, manifestNodePath(ref.image, standing.dgst)) //nolint:errcheck // best-effort bookkeeping; the serve stands
 			h.serveRemoteManifestCopy(w, r, face, standing.node, standing.mediaType, standing.dgst, standing.size,
