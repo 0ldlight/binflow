@@ -101,12 +101,27 @@ type statusFormBody struct {
 	Errors []statusFormError `json:"errors"`
 }
 
+// contentTypeJSON is the /v2 plane's standing JSON Content-Type; the two
+// ping 401 arms are the only observed face that spells a charset
+// (L002-2 captures a_ping.h/a_pingbad.h — every other JSON face on the
+// reference answers the bare media type).
+const (
+	contentTypeJSON        = "application/json"
+	contentTypeJSONCharset = "application/json;charset=ISO-8859-1"
+)
+
 // writeStatusFormError renders the Artifactory generic error model
 // (pretty-printed, the evidence bodies' shape) with the mandatory
 // api-version header every /v2 response carries (DE-17).
 func writeStatusFormError(w http.ResponseWriter, status int, message string) {
+	writeStatusFormErrorCT(w, status, message, contentTypeJSON)
+}
+
+// writeStatusFormErrorCT is writeStatusFormError with an explicit
+// Content-Type (the ping face's charset spelling).
+func writeStatusFormErrorCT(w http.ResponseWriter, status int, message, contentType string) {
 	hdr := w.Header()
-	hdr.Set("Content-Type", "application/json")
+	hdr.Set("Content-Type", contentType)
 	hdr.Set(HeaderAPIVersion, APIVersionValue)
 	w.WriteHeader(status)
 	enc := json.NewEncoder(w)
@@ -117,8 +132,14 @@ func writeStatusFormError(w http.ResponseWriter, status int, message string) {
 // writeSpecError renders the registry error envelope with the mandatory
 // api-version header. detail may be nil (serialized as null).
 func writeSpecError(w http.ResponseWriter, status int, code, message string, detail any) {
+	writeSpecErrorCT(w, status, code, message, detail, contentTypeJSON)
+}
+
+// writeSpecErrorCT is writeSpecError with an explicit Content-Type (the
+// ping face's charset spelling).
+func writeSpecErrorCT(w http.ResponseWriter, status int, code, message string, detail any, contentType string) {
 	hdr := w.Header()
-	hdr.Set("Content-Type", "application/json")
+	hdr.Set("Content-Type", contentType)
 	hdr.Set(HeaderAPIVersion, APIVersionValue)
 	w.WriteHeader(status)
 	enc := json.NewEncoder(w)

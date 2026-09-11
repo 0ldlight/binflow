@@ -351,9 +351,12 @@ func TestV2TokenFormCredentials(t *testing.T) {
 	}
 }
 
-// TestV2TokenRevocation (D23, FR-11-AC6): a token issued at /v2/token is
-// revoked by VALUE at the management endpoint and its Bearer then fails
-// with the registry-plane 401.
+// TestV2TokenRevocation (D23, FR-11-AC6; re-anchored by L003-2): a token
+// issued at /v2/token is revoked by VALUE at the management endpoint and
+// its Bearer then fails with the registry-plane 401 — on the ping route
+// that is the refused-credential face (Basic realm + pretty status form,
+// the reference's own arm; evidence reports/compatibility/
+// L003-remote-face-diff.md ③).
 func TestV2TokenRevocation(t *testing.T) {
 	h := newHarness(t)
 	_, body := getV2Token(h, adminUser, adminPass, "?service=binflow")
@@ -369,16 +372,7 @@ func TestV2TokenRevocation(t *testing.T) {
 	}
 	after := h.do(http.MethodGet, "/v2/", "", "", nil,
 		map[string]string{"Authorization": "Bearer " + tok.Token})
-	abody := mustGet(t, after)
-	if after.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("revoked bearer status = %d; body=%s", after.StatusCode, abody)
-	}
-	if strings.Contains(abody, `"status"`) {
-		t.Fatalf("revoked bearer body carries the /binflow envelope: %s", abody)
-	}
-	if ch := after.Header.Get("WWW-Authenticate"); !strings.Contains(ch, `/v2/token`) {
-		t.Fatalf("challenge = %q, want Bearer realm .../v2/token", ch)
-	}
+	assertPingRefusedFace(t, after, mustGet(t, after))
 }
 
 // TestV2ScopedChallengeMatrix (AC2, table-driven): the 401 challenge on a

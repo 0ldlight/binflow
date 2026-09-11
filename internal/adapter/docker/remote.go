@@ -666,6 +666,13 @@ func (h *Handler) serveRemoteTagsList(w http.ResponseWriter, r *http.Request, re
 			fmt.Sprintf("method %s is not supported on tags/list", r.Method), nil)
 		return
 	}
+	// The remote face's own n semantics (remote_face.go): the invalid-n
+	// 404 answers BEFORE any upstream contact.
+	n, ok := remotePageSize(w, r)
+	if !ok {
+		return
+	}
+	last := r.URL.Query().Get("last")
 	ctx := r.Context()
 	p := principalOf(r)
 	entry, _, serr := h.remoteSession(ctx, p, ref.repoKey)
@@ -699,6 +706,18 @@ func (h *Handler) serveRemoteTagsList(w http.ResponseWriter, r *http.Request, re
 	} else {
 		h.log.WarnContext(ctx, "docker remote: upstream tags/list answered non-200",
 			"repo", ref.repoKey, "image", ref.image, "status", first.status)
+	}
+	// The client's n/last window over the aggregated FULL list (L003-2):
+	// n=0 (absent) serves everything, an explicit page truncates with the
+	// Link rel="next" header exactly while a further page exists (the
+	// remote face ABSORBS the upstream's own pagination and re-windows it
+	// under its own path — captures a_tagsn.h/a_tagsl.h).
+	if n > 0 {
+		var more bool
+		tags, more = slicePage(tags, last, n)
+		if more && len(tags) > 0 {
+			w.Header().Set("Link", nextPageLink(tagsListPath(ref), tags[len(tags)-1], n))
+		}
 	}
 	writeAPIVersion(w)
 	w.Header().Set("Content-Type", "application/json")
@@ -758,6 +777,13 @@ func (h *Handler) serveRepoCatalog(w http.ResponseWriter, r *http.Request, path,
 		h.writeRemoteServeError(w, r, serr, nameRef{repoKey: repoKey})
 		return
 	}
+	// The same n/last contract as the tags face (remote_face.go), on the
+	// repo-domain catalog path.
+	n, ok := remotePageSize(w, r)
+	if !ok {
+		return
+	}
+	last := r.URL.Query().Get("last")
 	repositories := []string{}
 	pages, err := entry.fetchList(ctx, catalogPath, scopeRegistryCatalog)
 	switch {
@@ -775,6 +801,17 @@ func (h *Handler) serveRepoCatalog(w http.ResponseWriter, r *http.Request, path,
 			}
 		}
 		sort.Strings(repositories)
+	}
+	if n > 0 {
+		var more bool
+		repositories, more = slicePage(repositories, last, n)
+		if more && len(repositories) > 0 {
+			// The reference's repo-domain catalog Link points at the
+			// REGISTRY-LEVEL /v2/_catalog path (live capture: `</v2/_catalog?
+			// last=…&n=…>; rel="next"` served from /v2/<repoKey>/_catalog) —
+			// a reference quirk copied verbatim, not a typo.
+			w.Header().Set("Link", nextPageLink(catalogPath, repositories[len(repositories)-1], n))
+		}
 	}
 	writeAPIVersion(w)
 	w.Header().Set("Content-Type", "application/json")
@@ -860,6 +897,7 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 
 	ctx := r.Context()
 	p := principalOf(r)
+	face := h.manifestFace(ctx, p, ref, reference)
 	plane := h.remotePlane()
 	if plane == nil {
 		h.log.ErrorContext(ctx, "docker: remote manifest without the v2 plane seam", "repo", ref.repoKey)
@@ -881,7 +919,7 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 		}
 		switch probe.State {
 		case repo.RemoteProbeHit:
-			h.serveRemoteManifestCopy(w, r, probe.Node, mediaType, dgst, size, remote.CacheHit, "")
+			h.serveRemoteManifestCopy(w, r, face, probe.Node, mediaType, dgst, size, remote.CacheHit, "")
 			return
 		case repo.RemoteProbeNegative:
 			unfound.write(w, "")
@@ -912,7 +950,7 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 				size = standing.node.Size
 			}
 			serveStale = func(summary string) {
-				h.serveRemoteManifestCopy(w, r, standing.node, mediaType, standing.dgst, size, remote.CacheStale, summary)
+				h.serveRemoteManifestCopy(w, r, face, standing.node, mediaType, standing.dgst, size, remote.CacheStale, summary)
 			}
 		}
 		h.writeRemoteFetchFault(w, r, ferr, ref, unfound, serveStale)
@@ -920,14 +958,14 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 	}
 	switch fetched.status {
 	case http.StatusOK:
-		h.landRemoteManifest(w, r, ref, reference, isDigestRef, wantHex, fetched)
+		h.landRemoteManifest(w, r, ref, reference, isDigestRef, wantHex, fetched, face)
 		return
 	case http.StatusNotFound:
 		// The engine's step: record the miss (digest-keyed paths only),
 		// then an expired copy still serves (STALE).
 		if standing != nil && standing.node != nil {
 			_ = plane.CacheRemoteMiss(ctx, p, ref.repoKey, manifestNodePath(ref.image, standing.dgst)) //nolint:errcheck // best-effort bookkeeping; the serve stands
-			h.serveRemoteManifestCopy(w, r, standing.node, standing.mediaType, standing.dgst, standing.size,
+			h.serveRemoteManifestCopy(w, r, face, standing.node, standing.mediaType, standing.dgst, standing.size,
 				remote.CacheStale, "upstream 404 (expired copy served)")
 			return
 		}
@@ -937,7 +975,7 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 		// engine's 401/403 posture — no negative cache, the credential
 		// state is correctable).
 		if standing != nil && standing.node != nil {
-			h.serveRemoteManifestCopy(w, r, standing.node, standing.mediaType, standing.dgst, standing.size,
+			h.serveRemoteManifestCopy(w, r, face, standing.node, standing.mediaType, standing.dgst, standing.size,
 				remote.CacheStale, fmt.Sprintf("upstream %d %s", fetched.status, fetched.statusT))
 			return
 		}
@@ -946,7 +984,7 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 		// Other 4xx/5xx and anomalies: degrade like the engine's offline
 		// arm — stale copy with the marker, unfound without one.
 		if standing != nil && standing.node != nil {
-			h.serveRemoteManifestCopy(w, r, standing.node, standing.mediaType, standing.dgst, standing.size,
+			h.serveRemoteManifestCopy(w, r, face, standing.node, standing.mediaType, standing.dgst, standing.size,
 				remote.CacheStale, fmt.Sprintf("upstream %d %s", fetched.status, fetched.statusT))
 			return
 		}
@@ -971,7 +1009,7 @@ type manifestCopyServer func(w http.ResponseWriter, r *http.Request, node *metad
 
 // landRemoteManifest lands one fetched manifest for the DIRECT remote
 // plane: the sink addresses the repository the request named.
-func (h *Handler) landRemoteManifest(w http.ResponseWriter, r *http.Request, ref nameRef, reference string, isDigestRef bool, wantHex string, fetched *upstreamAnswer) {
+func (h *Handler) landRemoteManifest(w http.ResponseWriter, r *http.Request, ref nameRef, reference string, isDigestRef bool, wantHex string, fetched *upstreamAnswer, face remoteFace) {
 	plane := h.remotePlane()
 	if plane == nil {
 		h.log.ErrorContext(r.Context(), "docker: remote manifest without the v2 plane seam", "repo", ref.repoKey)
@@ -987,7 +1025,9 @@ func (h *Handler) landRemoteManifest(w http.ResponseWriter, r *http.Request, ref
 		record: func(dgst, tag, mediaType string, size int64, refs []*metadata.DockerRef) error {
 			return plane.RecordRemoteManifest(r.Context(), p, ref.repoKey, ref.image, dgst, tag, mediaType, size, refs)
 		},
-	}, h.serveRemoteManifestCopy)
+	}, func(w http.ResponseWriter, r *http.Request, node *metadata.Node, mediaType, dgst string, size int64, cacheState, upstreamError string) {
+		h.serveRemoteManifestCopy(w, r, face, node, mediaType, dgst, size, cacheState, upstreamError)
+	})
 }
 
 // landFetchedManifest is the shared landing of one upstream manifest
@@ -1036,7 +1076,17 @@ func (h *Handler) landFetchedManifest(w http.ResponseWriter, r *http.Request, re
 	// the refs ledger is the ADR-0047 chain gate's substrate, and an
 	// untyped parse would silently starve it (best-effort means the failure
 	// must at least be real, not an always-on input bug).
-	refs := remoteManifestRefs(mediaType, fetched.body)
+	refs, perr := remoteManifestRefs(mediaType, fetched.body)
+	if perr != nil {
+		// The parse-failure dual of the unrecorded-refs WARN below (L003-2
+		// review A): the body still serves verbatim (pass-through), but no
+		// ref rows exist for it, so the ADR-0047 chain gate will refuse this
+		// manifest's uncached blobs — the degradation must be visible in the
+		// log, not inferred from later 404s.
+		h.log.WarnContext(ctx, "docker remote: manifest refs not parsed (serving verbatim; the chain gate will not admit this manifest's uncached blobs)",
+			"repo", ref.repoKey, "image", ref.image, "digest", dgst,
+			"cache_result", "refs-unparsed", "error", perr.Error())
+	}
 	tag := ""
 	if !isDigestRef {
 		tag = reference
@@ -1056,13 +1106,14 @@ func (h *Handler) landFetchedManifest(w http.ResponseWriter, r *http.Request, re
 }
 
 // remoteManifestRefs extracts a fetched manifest's descriptor digests
-// (best-effort: the pass-through parse the local plane owns, degraded to
-// no refs when the body does not parse against mediaType — the upstream
-// already served it). These rows are the ADR-0047 chain gate's ledger.
-func remoteManifestRefs(mediaType string, body []byte) []*metadata.DockerRef {
+// (best-effort: the pass-through parse the local plane owns; a body that
+// does not parse against mediaType answers no refs AND the parse error —
+// the caller logs it, the upstream already served the body). These rows
+// are the ADR-0047 chain gate's ledger.
+func remoteManifestRefs(mediaType string, body []byte) ([]*metadata.DockerRef, error) {
 	parsed, err := parseManifest(mediaType, body)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	out := make([]*metadata.DockerRef, 0, len(parsed.refs))
 	seen := make(map[string]struct{}, len(parsed.refs))
@@ -1077,13 +1128,20 @@ func remoteManifestRefs(mediaType string, body []byte) []*metadata.DockerRef {
 		seen[hexPart] = struct{}{}
 		out = append(out, &metadata.DockerRef{BlobDigest: hexPart, ChildMediaType: mr.MediaType})
 	}
-	return out
+	return out, nil
 }
 
 // serveRemoteManifestCopy streams one landed/expired manifest copy with
 // the read contract (Docker-Content-Digest, the stored media type, the
-// cache markers). HEAD carries the headers only.
-func (h *Handler) serveRemoteManifestCopy(w http.ResponseWriter, r *http.Request, node *metadata.Node, mediaType, dgst string, size int64, cacheState, upstreamError string) {
+// cache markers) and the remote face's full artifact header set (L003-2,
+// capture a_mf.h/a_mfh2.h): the checksum family, Etag (=sha1 unquoted),
+// Last-Modified (=the cache-landing timestamp), Accept-Ranges, the
+// Content-Disposition/X-Artifactory-Filename pair and
+// X-Artifactory-Origin-Remote-Path; HEAD adds X-Artifactory-Docker-Registry
+// (the HEAD face's own header — the live capture's GET set plus it, a
+// superset the contract's HEAD expectations read as present-tolerated).
+// HEAD carries the headers only.
+func (h *Handler) serveRemoteManifestCopy(w http.ResponseWriter, r *http.Request, face remoteFace, node *metadata.Node, mediaType, dgst string, size int64, cacheState, upstreamError string) {
 	rc, err := h.openRemoteBlob(r.Context(), node)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "docker remote: open cached manifest",
@@ -1107,6 +1165,28 @@ func (h *Handler) serveRemoteManifestCopy(w http.ResponseWriter, r *http.Request
 		mediaType = mimeOctetStream
 	}
 	hdr.Set("Content-Type", mediaType)
+	if row := h.ledgerRow(r.Context(), dgst); row != nil {
+		if row.Sha1 != "" {
+			hdr.Set(hdrChecksumSha1, row.Sha1)
+			hdr.Set("ETag", row.Sha1)
+		}
+		if row.Md5 != "" {
+			hdr.Set(hdrChecksumMd5, row.Md5)
+		}
+	}
+	hdr.Set(hdrChecksumSha256, dgst)
+	if lm := nodeLastModified(node); lm != "" {
+		hdr.Set("Last-Modified", lm)
+	}
+	hdr.Set("Accept-Ranges", "bytes")
+	hdr.Set(hdrContentDisposition, `attachment; filename="`+manifestFilename(mediaType)+`"`)
+	hdr.Set(hdrFilename, manifestFilename(mediaType))
+	if face.origin != "" {
+		hdr.Set(hdrOriginRemotePath, face.origin)
+	}
+	if r.Method == http.MethodHead {
+		hdr.Set(hdrDockerRegistry, face.registry)
+	}
 	hdr.Set("Content-Length", strconv.FormatInt(size, 10))
 	w.WriteHeader(http.StatusOK)
 	if r.Method == http.MethodHead {
@@ -1141,6 +1221,7 @@ func (h *Handler) serveRemoteBlob(w http.ResponseWriter, r *http.Request, ref na
 
 	ctx := r.Context()
 	p := principalOf(r)
+	face := h.blobFace(ctx, p, ref, hex)
 	plane := h.remotePlane()
 	if plane == nil {
 		h.log.ErrorContext(ctx, "docker: remote blob without the v2 plane seam", "repo", ref.repoKey)
@@ -1156,7 +1237,7 @@ func (h *Handler) serveRemoteBlob(w http.ResponseWriter, r *http.Request, ref na
 	}
 	switch probe.State {
 	case repo.RemoteProbeHit:
-		h.serveRemoteBlobCopy(w, r, probe.Node, remote.CacheHit, "")
+		h.serveRemoteBlobCopy(w, r, face, probe.Node, remote.CacheHit, "")
 		return
 	case repo.RemoteProbeNegative:
 		unfound.write(w, "")
@@ -1189,7 +1270,7 @@ func (h *Handler) serveRemoteBlob(w http.ResponseWriter, r *http.Request, ref na
 		var serveStale func(string)
 		if standing != nil && standing.node != nil {
 			serveStale = func(summary string) {
-				h.serveRemoteBlobCopy(w, r, standing.node, remote.CacheStale, summary)
+				h.serveRemoteBlobCopy(w, r, face, standing.node, remote.CacheStale, summary)
 			}
 		}
 		h.writeRemoteFetchFault(w, r, ferr, ref, unfound, serveStale)
@@ -1204,19 +1285,19 @@ func (h *Handler) serveRemoteBlob(w http.ResponseWriter, r *http.Request, ref na
 			h.writeRemoteServeError(w, r, lerr, ref)
 			return
 		}
-		h.serveRemoteBlobCopy(w, r, node, remote.CacheMiss, "")
+		h.serveRemoteBlobCopy(w, r, face, node, remote.CacheMiss, "")
 	case http.StatusNotFound:
 		drainUpstream(stream.Body)
 		_ = plane.CacheRemoteMiss(ctx, p, ref.repoKey, path) //nolint:errcheck // best-effort bookkeeping; the serve stands
 		if standing != nil && standing.node != nil {
-			h.serveRemoteBlobCopy(w, r, standing.node, remote.CacheStale, "upstream 404 (expired copy served)")
+			h.serveRemoteBlobCopy(w, r, face, standing.node, remote.CacheStale, "upstream 404 (expired copy served)")
 			return
 		}
 		unfound.write(w, "")
 	default:
 		drainUpstream(stream.Body)
 		if standing != nil && standing.node != nil {
-			h.serveRemoteBlobCopy(w, r, standing.node, remote.CacheStale,
+			h.serveRemoteBlobCopy(w, r, face, standing.node, remote.CacheStale,
 				fmt.Sprintf("upstream %d %s", stream.StatusCode, stream.Status))
 			return
 		}
@@ -1253,8 +1334,12 @@ func (h *Handler) blobChainAdmits(ctx context.Context, p *Principal, ref nameRef
 
 // serveRemoteBlobCopy streams one blob copy through the local plane's
 // server (Range, checksum family, Docker-Content-Digest) plus the cache
-// markers.
-func (h *Handler) serveRemoteBlobCopy(w http.ResponseWriter, r *http.Request, node *metadata.Node, cacheState, upstreamError string) {
+// markers and the remote face's artifact headers the body server does not
+// own (L003-2, capture a_blob.h/a_blobr.h): Last-Modified (the
+// cache-landing timestamp), the Content-Disposition/X-Artifactory-Filename
+// pair (sha256__<hex>) and X-Artifactory-Origin-Remote-Path — set before
+// the delegation so they ride both the 200 and the 206 window.
+func (h *Handler) serveRemoteBlobCopy(w http.ResponseWriter, r *http.Request, face remoteFace, node *metadata.Node, cacheState, upstreamError string) {
 	rc, err := h.openRemoteBlob(r.Context(), node)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "docker remote: open cached blob",
@@ -1271,7 +1356,16 @@ func (h *Handler) serveRemoteBlobCopy(w http.ResponseWriter, r *http.Request, no
 	if upstreamError != "" {
 		hdr.Set(remote.HdrUpstreamError, upstreamError)
 	}
-	blob := storage.BlobRef{Sha256: digestHexOfNode(node), Size: node.Size}
+	hex := digestHexOfNode(node)
+	if lm := nodeLastModified(node); lm != "" {
+		hdr.Set("Last-Modified", lm)
+	}
+	hdr.Set(hdrContentDisposition, `attachment; filename="`+blobFilename(hex)+`"`)
+	hdr.Set(hdrFilename, blobFilename(hex))
+	if face.origin != "" {
+		hdr.Set(hdrOriginRemotePath, face.origin)
+	}
+	blob := storage.BlobRef{Sha256: hex, Size: node.Size}
 	if row := h.ledgerRow(r.Context(), blob.Sha256); row != nil {
 		if row.Sha1 != "" {
 			blob.Sha1 = row.Sha1

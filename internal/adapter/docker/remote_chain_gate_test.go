@@ -196,6 +196,20 @@ func TestChainGateColdDigestPosture(t *testing.T) {
 	if _, err := rs.md.Remote().GetCache(context.Background(), "docker-remote", "myimg/blobs/"+outHex); err == nil {
 		t.Fatal("the gate refusal wrote a negative-cache row")
 	}
+
+	// The REPEATED out-of-chain leg (L003-2 review A): the refusal is a
+	// pure function of the refs ledger, so the second GET repeats the same
+	// local 404 verbatim and the journal stays FROZEN — no new upstream
+	// roundtrip, still no negative-cache row (the deterministic answer
+	// carries no TTL memory to age out).
+	code2, body2, _ := rs.get("/v2/docker-remote/myimg/blobs/sha256:"+outHex, nil)
+	assertLocalBlobRefusal(t, code2, body2, "sha256:"+outHex)
+	if got := up.blobRoundtrips() - manifestRoundtrips; got != 2 {
+		t.Fatalf("blob roundtrips after the repeat = %d, want the frozen 2", got)
+	}
+	if _, err := rs.md.Remote().GetCache(context.Background(), "docker-remote", "myimg/blobs/"+outHex); err == nil {
+		t.Fatal("the repeated refusal wrote a negative-cache row")
+	}
 }
 
 // TestChainGateShutUntilManifestLands: the C10 replay shape — a REAL

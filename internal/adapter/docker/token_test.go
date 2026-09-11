@@ -586,17 +586,21 @@ func TestEnsureAnonymousSubjectFailure(t *testing.T) {
 // request's host, C01); every other /v2 route keeps the registry spec
 // body. The router reaches RenderAuthFailure through the v2AuthFailure
 // seam, so this pins the adapter-side split both ways.
+// L003-2: the PING route is a third arm of its own (L002-2 capture
+// a_pingbad.h) — `Basic realm="Artifactory Realm"` plus the same pretty
+// "Bad Credentials" body, never a Bearer re-challenge.
 func TestRenderAuthFailureTokenPathIsArtifactoryForm(t *testing.T) {
 	h := newTokenHandler(nil, nil, &fakeUsers{}, Options{AnonymousAccess: true, BaseURL: "http://reg.example"})
 
 	cases := []struct {
 		path    string
 		badCred bool
+		ping    bool
 	}{
-		{TokenPath, true},
-		{TokenPath + "/sub", true},
-		{"/v2/", false},
-		{"/v2/team1/app/manifests/latest", false},
+		{TokenPath, true, false},
+		{TokenPath + "/sub", true, false},
+		{"/v2/", false, true},
+		{"/v2/team1/app/manifests/latest", false, false},
 	}
 	for _, tc := range cases {
 		w := &captureWriter{hdr: http.Header{}}
@@ -607,7 +611,7 @@ func TestRenderAuthFailureTokenPathIsArtifactoryForm(t *testing.T) {
 			t.Fatalf("%s status = %d", tc.path, w.status)
 		}
 		body := w.body.String()
-		if tc.badCred {
+		if tc.badCred || tc.ping {
 			var eb statusFormBody
 			if err := json.Unmarshal([]byte(body), &eb); err != nil {
 				t.Fatalf("%s body %q: %v", tc.path, body, err)
@@ -623,6 +627,18 @@ func TestRenderAuthFailureTokenPathIsArtifactoryForm(t *testing.T) {
 			if !strings.Contains(body, `"code":"UNAUTHORIZED"`) {
 				t.Fatalf("%s body is not the registry spec form: %s", tc.path, body)
 			}
+		}
+		if tc.ping {
+			// The ping arm's own challenge (L003-2, capture a_pingbad.h):
+			// the Basic realm verbatim from the reference, not the Bearer
+			// dance, and the ping face's charset Content-Type.
+			if got := w.hdr.Get("WWW-Authenticate"); got != `Basic realm="Artifactory Realm"` {
+				t.Fatalf("%s challenge = %q, want the Basic realm form", tc.path, got)
+			}
+			if got := w.hdr.Get("Content-Type"); got != contentTypeJSONCharset {
+				t.Fatalf("%s content-type = %q, want %q", tc.path, got, contentTypeJSONCharset)
+			}
+			continue
 		}
 		// The challenge header keeps the ADR-0010 clause 4 shape on BOTH
 		// branches (realm=<base>/v2/token); service echoes the request's

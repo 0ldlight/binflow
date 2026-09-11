@@ -56,12 +56,33 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Bearer challenge header but renders Artifactory's generic error model
 // body ("Bad Credentials", L000-B C02 — the OAuth-form ruling applies to
 // the endpoint's parameter 400s only).
+// L003-2 exception: the PING route's refused credential is its own face
+// (L002-2 capture a_pingbad.h) — a Basic realm challenge plus the pretty
+// "Bad Credentials" body, NOT a Bearer re-challenge: a client that
+// presented credentials is told the credential failed, not that
+// negotiation is needed.
 func (h *Handler) RenderAuthFailure(w http.ResponseWriter, r *http.Request) {
 	if r.URL != nil && isTokenRoute(r.URL.EscapedPath()) {
 		h.renderTokenAuthFailure(w, r)
 		return
 	}
+	if r.URL != nil {
+		if path := r.URL.EscapedPath(); path == "/v2" || path == "/v2/" {
+			h.pingBadCredentials(w)
+			return
+		}
+	}
 	h.challenge(w, r, "")
+}
+
+// pingBadCredentials renders the ping route's refused-credential arm
+// (capture a_pingbad.h): `Basic realm="Artifactory Realm"` — the realm
+// string verbatim from the reference, what a docker client surfaces in
+// its login prompt — plus the generic error model's pretty "Bad
+// Credentials" and the ping face's charset Content-Type.
+func (h *Handler) pingBadCredentials(w http.ResponseWriter) {
+	w.Header().Set("WWW-Authenticate", `Basic realm="Artifactory Realm"`)
+	writeStatusFormErrorCT(w, http.StatusUnauthorized, "Bad Credentials", contentTypeJSONCharset)
 }
 
 // servePing implements DE-01 (D44-1/C6 errata form): an AUTHENTICATED
@@ -77,7 +98,7 @@ func (h *Handler) RenderAuthFailure(w http.ResponseWriter, r *http.Request) {
 // -> 200" posture is superseded by the same ruling.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	if principalOf(r) == nil {
-		h.challenge(w, r, "")
+		h.pingAnonymousChallenge(w, r)
 		return
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -95,6 +116,17 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		_, _ = w.Write([]byte("{}"))
 	}
+}
+
+// pingAnonymousChallenge is the ping face's anonymous 401: the standard
+// Bearer challenge body with the ping face's own Content-Type spelling —
+// application/json;charset=ISO-8859-1 (capture a_ping.h; every OTHER /v2
+// JSON face answers the bare application/json, so the spelling lives here
+// and not in the shared error writers).
+func (h *Handler) pingAnonymousChallenge(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("WWW-Authenticate", h.bearerChallenge(r, ""))
+	writeSpecErrorCT(w, http.StatusUnauthorized, ErrCodeUnauthorized,
+		"authentication required", nil, contentTypeJSONCharset)
 }
 
 // challenge renders the 401 + Bearer challenge (ADR-0010 clause 4). scope
