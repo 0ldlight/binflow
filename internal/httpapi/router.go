@@ -434,6 +434,36 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/system/gc" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleSystemGC)
 
+	// ---- /api/system/storage (LOOP 003 / prune-gc-admin.md E1-E10 —
+	// the Artifactory StorageResource family, the BinFlow-native spelling
+	// under the compatible /api plane like system/license) ----
+	// Ten endpoints: the PUD trio (202 async + persisted 26-field report),
+	// the synchronous gc dot stream, optimize/compress/backup triggers,
+	// the size/info read faces and the deprecated exportds. Gates follow
+	// the family: mutations on system:write (no dry-run exception,
+	// T-214①), reads on system:read. Every other spelling falls to the
+	// E-26 404.
+	case rest == "system/storage/prune/start" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleStoragePruneStart)
+	case rest == "system/storage/prune/stop" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleStoragePruneStop)
+	case rest == "system/storage/prune/status" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleStoragePruneStatus)
+	case rest == "system/storage/gc" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleStorageGCStream)
+	case rest == "system/storage/optimize" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleStorageOptimize)
+	case rest == "system/storage/compress" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleStorageCompress)
+	case rest == "system/storage/backup" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleStorageBackup)
+	case rest == "system/storage/size" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleStorageSize)
+	case rest == "system/storage/info" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleStorageInfo)
+	case rest == "system/storage/exportds" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleStorageExportds)
+
 	// ---- /api/v1/system/cleanup (M11 T-324, FR-102.2; sync, lock-guarded)
 	// ----
 	// POST triggers one run (dry-run default, the gc family's posture —

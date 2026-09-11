@@ -60,6 +60,12 @@ type Deps struct {
 	// T-94). Nil on stacks assembled without an engine — the endpoint
 	// answers 503 rather than pretending a run happened.
 	GC GarbageCollector
+	// BackupRunner schedules one configured backup fire (POST
+	// /api/system/storage/backup, LOOP 003): the scheduler's backup
+	// domain runner — the same kernel a cron fire rides, never a second
+	// executor. Nil keeps the endpoint's trigger arm at the honest 503;
+	// the validate/error arms still answer (they read the store only).
+	BackupRunner BackupRunner
 	// Replay is the dual-write fail-open engine's stats face (M12 T-338,
 	// ADR-0040): present only on dual-write assemblies; nil keeps the
 	// replay metric family unregistered (the CleanupEngine precedent).
@@ -280,6 +286,10 @@ type Server struct {
 	// the process stream feeds (New wraps s.log with the fan-out when
 	// Deps.ServiceLog is nil). Never nil — self-assembled like qrl.
 	serviceLog SystemLogTail
+	// prune is the PUD job manager (POST /api/system/storage/prune/*,
+	// LOOP 003): the single-flight flag, the stop marker and the
+	// persisted 26-field status report over <data>/prune_report.json.
+	prune *pruneManager
 	// builds is the build-info domain service (M17 T-508, FR-152.2): the
 	// upload/append/query orchestration over the 024 BuildStore seam,
 	// ACL'd by the same-source allow() mirror. nil — a metadata-less unit
@@ -350,6 +360,9 @@ func New(deps Deps, log *slog.Logger) *Server {
 		}
 	}
 	s := &Server{deps: deps, log: log, adapters: adapters, mgmt: mgmt, uploads: newMPURegistry()}
+	// The PUD job manager self-assembles (the qrl/serviceLog precedent):
+	// its only collaborator is the data directory's report file.
+	s.prune = newPruneManager(deps.DataDir, log)
 	// The System Logs tail (M17 T-493, FR-157③) attaches BEFORE anything
 	// else could log through s.log: the wrap fans every subsequent record
 	// into the ring (assembleServiceLog's Deps seam note), so the first

@@ -659,6 +659,33 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 		extHost = host // the external hop's own target, for the fault wording
 	}
 
+	// The revalidation arm (remote-cache-v2 §5.3, the generic engine leg):
+	// an EXPIRED metadata-class copy with stored validators rides a
+	// conditional hop — If-None-Match/If-Modified-Since from the cache row
+	// (the validators land() archives on every fetch). An upstream 304 hits
+	// mapUpstreamStatus's 304 case (clock slide + REVALIDATED serve, the
+	// signal the docker manifest arm maps onto the client's 304); a 200
+	// replaces the copy wholesale. Scope: metadata class only — the mutable
+	// documents (docker tag manifests, packuments, maven-metadata.xml).
+	// Content-class artifacts are immutable and checksum-addressed; their
+	// expired refetch stays unconditional (ADR-0012 decision 1's
+	// "checksum 命中永不再验" line: the window governs resolution, not a
+	// digest hit).
+	if staleNode != nil && kind == metadata.RemoteCacheKindMetadata {
+		if entry, gerr := e.md.Remote().GetCache(ctx, repoKey, path); gerr == nil &&
+			(entry.ETag != "" || entry.LastModified != "") {
+			if req.Header == nil {
+				req.Header = http.Header{}
+			}
+			if entry.ETag != "" {
+				req.Header.Set("If-None-Match", entry.ETag)
+			}
+			if entry.LastModified != "" {
+				req.Header.Set("If-Modified-Since", entry.LastModified)
+			}
+		}
+	}
+
 	if kind == metadata.RemoteCacheKindMetadata {
 		// Buffered class (packument, simple index, maven-metadata.xml): the
 		// 64MB cap applies and an over-limit response is a 502 (NFR-S13
@@ -1267,6 +1294,13 @@ func (e *Engine) loadRepo(ctx context.Context, repoKey string) (*metadata.Repo, 
 			pol.AssumedOfflinePeriodSecs = defaultPolicy.AssumedOfflinePeriodSecs
 		}
 	}
+	// The content-TTL single resolution point (remote-cache-v2 §5.1): an
+	// unset row (<= 0) takes the package type's default — 21600s for
+	// docker/helmoci, 7200s otherwise — while an explicit value passes
+	// through untouched (存量不回改). The config row is a fresh read per
+	// load, so the normalization every downstream ttlFor consumer (land,
+	// the 304 clock slide) sees is this one value and no call site drifts.
+	cfg.ContentTTLSeconds = ResolveContentTTLSeconds(cfg.ContentTTLSeconds, row.PackageType)
 	return row, cfg, pol, nil
 }
 
