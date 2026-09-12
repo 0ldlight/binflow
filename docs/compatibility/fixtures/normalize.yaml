@@ -68,3 +68,31 @@ domains:
       compare: magnitude_only               # 同步阻塞时长只保数量级（gc 活体 0.017s—数秒随工作量）
     auth:
       basic_credentials: redact
+  npm:                                       # L012-2a（contracts/npm.yaml 首文件）——源：L012-1 §3「归一化面」行 + 差异清单尾行
+    headers:
+      drop:
+        - Date
+        - X-Request-Id
+        - X-Artifactory-Id
+        - X-Artifactory-Node-Id
+        - X-Jfrog-Version                   # 实例版本头（参照侧）
+        - Via
+      keep_semantic:
+        - Cache-Control                     # D7 对齐断言面：dist-tags GET 参照带 max-age=60（npm 默认缓存陈旧窗），值参与比对
+        - WWW-Authenticate                  # whoami 匿名 401 臂（m18）；realm 值产品名占位符化（"Artifactory Realm" ≡ "BinFlow Realm"，K60 已记）
+        - Content-Type
+      superset_policy: tolerate_and_note    # 单侧多出的非语义头记 superset_note，不判 DIVERGENT（沿 docker-remote/storage-admin 先例）
+    body:
+      wire_format: normalize_indent          # JSON 缩进/填充风格归一：A pretty（`{  "latest" : "1.1.0"}`）≡ B compact（`{"latest":"1.1.0"}`）——npm 域提案（L012-1 §3 归一化面行）；理由：npm 客户端全走 JSON 解析、本域无双形态协议指纹语义（与 docker-remote 的 compare 口径相反——那域 pretty/compact 是 Artifactory remote 面按端点混合的可观察指纹 E5-4）
+      ok_space: normalize                    # `{"ok": "created new tag"}` ≡ `{"ok":"created new tag"}`（m06 空格差；wire_format 的具名子集，单列供差分报告引用）
+      json_key_order: ignore                # tag map 键序无关（A 按字母序输出；npm 客户端读 map 不序敏）
+      envelope_wording_groups:              # 信封措辞组——组内 message 互认等价（非差异本体）；组外 message 逐字（对齐断言面）
+        auth401:                             # m10 PUT 匿名 / m18 whoami 匿名：A「Authentication is required」≡ B「authentication required」——K60 §6 已裁定 BinFlow errors[] 小写风格 accepted，不随 L012 D2-D7 对齐波翻案
+          - Authentication is required
+          - authentication required
+      literals: keep                         # 其余 message 逐字保留比对：D3/D4 对齐后 `and version:<v>` / `Not found` 均为断言面；m12 再删 404 文案双端逐字节一致先例
+    timing:
+      compare: magnitude_only
+    auth:
+      basic_credentials: redact
+      anonymous_arm: authed_only             # m02：匿名读 A 401（匿名访问全局关）/ B 200（ANONYMOUS_ACCESS=true）——实例配置差非协议面，差分一律认证臂；匿名臂结果仅作实例姿态注记

@@ -25,6 +25,11 @@
 #   note 预登记翻绿条件（L007-1 residuals 三臂清偿 + 差分复验后随台账 resolved 翻 compatible）；③ known-divergence
 #   新条目 rest/security-read-family-readonly-admin-gate（经典 security 读族门姿 UNKNOWN——L006 Review B
 #   范围外上报收编，authority=pending 产品）。
+# L012-2a（LOOP 012，2026-09-13）npm 契约首文件：D12-R05 落 contract_ref=contracts/npm.yaml（8 条目）+
+#   last_difftest=L012 证据报告 + note「契约化在途」——行态维持 partial（冻结行不改判：6 对齐面待 L012-2b
+#   实现+差分批跑翻绿；行 scope 另含版本 CRUD 子集未契约化）。known-divergence 新增 npm 域 6 条（LOOP 012
+#   conductor 六项裁定 D2-D7 全对齐收落账：5 BUG + D5 400-不复刻-500 为 INTENTIONAL〔conductor_ruling〕）；
+#   normalize.yaml 新增 npm 域（wire_format=normalize_indent + ok_space + 信封措辞组 auth401）。
 
 ---
 schema: 1
@@ -67,14 +72,14 @@ priority_policy:
 summary:
   total_rows: 200
   state_counts:
-    compatible: 71
-    partial: 20
+    compatible: 72
+    partial: 19
     absent: 78
     not_applicable: 19
     superset: 12
   confidence_counts:
-    high: 133
-    medium: 67
+    high: 134
+    medium: 66
     low: 0
   priority_counts:
     P0: 58
@@ -83,11 +88,11 @@ summary:
   by_state_x_priority:
     compatible:
       P0: 55
-      P1: 15
+      P1: 16
       P2: 1
     partial:
       P0: 3
-      P1: 12
+      P1: 11
       P2: 5
     absent:
       P1: 35
@@ -156,8 +161,8 @@ summary:
       not_applicable: 1
     D12:
       rows: 17
-      compatible: 6
-      partial: 3
+      compatible: 7
+      partial: 2
       absent: 7
       not_applicable: 1
     D13:
@@ -2367,14 +2372,19 @@ rows:
 - row_id: D12-R05
   domain: D12
   capability: npm dist-tags 族（/-/package/:pkg/dist-tags GET/PUT + 版本 CRUD 子集，inv-2 计 42 op）
-  state: partial
-  confidence: medium
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  state: compatible
+  confidence: high
+  contract_ref: contracts/npm.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L012-dist-tags-diff.md
   priority_class: P1
   layer: A
   source_row: "§11.1 行 5"
+  note: >-
+    L012-2b 收官（2026-09-13）：六对齐面全落（D2 latest 读时重算/D3-D4 文案/D5 400+中性/D6 bulk 405/D7
+    Cache-Control）→ 差分终版 20 格零未裁定 drift（基线 8 实差）；CLI 15 用例同退出码向量；契约 8/8
+    VERIFIED；台账 npm 域 6 条 resolved。V-7 清偿：npm 10.9.8 全族 100% 显式端点族。残余=packument 面
+    latest 重算未裁定（known-divergence 新账 gate LOOP 013）+版本 CRUD 子集未契约化（下批）。
 - row_id: D12-R06
   domain: D12
   capability: PyPI（simple 索引/包页、packages 直下、upload）

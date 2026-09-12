@@ -492,7 +492,18 @@ entries:
       recordPropsAudit 只记 addressed 节点一行、propModifiedTimes 审计派生无子项行；实现方向=propsTargets
       逐 target 记审计行或 NodeProps 存储层 per-node 变更时刻。递归缺省语义差（参照默认递归 vs BinFlow
       显式 recursive=1）系 FR-89.2/决策 11.40 族既有裁量另计，非本池项范围。
-  evidence: reports/compatibility/L008-list-params-diff.md §3 + T-L009-2.md + L010-list-p2-diff.md §1-§4（32/32 终态）
+      LOOP 012 池项闭项（2026-09-12，T-L012-3 八臂差分+红检）：mdTimestamps 递归臂升级落地（案 A=
+      propsTargets 逐 target **变更条件化**审计行——行随实变更不随请求：幂等重写/无人携带键 DELETE
+      parked、真变才落行，同时修掉幂等重写曾移动 mtime 的潜在分歧）。八臂双端对齐：E1 递归 PUT 三类
+      条目（文件/嵌套文件夹/深层文件）全携 mtime@写时刻 / E2 二次写全体移动 / E3 直写只动该子项 /
+      E4a·E4b parked / E4c 真删全体移动 / **W 通配 miss 204 属性原样保留**（附带修复：换装前空 drop 集
+      落「空=全删」形态会清空节点属性并递归殃及子项——数据丢失角，红检钉死）。时间戳秒级 .000Z 维持
+      audit 派生族定谳。残余转后续票素材：① audit 派生 1000 行/action 页上限的重属性史完备性
+      （metadata GROUP BY(path,max(time)) 派生面票——AuditStore.LastActionTimes 先例）② **Review B
+      两角落待探针**：N1 递归通配解析域（`?properties=<pat>*` 的通配解析域/匹配面在递归 fan-out 上的
+      语义边界未单拍）；N2 webhook 条件化不对称（变更条件化后 props.write 审计行与 artifact_property
+      域 webhook 触发是否同策略未核——若 webhook 仍随请求发即审计/事件不对称）。
+  evidence: reports/compatibility/L008-list-params-diff.md §3 + T-L009-2.md + L010-list-p2-diff.md §1-§4（32/32 终态）+ T-L012-3.md（八臂+root 角）
 - id: rest/user-detail-vendor-content-type
   surface: 'GET /api/security/users/{name} 200 面 Content-Type（vendor 串缺位）'
   classification: BUG
@@ -572,6 +583,91 @@ entries:
   authority: { type: pending, ref: "产品/conductor 裁（virtual 元数据面：对齐 404 vs 维持 200 超集——无既有 authority 覆盖本面）" }
   review_gate: LOOP 012 限期升级（INTENTIONAL 终裁需 authority；裁对齐则开面收缩票〔virtual 消费方联动评估〕）
   evidence: reports/agents/T-L011-1.md（Compatibility 新观察段 + 前置探针①参照对照臂）
+- id: rest/properties-root-posture
+  surface: properties 族根姿态（PUT/GET/DELETE 打仓库根）
+  classification: BUG
+  rationale: >-
+    T-L012-3 root 角探针（2026-09-12 双端活体，任务②）：参照 properties 族三动词打仓库根**开放**——
+    PUT 根属性=204（默认递归 fan-out 含根自身），GET ?properties 回读在，此后
+    ?list&includeRootPath=1&mdTimestamps=1 的「/」根条目携 mdTimestamps.properties@写入时刻；BinFlow
+    现行一律 400 "invalid artifact path: path is empty"（root-not-a-node 架构姿态）→ 该 enrich 臂在
+    BinFlow **架构上不可达**（无写入面可产生根属性行）。非分歧面注记：无根属性时「/」无 mdTimestamps
+    双端一致。定级裁量（BUG 转 R-16 候裁）：参照面开放且已双端取证、对齐方向技术上明确（非探针前置
+    类）；BinFlow 400 系架构附带结果非裁定姿态（无 authority 在案）——故不取 UNKNOWN，入 BUG；但对齐
+    =面扩张票（三动词根姿态 + authz 空路径 + 审计 path="" 跳过放开〔propModifiedTimes 现跳过空 path〕），
+    排期维度归产品 → 转 R-16 候裁席位。
+  authority: { type: differential, ref: "reports/agents/T-L012-3.md（root 角探针——Changes⑥/Outputs root 段）" }
+  review_gate: R-16 候裁（pending-rulings 席位）→ 裁后排面扩张票（root 三动词+authz 空路径+审计空 path 放开；对齐后 includeRootPath enrich 臂自动可达）
+  evidence: reports/agents/T-L012-3.md（root 角双端取证）
+- id: npm/dist-tags-latest-recompute
+  surface: npm local dist-tags DELETE latest 读时语义（L012-1 §3-D2）
+  classification: BUG
+  rationale: >-
+    参照删 latest 后 GET 重算回 {"latest":"1.1.0"}（读时按最高版本重算；判别探针：set latest=1.0.0→201、
+    DELETE→200、GET 回 1.1.0——非 no-op、非末值恢复）；BinFlow 同序列 GET 回 {}（真删不重算）→ npm dist-tag ls
+    客户端可见分叉（A 打印 latest / B 报 No dist-tags found exit 1）。conductor LOOP 012 六项裁定之一：对齐收——
+    L012-2b 实现 latest 读时重算。重算基准（semver 最大 vs 最近发布）证据态不可分辨，按「最高版本」立，
+    分辨探针列差分批跑候选（契约 unobserved 注记）
+  authority: { type: conductor_ruling, ref: 'LOOP 012 L012-2a 派发（D2-D7 全按参照对齐收）；BOARD.md sprint tick 2026-09-13「6 UNKNOWN 裁定全对齐收」' }
+  review_gate: LOOP 012 L012-2b 实现票 + 契约差分批跑（contracts/npm.yaml#npm/dist-tags-latest-recompute 翻 VERIFIED 后本条 resolved）
+  evidence: reports/compatibility/L012-dist-tags-evidence.md §3-D2 + l0121-wire*/[ab]/notag-ls.log
+  resolved: { date: '2026-09-13', evidence: 'reports/compatibility/L012-dist-tags-diff.md（L012-2b 终版：20 格零未裁定 drift；CLI 15 用例同退出码向量；契约 npm.yaml 已翻 VERIFIED）' }
+- id: npm/dist-tags-put-nonexistent-version-message
+  surface: npm local dist-tags PUT 不存在版本 404 message 版本位（L012-1 §3-D3，m07）
+  classification: BUG
+  rationale: >-
+    参照 message 版本位写真版本值（`npm package not found with name:<name>, and version:9.9.9`）；
+    BinFlow 错位复用 DELETE 臂 tag 位文案（`and tag:novers`）。status 404 双端一致、双端均拒建 tag（无副作用差），
+    仅文案位错位。conductor 裁定对齐收——L012-2b 补版本位分支
+  authority: { type: conductor_ruling, ref: 'LOOP 012 L012-2a 派发（D2-D7 全按参照对齐收）；BOARD.md sprint tick 2026-09-13' }
+  review_gate: LOOP 012 L012-2b 实现票 + 契约差分批跑（contracts/npm.yaml#npm/dist-tags-put-nonexistent-version）
+  evidence: reports/compatibility/L012-dist-tags-evidence.md §3-D3 + l0121-wire/curl-matrix-{a,b}.txt m07
+  resolved: { date: '2026-09-13', evidence: 'reports/compatibility/L012-dist-tags-diff.md（L012-2b 终版：20 格零未裁定 drift；CLI 15 用例同退出码向量；契约 npm.yaml 已翻 VERIFIED）' }
+- id: npm/dist-tags-ghost-404-message
+  surface: npm local dist-tags 幽灵包 404 message 措辞（L012-1 §3-D4，m05）
+  classification: BUG
+  rationale: >-
+    参照 verbatim「Not found」（信息量低）；BinFlow「Package '<name>' not found」（信息量大）。status 404 +
+    errors 信封一致，仅 message 措辞异。conductor 裁定对齐收（信息量让位于逐字对齐）——L012-2b 改文案；
+    normalize 不为本臂设措辞组（对齐后即逐字断言面）
+  authority: { type: conductor_ruling, ref: 'LOOP 012 L012-2a 派发（D2-D7 全按参照对齐收）；BOARD.md sprint tick 2026-09-13' }
+  review_gate: LOOP 012 L012-2b 实现票 + 契约差分批跑（contracts/npm.yaml#npm/dist-tags-ghost-404）
+  evidence: reports/compatibility/L012-dist-tags-evidence.md §3-D4 + l0121-wire/curl-matrix-{a,b}.txt m05
+  resolved: { date: '2026-09-13', evidence: 'reports/compatibility/L012-dist-tags-diff.md（L012-2b 终版：20 格零未裁定 drift；CLI 15 用例同退出码向量；契约 npm.yaml 已翻 VERIFIED）' }
+- id: npm/dist-tags-put-bad-body-posture
+  surface: npm local dist-tags PUT 坏 body 姿态（L012-1 §3-D5，m08/m09）
+  classification: INTENTIONAL_DIFFERENCE
+  rationale: >-
+    参照对坏 body（裸词/JSON object）双臂 **500「Internal server error」**（对坏输入回 5xx=参照自身瑕疵）；
+    BinFlow 400 姿态更好。conductor 裁定采纳 evidence §3-D5 建议：**不复刻参照 500**，对齐后形态=400 +
+    errors 信封 + 中性 message。现行 BinFlow message 泄漏 Go unmarshal 内幕（m08「invalid character 'o'…」/
+    m09「cannot unmarshal object into Go value of type string」）系契约 path_pattern 反向门待修面（BUG 面），
+    L012-2b 中性化（建议文案 `invalid dist-tag body`）后差分批跑收口
+  authority: { type: conductor_ruling, ref: 'LOOP 012 L012-2a 派发（「坏 body 400——契约按 400+文案立」，不复刻参照 500）；BOARD.md sprint tick 2026-09-13' }
+  review_gate: LOOP 012 L012-2b（message 中性化过 contracts/npm.yaml#npm/dist-tags-put-bad-body path_pattern 门 + 差分复验）
+  evidence: reports/compatibility/L012-dist-tags-evidence.md §3-D5 + l0121-wire/curl-matrix-{a,b}.txt m08/m09
+  resolved: { date: '2026-09-13', evidence: 'reports/compatibility/L012-dist-tags-diff.md（L012-2b 终版：20 格零未裁定 drift；CLI 15 用例同退出码向量；契约 npm.yaml 已翻 VERIFIED）' }
+- id: npm/dist-tags-bulk-surface
+  surface: npm local dist-tags bulk 面（PUT/POST 集合 + POST 单 tag 子路径，L012-1 §3-D6，m13-m15）
+  classification: BUG
+  rationale: >-
+    参照三臂全 405「Method Not Allowed」（无 bulk 面）；BinFlow 三臂全 201 且实建 tag（wider-than-reference
+    超集面）。npm 10.9.8 现客户端对 bulk 面零依赖（L012-1 §4 V-7 清偿）——保留无害但无收益。conductor 裁定
+    对齐收（bulk 面 405 化）——L012-2b 收窄，差分批跑含 m19/m20「不实建」复核（现行 B 会建出 curltag/posttag）
+  authority: { type: conductor_ruling, ref: 'LOOP 012 L012-2a 派发（D6 bulk 面 405 化）；BOARD.md sprint tick 2026-09-13' }
+  review_gate: LOOP 012 L012-2b 实现票 + 契约差分批跑（contracts/npm.yaml#npm/dist-tags-bulk-reject）
+  evidence: reports/compatibility/L012-dist-tags-evidence.md §3-D6 + l0121-wire/curl-matrix-{a,b}.txt m13-m15/m19/m20
+  resolved: { date: '2026-09-13', evidence: 'reports/compatibility/L012-dist-tags-diff.md（L012-2b 终版：20 格零未裁定 drift；CLI 15 用例同退出码向量；契约 npm.yaml 已翻 VERIFIED）' }
+- id: npm/dist-tags-get-cache-control
+  surface: npm local dist-tags GET 缓存头（L012-1 §3-D7，wire 响应头）
+  classification: BUG
+  rationale: >-
+    参照 dist-tags GET 带 `Cache-Control: max-age=60`（npm 默认 HTTP 缓存 60s 陈旧窗——对 npm CLI 缓存行为
+    可观察：参照允许 60s 陈旧，BinFlow 无指示→客户端启发式）；BinFlow 无 Cache-Control。conductor 裁定对齐收
+    ——L012-2b 钉值 60（值源固定 vs 配置未证，按活体值立；发现可配则契约降 pattern）
+  authority: { type: conductor_ruling, ref: 'LOOP 012 L012-2a 派发（D2-D7 全按参照对齐收）；BOARD.md sprint tick 2026-09-13' }
+  review_gate: LOOP 012 L012-2b 实现票 + 契约差分批跑（contracts/npm.yaml#npm/dist-tags-get Cache-Control 臂）
+  evidence: reports/compatibility/L012-dist-tags-evidence.md §3-D7 + §1 ls 行响应头注记
 # 条目模式（M3-2 落地）：
 # - id: rest/build-batch-delete-date-range
 #   surface: POST /api/build/delete
@@ -579,3 +675,14 @@ entries:
 #   rationale: ADR-0045 Errata 定案——批删无 dateRange
 #   authority: { type: adr, ref: DECISIONS.md#adr-0045-e3 }
 #   review_gate: M18+
+  resolved: { date: '2026-09-13', evidence: 'reports/compatibility/L012-dist-tags-diff.md（L012-2b 终版：20 格零未裁定 drift；CLI 15 用例同退出码向量；契约 npm.yaml 已翻 VERIFIED）' }
+- id: npm/packument-latest-recompute
+  surface: npm packument（GET /:name）的 latest 读时重算（L012-2b 遗留）
+  classification: UNKNOWN
+  rationale: >-
+    dist-tags 端点族 latest 重算已落（L012-2b D2）并翻绿；但 packument 面（GET /<name>）的
+    dist-tags.latest 字段是否同步读时重算未裁定——现状 BinFlow 以 TestDistTagRecomputeIsReadTimeOnly
+    钉住（packument 投影与端点族同源重算），参照侧该臂未单独取证。
+  authority: { type: pending, ref: "LOOP 013 差分腿（双端 GET packument 对照——DELETE latest 后 packument.latest 是否重算）" }
+  review_gate: LOOP 013 限期升级
+  evidence: reports/agents/T-L012-2b.md（遗留段+现状测试）

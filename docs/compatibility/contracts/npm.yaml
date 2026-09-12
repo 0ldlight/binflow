@@ -1,0 +1,375 @@
+# BinFlow 兼容契约——npm dist-tags 显式端点族（npm 域首文件，L012-2a，2026-09-13）
+# schema: compat-contract/1 —— 同域多条目单文件扩展（沿 contracts/docker-remote.yaml 先例），条目键面全集：
+#   id/feature/surface/request/authentication/expect/side_effects/error_behavior/version/evidence/confidence/status
+#   （+binflow_state 记录差分现值；divergence_ref 于 DIVERGENT/INTENTIONAL 时必填）。
+# 断言词汇表沿 docker-remote（tools/difftest 消费；归一先行，规则=fixtures/normalize.yaml#npm——npm 域
+#   wire_format=normalize_indent，pretty/compact 与 ok-空格不判差异）：
+#   expect.status                — 精确 HTTP 状态码
+#   expect.headers.literal       — 头名 → 精确值
+#   expect.body.format           — none（空体）/ any（结构断言承载）/ binary
+#   expect.body.literal          — 整体 body 精确线字节（比对前过 normalize）
+#   expect.body.json.keys_exact  — 顶层键全集
+#   expect.body.json.path_literal— 点路径 → 标量精确值（verbatim 断言面）
+#   expect.body.json.path_pattern— 点路径 → 锚定正则（本域新增：D5 中性文案反向门 / m10 措辞组）
+#   error_behavior[].ref         — 指向同域兄弟条目 id
+# verdict 推导：归一后全部启用断言通过 = SAME；任一失败 = DIVERGENT。
+# 裁定基线：LOOP 012 conductor 六项裁定（D2-D7 全按参照对齐收；D5=400+中性文案不复刻参照 500；D6 bulk 面 405 化）
+#   ——BOARD.md sprint tick 2026-09-13「L012-1 收编……6 UNKNOWN 裁定全对齐收」在案；差异落地 known-divergence.yaml npm 域 6 条。
+# 客户端锚（V-7 清偿，L012-1 §4）：npm 10.9.8 dist-tag 全族（ls/add/rm 及别名）100% 走本端点族
+#   （lib/commands/dist-tag.js 源证 + 活体 wire 双证）——零 packument 旁路、零 etag/rev 冲突重试；
+#   「部分语义经 packument PUT 旁路」对 npm >=9 客户端不成立（旁路仅历史 npm-registry-client）。
+# 头面证据边界：L012-1 wiretap 记录止于状态行+body（响应头未逐项落盘）——除 wire 报告明证的 Cache-Control（D7）
+#   外不立头断言；差分批跑捕获后补头面。
+domain: npm
+scope: local npm 仓 dist-tags 显式端点族 /-/package/<escapedName>/dist-tags(-/<tag>)。
+  路径形态：scoped 包名 npm CLI 实发 %2f 小写、@ 不编码（E0-3 wire 亲证 @l0121-scope%2fprobe-pkg）；
+  服务端须 %2f/%2F 大小写等价（m03/m04 双端双绿——maven-npm-pypi.md §5 挂账项闭合）。
+  证据面=L012-1 双端活体（npm 10.9.8 CLI 腿 15 case + curl 直发 20 格矩阵；pass2 定稿，pass1 复跑门
+  family 退出码向量零差 + 矩阵 byte-identical）。
+  不含：packument GET/PUT 面（publish 深水面，后段票）、/-/ping 与 /-/whoami（K60 族，矩阵 D12-R03 归档）、
+  tarball 面、virtual 仓面。
+normalize: fixtures/normalize.yaml#npm
+reference_instance: 'Artifactory-pro 7.161.20（http://localhost:8082，admin；匿名访问全局关——差分一律认证臂）'
+binflow_tested_instance: 'BinFlow UAT uat-l0121-d301cf31（http://localhost:8083，ANONYMOUS_ACCESS=true）；判别探针在一次性 d301cf31 容器复判（E0-5：d301cf31..a81cd053 对 internal/adapter/npm 零产品码漂移——证据基线纯）'
+client_anchor: 'npm 10.9.8（评估票钉的版本锚；node v26.8.1 承载，与 npm 11.19.0 逐行 diff 仅 cosmetic 重命名）'
+contracts:
+# ── 集合 GET ─────────────────────────────────────────────────────────────────
+- id: npm/dist-tags-get
+  feature: 'dist-tags 集合 GET（tag→version map；%2f/%2F 等价；Cache-Control max-age=60——D7 对齐面）'
+  surface: 'GET /-/package/<escapedName>/dist-tags'
+  request:
+    method: GET
+    path: '/-/package/<name>/dist-tags（scoped：/-/package/@scope%2fname/dist-tags——%2f/%2F 均须收）'
+    headers: { Authorization: 'Basic <valid>（差分臂认证）' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'unscoped 名（m01）'
+      status: 200
+      headers:
+        literal: { Cache-Control: 'max-age=60' }
+        present: []
+        absent: []
+        note: >-
+          D7 对齐：参照活体带 Cache-Control: max-age=60（npm 默认 HTTP 缓存 60s 陈旧窗——对 npm CLI 缓存行为
+          可观察）；BinFlow 现无 → L012-2b 钉值。值源（协议固定 vs 实例配置）未证，按活体值 60 立 literal；
+          后续发现可配则降级为 pattern
+      body:
+        format: any
+        json:
+          shape: 'tag→semver string 开放 map（键=tag 名，值=版本号）'
+          path_literal: { latest: '<最高已发布版本（证据态 1.1.0）>' }
+          note: 'wire 字节：A pretty `{ "latest" : "1.1.0" }` / B compact `{"latest":"1.1.0"}`——normalize_indent 归一后同（npm 域规则；与 docker-remote 的 compare 口径相反，理由见 normalize 提案注）'
+    - when: 'scoped %2f 小写（m03——npm CLI 实际形态，E0-3）'
+      status: 200
+      headers: { note: '同 unscoped 臂（Cache-Control: max-age=60）' }
+      body: { note: 同 unscoped 臂 }
+    - when: 'scoped %2F 大写（m04——大小写等价性臂）'
+      status: 200
+      headers: { note: 同 unscoped 臂 }
+      body: { note: '同 unscoped 臂——%2f/%2F 等价即本臂断言本体（双端双绿，挂账项闭合）' }
+    anonymous_note: >-
+      匿名读姿态=实例配置差非协议面（m02：A 401「Authentication is required」/ B 200——A 匿名访问全局关、
+      B ANONYMOUS_ACCESS=true）；差分一律认证臂（normalize auth.anonymous_arm 规则）。401 message 措辞
+      互认见 normalize envelope_wording_groups.auth401（K60 §6 已裁定 BinFlow errors[] 小写风格 accepted）
+  side_effects: []
+  error_behavior:
+    - { when: '包不存在（幽灵包）', ref: npm/dist-tags-ghost-404 }
+    - { when: '包存在但全 tag 被删（含 latest）', ref: npm/dist-tags-latest-recompute }
+  binflow_state:
+    verdict: 'SAME×3（归一后：200 map / %2f / %2F 双绿）+ DIVERGENT×1（Cache-Control 缺席，D7）'
+    detail: 'm01/m03/m04 三臂 200 map 双端一致（A pretty / B compact——npm 域 normalize 归一后同）；Cache-Control 参照带 max-age=60、BinFlow 无（D7，L012-2b 钉值后复验）。wire ls1-basic：GET→200 body 24 字节 map'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0121-d301cf31 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-evidence.md, anchor: '§1 ls 行 / §2 m01|m03|m04 / §3-D7', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/l0121-wire/a/ls1-basic.log, anchor: 'REQUEST 1 GET→200（pretty map 24B）', capture: '同文件 + b/ls1-basic.log（compact 同构）', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/l0121-wire/curl-matrix-a.txt, anchor: m01/m03/m04, capture: 'curl-matrix-{a,b}.txt 对应行', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-diff.md, anchor: '§1-D7（Cache-Control 钉值）+ §2 notag-ls D2/D7 双绿 + §3 m01/m03/m04 归一逐字 + §4 参照陈旧窗 quirk 自证', date: '2026-09-12' }
+  confidence: high
+  status: VERIFIED
+# ── 单 tag PUT ───────────────────────────────────────────────────────────────
+- id: npm/dist-tags-put-tag
+  feature: '单 tag PUT（body=JSON string 版本号；201 ok 文案；匿名 401）'
+  surface: 'PUT /-/package/<escapedName>/dist-tags/<tag>'
+  request:
+    method: PUT
+    path: '/-/package/<name>/dist-tags/<tag>'
+    headers: { Authorization: 'Basic <valid>' }
+    body: '"<version>"（JSON string，如 "1.0.0" 共 7 字节——npm dist-tag add 实发形态，wire 亲证）'
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    status: 201
+    headers: { note: '响应头未捕获（wiretap 记录止于状态行+body）——不立头断言，差分批跑捕获后补' }
+    body:
+      format: any
+      literal: '{"ok":"created new tag"}'
+      note: 'wire 字节：A `{"ok": "created new tag"}`（冒号后空格）/ B `{"ok":"created new tag"}`——ok-空格归一（normalize）后逐字同；literal 比对前先过 normalize_indent'
+  side_effects:
+    - 'tag→version 映射写入（packument dist-tags 面落库）；同值重 PUT=服务端幂等覆盖（客户端同值短路不发包——wire add2 仅 GET 无 PUT，服务端兜底仍须在）'
+  error_behavior:
+    - { when: '版本不存在（包在、版本不在）', ref: npm/dist-tags-put-nonexistent-version }
+    - { when: 'body 非 JSON string（裸词 / JSON object / 数组）', ref: npm/dist-tags-put-bad-body }
+    - when: '匿名（无凭据）'
+      status: 401
+      body:
+        format: any
+        json:
+          keys_exact: [errors]
+          path_pattern:
+            'errors[0].message': '^(Authentication is required|authentication required)$'
+          note: 'm10 双端 401 status 一致；message 措辞互认=normalize 信封措辞组 auth401（K60 §6 裁定 BinFlow errors[] 小写风格 accepted，不随 D2-D7 对齐波翻案）'
+  binflow_state:
+    verdict: 'SAME（happy 臂 201+ok 文案归一逐字；匿名臂 401 status）'
+    detail: 'm06：双端 201，A/B ok 文案仅空格差（normalize 收）。m10 匿名：401/401，A 无 WWW-Authenticate 头、B 同无。wire add1-beta：PUT body 7 字节 "1.0.0" → 201 `{"ok": "created new tag"}`（A）；B compact 同构。同值幂等臂=客户端短路（零 PUT），服务端行为未单独直发——按 m06 同面推断，差分批跑补直发臂'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0121-d301cf31 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-evidence.md, anchor: '§1 add 行 / §2 m06|m10', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/l0121-wire/a/add1-beta.log, anchor: 'REQUEST 2 PUT body(7 bytes) "1.0.0" → 201 Created + ok 文案 25B', capture: '同文件 + b/add1-beta.log + curl-matrix-{a,b}.txt m06/m10 行', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-diff.md, anchor: '§2 add1/scope-add 201 退出码 0 + §3 m06/m11 归一逐字（批跑后升格）', date: '2026-09-12' }
+  confidence: high
+  status: VERIFIED
+# ── 单 tag PUT 错误臂：版本不存在（D3） ─────────────────────────────────────
+- id: npm/dist-tags-put-nonexistent-version
+  feature: 'PUT tag 指向不存在版本（404；message 版本位写真版本值——D3 对齐面）'
+  surface: 'PUT /-/package/<escapedName>/dist-tags/<tag> + body "<不存在版本>"'
+  request:
+    method: PUT
+    path: '/-/package/<name>/dist-tags/<tag>'
+    headers: { Authorization: 'Basic <valid>' }
+    body: '"9.9.9"（包内不存在的版本号——npm CLI 不预检版本存在性，服务端必须兜底）'
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    status: 404
+    headers: { note: 未捕获不立断言 }
+    body:
+      format: any
+      json:
+        keys_exact: [errors]
+        path_literal:
+          'errors[0].status': 404
+          'errors[0].message': 'npm package not found with name:<name>, and version:<version>'
+        note: >-
+          D3 对齐：版本位写真版本值（A verbatim：`npm package not found with name:l0121-probe-pkg,
+          and version:9.9.9`——tag 位与版本位各自占位）；BinFlow 现复用 DELETE 臂 tag 位文案
+          （`and tag:novers`）→ L012-2b 补版本位分支
+  side_effects: []
+  binflow_state:
+    verdict: DIVERGENT（status 404 双端一致；message 版本位错位——D3）
+    detail: 'm07：A `…name:l0121-probe-pkg, and version:9.9.9` / B `…name:l0121-probe-pkg, and tag:novers`（tag 名错占版本位）。双端均拒建 tag（事后 GET 复核无副作用）——仅文案位错位'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0121-d301cf31 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-evidence.md, anchor: '§2 m07 / §3-D3 / §1 badver 行', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/l0121-wire/a/badver-add.log, anchor: 'PUT …/canary body "9.9.9" → 404（版本位文案）', capture: '同文件 + b/badver-add.log + curl-matrix-{a,b}.txt m07 行', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-diff.md, anchor: '§1-D3（版本位真值文案 msgTagVersionNotFound）+ §2 badver-add 逐字（仅 pretty/compact 差）+ §3 m07', date: '2026-09-12' }
+  confidence: high
+  status: VERIFIED
+# ── 单 tag DELETE ────────────────────────────────────────────────────────────
+- id: npm/dist-tags-delete-tag
+  feature: '单 tag DELETE（200 空 body；再删 404 文案逐字——双端逐字节一致臂，契约冻结基线）'
+  surface: 'DELETE /-/package/<escapedName>/dist-tags/<tag>'
+  request:
+    method: DELETE
+    path: '/-/package/<name>/dist-tags/<tag>'
+    headers: { Authorization: 'Basic <valid>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    status: 200
+    headers: { note: 未捕获不立断言 }
+    body: { format: none, literal: '' }
+  side_effects:
+    - 'tag 映射删除；DELETE latest 本身仍 200 空体（读时重算后果见 npm/dist-tags-latest-recompute——不在本条目断言面）'
+  error_behavior:
+    - when: 'tag 已不存在（再删）'
+      status: 404
+      body:
+        format: any
+        json:
+          keys_exact: [errors]
+          path_literal:
+            'errors[0].status': 404
+            'errors[0].message': 'npm package not found with name:<name>, and tag:<tag>'
+          note: 'm12 双端逐字节一致（`…name:l0121-probe-pkg, and tag:staging`）——BinFlow 此臂文案精确对齐，本条目以此为冻结基线臂'
+  binflow_state:
+    verdict: SAME（m11 200 空 + m12 再删 404 逐字节）
+    detail: 'm11：双端 DELETE→200 空 body。m12：双端 404 文案逐字节一致。wire rm1-beta：GET（预检）→DELETE→200 body(0 bytes)。npm CLI 的 rm 不存在 tag 短路在客户端（GET 后判 `<tag> is not a dist-tag on <pkg>`，不发 DELETE）——服务端兜底即 m12 臂'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0121-d301cf31 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-evidence.md, anchor: '§1 rm 行 / §2 m11|m12', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/l0121-wire/a/rm1-beta.log, anchor: 'REQUEST 2 DELETE → 200 body(0 bytes)', capture: '同文件 + b/rm1-beta.log + curl-matrix-{a,b}.txt m11/m12 行', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-diff.md, anchor: '§2 rm1/scope-rm + §3 m11/m12 再删 404 逐字（批跑后升格）', date: '2026-09-12' }
+  confidence: high
+  status: VERIFIED
+# ── 幽灵包 404（D4） ─────────────────────────────────────────────────────────
+- id: npm/dist-tags-ghost-404
+  feature: '幽灵包 dist-tags GET 404 措辞（D4 对齐面：Not found）'
+  surface: 'GET /-/package/<escapedName>/dist-tags（包不存在）'
+  request:
+    method: GET
+    path: '/-/package/<不存在包名>/dist-tags'
+    headers: { Authorization: 'Basic <valid>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    status: 404
+    headers: { note: 未捕获不立断言 }
+    body:
+      format: any
+      json:
+        keys_exact: [errors]
+        path_literal:
+          'errors[0].status': 404
+          'errors[0].message': 'Not found'
+        note: >-
+          D4 对齐：A verbatim「Not found」（两词、首字母大写——信息量低于 BinFlow 现文案
+          `Package '<name>' not found`，但 conductor 裁定对齐收）；normalize 不为本臂设措辞组——
+          对齐后即逐字断言面
+  side_effects: []
+  binflow_state:
+    verdict: 'DIVERGENT（status 404 + errors 信封一致；message 措辞异——D4）'
+    detail: 'm05：A `Not found` / B `Package ''l0121-ghost-pkg'' not found`。wire ghost-ls（A）：GET→404 74 字节 pretty 信封；CLI 面 npm dist-tag ls 报 E404'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0121-d301cf31 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-evidence.md, anchor: '§2 m05 / §3-D4', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/l0121-wire/a/ghost-ls.log, anchor: 'GET → 404 body(74 bytes) pretty 信封「Not found」', capture: '同文件 + b/ghost-ls.log + curl-matrix-{a,b}.txt m05 行', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-diff.md, anchor: '§1-D4（writeTagsLookupError 裸文案——packument 面 Package not found 不动）+ §2 ghost-ls 逐字 + §3 m05', date: '2026-09-12' }
+  confidence: high
+  status: VERIFIED
+# ── 坏 body（D5——对齐后形态） ───────────────────────────────────────────────
+- id: npm/dist-tags-put-bad-body
+  feature: 'PUT tag body 非 JSON string（400 + 中性 message——D5 对齐后形态：不复刻参照 500）'
+  surface: 'PUT /-/package/<escapedName>/dist-tags/<tag> + body 非 JSON string（裸词 / JSON object）'
+  request:
+    method: PUT
+    path: '/-/package/<name>/dist-tags/<tag>'
+    headers: { Authorization: 'Basic <valid>' }
+    body: 'not-a-json-string（裸词，m08）或 {"v":"1.0.0"}（JSON object，m09）——两臂同形'
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    status: 400
+    headers: { note: 未捕获不立断言 }
+    body:
+      format: any
+      json:
+        keys_exact: [errors]
+        path_literal:
+          'errors[0].status': 400
+        path_pattern:
+          'errors[0].message': '^(?!.*(invalid character|cannot unmarshal|json:|Go value|goroutine|/internal/)).+$'
+        proposed_literal: 'invalid dist-tag body'
+      note: >-
+        D5 对齐后形态：conductor 裁定不复刻参照 500（A 对坏输入双臂 500「Internal server error」= 参照自身
+        瑕疵，L012-1 §3-D5 建议被采纳）——契约按 400+中性文案立。硬断言三层：status 400 + errors 信封 +
+        message 不泄漏 Go unmarshal/runtime 内幕（path_pattern 反向门；difftest 为 Python re，支持 lookahead）。
+        proposed_literal=实现建议（沿用 BinFlow 现前缀、去泄漏尾），终字由 L012-2b 落地后契约升 verbatim
+  side_effects: []
+  binflow_state:
+    verdict: 'DIVERGENT（status 已 400✓；message 泄漏 Go unmarshal 文案）'
+    detail: 'm08：B `invalid dist-tag body: invalid character ''o'' in literal null (expecting ''u'')`；m09：B `invalid dist-tag body: json: cannot unmarshal object into Go value of type string`——泄漏 Go 标准库内幕（内含 internal 路径风格风险）。A 双臂 500 Internal server error（不复刻）。L012-2b message 中性化后过 path_pattern 门'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0121-d301cf31 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-evidence.md, anchor: '§2 m08|m09 / §3-D5', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/l0121-wire/curl-matrix-a.txt, anchor: m08/m09（A 500 双臂）, capture: 'curl-matrix-{a,b}.txt m08/m09 行（B 400+泄漏）', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-diff.md, anchor: '§1-D5（400+中性文案修 Go 内幕泄漏）+ §3 m08/m09（裁定内差异——参照 500 系自身瑕疵，契约钉 400）', date: '2026-09-12' }
+  confidence: high
+  status: VERIFIED
+# ── DELETE latest 读时重算（D2——序列条目） ─────────────────────────────────
+- id: npm/dist-tags-latest-recompute
+  feature: 'DELETE latest 后读时重算（GET 重现 latest=最高已发布版本——D2 对齐面，「latest 永生」语义）'
+  surface: 'SEQUENCE：PUT dist-tags/latest body "1.0.0" → DELETE dist-tags/latest → GET dist-tags'
+  request:
+    method: SEQUENCE
+    steps:
+      - 'PUT /-/package/<name>/dist-tags/latest，body "1.0.0"（latest 显式钉到非最高版本）→ 201'
+      - 'DELETE /-/package/<name>/dist-tags/latest → 200 空'
+      - 'GET /-/package/<name>/dist-tags → 200'
+    headers: { Authorization: 'Basic <valid>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'PUT latest=1.0.0（低版本）'
+      status: 201
+      body: { note: 同 npm/dist-tags-put-tag（ok 文案） }
+    - when: 'DELETE latest'
+      status: 200
+      body: { format: none, literal: '' }
+    - when: 'GET dist-tags（删 latest 后读）'
+      status: 200
+      body:
+        format: any
+        json:
+          path_literal: { latest: '<重算值——证据态 1.1.0（≠删除前的 1.0.0，≠键缺席）>' }
+          note: >-
+            D2 对齐：latest 读时重算（判别探针 A 活体：set latest=1.0.0→201、DELETE→200、GET 回 1.1.0——
+            非 no-op、非末值恢复）。重算基准（semver 最大 vs 最近发布）在证据态不可分辨（1.1.0 两者皆是），
+            按 evidence §3-D2「最高版本」措辞立；分辨探针列差分批跑候选（先发 2.0.0 再发 1.0.2，删 latest 后
+            观察回谁）。读时重算是否写回存储未观察——契约只钉读面
+    client_visible: 'npm dist-tag ls：A 打印 latest 正常退出 / B（对齐前）报 No dist-tags found exit 1——客户端可见分叉即本面对齐动机'
+  side_effects:
+    - 'DELETE latest 物理删行（与普通 tag 同）；latest 的「永生」只发生在 GET 读时计算面'
+  error_behavior: []
+  binflow_state:
+    verdict: 'DIVERGENT（B 同序列 GET 回 {}——真删不重算）'
+    detail: '判别探针双端对拍（B 已在纯 d301cf31 一次性容器复判，E0-5）：A GET 回 {"latest":"1.1.0"} / B 回 {}。wire notag-ls：A ls 幽灵 latest 包（scoped）GET→200 {"latest":"1.1.0"}；B notag-ls.log GET→200 {}（npm CLI 报 No dist-tags found）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0121-d301cf31 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-evidence.md, anchor: '§1 notag 行 / §3-D2（判别探针输出）', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/l0121-wire/a/notag-ls.log, anchor: 'GET → 200 {"latest":"1.1.0"}（latest 删除后重算出现）', capture: '同文件 + b/notag-ls.log（200 {} 反例）', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-diff.md, anchor: '§1-D2（读时重算+已存 latest 永不覆盖，纯读时投影存储不动）+ §2 notag-ls D2 判别双绿 + §4 陈旧窗 quirk', date: '2026-09-12' }
+  confidence: high
+  status: VERIFIED
+# ── bulk 面收窄（D6——405 化） ──────────────────────────────────────────────
+- id: npm/dist-tags-bulk-reject
+  feature: 'bulk 面收窄（PUT/POST 集合 + POST 单 tag 子路径全族 405——D6 裁定 405 化）'
+  surface: 'PUT|POST /-/package/<escapedName>/dist-tags（集合体）；POST /-/package/<escapedName>/dist-tags/<tag>'
+  request:
+    method: 'PUT|POST'
+    path: '/-/package/<name>/dist-tags（集合臂）或 /-/package/<name>/dist-tags/<tag>（子路径臂）'
+    headers: { Authorization: 'Basic <valid>' }
+    body: '集合臂=<tag>:<version> map（如 {"curltag":"1.1.0"}）；子路径臂=JSON string 版本号'
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'PUT 集合（m13）'
+      status: 405
+    - when: 'POST 集合（m14，legacy bulk）'
+      status: 405
+    - when: 'POST 单 tag 子路径（m15）'
+      status: 405
+    body:
+      format: any
+      json:
+        keys_exact: [errors]
+        path_literal:
+          'errors[0].status': 405
+          'errors[0].message': 'Method Not Allowed'
+        note: 'A verbatim（m13-m15 三臂同形 pretty 信封）；D6 裁定对齐收=BinFlow bulk 面 405 化（现行三臂 201 实建 tag=wider-than-reference 超集面，收窄）'
+  side_effects: []
+  client_note: 'npm 10.9.8 现客户端对 bulk 面零依赖（L012-1 §4 V-7：dist-tag 全族 100% 显式端点，add=PUT 子路径）——收窄无客户端影响；m19/m20 差分批跑须验证三臂不再实建 tag（现行 B 会建出 curltag/posttag）'
+  binflow_state:
+    verdict: 'DIVERGENT（B 三臂全 201 实建 tag——超参照面，D6 裁定收窄）'
+    detail: 'm13/m14/m15：A 三臂 405 Method Not Allowed；B 三臂 201 {"ok":"created new tag"} 且实建（m19/m20 在 B 侧 DELETE 200 删得动=A 侧 404 不存在——收窄后两侧应同返 404-on-DELETE）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0121-d301cf31 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-evidence.md, anchor: '§2 m13|m14|m15|m19|m20 / §3-D6', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/l0121-wire/curl-matrix-a.txt, anchor: 'm13-m15（A 405 三臂）+ m19/m20（A DELETE 404 不存在）', capture: 'curl-matrix-{a,b}.txt 对应行（B 201 三臂 + DELETE 200 实删）', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-diff.md, anchor: '§1-D6（bulk 全族 405+Allow 头，原实建分支删除）+ §3 m13-m15 405 文案逐字', date: '2026-09-12' }
+  confidence: high
+  status: VERIFIED
+# ── 收尾说明 ─────────────────────────────────────────────────────────────────
+# 覆盖统计（L012-2a 首文件，2026-09-13）：8 条目 = IMPLEMENTED 2（put-tag / delete-tag——现值已符，
+#   差分批跑后升 VERIFIED）/ DIVERGENT 6（get[D7] / put-nonexistent-version[D3] / ghost-404[D4] /
+#   put-bad-body[D5] / latest-recompute[D2] / bulk-reject[D6]——全部待 L012-2b 实现票 + 差分批跑翻绿）。
+# 裁定链：LOOP 012 conductor 六项裁定（D2-D7 全按参照对齐收；D5 例外点=400 不复刻 500；D6=bulk 405 化）
+#   ——BOARD.md sprint tick 2026-09-13 在案；六条 ledger 落 known-divergence.yaml npm 域（5 BUG + 1 INTENTIONAL）。
+# 头面缺口：L012-1 wiretap 未逐项落盘响应头（除 Cache-Control 经报告明证）——差分批跑捕获后补头断言面
+#   （Content-Type/WWW-Authenticate 等）。
+# 未收面（不立断言）：同值幂等重 PUT 直发臂（wire 为客户端短路零 PUT）、latest 重算基准分辨臂（semver-max
+#   vs 最近发布——差分批跑候选探针）、DELETE latest 后再 PUT latest 的恢复臂、Cache-Control 值源（固定 vs 配置）、
+#   packument 面/tarball 面/virtual 仓面（后段票）。

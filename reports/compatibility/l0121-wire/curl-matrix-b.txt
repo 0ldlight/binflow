@@ -1,0 +1,43 @@
+======== curl matrix side=b base=http://localhost:8083/binflow/api/npm/l0121-npm
+m01  GET dist-tags (authed)                     GET:200   /-/package/l0121-probe-pkg/dist-tags
+     {"latest":"1.1.0"}
+m02  GET dist-tags (ANON)                       GET:200   /-/package/l0121-probe-pkg/dist-tags
+     {"latest":"1.1.0"}
+m03  GET scoped %2f lowercase                   GET:200   /-/package/@l0121-scope%2fprobe-pkg/dist-tags
+     {"latest":"1.1.0"}
+m04  GET scoped %2F UPPERCASE                   GET:200   /-/package/@l0121-scope%2Fprobe-pkg/dist-tags
+     {"latest":"1.1.0"}
+m05  GET ghost package                          GET:404   /-/package/l0121-ghost-pkg/dist-tags
+     {  "errors": [    {      "status": 404,      "message": "Package 'l0121-ghost-pkg' not found"    }  ]}
+m06  PUT tag happy (1.1.0)                      PUT:201   /-/package/l0121-probe-pkg/dist-tags/staging
+     {"ok":"created new tag"}
+m07  PUT tag nonexistent version                PUT:404   /-/package/l0121-probe-pkg/dist-tags/novers
+     {  "errors": [    {      "status": 404,      "message": "npm package not found with name:l0121-probe-pkg, and tag:novers"    }  ]}
+m08  PUT tag malformed body                     PUT:400   /-/package/l0121-probe-pkg/dist-tags/badbody
+     {  "errors": [    {      "status": 400,      "message": "invalid dist-tag body: invalid character 'o' in literal null (expecting 'u')"    }  ]}
+m09  PUT tag JSON-object body                   PUT:400   /-/package/l0121-probe-pkg/dist-tags/badobj
+     {  "errors": [    {      "status": 400,      "message": "invalid dist-tag body: json: cannot unmarshal object into Go value of type string"    }  ]}
+m10  PUT tag ANON (no creds)                    PUT:401   /-/package/l0121-probe-pkg/dist-tags/anonw
+     {  "errors": [    {      "status": 401,      "message": "authentication required"    }  ]}
+m11  DELETE tag happy                           DELETE:200 /-/package/l0121-probe-pkg/dist-tags/staging
+     
+m12  DELETE tag again (gone)                    DELETE:404 /-/package/l0121-probe-pkg/dist-tags/staging
+     {  "errors": [    {      "status": 404,      "message": "npm package not found with name:l0121-probe-pkg, and tag:staging"    }  ]}
+m13  PUT collection (bulk map)                  PUT:201   /-/package/l0121-probe-pkg/dist-tags
+     {"ok":"created new tag"}
+m14  POST collection (legacy bulk)              POST:201  /-/package/l0121-probe-pkg/dist-tags
+     {"ok":"created new tag"}
+m15  POST single tag subpath                    POST:201  /-/package/l0121-probe-pkg/dist-tags/posttag
+     {"ok":"created new tag"}
+     -- K60 cross-checks:
+m16  GET /-/ping                                GET:200   /-/ping
+     {}
+m17  GET /-/whoami (authed)                     GET:200   /-/whoami
+     {"username":"admin"}
+m18  GET /-/whoami (ANON)                       GET:401   /-/whoami
+     {  "errors": [    {      "status": 401,      "message": "authentication required"    }  ]}
+     -- cleanup probe tags:
+m19  DELETE curltag (from m13)                  DELETE:200 /-/package/l0121-probe-pkg/dist-tags/curltag
+     
+m20  DELETE posttag (if m14/15 made)            DELETE:200 /-/package/l0121-probe-pkg/dist-tags/posttag
+     
