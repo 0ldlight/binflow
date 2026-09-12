@@ -1,10 +1,15 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-12T12:30:00Z
-current_iteration: 009
-current_goal: "四 UNKNOWN 到期 gate 首件 / list 补参大票（P0+P1）/ stray+users 体裁微票 / ADR-0050 对象列 Errata"
-iteration_008_seal: "五轨零中断；ADR-0050+勘误四入册；update-merge 落地（双审独立命中 P0 静默数据丢失——返工三分流修复）；D3+virtual 闭环；票 D 26/32 分歧面开；R-10 包 16 席位呈批；双审战绩 9/9；commits c03ec55e/03396aa1"
+updated: 2026-09-12T19:00:00Z
+current_iteration: 010
+current_goal: "P2 三参尾款+合并差分复验 / 复核两项 / 旁观微票四件 / 规格刷新票 / R-6 搭车窗 / R-10 批复驱动"
+iteration_009_seal: "四轨全收（第四波限额击落双 reviewer 复活零损失）；list 25/32 收敛零越界；双审四 blocking 全清（两回归类）；台账 30 条目 resolved 19；双审战绩 10/10；commits 53522a6c/1b4e5dd4"
+loop_010_tracks:
+  - { id: L010-1, domain: storage-list, owner: dev-go-storage, what: "P2 三参尾款（mdTimestamps/includePropertiesMd5/statsTimestamps——含跨面等值性规格前置）+ 合并差分复验（32 臂全量重跑 + 延期单臂：空值/int32/四角/XSS）+ 复核两项（root includeRootPath lastModified 形态 / DELETE 未知名两态探针）" }
+  - { id: L010-2, domain: httpapi-micro, owner: dev-go-core, what: "旁观微票四件：vendor CT（writeJSONBodyCT 复用）/ 空 actions 放行语义 / 转义不对称（MarshalIndent→无 HTML 转义编码器）/ 无仓段 ?list 臂（400 Cannot list files of root——立账+实现）" }
+  - { id: L010-3, domain: spec-refresh, owner: reverse-engineer, what: "规格刷新票：docs/reverse/rest-api.md:119 与 api-inventory.yaml:53 的 ?list 行旧语义（root-400/相对 uri/无七参）刷新为 L008-3+L009-2 实测语义——逐字节复核前置" }
+  - { id: L010-4, domain: cloud-evidence, owner: devops-engineer, what: "R-6 搭车窗（单窗口封顶一节）：①JVM 属性 -Dbinary.provider.s3.https.only=false 分钟级试探→败→②property 形态→双败=③定谳并出静态面备选立票建议；照 L003 恢复配方三验" }
 loop_009_tracks:
   - { id: L009-1, domain: ledger-gates, owner: compatibility-engineer, what: "✅ 四 gate 改期 LOOP 010（逐条呈批包指针+席位号+翻态分支；R-14 写面取证红线保留）；候裁建议=R-12 最强（ADR-0026 在册仅差用户确认）→ conductor 并入下次呈批提示", status: done }
 loop_010_pool_addenda:
