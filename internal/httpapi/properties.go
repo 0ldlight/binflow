@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 
@@ -166,6 +167,14 @@ func (s *Server) handleStoragePropertiesPut(w http.ResponseWriter, r *http.Reque
 		s.writePropsStoreError(w, err)
 		return
 	}
+	// One audit row per target the write actually mutates (L012-3, live
+	// evidence on the reference: a recursive folder write moves EVERY
+	// child's props-mtime to the write time, while a value-set-identical
+	// re-PUT leaves every child's parked — the row, and therefore the
+	// audit-derived mdTimestamps.properties, follows the mutation, not the
+	// request). The addressed node is targets[0], so its row stays first.
+	recursive := len(targets) > 1
+	summary := propsQuerySummary(props)
 	for _, t := range targets {
 		// Merge-view caps: the WRITE set is validated first, then the
 		// post-merge cardinality (the merge law replaces same-key sets, so
@@ -195,8 +204,10 @@ func (s *Server) handleStoragePropertiesPut(w http.ResponseWriter, r *http.Reque
 			s.writePropsStoreError(w, err)
 			return
 		}
+		if mergeChanges(existing, props) {
+			s.recordPropsAudit(r, propsAuditWrite, t.repo, t.path, summary, recursive)
+		}
 	}
-	s.recordPropsAudit(r, propsAuditWrite, node.RepoKey, node.Path, propsQuerySummary(props), len(targets) > 1)
 	// Webhook seam: artifact_property/added per written key on the
 	// ADDRESSED node (webhook.md 3.2 — the envelope's node facts come from
 	// the addressed row; recursive fan-out targets fire nothing here, the
@@ -270,17 +281,38 @@ func (s *Server) handleStoragePropertiesDelete(w http.ResponseWriter, r *http.Re
 		s.writePropsStoreError(w, err)
 		return
 	}
+	// Per-target rows, change-conditioned like PUT (L012-3: the reference
+	// moves a child's props-mtime only when the delete drops something the
+	// child actually carries — a recursive delete of a key nobody has parks
+	// every mtime).
+	recursive := len(targets) > 1
 	for _, t := range targets {
 		drop := keys
 		if all {
 			drop = nil // nil = every key (the store's properties=* form)
 		}
+		if !all && len(drop) == 0 {
+			// A wildcard that matched nothing on the addressed node resolves
+			// to an empty drop set — "drop nothing", NOT the store's empty
+			// "drop everything" form. Skipping the call is the fix; letting
+			// it through wiped every property of the node (and of every
+			// child under recursive), live-verified against the reference's
+			// own wildcard-miss arm (204, properties untouched).
+			continue
+		}
+		live, err := s.deps.Metadata.NodeProps().List(r.Context(), t.repo, t.path)
+		if err != nil {
+			s.writePropsStoreError(w, err)
+			return
+		}
 		if err := s.deps.Metadata.NodeProps().Delete(r.Context(), t.repo, t.path, drop); err != nil {
 			s.writePropsStoreError(w, err)
 			return
 		}
+		if deleteChanges(live, drop) {
+			s.recordPropsAudit(r, propsAuditDelete, t.repo, t.path, raw, recursive)
+		}
 	}
-	s.recordPropsAudit(r, propsAuditDelete, node.RepoKey, node.Path, raw, len(targets) > 1)
 	// Webhook seam: artifact_property/deleted per named key (the wildcard
 	// arm fires nothing — its key set was never materialized; property_values
 	// echoes empty: the values are gone by definition of the event).
@@ -361,9 +393,49 @@ func (s *Server) writePropsStoreError(w http.ResponseWriter, err error) {
 	writeError(w, http.StatusInternalServerError, "properties operation failed")
 }
 
-// recordPropsAudit appends the family's audit row (best-effort, the
-// platform rule): repo/path of the addressed node, the raw key list in the
-// detail, and the recursive mark when the write fanned out.
+// mergeChanges reports whether the section-11.40 merge mutates the node's
+// current property set: any written key the node does not carry, or carries
+// with a different value set. A value-set-identical PUT is a no-op for the
+// node — the reference's props-mtime does not move on it (L012-3 live
+// evidence: a recursive re-PUT of the stored values parked every child's
+// mdTimestamps.properties), so no audit row — and no derived mtime — may
+// appear for it. Existing values arrive sorted from the store; the write's
+// are compared as a sorted copy.
+func mergeChanges(existing, props map[string][]string) bool {
+	for k, vs := range props {
+		cur, ok := existing[k]
+		if !ok {
+			return true
+		}
+		written := append([]string(nil), vs...)
+		sort.Strings(written)
+		if !slices.Equal(cur, written) {
+			return true
+		}
+	}
+	return false
+}
+
+// deleteChanges reports whether dropping drop (nil = every key, the
+// properties=* form) removes anything the node actually carries (L012-3:
+// only a real removal moves the reference's props-mtime).
+func deleteChanges(live map[string][]string, drop []string) bool {
+	if len(drop) == 0 {
+		return len(live) > 0
+	}
+	for _, k := range drop {
+		if _, ok := live[k]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// recordPropsAudit appends one of the family's audit rows (best-effort, the
+// platform rule): repo/path of ONE mutated node, the raw key list in the
+// detail, and the recursive mark when the write fanned out. Recursive
+// operations append one row per target they actually mutate (L012-3) — the
+// rows are mdTimestamps.properties' derivation source.
 func (s *Server) recordPropsAudit(r *http.Request, action, repoKey, path, keys string, recursive bool) {
 	detail, err := json.Marshal(map[string]any{"keys": keys, "recursive": recursive})
 	if err != nil {
