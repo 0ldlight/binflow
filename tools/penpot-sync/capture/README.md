@@ -71,3 +71,24 @@ screens-catalog.json 对账（新增屏=route 无 seed 映射）。
 - 树深链 `/repos/tree/General/<repo>` 格式未实证（best-effort + gap 登记）。
 - Pro 屏（retention/lifecycle/release-bundles）在 addons 全开实例应可渲染，但内层流程未驱动。
 - 慢网 loading 态靠路由节流模拟，只覆盖列表屏；树虚拟滚动渐进渲染需 >2k 节点，未造。
+
+## Phase B 走查（dialogs-walkthrough.mjs，LOOP 013）
+
+清偿 states-gaps.md 台账的交互走查脚本（与 capture.mjs 同一套纪律：单浏览器串行、
+settle ping 健康门、audit-probe- 前缀数据 + cleanup 零残留复核）：
+
+```bash
+ARTIFACTORY_USER=admin ARTIFACTORY_PASSWORD='<凭据>' \
+  [WALK_GAPS=user-menu,quick-search,...] node tools/penpot-sync/capture/dialogs-walkthrough.mjs
+```
+
+- `WALK_GAPS` 子集重跑；结果台账**合并历史**（`walkthrough-results.json` + 重写 `states-gaps.md`，
+  带 status 列：cleared/partial/open）。
+- 选择器证据链：Phase A domSummary（顶栏按钮 "Platform/Administration/A"——A=头像）、
+  `dom-snapshots/walkthrough-*.json`（AG-Grid 行 + "Row actions" kebab、el-drawer 表单
+  `#release-bundle-name/version/signing-key`、el-form-item 标签定位表单域）。
+- capture.mjs 补充 env：`SCREENS_SLUGS=逗号清单`（精确补拍，不覆盖已好 PNG）、
+  `SKIP_GAPS=1`（补拍跑不重写 gap 台账）。
+- 客户端注入类取证（api-failure 用 Playwright route abort）**不触服务端**——遵守
+  「不向参照实例注入 5xx」红线。
+

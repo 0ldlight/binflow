@@ -38,6 +38,12 @@ const MAX_SHOTS = Number(process.env.MAX_SHOTS || 140);
 // slice — the reference JVM wedges under sustained MFE rendering (~35 screens
 // in one go); run in chunks with cool-down gaps between invocations.
 const CHUNK = (() => { const m = /(\d+):(\d+)/.exec(process.env.SCREENS_CHUNK || ''); return m ? [Number(m[1]), Number(m[2])] : null; })();
+// SCREENS_SLUGS=comma,list — exact-slug subset (preferred over index slices for
+// re-runs: only listed slugs are visited, so already-good PNGs are never overwritten)
+const SLUGS = process.env.SCREENS_SLUGS ? process.env.SCREENS_SLUGS.split(',').map((s) => s.trim()) : null;
+// SKIP_GAPS=1 — leave states-gaps.md untouched (chunk re-runs must not clobber
+// the gap ledger; only a walkthrough/dialogs run rewrites it)
+const SKIP_GAPS = !!process.env.SKIP_GAPS;
 
 const PROBE = {
   repoEmpty: 'audit-probe-empty',
@@ -526,7 +532,8 @@ async function phaseSetup(page) {
 }
 
 async function runScreens(page, manifest) {
-  const screenEntries = CHUNK ? manifest.screens.slice(CHUNK[0], CHUNK[1]) : manifest.screens;
+  let screenEntries = CHUNK ? manifest.screens.slice(CHUNK[0], CHUNK[1]) : manifest.screens;
+  if (SLUGS) screenEntries = manifest.screens.filter((s) => SLUGS.includes(s.slug));
   for (const entry of screenEntries) {
     if (entry.slug === 'login' || entry.slug === 'onboarding') continue; // handled in preauth/login phases
     if (entry.effort === 'best' && shotCount >= MAX_SHOTS - 20) { gap(`screen-${entry.slug}`, 'budget guard skipped best-effort screen'); continue; }
@@ -807,11 +814,13 @@ function finalize(manifest) {
     ['pro-inner-flows', 'retention policy create/save, lifecycle promotion flows opened but not driven end-to-end'],
   ];
   const all = [...gaps.map((g) => ({ id: g.id, why: g.why })), ...staticGaps.map(([id, why]) => ({ id, why }))];
-  const md = ['# Parity Capture — State/Interaction Gaps (Phase A)\n\n',
-    'Entries the crawler could NOT naturally reach. Feed these into the next walkthrough ticket.\n\n',
-    '| id | why not captured |\n|---|---|\n',
-    ...all.map((g) => `| ${g.id} | ${g.why} |\n`)].join('');
-  fs.writeFileSync(path.join(OUT, 'states-gaps.md'), md);
+  if (!SKIP_GAPS) {
+    const md = ['# Parity Capture — State/Interaction Gaps (Phase A)\n\n',
+      'Entries the crawler could NOT naturally reach. Feed these into the next walkthrough ticket.\n\n',
+      '| id | why not captured |\n|---|---|\n',
+      ...all.map((g) => `| ${g.id} | ${g.why} |\n`)].join('');
+    fs.writeFileSync(path.join(OUT, 'states-gaps.md'), md);
+  }
   phaseCatalog(manifest);
   writeRunLog();
   log('DONE — screenshots:', shotCount, 'screens:', catalog.length, 'gaps:', all.length, '->', OUT);

@@ -75,7 +75,7 @@ const manifest = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
 const shotsDir = (sub) => path.join(CAP, 'screenshots', sub);
 const pngExists = (sub, name) => fs.existsSync(path.join(shotsDir(sub), `${name}.png`));
 
-// dialog PNG → owning screen slug (file names as captured in Phase A).
+// dialog PNG → owning screen slug (Phase A names + LOOP 013 walkthrough names).
 const DIALOG_OWNERS = {
   'deploy-dialog-open': 'tree-general',
   'group-form-filled': 'group-new',
@@ -87,6 +87,20 @@ const DIALOG_OWNERS = {
   'user-form-filled': 'user-new',
   'wizard-audit-probe-empty-3-name': 'repos-local',
   'wizard-audit-probe-empty-4-done': 'repos-local',
+  // walkthrough (LOOP 013)
+  'user-menu-dropdown': 'packages',
+  'quick-search-focused': 'packages',
+  'quick-search-overlay': 'packages',
+  'tree-context-menu': 'tree-general',
+  'delete-confirm-dialog': 'repos-local',
+  'delete-confirm-row-menu': 'repos-local',
+  'rb-page-before-create': 'builds',
+  'release-bundle-create-step1': 'builds',
+  'release-bundle-create-filled': 'builds',
+  'release-bundle-create-source': 'builds',
+  'release-bundle-create-review': 'builds',
+  'release-bundle-create-result': 'builds',
+  'retention-policy-create-form': 'retention-policies',
 };
 // state PNG → owning screen slug.
 const STATE_OWNERS = {
@@ -101,6 +115,14 @@ const STATE_OWNERS = {
   'permission-save-result': 'permission-new',
   'route-404': 'notfound-404',
   'user-form-validation-error': 'user-new',
+  // walkthrough (LOOP 013)
+  'hover-sidebar-item': 'packages',
+  'api-failure-users': 'users',
+  'tree-loading': 'tree-general',
+  'search-results-after-enter': 'artifact-search-results',
+  'toast-user-created': 'user-new',
+  'toast-user-created-late': 'user-new',
+  'toast-repo-name-invalid': 'repos-local',
 };
 // extra PNG in screenshots/screens/ that is a variant state, not a manifest screen.
 const EXTRA_SCREEN_OWNERS = {

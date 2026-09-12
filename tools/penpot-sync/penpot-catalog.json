@@ -1,16 +1,16 @@
 {
   "meta": {
-    "rebuiltAt": "2026-09-12T19:38:58.923Z",
+    "rebuiltAt": "2026-09-12T22:43:06.146Z",
     "note": "Phase B rebuild — manifest slug→route 全量 (crawl-manifest.json is the authority); capture status = PNG presence. Phase A screens-catalog.json only had 4 entries because the screens phase was chunked; this catalog restores the full mapping.",
     "manifestScreens": 69,
-    "captured": 48,
+    "captured": 61,
     "groupsWithCaptures": [
-      "Artifacts & Release (2)",
+      "Artifacts & Release (7)",
       "Repos (8)",
       "Identity & Access (10)",
-      "Security Config (8)",
+      "Security Config (11)",
       "Platform Config (2)",
-      "Artifactory Services (11)",
+      "Artifactory Services (16)",
       "Monitoring (3)",
       "Auth & Shell (4)"
     ],
@@ -49,10 +49,16 @@
       "group": "Artifacts & Release",
       "captured": true,
       "note": "default landing",
-      "states": [
-        "hover-primary-button"
+      "dialogs": [
+        "quick-search-focused",
+        "quick-search-overlay",
+        "user-menu-dropdown"
       ],
-      "meta": "route: /ui/packages\ngroup: Artifacts & Release · effort: core\nmanifest note: default landing\nstates: hover-primary-button\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+      "states": [
+        "hover-primary-button",
+        "hover-sidebar-item"
+      ],
+      "meta": "route: /ui/packages\ngroup: Artifacts & Release · effort: core\nmanifest note: default landing\ndialogs: quick-search-focused, quick-search-overlay, user-menu-dropdown\nstates: hover-primary-button, hover-sidebar-item\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "tree-general",
@@ -63,9 +69,13 @@
       "note": "settled instance tree",
       "dialogs": [
         "deploy-dialog-open",
-        "set-me-up-configure"
+        "set-me-up-configure",
+        "tree-context-menu"
       ],
-      "meta": "route: /ui/repos/tree/General\ngroup: Repos · effort: core\nmanifest note: settled instance tree\ndialogs: deploy-dialog-open, set-me-up-configure\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+      "states": [
+        "tree-loading"
+      ],
+      "meta": "route: /ui/repos/tree/General\ngroup: Repos · effort: core\nmanifest note: settled instance tree\ndialogs: deploy-dialog-open, set-me-up-configure, tree-context-menu\nstates: tree-loading\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "tree-empty-repo",
@@ -86,7 +96,10 @@
       "group": "Artifacts & Release",
       "captured": true,
       "note": "needs query — triggered via top search box, not bare URL",
-      "meta": "route: /ui/artifactSearchResults\ngroup: Artifacts & Release · effort: best\nmanifest note: needs query — triggered via top search box, not bare URL\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+      "states": [
+        "search-results-after-enter"
+      ],
+      "meta": "route: /ui/artifactSearchResults\ngroup: Artifacts & Release · effort: best\nmanifest note: needs query — triggered via top search box, not bare URL\nstates: search-results-after-enter\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "repos-local",
@@ -96,10 +109,15 @@
       "captured": true,
       "note": "",
       "dialogs": [
+        "delete-confirm-dialog",
+        "delete-confirm-row-menu",
         "wizard-audit-probe-empty-3-name",
         "wizard-audit-probe-empty-4-done"
       ],
-      "meta": "route: /ui/admin/repositories/local\ngroup: Repos · effort: core\ndialogs: wizard-audit-probe-empty-3-name, wizard-audit-probe-empty-4-done\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+      "states": [
+        "toast-repo-name-invalid"
+      ],
+      "meta": "route: /ui/admin/repositories/local\ngroup: Repos · effort: core\ndialogs: delete-confirm-dialog, delete-confirm-row-menu, wizard-audit-probe-empty-3-name, wizard-audit-probe-empty-4-done\nstates: toast-repo-name-invalid\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "repos-remote",
@@ -148,10 +166,11 @@
       "captured": true,
       "note": "",
       "states": [
+        "api-failure-users",
         "loading-users-list",
         "permission-denied-admin-route"
       ],
-      "meta": "route: /ui/admin/management/users\ngroup: Identity & Access · effort: core\nstates: loading-users-list, permission-denied-admin-route\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+      "meta": "route: /ui/admin/management/users\ngroup: Identity & Access · effort: core\nstates: api-failure-users, loading-users-list, permission-denied-admin-route\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "user-new",
@@ -164,9 +183,11 @@
         "user-form-filled"
       ],
       "states": [
+        "toast-user-created-late",
+        "toast-user-created",
         "user-form-validation-error"
       ],
-      "meta": "route: /ui/admin/management/users/new\ngroup: Identity & Access · effort: core\nmanifest note: empty-submit first = inline-validation error state\ndialogs: user-form-filled\nstates: user-form-validation-error\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+      "meta": "route: /ui/admin/management/users/new\ngroup: Identity & Access · effort: core\nmanifest note: empty-submit first = inline-validation error state\ndialogs: user-form-filled\nstates: toast-user-created-late, toast-user-created, user-form-validation-error\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "user-edit-probe",
@@ -327,24 +348,27 @@
       "route": "/admin/configuration/security/scim",
       "effort": "best",
       "group": "Security Config",
-      "captured": false,
-      "note": "7.161-new page, zero prior evidence"
+      "captured": true,
+      "note": "7.161-new page, zero prior evidence",
+      "meta": "route: /ui/admin/configuration/security/scim\ngroup: Security Config · effort: best\nmanifest note: 7.161-new page, zero prior evidence\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "vault-integration",
       "route": "/admin/configuration/security/vault_integration",
       "effort": "best",
       "group": "Security Config",
-      "captured": false,
-      "note": ""
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/configuration/security/vault_integration\ngroup: Security Config · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "vaults",
       "route": "/admin/configuration/security/vaults",
       "effort": "best",
       "group": "Security Config",
-      "captured": false,
-      "note": ""
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/configuration/security/vaults\ngroup: Security Config · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "integration-central",
@@ -473,16 +497,21 @@
       "route": "/admin/artifactory/services/retention/policies",
       "effort": "best",
       "group": "Artifactory Services",
-      "captured": false,
-      "note": "Pro; addons-on instance should render"
+      "captured": true,
+      "note": "Pro; addons-on instance should render",
+      "dialogs": [
+        "retention-policy-create-form"
+      ],
+      "meta": "route: /ui/admin/artifactory/services/retention/policies\ngroup: Artifactory Services · effort: best\nmanifest note: Pro; addons-on instance should render\ndialogs: retention-policy-create-form\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "retention-monitoring",
       "route": "/admin/artifactory/services/retention/monitoring",
       "effort": "best",
       "group": "Artifactory Services",
-      "captured": false,
-      "note": "Pro"
+      "captured": true,
+      "note": "Pro",
+      "meta": "route: /ui/admin/artifactory/services/retention/monitoring\ngroup: Artifactory Services · effort: best\nmanifest note: Pro\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "cold-storage",
@@ -533,16 +562,18 @@
       "route": "/admin/artifactory/security/keys_management",
       "effort": "best",
       "group": "Artifactory Services",
-      "captured": false,
-      "note": "needs :label param — sidebar click-through"
+      "captured": true,
+      "note": "needs :label param — sidebar click-through",
+      "meta": "route: /ui/admin/artifactory/security/keys_management\ngroup: Artifactory Services · effort: best\nmanifest note: needs :label param — sidebar click-through\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "log-analytics",
       "route": "/admin/artifactory/advanced/log_analytics",
       "effort": "best",
       "group": "Artifactory Services",
-      "captured": false,
-      "note": ""
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/advanced/log_analytics\ngroup: Artifactory Services · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "system-logs-af",
@@ -592,8 +623,9 @@
       "route": "/admin/artifactory/migration_tool",
       "effort": "best",
       "group": "Artifactory Services",
-      "captured": false,
-      "note": ""
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/migration_tool\ngroup: Artifactory Services · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "quick-setup",
@@ -609,40 +641,53 @@
       "route": "/builds",
       "effort": "best",
       "group": "Artifacts & Release",
-      "captured": false,
-      "note": "likely empty state — bonus empty-state evidence"
+      "captured": true,
+      "note": "likely empty state — bonus empty-state evidence",
+      "dialogs": [
+        "rb-page-before-create",
+        "release-bundle-create-filled",
+        "release-bundle-create-result",
+        "release-bundle-create-review",
+        "release-bundle-create-source",
+        "release-bundle-create-step1"
+      ],
+      "meta": "route: /ui/builds\ngroup: Artifacts & Release · effort: best\nmanifest note: likely empty state — bonus empty-state evidence\ndialogs: rb-page-before-create, release-bundle-create-filled, release-bundle-create-result, release-bundle-create-review, release-bundle-create-source, release-bundle-create-step1\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "bundles-source",
       "route": "/bundles/source",
       "effort": "best",
       "group": "Artifacts & Release",
-      "captured": false,
-      "note": "Pro"
+      "captured": true,
+      "note": "Pro",
+      "meta": "route: /ui/bundles/source\ngroup: Artifacts & Release · effort: best\nmanifest note: Pro\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "lifecycle",
       "route": "/artifactory/lifecycle",
       "effort": "best",
       "group": "Artifacts & Release",
-      "captured": false,
-      "note": "Pro"
+      "captured": true,
+      "note": "Pro",
+      "meta": "route: /ui/artifactory/lifecycle\ngroup: Artifacts & Release · effort: best\nmanifest note: Pro\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "release-bundles",
       "route": "/artifactory/release-bundles",
       "effort": "best",
       "group": "Artifacts & Release",
-      "captured": false,
-      "note": "Pro"
+      "captured": true,
+      "note": "Pro",
+      "meta": "route: /ui/artifactory/release-bundles\ngroup: Artifacts & Release · effort: best\nmanifest note: Pro\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "rb-target",
       "route": "/artifactory/release-bundles/target",
       "effort": "best",
       "group": "Artifacts & Release",
-      "captured": false,
-      "note": "Pro"
+      "captured": true,
+      "note": "Pro",
+      "meta": "route: /ui/artifactory/release-bundles/target\ngroup: Artifacts & Release · effort: best\nmanifest note: Pro\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "rb-target-history",

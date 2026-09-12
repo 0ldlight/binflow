@@ -42,7 +42,13 @@ async function launch() {
 async function login(page) {
   await page.goto(PENPOT + '/', { waitUntil: 'networkidle' });
   const submit = page.locator('[data-testid="login-submit"], button[type="submit"]').first();
-  await submit.waitFor({ timeout: 20000 });
+  try {
+    await submit.waitFor({ timeout: 20000 });
+  } catch {
+    // frontend sometimes renders slow/blank right after boot — one retry
+    await page.goto(PENPOT + '/#/login', { waitUntil: 'networkidle' });
+    await submit.waitFor({ timeout: 20000 });
+  }
   const inputs = page.locator('input:visible');
   await inputs.nth(0).fill(USER);
   await inputs.nth(1).fill(PASS);
@@ -78,24 +84,29 @@ try {
   // --- shared: open the target project + file workspace ---
   async function openWorkspace() {
     const projRe = new RegExp(PROJECT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    // recent view: h2 cards each carry a per-card "+ 新文档" (project-new-file)
-    const h2s = await page.locator('h2').allInnerTexts();
-    let idx = h2s.findIndex((t) => projRe.test(t));
-    if (idx < 0) {
-      // project does not exist yet → create it
-      await page.locator('[data-testid="new-project-button"]').click();
-      await page.waitForTimeout(2500);
-      await page.locator('input:visible').first().fill(PROJECT);
-      await page.keyboard.press('Enter');
-      await page.waitForTimeout(2000);
-      idx = (await page.locator('h2').allInnerTexts()).findIndex((t) => projRe.test(t));
-    }
+    // The dashboard renders h2 project cards late (racy allInnerTexts left idx=-1
+    // and nth(-1)=.last() clicking nothing) — poll for the card via locator filter.
+    const projCard = page.locator('h2').filter({ hasText: projRe }).first();
+    await projCard.waitFor({ timeout: 20000, state: 'visible' });
     if (MODE === 'inject') {
-      // fresh canvas per run — a new file, so retries never stack duplicate pages
-      await page.locator('[data-testid="project-new-file"]').nth(idx).click();
+      // fresh canvas per run — click INTO the project first, then its "+ 新文档"
+      await projCard.click();
+      await page.waitForTimeout(3000);
+      console.log('after project click:', page.url());
+      if (!page.url().includes('/files?')) { await projCard.click().catch(() => {}); await page.waitForTimeout(3000); console.log('retry click:', page.url()); }
+      if (process.env.PENPOT_FILES_URL && !page.url().includes('/files?')) {
+        await page.goto(PENPOT + '/#' + process.env.PENPOT_FILES_URL.replace(/^#/, ''), { waitUntil: 'networkidle' }).catch(() => {});
+        await page.waitForTimeout(3000);
+        console.log('direct files URL:', page.url());
+      }
+      // project files view exposes new-file as <a>新文档</a> in the header (2.17);
+      // the dashboard cards used data-testid=project-new-file
+      const newFile = page.locator('a:has-text("+ 新文档"), [data-testid="project-new-file"]').first();
+      await newFile.waitFor({ timeout: 15000, state: 'visible' });
+      await newFile.click();
     } else {
       // verify: open the project's files view, dblclick the newest file
-      await page.locator('h2').filter({ hasText: projRe }).first().click();
+      await projCard.click();
       await page.waitForTimeout(2000);
       const fileCard = page.locator('div[aria-label]').filter({ hasText: /新建文件|ago/ }).first();
       await fileCard.waitFor({ timeout: 10000 });
