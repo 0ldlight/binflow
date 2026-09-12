@@ -1,10 +1,15 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-12T19:00:00Z
-current_iteration: 010
-current_goal: "P2 三参尾款+合并差分复验 / 复核两项 / 旁观微票四件 / 规格刷新票 / R-6 搭车窗 / R-10 批复驱动"
-iteration_009_seal: "四轨全收（第四波限额击落双 reviewer 复活零损失）；list 25/32 收敛零越界；双审四 blocking 全清（两回归类）；台账 30 条目 resolved 19；双审战绩 10/10；commits 53522a6c/1b4e5dd4"
+updated: 2026-09-12T21:00:00Z
+current_iteration: 011
+current_goal: "计数污染修复 / 票 E+F 裁定合流（与 R-10） / 递归臂升级+root enrich 角 / maven/npm 契约扩面评估"
+iteration_010_seal: "四轨零击落；list 32/32 全收敛（跨三轮 L008→010）；双审首个零拦截轮 11/11；matrix ✅71/◐20 P0 partial 余 3 裁定类；R-6 双败定谳；commits c0d2faa4/293a754c"
+loop_011_tracks:
+  - { id: L011-1, domain: storage-stats, owner: dev-go-storage, what: "计数污染修复票（P1）：item-info GET 与 ?properties GET/PUT/DELETE 不经计数解算（statsNode 非计数先例可循）+ virtual 语义验证前置 + 随票 permissions.go:547 注释反编译名改写 + 修复后 A30/statsTimestamps 脏实例收敛复验" }
+  - { id: L011-2, domain: rulings-pack, owner: product-manager, what: "票 E+F 素材与 R-10 合流呈批：D01-R03/R04（propertiesXml 501 维持 or 实现 / lastModified 臂）+ D02-R01（project 参数容忍语义——可能零代码翻 ✅）并入 pending-rulings 或独立裁定建议" }
+  - { id: L011-3, domain: contract-expansion, owner: compatibility-engineer, what: "maven/npm 契约扩面启动评估：docker/storage 两域契约模式（证据→契约→差分→翻绿）复用到 maven/npm 协议面的排程与证据厚薄评估（gap 总账 P0 面）——只评估出排程不开工" }
+  - { id: L011-4, domain: uat-refresh, owner: devops-engineer, what: "UAT 重建至已提交树 293a754c（收官基线——现载双轨 WIP）+ smoke；顺带 L010-2 刮擦实例差分的返工重跑义务核销（等价构建已论证则记档销账）" }
 loop_010_tracks:
   - { id: L010-2, domain: httpapi-micro, owner: dev-go-core, what: "✅ 四件全清（探针先行）：vendor CT 同串/空 actions 七臂豁免语义/转义统一 SetEscapeHTML(false)（& 文件名字节同）/无仓段泛化 404——**第 4 件前提被实测推翻**（ref 非 400 Cannot-list-root，L008 §1.12 无探针臂的断言作废）；两台账条目可翻绿+池项收口；附带=DELETE 404 第三次观测（与 L007-1 同、与 L009-3 反——两态探针在 L010-1）；ref 中途崩一次自愈复验过", status: done }
   - { id: L010-4, domain: cloud-evidence, owner: devops-engineer, what: "✅ R-6 窗口双败定谳③（常量层不可覆盖：子元素+JVM dotted 属性实测送达+property 三面同场仍 TLS 强制）；恢复三验全过（binarystore/system.yaml sha 基线+ping 200+标记制品逐字节）；四问维持静态锚；**静态面备选立票建议**（直读默认+redirect 显式+expiry 可配——产品权）+残余假说两条（endpoint 带 scheme=高性价比并入下个 storage 窗搭车 / camel JVM 键）；第三窗不批（conductor 裁定）", status: done }
