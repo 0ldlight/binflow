@@ -6,6 +6,9 @@ current_iteration: 011
 current_goal: "计数污染修复 / 票 E+F 裁定合流（与 R-10） / 递归臂升级+root enrich 角 / maven/npm 契约扩面评估"
 iteration_010_seal: "四轨零击落；list 32/32 全收敛（跨三轮 L008→010）；双审首个零拦截轮 11/11；matrix ✅71/◐20 P0 partial 余 3 裁定类；R-6 双败定谳；commits c0d2faa4/293a754c"
 loop_011_tracks:
+  - { id: L011-2, domain: rulings-pack, owner: product-manager, what: "✅ pending-rulings v2.1：R-15a-d 四臂入册（a=501 维持 INTENTIONAL/b=lastModified 实现建议/c=project 探针先行不预设/d=四象限自动选案+§4-4 预授权式）——P0 partial 三行的裁定输入齐备；呈批包 15 编号/20 席位；**上报采纳：R-10 包呈批衰减风险→conductor 醒目提示用户**", status: done }
+  - { id: L011-4, domain: uat-refresh, owner: devops-engineer, what: "✅ UAT 基线=uat-l0114-293a754c（detached worktree 构建 vcs.modified=false 纯净证明；数据卷连续性旁证 layer mounted）；刮擦实例核销销账；重建序列入日志供 L011-1 复用", status: done }
+  - { id: L011-3, domain: contract-expansion, owner: compatibility-engineer, what: "✅ 扩面评估落 contract-expansion-assessment.md：npm.md K60 族最厚可直转契约/maven §1.4 元数据计算全域最难资产/D12-R05 dist-tags ◐+R08 ◐ 为首两票锚；适配差异五项（CLI 腿判据/版本矩阵/写腿保护/归一扩组/新行提案）；首票=npm dist-tags 四段闭环（清偿 V-7）次票=maven 元数据；与 R-10 正交；LOOP 012 起一 LOOP 一票 6-8 LOOP 达 docker 同覆盖", status: done }
   - { id: L011-1, domain: storage-stats, owner: dev-go-storage, what: "计数污染修复票（P1）：item-info GET 与 ?properties GET/PUT/DELETE 不经计数解算（statsNode 非计数先例可循）+ virtual 语义验证前置 + 随票 permissions.go:547 注释反编译名改写 + 修复后 A30/statsTimestamps 脏实例收敛复验" }
   - { id: L011-2, domain: rulings-pack, owner: product-manager, what: "票 E+F 素材与 R-10 合流呈批：D01-R03/R04（propertiesXml 501 维持 or 实现 / lastModified 臂）+ D02-R01（project 参数容忍语义——可能零代码翻 ✅）并入 pending-rulings 或独立裁定建议" }
   - { id: L011-3, domain: contract-expansion, owner: compatibility-engineer, what: "maven/npm 契约扩面启动评估：docker/storage 两域契约模式（证据→契约→差分→翻绿）复用到 maven/npm 协议面的排程与证据厚薄评估（gap 总账 P0 面）——只评估出排程不开工" }

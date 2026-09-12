@@ -486,6 +486,12 @@ entries:
       （XSS 四角 4/4、NameValidator 全 SAME、转义不对称=T-L010-2 ③ 成功体统一无 HTML 转义、无仓段臂
       =T-L010-2 ④ 前提推翻——参照四变体恒 404 "Not Found" 信封已对齐，rest-api.md:119 文案刷新票归
       reverse-engineer）。越界信息记录不立案：参照属性写面默认递归怪癖（§6-b，供 properties 契约排差）。
+      LOOP 012 池项登记（T-L011-1 Outputs E1-E4 取证）：**mdTimestamps 递归臂升级票素材已齐**——参照
+      文件夹 PUT（默认递归）子项 props-mtime 出现@写入时刻且二次写再移动、直写单子项只动该子项（E1-E4）；
+      BinFlow recursive=1 子项 props 确已写入（E3 回读在）但 mdTimestamps.properties 缺席——根因
+      recordPropsAudit 只记 addressed 节点一行、propModifiedTimes 审计派生无子项行；实现方向=propsTargets
+      逐 target 记审计行或 NodeProps 存储层 per-node 变更时刻。递归缺省语义差（参照默认递归 vs BinFlow
+      显式 recursive=1）系 FR-89.2/决策 11.40 族既有裁量另计，非本池项范围。
   evidence: reports/compatibility/L008-list-params-diff.md §3 + T-L009-2.md + L010-list-p2-diff.md §1-§4（32/32 终态）
 - id: rest/user-detail-vendor-content-type
   surface: 'GET /api/security/users/{name} 200 面 Content-Type（vendor 串缺位）'
@@ -536,7 +542,36 @@ entries:
     影响——但该污染会在脏实例上阻 A30 类臂收敛（坑登记）。
   authority: { type: differential, ref: "reports/compatibility/L010-list-p2-diff.md §6-a（UAT 隔离探针）" }
   review_gate: LOOP 011 修复票（httpapi 元数据面非计数解算——List-based 精确匹配臂 + 各面拼写回退语义；virtual 解算语义验证前置）
-  evidence: reports/compatibility/L010-list-p2-diff.md §6-a
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      T-L011-1（uat-l0111-293a754c-wip 活体）：九面隔离探针全 0（iso.txt 上传 stats=0 → PUT/GET/DELETE
+      props=0 → item-info=0 → ?permissions+?list=0 → virtual 面 item-info+props 成员行=0）→ **真内容
+      GET=1——计数器健在**（de-probe 的是面不是计数器）；virtual 前置确认修复（修复前 virtual 面同名读
+      使成员 0→1→2→3）；remote 面顺带第二处 parity：未缓存 remote 路径 item-info 404 不回源（修复前
+      200+整制品拉取+落地+计数；参照同臂 404）；A30 脏实例收敛：干净文件键缺席 / 真下载一次键在@真实
+      时刻 / 参照对照臂（未下载缺席→真 GET 键在→metadata 三面后计数稳定 1）。
+    note: >-
+      **历史污染行不回写=事实保留**（vp.txt 修复前污染行=3 与参照真下载行同形——不清洗存量数据，账面
+      记录事实）。实现载体=storageNode List-based 解算（精确拼写+斜杠回退+display 文件夹标记臂——替代
+      Get 直乘与 T-406 读时物化）；search_ui leadFile 同族直连一并收口。衍生知悉项：元数据面自此不写
+      download audit 行（K69 count/audit 同址原则下 de-probe 同去——报表依赖方知悉）；无行文件夹 display
+      时间戳 epoch 角 case（旧 remote 物化行有真实时刻——可立后续票，T-L011-1 Risks③）。
+  evidence: reports/compatibility/L010-list-p2-diff.md §6-a + T-L011-1.md（修复+九面复验）
+- id: rest/virtual-metadata-faces-404-vs-200
+  surface: virtual 面 ?properties/?stats 应答（参照 404 vs BinFlow 200）
+  classification: UNKNOWN
+  rationale: >-
+    T-L011-1 旁观发现（2026-09-12 双端活体）：参照 ?properties 与 ?stats 打在 virtual 仓上均 **404**；
+    BinFlow 现行 **200**（元数据面作用于 virtual 上有解算语义）。第二臂（同面族）：参照 ?stats 体
+    lastDownloaded/remoteLastDownloaded 为数值 0 **恒在场**，BinFlow omitempty 缺席。裁量核对结论：
+    T-438（?stats 面形态/local 面）与 FR-89.2（properties atomic 臂）**均不覆盖 virtual 元数据面**——
+    T-L011-1 所引「既有裁量」经查不构成本面 authority（dev 侧「先照抄不翻」仅为实现姿态），无
+    INTENTIONAL 锚可引 → 按纪律入 UNKNOWN。对齐方向需裁：对齐参照=virtual 面 404（BinFlow 面收缩，
+    影响控制台 virtual 树元数据消费）；维持超集=200（需 authority）。
+  authority: { type: pending, ref: "产品/conductor 裁（virtual 元数据面：对齐 404 vs 维持 200 超集——无既有 authority 覆盖本面）" }
+  review_gate: LOOP 012 限期升级（INTENTIONAL 终裁需 authority；裁对齐则开面收缩票〔virtual 消费方联动评估〕）
+  evidence: reports/agents/T-L011-1.md（Compatibility 新观察段 + 前置探针①参照对照臂）
 # 条目模式（M3-2 落地）：
 # - id: rest/build-batch-delete-date-range
 #   surface: POST /api/build/delete

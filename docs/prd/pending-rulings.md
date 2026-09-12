@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/prd/pending-rulings.md` |
-| 版本 | v2.0（L008-4a 整编：新增 R-10 三臂 / R-11 / R-12 / R-13 / R-14 + 既有 9 项复核〔§2.0〕+ §4 批量批复式；v1.0=L002-4 首建 9 项） |
+| 版本 | v2.1（L011-2 增补：票 E+F 四臂入册 R-15〔§2 R-15 + §3/§4 联动〕；v2.0=L008-4a 整编：新增 R-10 三臂 / R-11 / R-12 / R-13 / R-14 + 既有 9 项复核〔§2.0〕+ §4 批量批复式；v1.0=L002-4 首建 9 项） |
 | 维护者 | product-manager（唯写）；裁定结果回写本表 + 各关联账目，不另建副本 |
 | 裁定通道 | 「用户」类经 conductor 转用户终裁；「产品」类 PM 域内可裁、报 conductor 备案；「ADR」类走 DECISIONS.md 流程 |
 
@@ -12,7 +12,7 @@
 - **建议立场 = product-manager 的专业建议，不构成裁定**。每项待对应 authority 终裁后方可回写关联账目（known-divergence / matrix / gap 总账 / 契约）。
 - 证据等级：E1=反编译走读（B=7.161.20 partial 源）/ E4=运行时实测（参照实例 Artifactory-pro 7.161.20 rev 86120900，:8082）/ E5=双系统差分（BinFlow UAT :8083；L001-1 复验基线 uat-l0011-f80c46aa，源 rev 59f33ab5；L007-1 独立验证实例 binflow-l0071-verify / uat-l0071-c1193f5f）。
 - authority 类型：**用户**（范围/安全/排程终裁）/ **产品**（PM 域内）/ **ADR**（架构记录，需先入 DECISIONS.md）。
-- 来源账目：`docs/compatibility/known-divergence.yaml`、`docs/ai-engineering/loop-state.yaml`、`docs/ai-engineering/artifactory-binflow-gap.yaml`、`docs/design/storage-v2.md` §1/§5、`reports/compatibility/L000-docker-remote-*.md`、`reports/agents/T-L001-4.md`；v2 新增素材：`docs/prd/ruling-invalid-value-family.md`（R-10/R-11① 素材，architect 两案对比）、`docs/design/repo-update-merge.md`（ADR-0050 候选稿）、`reports/compatibility/L007-residuals-users-diff.md`（R-12 邻面 / R-13 / R-14）、`reports/compatibility/L003-s3-chain-evidence.md`（R-6 现状）。
+- 来源账目：`docs/compatibility/known-divergence.yaml`、`docs/ai-engineering/loop-state.yaml`、`docs/ai-engineering/artifactory-binflow-gap.yaml`、`docs/design/storage-v2.md` §1/§5、`reports/compatibility/L000-docker-remote-*.md`、`reports/agents/T-L001-4.md`；v2 新增素材：`docs/prd/ruling-invalid-value-family.md`（R-10/R-11① 素材，architect 两案对比）、`docs/design/repo-update-merge.md`（ADR-0050 候选稿）、`reports/compatibility/L007-residuals-users-diff.md`（R-12 邻面 / R-13 / R-14）、`reports/compatibility/L003-s3-chain-evidence.md`（R-6 现状）；v2.1 素材（R-15，票 E+F）：`docs/compatibility/matrix.yaml` D01-R03/R04/D02-R01 行注记、`docs/reverse/rest-api.md` §1.1 行 30 / §2 行 85 / §3 行 117、`docs/reverse/api-inventory.yaml` 属性/lastModified 行注记、`docs/reverse/rest-compat-matrix.md` §2 行 3/行 4 + §3 行 1 + 带② 2-1/2-2、`docs/ai-engineering/loop-state.yaml` L011-2 派单。
 - 批量批复式（v2）：见 §4——用户可逐项批，或整包「按建议执行」。
 
 ## 1. 总览表
@@ -35,6 +35,10 @@
 | R-12 | 经典 security 读族 GET 管理面门（users/groups/permissions 列表与详情） | readonly_admin 可读（CapSecurityRead：admin ∨ readonly_admin） | 参照实例级无 read-only admin（经典读族 admin-only；最接近物=project 域 Viewer） | **维持 CapSecurityRead 超集 → INTENTIONAL**：角色本身系 ADR-0026 决策 1 既有架构位（readonly_admin 管理面含 security:read），终裁时补引 ADR-0026 即转正；参照无此主体，参照存在主体面（admin 200/user 403/匿名 401）零差；收窄 = 翻转既有 readonly_admin 200→403 组合，冲 M9「新增不破坏」基调并伤 console 只读视图 | 产品（补引 ADR-0026 决策 1）+ 用户确认 | known-divergence `rest/security-read-family-readonly-admin-gate` UNKNOWN，LOOP 008 限期（本票呈批） |
 | R-13 | 建用户自动入默认组 readers（建模级） | 无此语义（groups:[]） | 建用户自动入组（回显 groups:["readers"]；组权限绑定随实例预置） | **对齐（引入默认组语义）**：参照生态默认权限面是真实迁移依赖（缺位 = 迁移用户静默丢默认权限心智）；实施留建模票（预置组行+建用户入组+回显；组的权限绑定默认零授权，与参照预置绑定的差异随建模票取证定） | 产品（裁对齐则开建模+实现票） | known-divergence `rest/user-create-default-group-readers` UNKNOWN，LOOP 008 限期（本票呈批） |
 | R-14 | anonymous 用户行（GET /api/security/users/anonymous，建模级） | 无该行（404） | 有（200；profileUpdatable=false、internalPasswordDisabled=true，字段集同 L007-1 §2 三形态活体取证） | **对齐（只读虚拟行最小面）**：渲染层固定行（不进 DB、不可编辑、不可作为认证身份）；写面（PUT/DELETE 该行）参照行为未取证——实现票内先补取证或按只读拒写登记未取证臂 | 产品（裁对齐则开建模+实现票） | known-divergence `rest/anonymous-user-row` UNKNOWN，LOOP 008 限期（本票呈批） |
+| R-15a | 票 E①：`?propertiesXml` 臂（matrix D01-R03，P0） | 501 显式拒绝（诚实缺位） | 200 XML / 404 无属性（E1 高置信；XML body 逐字形态未活体取证，归属面 file/api 两文档记载分叉） | **维持 501，登记 INTENTIONAL**：JSON 孪生臂（`?properties`）双端已 ✅ 等价能力；官方 REST 文档无此形态页 ⇒ 主流客户端不走此臂；501 显式优于静默错面。裁对齐则先探针钉形态（两面 + 404 臂）再实现 | 产品（+ADR 登记）；呈批随包 | matrix D01-R03 partial（P0/中置信）；LOOP 011 限期（本票呈批） |
+| R-15b | 票 E②：`?lastModified` 臂（matrix D01-R04，P0） | 501 | 200 `{"uri":…,"lastModified":"yyyy-MM-dd'T'HH:mm:ss.SSSZ"}` + `Last-Modified` 头（目录内最新修改项）；非 local/cached 仓 400（E1+官方端点页双证，高置信） | **实现**：官方文档端点（真实消费=CI 增量轮询/缓存失效）；语义=子树 max(lastModified)——`?list&deep` 全树遍历与逐条 lastModified 已 32/32 SAME，本臂是既有能力窄投影；400 臂有 `?permissions` 同款先例 | 产品（裁对齐则开实现票）；呈批随包 | matrix D01-R04 partial（P0/中置信）；LOOP 011 限期（本票呈批） |
+| R-15c | 票 F①：`GET /api/repositories?project=` 容忍语义（matrix D02-R01，P0） | 参数未实现过滤（被忽略，回全列表） | 规格记「过滤」（高置信）；**参照实例对该参数实际行为未取证**（过滤/忽略/空集三态未知——探针前置）；家族先例=非法 type/packageType → 空数组不报错 | **探针先行、对齐参照实测**（不预设忽略/空集——ADR-0001 不猜）；产品原则仅排除第三态「明知参照过滤仍维持忽略」（静默超集：带 project 的清理类脚本拿全列表=误操作面）。可走 §4-4 预授权式免二次呈批 | 产品（探针后裁；预授权式可由用户一次批「对齐参照」） | matrix D02-R01 partial（P0/高置信）；LOOP 011 限期（本票呈批，探针前置） |
+| R-15d | 票 F②：D02-R01 行收口路径（随 R-15c×探针联动） | —（随裁定分叉） | —（随裁定分叉） | **对齐参照（四象限自动选案）**：参照忽略+维持忽略=零代码翻 ✅（契约断言钉死）；参照空集+空集过滤=小实现翻 ✅（差分臂）；「参照过滤+维持忽略」与「参照忽略+空集」两格均制造分歧，PM 反对 | 产品（探针后按 §2 R-15d 四象限表执行）；预授权式同 R-15c | 「可能零代码翻 ✅」假说成立与否由探针一次定（conductor L011-2 派单原话） |
 
 ## 2. 逐项详述
 
@@ -176,6 +180,62 @@
 - **影响面**：建模票（handler 特判固定行）；**写面未取证**——PUT/DELETE 对该行的参照行为无活体证据（clean-room：不猜），实现票内先补取证或按只读拒写（405/400 形态届时随取证定）并登记未取证臂。
 - **PM 建议立场**：**对齐（只读虚拟行最小面）**——最小实现换一个建模级差分清零；写面留取证。
 
+### R-15 票 E+F：storage 读臂两件 + repositories project 参数（L005-3 攻坚排程裁定先行票，四臂）
+
+素材：L005-3「E+F=裁定先行」原案（loop-state L005-3）+ L011-2 派单；matrix D01-R03（partial/P0/中置信）/ D01-R04（partial/P0/中置信）/ D02-R01（partial/P0/高置信）行注记；docs/reverse/rest-api.md §1.1 行 30、§2 行 85、§3 行 117；docs/reverse/api-inventory.yaml 属性/lastModified 行注记；rest-compat-matrix.md §2 行 3/行 4、§3 行 1、带② 2-1/2-2。共同背景：三行是 P0 partial 收尾尾巴（iteration-010：P0 partial 余 3 全裁定类），即本包是「清最后三个 P0 partial」的裁定件。证据现状：三行 `last_difftest` 均空——**四臂全部无活体差分记录**，参照行为面主张依赖 E1 静态规格（rest-api.md，高置信）与官方文档；凡下文标「需探针」处即 E4 取证缺口，裁对齐案时实现票内先补。
+
+**R-15a `?propertiesXml` 臂（票 E①，D01-R03）**
+
+- **现状对比**：BinFlow = 501 显式拒绝（as-built 锚 rest-compat-matrix §2 行 3「storage.go:116 notImplemented」）；Artifactory = 200 XML / 404 无属性。**归属面疑点（需探针钉死）**：rest-api.md §1.1 行 30 把该臂记在**file 面**（`GET /{repoKey}/{path}?propertiesXml`，E1 高置信），matrix D01-R03 与 api-inventory 行注记把它记在 **`/api/storage` 面**——两文档记载分叉，未实测钉死哪面（或两面）服务此臂；XML body 逐字形态（根元素/namespace/转义/Content-Type）与 404 臂 body 均无活体取证。JSON 孪生臂（`?properties`）双端已 ✅（matrix D01-R02）。
+- **两案对比**：**案 A 实现 XML 形态** = 等价能力的第二序列化输出；前置=活体探针钉形态（clean-room：官方 REST 文档无此端点页，E1 静态只记到「200 XML / 404」，细节不猜）；成本=探针 + 序列化分支 + 差分臂；受益面=遗留 XML/XSLT 管道消费者——官方文档不记载 ⇒ jf CLI/terraform/curl 主流路径不走此臂，真实消费者罕见。**案 B 维持 501 + INTENTIONAL 登记** = 零实现零维护；501 显式拒绝优于静默错面（诚实缺位、客户端可诊断）；JSON 等价能力已交付；成本=known-divergence 登记 + 差分 INTENTIONAL normalize 标注。
+- **影响面**：D01-R03 行收口（行态机械归 compatibility-engineer 按既有先例执行，本票只裁行为）；contracts storage 属性契约臂（冻结 501 姿态或扩 XML 臂）；探针面=参照 file/api 两面三臂。
+- **PM 建议立场**：**B——维持 501，登记 INTENTIONAL**（等价能力已在、消费者罕见、官方无文档页；未来出现真实 XML 消费者再启，届时探针+实现票）。
+
+**R-15b `?lastModified` 臂（票 E②，D01-R04）**
+
+- **现状对比**：BinFlow = 501（rest-compat-matrix §2 行 4）；Artifactory = 目录内最新修改项——200 `{"uri":…, "lastModified":"yyyy-MM-dd'T'HH:mm:ss.SSSZ"}` + `Last-Modified` 响应头；非 local/cached 仓 → 400（rest-api.md §3 行 117，E1 + 官方 Get Item Last Modified 端点页双证，高置信）。
+- **两案对比**：**案 A 实现** = 子树 max(lastModified) 条目回显 + 头 + 400 臂；BinFlow 已有 `?list&deep` 全树遍历与逐条 lastModified 字段（D01-R05 经 L008→L010 三轮 32/32 归一 SAME）⇒ 本臂是既有能力的窄投影；非 local/cached 400 臂有 `?permissions` 同款已对齐先例；消费者=官方文档端点、真实用途（CI 增量轮询目录变化、缓存失效判断）——「客户端真实可用」准绳直接命中。**案 B 维持 501/缺席 + INTENTIONAL** = 零成本；但官方文档端点缺位是真实客户端可见缺口，且实现面小——缺位理由不成立。
+- **影响面**：D01-R04 行翻 ✅ 路径；contracts storage 契约新臂；差分报告新臂。**性能注记（实现票口径）**：大目录 O(n) 子树扫描与 `?list&deep` 同阶；元数据索引化（mtime 聚合列）留性能票口径，不在本裁定预裁。
+- **取证小项（需探针，随实现票差分腿）**：`Last-Modified` 头逐字形态（RFC 1123 vs 参照自定格式）未活体钉死。注意与 L010-3 新待取证项「root lastModified 形态」区分——那是 `?list` 臂根条目字段形态（includeRootPath 角），非本臂。
+- **PM 建议立场**：**A——实现**（官方端点 + 小语义 + 既有遍历能力复用 + 真实消费场景）。
+
+**R-15c `?project=` 参数容忍语义（票 F①，D02-R01）**
+
+- **现状对比**：BinFlow `GET /api/repositories` 对 `?project=` 未实现过滤（参数被忽略，回全列表——rest-compat-matrix §3 行 1 ②「project 参数缺位」；行内① url 前缀已落 2026-09-07、③ type/packageType 过滤已实现，②是本行 partial 的最后一臂）；Artifactory 规格记「过滤」（rest-api.md §2 行 85，高置信），**但参照实例（:8082）对该参数的实际行为未取证**——Projects addon 开关态、过滤/忽略/空集三态未知；同端点家族先例：非法 type/packageType → 空数组（不报错，同规格行）。
+- **两案对比**：**案甲 忽略（as-built 维持）** = 零代码；若参照实测也忽略（如 addon 缺位时 filter no-op）→ BinFlow 现行为即 SAME，**D02-R01 零代码翻 ✅**（补契约断言钉死即可）——「可能零代码翻 ✅」假说即此格；风险=若参照过滤而 BinFlow 忽略，带 project 的脚本（遍历/清理类首当）拿到超集列表——静默超集，误操作面。**案乙 空集** = 凡 `?project=<非空 v>` 一律回 `[]`；语义自洽（BinFlow 无 projects 域 ⇒「属于 project v 的仓」恒为空 = truthful answer），与「非法过滤值→空数组」家族姿态一致；小实现（列表过滤分支）；风险=若参照忽略，空集反向制造分歧（无操作变全滤空），且伤「迁移脚本想列全部却误带 project 参数」的宽容性。
+- **影响面**：D02-R01 行收口（P0 partial 清尾）；contracts repositories 列表臂断言；console 自有面不受影响（不消费该参数）。
+- **取证（需探针，E4 三臂）**：参照 `?project=<known>` / `?project=<unknown>` / `?project=`（空串）+ 与 type 组合一臂，对拍 BinFlow 同命令。
+- **PM 建议立场**：**探针先行、对齐参照实测**——不预设甲/乙（ADR-0001：取证前不裁实然行为）；产品原则只排除第三态「明知参照过滤仍维持忽略」（静默超集不可接受）。用户可走 §4-4 预授权式一次裁「对齐参照」。
+
+**R-15d D02-R01 行收口路径（票 F②，随 R-15c×探针联动）**
+
+- **四象限分叉表**（探针结果 × 裁定案的执行路径）：
+
+| 参照实测 \ BinFlow 姿态 | 忽略（案甲） | 空集（案乙） |
+|---|---|---|
+| 忽略（filter no-op） | **零代码翻 ✅** + 契约断言钉死（推荐格） | 反向制造分歧——把无操作变全滤空（PM 反对） |
+| 过滤/空集 | 静默超集——带 project 脚本拿全列表（PM 反对） | **小实现翻 ✅** + 差分臂（推荐格） |
+
+- **PM 建议立场**：**对齐参照（甲/乙随实测落格）**；探针若出第三态（如 400 / 已知 project 过滤+未知空集的复合形态），按同族「对齐参照」原则逐臂处理并留痕，超出家族形态时回报 conductor 再呈批。
+
+**R-15 探针清单（E4，一次窗口可清——裁对齐案的前置或随实现票首腿）**
+
+```bash
+# ① propertiesXml（参照两面 + 404 无属性臂；预置属性：PUT …?properties=k=v 先行）
+curl -su admin:'***' -i ":8082/artifactory/api/storage/<repo>/<file>?propertiesXml"   # api 面
+curl -su admin:'***' -i ":8082/artifactory/<repo>/<file>?propertiesXml"               # file 面
+curl -su admin:'***' -i ":8082/artifactory/api/storage/<repo>/<file-no-props>?propertiesXml"  # 404 臂
+# ② lastModified（body + Last-Modified 头 + 非 local 400 臂）
+curl -su admin:'***' -i ":8082/artifactory/api/storage/<repo>/<dir>?lastModified"
+curl -su admin:'***' -i ":8082/artifactory/api/storage/<virtual-repo>/<dir>?lastModified"      # 400 臂
+# ③ project 参数（三态 + 组合臂；对拍 BinFlow :8083 同命令）
+curl -su admin:'***' ":8082/artifactory/api/repositories?project=<known>"
+curl -su admin:'***' ":8082/artifactory/api/repositories?project=<unknown>"
+curl -su admin:'***' ":8082/artifactory/api/repositories?project=&type=local"
+```
+
+（命令载体归 differential-qa / devops 探针票执行；本清单是裁定素材的取证规格，密码占位不落明文。）
+
 ## 3. 裁定后回写路径（约定）
 
 | 裁定项 | 回写目标 |
@@ -188,6 +248,9 @@
 | R-11② | ADR-0050 入册（architect/conductor，L008-1 承载）+ update-merge 实现票 PUT 臂 + release note breaking changes 首条 + 本表 |
 | R-12 | known-divergence `rest/security-read-family-readonly-admin-gate` → INTENTIONAL（authority 补引 ADR-0026 决策 1）+ 本表 |
 | R-13/R-14 | 裁对齐 → 建模+实现票（一票两臂或两票）+ 台账翻 BUG 修复路径；裁缺位 → INTENTIONAL 登记（authority=本裁定）+ 本表 |
+| R-15a | 裁维持 → known-divergence 新 INTENTIONAL 条目（propertiesXml 501 臂）+ ADR 登记 + contracts 501 姿态冻结 + matrix D01-R03 行收口（经 compatibility-engineer）+ 本表；裁实现 → 探针票（§R-15 清单①）→ 实现票（XML 形态+差分臂）+ 行翻 ✅ + 本表 |
+| R-15b | 裁实现 → 实现票（子树 max 聚合 + Last-Modified 头 + 非 local 400 臂 + 差分腿含头形态取证）+ matrix D01-R04 翻 ✅ + contracts 新臂 + 本表；裁维持 → INTENTIONAL 登记（同 R-15a 路径） |
+| R-15c/R-15d | 探针票（§R-15 清单③）→ 按四象限表落格：零代码翻 ✅（契约断言钉死）或过滤小实现（差分臂）→ matrix D02-R01 行收口 + contracts repositories 列表臂 + 本表；落「PM 反对」格或探针出第三态 → 回报 conductor 再呈批 |
 | D2（若随 R-1 联裁） | known-divergence `docker/remote-v2-ping-revoked-arm-unreachable` → INTENTIONAL（authority=R-1 终裁 + 模型级登记）或开吊销态可验实现票 + 本表 §2.0 注记更新 |
 
 > 本表不替任何 authority 拍板；每项终裁后由 product-manager 在本表更新状态列并按上表路径派发回写票。
@@ -210,4 +273,6 @@
    - R-11① 名单外一律 400（拒自定义名）/ R-11② 确认 PUT 超集回撤（ADR-0050 案 A breaking 窗口背书）
    - R-12 维持 CapSecurityRead 超集 → INTENTIONAL（补引 ADR-0026）
    - R-13 对齐（默认组语义）/ R-14 对齐（只读虚拟行）
+   - R-15a 维持 501 → INTENTIONAL / R-15b 实现 / R-15c+d 对齐参照（探针先行，四象限落格）
 3. **生效路径**：裁决回执经 conductor 落地——PM 回写本表状态列 + 按 §3 派发回写票；INTENTIONAL 项的 ADR 登记与契约冻结随票；实现/建模类裁定转 tech-lead 拆票。
+4. **预授权式（v2.1 新增，限 R-15c/R-15d）**：用户可一次批「对齐参照实测」——探针出数后 PM 按 §2 R-15d 四象限表自动选案执行并回报（免二次呈批）；探针出第三态（400/复合形态）或落「PM 反对」格时中止预授权、回报 conductor 再呈批。R-15a/R-15b 不适用预授权（两案均可直接裁，无需取证前置——a 的 INTENTIONAL 不依赖参照实测，b 的实现对齐已有高置信规格）。
