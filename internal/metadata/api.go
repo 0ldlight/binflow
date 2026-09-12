@@ -760,6 +760,11 @@ type DockerStore interface {
 	// (repo-key scoped — the blob-delete precheck that idx_docker_refs_blob
 	// serves, mirroring idx_nodes_blob).
 	RefsByBlob(ctx context.Context, repoKey, blobDigest string) (bool, error)
+	// BlobInImageChain reports whether any manifest of (repo_key, image)
+	// names the blob digest — the ADR-0047 DigestChainGate oracle's ledger
+	// read (image-scoped exact match; EXPLAIN QUERY PLAN picks the PK's
+	// covering (repo_key, image) prefix seek, no extra index needed).
+	BlobInImageChain(ctx context.Context, repoKey, image, blobDigest string) (bool, error)
 
 	// ListImages returns repository image names ("<image>") that have at
 	// least one manifest row, lexicographically ordered (the /v2/_catalog

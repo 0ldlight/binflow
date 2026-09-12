@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/repo"
@@ -363,4 +364,22 @@ func nextPageLink(path, last string, n int) string {
 // tagsListPath is the canonical tags/list URL path of one image.
 func tagsListPath(ref nameRef) string {
 	return "/v2/" + ref.repoKey + "/" + ref.image + "/" + tagsListTail
+}
+
+// repoCatalogKey resolves the repo-domain catalog route: a path of exactly
+// "/v2/<repoKey>/_catalog" (the observed shape, L000-B C16) answers the
+// repository key; every other spelling — nested image paths, the bare
+// registry-level "/v2/_catalog" — answers "". The reserved "_-" prefix is
+// why this lives outside the name parser (an image segment "_catalog"
+// carries no registry route).
+func repoCatalogKey(path string) string {
+	rest, ok := strings.CutPrefix(path, "/v2/")
+	if !ok {
+		return ""
+	}
+	key, tail, found := strings.Cut(rest, "/")
+	if !found || tail != "_catalog" || key == "" {
+		return ""
+	}
+	return key
 }

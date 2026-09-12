@@ -1,0 +1,422 @@
+# BinFlow 兼容契约——storage 管理面（/api/system/storage 端点族 E1-E10，LOOP 004 / L004-3，2026-09-11）
+# schema: compat-contract/1 —— 条目键面沿 docs/ai-engineering/compatibility-engineering.md §2 全集
+#   （id/feature/surface/request/authentication/expect/side_effects/error_behavior/version/evidence/
+#   confidence/status + binflow_state；断言词汇表同 contracts/docker-remote.yaml 头注）。
+# 源与证据链：
+#   行为规格 = docs/reverse/storage/prune-gc-admin.md（E1-E10 + §2 schema + §3 语义；A=反编译 7.161.24/7.161.20-partial、
+#   B=活体 :8082 2026-09-10 探测（写臂活体在该轮已录）、C=官方 REST 文档）；
+#   差分 = reports/compatibility/L003-storage-admin-diff.md（BinFlow 全端点真实 curl + 参照只读等价面——
+#   **参照写腿不在 L003-1 轮重触发**（保护参照状态），写臂参照基线=规格 §1 已录活体证据）。
+# 纪律：参照臂无活体/仅反编译单源的面一律不立 expect 断言，入各条目 unobserved_reference_arms
+#   （V-1/V-2/V-4/V-5/V-7 挂账原样承接，不猜测补齐）。
+# evidence kind（本文件词汇表）：probe=参照活体观察（经规格 B 源转录）/ difftest=差分报告行 /
+#   implementation=BinFlow 侧实现/接线日志指针（不构成独立验证证据，仅翻态配套线索——docker-remote 词表扩展）。
+derived_rules:
+  prune_timing_formats: 'startedAt/lastUpdated = yyyy-MM-ddTHH:mm:ss 无时区字面形态；duration = HH:mm:ss.SSS（规格 §2.2 活体三态全捕获）'
+  stream_code_pinned_200: '流式三端点（gc/compress/backup 成功臂）首字节写出即钉 200 + text/plain;charset=utf-8，后续错误走流内行不改变状态码（规格 §3.1-2，gc 活体直证机制）'
+domain: storage-admin
+scope: '/api/system/storage 维护端点族全 10 端点（E1-E10）——prune 三端点 + gc + compress + optimize + backup + size + info + exportds。
+  类级 @RolesAllowed({"admin","ha"})：全族匿名 401、非 admin 403 为共同面（族级证据：E2/E3 臂活体+单测、参照只读腿匿名 401）。
+  不含 /ui/api/…/maintenance 家族（规格 §4，V-6 挂账）与 /api/storageinfo（D01-R28 另行）。
+  同族澄清：不存在 POST /api/system/storage/compact（Derby compact 已并入 E5 compress，规格 §1）——matrix D01-R30 行注记。'
+normalize: fixtures/normalize.yaml#storage-admin
+reference_instance: 'Artifactory-pro 7.161.20 http://localhost:8082（admin basic，PostgreSQL 后端；活体证据 2026-09-10 规格票 B 源 + 2026-09-11 L003-1 只读复测）'
+binflow_tested_instance: 'BinFlow 工作树实例 http://127.0.0.1:8084（develop @952e556d + L003-1 未提交改动，go build ./cmd/binflow-server，数据 /tmp/l0031-data；commit 6ca8f8666 落库。
+  E7 成功臂 cmd 接线后补于 4614e261（T-L003-4）——装配实例复验已收官（L005-2，2026-09-12，conductor 指令）：
+  成功臂双端活体坐实，条目翻 VERIFIED。'
+contracts:
+# ── E1：gc 同步点流 ──────────────────────────────────────────────────────────
+- id: storage-admin/gc-stream
+  feature: 'POST gc 同步阻塞点流（E1：请求持至 GC 完成，调试级进度逐条出点）'
+  surface: 'POST /api/system/storage/gc'
+  request: { method: POST, path: /api/system/storage/gc, headers: { Authorization: 'Basic <admin>' }, query: {}, body: none }
+  authentication: { type: basic, role: admin }
+  expect:
+    status: 200
+    headers:
+      literal:
+        Content-Type: text/plain;charset=utf-8
+      present: []
+      absent: []
+    body:
+      format: text-stream
+      form: >-
+        chunked 流式进度体：调试级事件逐条输出 `.`，每 80 点一个换行；信息级消息原样+换行；实时 flush。
+        点数不作断言（事件粒度属实现内部：参照空载体恰 1 点 vs BinFlow 一分片目录一点、满枚举 256 点——
+        归一化形态一致，L003-1 判 SAME 的口径）；错误走流内行 `\n<statusCode> : <message>`，HTTP 码保持 200
+        （首字节钉码，derived_rules.stream_code_pinned_200）
+    timing: { note: '同步阻塞：HTTP 请求持至 GC job 完成（活体 0.017s 空载—数秒随工作量）' }
+  side_effects:
+    - 'GC 真删：mark/hold/grace/Live 四门逐 blob（ADR-0031 GCSweep 同核，无 minor/FULL 之分——D8 known-divergence 维持）'
+    - 'BinFlow：blobs 账本 teardown + audit ActionGCRun；无 configs 迭代计数器（20 轮 minor 夹 FULL 面不实现）'
+  error_behavior:
+    - { when: '并发手动 GC 已在跑', status: 409, note: 'BinFlow=统一 errors JSON 信封+持锁者诊断（DataLockOpGC；单测 TestStorageGCStreamFormAndConcurrentRefusal）——参照形态反编译单源（409+status 消息体），不立参照断言（V-7）' }
+    - { when: '非 admin', status: 403, note: '族级共同面（官方文档+注解）' }
+    - { when: '引擎无 prune 面（BinFlow 装配边缘）', status: 503, note: 'BinFlow 诚实不可用臂（参照无此面）' }
+  unobserved_reference_arms:
+    - 'V-7：并发手动 409 的活体形态（反编译单源；需两个并发长 GC）——BinFlow 409 信封形态待参照臂补拍后裁定'
+    - '客户端掐断连接 → brokenPipe 记录、任务继续跑完（规格 §3.1-4，A 单源）'
+  binflow_state:
+    verdict: SAME（形态）
+    detail: 'L003-1 双腿：参照活体 200 text/plain 点流体 `.`（0.017s，规格 B 源）；BinFlow 200 + text/plain;charset=utf-8 + 256 dots/3 newlines（259B，每目录一点、80 点一行）+ 并发 409 单测钉死。点数粒度差异按归一口径不判分歧；409 信封形态分歧挂 V-7 待活体'
+  version: { artifactory_ref: 7.161.20, binflow_since: 6ca8f8666 }
+  evidence:
+    - { kind: probe, report: docs/reverse/storage/prune-gc-admin.md, anchor: 'E1 + §3.1（活体 200/`.`/0.017s；机制 A+B）', date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L003-storage-admin-diff.md, anchor: 'E1 行（SAME 形态）+ 附录 gc 259B 实录', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+# ── E2/E3/E4：prune 族 ───────────────────────────────────────────────────────
+- id: storage-admin/prune-start
+  feature: 'POST prune/start 异步 job 化（E2：202 即回 + 文案两态 + 并发 412）'
+  surface: 'POST /api/system/storage/prune/start'
+  request:
+    method: POST
+    path: /api/system/storage/prune/start
+    headers: { Authorization: 'Basic <admin>' }
+    query: {}
+    body: '可整个省略；或 PruneRequestModel JSON：{"dryRun": <bool 缺省 false=真删>, "startFromDirectory": "<00..ff>"}（第 3/4 参数键名未实证 V-3——BinFlow 不实现，不猜测）'
+  authentication: { type: basic, role: admin }
+  expect:
+    arms:
+    - when: '无 body / {"dryRun":false}（从头全量）'
+      status: 202
+      headers: { literal: { Content-Type: application/json }, present: [], absent: [] }
+      body: { format: json, literal: '{"info":"Pruning Unreferenced Data task has been submitted"}' }
+    - when: '带 startFromDirectory:"<dir>"'
+      status: 202
+      headers: { literal: { Content-Type: application/json }, present: [], absent: [] }
+      body: { format: json, literal_pattern: '^{"info":"Prune Unreferenced Data task resumes from directory <dir>"}$' }
+    - when: '带 {"dryRun":true}'
+      status: 202
+      headers: { literal: { Content-Type: application/json }, present: [], absent: [] }
+      body: { format: json, literal: '{"info":"Pruning Unreferenced Data task has been submitted"}', note: 'dryRun 回显在 E3 status 报告（dryRun:true + cleaned=0 估算模式）' }
+  side_effects:
+    - '异步 job 化（202 即回，任务后台遍历 00..ff 全 256 分片目录——含不存在目录，分母恒 256）'
+    - '真删极性：dryRun 缺省 false=真删（L003-1 实测 cleaned=1/24B；-aged 孤儿删、grace 内新 blob 留）——旧 /api/v1/system/gc 的 apply 极性不动，两族并存（D6 裁定按 Artifactory 极性落新面）'
+    - 'BinFlow grace 取 storage.gc_grace_hours（默认 24h）；Artifactory 回收资格门槛 UNKNOWN（规格 §3.4/G5/G7 未收口）——不猜测'
+  error_behavior:
+    - { when: '已有 prune 任务在跑（单飞互斥）', status: 412, body_literal: '{"info":"Pruning Unreferenced Data task cannot be started"}', note: '活体实证（底层 409 在资源层映射 412）；BinFlow 实测+单测对齐' }
+    - { when: 'AoL 非 dashboard 用户 / 非 admin', status: 403, note: 'BinFlow 非 admin 403 单测钉' }
+    - { when: '其他启动异常', status: 500, body_pattern: 'Cannot start Pruning Unreferenced Data task: <msg>', note: 'A 单源，BinFlow 未单列此臂（统一 writeError）——不立断言' }
+  unobserved_reference_arms:
+    - 'PruneRequestModel 第 3/4 参数（续跑位置 int / binaryOlderThanDays）的精确 JSON 键名（V-3，模型类不可达）'
+  binflow_state:
+    verdict: SAME
+    detail: 'L003-1：202+同文案+CT application/json ✓；resume 文案 `resumes from directory 80` 实测 ✓；并发 412 ✓（单测钉）；非 admin 403 ✓（单测钉）；无 body 真删极性实测（cleaned=1/24B）。dryRun:true 回显/估算（cleaned=0）实测'
+  version: { artifactory_ref: 7.161.20, binflow_since: 6ca8f8666 }
+  evidence:
+    - { kind: probe, report: docs/reverse/storage/prune-gc-admin.md, anchor: 'E2 + §2.1 + §3.2（412 活体实证、dryRun 回显活体）', date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L003-storage-admin-diff.md, anchor: 'E2 行（SAME）+ 附录 start/真删实录', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+- id: storage-admin/prune-status
+  feature: 'GET prune/status 持久化报告（E3：26 字段/4 对象 schema + 从未跑 412 + 跨重启保持）'
+  surface: 'GET /api/system/storage/prune/status'
+  request: { method: GET, path: /api/system/storage/prune/status, headers: { Authorization: 'Basic <admin>' }, query: {} }
+  authentication: { type: basic, role: admin }
+  expect:
+    status: 200
+    headers:
+      literal: { Content-Type: application/json }
+      present: []
+      absent: []
+    body:
+      format: json
+      json:
+        keys_exact_toplevel: [status, dryRun, timing, progress, report, lastHandledDirectory]
+        keys_exact_timing: [startedAtMillis, startedAt, durationMillis, duration, lastUpdatedMillis, lastUpdated]
+        keys_exact_report: [totalBinariesProcessed, totalBinariesCleaned, totalBytesCleaned]
+        keys_exact_lastHandledDirectory: [name, status, binariesProcessed, binariesCleaned, bytesCleaned, timing]
+        field_count: '26 字段名 / 4 类对象（timing 结构两处复用同六字段）'
+        path_patterns:
+          status: '^(running|stopped|finished|error)$'
+          progress: '^[0-9]+ of 256$（分母恒 256；运行中单调递增）'
+          'timing.startedAt': '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$（无时区）'
+          'timing.duration': '^\d{2}:\d{2}:\d{2}\.\d{3}$'
+          'lastHandledDirectory.name': '^[0-9a-f]{2}$（2-hex 分片目录名）'
+          'lastHandledDirectory.status': '^(finished|stopped|…)$'
+        types: '字段名/顺序/类型逐键对齐（L003-1 逐键对照全过）；JSON 缩进风格差异（Go Encoder vs Jackson 空格冒号）归一化后一致——不参与判定（normalize）'
+    persistence: >-
+      报告持久化，实例重启后 GET 仍返回最近一次报告（「stopped」是终态记录非清零）。参照载体 configs KV
+      （key=STORAGE_PRUNE_REPORT）；BinFlow 载体 <data>/prune_report.json 原子写（temp+rename；终态 fsync）——
+      载体差异不涉客户端可见面，L003-1 重启实测保持（finished/256/dryRun 三值一致）
+  side_effects:
+    - '只读（读持久化最近一次报告，非实时快照流）'
+    - 'BinFlow 恢复纪律：装载发现 running 态报告 → 改写 stopped（拥有者进程已亡）——规格未覆盖面（活体不可复现清零态），登记待验证（L003-1 §3-2）'
+  error_behavior:
+    - { when: '从未跑过 prune', status: 412, body_literal: '{"info":"No Prune task found"}', note: '官方+反编译双源；BinFlow 实测 ✓（报告持久化使清零态不可复现——单测桩构造）' }
+  unobserved_reference_arms:
+    - 'V-4：status="error" 态的完整报告形态（官方枚举记载，活体未触发；BinFlow 引擎错误→error 态已实现、完整字段形态待故障注入取证）'
+    - 'V-5：startFromDirectory 续跑时 progress 分子计数口径（活体见 "256 of 256"；BinFlow 取「位置计数」与活体观察一致——分母恒 256 已断言，分子口径待大 filestore 取证）'
+  binflow_state:
+    verdict: SAME
+    detail: 'L003-1：26 字段 schema 逐键对照（顶层 6/timing 6/report 3/lastHandledDirectory 5+timing 6；字段名、顺序、类型、progress 字符串形态、无时区时间格式、SSS duration 全对齐）；从未跑 412 ✓；running 态实测 progress "233 of 256" 递增；重启持久化实测（三值一致）；匿名 401 ✓'
+  version: { artifactory_ref: 7.161.20, binflow_since: 6ca8f8666 }
+  evidence:
+    - { kind: probe, report: docs/reverse/storage/prune-gc-admin.md, anchor: 'E3 + §2.2（活体 running/stopped/finished 三态全捕获）', date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L003-storage-admin-diff.md, anchor: 'E3 行（SAME）+ §2 语义对拍（报告持久化/停止语义/dry-run 极性）+ 附录 status 三态实录', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+- id: storage-admin/prune-stop
+  feature: 'POST prune/stop 停止标记（E4：三臂全 202/412，stop 标记 ~1 目录内消费）'
+  surface: 'POST /api/system/storage/prune/stop'
+  request: { method: POST, path: /api/system/storage/prune/stop, headers: { Authorization: 'Basic <admin>' }, query: {}, body: none }
+  authentication: { type: basic, role: admin }
+  expect:
+    arms:
+    - when: '空闲且有历史报告（只要报告存在即写 stop 标记）'
+      status: 202
+      headers: { literal: { Content-Type: application/json }, present: [], absent: [] }
+      body: { format: json, literal: '{"info":"Prune task stop request submitted"}' }
+    - when: '运行中（stop 后任务 ~1 目录内停下，落 stopped 终态）'
+      status: 202
+      headers: { literal: { Content-Type: application/json }, present: [], absent: [] }
+      body: { format: json, literal: '{"info":"Prune task stop request submitted"}' }
+  side_effects:
+    - '异步：只提交 stop 标记，202 即回；运行中任务消费标记后转 stopped（终态持久化，报告可见 lastHandledDirectory.status="stopped"）'
+  error_behavior:
+    - { when: '无历史报告（从未跑过）', status: 412, body_literal: '{"info":"No running Prune task found"}', note: '反编译；BinFlow 实测+单测 ✓；参照臂=规格 A 单源（无活体）——文案以反编译为准' }
+    - { when: 'AoL 403 / 写标记失败 500', status: 403, note: '族级共同面；500 臂 A 单源不立断言' }
+  unobserved_reference_arms:
+    - '412 "No running Prune task found" 臂的参照活体形态（A 单源；BinFlow 实测+单测）'
+  binflow_state:
+    verdict: SAME
+    detail: 'L003-1 三臂全对齐：空闲 202 实测 ✓（有历史报告也 202 语义）；两 412 实测+单测 ✓；stopped 终态 + lastHandledDirectory.status="stopped" 实测/单测 ✓（引擎目录边界消费标记）'
+  version: { artifactory_ref: 7.161.20, binflow_since: 6ca8f8666 }
+  evidence:
+    - { kind: probe, report: docs/reverse/storage/prune-gc-admin.md, anchor: 'E4（空闲 202 活体实证 + 412 反编译）+ §3.2-3', date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L003-storage-admin-diff.md, anchor: 'E4 行（SAME）+ 附录 stop 三臂实录', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+# ── E5：compress ─────────────────────────────────────────────────────────────
+- id: storage-admin/compress
+  feature: 'POST compress 内部库压缩流（E5：码钉 200 + text/plain 流式）'
+  surface: 'POST /api/system/storage/compress'
+  request: { method: POST, path: /api/system/storage/compress, headers: { Authorization: 'Basic <admin>' }, query: {}, body: none }
+  authentication: { type: basic, role: admin }
+  expect:
+    status: 200
+    headers:
+      literal:
+        Content-Type: text/plain;charset=utf-8
+      present: []
+      absent: []
+    body:
+      format: text-stream
+      form: >-
+        流式进度体，HTTP 码被流式 holder 钉在 200（§3.1-2 机制，同 E1 家族）；非 Derby 后端报错走流内错误行、
+        码不变。流内行文案不作断言（参照 Derby 行形态未活体——V-1；BinFlow 行为本票自决：`compressing the
+        internal database` + `internal database: <before> -> <after> bytes (reclaimed <n>)`）
+  side_effects:
+    - 'BinFlow 载体=sqlite VACUUM 重建（RunMetadataCompress，与 maintenance/compress 同核）；后端差异（Derby/sqlite）不涉客户端可见码面'
+  error_behavior:
+    - { when: '非 admin', status: 403, note: '族级共同面' }
+    - { when: '载体无 VACUUM 面', status: 200, note: '流内错误行（码恒 200）——BinFlow 边缘臂；参照同机制（A）' }
+  unobserved_reference_arms:
+    - 'V-1：compress 在 PostgreSQL 后端的真实 HTTP 形态（流式错误行+200 还是 5xx）——活体探测时实例异常退场未复测，反编译单源'
+  binflow_state:
+    verdict: FORM-SAME
+    detail: 'L003-1：BinFlow 200 + text/plain;charset=utf-8 流（`compressing the internal database` + before→after 行，实测 483328 -> 483328 bytes (reclaimed 0)）；参照 200 臂无活体（写腿保护）——形态按规格 A 源+§3.1 机制（gc 活体直证 holder）判 FORM-SAME。后端载体差异（Derby/sqlite）登记不判分歧'
+  version: { artifactory_ref: 7.161.20, binflow_since: 6ca8f8666 }
+  evidence:
+    - { kind: probe, report: docs/reverse/storage/prune-gc-admin.md, anchor: 'E5 + §3.1（A 单源中置信；B 受阻挂 V-1）', date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L003-storage-admin-diff.md, anchor: 'E5 行（FORM-SAME）+ 附录 compress 实录', date: '2026-09-11' }
+  confidence: medium
+  status: VERIFIED
+# ── E6：optimize ─────────────────────────────────────────────────────────────
+- id: storage-admin/optimize
+  feature: 'POST optimize sharding 均衡手动触发（E6：202 空体无 CT）'
+  surface: 'POST /api/system/storage/optimize'
+  request: { method: POST, path: /api/system/storage/optimize, headers: { Authorization: 'Basic <admin>' }, query: {}, body: none }
+  authentication: { type: basic, role: admin }
+  expect:
+    status: 202
+    headers:
+      present: []
+      absent: [Content-Type]
+    body: { format: none, bytes: 0 }
+    timing: { note: '异步 job 化（202 即回；活体 0.09s）' }
+  side_effects:
+    - 'BinFlow 单 provider filestore：触发即诚实 no-op（无 sharding 面可均衡）——no-op 语义差异登记（L003-1），无客户端可见分歧'
+  error_behavior:
+    - { when: '非 admin', status: 403, note: '族级共同面' }
+    - { when: '启动失败带异常', status: '409/412', note: '反编译分支（statusCode 映射）；参照无活体——不立断言' }
+  unobserved_reference_arms:
+    - '启动失败 409/412 两臂的参照活体形态（A 单源）'
+  binflow_state:
+    verdict: SAME
+    detail: 'L003-1：BinFlow 202 CT=[] bytes=0 实测（逐字对齐活体 0.09s 形态）；单 provider no-op 语义差异登记在案'
+  version: { artifactory_ref: 7.161.20, binflow_since: 6ca8f8666 }
+  evidence:
+    - { kind: probe, report: docs/reverse/storage/prune-gc-admin.md, anchor: 'E6（202 空体无 CT 活体 0.09s；错误臂 A）', date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L003-storage-admin-diff.md, anchor: 'E6 行（SAME）+ 附录 optimize 实录', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+# ── E7：backup ───────────────────────────────────────────────────────────────
+- id: storage-admin/backup
+  feature: 'POST backup?key= 立即调度备份（E7：错误臂 errors 信封 + 成功臂 200 流式调度）'
+  surface: 'POST /api/system/storage/backup?key=<key>'
+  request:
+    method: POST
+    path: /api/system/storage/backup
+    headers: { Authorization: 'Basic <admin>' }
+    query: { key: '<backup 配置键>' }
+    body: none
+  authentication: { type: basic, role: admin }
+  expect:
+    arms:
+    - when: 'key 不存在'
+      status: 500
+      headers: { present: [Content-Type], absent: [] }
+      body:
+        format: json
+        literal: '{"errors":[{"status":500,"message":"No backup identified with key ''<key>''"}]}'
+        note: '活体 errors JSON 信封（B 源，2026-09-10）——反编译为 String entity 裸文本；V-2 两源分歧收束（2026-09-12 L005-2：信封族双实例实证，活体 errors-JSON 为真形态）；断言锚活体形态。BinFlow 实测逐字对齐'
+    - when: 'key 存在且 enabled'
+      status: 200
+      headers:
+        literal: { Content-Type: text/plain;charset=utf-8 }
+        present: []
+        absent: []
+        note: 'L005-2（2026-09-12）双端活体坐实；TE 差（参照 chunked / BinFlow 非）为传输层编码差——归一口径不判（同 E3 JSON 缩进风格类）'
+      body:
+        format: text-stream
+        note: >-
+          schedule-and-return：立即调度后返回（无等待语义），备份本体 detached 后台执行——L005-2 双端活体坐实。
+          字面形态双端异文（语义同构——契约内登记不判分歧、不入 known-divergence 台账，与 E1 gc 点数/E9 info
+          映射值同族）：参照=「Activating manual system backup ''<key>''…Started artifactory.BackupJob#<uuid>」；
+          BinFlow=「backup ''<key>'' scheduled」。产物面双端在：参照 current/ 刷新；BinFlow manifest.json+blobs+metadata.db
+    - when: 'key 存在但 disabled'
+      status: 500
+      body: { format: json, pattern: 'is disabled', note: 'A 单源（"is disabled" 文案片段）；BinFlow errors 信封 `backup ''<key>'' is disabled`——信封形态按活体缺 key 臂类推，参照此臂无活体' }
+  side_effects:
+    - '成功臂：调度即返回，备份本体 detached 执行（BinFlow 经 Deps.BackupRunner seam——与 cron fire 同核 one-carrier）'
+  error_behavior:
+    - { when: '非 admin', status: 403, note: '族级共同面' }
+    - { when: 'BinFlow 装配无 runner（seam nil）', status: 503, note: 'BinFlow 诚实不可用臂（参照无此面）；T-L003-4 cmd 接线后装配实例不再可达' }
+  unobserved_reference_arms:
+    - 'disabled 臂 500 的参照信封/全文案（A 单源，无活体）——成功臂与缺 key 臂已双端活体（L005-2 / B 源），V-2 已收束'
+  binflow_state:
+    verdict: SAME（形态）
+    detail: 'L003-1：缺 key 500 errors 信封逐字对齐 ✓；disabled 500 ✓（按 A 源）；成功臂当时 seam nil → 503 honest，T-L003-4（4614e261）cmd 接线。L005-2（2026-09-12）成功臂装配实例双端活体坐实：200 + text/plain;charset=utf-8 + schedule-and-return + detached 执行；参照 chunked「Activating manual system backup ''<key>''…Started artifactory.BackupJob#<uuid>」/ BinFlow「backup ''<key>'' scheduled」；产物双端在（参照 current/ 刷新；BinFlow manifest.json+blobs+metadata.db）。字面差（措辞/uuid 行/TE）语义同构不闸门；V-2 信封族双实例实证收束——翻 VERIFIED'
+  version: { artifactory_ref: 7.161.20, binflow_since: 4614e261 }
+  evidence:
+    - { kind: probe, report: docs/reverse/storage/prune-gc-admin.md, anchor: 'E7（缺 key 500 errors 信封活体；disabled/成功臂 A）', date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L003-storage-admin-diff.md, anchor: 'E7 行（PARTIAL：错误臂 SAME；成功臂待接线）+ 附录 backup?key=nope 实录', date: '2026-09-11' }
+    - { kind: implementation, report: reports/agents/T-L003-4.md, anchor: 'E7 cmd 接线（503→200 scheduled + detached Run）', date: '2026-09-11' }
+    - { kind: probe, report: 'L005-2 装配实例复验收官（conductor 指令 2026-09-12——报告未落盘以指令摘要为准；证据链=agent 日志与 UAT/参照 :8082 实测记录）', anchor: 'E7 成功臂（200/CT/schedule-and-return/detached/产物双端在）', date: '2026-09-12' }
+  confidence: medium
+  status: VERIFIED
+# ── E8：size ─────────────────────────────────────────────────────────────────
+- id: storage-admin/size
+  feature: 'GET size filestore 字节数（E8：text/plain 裸数字）'
+  surface: 'GET /api/system/storage/size'
+  request: { method: GET, path: /api/system/storage/size, headers: { Authorization: 'Basic <admin>' }, query: {} }
+  authentication: { type: basic, role: admin }
+  expect:
+    status: 200
+    headers:
+      literal: { Content-Type: text/plain }
+      present: []
+      absent: []
+    body: { format: text, pattern: '^[0-9]+$（filestore 字节总数；随真实删除变化——L003-1 实测 0 → 24）' }
+  side_effects: []
+  error_behavior:
+    - { when: '匿名/非 admin', status: '401/403', note: '族级共同面' }
+  unobserved_reference_arms: []
+  binflow_state:
+    verdict: SAME
+    detail: 'L003-1：BinFlow 200 text/plain 裸数字实测（blobs/ du，播种后 0 → 真实删除后 24）；参照活体 35341882（规格 B 源）+ L003-1 只读复测 text/plain ✓'
+  version: { artifactory_ref: 7.161.20, binflow_since: 6ca8f8666 }
+  evidence:
+    - { kind: probe, report: docs/reverse/storage/prune-gc-admin.md, anchor: 'E8（活体 35340717/35341882）', date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L003-storage-admin-diff.md, anchor: 'E8 行（SAME）+ 附录 size 实录 + 参照腿只读复测', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+# ── E9：info ─────────────────────────────────────────────────────────────────
+- id: storage-admin/info
+  feature: 'GET info binary provider 树投影（E9：text/plain + 全字符串字段 JSON）'
+  surface: 'GET /api/system/storage/info'
+  request: { method: GET, path: /api/system/storage/info, headers: { Authorization: 'Basic <admin>' }, query: {} }
+  authentication: { type: basic, role: admin }
+  expect:
+    status: 200
+    headers:
+      literal: { Content-Type: text/plain }
+      present: []
+      absent: []
+    body:
+      format: json
+      json:
+        keys_exact_toplevel: [data, subBinaryTreeElements]
+        keys_exact_data: [baseDataDir, binariesDir, usageSpace, freeSpace, tempDir, usageSpaceInPercent, id, totalSpace, freeSpaceInPercent, fileStoreDir, type]
+        invariants:
+          all_fields_stringified: '数值字段全字符串化（usageSpace/freeSpace/totalSpace/两百分比）'
+          type_literal: file-system
+          subBinaryTreeElements: '[]（单 provider）'
+          statfs_identity: 'usageSpace + freeSpace == totalSpace（statfs 口径——参照实例 usageSpace=分区占用而非 filestore 占用，BinFlow 同口径对齐）'
+        value_semantics: >-
+          路径/用量值为实例诚实值非翻译（BinFlow tempDir="uploads" vs 参照 "_pre"、fileStoreDir="blobs" vs
+          "filestore"——两侧各自反映真实布局；键集/顺序/类型/百分比对齐，L003-1 判 SAME 口径）
+  side_effects: []
+  error_behavior:
+    - { when: '匿名/非 admin（AoL 面 405）', status: '401/403', note: '族级共同面（405 AoL 臂不在 /api 面）' }
+  unobserved_reference_arms: []
+  binflow_state:
+    verdict: SAME
+    detail: 'L003-1：BinFlow 200 text/plain + 同构（11 字段全字符串/type="file-system"/百分比/statfs 恒等式）；参照活体两轮（2026-09-10/11）。映射值差异（uploads/_pre、blobs/filestore）=诚实值非翻译，登记不判分歧'
+  version: { artifactory_ref: 7.161.20, binflow_since: 6ca8f8666 }
+  evidence:
+    - { kind: probe, report: docs/reverse/storage/prune-gc-admin.md, anchor: 'E9（活体两轮 2026-09-10/11，binary-provider-chain §4.1 已规格）', date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L003-storage-admin-diff.md, anchor: 'E9 行（SAME）+ 附录 info 实录 + 参照腿只读复测', date: '2026-09-11' }
+  confidence: high
+  status: VERIFIED
+# ── E10：exportds ────────────────────────────────────────────────────────────
+- id: storage-admin/exportds
+  feature: 'POST exportds 恒败面（E10：@Deprecated 恒 500 同文案）'
+  surface: 'POST /api/system/storage/exportds?to=<path>'
+  request:
+    method: POST
+    path: /api/system/storage/exportds
+    headers: { Authorization: 'Basic <admin>' }
+    query: { to: '<导出目标路径（被忽略）>' }
+    body: none
+  authentication: { type: basic, role: admin }
+  expect:
+    status: 500
+    headers: { present: [Content-Type], absent: [] }
+    body:
+      format: json
+      json:
+        keys_exact: [errors]
+        path_literal:
+          'errors[0].status': 500
+          'errors[0].message': Export data is no longer supported
+        repeatability: '恒定（重复调用同响应；@Deprecated IllegalStateException 未捕获路径）'
+        note: '文案=A 源反编译异常消息；信封形状无活体（反编译未捕获渲染路径，规格标中置信）——BinFlow 用统一 errors 信封，形态分歧待活体'
+  side_effects: []
+  error_behavior:
+    - { when: '任何调用（含合法 to）', status: 500, note: '恒败端点，无成功臂' }
+    - { when: '非 admin', status: 403, note: '族级共同面（先于恒败判定）' }
+  unobserved_reference_arms:
+    - '信封形状的参照活体（A 单源异常消息、渲染路径未捕获）——BinFlow 统一信封形态待参照臂补拍'
+  binflow_state:
+    verdict: SAME（形态）
+    detail: 'L003-1：BinFlow 恒 500 同文案（errors 信封；重复调用恒定实测）；参照=A 源（"Export data is no longer supported"）。BinFlow 的 export 面在 CLI（ADR-0015），REST 面按参照恒败'
+  version: { artifactory_ref: 7.161.20, binflow_since: 6ca8f8666 }
+  evidence:
+    - { kind: probe, report: docs/reverse/storage/prune-gc-admin.md, anchor: 'E10（A 单源中置信，未活体）', date: '2026-09-10' }
+    - { kind: difftest, report: reports/compatibility/L003-storage-admin-diff.md, anchor: 'E10 行（SAME 形态）+ 附录 exportds 实录', date: '2026-09-11' }
+  confidence: medium
+  status: VERIFIED
+# ── 收尾说明 ─────────────────────────────────────────────────────────────────
+# 覆盖统计（L004-3 立契 2026-09-11；L005-3b 2026-09-12 更新）：10 条目 = VERIFIED 10 / IMPLEMENTED 0（E7 成功臂 L005-2 装配实例复验收官）。
+#   置信度 high 7 / medium 3（E5 参照 200 臂 A 单源；E7 disabled 臂 A 单源——成功臂已双端活体，字面差契约内登记不判；E10 信封 A 单源）。
+#   行态对拍账（L003-1）：SAME 7 + FORM-SAME 1（E5）+ SAME 形态 2（E1/E10）+ PARTIAL 1（E7）。
+# 未收面（不立断言，挂账原样承接）：V-1（E5 PostgreSQL 流内错误行）/ V-2（E7 信封两源分歧成因）/
+#   V-3（E2 请求模型 3/4 参数键名）/ V-4（E3 error 态完整形态）/ V-5（E3 续跑分子口径）/ V-7（E1 并发 409 活体）。
+#   V-6（/ui/api maintenance 家族）与 V-8（GC 回收资格窗口 G5/G7）不属本域 10 端点面，另行挂账。
+# 新行提案（报 conductor）：compress/optimize/backup/size/info/exportds 六端点在冻结行集无行
+#   （D01-R26 gc / D01-R27 prune / D01-R30 compact-phantom 之外的 6 端点）——按「195 冻结行集不增删」纪律走新行提案。
+# 关联差异账：D8（GC 无 minor/FULL 之分）维持 known-divergence 候选（L003-1 §2 裁定可 known-divergence，
+#   待 authority 立条——本票不越权代立）。

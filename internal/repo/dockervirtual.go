@@ -90,6 +90,13 @@ func (s *service) V2MemberOrder(ctx context.Context, virtualKey string) ([]Virtu
 // continues; a REMOTE member's RemoteProbeMiss is the caller's signal to
 // run that member's upstream conversation (the T-363 posture: no local
 // rows still asks upstream, the tag may simply never have been cached).
+// A REMOTE member whose rows do not answer first consults the
+// reference-keyed negative memory (C14, L006-2): a fresh miss row — the
+// digest form at the manifest node path, the tag form under the image's
+// tags/ namespace, the two spellings the adapter's manifestMissNodePath
+// writes — answers RemoteProbeNegative so the walk skips that member's
+// upstream conversation inside the missedTTL window, the same row the
+// member's own direct face probes (cross-face consistent).
 //
 // A local member whose rows answer but whose manifest NODE is missing (the
 // crash window) reads as a miss — probeLocalMember's posture: a member
@@ -119,7 +126,29 @@ func (s *service) V2MemberManifest(ctx context.Context, p *Principal, virtualKey
 			return nil, rerr
 		}
 		if !ok {
-			return miss, nil // no rows: the upstream conversation decides
+			// No rows: the reference-keyed negative memory decides first
+			// (C14 — the member's own DIRECT face probes the same row on
+			// its cold miss; the walk reuses the member's miss record
+			// instead of re-running the upstream conversation inside its
+			// window). The two key spellings must stay byte-identical to
+			// the adapter's manifestMissNodePath write side — locked
+			// together by the adapter's virtual cold-miss walk test. Any
+			// other probe state keeps the miss posture: the serve needs
+			// the index row's media type and size, so a node without
+			// rows is not a usable standing copy (the direct face's
+			// cold-miss rule).
+			missPath := image + "/tags/" + reference
+			if isDigestRef {
+				missPath = dockerImageManifestPath(image, strings.TrimPrefix(reference, "sha256:"))
+			}
+			probe, perr := s.probeRemoteV2Core(ctx, m.key, missPath)
+			if perr != nil {
+				return nil, perr
+			}
+			if probe.State == RemoteProbeNegative {
+				return &V2MemberManifest{Cache: RemoteProbeNegative}, nil
+			}
+			return miss, nil // no fresh miss record: the upstream conversation decides
 		}
 		probe, perr := s.probeRemoteV2Core(ctx, m.key, dockerImageManifestPath(image, dgst))
 		if perr != nil {
@@ -273,6 +302,30 @@ func (s *service) V2CacheMemberMiss(ctx context.Context, p *Principal, virtualKe
 		return err
 	}
 	return s.cacheRemoteMissCore(ctx, m.key, path)
+}
+
+// V2MemberBlobInChain implements DigestChainGate: the chain oracle against
+// one REMOTE member of a virtual walk (BlobInChain's membership-guarded
+// twin — the walk was already gated on the VIRTUAL key, membership
+// replaces the member's own permission pair; ADR-0047 §3's per-member
+// scope: the gate query addresses the member's (repoKey, image)).
+func (s *service) V2MemberBlobInChain(ctx context.Context, p *Principal, virtualKey, member, image, hex string) (bool, error) {
+	_ = p // membership-guarded by contract
+	m, err := s.v2VirtualGuard(ctx, virtualKey, member)
+	if err != nil {
+		return false, err
+	}
+	if m.typ != TypeRemote {
+		return false, fmt.Errorf("%w: member %s of virtual %s is %s, not a remote pull-through",
+			ErrRepoTypeNotSupported, member, virtualKey, m.typ)
+	}
+	if err := validateDockerImage(image); err != nil {
+		return false, err
+	}
+	if err := validateDigest(hex); err != nil {
+		return false, err
+	}
+	return s.blobInChainCore(ctx, m.key, image, hex)
 }
 
 // V2WriteRefusal implements V2VirtualPlane: the /v2 write refusal's exact

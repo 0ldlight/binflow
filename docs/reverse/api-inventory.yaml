@@ -42,7 +42,7 @@ domains:
     - {category: archive-inner-read, method: GET, path: "/{repoKey}/{name}.<archExt>!/inner/path", auth: read, note: "归档内路径按需解包（inv-3 §3.1）；strictArchiveDotSlash 开关"}
   - resource: storage-item              # @Path storage/{path}
     layer: core-rest
-    evidence: rest-api.md §3 / inv-2 §1.A / rest-compat D01 行1–8,21
+    evidence: rest-api.md §3（?list 行为=T-L010-3 勘误块）/ inv-2 §1.A / rest-compat D01 行1–8,21 / L008-list-params-diff 32 臂
     confidence: 高
     operations:
     - {category: read,            method: GET,    path: "/api/storage/{repoKey}/{path}", auth: read,  note: "FileInfo/FolderInfo；downloadUri 处置=T-493 定案"}
@@ -50,7 +50,7 @@ domains:
     - {category: read-stats,      method: GET,    path: "…?stats",                     auth: read,  note: "StatsInfo 七字段"}
     - {category: read-permissions, method: GET,   path: "…?permissions",               auth: manage, note: "主体名→权限字母集 r/w/n/d/m；非 local/cached 仓 400"}
     - {category: read-last-modified, method: GET, path: "…?lastModified",              auth: read,  note: "目录内最新修改项+Last-Modified 头"}
-    - {category: list,            method: GET,    path: "…?list&deep=&depth=&listFolders=&mdTimestamps=&includeRootPath=", auth: user, note: "仅认证用户；根目录 400 Cannot list files of root."}
+    - {category: list,            method: GET,    path: "…?list&deep=&depth=&listFolders=&mdTimestamps=&statsTimestamps=&includeRootPath=&includePropertiesMd5=", auth: user, note: "仅认证用户；七参整数解析（非整数/越 int32 界→400 For input string: <v>，空值/空白=缺席）；deep=1 唯一递归触发、depth 仅修饰（deep=1 下钳层）；仓库根可列；条目 uri 前导斜杠、文件夹行 /d2 形 size-1；vendor CT；详情 rest-api.md §3 勘误（T-L010-3）"}
     - {category: set-properties,  method: PUT,    path: "/api/storage/{repoKey}/{path}?properties=k=v&recursive&atomic", auth: annotate, note: "204；%3B=值内容、raw ';' 使整对脱落（T-447/T-493）"}
     - {category: delete-properties, method: DELETE, path: "同上?properties=k1,k2",     auth: annotate, note: "204；未指定 400"}
     - {category: update-properties, method: POST, path: "同上?recursive&atomic",       auth: annotate, note: "6.1.0+ 增量改属性；rest-compat D01 行8（BinFlow 缺位扩张）"}

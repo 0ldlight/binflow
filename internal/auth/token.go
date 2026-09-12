@@ -27,6 +27,22 @@ type TokenVerifier struct {
 	users  userSource
 }
 
+// Typed refinements of ErrInvalidCredentials for the Bearer arms (L004-1):
+// the /v2 planes render the reference's per-state refusal messages and need
+// to distinguish "the row exists but its window is past" from "no row at
+// all" WITHOUT string-matching. Both still satisfy errors.Is(err,
+// ErrInvalidCredentials); the wrapped message text is byte-identical to the
+// invalidf spelling these arms always produced, so log surfaces do not move.
+var (
+	// ErrTokenExpired: the token row exists but expires_at is in the past.
+	ErrTokenExpired = errors.New("auth: token expired")
+	// ErrTokenUnknown: no row answers the digest — never issued, or revoked
+	// (revocation deletes the row, so the two states are one arm here; the
+	// reference's distinct "revoked" message is unreachable under this
+	// model — L004-1 divergence note).
+	ErrTokenUnknown = errors.New("auth: unknown or revoked token")
+)
+
 // Verify implements TokenRegistry.Verify: digest lookup, expiry check,
 // revocation check (revocation deletes the row, so "no row" covers both
 // unknown and revoked), owner lookup (disabled owners invalidate their
@@ -39,12 +55,12 @@ func (v *TokenVerifier) Verify(ctx context.Context, plaintext string) (*Principa
 	t, err := v.tokens.GetBySHA256(ctx, hex.EncodeToString(digest[:]))
 	if err != nil {
 		if errors.Is(err, ErrTokenNotFound) {
-			return nil, invalidf("auth: unknown or revoked token")
+			return nil, fmt.Errorf("%w: %w", ErrTokenUnknown, ErrInvalidCredentials)
 		}
 		return nil, fmt.Errorf("auth: token lookup: %w", err)
 	}
 	if expired(t.ExpiresAt) {
-		return nil, invalidf("auth: token expired")
+		return nil, fmt.Errorf("%w: %w", ErrTokenExpired, ErrInvalidCredentials)
 	}
 	u, err := v.users.Get(ctx, t.Username)
 	if err != nil {

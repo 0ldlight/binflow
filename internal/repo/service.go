@@ -518,6 +518,79 @@ func (s *service) getRemote(ctx context.Context, p *Principal, repoKey, path str
 	return res.Body, res.Node, nil
 }
 
+// ResolveMeta resolves one node row for the /api/storage metadata faces —
+// the content plane's PREDICATES without its side effects (L011-1: no blob
+// open, no markDownload, no download audit row, no upstream fetch — the
+// reference's metadata reads never count, and an uncached remote path
+// answers the honest 404 where Get would fetch and land the whole
+// artifact). The predicates are the ones Get ran, in Get's order (review A
+// B1/B2 — the counting fix must not drop them):
+//
+//   - validateNodePath on the ADDRESSED spelling (the empty/root/degenerate
+//     refusals the old Get front produced verbatim);
+//   - the read gate on the ADDRESSED spelling — the trailing slash is what
+//     the pathMatcher's directory-prefix rule (matchStart under isFolder)
+//     keys on, so a bare-directory permission pattern admits an
+//     explicit-slash subfolder address exactly as the old Get gate did;
+//   - the local governance pattern gate (T-95/W12a dual-value ruling): a
+//     pattern-refused path answers ErrNodeNotFound, indistinguishable from
+//     a missing one — remote/virtual stay ungated, Get's own posture.
+//
+// The row walk is the listing channel's (listRows — the virtual member
+// union and the remote cache rows in the listing order, never an upstream
+// probe), exact-matched on the addressed spelling. A non-local folder
+// whose marker row does not exist (remote pull-throughs land file rows
+// without ancestors) answers the display marker the old arms produced on
+// read — T-406's materialized row, getVirtualFolder's synthesized one —
+// synthesized display-only here: a metadata read leaves every tree
+// exactly as it found it. Local misses stay misses (marker rows exist by
+// construction, materializeAncestors).
+//
+// Exposed through the consumer-side interface assertion (httpapi's
+// metaNodeResolver, the remoteBrowseViewer precedent), deliberately NOT
+// the Service interface: the hand-written adapter fakes that satisfy
+// repo.Service method by method stay untouched.
+func (s *service) ResolveMeta(ctx context.Context, p *Principal, repoKey, path string) (*metadata.Node, error) {
+	if err := validateNodePath(path); err != nil {
+		return nil, err
+	}
+	row, err := s.loadRepoRow(ctx, repoKey)
+	if err != nil {
+		return nil, err
+	}
+	if !s.allow(ctx, p, repoKey, path, ActionRead) {
+		// Distinguish the anonymous challenge from the authenticated denial
+		// so httpapi can answer 401 vs 403 (rest-api section 1.4).
+		if p == nil {
+			return nil, fmt.Errorf("read %s/%s: %w", repoKey, path, ErrUnauthorized)
+		}
+		return nil, fmt.Errorf("read %s/%s: %w", repoKey, path, ErrForbidden)
+	}
+	if row.Type == TypeLocal {
+		if gov := parseGovernance(row.Config); !gov.allowsPath(path) {
+			return nil, fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound)
+		}
+	}
+	nodes, _, err := s.listRows(ctx, p, row, strings.TrimSuffix(path, "/"))
+	if err != nil {
+		return nil, err
+	}
+	for _, n := range nodes {
+		if n.Path == path {
+			return n, nil
+		}
+	}
+	if row.Type != TypeLocal {
+		folder := strings.TrimSuffix(path, "/") + "/"
+		for _, n := range nodes {
+			if strings.HasPrefix(n.Path, folder) {
+				return &metadata.Node{RepoKey: repoKey, Path: folder}, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound)
+}
+
 // Put implements Service.Put: the zero-options PutWithOptions (the
 // exemption is the maven metadata family's, nothing else's).
 func (s *service) Put(ctx context.Context, p *Principal, repoKey, path string, body io.Reader, expect storage.BlobRef, mime string) (*metadata.Node, error) {
@@ -2193,7 +2266,7 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		if err := rejectKeypairRefOnNonLocal(r.Type, config); err != nil {
 			return nil, err
 		}
-		rc, password, perr := parseRemoteConfig(config, r.PackageType)
+		rc, password, _, perr := parseRemoteConfig(config, r.PackageType, nil)
 		if perr != nil {
 			return nil, perr
 		}
@@ -2501,9 +2574,12 @@ func (s *service) ListReposFiltered(ctx context.Context, p *Principal, repoType,
 // type and package type are immutable (changing them would silently change
 // every adapter routing decision). A PROVIDED config re-validates and
 // rewrites the type-owned state (the remote_configs row / the virtual member
-// list — full-replace semantics, the Artifactory PUT model); an absent
-// config keeps it, so description-only updates never touch members or
-// credentials.
+// list); the REMOTE arm MERGES on omit (ADR-0050: the stored canonical form
+// is the parse baseline — omitted seats keep their stored values, explicit
+// null/"" clears a scalar, explicit 0 stores 0); local/virtual keep the
+// caller-owned replace posture (their merge is a separate ticket). An
+// absent config keeps the type-owned state, so description-only updates
+// never touch members or credentials.
 func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo) (*metadata.Repo, error) {
 	// T-217 (FR-65, ADR-0026 decision 3 / architecture section 7.1 family 7):
 	// the single-repo configuration family's gate lives in httpapi — the
@@ -2549,11 +2625,12 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 	}
 
 	var (
-		remote         *remoteConfig
-		remotePassword string
-		members        []string
-		configSet      bool
-		privateFrom    *bool
+		remote            *remoteConfig
+		remotePassword    string
+		remotePasswordSet bool
+		members           []string
+		configSet         bool
+		privateFrom       *bool
 	)
 	config := current.Config
 	if r.Config != "" {
@@ -2573,12 +2650,22 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			if err := rejectKeypairRefOnNonLocal(current.Type, r.Config); err != nil {
 				return nil, err
 			}
-			rc, password, perr := parseRemoteConfig(r.Config, current.PackageType)
+			// ADR-0050 (L008-1b): the update face MERGES — the stored
+			// canonical config is the parse baseline, so an omitted field
+			// keeps its stored value instead of falling back to the
+			// product default (the update-merge family BUG). A stored blob
+			// that does not decode (hand-mangled rows) yields a partial
+			// baseline; a baseline without a url then demands one in the
+			// body — the fail-closed posture of the healer path.
+			var baseline remoteConfig
+			_ = json.Unmarshal([]byte(current.Config), &baseline)
+			rc, password, passwordSet, perr := parseRemoteConfig(r.Config, current.PackageType, &baseline)
 			if perr != nil {
 				return nil, perr
 			}
 			remote = &rc
 			remotePassword = password
+			remotePasswordSet = passwordSet
 			if config, err = marshalConfig(rc); err != nil {
 				return nil, err
 			}
@@ -2624,11 +2711,6 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		row := &metadata.RemoteConfig{
 			RepoKey: r.RepoKey,
 			URL:     remote.URL, Username: remote.Username,
-			// Full-replace semantics (the Artifactory PUT model, T-80's
-			// ruling): the new body's password — sealed, or dropped with a
-			// WARN when no master key is configured — replaces the stored
-			// one; a body without a password clears it.
-			Password:             s.sealPassword(ctx, r.RepoKey, remotePassword),
 			ContentTTLSeconds:    remote.RetrievalCachePeriodSecs,
 			MetadataTTLSeconds:   remote.MetadataRetrievalCachePeriodSecs,
 			AllowPrivateUpstream: remote.AllowPrivateUpstream,
@@ -2636,6 +2718,31 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			SocketTimeoutMs:              remote.SocketTimeoutMillis,
 			MetadataRetrievalTimeoutSecs: remote.MetadataRetrievalTimeoutSecs,
 			UnusedCleanupPeriodHours:     remote.UnusedCleanupPeriodHours,
+		}
+		// Credential merge (ADR-0050 decision 4, superseding T-80's
+		// full-replace ruling): a body that OMITS the password key keeps
+		// the stored row's sealed password byte-for-byte; an explicit
+		// null/""/value clears or replaces it (sealPassword's empty
+		// path, or a WARN drop when no master key is configured).
+		switch {
+		case remotePasswordSet:
+			row.Password = s.sealPassword(ctx, r.RepoKey, remotePassword)
+		default:
+			cur, gerr := s.md.Remote().GetConfig(ctx, r.RepoKey)
+			switch {
+			case gerr == nil:
+				row.Password = cur.Password
+			case errors.Is(gerr, metadata.ErrRemoteConfigNotFound):
+				// A missing row (the create-crash window) has nothing to
+				// keep: the healer below creates it with an empty password.
+			default:
+				// Review B1: any other read failure REFUSES the update —
+				// swallowing it as "nothing to keep" would let the
+				// UpdateConfig below overwrite the stored sealed password
+				// with "" (silent credential loss, the exact loss decision
+				// 4 exists to prevent).
+				return nil, fmt.Errorf("remote config %q: %w", r.RepoKey, gerr)
+			}
 		}
 		if err := s.md.Remote().UpdateConfig(ctx, row); err != nil {
 			if !errors.Is(err, metadata.ErrRemoteConfigNotFound) {

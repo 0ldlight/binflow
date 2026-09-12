@@ -108,7 +108,8 @@ func TestV2PingChallengesUnauthenticated(t *testing.T) {
 		}
 		assertV2Headers(t, resp)
 		ch := resp.Header.Get("WWW-Authenticate")
-		want := fmt.Sprintf(`Bearer realm="%s/v2/token",service="binflow"`, h.srv.URL)
+		want := fmt.Sprintf(`Bearer realm="%s/v2/token",service="%s"`,
+			h.srv.URL, strings.TrimPrefix(h.srv.URL, "http://"))
 		if ch != want {
 			t.Fatalf("%s WWW-Authenticate =\n  %q\nwant\n  %q", path, ch, want)
 		}
@@ -125,7 +126,8 @@ func TestV2PingChallengesUnauthenticated(t *testing.T) {
 // TestV2PingAnonymousClosed (D04 second half, ADR-0010 clause 4): with
 // anonymous access off, the same probe answers 401 + the Bearer challenge
 // whose realm is the adapter's own /v2/token endpoint and whose service is
-// "binflow". The PRD v1.0 wording (realm=/binflow/api/security/token) was
+// the request's host echo (L000-B C01). The PRD v1.0 wording
+// (realm=/binflow/api/security/token) was
 // superseded by ADR-0010 and written back in PRD v1.1 (T-32 risk R1).
 func TestV2PingAnonymousClosed(t *testing.T) {
 	h := newHarnessCfg(t, func(c *mutatedConfig) { c.Security.AnonymousAccess = false }, nil)
@@ -141,7 +143,8 @@ func TestV2PingAnonymousClosed(t *testing.T) {
 		t.Fatalf("error code = %q, want UNAUTHORIZED", eb.Errors[0].Code)
 	}
 	ch := resp.Header.Get("WWW-Authenticate")
-	want := fmt.Sprintf(`Bearer realm="%s/v2/token",service="binflow"`, h.srv.URL)
+	want := fmt.Sprintf(`Bearer realm="%s/v2/token",service="%s"`,
+		h.srv.URL, strings.TrimPrefix(h.srv.URL, "http://"))
 	if ch != want {
 		t.Fatalf("WWW-Authenticate =\n  %q\nwant\n  %q", ch, want)
 	}
@@ -162,7 +165,10 @@ func TestV2PingBaseURLOverride(t *testing.T) {
 	}, nil)
 	resp := h.do(http.MethodGet, "/v2/", "", "", nil, nil)
 	mustGet(t, resp)
-	want := `Bearer realm="https://registry.example.com/v2/token",service="binflow"`
+	// base_url drives the REALM; the service still echoes the request's
+	// host (C01: the service is what the client addressed, not the config).
+	want := fmt.Sprintf(`Bearer realm="https://registry.example.com/v2/token",service="%s"`,
+		strings.TrimPrefix(h.srv.URL, "http://"))
 	if got := resp.Header.Get("WWW-Authenticate"); got != want {
 		t.Fatalf("WWW-Authenticate = %q, want %q", got, want)
 	}
@@ -461,59 +467,116 @@ func TestV2HealthRegistryField(t *testing.T) {
 
 // ---- T-33 review fixes (B1/B2/B3/N4/N5) ----
 
-// TestV2RejectedCredentialRendersSpecBody (review B1): a presented-but-
-// refused credential on ANY /v2 route answers the registry plane — 401 +
-// Bearer challenge + spec body, never the /binflow errors[] envelope nor
-// a Basic challenge (a docker client mid-negotiation would misread the
-// latter). Both anonymous modes are covered.
+// statusFormEntry mirrors Artifactory's generic error model entry for
+// assertions (the ping face's refused-credential body).
+type statusFormEntry struct {
+	Status  int    `json:"status"`
+	Message string `json:"message"`
+}
+
+// statusFormEnvelope is the {"errors":[{status,message}]} pretty body.
+type statusFormEnvelope struct {
+	Errors []statusFormEntry `json:"errors"`
+}
+
+// assertPingRefusedFace pins the PING route's refused-credential arm
+// (L003-2, evidence reports/compatibility/L003-remote-face-diff.md ③ +
+// captures /tmp/l0022/a_pingbad.h; message split by L004-1): 401 +
+// `Basic realm="Artifactory Realm"` + application/json;charset=ISO-8859-1
+// + the generic error model's pretty body. The MESSAGE is arm-relative
+// (L004-1 live reference :8082): bad Basic answers "Bad Credentials"
+// verbatim, an unknown-or-revoked Bearer answers "Props Authentication
+// Token not found", an expired Bearer answers "Token failed verification:
+// expired" — the envelope and challenge stay one shape across the arms.
+// (The reference's fourth wording, "Token failed verification: revoked",
+// is unreachable under BinFlow's revoke-deletes-the-row model.)
+func assertPingRefusedFace(t *testing.T, resp *http.Response, body, wantMessage string) {
+	t.Helper()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d; body=%s", resp.StatusCode, body)
+	}
+	if ch := resp.Header.Get("WWW-Authenticate"); ch != `Basic realm="Artifactory Realm"` {
+		t.Fatalf("challenge = %q, want the Basic realm form", ch)
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "application/json;charset=ISO-8859-1" {
+		t.Fatalf("Content-Type = %q, want the ping face charset spelling", ct)
+	}
+	var eb statusFormEnvelope
+	if err := json.Unmarshal([]byte(body), &eb); err != nil {
+		t.Fatalf("body %q is not the generic error model: %v", body, err)
+	}
+	if len(eb.Errors) != 1 || eb.Errors[0].Status != http.StatusUnauthorized ||
+		eb.Errors[0].Message != wantMessage {
+		t.Fatalf("body = %q, want the pretty status form %q", body, wantMessage)
+	}
+}
+
+// TestV2RejectedCredentialRendersSpecBody (review B1; re-anchored by
+// L003-2): a presented-but-refused credential answers the registry plane
+// on every /v2 route — never the /binflow envelope. The two routes have
+// DIFFERENT verified faces (L003-remote-face-diff.md ②/③): the PING route
+// answers the reference's own refused-credential arm — Basic realm +
+// pretty "Bad Credentials" (capture a_pingbad.h) — while every resource
+// route keeps the Bearer re-challenge + spec body (a docker client
+// mid-negotiation on a resource must not meet a Basic challenge). Both
+// anonymous modes are covered on both routes.
 func TestV2RejectedCredentialRendersSpecBody(t *testing.T) {
 	badBasic := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:wrong"))
 	cases := []struct {
 		name string
 		open bool
 		hdr  map[string]string
+		want string
 	}{
-		{name: "bad basic, anonymous open", open: true, hdr: map[string]string{"Authorization": badBasic}},
-		{name: "bad basic, anonymous closed", open: false, hdr: map[string]string{"Authorization": badBasic}},
-		{name: "stale bearer, anonymous open", open: true, hdr: map[string]string{"Authorization": "Bearer not-a-real-token"}},
-		{name: "stale bearer, anonymous closed", open: false, hdr: map[string]string{"Authorization": "Bearer not-a-real-token"}},
+		{name: "bad basic, anonymous open", open: true, hdr: map[string]string{"Authorization": badBasic}, want: "Bad Credentials"},
+		{name: "bad basic, anonymous closed", open: false, hdr: map[string]string{"Authorization": badBasic}, want: "Bad Credentials"},
+		// L004-1: an unknown Bearer answers the reference's own wording.
+		{name: "stale bearer, anonymous open", open: true, hdr: map[string]string{"Authorization": "Bearer not-a-real-token"}, want: "Props Authentication Token not found"},
+		{name: "stale bearer, anonymous closed", open: false, hdr: map[string]string{"Authorization": "Bearer not-a-real-token"}, want: "Props Authentication Token not found"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarnessCfg(t, func(c *mutatedConfig) {
 				c.Security.AnonymousAccess = tc.open
 			}, nil)
-			for _, path := range []string{"/v2/", "/v2/somerepo/app/manifests/latest"} {
-				resp := h.do(http.MethodGet, path, "", "", nil, tc.hdr)
-				body := mustGet(t, resp)
-				if resp.StatusCode != http.StatusUnauthorized {
-					t.Fatalf("%s status = %d; body=%s", path, resp.StatusCode, body)
-				}
-				assertV2Headers(t, resp)
-				if strings.Contains(body, `"status"`) {
-					t.Fatalf("%s body carries the /binflow envelope: %s", path, body)
-				}
-				eb := decodeSpecError(t, body)
-				if eb.Errors[0].Code != "UNAUTHORIZED" {
-					t.Fatalf("%s code = %q, want UNAUTHORIZED", path, eb.Errors[0].Code)
-				}
-				ch := resp.Header.Get("WWW-Authenticate")
-				if !strings.HasPrefix(ch, `Bearer realm="`) || !strings.Contains(ch, `/v2/token`) {
-					t.Fatalf("%s challenge = %q, want Bearer realm=.../v2/token", path, ch)
-				}
-				if strings.Contains(ch, `Basic realm`) {
-					t.Fatalf("%s challenge carries a Basic scheme: %q", path, ch)
-				}
+			// The ping face: the reference's refused-credential arm.
+			resp := h.do(http.MethodGet, "/v2/", "", "", nil, tc.hdr)
+			assertPingRefusedFace(t, resp, mustGet(t, resp), tc.want)
+
+			// Every other route: the Bearer re-challenge + spec body.
+			path := "/v2/somerepo/app/manifests/latest"
+			resp = h.do(http.MethodGet, path, "", "", nil, tc.hdr)
+			body := mustGet(t, resp)
+			if resp.StatusCode != http.StatusUnauthorized {
+				t.Fatalf("%s status = %d; body=%s", path, resp.StatusCode, body)
+			}
+			assertV2Headers(t, resp)
+			if strings.Contains(body, `"status"`) {
+				t.Fatalf("%s body carries the generic status form: %s", path, body)
+			}
+			eb := decodeSpecError(t, body)
+			if eb.Errors[0].Code != "UNAUTHORIZED" {
+				t.Fatalf("%s code = %q, want UNAUTHORIZED", path, eb.Errors[0].Code)
+			}
+			ch := resp.Header.Get("WWW-Authenticate")
+			if !strings.HasPrefix(ch, `Bearer realm="`) || !strings.Contains(ch, `/v2/token`) {
+				t.Fatalf("%s challenge = %q, want Bearer realm=.../v2/token", path, ch)
+			}
+			if strings.Contains(ch, `Basic realm`) {
+				t.Fatalf("%s challenge carries a Basic scheme: %q", path, ch)
 			}
 		})
 	}
 }
 
-// TestV2ExpiredBearerRendersSpecBody (review B1, the docker renewal path):
-// a token that WAS valid and has since expired must produce the same
-// registry-plane 401 — the client re-enters the token flow instead of
-// meeting a Basic challenge. The row is seeded with a past ExpiresAt
-// because Issue() treats non-positive TTL as "never expires".
+// TestV2ExpiredBearerRendersSpecBody (review B1, the docker renewal path;
+// re-anchored by L003-2): a token that WAS valid and has since expired
+// still lands on the registry-plane 401 — on the PING route that is the
+// refused-credential face (Basic realm + pretty status form, the
+// reference's own arm), on resource routes the Bearer re-challenge
+// (covered by TestV2RejectedCredentialRendersSpecBody's resource leg).
+// The row is seeded with a past ExpiresAt because Issue() treats
+// non-positive TTL as "never expires".
 func TestV2ExpiredBearerRendersSpecBody(t *testing.T) {
 	h := newHarness(t)
 	plaintext := "expired-token-plaintext-" + strconv.Itoa(os.Getpid())
@@ -529,21 +592,13 @@ func TestV2ExpiredBearerRendersSpecBody(t *testing.T) {
 
 	resp := h.do(http.MethodGet, "/v2/", "", "", nil,
 		map[string]string{"Authorization": "Bearer " + plaintext})
-	body := mustGet(t, resp)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("status = %d; body=%s", resp.StatusCode, body)
-	}
-	if strings.Contains(body, `"status"`) {
-		t.Fatalf("body carries the /binflow envelope: %s", body)
-	}
-	assertV2Headers(t, resp)
-	if ch := resp.Header.Get("WWW-Authenticate"); !strings.Contains(ch, `/v2/token`) {
-		t.Fatalf("challenge = %q, want Bearer realm .../v2/token", ch)
-	}
+	// L004-1: the expired Bearer answers the reference's own wording.
+	assertPingRefusedFace(t, resp, mustGet(t, resp), "Token failed verification: expired")
 }
 
-// TestV2RevokedBearerRendersSpecBody (review B1 + D23 preview): a revoked
-// token's Bearer request also lands on the registry-plane 401.
+// TestV2RevokedBearerRendersSpecBody (review B1 + D23 preview; re-anchored
+// by L003-2): a revoked token's Bearer request also lands on the
+// registry-plane 401 — the ping route's refused-credential face.
 func TestV2RevokedBearerRendersSpecBody(t *testing.T) {
 	h := newHarness(t)
 	tok, err := h.authSvc.Issue(t.Context(), adminUser, time.Hour)
@@ -555,17 +610,11 @@ func TestV2RevokedBearerRendersSpecBody(t *testing.T) {
 	}
 	resp := h.do(http.MethodGet, "/v2/", "", "", nil,
 		map[string]string{"Authorization": "Bearer " + tok.AccessToken})
-	body := mustGet(t, resp)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("status = %d; body=%s", resp.StatusCode, body)
-	}
-	if strings.Contains(body, `"status"`) {
-		t.Fatalf("body carries the /binflow envelope: %s", body)
-	}
-	assertV2Headers(t, resp)
-	if ch := resp.Header.Get("WWW-Authenticate"); !strings.Contains(ch, `/v2/token`) {
-		t.Fatalf("challenge = %q, want Bearer realm .../v2/token", ch)
-	}
+	// L004-1: BinFlow's revocation deletes the row, so a revoked Bearer
+	// verifies as UNKNOWN — the reference's distinct "Token failed
+	// verification: revoked" wording is a model-level divergence (the
+	// L004-1 report registers it for the contract face).
+	assertPingRefusedFace(t, resp, mustGet(t, resp), "Props Authentication Token not found")
 }
 
 // TestV2PanicRendersSpecBody (review B1 same-family): a panicking /v2

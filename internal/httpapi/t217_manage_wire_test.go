@@ -225,9 +225,15 @@ func TestT217ManageOnlyHolderOrthogonality(t *testing.T) {
 		`{"quotaBytes":12345}`); got != http.StatusOK {
 		t.Errorf("POST quota as manage-only holder = %d, want 200 (family 7 write)", got)
 	}
+	// ADR-0050 (cross-account note on ADR-0026 decision 3): the PUT
+	// replace arm of an existing repository is unreachable now — PUT is
+	// create-only and this key exists. The holder PASSES the family-7 gate
+	// (no 403: the gate fires before the 400) and meets the create-only
+	// refusal instead; the family-7 write power itself is proven by the
+	// POST update spelling above.
 	if got := t215Code(t, h, http.MethodPut, "api/repositories/app-local", "carol2", "carol2-pw",
-		`{"rclass":"local","packageType":"generic","description":"by carol2"}`); got != http.StatusOK {
-		t.Errorf("PUT replace arm as manage-only holder = %d, want 200 (family 7 write)", got)
+		`{"rclass":"local","packageType":"generic","description":"by carol2"}`); got != http.StatusBadRequest {
+		t.Errorf("PUT replace arm as manage-only holder = %d, want 400 (ADR-0050 create-only)", got)
 	}
 
 	// The data plane stays closed: manage implies no r, no w.

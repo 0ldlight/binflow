@@ -116,7 +116,7 @@ propertySets([])
 | GET `...?stats` | 下载统计 | 200 StatsInfo：`uri, downloadCount, lastDownloaded, lastDownloadedBy, remoteDownloadCount, remoteLastDownloaded, remoteLastDownloadedBy` | 404 | 高 |
 | GET `...?lastModified` | 目录内最新修改项 | 200 `{"uri":..., "lastModified": "yyyy-MM-dd'T'HH:mm:ss.SSSZ"}` + `Last-Modified` 头 | 非 local/cached repo → 400 | 高 |
 | GET `...?permissions` | 有效权限（manage 位持有者专属） | 200 `{"uri":..., "principals":{"users":{"<主体名>":["r","w",...]},"groups":{"<组名>":[...]}}}`——**key=主体名、value=权限字母集合**；字母全集 r/w/n/d/m（read/deploy/annotate/delete/manage；BinFlow 子集 r/w/d）；无任何权限的主体不出现 | 非 local/cached 仓 → 400 `This method can only be invoked on local/cached repositories.`；local 仓但 item 不存在 → 404 `Unable to find item '<repoPath>'.`；无 manage 权限 → 403 | 高 |
-| GET `...?list&deep=&depth=&listFolders=&mdTimestamps=&statsTimestamps=&includeRootPath=&includePropertiesMd5=` | 流式文件清单（**仅认证用户**） | 200 `{"uri":..., "created":..., "files":[{uri,size,lastModified,folder,sha1,sha2?,mdTimestamps?,propertiesMd5?}]}`，`uri` 为相对查询目录的路径 | 匿名 → 403；根目录 → 400 `Cannot list files of root.`；目标是文件 → 400；repo 不存在 → 404 | 高 |
+| GET `...?list[&deep&depth&listFolders&mdTimestamps&statsTimestamps&includeRootPath&includePropertiesMd5]` | 流式文件清单（**仅认证用户**；七参按整数解析） | 200 FileList JSON（`uri/created/files[{uri,size,lastModified,folder,sha1,sha2?,mdTimestamps?,propertiesMd5?}]`，条目 uri 前导斜杠；`Content-Type: application/vnd.org.jfrog.artifactory.storage.FileList+json`） | 匿名 → 403；七参值非整数或越 int32 界 → 400 envelope `For input string: "<v>"`；目标是文件 → 400 `Expected a folder but found a file, at: <repo>:<path>`；repo 不存在 → 404；仓库根 → 200 可列 | 高（逐项见下勘误块） |
 | PUT `/api/storage/{repoKey}/{path}?properties=k=v,k2=v1;v2&recursive=&atomic=` | 设属性 | 204 无 body | 属性名为空 → 400 `Properties value cannot be empty.`；属性名非法字符 → 400 | 高 |
 | DELETE `/api/storage/{repoKey}/{path}?properties=k1,k2&recursive=` | 删属性 | 204 | 未指定属性 → 400 `Unspecified properties to delete.` | 高 |
 | POST `/api/storage/{repoKey}/{path}?recursive=&atomic=`（PATCH 语义 v2） | 增量改属性 | 204 | 同上 | 中 |
@@ -124,6 +124,20 @@ propertySets([])
 > **勘误（T-113）**：本表 `?permissions` 行原记「key 为 r/w/d/a 权限位，value 为主体名集合」——键值方向相反，且字母集笔误（annotate 的字母是 `n` 非 `a`，另有 manage=`m`）。正确形态以修正后行为准。依据：`RestAddonImpl#getItemPermissions` 构造 主体名 → 权限字母集合 的映射，逐主体调 `#appendPrincipalsAndPermissions`（**空集合跳过**——无任何权限的主体不出现）；字母集见 `ArtifactoryPermission` 枚举（r/w/n/d/m）；官方 REST 文档 Get Item Permissions 示例同形（`"users":{"bob":["r","w","n"]}`）——代码与官方文档双证。
 >
 > **非 local 仓 404-vs-400 疑点核实（T-113 同批）——结论 400**（置信度：中，两层调用链代码直读；动态复现可选留 T-103）：资源层前置校验先于 addon——`ArtifactResource#preparePermissionsResponse` 对非 local/cached 仓（virtual、remote 本体、不存在的仓）抛 400；`RestAddonImpl#getItemPermissions` 内 `ItemNotFoundRuntimeException("Unable to find local repository '<key>'.")` → 404 为**二道门**（判定与资源层同源，正常请求面不可达，仅并发删仓等分叉窗口可触）。正常可达的 404 是「local 仓 + 路径不存在」（`Unable to find item '<repoPath>'.`，显式 catch 转 `NotFoundException`，全局 `ItemNotFoundExceptionMapper` 亦 404）。校验次序：Accept 不兼容 406 → 非 local 仓 400 → 无 manage 权限 403 → item 不存在 404 → 200。BinFlow 现行「非 local → 400」与规格一致，无需改码（T-97 review NB6「疑 404」不成立）。
+
+> **勘误（T-L010-3）——`?list` 行原记三处误**：①「根目录 → 400 `Cannot list files of root.`」（实际根可列）；②「`uri` 为相对查询目录的路径」（实际一律前导斜杠）；③ 未记七参整数校验与形态五项。依据：L008-3 双端活体差分 32 臂（参照 Artifactory Pro 7.161.20）+ 反编译（`ArtifactResource` 参数经 `getQueryParameterAsInt`：containsKey+isNotBlank 短路 → `Integer.parseInt`，`IllegalArgumentException` → 400）+ 官方 Get Storage Item Information 页（docs.jfrog.com/artifactory/reference/getstorageitem）三源交叉；BinFlow 侧 T-L009-2 已按此实现并 32 臂复验。**正确行为规格（当客户端…服务端返回…）**：
+>
+> 1. **触发与校验**：当客户端 GET 带 `?list`（值无关，`list=` 空值同）时服务端进入列表模式；`deep`/`depth`/`listFolders`/`mdTimestamps`/`statsTimestamps`/`includeRootPath`/`includePropertiesMd5` 七参一律按整数解析——值非整数字面（`abc`/`true`）或越 int32 界（>2147483647 / <-2147483648）时返回 400 errors-envelope `For input string: "<v>"`（Java parseInt 文案逐字），边界值 ±2^31 内正常处理。**高**（非整数臂 A09/A29/A32；越界臂 2026-09-12 参照活体抽验 `depth=2147483648`/`-2147483649` 双双 400 同文案）。
+> 2. **空值缺席**：七参为空值或纯空白（`depth=`、`depth=%20`）时视为缺席，不进整数解析，返回正常列表。**高**（2026-09-12 参照活体抽验三臂全 200；反编译 isNotBlank 短路同证）。
+> 3. **递归语义**：`deep=1` 是唯一递归触发（其他整数值 0/2 = 不递归）；`depth` 仅作修饰——无 `deep=1` 时任意 `depth` 值均无递归效果（`depth=99` 仍只列直接子文件），`deep=1&depth=N` 把递归钳到 N 层，`depth≤0`（含缺省 0）不限层。**高**（A02–A11/A31 实测 + 官方 "Optional depth to limit the results for deep listing" 印证修饰定位）。
+> 4. **listFolders=1**：文件夹行进入 files[]——`uri` 无尾斜杠（`/d2`）、`size: -1`、`folder: true`、无 sha，与文件行按字母序混排；缺省/0 时任何深度都不出现文件夹行。**高**（A12–A14/A23 实测 + 官方 "Include folders in listing"）。
+> 5. **includeRootPath=1**：被查询文件夹自身作为**首个条目**出现——`uri: "/"`、size -1、folder true。**高**（A18–A20/A23/A27 实测 + 官方记载）。
+> 6. **mdTimestamps=1**：条目（文件与文件夹）增 `mdTimestamps: {"properties": <属性最后修改时刻>}`；无属性条目整键缺席。**高**（A15–A17/A23 实测 + 官方 "Include metadata timestamp values"）。
+> 7. **statsTimestamps=1**：文件条目增 `mdTimestamps: {"artifactory.stats": max(lastDownloaded, remoteLastDownloaded)}`，从未下载则缺席。**高**（A30 实测；**此条补充官方规范**——官方页未记载该参）。
+> 8. **includePropertiesMd5=1**：有属性条目增 `propertiesMd5: <md5>`；无属性条目整键缺席。**高**（A21–A23 实测；**此条补充官方规范**——官方页未记载该参）。
+> 9. **形态五项**（作用于所有 200 响应）：条目 `uri` 一律**前导斜杠**（`/f1.txt`）；顶层 `uri` 无尾斜杠、仓库根为裸仓 key（`.../api/storage/<repoKey>`）；`created` = **请求时刻墙钟**（毫秒，逐请求推进，非文件夹创建时刻）；`Content-Type: application/vnd.org.jfrog.artifactory.storage.FileList+json`；全列（含 deep 全树）按路径字母序（`/d2/d3/d4/f5.txt` 先于 `/d2/d3/f4.txt`）。**高**（L008-3 §4 实测 + 官方 FileList 示例 uri 前导斜杠/size "-1"/vendor CT 同形）。
+> 10. **根与错误体裁**：仓库根可列——`?list` 打在仓库根返回 200 直接子文件，deep/listFolders/includeRootPath 组合在根上同样成立；400 `Cannot list files of root.` 仅属**无仓库段**的请求（带仓路由下不可达）；目标是文件 → 400 envelope `Expected a folder but found a file, at: <repo>:<path>`（repo:path 冒号拼写，非斜杠）；匿名 → 403；repo 不存在 → 404。**高**（A24–A27 实测；匿名 403 = 反编译 `AuthorizationRestException` + 官方 "Requires a non-anonymous privileged user"）。
+> 11. **校验次序**：参数整数校验先于目标解析——坏参与文件目标同报时 400 返回坏参文案（`For input string: …`）。**中**（反编译代码序：资源层参数解析先于 addon 目标解析；BinFlow 侧 T-L009-2 优先级臂测试同序，参照侧未活体取证）。
 
 FileInfo JSON 字段（`o.a.a.api.rest.artifact.RestFileInfo` + `RestBaseStorageInfo`）：`uri`、`downloadUri`、`remoteUrl`（仅 remote-cache 有）、`repo`、`path`（`/` 前缀）、`created`、`createdBy`、`lastModified`、`modifiedBy`、`lastUpdated`、`size`（字符串）、`mimeType`、`checksums{sha1,md5,sha256}`、`originalChecksums{sha1,md5,sha256}`、`properties`（有则带）。FolderInfo：同基础字段 + `children:[{uri:"/<name>", folder:bool}]`（按名排序）。**高**
 
@@ -162,7 +176,7 @@ FileInfo JSON 字段（`o.a.a.api.rest.artifact.RestFileInfo` + `RestBaseStorage
 - **错误体格式**：官方文档多数端点未给出错误 body 结构；反编译确认统一 `{"errors":[{status,message}]}`。
 - **virtual 仓库 PUT → 405 + `Allow: GET`**：官方文档未显式记录该头；代码可见（`UploadServiceImpl#sendInvalidTargetRepositoryError`）。
 - **checksum 文件上传（`.sha1` 旁车文件）行为**：官方文档分散记载；反编译确认 1024 字节上限、409 文案、与 repo checksum 策略的联动。
-- **`?list` 根目录 400 文案**与**匿名 403**：官方文档未写，代码可见。
+- **`?list` 家族补充面**：官方 Get Storage Item Information 页未记载 `statsTimestamps`/`includePropertiesMd5` 两参、仓库根可列行为、参数整数校验（非整数/越 int32 界 → 400 `For input string: "<v>"`、空值/空白=缺席）、文件目标 400 文案（`Expected a folder but found a file, at: <repo>:<path>`）与 `Cannot list files of root.` 仅属无仓段请求——反编译 + 活体差分补充（T-L010-3 勘误块，L008-3 32 臂）。
 - **GET `/api/repositories/{key}` 不存在的 400/404 双态**：官方文档写 404；代码显示由 `respondWith404ForNonExistentRepo` 开关控制（新版默认 404）。BinFlow 实现选 404。
 
 ## 待验证清单（低置信度项）
@@ -170,3 +184,6 @@ FileInfo JSON 字段（`o.a.a.api.rest.artifact.RestFileInfo` + `RestBaseStorage
 1. `DELETE ...?atomic=true` 与默认多事务路径在部分失败时的中间态可见性（需动态验证：删除目录树中途 kill 进程，观察残留）。
 2. `POST /api/system/storage/gc` 响应流式格式（M1 不实现，留 M4）。
 3. `checksumDeployed` 标记是否在任何对外可见头/状态码体现（代码内仅镜像链路消费，推测对外无差异）。
+4. `?list` 坏参与文件目标同报时参照侧的校验次序（现按反编译代码序推导：参数解析先于目标解析；BinFlow 侧已按此测试——勘误块第 11 条，LOOP 010 合并差分可覆盖）。
+5. `?list&includeRootPath=1` 打在仓库根时根条目 `/` 的 `lastModified` 字段形态（L008-3 A27 参照侧字段级未取证；BinFlow 现渲染 1970 零时刻，见 T-L009-2 Risks ①）。
+6. FileList 文件行的 `sha2` 字段是否随行列出（旧规格记 `sha2?`；L008-3 32 臂证据面只到 sha1 逐字级，未单独取证 sha2 在列）。

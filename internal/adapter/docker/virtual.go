@@ -37,8 +37,10 @@ import (
 // transport fault without a copy), and a classified NON-unfound failure —
 // the SSRF chain's 400, the body ceiling's 502 — propagates verbatim
 // (masking a security refusal as a virtual-wide 404 would hide a
-// configured behavior). A walk no member answers ends in the unfound
-// family with the last upstream summary attached — zero naked 5xx.
+// configured behavior). A walk no member answers ends in the PLAIN
+// unfound family — the last member summary rides a WARN line, not the
+// wire body (L007-2 §2.4: the reference's virtual terminal 404 is the
+// plain shape on every arm) — zero naked 5xx.
 
 // virtualPlane resolves the service's v2 virtual aggregation capability;
 // nil when the assembled service predates the seam (a bare test double).
@@ -86,7 +88,7 @@ func (h *Handler) serveVirtualManifest(w http.ResponseWriter, r *http.Request, r
 		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported, "unknown manifest route "+tail, nil)
 		return
 	}
-	unfound := manifestUnfound(reference)
+	unfound := manifestUnfound(ref.image)
 	// The reference shape runs BEFORE anything else (the local plane's
 	// rule): a sha256: spelling must parse, anything else a legal tag.
 	isDigestRef := strings.HasPrefix(reference, digestPrefix)
@@ -143,7 +145,7 @@ func (h *Handler) serveVirtualManifest(w http.ResponseWriter, r *http.Request, r
 					map[string]string{"mediaType": mediaType})
 				return
 			}
-			h.serveVirtualManifestCopy(w, r, m.Key, facts.Node, mediaType, facts.Digest, facts.Size, "", "")
+			h.serveVirtualManifestCopy(w, r, m.Key, "", facts.Node, mediaType, facts.Digest, facts.Size, "", "")
 			return
 		case repo.TypeRemote:
 			var standing *remoteStanding
@@ -162,7 +164,7 @@ func (h *Handler) serveVirtualManifest(w http.ResponseWriter, r *http.Request, r
 						map[string]string{"mediaType": mediaType})
 					return
 				}
-				h.serveVirtualManifestCopy(w, r, m.Key, facts.Node, mediaType, facts.Digest, facts.Size, remote.CacheHit, "")
+				h.serveVirtualManifestCopy(w, r, m.Key, "", facts.Node, mediaType, facts.Digest, facts.Size, remote.CacheHit, "")
 				return
 			case repo.RemoteProbeNegative:
 				continue // the member's fresh miss record: walk on
@@ -177,9 +179,18 @@ func (h *Handler) serveVirtualManifest(w http.ResponseWriter, r *http.Request, r
 			summary = why
 		}
 	}
-	// No member answered: the unfound family with the last upstream
-	// summary — never a naked 5xx (FR-116.5 through the aggregation).
-	unfound.write(w, summary)
+	// No member answered: the PLAIN unfound body — the reference's virtual
+	// terminal render carries no upstream summary (L007-2 §2.4: the cold
+	// negative miss answers the reference's 137-byte plain body on EVERY
+	// arm; the first-answer "(upstream answered …)" suffix was a
+	// BinFlow-only wire note). The last member summary moves to the WARN
+	// line — the diagnostic stays, the wire aligns. Never a naked 5xx
+	// (FR-116.5 through the aggregation).
+	if summary != "" {
+		h.log.WarnContext(ctx, "docker virtual: no member answered (terminal unfound)",
+			"repo", ref.repoKey, "image", ref.image, "reference", reference, "last_member_summary", summary)
+	}
+	unfound.write(w, "")
 }
 
 // virtualMemberOutcome classifies one remote member's walk step.
@@ -204,7 +215,7 @@ const (
 func (h *Handler) serveVirtualRemoteManifest(w http.ResponseWriter, r *http.Request, plane repo.V2VirtualPlane, ref nameRef, member, reference string, isDigestRef bool, wantHex string, standing *remoteStanding) (virtualMemberOutcome, string) {
 	ctx := r.Context()
 	p := principalOf(r)
-	entry, _, serr := h.virtualMemberSession(ctx, p, plane, ref.repoKey, member)
+	entry, facts, serr := h.virtualMemberSession(ctx, p, plane, ref.repoKey, member)
 	if serr != nil {
 		// The member's own unfound-shaped refusals (the blackout's 404
 		// among them) continue the walk; honest failures surface.
@@ -215,7 +226,9 @@ func (h *Handler) serveVirtualRemoteManifest(w http.ResponseWriter, r *http.Requ
 		h.writeRemoteServeError(w, r, serr, ref)
 		return virtualMemberFault, serr.Error()
 	}
-	fetched, ferr := entry.fetchManifest(ctx, ref.image, reference, r.Header.Values("Accept"))
+	origin := originRemoteOf(facts, v2WireManifestPath(ref.image, reference))
+	fetched, ferr := entry.fetchManifest(ctx, ref.image, reference, r.Header.Values("Accept"),
+		revalidationValidator(standing, isDigestRef))
 	if ferr != nil {
 		var serveStale func(string)
 		if standing != nil {
@@ -227,7 +240,7 @@ func (h *Handler) serveVirtualRemoteManifest(w http.ResponseWriter, r *http.Requ
 				size = standing.node.Size
 			}
 			serveStale = func(summary string) {
-				h.serveVirtualManifestCopy(w, r, member, standing.node, mediaType, standing.dgst, size, remote.CacheStale, summary)
+				h.serveVirtualManifestCopy(w, r, member, origin, standing.node, mediaType, standing.dgst, size, remote.CacheStale, summary)
 			}
 		}
 		if h.writeVirtualFetchFault(w, r, ferr, ref, serveStale) {
@@ -245,31 +258,54 @@ func (h *Handler) serveVirtualRemoteManifest(w http.ResponseWriter, r *http.Requ
 				return plane.V2RecordMemberManifest(ctx, p, ref.repoKey, member, ref.image, dgst, tag, mediaType, size, refs)
 			},
 		}, func(w http.ResponseWriter, r *http.Request, node *metadata.Node, mediaType, dgst string, size int64, cacheState, upstreamError string) {
-			h.serveVirtualManifestCopy(w, r, member, node, mediaType, dgst, size, cacheState, upstreamError)
+			h.serveVirtualManifestCopy(w, r, member, origin, node, mediaType, dgst, size, cacheState, upstreamError)
 		})
 		return virtualMemberServed, ""
+	case http.StatusNotModified:
+		// The revalidation arm (§5.3), member-scoped: slide the member's
+		// window through the V2 seam and serve the confirmed copy.
+		if standing != nil && standing.node != nil {
+			h.serveRevalidatedManifest(w, r, ref, standing, func(mediaType string, body io.Reader) error {
+				_, lerr := plane.V2LandMemberBlob(ctx, p, ref.repoKey, member, manifestNodePath(ref.image, standing.dgst), standing.dgst, mediaType, body)
+				return lerr
+			}, func(w http.ResponseWriter, r *http.Request, node *metadata.Node, mediaType, dgst string, size int64, cacheState, upstreamError string) {
+				h.serveVirtualManifestCopy(w, r, member, origin, node, mediaType, dgst, size, cacheState, upstreamError)
+			})
+			return virtualMemberServed, ""
+		}
+		return virtualMemberUnfound, fmt.Sprintf("upstream answered 304 %s without a validator being offered", fetched.statusT)
 	case http.StatusNotFound:
-		// The engine's step: record the miss (digest-keyed paths only),
-		// then an expired copy still serves (STALE).
+		// The engine's step: record the miss (the standing arm keys the
+		// digest's manifest node path; the cold-miss arm below keys the
+		// reference shape — digest the same node path, tag the image's
+		// tags/ row), member-scoped, then an expired copy still serves
+		// (STALE).
 		if standing != nil {
 			_ = plane.V2CacheMemberMiss(ctx, p, ref.repoKey, member, manifestNodePath(ref.image, standing.dgst)) //nolint:errcheck // best-effort bookkeeping; the serve stands
-			h.serveVirtualManifestCopy(w, r, member, standing.node, standing.mediaType, standing.dgst, standing.size,
+			h.serveVirtualManifestCopy(w, r, member, origin, standing.node, standing.mediaType, standing.dgst, standing.size,
 				remote.CacheStale, "upstream 404 (expired copy served)")
 			return virtualMemberServed, ""
 		}
+		// The cold miss records the reference-keyed miss row in the MEMBER's
+		// cache (C14 — both reference shapes: the digest at the manifest
+		// node path, the tag under the image's tags/ row). The member-facts
+		// seam probes the row on the next ask (L006-2), so the walk reuses
+		// the member's miss record inside its window — the same memory the
+		// member's own direct face consults, cross-face consistent.
+		_ = plane.V2CacheMemberMiss(ctx, p, ref.repoKey, member, manifestMissNodePath(ref.image, reference, isDigestRef, wantHex)) //nolint:errcheck // best-effort bookkeeping; the serve stands
 		return virtualMemberUnfound, fmt.Sprintf("upstream answered 404 %s", fetched.statusT)
 	case http.StatusUnauthorized, http.StatusForbidden:
 		// Credentials refused upstream (the engine's 401/403 posture — no
 		// negative cache, the credential state is correctable).
 		if standing != nil {
-			h.serveVirtualManifestCopy(w, r, member, standing.node, standing.mediaType, standing.dgst, standing.size,
+			h.serveVirtualManifestCopy(w, r, member, origin, standing.node, standing.mediaType, standing.dgst, standing.size,
 				remote.CacheStale, fmt.Sprintf("upstream %d %s", fetched.status, fetched.statusT))
 			return virtualMemberServed, ""
 		}
 		return virtualMemberUnfound, fmt.Sprintf("upstream answered %d %s; credentials refused or insufficient", fetched.status, fetched.statusT)
 	default:
 		if standing != nil {
-			h.serveVirtualManifestCopy(w, r, member, standing.node, standing.mediaType, standing.dgst, standing.size,
+			h.serveVirtualManifestCopy(w, r, member, origin, standing.node, standing.mediaType, standing.dgst, standing.size,
 				remote.CacheStale, fmt.Sprintf("upstream %d %s", fetched.status, fetched.statusT))
 			return virtualMemberServed, ""
 		}
@@ -324,15 +360,24 @@ func (h *Handler) serveVirtualBlob(w http.ResponseWriter, r *http.Request, ref n
 			if blob.Node == nil {
 				continue
 			}
-			h.serveVirtualBlobCopy(w, r, m.Key, blob.Node, "", "")
+			h.serveVirtualBlobCopy(w, r, m.Key, "", blob.Node, "", "")
 			return
 		case repo.TypeRemote:
 			switch blob.Cache {
 			case repo.RemoteProbeHit:
-				h.serveVirtualBlobCopy(w, r, m.Key, blob.Node, remote.CacheHit, "")
+				h.serveVirtualBlobCopy(w, r, m.Key, "", blob.Node, remote.CacheHit, "")
 				return
 			case repo.RemoteProbeNegative:
 				continue
+			}
+			// The D3 window exemption, member-scoped (the direct face's
+			// ruling in remote.go — the retrieval window gates the mutable
+			// manifest face only; a digest-addressed blob whose standing
+			// copy recorded the requested digest is the checksum-verified
+			// answer and never re-opens the upstream conversation).
+			if blob.Node != nil && digestHexOfNode(blob.Node) == hex {
+				h.serveVirtualBlobCopy(w, r, m.Key, "", blob.Node, remote.CacheHit, "")
+				return
 			}
 			outcome, why := h.serveVirtualRemoteBlob(w, r, plane, ref, m.Key, hex, blob.Node)
 			switch outcome {
@@ -342,7 +387,13 @@ func (h *Handler) serveVirtualBlob(w http.ResponseWriter, r *http.Request, ref n
 			summary = why
 		}
 	}
-	unfound.write(w, summary)
+	// No member answered: the PLAIN unfound body (the manifest arm's
+	// terminal note above — L007-2 §2.4, the summary to WARN not wire).
+	if summary != "" {
+		h.log.WarnContext(ctx, "docker virtual: no member answered (terminal unfound)",
+			"repo", ref.repoKey, "image", ref.image, "digest", digestPrefixHex(hex), "last_member_summary", summary)
+	}
+	unfound.write(w, "")
 }
 
 // serveVirtualRemoteBlob runs one REMOTE member's blob pull-through as a
@@ -351,7 +402,7 @@ func (h *Handler) serveVirtualBlob(w http.ResponseWriter, r *http.Request, ref n
 func (h *Handler) serveVirtualRemoteBlob(w http.ResponseWriter, r *http.Request, plane repo.V2VirtualPlane, ref nameRef, member, hex string, standingNode *metadata.Node) (virtualMemberOutcome, string) {
 	ctx := r.Context()
 	p := principalOf(r)
-	entry, _, serr := h.virtualMemberSession(ctx, p, plane, ref.repoKey, member)
+	entry, facts, serr := h.virtualMemberSession(ctx, p, plane, ref.repoKey, member)
 	if serr != nil {
 		var se *repo.StatusError
 		if errors.As(serr, &se) && se.Code == http.StatusNotFound {
@@ -360,11 +411,19 @@ func (h *Handler) serveVirtualRemoteBlob(w http.ResponseWriter, r *http.Request,
 		h.writeRemoteServeError(w, r, serr, ref)
 		return virtualMemberFault, serr.Error()
 	}
+	origin := originRemoteOf(facts, v2WireBlobPath(ref.image, hex))
 	var serveStale func(string)
 	if standingNode != nil {
 		serveStale = func(summary string) {
-			h.serveVirtualBlobCopy(w, r, member, standingNode, remote.CacheStale, summary)
+			h.serveVirtualBlobCopy(w, r, member, origin, standingNode, remote.CacheStale, summary)
 		}
+	}
+	// The marker gate, member-scoped (ADR-0047 §3): a cold miss the MEMBER's
+	// chains never named is unfound for this member — walk on, no upstream
+	// contact, no negative-cache row, no summary (the deterministic answer
+	// keeps the terminal body plain, the E4-2 shape).
+	if standingNode == nil && !h.memberChainAdmits(ctx, p, ref, member, hex) {
+		return virtualMemberUnfound, ""
 	}
 	path := blobNodePath(ref.image, hex)
 	stream, ferr := entry.fetchBlobStream(ctx, ref.image, hex)
@@ -383,25 +442,44 @@ func (h *Handler) serveVirtualRemoteBlob(w http.ResponseWriter, r *http.Request,
 			h.writeRemoteServeError(w, r, lerr, ref)
 			return virtualMemberFault, lerr.Error()
 		}
-		h.serveVirtualBlobCopy(w, r, member, node, remote.CacheMiss, "")
+		h.serveVirtualBlobCopy(w, r, member, origin, node, remote.CacheMiss, "")
 		return virtualMemberServed, ""
 	case http.StatusNotFound:
 		drainUpstream(stream.Body)
 		_ = plane.V2CacheMemberMiss(ctx, p, ref.repoKey, member, path) //nolint:errcheck // best-effort bookkeeping; the serve stands
 		if standingNode != nil {
-			h.serveVirtualBlobCopy(w, r, member, standingNode, remote.CacheStale, "upstream 404 (expired copy served)")
+			h.serveVirtualBlobCopy(w, r, member, origin, standingNode, remote.CacheStale, "upstream 404 (expired copy served)")
 			return virtualMemberServed, ""
 		}
 		return virtualMemberUnfound, fmt.Sprintf("upstream answered 404 %s", stream.Status)
 	default:
 		drainUpstream(stream.Body)
 		if standingNode != nil {
-			h.serveVirtualBlobCopy(w, r, member, standingNode, remote.CacheStale,
+			h.serveVirtualBlobCopy(w, r, member, origin, standingNode, remote.CacheStale,
 				fmt.Sprintf("upstream %d %s", stream.StatusCode, stream.Status))
 			return virtualMemberServed, ""
 		}
 		return virtualMemberUnfound, fmt.Sprintf("upstream answered %d %s", stream.StatusCode, stream.Status)
 	}
+}
+
+// memberChainAdmits is blobChainAdmits' membership-guarded twin for the
+// virtual walk: the gate query addresses the REMOTE member's
+// (repoKey, image), never the virtual key (ADR-0047 §3). The same
+// fault-admits posture as the direct arm.
+func (h *Handler) memberChainAdmits(ctx context.Context, p *Principal, ref nameRef, member, hex string) bool {
+	gate := h.chainGate()
+	if gate == nil {
+		return true
+	}
+	in, err := gate.V2MemberBlobInChain(ctx, p, ref.repoKey, member, ref.image, hex)
+	if err != nil {
+		h.log.WarnContext(ctx, "docker virtual: member chain gate unavailable (fetching)",
+			"repo", ref.repoKey, "member", member, "image", ref.image, "path", blobNodePath(ref.image, hex),
+			"cache_result", "chain-gate-error", "error", err.Error())
+		return true
+	}
+	return in
 }
 
 // virtualMemberSession resolves one remote MEMBER's upstream session
@@ -470,16 +548,28 @@ func upstreamFaultSummary(err error) string {
 // serveVirtualManifestCopy serves one member's manifest copy through the
 // remote plane's copy server with the resolution hint on top (the walk's
 // winning member — the diagnostic the generic virtual face carries too).
-func (h *Handler) serveVirtualManifestCopy(w http.ResponseWriter, r *http.Request, member string, node *metadata.Node, mediaType, dgst string, size int64, cacheState, upstreamError string) {
+//
+// Review B #4 semantic note: on the VIRTUAL plane the copy face's registry
+// key — what a manifest HEAD's X-Artifactory-Docker-Registry spells — is
+// the WINNING MEMBER's key, not the repository the client addressed. That
+// is a different answer than the DIRECT remote face's (remote_face.go: the
+// client-addressed repoKey), and it is deliberate: the virtual walk's
+// whole face is resolution-relative (X-Resolved-From carries the same
+// member), the member key being the resolution's own registry. The face
+// here has no live-capture backing for the member-key spelling (L003-2
+// noted the virtual evidence gap) — the note pins the semantics so the
+// contract review does not read the two spellings as an accident to
+// "fix".
+func (h *Handler) serveVirtualManifestCopy(w http.ResponseWriter, r *http.Request, member, origin string, node *metadata.Node, mediaType, dgst string, size int64, cacheState, upstreamError string) {
 	w.Header().Set(repo.HdrResolvedFrom, member)
-	h.serveRemoteManifestCopy(w, r, node, mediaType, dgst, size, cacheState, upstreamError)
+	h.serveRemoteManifestCopy(w, r, remoteFace{registry: member, origin: origin}, node, mediaType, dgst, size, cacheState, upstreamError)
 }
 
 // serveVirtualBlobCopy serves one member's blob copy: local members ride
 // the same body server the remote copies do (Range, the checksum family,
 // Docker-Content-Digest) — a cache-less local copy simply carries no
 // cache markers.
-func (h *Handler) serveVirtualBlobCopy(w http.ResponseWriter, r *http.Request, member string, node *metadata.Node, cacheState, upstreamError string) {
+func (h *Handler) serveVirtualBlobCopy(w http.ResponseWriter, r *http.Request, member, origin string, node *metadata.Node, cacheState, upstreamError string) {
 	w.Header().Set(repo.HdrResolvedFrom, member)
-	h.serveRemoteBlobCopy(w, r, node, cacheState, upstreamError)
+	h.serveRemoteBlobCopy(w, r, remoteFace{registry: member, origin: origin}, node, cacheState, upstreamError)
 }

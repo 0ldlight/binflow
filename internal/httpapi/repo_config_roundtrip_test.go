@@ -86,7 +86,7 @@ func TestRepoConfigFourDomainRoundTripWire(t *testing.T) {
 			}[tt.field]
 			updatedJSON, _ := json.Marshal(updated)
 			body = fmt.Sprintf(`{"rclass":"local","%s":%s}`, tt.field, updatedJSON)
-			resp = putRepo(t, h, "lib", body)
+			resp = postRepo(t, h, "lib", body)
 			if out, code := mustGet(t, resp), resp.StatusCode; code != http.StatusOK {
 				t.Fatalf("update status %d body=%s", code, out)
 			}
@@ -182,10 +182,12 @@ func TestRepoConfigMistypedDomainWire(t *testing.T) {
 	}
 }
 
-// TestRepoConfigRemoteArmScopeWire: the four-domain family is the LOCAL
-// arm's — a remote body carrying them keeps the canonical-form posture
-// (unknown keys drop, migration-script tolerance), so the echo carries none
-// of them. The drift closure's own boundary, pinned.
+// TestRepoConfigRemoteArmScopeWire (L006-A, D02-R03/R04): the live
+// reference (:8082, 7.161.20) round-trips ALL FOUR domains on a remote
+// repository — the earlier pin ("the family is the LOCAL arm's") was the
+// T-439 drift's own boundary, overturned by evidence. The virtual arm is
+// the reference's narrower scope: repoLayoutRef echoes when set, the other
+// three drop.
 func TestRepoConfigRemoteArmScopeWire(t *testing.T) {
 	h := newHarness(t)
 	resp := putRepo(t, h, "rem", `{
@@ -197,9 +199,49 @@ func TestRepoConfigRemoteArmScopeWire(t *testing.T) {
 		t.Fatalf("create status %d body=%s", code, out)
 	}
 	cfg := getConfiguration(t, h, "rem")
-	for _, key := range []string{"blackedOut", "repoLayoutRef", "maxUniqueSnapshots", "archiveBrowsingEnabled"} {
+	for key, want := range map[string]any{
+		"blackedOut": true, "repoLayoutRef": "simple-default",
+		"maxUniqueSnapshots": float64(7), "archiveBrowsingEnabled": true,
+	} {
+		if cfg[key] != want {
+			t.Errorf("remote echo %q = %v (%T), want %v", key, cfg[key], cfg[key], want)
+		}
+	}
+}
+
+// TestRepoConfigVirtualArmScopeWire (L006-A): the reference's virtual arm
+// keeps repoLayoutRef (set → echo, absent → key omitted: no xsd default on
+// this arm) and DROPS the other three domains sent to it.
+func TestRepoConfigVirtualArmScopeWire(t *testing.T) {
+	h := newHarness(t)
+	seedRepo(t, h, "lib")
+	resp := putRepo(t, h, "vscope", `{
+		"rclass":"virtual","packageType":"generic","repositories":["lib"],
+		"repoLayoutRef":"simple-default","blackedOut":true,
+		"maxUniqueSnapshots":9,"archiveBrowsingEnabled":true
+	}`)
+	if out, code := mustGet(t, resp), resp.StatusCode; code != http.StatusOK {
+		t.Fatalf("create status %d body=%s", code, out)
+	}
+	cfg := getConfiguration(t, h, "vscope")
+	if cfg["repoLayoutRef"] != "simple-default" {
+		t.Errorf("virtual echo repoLayoutRef = %v, want simple-default (full %v)", cfg["repoLayoutRef"], cfg)
+	}
+	for _, key := range []string{"blackedOut", "maxUniqueSnapshots", "archiveBrowsingEnabled"} {
 		if _, ok := cfg[key]; ok {
-			t.Errorf("remote echo unexpectedly carries %q: %v", key, cfg)
+			t.Errorf("virtual echo unexpectedly carries %q — the reference drops it on the virtual arm: %v", key, cfg)
+		}
+	}
+
+	// The bare virtual body echoes WITHOUT repoLayoutRef (the reference's
+	// virtual arm has no default).
+	resp = putRepo(t, h, "vbare", `{"rclass":"virtual","packageType":"generic","repositories":["lib"]}`)
+	if out, code := mustGet(t, resp), resp.StatusCode; code != http.StatusOK {
+		t.Fatalf("bare create status %d body=%s", code, out)
+	}
+	if cfg := getConfiguration(t, h, "vbare"); cfg != nil {
+		if _, ok := cfg["repoLayoutRef"]; ok {
+			t.Errorf("bare virtual echo carries repoLayoutRef %v — the reference omits it when unset", cfg)
 		}
 	}
 }
@@ -215,7 +257,7 @@ func TestBlackedOutWriteRefusalWire(t *testing.T) {
 	seedDockerRepo(t, h, "dock")
 
 	// Black the generic repository out through the config plane.
-	resp := putRepo(t, h, "lib", `{"rclass":"local","blackedOut":true}`)
+	resp := postRepo(t, h, "lib", `{"rclass":"local","blackedOut":true}`)
 	if out, code := mustGet(t, resp), resp.StatusCode; code != http.StatusOK {
 		t.Fatalf("blackout update status %d body=%s", code, out)
 	}
@@ -233,7 +275,7 @@ func TestBlackedOutWriteRefusalWire(t *testing.T) {
 	}
 
 	// Flip off: the write plane reopens.
-	resp = putRepo(t, h, "lib", `{"rclass":"local","blackedOut":false}`)
+	resp = postRepo(t, h, "lib", `{"rclass":"local","blackedOut":false}`)
 	if out, code := mustGet(t, resp), resp.StatusCode; code != http.StatusOK {
 		t.Fatalf("flip-off status %d body=%s", code, out)
 	}
@@ -255,7 +297,7 @@ func TestBlackedOutWriteRefusalWire(t *testing.T) {
 		t.Fatalf("baseline blob upload status %d body=%s", code, out)
 	}
 
-	resp = putRepo(t, h, "dock", `{"rclass":"local","blackedOut":true}`)
+	resp = postRepo(t, h, "dock", `{"rclass":"local","blackedOut":true}`)
 	if out, code := mustGet(t, resp), resp.StatusCode; code != http.StatusOK {
 		t.Fatalf("docker blackout status %d body=%s", code, out)
 	}
@@ -281,7 +323,7 @@ func TestBlackedOutWriteRefusalWire(t *testing.T) {
 
 	// Flip the registry back on: the same push lands (the mark is a live
 	// switch, not a sticky refusal).
-	resp = putRepo(t, h, "dock", `{"rclass":"local","blackedOut":false}`)
+	resp = postRepo(t, h, "dock", `{"rclass":"local","blackedOut":false}`)
 	if out, code := mustGet(t, resp), resp.StatusCode; code != http.StatusOK {
 		t.Fatalf("docker flip-off status %d body=%s", code, out)
 	}

@@ -43,7 +43,7 @@
 | POST | `/api/security/users/{userName}` | admin | 200 无 body（部分更新语义） | 404 / 409 / 400 | 高 |
 | DELETE | `/api/security/users/{userName}` | admin | 200 text `The user: '<name>' has been removed successfully.` | 404；Access 拒绝 → 403（透传消息） | 高 |
 
-GET 单用户响应字段集（`SecurityModelPopulator#getUserConfiguration`）：`name`、`email`、`admin`（直接或组 admin 均为 true）、`groups`、`lastLoggedIn`（ISO8601，>0 才有）、`realm`、`profileUpdatable`、`internalPasswordDisabled`、`disableUIAccess`（来自用户属性 `blockUiView`）、`policyViewer/policyManager/watchManager/reportsManager`、`mfaStatus`、`status`。**不含任何口令字段。高**
+GET 单用户响应字段集（`SecurityModelPopulator#getUserConfiguration`）：`name`、`email`、`admin`（直接或组 admin 均为 true）、`groups`、`lastLoggedIn`（ISO8601 含毫秒，>0 才有）、`realm`、`profileUpdatable`、`internalPasswordDisabled`、`disableUIAccess`（来自用户属性 `blockUiView`）、`policyViewer/policyManager/watchManager/reportsManager`、`mfaStatus`、`status`、`offlineMode`、`shouldInvite`、`lastLoggedInMillis`。条件出现：`email` 未设整键缺席、`groups` 空集整键缺席、`lastLoggedIn` 未登录整键缺席；`lastLoggedInMillis` 恒渲染（admin 行 `lastLoggedIn` 有值时 millis 仍为 0）。（三键+条件出现形态 2026-09-12 活体补齐——L007-1 §2 三形态取证，reports/compatibility/L007-residuals-users-diff.md；规格以活体为准。）**不含任何口令字段。高**
 
 ### 1.3 创建/替换用户（PUT）校验链（按代码顺序）
 

@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
@@ -287,4 +288,70 @@ func codeOf(se *repo.StatusError) int {
 		return 0
 	}
 	return se.Code
+}
+
+// TestV2MemberManifestColdMissNegativeRow (L006-2): the member-facts seam's
+// cold-miss READ probe — a REMOTE member whose index rows do not answer
+// consults the reference-keyed negative memory (C14) before answering the
+// upstream-decides miss: a fresh miss row answers RemoteProbeNegative (the
+// walk skips the member's upstream conversation inside the window), an
+// expired or absent row keeps the RemoteProbeMiss posture. Both reference
+// shapes probe their own key — the tag under the image's tags/ namespace,
+// the digest at the manifest node path — the two spellings the adapter's
+// manifestMissNodePath writes (the adapter-side virtual cold-miss walk test
+// locks the cross-package keying agreement end to end).
+func TestV2MemberManifestColdMissNegativeRow(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	seedT365Repo(t, e, "t365-hl", repo.TypeLocal, "{}")
+	seedT365Repo(t, e, "t365-hr", repo.TypeRemote, "{}")
+	seedT365Virtual(t, e, "t365-virt", `{"repositories":["t365-hl","t365-hr"]}`, "t365-hl", "t365-hr")
+	plane, ok := e.svc.(repo.V2VirtualPlane)
+	if !ok {
+		t.Fatal("the service carries no V2VirtualPlane seam")
+	}
+	absentHex := sha256HexOf("l0062-absent-manifest")
+
+	for _, tc := range []struct {
+		name      string
+		reference string
+		rowPath   string // "" plants no negative row
+		fresh     bool
+		want      string
+	}{
+		{"tag reference with a fresh tag-keyed row", "9.9.9", "mychart/tags/9.9.9", true, repo.RemoteProbeNegative},
+		{"tag reference with an expired row keeps the miss posture", "9.9.9", "mychart/tags/9.9.9", false, repo.RemoteProbeMiss},
+		{"tag reference with no row", "8.8.8", "", false, repo.RemoteProbeMiss},
+		{"digest reference with a fresh node-path row", "sha256:" + absentHex, "mychart/manifests/" + absentHex, true, repo.RemoteProbeNegative},
+		{"digest reference with an expired row keeps the miss posture", "sha256:" + absentHex, "mychart/manifests/" + absentHex, false, repo.RemoteProbeMiss},
+		{"digest reference with no row", "sha256:" + sha256HexOf("l0062-other-absent"), "", false, repo.RemoteProbeMiss},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.rowPath != "" {
+				// The row's window rides the env's frozen clock (the probe's
+				// freshness gate reads s.nowFn — real wall time would land the
+				// frozen clock before every planted expiry).
+				offset := time.Hour
+				if !tc.fresh {
+					offset = -time.Hour
+				}
+				exp := e.clk.Now().Add(offset).UTC().Format(time.RFC3339)
+				if err := e.md.Remote().PutCache(ctx, &metadata.RemoteCacheEntry{
+					RepoKey: "t365-hr", Path: tc.rowPath, Kind: "negative", FetchedAt: exp, ExpiresAt: exp,
+				}); err != nil {
+					t.Fatalf("plant the negative row %s: %v", tc.rowPath, err)
+				}
+			}
+			facts, err := plane.V2MemberManifest(ctx, admin(), "t365-virt", "t365-hr", "mychart", tc.reference)
+			if err != nil {
+				t.Fatalf("V2MemberManifest(%s): %v", tc.reference, err)
+			}
+			if facts.Cache != tc.want {
+				t.Fatalf("Cache = %q, want %q", facts.Cache, tc.want)
+			}
+			if facts.Digest != "" || facts.Node != nil {
+				t.Fatalf("facts = (%q, %+v), want the Digest-less shape (the negative memory carries no copy)", facts.Digest, facts.Node)
+			}
+		})
+	}
 }

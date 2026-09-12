@@ -37,6 +37,10 @@ RUN npm ci
 COPY web/index.html web/vite.config.ts web/tsconfig.json web/tsconfig.node.json ./
 COPY web/scripts ./scripts
 COPY web/src ./src
+# vite public dir: web/public/brand/** lands in dist/brand/** and
+# wire-brand-assets.mjs fail-fasts when it is empty — without this COPY
+# `npm run build` dies inside the image (DEFECT-L000-1).
+COPY web/public ./public
 RUN npm run build
 
 # ---- stage 2: docs (node) ---------------------------------------------------

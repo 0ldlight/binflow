@@ -2,9 +2,13 @@ package httpapi
 
 import (
 	"context"
+	"crypto/md5" //nolint:gosec // G401: md5 here is the reference's propertiesMd5 wire digest (a compatibility hash, never addressing or integrity — those are sha256-only, ADR-0003); same ruling as internal/adapter/docker/digest.go
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -196,7 +200,9 @@ func (s *Server) handleStorageStats(w http.ResponseWriter, r *http.Request, repo
 // follows the flag), answers both the file and the folder spelling through
 // its exact-match arm, resolves a VIRTUAL address onto the member rows the
 // counts live on, and writes no audit row — so the probe is invisible to
-// the counters and the audit trail alike.
+// the counters and the audit trail alike. Deliberately NO
+// children-derived folder marker (storageNode's display arm): a folder
+// without a row has no statistics source and answers the honest 404.
 func (s *Server) statsNode(r *http.Request, p *auth.Principal, repoKey, relPath string) (*metadata.Node, error) {
 	trimmed := strings.TrimSuffix(relPath, "/")
 	if trimmed == "" {
@@ -210,12 +216,8 @@ func (s *Server) statsNode(r *http.Request, p *auth.Principal, repoKey, relPath 
 	if err != nil {
 		return nil, err
 	}
-	want := trimmed
-	if isFolderPath(relPath) {
-		want = trimmed + "/"
-	}
 	for _, n := range nodes {
-		if n.Path == want {
+		if n.Path == relPath {
 			return n, nil
 		}
 	}
@@ -402,9 +404,30 @@ func principalLetters(m map[string]auth.PrincipalBits) map[string][]string {
 	return out
 }
 
-// storageNode resolves one node row through the content-plane service call
-// so the read-ACL and the anonymous policy apply exactly as on a download.
-// Get addresses a folder row with ErrIsFolder AND the row itself.
+// metaNodeResolver is the metadata faces' resolution seam off the concrete
+// service (consumer-side interface, the remoteBrowseViewer precedent):
+// ResolveMeta lives on *service — the content plane's refusal predicates
+// (path validation, the read gate on the addressed spelling, the local
+// governance pattern gate) around the listing channel's row walk, with no
+// content-plane side effects — but deliberately NOT on the big repo.Service
+// interface, so the hand-written adapter fakes that satisfy it method by
+// method stay untouched. The assertion failing is a wiring bug: it answers
+// the honest 500 (fail closed), never a fallback that silently drops the
+// predicates.
+type metaNodeResolver interface {
+	ResolveMeta(ctx context.Context, p *repo.Principal, repoKey, path string) (*metadata.Node, error)
+}
+
+// storageNode resolves one node row for the /api/storage metadata faces
+// (item-info, ?properties, ?permissions, the ?list queried directory)
+// through ResolveMeta — the L011-1 de-probing: these faces render
+// metadata, they are not downloads, and the reference's counters never
+// move on them (differential evidence: reference item-info via a virtual
+// member 0→0, via an uncached remote 404-no-fetch; the pre-fix BinFlow
+// answered 0→1 per face and fetched-then-200). The refusal predicates
+// still apply exactly as on a download (review A B1/B2: the governance
+// pattern gate and the addressed-spelling read gate — matchStart's folder
+// arm — are Get's own, kept by ResolveMeta).
 //
 // Folder spelling: storage rows keep the trailing slash ("acme/"), while a
 // client addressing the directory through /api/storage usually omits it
@@ -413,15 +436,13 @@ func principalLetters(m map[string]auth.PrincipalBits) map[string][]string {
 // indistinguishable from a sloppy one, and the 404 wording must key on what
 // the client actually sent.
 func (s *Server) storageNode(r *http.Request, p *auth.Principal, repoKey, relPath string) (*metadata.Node, error) {
-	_, node, err := s.deps.ReposSvc.Get(r.Context(), p, repoKey, relPath)
-	if errors.Is(err, repo.ErrIsFolder) && node != nil {
-		return node, nil
+	resolver, ok := s.deps.ReposSvc.(metaNodeResolver)
+	if !ok {
+		return nil, fmt.Errorf("metadata node resolution is not available on this assembly")
 	}
+	node, err := resolver.ResolveMeta(r.Context(), p, repoKey, relPath)
 	if errors.Is(err, repo.ErrNodeNotFound) && relPath != "" && !isFolderPath(relPath) {
-		_, node, err = s.deps.ReposSvc.Get(r.Context(), p, repoKey, relPath+"/")
-		if errors.Is(err, repo.ErrIsFolder) && node != nil {
-			return node, nil
-		}
+		node, err = resolver.ResolveMeta(r.Context(), p, repoKey, relPath+"/")
 	}
 	return node, err
 }
@@ -670,10 +691,88 @@ func (s *Server) digestTripleOf(ctx context.Context, node *metadata.Node) *check
 	return t
 }
 
-// ---- ?list (E-10, P2) ----
+// ---- ?list (E-10, P2; LOOP 009 L009-2 param family) ----
 
-// listFile is one files[] entry of the ?list response: uri is RELATIVE to
-// the queried directory (rest-api.md section 3).
+// fileListMediaType is the ?list response's pinned vendor content type
+// (L008-3 §1 item 11: application/vnd.org.jfrog.artifactory.storage.FileList+json).
+const fileListMediaType = "application/vnd.org.jfrog.artifactory.storage.FileList+json"
+
+// listQueryParams are the seven integer parameters of the ?list family. Every
+// PRESENT value must parse as an integer (the reference's getQueryParameterAsInt)
+// — anything else answers 400 `For input string: "<v>"`. The boolean arms are on
+// iff the parsed value equals 1 (L008-3 §1 items 1-2, 4, 8).
+var listQueryParams = []string{
+	"deep", "depth", "listFolders", "mdTimestamps", "statsTimestamps", "includeRootPath", "includePropertiesMd5",
+}
+
+// listOptions is the ?list family's validated parameter set (L010-1 P2: all
+// seven params now consumed).
+type listOptions struct {
+	deep        bool // deep=1: recurse; any other integer value stays flat
+	depth       int  // only a modifier: clamps the deep=1 recursion, never triggers it
+	listFolders bool // listFolders=1: folder rows join files[]
+	includeRoot bool // includeRootPath=1: the queried folder itself leads files[]
+	// mdTimestamps=1: entries (files AND folders) carrying properties gain
+	// mdTimestamps.properties = the node's last property-mutation time; with
+	// statsTimestamps=1 downloaded file entries additionally gain
+	// mdTimestamps.artifactory.stats = the last download time.
+	mdTimestamps bool
+	// statsTimestamps=1: file entries with at least one download gain
+	// mdTimestamps.artifactory.stats (never-download files and folder rows
+	// omit the key).
+	statsTimestamps bool
+	// includePropertiesMd5=1: entries carrying properties gain propertiesMd5
+	// = md5 over the canonical property serialization (propsSetMd5).
+	includePropsMd5 bool
+}
+
+// parseListOptions validates the seven integer params in the reference's
+// order-independence: each PRESENT value is parsed once; the error message is
+// Java's Integer.parseInt wording, byte-for-byte (`For input string: "abc"`).
+// A param whose value is EMPTY or blank never reaches the parse — the
+// reference's getQueryParameterAsInt short-circuits on
+// containsKey && isNotBlank BEFORE parseInt and treats the param as 0
+// (ArtifactResource.java:376-382; `?list&deep` is simply an absent deep).
+func parseListOptions(q url.Values) (listOptions, error) {
+	var o listOptions
+	for _, name := range listQueryParams {
+		vals, ok := q[name]
+		if !ok || len(vals) == 0 || strings.TrimSpace(vals[0]) == "" {
+			continue
+		}
+		n, err := strconv.Atoi(vals[0])
+		// Java's parseInt is int32-bounded: a value outside [MinInt32,
+		// MaxInt32] throws the SAME NumberFormatException wording (public
+		// spec; `depth=2147483648` -> `For input string: "2147483648"`).
+		// Go's Atoi is 64-bit and only errors past int64 — the (2^31, 2^63)
+		// window must be caught explicitly (Review A).
+		if err != nil || n > math.MaxInt32 || n < math.MinInt32 {
+			return o, errors.New(`For input string: "` + vals[0] + `"`)
+		}
+		switch name {
+		case "deep":
+			o.deep = n == 1
+		case "depth":
+			o.depth = n
+		case "listFolders":
+			o.listFolders = n == 1
+		case "includeRootPath":
+			o.includeRoot = n == 1
+		case "mdTimestamps":
+			o.mdTimestamps = n == 1
+		case "statsTimestamps":
+			o.statsTimestamps = n == 1
+		case "includePropertiesMd5":
+			o.includePropsMd5 = n == 1
+		}
+	}
+	return o, nil
+}
+
+// listFile is one files[] entry of the ?list response: uri carries a LEADING
+// slash and the path RELATIVE to the queried directory (`/f1.txt`, `/d2/f3.txt`);
+// a folder row spells `/d2` (no trailing slash), size -1, no digests, and mixes
+// with file rows in the one alphabetical order (L008-3 §1 items 4, 9).
 type listFile struct {
 	URI          string `json:"uri"`
 	Size         int64  `json:"size"`
@@ -681,6 +780,17 @@ type listFile struct {
 	Folder       bool   `json:"folder"`
 	SHA1         string `json:"sha1,omitempty"`
 	SHA2         string `json:"sha2,omitempty"`
+	// MDTimestamps carries mdTimestamps.properties (property-mutation time of
+	// property-carrying entries) and/or mdTimestamps.artifactory.stats (last
+	// download time of downloaded file entries) — each key present only when
+	// the param asked for it AND the node has the underlying fact. Map
+	// marshaling sorts keys, matching the reference's artifactory.stats <
+	// properties order (L010-1 live evidence). Sits after sha2, before
+	// propertiesMd5 (same evidence).
+	MDTimestamps map[string]string `json:"mdTimestamps,omitempty"`
+	// PropertiesMd5 is the property set's canonical md5 (propsSetMd5), only
+	// on property-carrying entries under includePropertiesMd5=1.
+	PropertiesMd5 string `json:"propertiesMd5,omitempty"`
 }
 
 // listResponse is the ?list body.
@@ -695,86 +805,271 @@ type listResponse struct {
 	RemoteDegraded string `json:"remoteDegraded,omitempty"`
 }
 
-// handleStorageList serves GET /api/storage/{repo}/{path}?list (E-10). The
-// spec's rejection ladder (rest-api.md section 3, high confidence):
-// anonymous -> 403; the repository root -> 400 "Cannot list files of root.";
-// a file target -> 400. deep=1 asks for the full recursion; depth=N bounds
-// it (M1 subset: list/deep/depth, FR-3-AC8).
+// handleStorageList serves GET /api/storage/{repo}/{path}?list (E-10).
+// Behavior per the L008-3 differential (32-arm matrix, live both sides):
+//
+//   - anonymous -> 403 (kept); the seven integer params validate FIRST — any
+//     present non-numeric value answers 400 `For input string: "<v>"`;
+//   - the repository root lists (200, its direct child files); the reference
+//     refuses only requests carrying no repository segment at all, and the
+//     router never dispatches those here;
+//   - a file target -> 400 `Expected a folder but found a file, at: <repo>:<path>`
+//     (colon spelling);
+//   - recursion triggers on deep=1 ONLY; depth is a modifier that clamps the
+//     recursion (deep=1&depth=N = N levels, depth<=0 = unlimited) and never
+//     triggers recursion alone;
+//   - folder rows appear only under listFolders=1 (`/d2` form, size -1);
+//     includeRootPath=1 leads files[] with the queried folder as `/`;
+//   - mdTimestamps=1 / statsTimestamps=1 / includePropertiesMd5=1 add the
+//     P2 metadata keys (enrichListEntry / propsSetMd5);
+//   - created is the request's wall clock; the body's Content-Type is the
+//     FileList vendor media type.
 func (s *Server) handleStorageList(w http.ResponseWriter, r *http.Request, repoKey, relPath string) {
 	p := principalFrom(r.Context())
 	if p == nil {
 		writeError(w, http.StatusForbidden, "listing repository files requires an authenticated user")
 		return
 	}
-	if relPath == "" {
-		writeError(w, http.StatusBadRequest, "Cannot list files of root.")
-		return
-	}
-
-	node, err := s.storageNode(r, p, repoKey, relPath)
+	opts, err := parseListOptions(r.URL.Query())
 	if err != nil {
-		s.writeStorageError(w, err)
-		return
-	}
-	if !isFolderPath(node.Path) {
-		writeError(w, http.StatusBadRequest,
-			"Cannot list files of a file '"+repoKey+"/"+node.Path+"'.")
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	dir := strings.TrimSuffix(node.Path, "/")
+	// The queried directory: relPath "" is the repository root (listable —
+	// no node row exists there, exactly like serveRootFolder's posture).
+	var node *metadata.Node
+	dir := ""
+	if relPath != "" {
+		node, err = s.storageNode(r, p, repoKey, relPath)
+		if err != nil {
+			s.writeStorageError(w, err)
+			return
+		}
+		if !isFolderPath(node.Path) {
+			writeError(w, http.StatusBadRequest,
+				"Expected a folder but found a file, at: "+repoKey+":"+node.Path)
+			return
+		}
+		dir = strings.TrimSuffix(node.Path, "/")
+	}
+
 	nodes, degraded, err := s.listWithNote(r.Context(), p, repoKey, dir)
 	if err != nil {
 		s.writeStorageError(w, err)
 		return
 	}
 
-	// depth bounds the recursion below the queried directory; deep=1 means
-	// unlimited (depth 0).
-	depth := 1
-	if strings.TrimSpace(r.URL.Query().Get("deep")) == "1" {
-		depth = 0
-	} else if dv := r.URL.Query().Get("depth"); dv != "" {
-		if n, perr := strconv.Atoi(dv); perr == nil && n > 0 {
-			depth = n
-		}
+	// Recursion semantics (L008-3 §1 item 3): flat by default; deep=1 opens
+	// the tree with depth as its only clamp (0/negative = unlimited).
+	limit := 1
+	if opts.deep {
+		limit = opts.depth
 	}
 
-	prefix := dir + "/"
-	resp := listResponse{
-		URI:            storageURI(requestBase(r), repoKey, node.Path),
-		Created:        isoMillisUTC(node.CreatedAt),
-		Files:          []listFile{},
-		RemoteDegraded: degraded,
+	prefix := ""
+	if dir != "" {
+		prefix = dir + "/"
+	}
+
+	// P2 metadata enrichment (L010-1): mdTimestamps needs each node's last
+	// property-mutation time (audit-derived, see propModifiedTimes); the
+	// property-presence keys and propertiesMd5 need the per-entry property
+	// sets — both read lazily below, only under the asking params.
+	var propMtimes map[string]string
+	if opts.mdTimestamps {
+		propMtimes = s.propModifiedTimes(r.Context(), repoKey)
+	}
+
+	rootModified := ""
+	if node != nil {
+		rootModified = node.UpdatedAt
+		if rootModified == "" {
+			rootModified = node.CreatedAt
+		}
+	} else if opts.includeRoot {
+		// The repository root has no node row; its "/" entry still carries a
+		// REAL timestamp on the reference (the storage root's own mtime —
+		// live evidence L010-1), never the epoch zero. The repo row's
+		// creation time is BinFlow's honest analog (the root materializes
+		// with the repository itself).
+		if row, rerr := s.deps.Repos.Get(r.Context(), repoKey); rerr == nil && row != nil {
+			rootModified = row.CreatedAt
+		}
+	}
+	files := make([]listFile, 0, len(nodes)+1)
+	if opts.includeRoot {
+		rootEntry := listFile{
+			URI: "/", Size: -1, Folder: true,
+			LastModified: isoMillisUTC(rootModified),
+		}
+		if node != nil {
+			s.enrichListEntry(r.Context(), &rootEntry, node, opts, propMtimes)
+		}
+		files = append(files, rootEntry)
 	}
 	for _, n := range nodes {
 		rel := strings.TrimPrefix(n.Path, prefix)
 		if rel == "" {
 			continue // the queried folder row itself
 		}
-		levels := strings.Count(rel, "/")
 		folder := isFolderPath(n.Path)
-		if folder && levels == 0 {
-			continue // the folder row of a direct child: its content lists it
+		if folder && !opts.listFolders {
+			continue // folder rows join only under listFolders=1
 		}
-		if depth > 0 && levels+1 > depth {
+		name := strings.TrimSuffix(rel, "/")
+		if levels := strings.Count(name, "/") + 1; limit > 0 && levels > limit {
 			continue
 		}
 		entry := listFile{
-			URI:          rel,
-			Size:         n.Size,
+			URI:          "/" + name,
 			LastModified: isoMillisUTC(n.UpdatedAt),
 			Folder:       folder,
 		}
-		if !folder && n.Sha256 != "" {
-			entry.SHA2 = n.Sha256
-			if b, berr := s.deps.Metadata.Blobs().Get(r.Context(), n.Sha256); berr == nil && b != nil {
-				entry.SHA1 = b.Sha1
+		if folder {
+			entry.Size = -1
+		} else {
+			entry.Size = n.Size
+			if n.Sha256 != "" {
+				entry.SHA2 = n.Sha256
+				if b, berr := s.deps.Metadata.Blobs().Get(r.Context(), n.Sha256); berr == nil && b != nil {
+					entry.SHA1 = b.Sha1
+				}
 			}
 		}
-		resp.Files = append(resp.Files, entry)
+		s.enrichListEntry(r.Context(), &entry, n, opts, propMtimes)
+		files = append(files, entry)
 	}
-	writeJSONBody(w, http.StatusOK, resp)
+	// The whole listing is one alphabetical order over the entry uris
+	// (L008-3 §1 item 14) — folder rows mix with file rows, `/` leads.
+	sort.Slice(files, func(i, j int) bool { return files[i].URI < files[j].URI })
+
+	display := ""
+	if node != nil {
+		display = node.Path
+	}
+	resp := listResponse{
+		// No trailing slash on the queried folder's own uri (root = bare
+		// repo key; L008-3 §1 item 9).
+		URI:            strings.TrimSuffix(storageURI(requestBase(r), repoKey, display), "/"),
+		Created:        time.Now().UTC().Format("2006-01-02T15:04:05.000Z07:00"),
+		Files:          files,
+		RemoteDegraded: degraded,
+	}
+	writeJSONBodyCT(w, http.StatusOK, fileListMediaType, resp)
+}
+
+// enrichListEntry applies the P2 metadata parameters to one files[] entry
+// (L010-1, live evidence on the reference): mdTimestamps=1 adds
+// mdTimestamps.properties (only when the node carries properties AND a
+// mutation time is known) and mdTimestamps.artifactory.stats (only on file
+// rows with at least one download, under statsTimestamps=1);
+// includePropertiesMd5=1 adds the property set's canonical md5. Every key is
+// a fact of the node — nothing is faked (a property-carrying node whose
+// mutation time is beyond the audit window simply omits the properties key,
+// the statsInfoBody "never faked" posture).
+func (s *Server) enrichListEntry(ctx context.Context, entry *listFile, node *metadata.Node, opts listOptions, propMtimes map[string]string) {
+	var props map[string][]string
+	if opts.mdTimestamps || opts.includePropsMd5 {
+		var err error
+		props, err = s.deps.Metadata.NodeProps().List(ctx, node.RepoKey, node.Path)
+		if err != nil {
+			s.log.ErrorContext(ctx, "httpapi: list properties read failed",
+				"repo", node.RepoKey, "path", node.Path, "error", err.Error())
+			props = nil
+		}
+	}
+	if len(props) == 0 {
+		props = nil // property-less entries carry neither P2 key
+	}
+	if opts.mdTimestamps && props != nil {
+		if t, ok := propMtimes[node.Path]; ok && t != "" {
+			if entry.MDTimestamps == nil {
+				entry.MDTimestamps = map[string]string{}
+			}
+			entry.MDTimestamps["properties"] = isoMillisUTC(t)
+		}
+	}
+	if opts.statsTimestamps && !entry.Folder {
+		st, err := s.deps.Metadata.Nodes().Stats(ctx, node.RepoKey, node.Path)
+		if err != nil {
+			s.log.ErrorContext(ctx, "httpapi: list stats read failed",
+				"repo", node.RepoKey, "path", node.Path, "error", err.Error())
+		} else if st != nil && st.LastDownloadedAt != "" {
+			// The reference takes max(lastDownloaded, remoteLastDownloaded);
+			// BinFlow has no smart-remote pull-back statistic (the ?stats
+			// face's own UNSOURCED posture), so the local arm is the whole
+			// max.
+			if entry.MDTimestamps == nil {
+				entry.MDTimestamps = map[string]string{}
+			}
+			entry.MDTimestamps["artifactory.stats"] = isoMillisUTC(st.LastDownloadedAt)
+		}
+	}
+	if opts.includePropsMd5 && props != nil {
+		entry.PropertiesMd5 = propsSetMd5(props)
+	}
+}
+
+// propModifiedTimes derives every node's last property-mutation time in one
+// repository from the audit log (props.write / props.delete rows, the only
+// faces that mutate node properties). Two newest-first queries, first sight
+// per path wins; a path present in both actions keeps the newer time
+// (RFC3339 UTC text compares chronologically).
+//
+// ponytail: page capped at 1000 events per action — a repository with more
+// property history than that derives stale/absent mtimes for the tail. The
+// proper face is a metadata GROUP BY (path, max(time)) like
+// AuditStore.LastActionTimes; promote when a listing over heavy property
+// history measurably needs it.
+func (s *Server) propModifiedTimes(ctx context.Context, repoKey string) map[string]string {
+	out := map[string]string{}
+	for _, action := range []string{propsAuditWrite, propsAuditDelete} {
+		events, err := s.deps.Metadata.Audits().Query(ctx, metadata.AuditQuery{
+			RepoKey: repoKey, Action: action, Limit: 1000,
+		})
+		if err != nil {
+			// Degrade to whatever the other action yields: a missing mtime
+			// omits a key, it never wrongs one.
+			s.log.ErrorContext(ctx, "httpapi: property-mtime audit query failed",
+				"repo", repoKey, "action", action, "error", err.Error())
+			continue
+		}
+		for _, e := range events {
+			if e.Path == "" {
+				continue
+			}
+			if prev, seen := out[e.Path]; !seen || e.Time > prev {
+				out[e.Path] = e.Time
+			}
+		}
+	}
+	return out
+}
+
+// propsSetMd5 renders the propertiesMd5 of one property set: md5 over the
+// concatenation of key+value for every value, keys and values each in
+// ascending order, with NO separator anywhere (derived black-box on the
+// reference, L010-1: ten arms including multi-value, multi-key,
+// insertion-order reversal, and folder/file equality — e.g. {pa:[y],pb:[x]}
+// -> md5("paypbx"); the folder and the file carrying the same set answer
+// the same digest, so no path or repo salt exists).
+func propsSetMd5(props map[string][]string) string {
+	keys := make([]string, 0, len(props))
+	for k := range props {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	h := md5.New() //nolint:gosec // G401: the reference's propertiesMd5 compatibility digest, see the import ruling
+	for _, k := range keys {
+		vs := append([]string(nil), props[k]...)
+		sort.Strings(vs)
+		for _, v := range vs {
+			_, _ = h.Write([]byte(k))
+			_, _ = h.Write([]byte(v))
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // writeStorageError maps repo.Service failures of the storage plane.

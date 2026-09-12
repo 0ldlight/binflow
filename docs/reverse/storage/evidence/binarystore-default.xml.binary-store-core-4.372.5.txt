@@ -1,0 +1,57 @@
+<!--
+  ~ Artifactory is a binaries repository manager.
+  ~ Copyright (C) 2016 JFrog Ltd.
+  ~
+  ~ Artifactory is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~  (at your option) any later version.
+  ~
+  ~ Artifactory is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with Artifactory.  If not, see <http://www.gnu.org/licenses/>.
+  ~
+  -->
+
+<!--
+  ~ TAKE CARE! Making changes to this file may result in losing binaries stored in Artifactory!
+  ~ If you are not sure of what you are doing, please contact JFrog Support for assistance.
+  -->
+
+<!--Default chains-->
+<config version="v1">
+
+    <!-- Basic filesystem default chain -->
+    <chain template="file-system">
+        <provider id="file-system" type="file-system"/>
+    </chain>
+
+    <!-- cachedFS default chain -->
+    <chain template="cache-fs">
+        <provider id="cache-fs" type="cache-fs">
+            <provider id="file-system" type="file-system"/>
+        </provider>
+    </chain>
+
+    <!-- FullDB default chain -->
+    <chain template="full-db">
+        <provider id="cache-fs" type="cache-fs">
+            <provider id="blob" type="blob"/>
+        </provider>
+    </chain>
+
+    <!-- FullDB chain without caching -->
+    <chain template="full-db-direct">
+        <provider id="blob" type="blob"/>
+    </chain>
+
+    <!-- Cached FS provider configuration -->
+    <provider id="cache-fs" type="cache-fs">
+        <fileStoreDir>cache</fileStoreDir>
+    </provider>
+
+</config>

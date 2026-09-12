@@ -184,8 +184,9 @@ func TestV2TokenNonAdmin(t *testing.T) {
 }
 
 // TestV2TokenWrongCredentials (FR-11-AC4 + T-55/PRD v1.2-C3): wrong
-// credentials on /v2/token render the OAUTH-form 401 — same body family as
-// the endpoint's 400s — with the Bearer challenge header unchanged, and
+// credentials on /v2/token render Artifactory's generic error model (the
+// exact observed E1-5 "Bad Credentials" status form) — with the Bearer
+// challenge header unchanged, and
 // leak nothing about which part of the credential failed. The rejected
 // credential is shaped by the ROUTER plane (T-33 review B1's context
 // signal) reaching the adapter's RenderAuthFailure, so this asserts the
@@ -200,23 +201,26 @@ func TestV2TokenWrongCredentials(t *testing.T) {
 		if strings.Contains(body, "no such user") || strings.Contains(body, cred[0]) {
 			t.Fatalf("401 body leaks the username: %s", body)
 		}
-		// T-55: the body is the unified OAuth form on EVERY /v2/token
-		// non-2xx — never the registry spec envelope, never /binflow's.
-		var oe struct {
-			Error            string `json:"error"`
-			ErrorDescription string `json:"error_description"`
+		// L000-B E1-5: the body is the generic error model's Bad
+		// Credentials entry — the docker CLI renders it as
+		// "unknown: Bad Credentials".
+		var eb struct {
+			Errors []struct {
+				Status  int    `json:"status"`
+				Message string `json:"message"`
+			} `json:"errors"`
 		}
-		if err := json.Unmarshal([]byte(body), &oe); err != nil || oe.Error == "" {
-			t.Fatalf("401 body is not the OAuth form: %s", body)
+		if err := json.Unmarshal([]byte(body), &eb); err != nil || len(eb.Errors) != 1 ||
+			eb.Errors[0].Status != http.StatusUnauthorized || eb.Errors[0].Message != "Bad Credentials" {
+			t.Fatalf("401 body is not the E1-5 status form: %s", body)
 		}
-		if strings.Contains(body, `"errors"`) {
-			t.Fatalf("401 body carries the registry spec envelope: %s", body)
+		if strings.Contains(body, `"error":"`) {
+			t.Fatalf("401 body is still the OAuth form: %s", body)
 		}
-		if strings.Contains(body, `"status"`) {
-			t.Fatalf("401 body carries the /binflow envelope: %s", body)
-		}
-		// The challenge header is unchanged: Bearer, token-endpoint realm.
-		want := fmt.Sprintf(`Bearer realm="%s/v2/token",service="binflow"`, h.srv.URL)
+		// The challenge header is unchanged: Bearer, token-endpoint realm;
+		// service echoes the request host (L000-B C01).
+		want := fmt.Sprintf(`Bearer realm="%s/v2/token",service="%s"`,
+			h.srv.URL, strings.TrimPrefix(h.srv.URL, "http://"))
 		if ch := resp.Header.Get("WWW-Authenticate"); ch != want {
 			t.Fatalf("401 challenge = %q, want %q", ch, want)
 		}
@@ -225,14 +229,14 @@ func TestV2TokenWrongCredentials(t *testing.T) {
 		}
 	}
 	// The handler-internal posture (anonymous closed, no credential) keeps
-	// the OAuth form for clients that hit the endpoint bare.
+	// the same generic model with its own observed message (E1-4).
 	h2 := newHarnessCfg(t, func(c *mutatedConfig) { c.Security.AnonymousAccess = false }, nil)
 	resp, body := getV2Token(h2, "", "", "?service=binflow")
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("bare anonymous status = %d; body=%s", resp.StatusCode, body)
 	}
-	if !strings.Contains(body, `"error"`) {
-		t.Fatalf("bare anonymous body is not the OAuth form: %s", body)
+	if !strings.Contains(body, `"Authentication is required"`) {
+		t.Fatalf("bare anonymous body is not the E1-4 form: %s", body)
 	}
 	if ch := resp.Header.Get("WWW-Authenticate"); !strings.HasPrefix(ch, "Basic ") {
 		t.Fatalf("bare anonymous challenge = %q, want Basic", ch)
@@ -333,7 +337,8 @@ func TestV2TokenFormCredentials(t *testing.T) {
 		t.Fatal("client pair token empty")
 	}
 
-	// Wrong form password: 401, and the body leaks nothing.
+	// Wrong form password: 401 in the same E1-5 status form, leaking
+	// nothing.
 	bad := "grant_type=password&username=ci-bot&password=wrong&service=binflow"
 	resp3 := h.do(http.MethodPost, "/v2/token", "", "", []byte(bad),
 		map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
@@ -341,14 +346,17 @@ func TestV2TokenFormCredentials(t *testing.T) {
 	if resp3.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("wrong form password = %d; body=%s", resp3.StatusCode, body3)
 	}
-	if !strings.Contains(body3, `"error"`) || strings.Contains(body3, "ci-bot") {
+	if !strings.Contains(body3, `"Bad Credentials"`) || strings.Contains(body3, "ci-bot") {
 		t.Fatalf("wrong form password body = %s", body3)
 	}
 }
 
-// TestV2TokenRevocation (D23, FR-11-AC6): a token issued at /v2/token is
-// revoked by VALUE at the management endpoint and its Bearer then fails
-// with the registry-plane 401.
+// TestV2TokenRevocation (D23, FR-11-AC6; re-anchored by L003-2): a token
+// issued at /v2/token is revoked by VALUE at the management endpoint and
+// its Bearer then fails with the registry-plane 401 — on the ping route
+// that is the refused-credential face (Basic realm + pretty status form,
+// the reference's own arm; evidence reports/compatibility/
+// L003-remote-face-diff.md ③).
 func TestV2TokenRevocation(t *testing.T) {
 	h := newHarness(t)
 	_, body := getV2Token(h, adminUser, adminPass, "?service=binflow")
@@ -364,16 +372,10 @@ func TestV2TokenRevocation(t *testing.T) {
 	}
 	after := h.do(http.MethodGet, "/v2/", "", "", nil,
 		map[string]string{"Authorization": "Bearer " + tok.Token})
-	abody := mustGet(t, after)
-	if after.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("revoked bearer status = %d; body=%s", after.StatusCode, abody)
-	}
-	if strings.Contains(abody, `"status"`) {
-		t.Fatalf("revoked bearer body carries the /binflow envelope: %s", abody)
-	}
-	if ch := after.Header.Get("WWW-Authenticate"); !strings.Contains(ch, `/v2/token`) {
-		t.Fatalf("challenge = %q, want Bearer realm .../v2/token", ch)
-	}
+	// L004-1: revocation deletes the row, so the revoked Bearer answers the
+	// unknown wording (the reference's "revoked" wording is the registered
+	// model-level divergence).
+	assertPingRefusedFace(t, after, mustGet(t, after), "Props Authentication Token not found")
 }
 
 // TestV2ScopedChallengeMatrix (AC2, table-driven): the 401 challenge on a
@@ -402,8 +404,8 @@ func TestV2ScopedChallengeMatrix(t *testing.T) {
 			if resp.StatusCode != http.StatusUnauthorized {
 				t.Fatalf("status = %d; body=%s", resp.StatusCode, body)
 			}
-			want := fmt.Sprintf(`Bearer realm="%s/v2/token",service="binflow",scope="%s"`,
-				h.srv.URL, tc.scope)
+			want := fmt.Sprintf(`Bearer realm="%s/v2/token",service="%s",scope="%s"`,
+				h.srv.URL, strings.TrimPrefix(h.srv.URL, "http://"), tc.scope)
 			if got := resp.Header.Get("WWW-Authenticate"); got != want {
 				t.Fatalf("WWW-Authenticate =\n  %q\nwant\n  %q", got, want)
 			}

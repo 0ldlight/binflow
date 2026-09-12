@@ -1,12 +1,2538 @@
-# BinFlow 兼容矩阵主账（机读）
-# 迁移占位：M3-1 票将 docs/reverse/rest-compat-matrix.md 的 v1 冻结行集（195 行 × 14 域 D01~D14，
-# 状态 ✅57/◐27/❌83/⛔17/超集C11，置信 高137/中58/低0）逐行迁入本文件并附 contract_ref/golden_ref/
-# last_difftest/priority_class 四新列。迁移完成前，本文件不是事实源——事实源仍为 rest-compat-matrix.md。
+# BinFlow 兼容矩阵主账（机读）——唯一事实源
+# M3-1（LOOP 000 / L000-C，2026-09-11）收口：docs/reverse/rest-compat-matrix.md v1 冻结行集逐行迁入。
+# 迁移后本文件为 capability 四态唯一账；rest-compat-matrix.md 降级为历史冻结快照
+#   （frozen_rowset_v1 统计块保留为审计锚，行态更新一律进本文件 rows + 行级 note 留痕）。
+# 四新列说明：contract_ref/golden_ref → docs/compatibility/{contracts,golden}/（现为空=全覆盖缺口，见 summary）；
+#   last_difftest → 差分报告引用（differential-qa-engineer 回填）；priority_class → LOOP 宪章 §23（见 priority_policy）。
+# 行态口径沿源：compatible=✅ partial=◐ absent=❌ not_applicable=⛔ superset=超集(C)。
+# L005-3（LOOP 005，2026-09-12）增量三件：① +6 新行 D01-R38..R43（storage-admin E5-E10——冻结行集外新行提案落账，
+#   提案源 contracts/storage-admin.yaml 收尾「新行提案」节，conductor 派票授权）；② D01-R30 幽灵行重分类
+#   absent→not_applicable（ghost-row 勘误，行内 note 留痕）；③ summary 非空计数勘正（L004-3 加链 3 行漏记 1→4）。
+#   冻结纪律维持：195 冻结行集不增删不改判（R30 翻态系 conductor 勘误裁定非改判；D01-R40 系本程新行，
+#   依 L005-2 复验收官证据翻 partial→compatible，非冻结行）。
+# LOOP 006 收官联动（L006-1/L006-2，2026-09-12，conductor 指令）：D02-R03/R04、D04-R17 翻 compatible（四域
+#   round-trip + v1 别名面闭合——L006-a-b-diff.md）；D04-R18 裁量维持 partial（残余收窄至三臂渲染族账
+#   known-divergence#rest/permissions-v1-response-shape-residuals）；D06-R17 前提证伪重分类 partial→not_applicable
+#   （参照无 /api/system/backup* REST 族——活体+反编译双证，同 ghost-row 勘误款；BinFlow /api/v1/system/backups
+#   超集面建议新行提案报 conductor）；新立台账三条（update-merge/invalid-value/permissions-residuals，LOOP 007 池）。
+# LOOP 007 收官联动（L007-1/2/3，2026-09-12，conductor 指令）：D04-R18、D04-R02 翻 compatible（permissions
+#   三臂收口+台账 resolved / users 字段集对齐带超集注记）；D02-R03 补注 PUT-on-existing 相抵臂（并入 update-merge
+#   台账联裁）；台账 D3 终裁 BUG 对齐收（conductor_ruling）、virtual 冷负 miss 注记新 BUG、readers 默认组/
+#   anonymous 行两建模级 UNKNOWN、update-merge 附 L007-3 证据+ADR 候选稿、invalid-value 附 R-10 裁定素材。
+#   D06-R30 superset 新行=并行轨（L007-4）按本账 LOOP 006 提案落账。
+# L007-4（LOOP 007，2026-09-12）增量三件：① +1 新行 D06-R30（D06-R17 证伪发现的反面——BinFlow
+#   /api/v1/system/backups 超集面落账 superset，conductor 派票授权，L005-3 冻结行集外新行先例款）；② D04-R18
+#   note 预登记翻绿条件（L007-1 residuals 三臂清偿 + 差分复验后随台账 resolved 翻 compatible）；③ known-divergence
+#   新条目 rest/security-read-family-readonly-admin-gate（经典 security 读族门姿 UNKNOWN——L006 Review B
+#   范围外上报收编，authority=pending 产品）。
+
+---
 schema: 1
-source_of_record_until_migrated: docs/reverse/rest-compat-matrix.md
+source_of_record: docs/compatibility/matrix.yaml（本文件——M3-1 起唯一事实源）
+demoted_snapshot: docs/reverse/rest-compat-matrix.md（历史冻结快照，不再承载行态更新）
 frozen_rowset_v1:
   total: 195
-  states: { compatible: 57, partial: 27, absent: 83, not_applicable: 17, superset: 11 }
-  confidence: { high: 137, medium: 58, low: 0 }
+  states:
+    compatible: 57
+    partial: 27
+    absent: 83
+    not_applicable: 17
+    superset: 11
+  confidence:
+    high: 137
+    medium: 58
+    low: 0
   domains: D01..D14
-rows: []   # M3-1 迁移票填充
+  note: 审计锚：2026-09-06 冻结时点统计，保留原值不改（含已知的 §1 手工 tally 漂移，见 migration.reconciliation）
+migration:
+  ticket: M3-1（LOOP 000 轨道 L000-C）
+  date: '2026-09-11'
+  source: docs/reverse/rest-compat-matrix.md §2~§11 逐行
+  migrated_rows: 193
+  reconciliation:
+    frozen_total: 195
+    delta_rows: -2
+    notes:
+    - D03：§1 冻结计 20 行（❌9），§4 表实列 19 行（❌8）——冻结手工 tally 多计 1 幽灵行（源 V-9 自认 tally 需抽查），不虚构补行
+    - D11：§1 冻结计 3 行（❌2/⛔1），§11 表实列 2 行（❌1/⛔1）——同上，多计 1 幽灵行
+    - D06-R13：冻结时 ❌，2026-09-07 T-493 翻 ◐（源变更日志在案）——迁移取现行态 → 总态 ◐+1/❌-1 相对冻结值
+    - 置信度冻结值 高137/中58 与明细行实计不符（同 tally 漂移）——以本文件 summary.confidence_counts 实计为准
+priority_policy:
+  charter: LOOP 宪章 §23（data integrity/security/core repo/core storage/core HTTP/critical compat=P0；major protocol/remote/virtual/enterprise/performance=P1；UI 细节/非关键管理面=P2）
+  rules:
+  - 源行自带优先级沿用：P0→P0、P1→P1、P2→P2、P3→P2（旧 P3 低优登记在新制无位，并入 P2）
+  - 源行无优先级者按宪章归类：✅ 核心存储/核心仓库/核心 HTTP/安全（D01/D02/D03/D04 及 D06 ping·version·backups）→P0；✅ 主协议/集成/性能（D12/D09/qrl）→P1；⛔ 终态与超集自有面→P2（无对齐工作 pending）
+  - D07/D08 缺位行（build-info/release-bundle）→P1（major enterprise 链，FR-152/153 在途）
+  default: P1
+summary:
+  total_rows: 200
+  state_counts:
+    compatible: 71
+    partial: 20
+    absent: 78
+    not_applicable: 19
+    superset: 12
+  confidence_counts:
+    high: 133
+    medium: 67
+    low: 0
+  priority_counts:
+    P0: 58
+    P1: 62
+    P2: 80
+  by_state_x_priority:
+    compatible:
+      P0: 55
+      P1: 15
+      P2: 1
+    partial:
+      P0: 3
+      P1: 12
+      P2: 5
+    absent:
+      P1: 35
+      P2: 43
+    superset:
+      P2: 12
+    not_applicable:
+      P2: 19
+  by_domain:
+    D01:
+      rows: 43
+      compatible: 22
+      partial: 5
+      absent: 10
+      superset: 2
+      not_applicable: 4
+    D02:
+      rows: 13
+      partial: 1
+      compatible: 4
+      absent: 6
+      not_applicable: 1
+      superset: 1
+    D03:
+      rows: 19
+      compatible: 9
+      absent: 8
+      not_applicable: 2
+    D04:
+      rows: 35
+      compatible: 19
+      partial: 3
+      superset: 1
+      absent: 12
+    D05:
+      rows: 11
+      partial: 5
+      absent: 4
+      not_applicable: 1
+      superset: 1
+    D06:
+      rows: 30
+      compatible: 4
+      partial: 3
+      absent: 11
+      not_applicable: 5
+      superset: 7
+    D07:
+      rows: 11
+      absent: 11
+    D08:
+      rows: 7
+      absent: 6
+      not_applicable: 1
+    D09:
+      rows: 9
+      compatible: 7
+      absent: 1
+      not_applicable: 1
+    D10:
+      rows: 1
+      absent: 1
+    D11:
+      rows: 2
+      absent: 1
+      not_applicable: 1
+    D12:
+      rows: 17
+      compatible: 6
+      partial: 3
+      absent: 7
+      not_applicable: 1
+    D13:
+      rows: 1
+      not_applicable: 1
+    D14:
+      rows: 1
+      not_applicable: 1
+  contract_ref_non_null: 10  # L005-3：D12-R01 + D01-R26/R27/R30（L004-3 加链 3 行原计数漏记，一并勘正）+ 新增 D01-R38..R43 六行
+  golden_ref_non_null: 1     # D12-R01（empty-blob-synthetic / pull-sequence）——storage-admin 十端点无金样，形态断言锚 L003 差分报告
+  last_difftest_non_null: 16 # L005-3：D12-R01 + D01-R26/R27/R30 + 新增六行（=10）；L007-4 勘正：LOOP 006 收官五行（D02-R03/R04、D04-R17/R18、D06-R17）L006-1/L006-2 回填 last_difftest 未同步计数（10→15 漏记）+ 本程 D06-R30 → 实计 16（逐行 ruby 对账通过）
+rows:
+- row_id: D01-R01
+  domain: D01
+  capability: GET /api/storage/{repoKey}/{path}（FileInfo/FolderInfo 无参形态）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 1"
+- row_id: D01-R02
+  domain: D01
+  capability: GET /api/storage/{repoKey}/{path}?properties|?list|?stats|?permissions 四臂
+  state: compatible
+  confidence: high
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L010-list-p2-diff.md §6-a（A30 参照臂：属性已写已读文件无 artifactory.stats——参照元数据面不计数）
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 2"
+  note: 'LOOP 010（2026-09-12）挂臂级账指针：item-info GET 与 ?properties GET/PUT/DELETE 经 storageNode
+    →ReposSvc.Get 计入 downloadCount（参照不计数——UAT 隔离探针实证，known-divergence
+    #rest/metadata-plane-download-count-pollution BUG，LOOP 011 修复票）——臂级账不占本行四臂主面
+    compatible 态（读写面形态已对齐，计数副作用单账收口）。'
+- row_id: D01-R03
+  domain: D01
+  capability: GET /api/storage/{repoKey}/{path}?propertiesXml 臂（BinFlow 501 显式拒绝）
+  state: partial
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 3"
+- row_id: D01-R04
+  domain: D01
+  capability: GET /api/storage/{repoKey}/{path}?lastModified 臂
+  state: partial
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 4"
+- row_id: D01-R05
+  domain: D01
+  capability: GET ...?list 参数族 deep/depth/listFolders/mdTimestamps/includeRootPath/includePropertiesMd5
+  state: compatible
+  confidence: high
+  contract_ref:
+  golden_ref:
+  last_difftest: 'L010-list-p2-diff.md §2-§4（32 臂全量重跑 32/32 归一 SAME 两轮 + 延期单臂四组 19/19 + includeRootPath 根条目时刻形态双端一致）；前置 T-L009-2（25/32——余 7 臂全落 P2 三参）+ L008-list-params-diff（首轮 26 DIVERGENT）'
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 5"
+  note: 'LOOP 009 收窄（25/32）→ LOOP 010（2026-09-12）收官翻 compatible：P2 三参全落（跨面等值性
+    规格先行取证 + 32/32 归一两轮 + 空值/int32 界/XSS 四角/NameValidator 延期四组 19/19）——台账
+    #rest/storage-list-params-family resolved；includeRootPath 根条目 1970 零时刻已修（repo 行
+    CreatedAt「根随仓生」）。冻结快照 rest-compat-matrix.md §2 行 5 与修复带 2-3（文件行 356）的
+    「◐ 待核对」历史行以本主账翻态为准（冻结件不回改——留痕即本注）。'
+- row_id: D01-R06
+  domain: D01
+  capability: PUT /api/storage/{repoKey}/{path}?properties=k=v&recursive&atomic（Set Item Properties）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 6"
+- row_id: D01-R07
+  domain: D01
+  capability: DELETE /api/storage/{repoKey}/{path}?properties=k1,k2&recursive（Delete Item Properties）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 7"
+- row_id: D01-R08
+  domain: D01
+  capability: POST /api/storage/{repoKey}/{path}?recursive&atomic（Update Item Properties，6.1.0 增量改属性）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§2 行 8"
+- row_id: D01-R09
+  domain: D01
+  capability: PUT /{repoKey}/{path}（Deploy/尾斜杠建目录/matrix 属性/checksum 三头/X-Checksum-Deploy）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 9"
+- row_id: D01-R10
+  domain: D01
+  capability: GET/HEAD /{repoKey}/{path}（下载/元信息 + Range/304/ETag；最新版 token SNAPSHOT/[RELEASE] 缺位）
+  state: partial
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§2 行 10"
+- row_id: D01-R11
+  domain: D01
+  capability: DELETE /{repoKey}/{path}?atomic（Delete Item）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 11"
+- row_id: D01-R12
+  domain: D01
+  capability: POST /api/copy/{srcRepo}/{srcPath}（to/dry/suppressLayouts/failFast/atomic）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 12"
+- row_id: D01-R13
+  domain: D01
+  capability: POST /api/move/{srcRepo}/{srcPath}
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 13"
+- row_id: D01-R14
+  domain: D01
+  capability: POST /api/flat/copy|move/{srcRepo}/{srcPath}
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§2 行 14"
+  note: 源 P3→P2
+- row_id: D01-R15
+  domain: D01
+  capability: GET /api/archive/download/{repoKey}/{path}（整包/整仓，archiveType 必填）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 15"
+- row_id: D01-R16
+  domain: D01
+  capability: GET /api/archive/download entry 抽取（! 归档内单文件语法）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§2 行 16"
+- row_id: D01-R17
+  domain: D01
+  capability: POST /api/archive/buildArtifacts（build-info 域指针行）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§2 行 17"
+- row_id: D01-R18
+  domain: D01
+  capability: 'PUT /{repoKey}/{path} + X-Explode-Archive: true（捆绑解包上传）'
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§2 行 18"
+- row_id: D01-R19
+  domain: D01
+  capability: GET /{repoKey}/{path}?mark=&gcCaches=（同步下载/缓存预热）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§2 行 19"
+- row_id: D01-R20
+  domain: D01
+  capability: DELETE /api/zap/{path}（删物理保元数据催 GC）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§2 行 20"
+  note: 源 P3→P2
+- row_id: D01-R21
+  domain: D01
+  capability: POST /api/storage/{path}（Set Item SHA256 Checksum 属性回填，遗留端点）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§2 行 21"
+  note: 源 P3→P2
+- row_id: D01-R22
+  domain: D01
+  capability: POST /api/trash/empty
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 22"
+- row_id: D01-R23
+  domain: D01
+  capability: POST /api/trash/restore/{path}
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 23"
+- row_id: D01-R24
+  domain: D01
+  capability: DELETE /api/trash/clean/{path}
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 24"
+- row_id: D01-R25
+  domain: D01
+  capability: PUT /api/trash/settings/deleteDirectoryTrashProperty
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§2 行 25"
+  note: 源 P3→P2
+- row_id: D01-R26
+  domain: D01
+  capability: POST /api/system/storage/gc（Artifactory 路径别名；BinFlow 走 /api/v1/system/gc）
+  state: compatible
+  confidence: high
+  contract_ref: contracts/storage-admin.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E1（SAME 形态：200 同步 + text/plain;charset=utf-8 点流双端；点数粒度按归一口径不判；409 臂 V-7 无活体不立断言）
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 26"
+  note: 'L004-3（2026-09-11）行态翻 partial→compatible：Artifactory 路径 /api/system/storage/gc 已落地（commit 6ca8f8666，
+    路由 router.go:452）且 L003-1 差分判 SAME（形态）。旧 /api/v1/system/gc 自有面并存（D06-R22 超集行不动）。
+    并发 409 信封形态分歧挂 V-7（contracts/storage-admin.yaml unobserved_reference_arms）。'
+- row_id: D01-R27
+  domain: D01
+  capability: POST /api/system/storage/prune/start + GET status + POST stop（PUD 三态）
+  state: compatible
+  confidence: high
+  contract_ref: contracts/storage-admin.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E2/E3/E4（三行全 SAME：202 族文案逐字 + 26 字段 schema 逐键对照 + 412 两臂 + 跨重启持久化实测）
+  priority_class: P2
+  layer: A
+  source_row: "§2 行 27"
+  note: 'L004-3（2026-09-11）行态翻 absent→compatible + confidence medium→high：PUD 三端点落地（commit 6ca8f8666）
+    且 L003-1 差分三行全 SAME（202/412 文案逐字、26 字段/4 对象 schema、dryRun 极性按 Artifactory、停止语义、
+    报告持久化重启实测）。V-4（error 态形态）/V-5（续跑分子口径）挂 contracts/storage-admin.yaml
+    unobserved_reference_arms。'
+- row_id: D01-R28
+  domain: D01
+  capability: GET /api/storageinfo + POST /api/storageinfo/calculate
+  state: partial
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§2 行 28"
+- row_id: D01-R29
+  domain: D01
+  capability: GET /api/tasks（后台任务清单）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§2 行 29"
+  note: 源 P3→P2
+- row_id: D01-R30
+  domain: D01
+  capability: POST /api/system/storage/compact（在线压缩——ghost row，参照面不存在）
+  state: not_applicable
+  confidence: medium
+  contract_ref: contracts/storage-admin.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E5（compress FORM-SAME——compact 语义并入 E5，见 note）
+  priority_class: P2
+  layer: A
+  source_row: "§2 行 30"
+  note: 'L004-3（2026-09-11）勘误补链 + L005-3（2026-09-12）重分类 absent→not_applicable（ghost-row 勘误，
+    conductor L005-3 裁定）：M3-1 迁移期冻结行集幽灵能力——规格澄清（docs/reverse/storage/prune-gc-admin.md §1）
+    Artifactory **不存在** POST /api/system/storage/compact（老版 Derby compact 已并入 POST /compress=E5）。
+    参照面不存在 → 无对齐工作 pending，按 ⛔ 口径落位（勘误裁定非改判——冻结行集 v1 审计锚 frozen_rowset_v1
+    保留原值不动）。在线压缩现行面=E5 compress（D01-R38，L003-1 判 FORM-SAME）。'
+- row_id: D01-R31
+  domain: D01
+  capability: GET /api/system/metrics + Open Metrics 面
+  state: partial
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A/C
+  source_row: "§2 行 31"
+  note: 源 P3→P2
+- row_id: D01-R32
+  domain: D01
+  capability: "/api/v1/uploads/{create,urlPart,complete,status,abort,config} + PUT part/{id}/{n}（MPU 直传会话）"
+  state: compatible
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§2 行 32"
+  note: 官方 reference 未载——反编译+BinFlow 双在案
+- row_id: D01-R33
+  domain: D01
+  capability: "（超集）GET /api/v1/storage/stats、GET /api/v1/storage/usage[/{repo}]"
+  state: superset
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: C
+  source_row: "§2 行 33"
+- row_id: D01-R34
+  domain: D01
+  capability: "（超集）GET /api/archive/download 的 BinFlow 参数差异（folderDownloadConfig 配额门自有形态）"
+  state: superset
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: C
+  source_row: "§2 行 34"
+- row_id: D01-R35
+  domain: D01
+  capability: Create Signed URL（Cloud Enterprise 专属——物理不可行）
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: D
+  source_row: "§2 脚注"
+  note: 脚注行：置信未标，按官方条目事实=high；层按物理界外=D
+- row_id: D01-R36
+  domain: D01
+  capability: Replace Signed URL（Cloud Enterprise 专属——物理不可行）
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: D
+  source_row: "§2 脚注"
+  note: 同 D01-R35
+- row_id: D01-R37
+  domain: D01
+  capability: Distribute Artifact（Bintray 2021 sunset——物理不可行）
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: D
+  source_row: "§2 脚注"
+  note: 同 D01-R35
+- row_id: D01-R38
+  domain: D01
+  capability: POST /api/system/storage/compress（内部库压缩流——E5）
+  state: compatible
+  confidence: medium
+  contract_ref: "contracts/storage-admin.yaml#storage-admin/compress"
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E5（FORM-SAME：码 200 + text/plain;charset=utf-8 流双端；Derby/sqlite 载体差异登记不判；V-1 参照 PostgreSQL 臂无活体）
+  priority_class: P0
+  layer: A
+  source_row: "新行入账（L005-3）——冻结行集无行；提案源 contracts/storage-admin.yaml 收尾「新行提案」"
+  note: 'L005-3（2026-09-12）入账：E5 判 FORM-SAME——客户端可见面（200 钉码 + CT + 流式形态）双端一致，
+    后端载体差异（Derby compact / BinFlow sqlite VACUUM）不涉可见面 → compatible。confidence 沿契约 medium
+    （参照 200 臂反编译单源，V-1 挂账）。priority 按 priority_policy 规则 2（D01 ✅ 面机械归类）。'
+- row_id: D01-R39
+  domain: D01
+  capability: POST /api/system/storage/optimize（sharding 均衡手动触发——E6）
+  state: compatible
+  confidence: high
+  contract_ref: "contracts/storage-admin.yaml#storage-admin/optimize"
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E6（SAME：202 空体无 CT 逐字对齐；单 provider no-op 语义差异登记不判）
+  priority_class: P0
+  layer: A
+  source_row: "新行入账（L005-3）——冻结行集无行；提案源 contracts/storage-admin.yaml 收尾「新行提案」"
+  note: 'L005-3（2026-09-12）入账：E6 判 SAME——202/CT 缺位/0 字节逐字对齐；BinFlow 无 sharding → 触发即
+    诚实 no-op（语义差异登记在案，无客户端可见分歧）。'
+- row_id: D01-R40
+  domain: D01
+  capability: POST /api/system/storage/backup?key=（备份立即调度——E7）
+  state: compatible
+  confidence: medium
+  contract_ref: "contracts/storage-admin.yaml#storage-admin/backup"
+  golden_ref:
+  last_difftest: 'L005-2 装配实例复验收官（2026-09-12，conductor 指令摘要——证据链=agent 日志与 UAT/参照 :8082 实测记录）：成功臂双端活体 200 + text/plain;charset=utf-8 + schedule-and-return + detached + 产物双端在；前置 reports/compatibility/L003-storage-admin-diff.md E7（错误臂 SAME：缺 key 500 信封逐字 + disabled 500）'
+  priority_class: P0
+  layer: A
+  source_row: "新行入账（L005-3）——冻结行集无行；提案源 contracts/storage-admin.yaml 收尾「新行提案」"
+  note: 'L005-3（2026-09-12）入账判 partial；同日 L005-2 收官联动翻 compatible——note 翻态条件已满足（装配实例
+    复验：成功臂双端活体坐实，契约同翻 VERIFIED）。字面差（参照「Activating…BackupJob#<uuid>」vs BinFlow
+    「scheduled」/TE）语义同构——契约内登记不判分歧、不入 known-divergence 台账（裁量理由见 L005-3 回报）；
+    V-2 信封族双实例实证收束。confidence 维持 medium（disabled 臂参照 A 单源）。与 D06-R17（备份配置 CRUD 族
+    /api/system/backup/{key}）为不同端点面。'
+- row_id: D01-R41
+  domain: D01
+  capability: GET /api/system/storage/size（filestore 字节总数——E8）
+  state: compatible
+  confidence: high
+  contract_ref: "contracts/storage-admin.yaml#storage-admin/size"
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E8（SAME：200 text/plain 裸数字双端——参照只读复测 + BinFlow 实测随真实删除变化）
+  priority_class: P0
+  layer: A
+  source_row: "新行入账（L005-3）——冻结行集无行；提案源 contracts/storage-admin.yaml 收尾「新行提案」"
+  note: 'L005-3（2026-09-12）入账：E8 判 SAME——text/plain 裸数字形态双端活体。'
+- row_id: D01-R42
+  domain: D01
+  capability: GET /api/system/storage/info（binary provider 树投影——E9）
+  state: compatible
+  confidence: high
+  contract_ref: "contracts/storage-admin.yaml#storage-admin/info"
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E9（SAME：text/plain + 11 字段全字符串化/type=file-system/statfs 恒等式；映射值差异=诚实值非翻译）
+  priority_class: P0
+  layer: A
+  source_row: "新行入账（L005-3）——冻结行集无行；提案源 contracts/storage-admin.yaml 收尾「新行提案」"
+  note: 'L005-3（2026-09-12）入账：E9 判 SAME——键集/顺序/类型/百分比对齐（uploads/_pre、blobs/filestore 为
+    各自真实布局，登记不判分歧）。'
+- row_id: D01-R43
+  domain: D01
+  capability: POST /api/system/storage/exportds（@Deprecated 恒败面——E10）
+  state: compatible
+  confidence: medium
+  contract_ref: "contracts/storage-admin.yaml#storage-admin/exportds"
+  golden_ref:
+  last_difftest: reports/compatibility/L003-storage-admin-diff.md E10（SAME 形态：恒 500 同文案双端一致「Export data is no longer supported」+ 重复调用恒定；信封形状参照无活体——A 单源中置信）
+  priority_class: P0
+  layer: A
+  source_row: "新行入账（L005-3）——冻结行集无行；提案源 contracts/storage-admin.yaml 收尾「新行提案」"
+  note: 'L005-3（2026-09-12）入账：恒败端点双端一致（500+同文案+可重复实测）→ compatible；信封形状（errors
+    JSON vs 参照渲染路径未捕获）待参照臂活体，confidence 沿契约 medium。BinFlow export 真身在 CLI（ADR-0015），
+    REST 面按参照恒败。'
+- row_id: D02-R01
+  domain: D02
+  capability: GET /api/repositories?type=&packageType=&project=
+  state: partial
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§3 行 1"
+- row_id: D02-R02
+  domain: D02
+  capability: GET /api/repositories/{key}
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§3 行 2"
+- row_id: D02-R03
+  domain: D02
+  capability: PUT /api/repositories/{key}（创建，200 纯文本）
+  state: compatible
+  confidence: high
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L008-update-merge-diff.md §1（PUT-on-existing 闭环：A10 400 errors 信封逐字 + A11 拒后零副作用 + A12 新建回归同文案）；前置 L006-a-b-diff.md §1.1/§1.2（四域三 rclass round-trip 闭合）
+  priority_class: P0
+  layer: A
+  source_row: "§3 行 3"
+  note: 'L006-1（2026-09-12）翻态 partial→compatible：configJSON 四域（repoLayoutRef/blackedOut/
+    maxUniqueSnapshots/archiveBrowsingEnabled）round-trip 缺口闭合（FR-156① 收口）。残余两族已立台账另票：
+    更新合并语义（known-divergence#rest/repo-config-update-merge-semantics）+ 非法值形态族
+    （#rest/repo-config-invalid-value-family）——族级/裁定量不占本行主面。
+    L007-3（2026-09-12）补注：冻结源行「key 冲突 400/409 语义已对齐」旧注记与新实测相抵——参照
+    PUT-on-existing=400 create-only（更新拼写只有 POST），BinFlow PUT-on-existing=更新 200；该臂已并入
+    update-merge 台账裁定范围（L007-3 §2 + ADR 候选稿 docs/design/repo-update-merge.md），随 LOOP 008 联裁。
+    L008-1b（2026-09-12）PUT-on-existing 400 对齐闭环：A10 完整体 400 errors 信封逐字同 + A11 拒后零副作用
+    + A12 PUT 新建回归同文案（ADR-0050 落地复验；台账 rest/repo-config-update-merge-semantics resolved）。'
+- row_id: D02-R04
+  domain: D02
+  capability: POST /api/repositories/{key}（更新）
+  state: compatible
+  confidence: high
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L008-update-merge-diff.md §1（三列矩阵 13 硬断言臂全 SAME：省略=保留/null 清/空值分族/显式值含 0 存 0/url 可省/对象三格 A7·A14·A15/console 回归 A13）；前置 L006-a-b-diff.md §1.1
+  priority_class: P0
+  layer: A
+  source_row: "§3 行 4"
+  note: 'L006-1（2026-09-12）翻态 partial→compatible（带 §1.4 注记）：更新臂四域全量更新实测 SAME。
+    §1.4——更新合并语义为族级既有差异：参照 POST 省略字段=保留存量（remote 四域 keep 实测）vs BinFlow
+    全量替换回落默认（影响 remote 全字段，非四域特例），已立账
+    known-divergence#rest/repo-config-update-merge-semantics 转 LOOP 007 另票；非法值形态族另账
+    #rest/repo-config-invalid-value-family。
+    L008-1b（2026-09-12）三列矩阵臂同笔闭环（§1.4 残余清偿，ADR-0050 落地）：省略×标量/credential/数组
+    =保留（sealed 行逐字节不动）、null×标量=清（echo 形归一化 None≡""）、空值分族（标量清/数组留/对象
+    {} 整族复位）、显式值含 0-as-absent 双面收口（T-290 联裁翻绿）、对象族补证格 A14 显式=整体替换/
+    A15 null=整族保留、console 全量表单回归 A13——台账 resolved（归一化四项与 A16/A17/cs-enabled
+    留痕面见 resolved note，非本账轴）。'
+- row_id: D02-R05
+  domain: D02
+  capability: DELETE /api/repositories/{key}
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§3 行 5"
+- row_id: D02-R06
+  domain: D02
+  capability: GET /api/repositories/configurations?packageType=&repoType=（admin）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§3 行 6"
+- row_id: D02-R07
+  domain: D02
+  capability: GET /api/v2/repositories/{key}（v2 配置读）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§3 行 7"
+- row_id: D02-R08
+  domain: D02
+  capability: "/api/v2/repositories/batch 族（GET 批读/POST 批建/PUT 批改/DELETE 批删 207 混合态）"
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§3 行 8"
+- row_id: D02-R09
+  domain: D02
+  capability: GET /api/repositories/existence（按 type/project 探测，7.103+）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§3 行 9"
+- row_id: D02-R10
+  domain: D02
+  capability: GET /api/repositories/{key}（Remote Repository Configuration deprecated 变体）
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: D
+  source_row: "§3 行 10"
+- row_id: D02-R11
+  domain: D02
+  capability: Federation 族（convert/成员/状态/镜像/pairing token 等 ≈19 端点）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§3 行 11"
+- row_id: D02-R12
+  domain: D02
+  capability: "/api/repo_layouts[/{name}] CRUD（26 内置布局）"
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§3 行 12"
+- row_id: D02-R13
+  domain: D02
+  capability: "（超集）POST /api/repositories/{key}/test（remote 连通测试三臂）"
+  state: superset
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: C
+  source_row: "§3 行 13"
+- row_id: D03-R01
+  domain: D03
+  capability: POST /api/search/aql
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§4 行 1"
+- row_id: D03-R02
+  domain: D03
+  capability: GET /api/search/artifact?name=&repos=
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§4 行 2"
+- row_id: D03-R03
+  domain: D03
+  capability: GET /api/search/gavc?g=&a=&v=&c=&repos=
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§4 行 3"
+- row_id: D03-R04
+  domain: D03
+  capability: GET /api/search/prop（任意查询参数即属性键）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§4 行 4"
+- row_id: D03-R05
+  domain: D03
+  capability: GET /api/search/checksum?sha1=&md5=&sha256=&repos=
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§4 行 5"
+- row_id: D03-R06
+  domain: D03
+  capability: GET /api/search/pattern?pattern=
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§4 行 6"
+- row_id: D03-R07
+  domain: D03
+  capability: GET /api/search/usage?notUsedSince=&createdBefore=&repos=
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§4 行 7"
+- row_id: D03-R08
+  domain: D03
+  capability: GET /api/search/dates?from=&to=&dateFields=
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§4 行 8"
+- row_id: D03-R09
+  domain: D03
+  capability: GET /api/search/creation?from=&to=&repos=
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§4 行 9"
+- row_id: D03-R10
+  domain: D03
+  capability: GET /api/search/versions?g=&a=&v=&repos=&remote=
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§4 行 10"
+- row_id: D03-R11
+  domain: D03
+  capability: GET /api/search/latestVersion?g=&a=&v=&repos=&remote=
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§4 行 11"
+- row_id: D03-R12
+  domain: D03
+  capability: GET /api/search/latestVersionByProperties
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§4 行 12"
+- row_id: D03-R13
+  domain: D03
+  capability: GET /api/search/badChecksum?type=&repos=（响应上限 10,000）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§4 行 13"
+- row_id: D03-R14
+  domain: D03
+  capability: GET /api/search/archive（官方 deprecated）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§4 行 14"
+  note: 源 P3→P2
+- row_id: D03-R15
+  domain: D03
+  capability: GET /api/search/license（Q9 定案：xray_tied 缺位登记不伪造）
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: D
+  source_row: "§4 行 15"
+- row_id: D03-R16
+  domain: D03
+  capability: GET /api/search/dependency?sha1=&buildRepo=&project=（build-info 指针行）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§4 行 16"
+- row_id: D03-R17
+  domain: D03
+  capability: POST /api/search/buildArtifacts（build-info 指针行）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§4 行 17"
+- row_id: D03-R18
+  domain: D03
+  capability: GET /api/search/docker/manifests/... + List Docker Repositories / List Docker Tags
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§4 行 18"
+- row_id: D03-R19
+  domain: D03
+  capability: UI 搜索族（artifactsearch/stashResults/packagesSearch/syntax-search/searchResults——/ui/api 面）
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: D
+  source_row: "§4 行 19"
+- row_id: D04-R01
+  domain: D04
+  capability: GET /api/security/users
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 1"
+- row_id: D04-R02
+  domain: D04
+  capability: GET /api/security/users/{name}
+  state: compatible
+  confidence: high
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L007-residuals-users-diff.md §2（字段集全腿：新增列 policyViewer/policyManager/watchManager/reportsManager/offlineMode/mfaStatus/shouldInvite/lastLoggedInMillis/status 全补齐同值；email/groups/lastLoggedIn 条件出现键位同）
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 2"
+  note: 'L007-1（2026-09-12）翻态 partial→compatible（带超集注记）：字段集对齐（admin/l007fresh/anonymous
+    三形态活体取证）+ status 映射级同（enabled 直译 ENABLED/DISABLED，参照 DISABLED 为 REST 面不可达态）。
+    超集 tolerated 三键+形态：enabled/adminRole/source 保留、email/groups 恒渲染（""/[]）——console 用户
+    编辑器回显驱动（web/ 非对齐域，严格裁齐需先开 console 前端票，L007-1 §3-2 裁量记录）；lastLoggedIn
+    秒级精度沿 M16 audit 派生族定谳。连带发现两建模级差异另立账（readers 默认组 / anonymous 用户行，
+    known-divergence#rest/user-create-default-group-readers、#rest/anonymous-user-row——不占本行渲染面）。
+    LOOP 009 追记：未知名 404 体裁两臂已 envelope 对齐（#rest/users-v1-get-unknown-style resolved，
+    T-L009-3）；新挂面级残余 vendor CT 缺（#rest/user-detail-vendor-content-type，LOOP 010 微票——
+    本行 compatible 态不受臂级账影响）。'
+- row_id: D04-R03
+  domain: D04
+  capability: PUT /api/security/users/{name}（创建，201 无 body）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 3"
+- row_id: D04-R04
+  domain: D04
+  capability: POST /api/security/users/{name}（部分更新，200）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 4"
+- row_id: D04-R05
+  domain: D04
+  capability: DELETE /api/security/users/{name}
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 5"
+- row_id: D04-R06
+  domain: D04
+  capability: POST /api/security/users/authorization/changePassword
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 6"
+- row_id: D04-R07
+  domain: D04
+  capability: PUT /api/security/password（改自己口令）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 7"
+- row_id: D04-R08
+  domain: D04
+  capability: "（超集）POST /api/security/users（collection 直建）"
+  state: superset
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: C
+  source_row: "§5 行 8"
+- row_id: D04-R09
+  domain: D04
+  capability: 密码过期族（expire/unexpire/expirePasswords + GET/PUT 过期策略）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§5 行 9"
+- row_id: D04-R10
+  domain: D04
+  capability: 用户锁定族（GET/PUT lock policy、GET lockedUsers、unlock ×2）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§5 行 10"
+- row_id: D04-R11
+  domain: D04
+  capability: GET /api/security/encryptedPassword
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§5 行 11"
+- row_id: D04-R12
+  domain: D04
+  capability: GET /api/security/groups
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 12"
+- row_id: D04-R13
+  domain: D04
+  capability: GET /api/security/groups/{name}[?includeUsers=true]
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 13"
+- row_id: D04-R14
+  domain: D04
+  capability: PUT /api/security/groups/{name}（创建/替换，组成员全量替换）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 14"
+- row_id: D04-R15
+  domain: D04
+  capability: POST /api/security/groups/{name}（更新，成员增量添加）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 15"
+- row_id: D04-R16
+  domain: D04
+  capability: DELETE /api/security/groups/{name}
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 16"
+- row_id: D04-R17
+  domain: D04
+  capability: GET /api/security/permissions（v1 列表，admin）
+  state: compatible
+  confidence: high
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L006-a-b-diff.md §2.1（别名挂载：GET /api/security/permissions 200 [{name,uri}] 值/形双端 SAME；/api/permissions 拼写双端 404 同判）
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 17"
+  note: 'L006-1（2026-09-12）翻态 partial→compatible：经典路径别名挂载 + {name,uri} 形对齐（uri=contextUrl+
+    转义名）；真实 v1 路径=/api/security/permissions（任务书原述 /api/permissions 双端 404）。行内残余渲染差
+    归 {name} 面账（known-divergence#rest/permissions-v1-response-shape-residuals，挂 D04-R18）。'
+- row_id: D04-R18
+  domain: D04
+  capability: GET/PUT/DELETE /api/security/permissions/{name}
+  state: compatible
+  confidence: high
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L007-residuals-users-diff.md §1（三臂全 SAME：DELETE 200 文案逐字 + 未知名 404 envelope 同体同文（GET/DELETE 双腿）+ admin 主体 400 逐字含双单引号癖性 + 优先序两佐证腿；连带 PUT 未识组 400 收口）
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 18"
+  note: 'L006-1 裁量维持 partial（残余收窄至渲染族三臂账）→ L007-1（2026-09-12）收官翻 compatible——
+    L007-4 预登记的翻绿条件兑现：台账 rest/permissions-v1-response-shape-residuals 三臂清偿且差分复验
+    SAME（DELETE 200 文案逐字 / 未知名 404 envelope GET+DELETE 双腿 / admin 主体 400 逐字含双单引号癖性
+    + 优先序两佐证腿），连带 PUT 未识组腿同链路收口（组名前无冒号与 user 臂异——留痕）。台账 resolved
+    note 载裁量：400 系载体维持纯文本（低于阈值+同面一致）；/api/v1/permissions 自有面 204 冻结不动。
+    LOOP 008 卫生批补锚：mxm 席位差（known-divergence#rest/permissions-v1-managedxraymeta-seat，INTENTIONAL
+    锚 ADR-0029/0033 Xray 排除域）与边缘校验族（#rest/permissions-v1-edge-validation-family，①②对齐 ③超集）
+    另立账——均不占本行 compatible 态。
+    LOOP 009 追记（T-L009-3）：keyed 面 4xx 载体已收口全 errors-envelope（409/双文案/未知仓/未知用户/
+    admin 主体/解码失败——L006 记 SAME 系只比文案未比载体，收口后逐字同；上段「400 系维持纯文本」旧
+    裁量就该事实作废，envelope SetEscapeHTML(false) 对齐 Jackson）；边缘校验族 resolved（#rest/
+    permissions-v1-edge-validation-family——%zz 原观察系探针工具差，台账 note 存证）+ 新挂两旁观账。
+    LOOP 010 终态：空 actions 校验豁免 resolved（T-L010-2 七臂对齐）；DELETE 未知名 200 候选不立账
+    终裁（L010-1 七臂双端两态逐字 SAME 与 L007-1 一致，L009-3 的 200 系实例崩溃前异常态观察——
+    条目撤销，存证在 edge-validation 家族 note）——本面零挂账余量。'
+- row_id: D04-R19
+  domain: D04
+  capability: "/api/v2/security/permissions 族（8 条目 + per-user/per-group 6 端点）"
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§5 行 19"
+- row_id: D04-R20
+  domain: D04
+  capability: POST /api/security/token（create/refresh，form-encoded）
+  state: compatible
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 20"
+- row_id: D04-R21
+  domain: D04
+  capability: POST /api/security/token/revoke
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 21"
+- row_id: D04-R22
+  domain: D04
+  capability: GET /api/security/token（token infos 列表）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§5 行 22"
+- row_id: D04-R23
+  domain: D04
+  capability: "/api/security/keypair 族（集合 + {pairName} + verify + public/repositories，7 端点）"
+  state: compatible
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 23"
+- row_id: D04-R24
+  domain: D04
+  capability: POST/DELETE /api/v2/repositories/{repoKey}/keyPairs[/{keyName}]（仓级关联）
+  state: compatible
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 24"
+- row_id: D04-R25
+  domain: D04
+  capability: POST /api/v1/admin/security/keypair/generate
+  state: compatible
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§5 行 25"
+  note: 官方 reference 无页——反编译+BinFlow 双在案
+- row_id: D04-R26
+  domain: D04
+  capability: API Key 族（create/regenerate/get/revoke/revoke-user ×5）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§5 行 26"
+  note: 源 P3→P2；候 PM 裁定转 ⛔
+- row_id: D04-R27
+  domain: D04
+  capability: GPG 族（set/get public、set private、passphrase + distribution GPG ×5）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§5 行 27"
+  note: 源 P3→P2
+- row_id: D04-R28
+  domain: D04
+  capability: 主/次签名密钥族（primary/secondary ×7）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§5 行 28"
+  note: 源 P3→P2
+- row_id: D04-R29
+  domain: D04
+  capability: GET/POST/DELETE /api/system/certificates[/{alias}]（远端 TLS 信任库）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§5 行 29"
+- row_id: D04-R30
+  domain: D04
+  capability: LDAP 配置族（Access /access/api/v1/config/ldap + UI 内部面；BinFlow /api/v1/admin/security/ldap）
+  state: partial
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A/C
+  source_row: "§5 行 30"
+- row_id: D04-R31
+  domain: D04
+  capability: SAML 配置族（settings + general + enable）
+  state: partial
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A/C
+  source_row: "§5 行 31"
+- row_id: D04-R32
+  domain: D04
+  capability: OIDC/OAuth 族（config CRUD + identity mapping ×5 + token exchange）
+  state: partial
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A/C
+  source_row: "§5 行 32"
+- row_id: D04-R33
+  domain: D04
+  capability: Crowd / HTTP SSO / Basic-auth 开关族 ×6
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§5 行 33"
+  note: 源 P3→P2
+- row_id: D04-R34
+  domain: D04
+  capability: SCIM 族（/access/api/v2/scim Users/Groups ×12）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§5 行 34"
+- row_id: D04-R35
+  domain: D04
+  capability: Vault/AWS-IAM 族（secrets ×4 + IAM role ×3）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§5 行 35"
+  note: 源 P3→P2
+- row_id: D05-R01
+  domain: D05
+  capability: GET/PUT/POST/DELETE /api/replications/{repoKey}（单仓复制配置 CRUD）
+  state: partial
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§6 行 1"
+- row_id: D05-R02
+  domain: D05
+  capability: GET /api/replication/status（异步任务状态）
+  state: partial
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§6 行 2"
+- row_id: D05-R03
+  domain: D05
+  capability: POST /api/replication/execute/{repoKey}（手动触发 push/pull）
+  state: partial
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§6 行 3"
+- row_id: D05-R04
+  domain: D05
+  capability: POST /api/replications/multiple/{repoKey}（multipush 多目标）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§6 行 4"
+- row_id: D05-R05
+  domain: D05
+  capability: POST /api/replications/enable|disable（批量启停）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§6 行 5"
+- row_id: D05-R06
+  domain: D05
+  capability: GET /api/replications/remote（已注册远端仓清单）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§6 行 6"
+- row_id: D05-R07
+  domain: D05
+  capability: 复制事件通道族 ×4（establish/teardown/close/propagate——官方自标 Internal）
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: D
+  source_row: "§6 行 7"
+- row_id: D05-R08
+  domain: D05
+  capability: GET /api/system/replications（全局配置）
+  state: partial
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§6 行 8"
+- row_id: D05-R09
+  domain: D05
+  capability: POST /api/system/replications/block / unblock
+  state: partial
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§6 行 9"
+- row_id: D05-R10
+  domain: D05
+  capability: GET/PUT /api/system/replication（checksum replication 配置）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§6 行 10"
+- row_id: D05-R11
+  domain: D05
+  capability: "（超集）POST /api/v1/replications/test + POST /api/v1/replications/{key}/test"
+  state: superset
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: C
+  source_row: "§6 行 11"
+- row_id: D06-R01
+  domain: D06
+  capability: GET /api/system/ping（免认证）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§7 行 1"
+- row_id: D06-R02
+  domain: D06
+  capability: GET /api/system/version
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P0
+  layer: A
+  source_row: "§7 行 2"
+- row_id: D06-R03
+  domain: D06
+  capability: GET /api/system/readiness / /api/system/liveness
+  state: partial
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§7 行 3"
+- row_id: D06-R04
+  domain: D06
+  capability: GET /api/system（System Info 汇总）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§7 行 4"
+- row_id: D06-R05
+  domain: D06
+  capability: GET /api/system/serverTime（epoch 毫秒纯文本）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§7 行 5"
+- row_id: D06-R06
+  domain: D06
+  capability: GET /api/system/configuration + POST（config.xml 描述符往返/脱敏）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A/C
+  source_row: "§7 行 6"
+- row_id: D06-R07
+  domain: D06
+  capability: Apply YAML Configuration / Save General Configuration ×2
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§7 行 7"
+  note: 源 P3→P2
+- row_id: D06-R08
+  domain: D06
+  capability: GET/POST/DELETE /api/system/license
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A/C
+  source_row: "§7 行 8"
+  note: BinFlow license 面自有语义（license gate），非对齐核心面→P1
+- row_id: D06-R09
+  domain: D06
+  capability: HA license 族 ×3（GET/install/delete HA cluster）
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§7 行 9"
+  note: M18+ HA 排程联动翻转
+- row_id: D06-R10
+  domain: D06
+  capability: Reverse proxy 族 ×4（get/update/snippet/possible-values）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§7 行 10"
+- row_id: D06-R11
+  domain: D06
+  capability: SHA256 迁移族 ×2（start/stop）——BinFlow 原生 sha256
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: D
+  source_row: "§7 行 11"
+- row_id: D06-R12
+  domain: D06
+  capability: POST /api/system/metadata_server/reindex（JCR/企业组件依赖）
+  state: not_applicable
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§7 行 12"
+- row_id: D06-R13
+  domain: D06
+  capability: 日志族（logger levels GET/PUT/DELETE + /api/system/logs tail；BinFlow /api/v1/system/logs）
+  state: partial
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A/C
+  source_row: "§7 行 13"
+  note: 冻结时 ❌，2026-09-07 T-493 翻 ◐（源变更日志在案）
+- row_id: D06-R14
+  domain: D06
+  capability: GET /api/system/service_id
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§7 行 14"
+  note: 源 P3→P2
+- row_id: D06-R15
+  domain: D06
+  capability: POST /api/system/configuration/baseUrl（custom URL base）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§7 行 15"
+  note: 源 P3→P2
+- row_id: D06-R16
+  domain: D06
+  capability: 导入导出族（POST /api/import/system|repo、/api/export/system|repo；bf-migrate CLI 自有载体）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§7 行 16"
+- row_id: D06-R17
+  domain: D06
+  capability: 备份族 GET/PUT/DELETE /api/system/backup/{key}（+列表）——ghost 前提：参照无此 REST 面
+  state: not_applicable
+  confidence: high
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L006-a-b-diff.md §2.1/§2.2（/api/system/backup[/{key}] 与 /api/system/backups 双端全 404 同判；反编译 SecurityResource 亦无 backup CRUD——活体+反编译双证）
+  priority_class: P2
+  layer: A
+  source_row: "§7 行 17"
+  note: 'L006-1（2026-09-12）重分类 partial→not_applicable（前提证伪勘误，同 D01-R30 ghost-row 款）：
+    「经典路径别名」前提不成立——参照（活体+反编译双证）无 /api/system/backup* REST 配置 CRUD 族：公开
+    /api 面唯一 backup 端点=POST /api/system/storage/backup?key=（D01-R40 已挂已验）；备份配置 CRUD 只在
+    UI 内部面（artifactory-rest-ui cfx 平面，界外）。BinFlow /api/v1/system/backups 为 BinFlow-native 超集面
+    ——建议 conductor 走新行提案转 superset 登记行（本票不越权立）。confidence medium→high（双源证伪）；
+    priority P0→P2（⛔ 终态口径）。L007-4（2026-09-12）：反面超集面已落账 D06-R30（互锚）。'
+- row_id: D06-R18
+  domain: D06
+  capability: 维护模式族 GET/PUT /api/system/maintenance（BinFlow /api/v1/system/maintenance）
+  state: partial
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§7 行 18"
+- row_id: D06-R19
+  domain: D06
+  capability: GET/POST/DELETE /api/v1/system/query_rate_limiter/config
+  state: compatible
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§7 行 19"
+  note: 官方无页——aql.md §14.4 反编译全量锚；performance 面→P1
+- row_id: D06-R20
+  domain: D06
+  capability: "（超集）GET /api/v1/system/settings"
+  state: superset
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: C
+  source_row: "§7 行 20"
+- row_id: D06-R21
+  domain: D06
+  capability: "（超集）GET /api/v1/system/schedules"
+  state: superset
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: C
+  source_row: "§7 行 21"
+- row_id: D06-R22
+  domain: D06
+  capability: "（超集）GET/POST /api/v1/system/cleanup + POST /api/v1/system/gc"
+  state: superset
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: C
+  source_row: "§7 行 22"
+- row_id: D06-R23
+  domain: D06
+  capability: "（超集）GET /api/v1/session（whoami/登入/登出）"
+  state: superset
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: C
+  source_row: "§7 行 23"
+- row_id: D06-R24
+  domain: D06
+  capability: "（超集）GET /api/v1/audit"
+  state: superset
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: C
+  source_row: "§7 行 24"
+- row_id: D06-R25
+  domain: D06
+  capability: "（超集）GET /api/v1/health + GET /api/v1/addons"
+  state: superset
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: C
+  source_row: "§7 行 25"
+- row_id: D06-R26
+  domain: D06
+  capability: 加解密族（POST /api/system/encrypt|decrypt + crypto{action}）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§7 行 26"
+  note: 源 P3→P2
+- row_id: D06-R27
+  domain: D06
+  capability: Support Bundle 族 ×5（create/list/get/delete/metadata）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§7 行 27"
+- row_id: D06-R28
+  domain: D06
+  capability: 集群锁族（GET cluster/node locks ×2）——HA 分布式锁
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§7 行 28"
+  note: M18+ HA 联动翻转
+- row_id: D06-R29
+  domain: D06
+  capability: SHA2/HA 迁移、Load Healer、traffic、debug 族（运维杂项）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§7 行 29"
+  note: 源 P3→P2
+- row_id: D06-R30
+  domain: D06
+  capability: "（超集）GET/PUT/DELETE /api/v1/system/backups[/{key}]（备份配置 CRUD 族 + 列表；PUT upsert-by-key + cronExp/nextBackupTime 承载）"
+  state: superset
+  confidence: high
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L006-a-b-diff.md §2.1/§2.2（参照侧 /api/system/backup[/{key}]、/api/system/backups 全 404——「参照无此 REST 面」活体+反编译双证的反面锚；BinFlow /api/v1 面本体无对拍对象）
+  priority_class: P2
+  layer: C
+  source_row: "新行入账（L007-4）——冻结行集无行；提案源=D06-R17 note（L006-1 证伪发现的反面），conductor 派票授权"
+  note: 'L007-4（2026-09-12）入账：D06-R17 ghost-row 证伪的反面登记——参照公开 /api 面无 /api/system/backup*
+    配置 CRUD 族（唯一 backup 端点=POST /api/system/storage/backup?key= 挂 D01-R40；配置 CRUD 只在 UI 内部面
+    cfx 平面，界外），BinFlow /api/v1/system/backups 为 BinFlow-native 超集面。BinFlow 自有面规范源=ADR-0044
+    决策 7（三消费面 REST 形态：列表 GET + {key} GET/PUT/DELETE、PUT upsert-by-key、body 承载 payload/cronExp/
+    nextBackupTime）+ 决策 9（调度 CRUD 门=system:write，readonly_admin 403）。contract_ref 留空=超集自有面
+    无参照契约可锚（D06-R20..R25 同款姿态）。confidence high：「参照无面」系 D06-R17 双源证伪高置信结论的
+    直接反面。冻结纪律：195 冻结行集不增删——本行系冻结行集外新行提案落账（L005-3 D01-R38..R43 先例）。'
+- row_id: D07-R01
+  domain: D07
+  capability: GET /api/build（名清单+lastStarted）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§8 行 1"
+  note: build-info.md 指针行（T-511/FR-152 链）
+- row_id: D07-R02
+  domain: D07
+  capability: PUT /api/build（全量上传）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§8 行 2"
+  note: build-info.md 指针行（T-511/FR-152 链）
+- row_id: D07-R03
+  domain: D07
+  capability: GET /api/build/{buildName}（号清单）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§8 行 3"
+  note: build-info.md 指针行（T-511/FR-152 链）
+- row_id: D07-R04
+  domain: D07
+  capability: DELETE /api/build/{buildName}（buildNumbers/artifacts/deleteAll）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§8 行 4"
+  note: build-info.md 指针行（T-511/FR-152 链）
+- row_id: D07-R05
+  domain: D07
+  capability: GET /api/build/{buildName}/{buildNumber}（详情）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§8 行 5"
+  note: build-info.md 指针行（T-511/FR-152 链）
+- row_id: D07-R06
+  domain: D07
+  capability: POST /api/build/append/{name}/{number}
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§8 行 6"
+  note: build-info.md 指针行（T-511/FR-152 链）
+- row_id: D07-R07
+  domain: D07
+  capability: POST /api/build/promote/{name}/{number}
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§8 行 7"
+  note: build-info.md 指针行（T-511/FR-152 链）
+- row_id: D07-R08
+  domain: D07
+  capability: POST /api/build/delete（批删）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§8 行 8"
+  note: build-info.md 指针行（T-511/FR-152 链）
+- row_id: D07-R09
+  domain: D07
+  capability: POST /api/build/rename/{buildName}（M17 面外）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§8 行 9"
+  note: build-info.md 指针行（T-511/FR-152 链）
+- row_id: D07-R10
+  domain: D07
+  capability: POST /api/build/retention/{buildName}
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§8 行 10"
+  note: build-info.md 指针行（T-511/FR-152 链）
+- row_id: D07-R11
+  domain: D07
+  capability: POST /api/docker/{repoKey}/v2/promote（M17 面外）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§8 行 11"
+  note: build-info.md 指针行（T-511/FR-152 链）
+- row_id: D08-R01
+  domain: D08
+  capability: POST /api/release/bundle（AQL 装配清单）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§9 行 1"
+  note: T-513/FR-153 最小面
+- row_id: D08-R02
+  domain: D08
+  capability: 事务三段式（transaction/open、close ×2、async status）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§9 行 2"
+  note: M17 面外（v2 signing）
+- row_id: D08-R03
+  domain: D08
+  capability: PUT /api/release/store（源 bundle 承接，202/200/409 三态）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§9 行 3"
+  note: M17 面外（Distribution 推送对端）
+- row_id: D08-R04
+  domain: D08
+  capability: 查询族（GET /release/bundles[/{name}[/{version}[/status]]]、HEAD 校验和、DELETE 两行）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§9 行 4"
+- row_id: D08-R05
+  domain: D08
+  capability: GET/PUT /api/release/bundles/config + artifacts 清单 + fat_manifest
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§9 行 5"
+  note: M17 面外（admin 深度面）
+- row_id: D08-R06
+  domain: D08
+  capability: Any Distribution 权限桶（ANY DISTRIBUTION 预置）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A/C
+  source_row: "§9 行 6"
+  note: T-491/T-513（FR-156.2）
+- row_id: D08-R07
+  domain: D08
+  capability: Distribution 服务侧 v1/v2 族（≈60+ 操作）
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: D
+  source_row: "§9 行 7"
+  note: 独立部署单元——产品界外（Q2 出口②候裁翻转）
+- row_id: D09-R01
+  domain: D09
+  capability: GET /event/api/v1/subscriptions（列表）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§10 行 1–6 拆分"
+  note: 源合并行 1–6 按六端点拆分（§1 冻结计 9 行口径）
+- row_id: D09-R02
+  domain: D09
+  capability: POST /event/api/v1/subscriptions（创建）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§10 行 1–6 拆分"
+- row_id: D09-R03
+  domain: D09
+  capability: GET /event/api/v1/subscriptions/{key}
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§10 行 1–6 拆分"
+- row_id: D09-R04
+  domain: D09
+  capability: PUT /event/api/v1/subscriptions/{key}
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§10 行 1–6 拆分"
+- row_id: D09-R05
+  domain: D09
+  capability: DELETE /event/api/v1/subscriptions/{key}
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§10 行 1–6 拆分"
+- row_id: D09-R06
+  domain: D09
+  capability: POST /event/api/v1/subscriptions/test
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§10 行 1–6 拆分"
+- row_id: D09-R07
+  domain: D09
+  capability: GET /event/api/v1/troubleshooting（流式/历史双模）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§10 行 7"
+- row_id: D09-R08
+  domain: D09
+  capability: Replay/死信重放行级 REST（outbox 行查询+重放）——BinFlow 自有增强目标
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: C
+  source_row: "§10 行 8"
+  note: C 层目标（FR-159.2），Artifactory 无公开对位
+- row_id: D09-R09
+  domain: D09
+  capability: legacy /access/api/v1/system/webhooks*（deprecated 并存面）
+  state: not_applicable
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: D
+  source_row: "§10 行 9"
+- row_id: D10-R01
+  domain: D10
+  capability: 用户插件 /api/plugins（执行/源码/info/staging/promote/reload ×13 op——Groovy 服务端脚本体系）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§11 D10 行"
+  note: 非关键管理面+候 PM 裁定转 ⛔→P2
+- row_id: D11-R01
+  domain: D11
+  capability: 生命周期治理：清理策略 v2 + 保留 v2 + 冷存储归档 + retentionTools（≈80 op）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§11 D11 行"
+  note: M18+ Lifecycles 专程（Q1 裁定）
+- row_id: D11-R02
+  domain: D11
+  capability: Curation 族（interface settings ×2 + 官方 curation 族）
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: D
+  source_row: "§11 D11-C 行"
+  note: xray_tied——D14 同族
+- row_id: D12-R01
+  domain: D12
+  capability: Docker Registry v2（/v2/ 全套 16 op：blob/manifest/uploads/catalog/tags/token）
+  state: compatible
+  confidence: high
+  contract_ref: contracts/docker-remote.yaml
+  golden_ref: golden/docker-remote/{empty-blob-synthetic,pull-sequence}
+  last_difftest: reports/compatibility/L006-by-digest-cold-miss-diff.md（by-digest 冷 miss 补臂：×3 连发 1/3 + 60s 到期重写双端同形全 SAME）；前置 reports/compatibility/L005-c14-d1-diff.md（L005-1 修后重跑：304 矩阵 20/20 臂 SAME + 过期窗 6/6 + C14 tag/未知名双形态）+ L004-304-ping-diff.md（L004-1）+ L003-remote-face-diff.md（L003-2）+ L002-contract-replay 21/21 + L000 系列 L000-F/L001-1 复验
+  priority_class: P1
+  layer: A
+  source_row: "§11.1 行 1"
+  note: L001-2（2026-09-11）首份契约补链——契约覆盖 remote 面子集（ping/token/manifests/blobs/tags/catalog/禁推/404 族/分页/
+    条件请求矩阵/过期重验证），local/virtual 面与 /api/docker API 面未契约化。行态不因差分翻改：差异走 known-divergence
+    台账与契约条目态。清偿轨迹：L001-1 错误形态族 9 条 → L002-1 门控（ADR-0047）→ L003-2 头集三面 + 分页新条目 2 →
+    L004-1（2026-09-12）E3-2 勘误三连：条目 8 manifest-conditional-get 重写翻 DIVERGENT（D1 unquoted INM BUG）、
+    条目 2 ping 泛化四臂（P1-P3 分型清偿、P4b revoked 翻 DIVERGENT 挂 D2 模型级）、新立 blob-conditional-get +
+    manifest-revalidation-serve 双 VERIFIED（§8-C 透传活体直证）——契约现 25 条目 VERIFIED 20 / DIVERGENT 5
+    （token TTL/匿名姿态待裁 + D1/D14 负缓存补写待实现票 + D2 revoked 待产品裁）；D20/D21 均已闭（L004-2
+    C14 定谳见 known-divergence#docker/remote-manifest-404-negative-cache）。
+    L005-1（2026-09-12）修后重跑收官（uat.l0051-792c347c）：manifest-conditional-get（D1）与
+    manifest-404-no-negative-cache（C14）双 DIVERGENT 翻 VERIFIED——304 矩阵 20/20 臂 SAME（M2/M2c/M2d 收敛、
+    M6/M2b 偶合未翻面）+ C14 M-a/M-b 双端 1/3 同形 + missedTTL 到期回源重写再冻结；#16 expect 重写为
+    「首问一次→窗口内本地→到期回源」（M-b「未知名零回源」强读法按 L005-1 双端反证废弃，复现条件差注记在
+    known-divergence resolved note）；D1/C14 台账条目 resolved。契约现 25 条目 VERIFIED 22 / DIVERGENT 3
+    （token TTL/匿名姿态两族 + D2 revoked 待产品裁）。
+- row_id: D12-R02
+  domain: D12
+  capability: Docker API 面（/api/docker/{repoKey} promote/listTag/UI 面族）
+  state: partial
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§11.1 行 2"
+- row_id: D12-R03
+  domain: D12
+  capability: npm 认证族（/-/ping、/-/user/org.couchdb.user:* ×2、/-/v1/login、/-/whoami）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§11.1 行 3"
+- row_id: D12-R04
+  domain: D12
+  capability: npm 包面（packument GET/PUT、unpublish ×2）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§11.1 行 4"
+- row_id: D12-R05
+  domain: D12
+  capability: npm dist-tags 族（/-/package/:pkg/dist-tags GET/PUT + 版本 CRUD 子集，inv-2 计 42 op）
+  state: partial
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§11.1 行 5"
+- row_id: D12-R06
+  domain: D12
+  capability: PyPI（simple 索引/包页、packages 直下、upload）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§11.1 行 6"
+- row_id: D12-R07
+  domain: D12
+  capability: PyPI JSON 元数据（latest/version in JSON ×2——/api/pypi/{repo}/pypi/{pkg}/json）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§11.1 行 7"
+- row_id: D12-R08
+  domain: D12
+  capability: Maven 元数据计算（POST /api/maven/calculateMetadata + generatePom + 索引触发）
+  state: partial
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§11.1 行 8"
+- row_id: D12-R09
+  domain: D12
+  capability: 重索引族已实现 6 件（conan ×2、deb、helm ×2、yum）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§11.1 行 9"
+- row_id: D12-R10
+  domain: D12
+  capability: 重索引族缺位（alpine、cocoapods、nuget、npm、cran、cargo、conda、pub、rubygems、swift、terraform、opkg、vagrant）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§11.1 行 10"
+- row_id: D12-R11
+  domain: D12
+  capability: goproxy（模块协议原生，GOPROXY 端点在内容面承载）
+  state: compatible
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§11.1 行 11"
+- row_id: D12-R12
+  domain: D12
+  capability: VCS 族（git 仓浏览/下载 ×17 官方条目）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§11.1 行 12"
+  note: 源注低优候裁→P2
+- row_id: D12-R13
+  domain: D12
+  capability: Puppet 族 ×4
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§11.1 行 13"
+  note: 未有包型→P2
+- row_id: D12-R14
+  domain: D12
+  capability: RubyGems 版本清单
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§11.1 行 14"
+  note: 未有包型→P2
+- row_id: D12-R15
+  domain: D12
+  capability: 其余 40+ 包型协议栈（terraform backend、HuggingFace、swift、pub…）
+  state: absent
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P1
+  layer: A
+  source_row: "§11.1 行 15"
+  note: 包型扩张程载体（PRODUCT 范围内）
+- row_id: D12-R16
+  domain: D12
+  capability: 迁移器 /v1/migrations 族 ×13（bf-migrate CLI 等价）
+  state: absent
+  confidence: medium
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: A
+  source_row: "§11.1 行 16"
+  note: 候裁→P2
+- row_id: D12-R17
+  domain: D12
+  capability: Docker v1 兼容面（DockerSubResource 26 op——deprecated 不实现）
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: D
+  source_row: "§11.1 行 1 注记 + §1 D12 ⛔=1"
+  note: 隐含行：子表未单列，§1 冻结计 D12 ⛔1 由此承载
+- row_id: D13-R01
+  domain: D13
+  capability: UI 内部面（/ui/api/v1 树浏览/Tab/制品动作/首页 widget/验证/SetMeUp/登录屏 ≈470 op）
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: D
+  source_row: "§11 D13 行"
+  note: UI 内部契约——BinFlow 自有控制台对位（M16 已完成）
+- row_id: D14-R01
+  domain: D14
+  capability: 外部产品面族级合并行（Xray/Pipelines/JCR 订阅/Mission Control+Grid+JPD/Bridge/JFConnect/Workers/Access 平台联邦/云专属族/Distribution 侧/Curation/Bintray sunset）
+  state: not_applicable
+  confidence: high
+  contract_ref: 
+  golden_ref: 
+  last_difftest: 
+  priority_class: P2
+  layer: D
+  source_row: "§11 D14 行"

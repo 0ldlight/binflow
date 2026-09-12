@@ -92,27 +92,31 @@ func TestT317SmartRemotePairValidation(t *testing.T) {
 	}
 }
 
-// TestT317SmartRemotePairFullReplace: PUT-style update is full-replace — a
-// body without the pair RESETS it to the defaults (the M3 T-80 ruling the
-// tuning fields already follow), and a body that sets it replaces every
-// sub-flag.
-func TestT317SmartRemotePairFullReplace(t *testing.T) {
+// TestT317SmartRemotePairMergeOnOmit: since ADR-0050 (L008-1b) the update
+// face MERGES — a body without the pair KEEPS it (T-80's full-replace
+// ruling is superseded), and the url may be omitted too (the update-face
+// relaxation). The object-value replacement arms ({} reset, unmentioned
+// sub-key lands false) live in remote_update_merge_test.go.
+func TestT317SmartRemotePairMergeOnOmit(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
 	mustCreateRemote(t, e, "upd-remote", `{"url":"http://u","enableTokenAuthentication":true,`+
 		`"contentSynchronisation":{"enabled":true,"propertiesEnabled":true,"statisticsEnabled":true}}`)
 	if _, err := e.svc.UpdateRepo(ctx, admin(), &metadata.Repo{
 		RepoKey: "upd-remote", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
-		Config: `{"url":"http://u"}`,
+		Config: `{}`,
 	}); err != nil {
 		t.Fatalf("UpdateRepo: %v", err)
 	}
 	cfg := remoteCfgOf(t, mustGetRepo(t, e, "upd-remote"))
-	if cfg["enableTokenAuthentication"] != false {
-		t.Fatalf("after replace: enableTokenAuthentication = %v, want false", cfg["enableTokenAuthentication"])
+	if cfg["url"] != "http://u" {
+		t.Fatalf("after url-omitting update: url = %v, want kept", cfg["url"])
+	}
+	if cfg["enableTokenAuthentication"] != true {
+		t.Fatalf("after omit-update: enableTokenAuthentication = %v, want kept true", cfg["enableTokenAuthentication"])
 	}
 	cs := cfg["contentSynchronisation"].(map[string]any)
-	if cs["enabled"] != false || cs["statisticsEnabled"] != false {
-		t.Fatalf("after replace: contentSynchronisation = %v, want the default object", cs)
+	if cs["enabled"] != true || cs["statisticsEnabled"] != true || cs["propertiesEnabled"] != true {
+		t.Fatalf("after omit-update: contentSynchronisation = %v, want the stored family", cs)
 	}
 }

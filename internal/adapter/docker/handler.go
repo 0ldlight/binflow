@@ -1,6 +1,8 @@
 package docker
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -53,21 +55,90 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // closed-instance anonymous challenge. httpapi's router reaches it through
 // the narrow v2AuthFailure interface so neither package imports the other.
 // T-55 exception: the token endpoint's refused credential keeps the same
-// Bearer challenge header but renders the OAuth error body (PRD v1.2/C3 —
-// every /v2/token non-2xx is OAuth form; the 400s already were).
+// Bearer challenge header but renders Artifactory's generic error model
+// body ("Bad Credentials", L000-B C02 — the OAuth-form ruling applies to
+// the endpoint's parameter 400s only).
+// L003-2 exception: the PING route's refused credential is its own face
+// (L002-2 capture a_pingbad.h) — a Basic realm challenge plus the pretty
+// "Bad Credentials" body, NOT a Bearer re-challenge: a client that
+// presented credentials is told the credential failed, not that
+// negotiation is needed.
+// L004-1: the refused-BEARER arms split by token state (live reference
+// :8082, 7.161.20) — unknown "Props Authentication Token not found",
+// expired "Token failed verification: expired" — while the Basic family
+// keeps "Bad Credentials"; see bearerRefusalMessage.
 func (h *Handler) RenderAuthFailure(w http.ResponseWriter, r *http.Request) {
 	if r.URL != nil && isTokenRoute(r.URL.EscapedPath()) {
 		h.renderTokenAuthFailure(w, r)
 		return
 	}
+	if r.URL != nil {
+		if path := r.URL.EscapedPath(); path == "/v2" || path == "/v2/" {
+			h.pingRefusedCredential(w, r)
+			return
+		}
+	}
 	h.challenge(w, r, "")
+}
+
+// The refused-credential message families of the reference's /v2 faces
+// (L004-1 live captures a_ping_unknownbearer/a_ping_expiredbearer/
+// a_ping_revokedbearer/a_pingbad): the Basic arm and every unobserved
+// Bearer corner keep the L000-B C02 wording; the two OBSERVED Bearer
+// states carry their own messages verbatim. The reference's fourth arm —
+// "Token failed verification: revoked" — is unreachable under BinFlow's
+// revocation model (revoke deletes the row, so revoked verifies as
+// unknown): a model-level divergence registered in the L004-1 report.
+const (
+	// Wire-level message literals (parity strings probed from the reference),
+	// not credentials; gosec's name heuristic misfires on the word
+	// Credentials/Token — per-spec annotations below.
+	msgBadCredentials     = "Bad Credentials"                      // #nosec G101 -- parity message literal
+	msgPropsTokenNotFound = "Props Authentication Token not found" // #nosec G101 -- parity message literal
+	msgTokenFailedExpired = "Token failed verification: expired"   // #nosec G101 -- parity message literal
+)
+
+// bearerRefusalMessage classifies one refused Bearer credential for the
+// message-typed 401 arms: the middleware already refused it; the adapter
+// re-verifies through the SAME TokenRegistry decision point (no second
+// state machine) only to learn WHICH arm the refusal was. A non-Bearer
+// scheme, a missing registry, a re-verify that races valid, and every
+// unobserved corner (owner disabled, scope unusable) answer the generic
+// Basic-family wording.
+func (h *Handler) bearerRefusalMessage(ctx context.Context, r *http.Request) string {
+	scheme, value, found := strings.Cut(r.Header.Get("Authorization"), " ")
+	if !found || !strings.EqualFold(scheme, "Bearer") || value == "" || h.tokens == nil {
+		return msgBadCredentials
+	}
+	_, err := h.tokens.Verify(ctx, value)
+	switch {
+	case err == nil:
+		return msgBadCredentials // lost the race with the middleware's refusal
+	case errors.Is(err, auth.ErrTokenExpired):
+		return msgTokenFailedExpired
+	case errors.Is(err, auth.ErrTokenUnknown):
+		return msgPropsTokenNotFound
+	default:
+		return msgBadCredentials
+	}
+}
+
+// pingRefusedCredential renders the ping route's refused-credential arm
+// (capture a_pingbad.h + the L004-1 Bearer captures): `Basic realm=
+// "Artifactory Realm"` — the realm string verbatim from the reference,
+// what a docker client surfaces in its login prompt — plus the generic
+// error model's pretty body with the arm's own message and the ping
+// face's charset Content-Type.
+func (h *Handler) pingRefusedCredential(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("WWW-Authenticate", `Basic realm="Artifactory Realm"`)
+	writeStatusFormErrorCT(w, http.StatusUnauthorized, h.bearerRefusalMessage(r.Context(), r), contentTypeJSONCharset)
 }
 
 // servePing implements DE-01 (D44-1/C6 errata form): an AUTHENTICATED
 // ping answers 200 {} with the api-version header; every unauthenticated
 // ping — on an anonymous-open instance too — answers 401 with the Bearer
-// challenge (realm = <base>/v2/token, service="binflow", ADR-0010
-// clause 4). The unconditional challenge is what ping-caching clients
+// challenge (realm = <base>/v2/token, service = the request's host,
+// ADR-0010 clause 4 as aligned by L000-B C01). The unconditional challenge is what ping-caching clients
 // (docker daemon, containers/image: they authenticate only against the
 // challenge the ping cached) need to ever negotiate; anonymous access
 // flows through the anonymous token instead of a challenge-free ping, and
@@ -76,7 +147,7 @@ func (h *Handler) RenderAuthFailure(w http.ResponseWriter, r *http.Request) {
 // -> 200" posture is superseded by the same ruling.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	if principalOf(r) == nil {
-		h.challenge(w, r, "")
+		h.pingAnonymousChallenge(w, r)
 		return
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -96,18 +167,45 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// pingAnonymousChallenge is the ping face's anonymous 401: the standard
+// Bearer challenge body with the ping face's own Content-Type spelling —
+// application/json;charset=ISO-8859-1 (capture a_ping.h; every OTHER /v2
+// JSON face answers the bare application/json, so the spelling lives here
+// and not in the shared error writers).
+func (h *Handler) pingAnonymousChallenge(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("WWW-Authenticate", h.bearerChallenge(r, ""))
+	writeSpecErrorCT(w, http.StatusUnauthorized, ErrCodeUnauthorized,
+		"authentication required", nil, contentTypeJSONCharset)
+}
+
 // challenge renders the 401 + Bearer challenge (ADR-0010 clause 4). scope
 // is empty on the ping endpoint (identity only); endpoint-scoped
 // challenges (repository:<name>:pull,push) are T-37's to derive.
 func (h *Handler) challenge(w http.ResponseWriter, r *http.Request, scope string) {
-	ch := fmt.Sprintf(`Bearer realm="%s",service="%s"`, h.realmBase(r)+TokenPath, ServiceID)
+	hdr := w.Header()
+	hdr.Set("WWW-Authenticate", h.bearerChallenge(r, scope))
+	writeSpecError(w, http.StatusUnauthorized, ErrCodeUnauthorized,
+		"authentication required", nil)
+}
+
+// bearerChallenge builds the WWW-Authenticate Bearer value (the one
+// construction both challenge sites share — the route gate and the token
+// endpoint's refused-credential arm). The service= value is the request's
+// own host[:port] echoed back (L000-B C01: Artifactory's
+// service="localhost:8082" is the registry host the client addressed, not
+// a product constant; the token spec's service semantics = the registry
+// host). A request without a Host (synthetic zero-value requests) falls
+// back to the ServiceID constant.
+func (h *Handler) bearerChallenge(r *http.Request, scope string) string {
+	service := r.Host
+	if service == "" {
+		service = ServiceID
+	}
+	ch := fmt.Sprintf(`Bearer realm="%s",service="%s"`, h.realmBase(r)+TokenPath, service)
 	if scope != "" {
 		ch += fmt.Sprintf(`,scope="%s"`, scope)
 	}
-	hdr := w.Header()
-	hdr.Set("WWW-Authenticate", ch)
-	writeSpecError(w, http.StatusUnauthorized, ErrCodeUnauthorized,
-		"authentication required", nil)
+	return ch
 }
 
 // realmBase resolves the externally visible origin for the challenge
@@ -158,6 +256,12 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 	case strings.HasPrefix(path, catalogPath+"/"):
 		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,
 			"unknown registry route "+path, nil)
+		return
+	case repoCatalogKey(path) != "":
+		// The repo-domain catalog, GET /v2/<repoKey>/_catalog (L000-B C16):
+		// intercepted before the name parser for the same reserved-prefix
+		// reason — a "_catalog" image slot carries no registry route.
+		h.serveRepoCatalog(w, r, path, repoCatalogKey(path))
 		return
 	case !strings.HasPrefix(path, "/v2/"):
 		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,

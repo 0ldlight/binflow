@@ -79,17 +79,16 @@ func TestRemoteMetadataTTLWireRoundTrip(t *testing.T) {
 		t.Fatalf("default row = %d, want 600", got)
 	}
 
-	// The update plane: a config-bearing PUT replaces the window (the
-	// family's full-replace semantics — url rides along as the required
-	// field), a config-less PUT keeps it.
-	if status, body := putRepoStatus(t, h, "ttl-explicit",
-		`{"rclass":"remote","packageType":"helm","url":"http://127.0.0.1:9099","allowPrivateUpstream":true,"metadataRetrievalCachePeriodSecs":60}`); status != http.StatusOK {
+	// The update plane since ADR-0050: POST is the update spelling and the
+	// knob MERGES — an explicit window overwrites, an omitted one keeps.
+	if status, body := postRepoStatus(t, h, "ttl-explicit",
+		`{"metadataRetrievalCachePeriodSecs":60}`); status != http.StatusOK {
 		t.Fatalf("update ttl-explicit: status=%d body=%s", status, body)
 	}
 	if got := ttlRow(t, h, "ttl-explicit"); got != 60 {
 		t.Fatalf("row after update = %d, want 60", got)
 	}
-	if status, body := putRepoStatus(t, h, "ttl-explicit", `{"description":"config-less touch"}`); status != http.StatusOK {
+	if status, body := postRepoStatus(t, h, "ttl-explicit", `{"description":"config-less touch"}`); status != http.StatusOK {
 		t.Fatalf("config-less update: status=%d body=%s", status, body)
 	}
 	if got := ttlRow(t, h, "ttl-explicit"); got != 60 {
@@ -110,13 +109,17 @@ func TestRemoteMetadataTTLWireBoundary(t *testing.T) {
 	if !strings.Contains(body, "metadataRetrievalCachePeriodSecs") || !strings.Contains(body, "negative") {
 		t.Fatalf("400 body %q must name the field and the refusal", body)
 	}
-	// An explicit 0 is the family's "keeps the default" spelling, not a
-	// second boundary: the stored window is the 600s product default.
+	// An explicit 0 IS the value since ADR-0050 decision 3 (the reference
+	// has no zero-means-default rule); the fetch side keeps its own
+	// 0=unset fallback chain, so the stored 0 only changes the echo.
 	if status, body := putRepoStatus(t, h, "ttl-zero",
 		`{"rclass":"remote","packageType":"helm","url":"http://127.0.0.1:9099","allowPrivateUpstream":true,"metadataRetrievalCachePeriodSecs":0}`); status != http.StatusOK {
 		t.Fatalf("zero TTL create: status=%d body=%s", status, body)
 	}
-	if got := ttlRow(t, h, "ttl-zero"); got != 600 {
-		t.Fatalf("zero-TTL row = %d, want the 600s default", got)
+	if got := ttlRow(t, h, "ttl-zero"); got != 0 {
+		t.Fatalf("zero-TTL row = %d, want the explicit 0", got)
+	}
+	if got := configField(t, h, "ttl-zero", "metadataRetrievalCachePeriodSecs"); got != float64(0) {
+		t.Fatalf("zero-TTL echo = %v, want 0", got)
 	}
 }

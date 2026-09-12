@@ -39,7 +39,10 @@ func servesV2Plane(packageType string) bool {
 }
 
 // ServiceID is the token-flow service name announced in the Bearer
-// challenge (ADR-0010 clause 4: service="binflow").
+// challenge when the request carries no host to echo (ADR-0010 clause 4
+// originally pinned service="binflow"; L000-B C01 aligned the value with
+// Artifactory's semantics — the request's own host[:port], see
+// bearerChallenge).
 const ServiceID = "binflow"
 
 // TokenPath is the adapter's own token endpoint (ADR-0010 clause 4), the

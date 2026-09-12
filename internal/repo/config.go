@@ -22,12 +22,14 @@ import (
 // shared fields type-checked here.
 
 // Product-level defaults of the remote repository fields (PRD v1.2 C4 per the
-// ADR-0012 T-79 errata: retrieval 7200 / missed 1800 / socket 15s / assumed
-// offline 300s). The remote_configs DDL defaults (86400/600) are schema-level
-// fallbacks for rows created outside this service — the service always writes
-// the product values (003 migration comment, T-62).
+// ADR-0012 T-79 errata: missed 1800 / socket 15s / assumed offline 300s; the
+// retrieval TTL default is PER PACKAGE TYPE — remote.DefaultContentTTLSecondsFor,
+// the single point the fetch engine's loadRepo also reads, ADR-0012 erratum
+// three: docker/helmoci 21600, every other type 7200). The remote_configs DDL
+// defaults (86400/600) are schema-level fallbacks for rows created outside
+// this service — the service always writes the product values (003 migration
+// comment, T-62).
 const (
-	defaultRetrievalCachePeriodSecs       int64 = 7200
 	defaultMissedRetrievalCachePeriodSecs int64 = 1800
 	defaultSocketTimeoutSecs              int64 = 15
 	defaultAssumedOfflinePeriodSecs       int64 = 300
@@ -43,6 +45,18 @@ const (
 	// metadataRetrievalTimeoutSecs 60) — the engine-wide constant becomes a
 	// per-repository knob with the same product default.
 	defaultMetadataRetrievalTimeoutSecs int64 = 60
+	// defaultRepoLayoutRef is the artifactory.xsd default of repoLayoutRef
+	// (L006-A live evidence: a bare REST create of a local OR remote
+	// repository echoes maven-2-default on every package type tried —
+	// generic, npm, docker; the per-package layouts the UI offers never
+	// reach the REST default). The virtual arm has NO default — the
+	// reference's own virtual echo omits the key when it was not set. The
+	// LOCAL arm also keeps no injected default: its caller-owned blob
+	// (nested-configuration echo, no materialized defaults) is the shape
+	// D02-R02 already rules compatible — the remote canonical form here is
+	// the only arm whose always-present-with-defaults posture matches the
+	// reference's own flat echo.
+	defaultRepoLayoutRef = "maven-2-default"
 )
 
 // remoteConfig is the canonical remote repository configuration (FR-15; the
@@ -119,6 +133,24 @@ type remoteConfig struct {
 	// trap). deb/rpm are the official-setting types (remote-browsing.md
 	// section 2); helm is BinFlow's L2 superset leg, registered there.
 	ListRemoteFolderItems bool `json:"listRemoteFolderItems"`
+	// L006-A (D02-R03/R04, the P0 round-trip debt): the four cross-rclass
+	// domains ride the REMOTE canonical form always-present, like every
+	// default the family echoes. Scope is the live reference's own: all
+	// four round-trip on local and remote; the VIRTUAL arm keeps only
+	// repoLayoutRef (the reference drops the other three there — BinFlow
+	// copies that drop, evidence over invention). repoLayoutRef defaults
+	// to the artifactory.xsd default maven-2-default (live evidence: a
+	// bare REST create echoes it on every package type tried — generic,
+	// npm, docker); blackedOut/maxUniqueSnapshots/archiveBrowsingEnabled
+	// default false/0/false; a negative maxUniqueSnapshots stores verbatim
+	// (the reference echoes -1 back — no refusal to mirror). No
+	// layout-name validation: the reference's unknown-layout 400 consults
+	// a layout registry BinFlow does not carry (K73: presentation-only),
+	// recorded as a ruled divergence.
+	RepoLayoutRef          string `json:"repoLayoutRef"`
+	BlackedOut             bool   `json:"blackedOut"`
+	MaxUniqueSnapshots     int    `json:"maxUniqueSnapshots"`
+	ArchiveBrowsingEnabled bool   `json:"archiveBrowsingEnabled"`
 }
 
 // ContentSynchronisation is the smart remote content-sync policy (T-317,
@@ -163,19 +195,26 @@ type contentSyncInput struct {
 //     spelling) is the CANONICAL form — the persisted canonical JSON and
 //     the GET echo carry it, never the ms alias. socketTimeoutMs (the
 //     PRD/LC-12 spelling) is an INPUT-ONLY alias: accepted on the write
-//     plane, canonicalized away. An explicit 0 on either side counts as
-//     ABSENT (the create-time "explicit zero keeps the default" rule —
-//     resolveRemoteAlias), and two non-zero spellings that disagree refuse
-//     (the virtualConfigInput alias-disagreement rule). A non-zero ms
-//     value takes precedence over the M3 socketTimeoutSecs field — only
-//     the ms spellings can express sub-second timeouts, so the coarser
-//     legacy field yields (a zero ms spelling yields right back).
+//     plane, canonicalized away. When BOTH spellings are given, a zero
+//     side yields to the other side's value (resolveRemoteAlias's alias
+//     yield), and two non-zero spellings that disagree refuse (the
+//     virtualConfigInput alias-disagreement rule); an explicit 0 on one
+//     spelling ALONE is the value (ADR-0050 decision 3, Review B2: the
+//     reference stores socketTimeoutMillis:0 verbatim and the 0 wins over
+//     a co-sent socketTimeoutSecs). Any resolved ms value takes
+//     precedence over the M3 socketTimeoutSecs field — the legacy field
+//     applies only when the ms pair is absent.
 //   - missRetrievalCachePeriodSecs (the inv-4 F5 / PRD spelling) is an
 //     input alias of missedRetrievalCachePeriodSecs (the canonical
-//     Artifactory spelling this model keeps); the same 0-as-absent /
-//     non-zero-disagreement-refuses rule as the ms pair applies.
+//     Artifactory spelling this model keeps); the same alias rules as the
+//     ms pair apply.
 //   - metadataRetrievalTimeoutSecs and unusedArtifactsCleanupPeriodHours
 //     round out the FR-90.2 subset (defaults 60 and 0/off).
+//
+// ADR-0050 decision 3 retired the 0-as-absent rule of the period family on
+// BOTH faces: an explicit 0 now stores and echoes 0 (the reference has no
+// zero-means-default rule); the fetch side keeps its own 0=unset fallback
+// chain — wire/storage and effect are layered.
 type remoteConfigInput struct {
 	URL                               *string          `json:"url"`
 	Username                          string           `json:"username"`
@@ -199,9 +238,17 @@ type remoteConfigInput struct {
 	// MetadataRetrievalCachePeriodSecs is the metadata TTL knob (T-495):
 	// the same spelling the canonical form echoes, the family's rules —
 	// pointer so absent keeps the stored value on update, an explicit 0
-	// counts as absent (keeps the 600s product default), a negative value
-	// refuses by name with a 400.
+	// stores 0 (ADR-0050 decision 3), a negative value refuses by name
+	// with a 400.
 	MetadataRetrievalCachePeriodSecs *int64 `json:"metadataRetrievalCachePeriodSecs"`
+	// L006-A: the four round-trip domains' input seats. Pointers keep an
+	// explicit false/0 distinct from absent so the flip-off update works
+	// (unlike the period knobs above, 0 IS the maxUniqueSnapshots value —
+	// K71's posture, no 0-as-absent rule here).
+	RepoLayoutRef          *string `json:"repoLayoutRef"`
+	BlackedOut             *bool   `json:"blackedOut"`
+	MaxUniqueSnapshots     *int    `json:"maxUniqueSnapshots"`
+	ArchiveBrowsingEnabled *bool   `json:"archiveBrowsingEnabled"`
 }
 
 // validateRemoteConfigShape is the strict single-JSON-value gate of the
@@ -210,33 +257,43 @@ type remoteConfigInput struct {
 // ACCEPTED and effective now — but the strictness the gate added stays:
 // the blob must be exactly ONE JSON value, because the typed decode below
 // (Decoder.Decode) silently ignores whatever follows the first value.
-func validateRemoteConfigShape(config string) error {
+//
+// ADR-0050 made it also the raw-map source of the merge face: the returned
+// map carries KEY PRESENCE (username/password are non-pointer seats whose
+// typed decode flattens null and "" onto ""), which is the only way to
+// tell "omitted = keep the stored credential" from "explicit null/empty =
+// clear it" (decision 4's single-sided clear).
+func validateRemoteConfigShape(config string) (map[string]json.RawMessage, error) {
 	dec := json.NewDecoder(strings.NewReader(config))
 	var raw map[string]json.RawMessage
 	if err := dec.Decode(&raw); err != nil {
 		if errors.Is(err, io.EOF) {
-			return nil // empty blob: the typed decode below names the missing url
+			return nil, nil // empty blob: the typed decode below names the missing url
 		}
-		return fmt.Errorf("%w: remote repository config: %w", ErrInvalidRepoConfig, err)
+		return nil, fmt.Errorf("%w: remote repository config: %w", ErrInvalidRepoConfig, err)
 	}
 	var extra json.RawMessage
 	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"%w: remote repository config: trailing data after the JSON object", ErrInvalidRepoConfig)
 	}
-	return nil
+	return raw, nil
 }
 
 // parseContentSynchronisation validates the contentSynchronisation input
-// (T-317, FR-101.1 / K37). A nil or JSON-null value counts as ABSENT (all
-// four booleans keep the false default — the same explicit-null-is-absent
-// read every other nullable config field gets); an OBJECT decodes the four
-// anchored sub-fields (unknown sub-fields drop, the scenario-D tolerance at
-// one level down); any other JSON shape refuses naming the field, so a
-// boolean or string cannot silently masquerade as the policy object.
-func parseContentSynchronisation(raw *json.RawMessage) (ContentSynchronisation, error) {
+// (T-317, FR-101.1 / K37). A nil or JSON-null value counts as ABSENT — on
+// the update face that KEEPS the baseline (ADR-0050 matrix, object column:
+// explicit null keeps the family, L008-1b probe A15 on the live reference);
+// an OBJECT REPLACES the whole value: only the four anchored sub-fields
+// decode, an unmentioned sub-key lands false — NOT the baseline (probe A14:
+// explicit {statistics:{enabled:false}} resets the unmentioned
+// properties.enabled back to false), and {} is the whole-family reset arm.
+// Unknown sub-fields drop (the scenario-D tolerance at one level down); any
+// other JSON shape refuses naming the field, so a boolean or string cannot
+// silently masquerade as the policy object.
+func parseContentSynchronisation(raw *json.RawMessage, baseline ContentSynchronisation) (ContentSynchronisation, error) {
 	if raw == nil || string(*raw) == "null" {
-		return ContentSynchronisation{}, nil
+		return baseline, nil
 	}
 	var in contentSyncInput
 	if err := json.Unmarshal(*raw, &in); err != nil {
@@ -270,6 +327,13 @@ func parseContentSynchronisation(raw *json.RawMessage) (ContentSynchronisation, 
 // packageType carries the repository row's package type — the one
 // per-protocol seat, chartsBaseUrl (T-367), keys on it.
 //
+// ADR-0050 (L008-1b): a non-nil baseline switches the function into the
+// update face's MERGE mode — the stored canonical form is the starting
+// value, an omitted seat keeps it, and the third return (passwordSet) tells
+// the service whether the body carried the password key at all (omitted =
+// keep the stored sealed row; explicit null/""/value = clear or replace).
+// A nil baseline is the create face: product defaults, url required.
+//
 // Validation is scheme/format only (FR-15-AC3): a private-address URL is
 // LEGAL at create time — the SSRF chain runs per request because DNS and
 // networks change (NFR-S13, ADR-0012 errata two point five). The URL's
@@ -285,105 +349,146 @@ func parseContentSynchronisation(raw *json.RawMessage) (ContentSynchronisation, 
 // in internal/remote (Bearer token auth, pull-side property attach). The
 // same rule governs chartsBaseUrl (T-367): accepted and effective on helm
 // remotes, refused by name everywhere else (never a stored inert field).
-func parseRemoteConfig(config, packageType string) (remoteConfig, string, error) {
-	if err := validateRemoteConfigShape(config); err != nil {
-		return remoteConfig{}, "", err
+func parseRemoteConfig(config, packageType string, baseline *remoteConfig) (remoteConfig, string, bool, error) {
+	raw, err := validateRemoteConfigShape(config)
+	if err != nil {
+		return remoteConfig{}, "", false, err
 	}
 	var in remoteConfigInput
 	dec := json.NewDecoder(strings.NewReader(config))
 	if err := dec.Decode(&in); err != nil {
-		return remoteConfig{}, "", fmt.Errorf("%w: remote repository config: %w", ErrInvalidRepoConfig, err)
+		return remoteConfig{}, "", false, fmt.Errorf("%w: remote repository config: %w", ErrInvalidRepoConfig, err)
 	}
-	if in.URL == nil || strings.TrimSpace(*in.URL) == "" {
-		return remoteConfig{}, "", fmt.Errorf(
-			"%w: remote repository config: url is required (http/https upstream base URL)", ErrInvalidRepoConfig)
+
+	// ADR-0050 baseline mode: the update face starts from the STORED
+	// canonical form, not the product defaults — every omitted seat keeps
+	// its stored value (merge-on-omit). nil baseline = the create face,
+	// whose starting point is (and stays) the product defaults below.
+	var out remoteConfig
+	if baseline != nil {
+		out = *baseline
 	}
-	rawURL := strings.TrimSpace(*in.URL)
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return remoteConfig{}, "", fmt.Errorf("%w: remote repository config: url %q: %w", ErrInvalidRepoConfig, rawURL, err)
+	// url: omitted keeps the stored URL verbatim (update-face relaxation,
+	// ADR-0050 matrix row 1 — it was validated when it was written); an
+	// explicit value (create face: always) re-validates. An explicit blank
+	// still refuses on both faces ("" is not a legal upstream).
+	if in.URL == nil {
+		if baseline == nil || baseline.URL == "" {
+			return remoteConfig{}, "", false, fmt.Errorf(
+				"%w: remote repository config: url is required (http/https upstream base URL)", ErrInvalidRepoConfig)
+		}
+	} else {
+		rawURL := strings.TrimSpace(*in.URL)
+		if rawURL == "" {
+			return remoteConfig{}, "", false, fmt.Errorf(
+				"%w: remote repository config: url is required (http/https upstream base URL)", ErrInvalidRepoConfig)
+		}
+		u, uerr := url.Parse(rawURL)
+		if uerr != nil {
+			return remoteConfig{}, "", false, fmt.Errorf("%w: remote repository config: url %q: %w", ErrInvalidRepoConfig, rawURL, uerr)
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return remoteConfig{}, "", false, fmt.Errorf(
+				"%w: remote repository config: url %q: scheme must be http or https", ErrInvalidRepoConfig, rawURL)
+		}
+		if u.Host == "" {
+			return remoteConfig{}, "", false, fmt.Errorf(
+				"%w: remote repository config: url %q: host is required", ErrInvalidRepoConfig, rawURL)
+		}
+		out.URL = strings.TrimRight(u.String(), "/")
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return remoteConfig{}, "", fmt.Errorf(
-			"%w: remote repository config: url %q: scheme must be http or https", ErrInvalidRepoConfig, rawURL)
+
+	// username (non-pointer seat): the typed decode flattens null and ""
+	// onto "", so the raw map's KEY PRESENCE is the merge signal (ADR-0050
+	// decision 4) — omitted keeps the baseline, an explicit value/null/""/
+	// writes (null and "" both decode to the empty string = the clear arm).
+	usernameGiven := false
+	if raw != nil {
+		_, usernameGiven = raw["username"]
 	}
-	if u.Host == "" {
-		return remoteConfig{}, "", fmt.Errorf(
-			"%w: remote repository config: url %q: host is required", ErrInvalidRepoConfig, rawURL)
+	switch {
+	case baseline == nil:
+		out.Username = in.Username
+	case usernameGiven:
+		out.Username = in.Username
+	}
+	// password presence rides the return value for the same reason: the
+	// service keeps the STORED sealed row when the body omits the key.
+	passwordGiven := false
+	if raw != nil {
+		_, passwordGiven = raw["password"]
 	}
 
 	// chartsBaseUrl (T-367, the per-protocol seat): a non-empty value is a
 	// helm remote's field ONLY — any other package type gets the by-name
 	// refusal (the validateLocalKeypairRef posture: an inert accepted field
-	// is the trap; a silently dropped one is a lie). Absent or an explicit
-	// "" (clearing the base back to the URL fallback) passes everywhere.
-	chartsBase := ""
+	// is the trap; a silently dropped one is a lie). An explicit "" (clearing
+	// the base back to the URL fallback) passes everywhere; an omitted key
+	// keeps the baseline (the pointer seat carries presence natively).
 	if in.ChartsBaseURL != nil {
+		chartsBase := ""
 		if trimmed := strings.TrimSpace(*in.ChartsBaseURL); trimmed != "" {
 			if packageType != PackageHelm {
-				return remoteConfig{}, "", fmt.Errorf(
+				return remoteConfig{}, "", false, fmt.Errorf(
 					"%w: remote %s repository config: chartsBaseUrl %q is not accepted (the divergent charts fetch base is a helm remote-repository behavior)",
 					ErrInvalidRepoConfig, packageType, trimmed)
 			}
-			cb, err := url.Parse(trimmed)
-			if err != nil {
-				return remoteConfig{}, "", fmt.Errorf(
-					"%w: remote repository config: chartsBaseUrl %q: %w", ErrInvalidRepoConfig, trimmed, err)
+			cb, cerr := url.Parse(trimmed)
+			if cerr != nil {
+				return remoteConfig{}, "", false, fmt.Errorf(
+					"%w: remote repository config: chartsBaseUrl %q: %w", ErrInvalidRepoConfig, trimmed, cerr)
 			}
 			if cb.Scheme != "http" && cb.Scheme != "https" {
-				return remoteConfig{}, "", fmt.Errorf(
+				return remoteConfig{}, "", false, fmt.Errorf(
 					"%w: remote repository config: chartsBaseUrl %q: scheme must be http or https", ErrInvalidRepoConfig, trimmed)
 			}
 			if cb.Host == "" {
-				return remoteConfig{}, "", fmt.Errorf(
+				return remoteConfig{}, "", false, fmt.Errorf(
 					"%w: remote repository config: chartsBaseUrl %q: host is required", ErrInvalidRepoConfig, trimmed)
 			}
 			chartsBase = strings.TrimRight(cb.String(), "/")
 		}
+		out.ChartsBaseURL = chartsBase
 	}
 
-	out := remoteConfig{
-		URL:                              strings.TrimRight(u.String(), "/"),
-		Username:                         in.Username,
-		RetrievalCachePeriodSecs:         defaultRetrievalCachePeriodSecs,
-		MissedRetrievalCachePeriodSecs:   defaultMissedRetrievalCachePeriodSecs,
-		SocketTimeoutMillis:              defaultSocketTimeoutSecs * 1000,
-		SocketTimeoutSecs:                defaultSocketTimeoutSecs,
-		MetadataRetrievalTimeoutSecs:     defaultMetadataRetrievalTimeoutSecs,
-		UnusedCleanupPeriodHours:         0, // off (repo-semantics 7.1)
-		AssumedOfflinePeriodSecs:         defaultAssumedOfflinePeriodSecs,
-		HardFail:                         false,
-		AllowPrivateUpstream:             false,
-		PriorityResolution:               false,
-		MetadataRetrievalCachePeriodSecs: defaultMetadataTTLSeconds,
+	if baseline == nil {
+		out.RetrievalCachePeriodSecs = remote.DefaultContentTTLSecondsFor(packageType)
+		out.MissedRetrievalCachePeriodSecs = defaultMissedRetrievalCachePeriodSecs
+		out.SocketTimeoutMillis = defaultSocketTimeoutSecs * 1000
+		out.SocketTimeoutSecs = defaultSocketTimeoutSecs
+		out.MetadataRetrievalTimeoutSecs = defaultMetadataRetrievalTimeoutSecs
+		out.UnusedCleanupPeriodHours = 0 // off (repo-semantics 7.1)
+		out.AssumedOfflinePeriodSecs = defaultAssumedOfflinePeriodSecs
+		out.MetadataRetrievalCachePeriodSecs = defaultMetadataTTLSeconds
+		out.RepoLayoutRef = defaultRepoLayoutRef
 	}
 
 	// missRetrievalCachePeriodSecs alias (T-290): one knob, two spellings;
-	// an explicit 0 counts as ABSENT on either side (the create-time
-	// "explicit zero keeps the default" rule — 0+value resolves to the
-	// value, matching the fetcher's 0=unset consumption), and two non-zero
-	// spellings that differ refuse like the virtual aliases do.
+	// an explicit 0 on one side YIELDS to the other side's value (the alias
+	// resolution rule), and two non-zero spellings that differ refuse like
+	// the virtual aliases do.
 	missed, ok := resolveRemoteAlias(in.MissedRetrievalCachePeriodSecs, in.MissRetrievalCachePeriodSecs)
 	if !ok {
-		return remoteConfig{}, "", fmt.Errorf(
+		return remoteConfig{}, "", false, fmt.Errorf(
 			"%w: remote repository config: missedRetrievalCachePeriodSecs and missRetrievalCachePeriodSecs disagree (%d vs %d)",
 			ErrInvalidRepoConfig, derefInt64(in.MissedRetrievalCachePeriodSecs), derefInt64(in.MissRetrievalCachePeriodSecs))
 	}
 
 	// socketTimeoutMillis / socketTimeoutMs alias pair (T-290; canonical
 	// flipped to the xsd spelling by T-346 / FR-113.1): same knob, either
-	// spelling accepted on input, the same 0-as-absent rule applies.
+	// spelling accepted on input, the same alias rules apply. A resolved
+	// value decides alone — including an explicit 0: the reference stores
+	// socketTimeoutMillis:0 verbatim on both faces and the 0 WINS over a
+	// co-sent socketTimeoutSecs (L008-1b probe on :8082: millis:0+secs:30
+	// lands 0), so the pre-B2 "resolved zero falls back to the secs field"
+	// unwrap is gone. The legacy secs field applies only when the ms pair
+	// is absent; the FETCH side keeps its own 0=unset fallback chain
+	// (effectiveSocketTimeoutMs) — wire/storage and effect are layered.
 	socketMs, ok := resolveRemoteAlias(in.SocketTimeoutMs, in.SocketTimeoutMillis)
 	if !ok {
-		return remoteConfig{}, "", fmt.Errorf(
+		return remoteConfig{}, "", false, fmt.Errorf(
 			"%w: remote repository config: socketTimeoutMs and socketTimeoutMillis disagree (%d vs %d)",
 			ErrInvalidRepoConfig, derefInt64(in.SocketTimeoutMs), derefInt64(in.SocketTimeoutMillis))
-	}
-	// A resolved zero is "unset": the legacy socketTimeoutSecs field
-	// applies then, exactly like the fetcher's fallback chain
-	// (effectiveSocketTimeoutMs) treats a zero column.
-	if socketMs != nil && *socketMs == 0 {
-		socketMs = nil
 	}
 
 	for _, f := range []struct {
@@ -400,11 +505,15 @@ func parseRemoteConfig(config, packageType string) (remoteConfig, string, error)
 		{"unusedArtifactsCleanupPeriodHours", in.UnusedArtifactsCleanupPeriodHours != nil, derefInt64(in.UnusedArtifactsCleanupPeriodHours)},
 		{"assumedOfflinePeriodSecs", in.AssumedOfflinePeriodSecs != nil, derefInt64(in.AssumedOfflinePeriodSecs)},
 	} {
-		if !f.given || f.value == 0 {
-			continue // absent or explicit zero: keep the product default
+		if !f.given {
+			continue // absent: keep the starting value (baseline seat or product default)
 		}
+		// ADR-0050 decision 3: an explicit 0 IS 0 — the T-290-era
+		// 0-as-absent rule is retired on BOTH faces (the reference stores
+		// and echoes 0; the fetch side keeps its own 0=unset fallback chain
+		// — wire/storage and effect are layered).
 		if f.value < 0 {
-			return remoteConfig{}, "", fmt.Errorf(
+			return remoteConfig{}, "", false, fmt.Errorf(
 				"%w: remote repository config: %s must not be negative (got %d)", ErrInvalidRepoConfig, f.name, f.value)
 		}
 		switch f.name {
@@ -441,7 +550,7 @@ func parseRemoteConfig(config, packageType string) (remoteConfig, string, error)
 	// source, no repo-side spelling mirror to drift).
 	if in.ListRemoteFolderItems != nil {
 		if *in.ListRemoteFolderItems && !remote.BrowseSupported(packageType) {
-			return remoteConfig{}, "", fmt.Errorf(
+			return remoteConfig{}, "", false, fmt.Errorf(
 				"%w: remote %s repository config: listRemoteFolderItems true is not accepted (remote folder enumeration exists for the batch-1 types: helm, debian, rpm)",
 				ErrInvalidRepoConfig, packageType)
 		}
@@ -460,31 +569,62 @@ func parseRemoteConfig(config, packageType string) (remoteConfig, string, error)
 	if in.EnableTokenAuthentication != nil {
 		out.EnableTokenAuthentication = *in.EnableTokenAuthentication
 	}
-	cs, csErr := parseContentSynchronisation(in.ContentSynchronisation)
+	csBaseline := ContentSynchronisation{}
+	if baseline != nil {
+		csBaseline = baseline.ContentSynchronisation
+	}
+	cs, csErr := parseContentSynchronisation(in.ContentSynchronisation, csBaseline)
 	if csErr != nil {
-		return remoteConfig{}, "", csErr
+		return remoteConfig{}, "", false, csErr
 	}
 	out.ContentSynchronisation = cs
-	out.ChartsBaseURL = chartsBase
-	return out, in.Password, nil
+	// L006-A: the four round-trip domains — verbatim collect, no
+	// value-domain gates (the reference accepts a negative snapshot cap
+	// and echoes it back; it validates layout names against a registry
+	// BinFlow deliberately does not carry, K73).
+	if in.RepoLayoutRef != nil && *in.RepoLayoutRef != "" {
+		out.RepoLayoutRef = *in.RepoLayoutRef
+	}
+	if in.BlackedOut != nil {
+		out.BlackedOut = *in.BlackedOut
+	}
+	if in.MaxUniqueSnapshots != nil {
+		out.MaxUniqueSnapshots = *in.MaxUniqueSnapshots
+	}
+	if in.ArchiveBrowsingEnabled != nil {
+		out.ArchiveBrowsingEnabled = *in.ArchiveBrowsingEnabled
+	}
+	return out, in.Password, passwordGiven, nil
 }
 
-// resolveRemoteAlias merges one alias pair of the T-290 remote fields: an
-// absent OR EXPLICIT-ZERO spelling yields to the other side's value (the
-// create-time "explicit zero keeps the default" rule — the fetcher's
-// 0=unset consumption reads the same way), and ok=false marks the one
-// refusal left: two non-zero spellings that disagree.
+// resolveRemoteAlias merges one alias pair of the T-290 remote fields.
+// ADR-0050 decision 3 made an explicit 0 a VALUE on either side (the
+// reference stores socketTimeoutMillis:0 verbatim on both faces — L008-1b
+// probe on :8082; the miss pair's canonical spelling already behaved that
+// way), so the resolver's only remaining zero rule is the ALIAS YIELD:
+// when BOTH spellings are given, a zero side yields to the other side's
+// non-zero value (one knob, the disagreement never reaches storage).
+// ok=false marks the one refusal left: two non-zero spellings that
+// disagree.
 func resolveRemoteAlias(a, b *int64) (v *int64, ok bool) {
-	av, bv := derefInt64(a), derefInt64(b)
 	switch {
-	case b == nil || bv == 0:
+	case a == nil && b == nil:
+		return nil, true
+	case b == nil:
 		return a, true
-	case a == nil || av == 0:
+	case a == nil:
 		return b, true
-	case av != bv:
-		return nil, false
-	default:
+	}
+	av, bv := *a, *b
+	switch {
+	case av == bv:
 		return a, true
+	case av == 0:
+		return b, true
+	case bv == 0:
+		return a, true
+	default:
+		return nil, false
 	}
 }
 
@@ -535,6 +675,14 @@ func maskRemoteConfig(config string) string {
 type virtualConfig struct {
 	Repositories          []string `json:"repositories"`
 	DefaultDeploymentRepo string   `json:"defaultDeploymentRepo,omitempty"`
+	// L006-A (D02-R03/R04): repoLayoutRef is the ONLY one of the four
+	// round-trip domains the virtual arm keeps — the live reference's own
+	// virtual echo carries it when set and OMITS it when not (no xsd
+	// default on this arm, unlike local/remote's maven-2-default), and it
+	// drops blackedOut/maxUniqueSnapshots/archiveBrowsingEnabled entirely.
+	// BinFlow copies that scope verbatim: omitempty here, no seats for
+	// the other three anywhere on the virtual path.
+	RepoLayoutRef string `json:"repoLayoutRef,omitempty"`
 }
 
 // virtualConfigInput adds the write-routing aliases Artifactory's REST body
@@ -546,6 +694,10 @@ type virtualConfigInput struct {
 	DefaultDeploymentRepo    string   `json:"defaultDeploymentRepo"`
 	DefaultDeploymentRepoRef string   `json:"defaultDeploymentRepoRef"`
 	DeploymentRepository     string   `json:"deploymentRepository"`
+	// L006-A: the virtual arm's repoLayoutRef input seat (the other three
+	// domains' spellings are accepted-and-dropped here like every unknown
+	// field — the reference's own virtual behavior).
+	RepoLayoutRef string `json:"repoLayoutRef"`
 }
 
 // parseVirtualConfig validates the virtual repository config blob's shape.
@@ -580,7 +732,7 @@ func parseVirtualConfig(config string) (virtualConfig, error) {
 				ErrInvalidRepoConfig, def, alias)
 		}
 	}
-	return virtualConfig{Repositories: in.Repositories, DefaultDeploymentRepo: def}, nil
+	return virtualConfig{Repositories: in.Repositories, DefaultDeploymentRepo: def, RepoLayoutRef: in.RepoLayoutRef}, nil
 }
 
 // byHashPolicies is the closed value domain of the deb by-hash policy key

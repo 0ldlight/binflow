@@ -1,0 +1,70 @@
+# 差分归一规则（docs/compatibility/fixtures/normalize.yaml）——docker-remote 域首批
+# 源：reports/compatibility/L000-docker-remote-evidence.md §10 normalize 段 + L000-docker-remote-diff.md 头部 normalize 行。
+# 消费方：tools/difftest（differential-qa-engineer owns）——双发响应先过本规则再比对，判定 SAME/DIVERGENT。
+schema: normalize/1
+domains:
+  docker-remote:
+    headers:
+      drop:
+        - Date
+        - Age
+        - X-Request-Id
+        - X-Artifactory-Id
+        - X-Artifactory-Node-Id
+        - X-Jfrog-Version            # 实例版本头（参照侧）
+        - Via
+      keep_semantic:
+        - ETag                       # 语义对照保留（值=sha1 校验形态，见契约 derived_rules.etag_is_sha1）
+        - X-Checksum-Md5
+        - X-Checksum-Sha1
+        - X-Checksum-Sha256
+        - Docker-Content-Digest
+        - Docker-Distribution-Api-Version
+        - Content-Range
+        - WWW-Authenticate           # 值内 host 随实例替换为占位符后比对；service 段做 equals_request_host 派生判定
+        - X-Artifactory-Origin-Remote-Path   # 值内 host 替换占位符后比对（路径形态是断言目标）
+        - X-Artifactory-Filename
+        - X-Artifactory-Docker-Registry      # 值=repoKey，保留
+      time_headers:
+        - Last-Modified              # 剔除时间值比对，但保留语义标记（manifest=拉取时刻 / blob=上游 mtime——见契约 derived_rules）
+        - If-Modified-Since
+      superset_policy: tolerate_and_note   # 单侧多出的非语义头（如 BinFlow X-Binflow-Cache: HIT/MISS、token 响应的
+                                            # Docker-Distribution-Api-Version）记 superset_note，不判 DIVERGENT
+                                            # （先例：L000-F C07 判 SAME 时 BinFlow 带 X-Binflow-Cache）
+    body:
+      drop_fields: [token, access_token]    # token 值实例随机，剔除（字段存在性仍在契约 keys 断言判）
+      keep_fields: [expires_in, issued_at(存在性), code, message, status, detail, name, tags, repositories, errors]
+      digest_values: keep                    # digest 值保留（sha256: 前缀 + 64 hex）
+      wire_format: compare                   # compact vs pretty 是可观察面，参与判定（Artifactory 双形态并存是 remote 指纹，E5-4）
+      json_key_order: ignore                 # 键序无关；数组序仅 tags/list 契约声明字典序时比对
+      library_prefix: keep                   # library/ 归一化结果是断言目标（E2-6 泄漏进 detail），不归一
+    timing:
+      compare: magnitude_only                # 时间类只保数量级（diff 报告口径）；upstream_rtt 布尔判定以对拍实例日志为准
+    auth:
+      basic_credentials: redact               # 凭据一律脱敏
+  storage-admin:                              # L004-3（contracts/storage-admin.yaml E1-E10）——源：L003-storage-admin-diff.md 判 SAME 的归一口径
+    headers:
+      drop:
+        - Date
+        - X-Request-Id
+        - X-Artifactory-Id
+        - X-Artifactory-Node-Id
+        - X-Jfrog-Version                   # 实例版本头（参照侧）
+        - Via
+        - Server
+      keep_semantic:
+        - Content-Type                      # text/plain;charset=utf-8（流式族）/ application/json（prune 族）是断言面
+      superset_policy: tolerate_and_note    # 单侧多出的非语义头记 superset_note，不判 DIVERGENT（沿 docker-remote 先例）
+    body:
+      wire_format: normalize_indent          # JSON 缩进风格差异归一（Go Encoder vs Jackson 空格冒号——L003-1 E3 判 SAME 的口径；与 docker-remote 的 compare 相反：本域无 compact/pretty 双形态指纹）
+      json_key_order: compare               # 字段名/顺序是断言面（prune 26 字段逐键对照、info 11 字段同序）
+      state_values: placeholder             # 实例状态值 → 占位符后比对结构：prune 的 timing 双时间戳+双 millis/duration/report 三计数/progress 分子/lastHandledDirectory.name；size 裸数字；info 的路径与 statfs 五值（诚实值非翻译，L003-1 E9 口径）
+      stringified_numbers: keep             # info 全字符串化数值形态是断言面（不反序列化回数字比对）
+      literals: keep                        # info 文案（Pruning Unreferenced Data…/No Prune task found/No backup identified…/Export data is no longer supported）逐字保留比对
+    streams:
+      gc_dot_stream: collapse_runs          # 点流：`.` 连跑+换行折叠为形态记号——点数不比（参照每事件一点 vs BinFlow 每目录一点，L003-1 E1 判 SAME 口径）；CT 与 80 点换行形态保留
+      compress_lines: form_only             # compress 流内行文案不比（参照 Derby 行形态无活体 V-1；BinFlow 行为自决形态）
+    timing:
+      compare: magnitude_only               # 同步阻塞时长只保数量级（gc 活体 0.017s—数秒随工作量）
+    auth:
+      basic_credentials: redact

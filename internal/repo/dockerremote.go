@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/remote"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
@@ -31,6 +32,9 @@ import (
 
 // Compile-time pin: the service implements the adapter-facing capability.
 var _ RemoteV2Plane = (*service)(nil)
+
+// Compile-time pin: the service implements the ADR-0047 chain gate facet.
+var _ DigestChainGate = (*service)(nil)
 
 // loadV2ReadRepo resolves repoKey and admits the registry-v2 family's READ
 // plane classes: LOCAL (the push plane), REMOTE since T-363 (the
@@ -130,10 +134,12 @@ func (s *service) remoteUpstreamCore(ctx context.Context, repoKey string) (*Remo
 		}
 		password = plain
 	}
-	contentTTL := cfg.ContentTTLSeconds
-	if contentTTL <= 0 {
-		contentTTL = defaultRetrievalCachePeriodSecs
-	}
+	// The content TTL resolves through the single point the engine's
+	// loadRepo reads (remote.ResolveContentTTLSeconds, ADR-0012 erratum
+	// three): an explicit row value wins; an unset or hand-mangled row
+	// takes the package type's default — the registry-v2 family here means
+	// docker/helmoci's 21600, never a flat 7200.
+	contentTTL := remote.ResolveContentTTLSeconds(cfg.ContentTTLSeconds, row.PackageType)
 	return &RemoteUpstream{
 		URL:                  cfg.URL,
 		Username:             cfg.Username,
@@ -320,8 +326,11 @@ func (s *service) cacheBusyRetry(ctx context.Context, op string, fn func(context
 
 // CacheRemoteMiss implements RemoteV2Plane: the negative-cache write of the
 // engine's step 5 (an upstream 404 answers from the miss record inside its
-// window, zero upstream packets). Digest-keyed paths only — a TAG miss has
-// no storage path to key and simply answers 404 (helm.md 8.3).
+// window, zero upstream packets). The key is reference-shaped (L005-1): a
+// digest miss keys the manifest node path (image/manifests/<hex>), a tag
+// miss the row <image>/tags/<tag> — the two spellings the adapter's
+// manifestMissNodePath builds; the fresh row is what the cold-miss read
+// probe (and the virtual walk's member-facts seam, L006-2) consults.
 func (s *service) CacheRemoteMiss(ctx context.Context, p *Principal, repoKey, path string) error {
 	if err := validateNodePath(path); err != nil {
 		return err
@@ -419,14 +428,52 @@ func (s *service) recordRemoteManifestCore(ctx context.Context, repoKey, image, 
 	return nil
 }
 
-// remoteContentTTL resolves the repository's content TTL off its config row
-// (the create-time canonicalization writes the product default; hand-mangled
-// rows fall back to it here too).
-func (s *service) remoteContentTTL(ctx context.Context, repoKey string) int64 {
-	if cfg, err := s.md.Remote().GetConfig(ctx, repoKey); err == nil && cfg != nil && cfg.ContentTTLSeconds > 0 {
-		return cfg.ContentTTLSeconds
+// BlobInChain implements DigestChainGate (ADR-0047): the marker-gate
+// oracle over the docker_refs ledger. The caller reaches this ONLY on a
+// cache probe miss with no standing copy (the probe IS the node-existence
+// short-circuit — a digest that landed never asks), so the refs rows are
+// the whole answer: true = some manifest chain of (repoKey, image) named
+// the digest (fetch upstream), false = the local BLOB_UNKNOWN with zero
+// upstream contact and no negative-cache row. Read-gated like the plane's
+// own faces.
+func (s *service) BlobInChain(ctx context.Context, p *Principal, repoKey, image, hex string) (bool, error) {
+	if err := validateDockerImage(image); err != nil {
+		return false, err
 	}
-	return defaultRetrievalCachePeriodSecs
+	if err := validateDigest(hex); err != nil {
+		return false, err
+	}
+	if _, err := s.loadRemoteV2Repo(ctx, p, repoKey, dockerPermPath(image)); err != nil {
+		return false, err
+	}
+	return s.blobInChainCore(ctx, repoKey, image, hex)
+}
+
+// blobInChainCore is the ledger read without the permission gate (the
+// virtual seam's member-scoped twin, V2MemberBlobInChain).
+func (s *service) blobInChainCore(ctx context.Context, repoKey, image, hex string) (bool, error) {
+	in, err := s.md.Docker().BlobInImageChain(ctx, repoKey, image, hex)
+	if err != nil {
+		return false, fmt.Errorf("remote %s: chain gate %s/%s: %w", repoKey, image, hex, err)
+	}
+	return in, nil
+}
+
+// remoteContentTTL resolves the repository's content TTL off its config row
+// through the single point the engine's loadRepo reads
+// (remote.ResolveContentTTLSeconds, ADR-0012 erratum three): an explicit
+// stored value wins; an unset or hand-mangled row takes the package type's
+// default — docker/helmoci's 21600 on this v2-family plane, 7200 elsewhere.
+func (s *service) remoteContentTTL(ctx context.Context, repoKey string) int64 {
+	var explicit int64
+	if cfg, err := s.md.Remote().GetConfig(ctx, repoKey); err == nil && cfg != nil {
+		explicit = cfg.ContentTTLSeconds
+	}
+	pkgType := ""
+	if row, err := s.md.Repos().Get(ctx, repoKey); err == nil && row != nil {
+		pkgType = row.PackageType
+	}
+	return remote.ResolveContentTTLSeconds(explicit, pkgType)
 }
 
 // remoteMissedTTL resolves the negative-cache window off the repository

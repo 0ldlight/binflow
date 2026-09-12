@@ -2,9 +2,576 @@
 # 规则（docs/ai-engineering/compatibility-engineering.md §4）：
 #   BUG/UNSUPPORTED 由差分证据+contract 判定；INTENTIONAL 必须 authority（用户裁决/ADR/规格票）；
 #   UNKNOWN 限期（默认两程）内必须升级分类。
+#   resolved(parity)（conductor 裁定 2026-09-11，LOOP 001）：差分实证**双侧行为一致**的条目按非分歧
+#   闭环存证——classification 维持 INTENTIONAL_DIFFERENCE、review_gate=resolved、authority 挂
+#   {type: conductor_ruling, ref: <差分报告>}；此类条目不占用四分类语义（它记录的是"无差异"本身）。
 # 种子期：M3-2 票将各票「契约漂移登记」与 ADR Errata 差异条款收编为条目。
 schema: 1
-entries: []
+entries:
+- id: docker/remote-url-v2-suffix-silent-404
+  surface: 'docker/helmoci remote 仓配置 url 语义（= registry 根，E4: X-Artifactory-Origin-Remote-Path）'   # L001-2 加引号修复存量 YAML 解析错（原 M3-2 裸冒号，非内容变更）
+  classification: INTENTIONAL_DIFFERENCE
+  rationale: "2026-09-11 L001-3 三形态实测（Artifactory 7.161.20 vs BinFlow UAT，registry:3 上游 + dind 真客户端）：url 带 /v2 或 /v2/ 尾缀时**双侧均双前缀 /v2/v2/ → 404 逐字一致（parity）**——Artifactory 不剥剪/不拒绝/不警告。裁定=BinFlow 照抄即兼容，非实际分歧；条目保留存证防复问。可选超-parity 增强（建仓 WARN 日志，不改行为）留产品单独裁定"
+  authority: { type: conductor_ruling, ref: reports/compatibility/L001-url-suffix-evidence.md }
+  review_gate: resolved（parity，2026-09-11 conductor 裁定）
+- id: docker/remote-cache-layout
+  surface: remote blob/manifest 缓存布局（C05：tag 目录/marker/library 归一）
+  classification: BUG
+  rationale: 差分 C05 DIVERGENT——BinFlow 无 tag 目录/marker/library 归一；Artifactory marker 驱动缓存（E1 downloadBlobFromMarker + E4）
+  authority: { type: differential, ref: "reports/compatibility/L000-docker-remote-diff.md C05" }
+  review_gate: LOOP 001+ 设计票（缓存语义属 remote-cache-proxy 域架构面）
+- id: docker/remote-manifest-headers
+  surface: remote manifest 响应头集（C06：Etag/Last-Modified/Origin-Remote-Path 缺席）
+  classification: BUG
+  rationale: 差分 C06 DIVERGENT——blob 面已一致，manifest 面头集缺
+  authority: { type: differential, ref: "reports/compatibility/L000-docker-remote-diff.md C06" }
+  review_gate: LOOP 001 实现票
+  resolved: { date: '2026-09-11', evidence: 'reports/compatibility/L003-remote-face-diff.md ① 段（L003-2 实现票：GET 全集/Etag=sha1/Last-Modified=拉取时刻/Origin-Remote-Path 逐头逐值双端活体一致，HIT 面不缩水；blob 面与 HEAD 窄集+超集口径同场清偿——契约 #6/#7/#11 翻 VERIFIED）' }
+- id: docker/remote-blob-marker-semantics
+  surface: remote blob 代取门控（C10：BinFlow digest 盲代理+负缓存 vs Artifactory marker 门控）
+  classification: BUG
+  rationale: 差分 C10 DIVERGENT——语义级分歧（未拉 manifest 的 digest 是否上游代取），牵动缓存架构，需 remote-cache-v2 设计输入
+  authority: { type: differential, ref: "reports/compatibility/L000-docker-remote-diff.md C10" }
+  review_gate: LOOP 001 设计票 + 实现票
+  resolved: { date: '2026-09-11', evidence: 'L002-1（ADR-0047 DigestChainGate 落地）：链外 digest 本地 404 ~5ms 且上游日志零请求直证（对照修复前盲代理一次上游 404+负缓存）；链内未缓存代取 200；manifest 拉取后门开；契约条目 docker/remote-blob-unknown-digest-404 翻 VERIFIED（diff 复验 L002-1 段）' }
+- id: docker/remote-error-shapes
+  surface: remote 错误形态族（C11 禁推 405→400 / C12 detail.reference→manifest / C13 detail.digest→blobSum / C15 tags 聚合缺失 / C16 域 404 形态 / D21 url 回显 / P3 service 常量）
+  classification: BUG
+  rationale: 差分 DIVERGENT 族——同一 remote 面错误契约不齐；Artifactory 侧双错误形态并存为 remote 指纹（evidence 报告）
+  authority: { type: differential, ref: "reports/compatibility/L000-docker-remote-diff.md C11-C16/D21" }
+  review_gate: LOOP 001 实现票（一票收族）
+  resolved:
+    date: '2026-09-11'
+    evidence: reports/compatibility/L000-docker-remote-diff.md L001-1 复验段（C11/C12/C13/C15/C16/service 七子项全 SAME 灭，verbatim 在案）
+    note: >-
+      C11-C13/C15/C16 与 service 常量由 L001-1 清偿（契约条目已翻 VERIFIED）；D21 由 L001-5 修复（httpapi 双面）——
+      差分复验已回填（L002-2，2026-09-11：UAT uat-l0022-5f9c48d0 上 List 面 `GET /api/repositories` remote 行 url 与
+      Detail 面 `GET /api/repositories/{key}` 顶层 url 均回显真实上游 http://host.docker.internal:5588，与 :8082
+      同构仓逐字一致；证据 reports/compatibility/L002-contract-replay.md D21 段）。枚举子项零残余，条目结案；伴生登记：
+      httpapi router.go:291 no-adapter 兜底挑战 service 仍硬编码（生产装配不可达，不影响对拍面）。
+- id: docker/ssrf-private-upstream-stricter
+  surface: 上游私网限制（allowPrivateUpstream）
+  classification: UNKNOWN
+  rationale: BinFlow SSRF 防护严于 Artifactory（Artifactory 允许私网上游）——安全立场候选 INTENTIONAL，需 authority 定谳
+  authority: { type: pending, ref: "用户/ADR 裁定（安全加固 vs 行为兼容）" }
+  review_gate: LOOP 003 限期升级
+- id: docker/remote-token-response-shape
+  surface: docker remote /v2/token 签发响应字段集与 TTL（C01b）
+  classification: UNKNOWN
+  rationale: "参照 {token(JWT), expires_in:9000}，无 issued_at；BinFlow {token(不透明 hex), access_token, expires_in:2592000, issued_at, scope}——docker CLI 实测登录/拉取均兼容（超集字段不破坏客户端）；是否对齐 9000/JWT 形态待 authority 裁定"
+  authority: { type: pending, ref: "用户/产品裁决（token TTL 与形态策略）" }
+  review_gate: LOOP 002 限期升级（契约条目 docker/remote-token-issue）
+  evidence: reports/compatibility/L000-docker-remote-diff.md C01b
+- id: docker/remote-credentials-error-shape
+  surface: docker remote 坏凭据错误形态（C02：ping 与 token 双端点）
+  classification: BUG
+  rationale: 参照两端点均回 401 docker errors 数组 pretty "Bad Credentials"（CLI 渲染 unknown:）；BinFlow token 端点回 OAuth2 形态 {"error":"invalid_client",…}、ping 不区分坏凭据与匿名（重挑战）——token 端点错误体应转 errors 数组；ping 重挑战属次要可接受面
+  authority: { type: differential, ref: "reports/compatibility/L000-docker-remote-diff.md C02" }
+  review_gate: LOOP 001 实现票 L001-1（P2，随错误体族一票收）
+  resolved: { date: '2026-09-11', evidence: 'reports/compatibility/L000-docker-remote-diff.md L001-1 复验段（C02 SAME 灭：token 端点 errors 数组形态 + CLI unknown: 指纹逐字；契约条目已翻 VERIFIED）' }
+  evidence: reports/compatibility/L000-docker-remote-evidence.md E1-5
+- id: docker/remote-anonymous-token-policy
+  surface: docker remote /v2/token 匿名请求策略默认值（C03）
+  classification: UNKNOWN
+  rationale: 参照匿名访问关（无凭据 401 "Authentication is required"）；BinFlow 匿名开（200 签发匿名 token）——实例策略默认值差异，需产品裁定 BinFlow remote 面默认匿名姿态；wire bug 修复后匿名 pull 端到端可对照补证
+  authority: { type: pending, ref: "产品/用户裁决（remote 面匿名默认姿态）" }
+  review_gate: LOOP 002 限期升级（契约条目 docker/remote-token-anonymous）
+  evidence: reports/compatibility/L000-docker-remote-diff.md C03
+- id: docker/remote-manifest-404-negative-cache
+  surface: docker remote manifest 404 负缓存（C14）
+  classification: BUG
+  rationale: >-
+    L004-2 双臂探针定谳（2026-09-11，reports/compatibility/L004-negative-cache-probe.md）：**消失是幻象**——
+    docker /v2 面 manifest 冷 miss 负缓存自 T-363（d2746341）诞生即不存在（404 写入恒包 standing 守卫，git log -S
+    实证）；L000-B「40-70ms 本地负缓存」系本地上游 RTT 误读（同量级时延不可分）。参照侧双面兑现
+    missedRetrievalCachePeriodSecs（M-a tag miss 1/3 回源+TTL 到期回源；M-b 未知 image 0/3 确定性本地）——
+    E6-3「参照未生效」双双证伪闭账。分歧实锤：BinFlow M-a 3/3、M-b 3/3 回源。**ADR-0048 自带 Errata 触发条件
+    （复测翻转→ADR 自动作废、C14 按对齐收）已触发**——blob 臂 B1/B2 维持现状（门控+无条件负缓存+TTL 过期全过）。
+  authority: { type: differential, ref: reports/compatibility/L004-negative-cache-probe.md }
+  review_gate: LOOP 005 实现票（manifest 冷 miss 臂补负缓存写入——M-a/M-b 同一缺口；键法设计归 dev，参照 Path 形态可参考）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      reports/compatibility/L005-c14-d1-diff.md §3（L005-1 实现票修后重跑，uat.l0051-792c347c）：M-a tag miss
+      双端 1/3 回源同形（参照 try1 HEAD / BinFlow try1 GET，try2/3 本地）——L004-2 的 BinFlow 3/3 分歧关闭；
+      missedTTL 60s 到期回源 +1 + 行重写 + 再冻结（BinFlow sqlite 行直证：重写时刻=复问时刻、窗长恰 60s）；
+      M-b 未知 image 名双端 1/3 同形。authority 链：本报告 + L004-negative-cache-probe.md + ADR-0048 Errata。
+    note: >-
+      M-b 复现条件差存证：L004-2 的参照侧 0/3（未知名零回源、确定性本地）本轮未复现——干净专属仓与 _catalog
+      聚合后两态均为首问一次（HEAD）后窗口内本地，与 M-a 同形；「未知名不外问」强读法按第一手双证据废弃，
+      疑 L004-2 §2.1 M-b 子臂计数过滤或前置状态所致（同其 §1.3 自记误读类），登记供 conductor 复核。
+      真实 CLI 腿：docker CLI 拉缺失 tag 上游恰 1 往返（HEAD 落行、GET 本地应答），manifest-unknown 错误族渲染。
+      契约 docker/remote-manifest-404-no-negative-cache expect 已按「首问一次→窗口内本地→到期回源」重写并翻 VERIFIED。
+  evidence: reports/compatibility/L004-negative-cache-probe.md（代码定谳+双臂矩阵+TTL 复核；原始观察 L000-docker-remote-evidence.md E6-3/E3-4 已被证伪归档）
+- id: docker/remote-tags-catalog-pagination
+  surface: remote tags/list 与 _catalog 的分页参数（n/last/Link 头）
+  classification: BUG
+  rationale: >-
+    L002-2 第一手对拍实锤：Artifactory remote 面尊重 n/last、无效 n=abc→404 pretty "Not Found"；BinFlow 同参
+    无视（200 全量）——双侧行为差异。勘误存证：L002-2 报告分页表「无 Link 头回出」行与其自身原始捕获矛盾
+    （a_tagsn.h 实带 Link rel=next）——Artifactory remote 面截断即发 Link，该行系笔误；L003 活体复现同形。
+  authority: { type: differential, ref: "reports/compatibility/L002-contract-replay.md 分页取证段" }
+  review_gate: LOOP 003 限期升级
+  resolved:
+    date: '2026-09-11'
+    evidence: reports/compatibility/L003-remote-face-diff.md ④ 段（L003-2 实现票双端活体：tags n/last/Link/无效 n 四臂
+      逐字节一致含 Link；catalog ?n=2 Link→/v2/_catalog registry 级路径 quirk 照抄、裸 GET 活体聚合一致；
+      契约补条目 docker/remote-tags-list-pagination + docker/remote-catalog-pagination 双 VERIFIED）
+    note: 残余待拍臂：catalog last/无效 n 参照侧未单拍（BinFlow 对称实现，契约 unobserved_reference_arms 备查）；
+      tags n=0/负数并入 404 家族为实现自决（参照未观察）。
+  evidence: reports/compatibility/L002-contract-replay.md 分页取证段
+- id: docker/remote-ping-credential-class-message-granularity
+  surface: docker remote /v2/ ping 拒绝凭据的消息分型（Bearer 未知值 vs 坏 Basic，L003-2 轮活体）
+  classification: UNKNOWN
+  rationale: >-
+    Artifactory 活体（:8082，/v2/ + Authorization: Bearer <未知值>）= 同 Basic realm 挑战 + charset CT +
+    pretty "Props Authentication Token not found"——与坏 Basic 臂的 "Bad Credentials" 同形不同消息（凭据类
+    分型）。BinFlow 现实现将所有被拒凭据类渲染同一 "Bad Credentials"（挑战头/信封形态已对齐，消息粒度未分）。
+    实现归 L004-1（304 补票+ping 分型）；L003-2 收编时按 conductor 指令 test-only 更新 internal/httpapi
+    四处期望为 BinFlow 实测形态（挑战头+信封与差分一致——差异仅消息文本分型面）。
+  authority: { type: pending, ref: "L004-1 实现票（ping 分型落地：Bearer 拒绝臂按凭据类分消息）" }
+  review_gate: LOOP 005 限期升级（分型落地后于 contracts/docker-remote.yaml #2 邻位扩臂/补条目并复验）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      reports/compatibility/L004-304-ping-diff.md §4（L004-1 实现分型 + 双端活体：P1/P2/P3 三臂消息串逐字节一致——
+      Bad Credentials / Props Authentication Token not found / Token failed verification: expired）
+    note: 契约条目 docker/remote-v2-ping-bad-credentials 泛化为四臂消息矩阵（P1-P3 SAME）；残余 revoked 第四臂
+      为模型级差异，另立 docker/remote-v2-ping-revoked-arm-unreachable（D2）。
+  evidence: reports/compatibility/L003-remote-face-diff.md 残留段（ping 面拒绝凭据的 Bearer 类臂消息差）
+- id: docker/remote-manifest-inm-unquoted
+  surface: docker remote manifest 条件请求 unquoted If-None-Match 拼写（L004-1 新窗口矩阵 M2/M2c/M2d）
+  classification: BUG
+  rationale: >-
+    参照 manifest 面按值不区分引号匹配（unquoted 匹配→304 裸头本地应答；unquoted 非匹配在场→封死日期臂 200）；
+    BinFlow manifestClientNotModified 只解析带引号 entity-tag，unquoted 拼写解析为零标签被丢弃落日期臂——
+    M2/M2d（200 全量 vs 304）、M2c（304 vs 200）三臂反转。blob 面两侧同构不受影响（B2/B5 SAME）。
+    真实 docker/containerd/oras 客户端均发 quoted etag（RFC 9110），实际客户端影响面低——矩阵口径可观察面分歧。
+  authority: { type: differential, ref: "reports/compatibility/L004-304-ping-diff.md §2（SAME 15/DIVERGENT 3，STABLE×2）" }
+  review_gate: LOOP 005 实现票（unquoted 按值匹配 + 任意 INM 在场封死日期臂）→ 契约 docker/remote-manifest-conditional-get 复验翻绿。**修复后必须重跑全 304-matrix：M6/M2b 现判 SAME 系经「丢弃→日期臂」路径的偶合，语义统一后可能翻面**（L004-304-ping-diff.md Risks ③/Next ①）；随票修 client_conditional.go:8-11/:95-96 与测试文件头三处以参照口吻陈述已证伪行为的注释（Review A N1）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      reports/compatibility/L005-c14-d1-diff.md §1/§2（L005-1 修后全矩阵重跑，uat.l0051-792c347c）：新窗口
+      304 矩阵 20/20 臂 SAME——D1 三臂 M2/M2c/M2d 全收敛（manifestClientNotModified 两读面统一按值不区分
+      引号匹配 + 任意 INM 在场封死日期臂）；review_gate 硬要求的全矩阵重跑通过，**M6/M2b 偶合未翻面**（M6 304
+      由「日期臂偶合」变为「按值匹配直判」、M2b 200 维持——可观察面不变）；blob B1-B6 复证 SAME；过期窗
+      6/6 客户端可见 SAME 无回归。契约 docker/remote-manifest-conditional-get 翻 VERIFIED。
+  evidence: reports/compatibility/L004-304-ping-diff.md §2
+- id: docker/remote-v2-ping-revoked-arm-unreachable
+  surface: 'docker /v2/ ping revoked bearer 第四臂消息（"Token failed verification: revoked"，L004-1 P4b）'
+  classification: UNKNOWN
+  rationale: >-
+    参照 token 吊销保留吊销态可验（第四臂消息独立：Token failed verification: revoked——产品 revoke API 活体
+    坐实）；BinFlow revoke=删行模型，revoked 验定恒走 unknown 臂 → 客户端恒见 "Props Authentication Token
+    not found"——第四臂在 BinFlow 模型下不可达。INTENTIONAL 候选（模型级）：若裁对齐参照需引入吊销态可验
+    模型（表结构+验定链改动）。P1/P2/P3 三臂已逐字节一致（分型挂账已清偿）。
+  authority: { type: pending, ref: "产品/用户裁决（token 吊销模型：删行 vs 吊销态可验）" }
+  review_gate: LOOP 005 限期升级（INTENTIONAL 终裁需 authority；裁对齐则开实现票）
+  evidence: reports/compatibility/L004-304-ping-diff.md §4 P4b（含参照侧复现要点：mint 须带 scope/吊销剩余寿命阈值 6h）
+- id: docker/remote-blob-expired-revalidation
+  surface: docker remote 过期 blob 回源行为（retrievalCachePeriodSecs 窗口到期，L004-1 X3/X4）
+  classification: BUG
+  rationale: >-
+    BinFlow 对已缓存 blob 的检索窗到期即回源重取（+1、滑窗、行重写——TTL 兑现精确）；参照对已缓存 blob
+    **零回源**。L007-2 定向探针四臂铁证（reports/compatibility/L007-d3-virtual-probe.md §1，uat.l0072-c1193f5f）：
+    1×TTL ×3 / INM / **10×TTL（~14 min）** / 真实 docker pull 全臂参照上游计数 0、filestore mtime 全程未动
+    ——「参照在某窗后回源」假说被排除；参照的区分不是窗口长短而是 **manifest（可变 tag，恒 +1 重验）/blob
+    （内容寻址不可变，豁免检索窗）语义二分**。客户端可见面全臂双端全同（200/304/内容/digest/etag），
+    纯上游行为分歧。conductor LOOP 007 终裁（2026-09-12）：**BUG 对齐收**——探针 §1.7 的 INTENTIONAL
+    候选未采纳，对齐路径=已验证 blob 豁免检索窗重取（blob GET 结果不可能变化，到期重取语义空转、
+    每窗白付一次上游往返+带宽；参照即此语义）。
+  authority: { type: conductor_ruling, ref: "reports/compatibility/L007-d3-virtual-probe.md（conductor LOOP 007 终裁 2026-09-12：BUG 对齐收——blob 豁免检索窗）" }
+  review_gate: LOOP 008 小票（已验证 blob 豁免检索窗重取；实现后双端复核上游计数归零——L007-2 §1.2/1.3/1.4 臂为复验基线）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      reports/agents/L008-2.md 小票 1（uat-l0082-d3，四臂复验全 0-vs-0）：① §1.2 过期 GET×3——BF 全
+      standing HIT 本地（5-17ms）上游 Δ=0 vs ART Δ=0（原 BF GET1 必 +1）；② §1.3 过期窗+quoted INM——BF
+      **本地 304** full artifact face Δ=0（原重取后再 304）；③ §1.4 10.4×TTL——双端 Δ=0；④ §1.5 真实
+      docker CLI pull——config blob BF Δ=0（过期豁免本地）vs ART Δ=0；**manifest 控制臂仍回源**（窗语义
+      不动，条件 GET→上游 304）。行证：remote_cache 行 fetched/expires 全程未重写、blob 文件 mtime 未动
+      =参照「既不回源也不重写」语义对齐。实现=serveRemoteBlob/serveVirtualBlob 已验证 standing 副本豁免臂
+      （probe.Node 非空且 sha256==请求 hex → 本地应答、零上游、行不滑窗）；X-Binflow-Cache 取 HIT（超集头
+      tolerated；STALE 词义=故障降级不取）。测试五臂 table-driven + walk 面锁定。
+    note: >-
+      authority 链补：ADR-0012 勘误四（expired-but-serving→blob 豁免检索窗，入册在途——L008-2 Next ②
+      architect 域回报，未自写 DECISIONS.md；入册后本条 authority 链增 adr 指针）。残留角落（测试锁、非本账面）：
+      脏行 sha256 不匹配回落旧回源路径；负 miss 后 standing 副本在 missedTTL 内不可见=既有语义维持。
+  evidence: reports/compatibility/L007-d3-virtual-probe.md §1（四臂铁证+裁决素材 §1.7）；源头 L004-304-ping-diff.md §3 X3/X4
+  evidence: reports/compatibility/L007-d3-virtual-probe.md §1（四臂铁证+裁决素材 §1.7）；源头 L004-304-ping-diff.md §3 X3/X4
+- id: rest/repo-config-update-merge-semantics
+  surface: 'PUT/POST /api/repositories/{key} 更新合并语义（省略字段=保留存量 vs 全量替换回落默认）'
+  classification: BUG
+  rationale: >-
+    L006-1 票 A 双端实测（reports/compatibility/L006-a-b-diff.md §1.4，2026-09-12）：参照 POST 更新省略字段
+    =保留存量（remote 四域 keep 实测）；BinFlow remote 更新=全量替换回落默认（hardFail/missed 等全字段同族，
+    四域修复前已如此）、local 更新=调用方 blob 整体替换。族级既有差异（影响全部 remote 字段，非四域
+    round-trip 特例）——客户端省略字段即静默丢配置，行为面实质分歧。矩阵 D02-R03/R04 翻绿不吸收本账
+    （行 note 指针互锚）。L007-3 边界取证（reports/compatibility/L007-3-update-merge-evidence.md）扩证：
+    ① 省略=保留为全族行为（credential/period/notes/description/数组/对象一致，url 更新面亦可省）；
+    ② 清空通道三列互异（标量=null/""、数组无通道、对象={} 整族复位）；③ **PUT-on-existing=400 create-only**
+    （参照更新拼写只有 POST）vs BinFlow PUT-on-existing=更新 200——相抵臂并入本账裁定范围（冻结行
+    「key 冲突 400/409 已对齐」旧注记随之失效）；④ 0-as-absent（period 族显式 0 存 0 vs BinFlow 视为缺省）
+    为 create/update 共有相邻差异，随 merge 票联裁；⑤ T-80「全量替换=Artifactory PUT 模型」旧认知勘误
+    （service.go 注释随实现票改）。ADR 候选稿=docs/design/repo-update-merge.md（省略=保留 patch 模型，
+    patch 基建已在：remoteConfigInput 全指针席位）。
+  authority: { type: adr, ref: "DECISIONS.md#adr-0050（仓配置更新语义终案：POST=merge 三列矩阵 + PUT=create-only——L007-3 候选稿收编）+ 差分链 L006-a-b-diff §1.4 / L007-3-update-merge-evidence / L008-update-merge-diff §1" }
+  review_gate: LOOP 008 ADR 流程（docs/design/repo-update-merge.md 过 DECISIONS.md）+ 实现票（merge/PUT-on-existing/0-as-absent 三臂联裁）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      ADR-0050 落地复验（reports/compatibility/L008-update-merge-diff.md §1，uat-l0081b-95b4acad vs :8082）：
+      **13 硬断言臂全 SAME**——省略×标量/credential（sealed 行逐字节不动，单元层断言）、null×标量（清空，
+      归一化 None≡""）、数组保留（无清空通道）、空值×对象整族复位（A7）、显式值族含 **0-as-absent 双面
+      收口**（T-290 联裁翻绿：显式 0 存 0）、url 更新面可省（A9）、console 全量表单回归（A13）、对象族
+      新取证格 A14（显式对象=整体替换，未提子键复位 false）/A15（显式 null=整族保留）；**PUT-on-existing
+      闭环**：A10 完整体 400 逐字同（errors 信封）+ A11 拒后零副作用 + A12 PUT 新建回归同文案。
+    note: >-
+      归一化四项（§2，均非本票引入）：cs 输入拼写 nested（参照）/flat（BinFlow，T-317 xsd 锚）——既有
+      wire 拼写族；清空格 echo 形（显式空串 vs omitempty 键省略）；customHttpHeaders 席位缺（scenario-D
+      未知字段容忍面，补席位则 A4/A6 升格字段级对拍）；password 回显恒排除（NFR-S14 安全姿态，ADR-0050
+      决策 4 明示不翻）。留痕不随本账裁（§4）：A16 type 门文案族、A17 authenticated 非 admin 门序（参照
+      实例密码策略未取证，缺口留痕）、cs 顶层 enabled 落库拼写未解（L007-3 §3 维持）。矩阵 D02-R03/R04
+      note 同笔闭环回填（行态 compatible 不动）。
+  evidence: reports/compatibility/L006-a-b-diff.md §1.4 + L007-3-update-merge-evidence.md + L008-update-merge-diff.md §1（+ADR-0050 / 候选稿 docs/design/repo-update-merge.md）
+- id: rest/repo-config-invalid-value-family
+  surface: 仓配置标量非法值形态族（maxUniqueSnapshots 非数字 / blackedOut 宽容布尔 / repoLayoutRef 未知名）
+  classification: UNKNOWN
+  rationale: >-
+    L006-1 §1.3 三臂（2026-09-12）：① maxUniqueSnapshots:"seven"——参照 500（Java 转换器报文）vs BinFlow
+    400（decode 报文带字段名——全域统一 decode 姿态，非四域特例）；② blackedOut:"yes"——参照接受且转 true
+    （commons-lang 布尔宽容，Java 库癖性）vs BinFlow 400；③ repoLayoutRef 未知名——参照 400 "Unable to find
+    repository layout by the name: <n>" vs BinFlow 接受并存读（无布局注册表；K73 已定谳 presentation-only，
+    参照 /api/repo_layouts 在本实例亦 404）。L007-3 §6 逐字报文补证：参照自身姿态不均——String→Integer 撞
+    500、String→Boolean 不可转（"maybe"）拒 400、布局名拒 400、宽容布尔可落库（"yes"/"on"/"TRUE"→true，
+    "off"→false）；即「对齐参照」≠统一错误模型而是复刻其不一致。三臂均客户端可见分歧，对齐方向需
+    产品裁（管理面 client 影响以重试语义为主：500 诱发规范客户端重试确定性错误——RFC 9110 §15.5/15.6）。
+    裁定素材=docs/prd/ruling-invalid-value-family.md（architect 两案对比+建议立场：维持 400/INTENTIONAL；
+    供 PM 折入 pending-rulings 建议编号 R-10）。
+    改期（2026-09-12，LOOP 009 L009-1）：authority 阻塞非证据阻塞——R-10a/b/c 三臂已折入 pending-rulings
+    v2.0 整包呈批（docs/prd/pending-rulings.md §1 R-10a~c + §2-R10，L008-4a），触发条件=用户批复即升级：
+    a/b 维持 400 转 INTENTIONAL（authority=本裁定+ADR 登记），c PM 建议对齐 400——裁对齐开实现票；改期 LOOP 010。
+  authority: { type: pending, ref: "产品/架构裁（非法值姿态：统一 decode 400 vs 复刻参照 500/宽容转换——R-10）" }
+  review_gate: LOOP 010 限期（随 R-10 批复升级——用户 authority 待决）
+  evidence: reports/compatibility/L006-a-b-diff.md §1.3 + L007-3-update-merge-evidence.md §6（+裁定素材 docs/prd/ruling-invalid-value-family.md，R-10 折入建议）
+- id: rest/permissions-v1-response-shape-residuals
+  surface: v1 permissions 面残余渲染族（DELETE 码+文 / GET 未知名体裁 / POST 死动词）
+  classification: BUG
+  rationale: >-
+    L006-1 票 B 别名挂载（D04-R17/R18 面）后残余三臂（§2.1，2026-09-12）：① DELETE
+    /api/security/permissions/{name}——参照 200 纯文本 "Successfully deleted permission Target 'x'" vs
+    BinFlow 204（与现行 v1 面 handler 同体）；② GET 未知名——参照 404 errors-envelope "Not Found" vs
+    BinFlow 404 纯文本（本面既定姿态）；③ POST 死动词——参照 400 "Bad Request"（参照自身不可用）vs
+    BinFlow 404（E-26 不挂载——挂载任一形态都非对齐，留痕）。GET/PUT 主臂已 SAME（letters 动作/扁平
+    patterns、PUT 201 两态+409 逐字同）。
+    勘误（2026-09-12，LOOP 008 台账卫生批③）：③臂原表述失实两处——(a) 参照 POST {name} 非「死动词」，
+    路由实存且 addon 层确定性 400（updateSecurityEntity 只认 users/groups，permissions 落空臂，反编译
+    RestSecurityRequestHandler.java:336-352）；(b) BinFlow 已于 L006 返工挂载 400 errors-envelope
+    "Bad Request" 同体（T-L006-1 coordinator-2，Review B 核正；L006-a-b-diff §2.1 POST 行现行文本）——
+    本臂实为 L006 轮内已闭合，非本账残余；resolved 段的「③」=admin 主体 400 臂（T-L006-1 ④ 补入 §2.1
+    的第四残余，L007-1 清偿），与 rationale 原③的编号两义就此澄清。
+  authority: { type: differential, ref: "reports/compatibility/L006-a-b-diff.md §2.1" }
+  review_gate: LOOP 007 实现票（一票三臂收口；resolved 后矩阵 D04-R18 随翻——L007-4 已预登记翻绿条件）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      reports/compatibility/L007-residuals-users-diff.md §1（L007-1 实现收官，独立验证实例 binflow-l0071-verify /
+      uat-l0071-c1193f5f）：三臂全闭合——① DELETE 200 text/plain "Successfully deleted permission Target
+      'l007-del'" 逐字同；② 未知名 404 errors-envelope 同体同文（GET/DELETE 双腿）；③ admin 主体 400 文案
+      逐字同（含参照自带双单引号癖性）+ 两优先序佐证腿（admin 扫描先于 unknown-user、仓校验先于 admin）。
+      连带收口：PUT 未识组 400 "Permission target contains a reference to a non-existing group 'x'."
+      （原 "Unable to find group by name" 已改，组名前无冒号与 user 臂异——留痕）。
+    note: >-
+      裁量记录（L007-1 §3）：400 系载体维持 BinFlow 纯文本姿态（参照全 envelope——载体差低于阈值、与同面
+      各腿一致避免体裁混排；L006 差分按文案逐字判 SAME 口径沿）；404 未知名臂按台账口径升级 envelope。
+      BinFlow 自有 /api/v1/permissions/{name} DELETE 204 冻结面不动（单元测试钉死，参照无此面）。
+      矩阵 D04-R18 随翻 compatible（L007 收官联动）。
+  evidence: reports/compatibility/L006-a-b-diff.md §2.1
+- id: rest/security-read-family-readonly-admin-gate
+  surface: 经典 security 读族 GET 管理面门（/api/security/permissions[/{name}]、/api/security/users、/api/security/groups 等列表/详情）
+  classification: UNKNOWN
+  rationale: >-
+    BinFlow 门=CapSecurityRead（admin ∨ readonly_admin 可读——internal/httpapi/router.go security/permissions
+    GET 族、security/users、security/groups 列表族实测挂载）；参照实例级无 read-only admin（docs/reverse/
+    rbac-model.md #2 高置信：实例级只有 admin 布尔，最接近物为 project 域 Viewer），经典读族参照侧 admin-only。
+    对参照存在的调用者类（admin 200/普通 user 403/匿名 401）双端一致——分歧仅在 BinFlow 自有 readonly_admin
+    角色轴上显现（参照无此主体，L006-1 差分以 admin 凭据执行未触该轴；L006 Review B 范围外上报）。先例核对
+    结论：known-divergence 无家族条目、DECISIONS 各 Errata 亦无此裁定——ADR-0026 决策 1 已立 readonly_admin
+    管理面含 security:read（架构位），但「经典 security 读族对该角色放行 vs 参照 admin-only」的兼容姿态未经
+    终裁。候选 INTENTIONAL（模型级超集角色，参照存在主体面零差；与 docker/remote-v2-ping-revoked-arm-
+    unreachable 同为「参照主体缺位」款）；裁对齐则需经典读族收窄 admin-only（翻转既有 readonly_admin
+    200→403 组合，M9「新增不破坏」基调冲突面，影响面=readonly_admin 全部管理面读消费——console 只读视图）。
+    改期（2026-09-12，LOOP 009 L009-1）：authority 阻塞非证据阻塞——R-12 已随 pending-rulings v2.0 整包
+    呈批（docs/prd/pending-rulings.md §1 R-12 + §2-R12，L008-4a；PM 建议维持超集→INTENTIONAL），
+    触发条件=用户批复即升级：INTENTIONAL 终裁补引 ADR-0026 决策 1 为 authority 即转正；裁收窄则开实现票
+    +console 读视图联动评估；改期 LOOP 010。
+  authority: { type: pending, ref: "产品/用户裁决（readonly_admin 经典 security 读面姿态：维持 CapSecurityRead 超集 vs 收窄 admin-only）" }
+  review_gate: LOOP 010 限期（随 R-12 批复升级——用户 authority 待决）
+  evidence: internal/httpapi/router.go（security 读族 routeAuth.manage=CapSecurityRead 实测）+ docs/reverse/rbac-model.md #2（参照实例级无 read-only admin）
+- id: docker/virtual-remote-cold-negative-body-annotation
+  surface: docker virtual 面冷负 miss 首答 body 注记（message 后缀「(upstream answered 404 404 Not Found)」）
+  classification: BUG
+  rationale: >-
+    L007-2 §2.4 新发现（uat.l0072-c1193f5f，2026-09-12）：经 virtual 仓的冷 404 首答 message 带成员上游
+    应答拼接后缀（176B vs 参照恒 137B）；负缓存行落库后即逐字节对齐（二问起 138B≡137B+尾换行，既有归一
+    内）——一次性影响。对照实验（同构建直读面冷负 miss 首答无注记）→ virtual handler 特有（对成员上游
+    404 回显做 message 拼接，直读面不做）。L006-2 walk 测试只断上游计数/行键未比 message 体，正好漏过此面。
+    客户端可见面分歧（首答 message 串）。
+  authority: { type: differential, ref: "reports/compatibility/L007-d3-virtual-probe.md §2.4" }
+  review_gate: LOOP 008 微票（virtual handler 冷 miss 首答去注记——与直读面同 message；walk 测试补 message 体断言防复发）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      reports/agents/L008-2.md 小票 2（uat-l0082-d3）：virtual 终态 404 改纯 body（unfound.write(w, "")）——
+      冷负 miss 首答 138B plain「The named manifest is not known to the registry.」无后缀（原 176B 注记版）
+      vs 参照 137B plain，唯一差=尾换行（既有归一内）；neg1≡neg2 逐字节同；首问上游 GET 404 +1、二问起
+      本地零回源（负缓存机制不变）；直读面冷 404 复核仍 plain 138B 无回归。测试翻面：TestVirtualUnfoundBody-
+      CarriesRemoteShape 改 message 逐字节=E6 静态串断言（原前缀断言——正是 L007-2 指出的漏点）。
+    note: 诊断信息不丢：summary 移 WARN 日志行（last_member_summary="upstream answered 404 404 Not Found"，
+      离线入日志——取证行在 L008-2 Outputs）。金样候选：virtual 冷负 plain 404 体（137B/138B 归一对，L008-2 Next）。
+  evidence: reports/compatibility/L007-d3-virtual-probe.md §2.3/§2.4
+- id: rest/user-create-default-group-readers
+  surface: 建用户自动入默认组 readers（建模级）
+  classification: UNKNOWN
+  rationale: >-
+    L007-1 §3-4 新发现（2026-09-12）：参照建用户自动入默认组 readers（回显 groups:["readers"]），BinFlow
+    无此语义（groups=[]）。用户创建默认组成员面，非字段集渲染问题——涉用户/组建模与隐式权限语义
+    （readers 组的权限绑定随实例预置），对齐方向（引入默认组语义 vs 建模缺位 INTENTIONAL）需产品裁。
+    改期（2026-09-12，LOOP 009 L009-1）：authority 阻塞非证据阻塞——R-13 已随 pending-rulings v2.0 整包
+    呈批（docs/prd/pending-rulings.md §1 R-13 + §2-R13，L008-4a；PM 建议对齐：引入默认组语义，组权限
+    绑定默认零授权随建模票取证定），触发条件=用户批复即升级：裁对齐开建模+实现票并翻 BUG 修复路径；
+    改期 LOOP 010。
+  authority: { type: pending, ref: "产品/建模裁（默认组 readers 语义：引入 vs 有意缺位）" }
+  review_gate: LOOP 010 限期（随 R-13 批复升级——用户 authority 待决）
+  evidence: reports/compatibility/L007-residuals-users-diff.md §3-4
+- id: rest/anonymous-user-row
+  surface: anonymous 用户行（GET /api/security/users/anonymous，建模级）
+  classification: UNKNOWN
+  rationale: >-
+    L007-1 §3-4 新发现（2026-09-12）：参照有 anonymous 用户行（profileUpdatable=false、
+    internalPasswordDisabled=true，§2 三形态活体取证在案），BinFlow 无该行（404）。anonymous 建模级差异
+    （虚拟用户行 vs 建模缺位），对齐方向需产品裁（引入虚拟行涉匿名身份建模与权限面联动）。
+    改期（2026-09-12，LOOP 009 L009-1）：authority 阻塞非证据阻塞——R-14 已随 pending-rulings v2.0 整包
+    呈批（docs/prd/pending-rulings.md §1 R-14 + §2-R14，L008-4a；PM 建议对齐：只读虚拟行最小面，写面
+    PUT/DELETE 未取证须实现票内先补取证或按只读拒写登记未取证臂），触发条件=用户批复即升级：裁对齐开
+    建模+实现票并翻 BUG 修复路径；改期 LOOP 010。
+  authority: { type: pending, ref: "产品/建模裁（anonymous：虚拟用户行 vs 建模缺位）" }
+  review_gate: LOOP 010 限期（随 R-14 批复升级——用户 authority 待决）
+  evidence: reports/compatibility/L007-residuals-users-diff.md §2/§3-4
+- id: rest/permissions-v1-managedxraymeta-seat
+  surface: v1 permissions letters 的 managedXrayMeta（mxm）席位
+  classification: INTENTIONAL_DIFFERENCE
+  rationale: >-
+    L006-1 §2.1 方言行留痕（Review B 范围外收编）：参照 ArtifactoryPermission 枚举含 mxm 位（r/w/n/d/m/
+    mxm/x——x 与未知 token 静默清位但 **mxm 真存**），v1 方言 PUT letters 含 mxm 回读保留；BinFlow 无 xray
+    域权限席位 → mxm 与未知 token 同样静默弃（清位语义照参照 AceImpl，唯无席位可落）。系产品边界的直接
+    后果非渲染缺陷：Xray 独立产品不做且不占位（ADR-0029 范围条款）+ xray-integration 仅描述符/门控 seam
+    本体不实现（ADR-0033）。若 Xray 域未来进场需回补席位（翻路径=新 ADR + 席位落letters 映射）。
+    matrix D04-R18 已 compatible，本账为席位差存证不占行态（行 note 指针互锚）。
+  authority: { type: adr, ref: "DECISIONS.md#adr-0029（Xray 独立产品不做不占位）+ ADR-0033（xray-integration 仅描述符/门控 seam）" }
+  review_gate: 非排程项——xray 域进场时回补 mxm 席位（翻路径=新 ADR；M16 Xray 排除域裁定链）
+  evidence: reports/compatibility/L006-a-b-diff.md §2.1（v1 方言 PUT 行）+ T-L006-1.md（ArtifactoryPermission 枚举/AceImpl 清位语义）
+- id: rest/permissions-v1-edge-validation-family
+  surface: v1 permissions 面边缘校验族（%zz 转义 / NameValidator 恶意名 / 富方言经典面超集臂）
+  classification: BUG
+  rationale: >-
+    L006-1 §2.1 三条边缘留痕收编（Review B 范围外，闭合「留痕/登记」承诺）：① GET {name} 路径段非法转义
+    （如 %zz）——参照 400（JAX-RS 层拒）vs BinFlow 404（withNameUnescaped 解码失败原样透传→查找落空）；
+    ② PUT 无名 body 臂——参照 NameValidator/XSSValidator 对恶意名 400（反编译证实），BinFlow 未复刻
+    （接受）；③ 富方言经典面超集臂——BinFlow 的 repos+数组 patterns+words 方言在 keyed 面额外可用，
+    参照不识 repos 键→400 missing——超集方向登记不追改（同 D02-R13/D04-R08 超集款，非本账对齐对象）。
+    ①②为可对齐缺口（非正常客户端面，低优先）；③维持超集。
+  authority: { type: differential, ref: "reports/compatibility/L006-a-b-diff.md §2.1（%zz 行/无名 body 行/富方言行）" }
+  review_gate: LOOP 009 微票（①非法转义 400 + ②恶意名校验两臂对齐；③超集维持不追改——低优先边缘面）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      T-L009-3（uat-l0093b-03396aa1-wip × :8082，26 臂差分）：①臂全 SAME——withNameUnescaped 两级解码
+      （传输层坏请求行裸 400 text/plain 与参照 Jetty 逐字同〔裸 TCP 测试钉死〕+ 第二级复刻 java.net.
+      URLDecoder 语义：坏转义 400 errors-envelope 文案逐字含字符码、plus/双重转义查找与创建同名 4 臂）；
+      ②臂全 SAME——keyed 面 NameValidator（非法字符集 400 envelope "Illegal name : …" 逐字、先于 409）
+      + XSSValidator（<> 形态拒 400 逐字、恰一字符/未闭合放行、先于 repositories、entityKey 臂不走
+      NameValidator）；③超集臂维持（repos 键参照 400 missing vs BinFlow 201——既有登记不追改）。连带
+      载体收口：keyed 面 4xx（409/repositories 双文案/未知仓/未知用户/admin 主体/解码失败）writePlainError
+      →writeError envelope + SetEscapeHTML(false)——L006 记 SAME 系只比文案未比载体，收口后逐字 SAME。
+    note: >-
+      %zz 表述更正存证（L006-a-b-diff §2.1 报告正文不动，随翻绿在案）：原记「BinFlow %zz→404」系探针
+      客户端工具差（% 被重引为 %25 所致）——传输层双端同裸 400，非行为分歧；裸 TCP 钉死
+      （TestPermissionsV1KeyNameTransport400）。XSSValidator 规则为黑盒探针归纳（27 臂取样），`<`+换行
+      等极端角未取证——按 Java/Go regex 同默认（`.` 不跨行）口径实现留痕。
+      LOOP 010 池备注（Review B non-blocking 探针票素材，四项均「探针先行」纪律不入本批）：XSS 四角臂
+      （`<`+换行等极端角补取样）/ NameValidator 三臂（非法字符集边界补拍）/ 转义不对称（两级解码的
+      查找-vs-创建不对称面）/ 无仓段臂（{name} 路径无仓段形态）——待参照臂活体补证后定是否立账。
+      LOOP 010 池收口（2026-09-12）：四项探针票全数出证——XSS 四角 4/4 SAME（L010-list-p2-diff §3）、
+      NameValidator 三字面量全 SAME（§3）、转义不对称收口（T-L010-2 ③ 成功体统一无 HTML 转义）、
+      无仓段臂前提推翻（T-L010-2 ④：参照四变体恒 404 "Not Found" 信封，已按真语义对齐——旧
+      rest-api.md:119 root-400 文案刷新票归 reverse-engineer）。**DELETE 未知名 200 候选不立账终裁**
+      （conductor LOOP 010）：L010-1 七臂双端两态逐字 SAME（从未建成/已删再删=404 envelope、建成删除
+      =200 纯文本——与 L007-1 闭账臂一致）；L009-3 的 200 观察不可复现，判定为参照实例崩溃前异常态
+      观察取证（L010 §6-c DB wedge 事件窗同款情形）——原条目撤销，若再现 200 形态再立账并附实例状态。
+  evidence: reports/compatibility/L006-a-b-diff.md §2.1 + T-L006-1.md（⑤/Changes 反编译双证）
+- id: rest/users-v1-get-unknown-style
+  surface: GET /api/security/users/{name} 未知名 404 体裁+文案
+  classification: BUG
+  rationale: >-
+    L008-3 附录 A 探针（Review A 候选收编，2026-09-12 双端 admin 凭据）：参照 404 application/json
+    envelope `{"errors":[{"status":404,"message":"Not Found"}]}` vs BinFlow 404 text/plain; charset=utf-8
+    `User not found`——体裁（envelope vs 纯文本）+文案（泛化 vs 具名）双差。钉死载体=writePlainError
+    （internal/httpapi/security.go，GET 与 PUT 单用户两处同拼写——PUT 兄弟腿同族）。**补齐注意：参照文案
+    为泛化 "Not Found"（与未知路径 404 同文案）非具名——补 envelope 时文案应为 "Not Found"，不可直译
+    现有具名文案**。与 L007-1 §3-1 裁量记录同族：该裁量只豁免 400 系纯文本载体，404 未知名臂 L007-1
+    已按台账升级 envelope（permissions 面），本腿系 users 面同族漏网。
+  authority: { type: differential, ref: "reports/compatibility/L008-list-params-diff.md §6（附录 A）" }
+  review_gate: 并入 users 面体裁统一票（与 L007-1 §3 残差 1〔400 系载体〕同票收口评估——GET/PUT 两处 writePlainError 一并核）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      T-L009-3（26 臂差分）：GET 与更新单用户两臂 writePlainError("User not found") → writeError
+      envelope `{"errors":[{"status":404,"message":"Not Found"}]}`——泛化文案遵本账「不可直译」补齐
+      注意；差分双端 SAME；users_detail_fields_test 404 envelope 断言翻新。L008-3 §6 探针两臂全闭。
+    note: 'DELETE 未知名臂不在本账证据范围（参照行为另立 #rest/permissions-v1-delete-unknown-idempotent-200——两轮观察相抵待条件差查证）。'
+  evidence: reports/compatibility/L008-list-params-diff.md §6
+- id: rest/storage-list-recursion-semantics
+  surface: '?list 递归/形态/行为差族（b-1 deep·depth 递归语义 + b-2 形态五维 + b-3 行为差三项）'
+  classification: BUG
+  rationale: >-
+    L008-3 首轮系统差分立账素材（reports/compatibility/L008-list-params-diff.md §2 32 臂矩阵 26
+    DIVERGENT，2026-09-12）：b-1 递归死守卫（尾斜杠计入层数致 deep/depth 全不触发）；b-2 形态五维
+    （条目 uri 相对形/文件夹行形态/顶层尾斜杠/created 时刻语义/vendor Content-Type 缺）；b-3 行为差
+    （仓库根不可列、七参非整数无校验、文件目标 400 文案异）。
+  authority: { type: differential, ref: "reports/compatibility/L008-list-params-diff.md §2/§4" }
+  review_gate: LOOP 009 补参票 P0（递归语义+形态+行为差三连修）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      T-L009-2（uat-l0092-03396aa1，32 臂矩阵双发两轮）：三连修落地——deep=1 唯一递归触发、depth 仅
+      钳层修饰、去尾斜杠计段（9 表臂零泄漏）；形态五项（uri 前导斜杠/文件夹 /d2 形 size-1/顶层去尾
+      斜杠/created=请求时刻毫秒〔+74ms 漂移证据照抄〕/vendor FileList+json CT）；行为差三项（仓库根可
+      列 A26/A27、七参非整数 400 envelope "For input string: \"<v>\"" 逐字、文件目标 400 冒号拼写逐字
+      A24）。复跑终态：状态列 32/32 对齐、**归一 SAME 25/32**、余 7 臂全落 P2 三参键（另账收窄）——
+      零范围外分歧。
+    note: >-
+      lastModified 秒级 .000Z 维持（M16 audit 派生族定谳不翻案）；includeRootPath 根条目 lastModified
+      1970 零时刻臂（A27 参照字段级未取证，时间戳归一掩盖）——LOOP 010 逐字节对拍复核项（T-L009-2
+      Risks①）。空值参数（?deep 无=）400 系 Java parseInt 语义直接读出无直接证据臂（Risks②留痕）。
+      勘误（2026-09-12，L009-2 blocking 修复连带·Review B non-blocking #6）：上句表述失实——锚点
+      getQueryParameterAsInt 的 isNotBlank 守卫在 parseInt **之前**短路，空值回 0 处理（200 并非 400）；
+      blocking 修复后 BinFlow 空值臂与参照一致（isNotBlank→0 缺省），「parseInt 直接读出」推定作废。
+  evidence: reports/compatibility/L008-list-params-diff.md §2/§4 + T-L009-2.md Outputs（32 臂两轮复跑）
+- id: rest/storage-list-params-family
+  surface: '?list 元数据三参未实现（mdTimestamps/includePropertiesMd5/statsTimestamps——L009 收窄后口径）'
+  classification: UNSUPPORTED_FEATURE
+  rationale: >-
+    L008-3 立账素材原口径=五参未读（七参族）；L009-2 补参 P0+P1 后收窄：deep/depth/listFolders/
+    includeRootPath 全 SAME + 七参整数校验 400 逐字，余三 P2 参无列表效果——32 臂中 7 个归一 DIFF 臂
+    **全部且仅**落此三参键（A15/A16/A17 mdTimestamps.properties、A21/A22 propertiesMd5、A23 两键、
+    A30 mdTimestamps.artifactory.stats；条目集/uri 形/size/folder/sha 全同）。三参各自前置：mdTimestamps
+    需属性修改时刻跟踪+属性写面（BinFlow 无 PATCH /api/metadata 面——跨面票）；includePropertiesMd5
+    需属性规范序列化 md5 规格（跨系统等值性待定——compatibility-engineer 先定规格）；statsTimestamps
+    （?stats 数据已在，只差入列）。
+  authority: { type: differential, ref: "reports/compatibility/L008-list-params-diff.md §3 + T-L009-2.md Outputs" }
+  review_gate: LOOP 010 P2 票（mdTimestamps 跨面 / includePropertiesMd5 规格前置 / statsTimestamps 入列）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      L010-list-p2-diff.md §1-§4（P2 三参全落）：跨面等值性规格先行取证（§1——mdTimestamps 属性时刻/
+      includePropertiesMd5 序列化 md5/statsTimestamps 各 2-3+ 活体臂）；32 臂全量重跑 **32/32 归一 SAME**
+      两轮（余 7 臂全收敛 A15/A16/A17/A21/A22/A23/A30——含 vendor CT 与 400 body 归一比较全同）；延期
+      单臂四组 19/19（B 空值/空白 9、C int32 界 6、XSS 四角可达角 4、NameValidator 三字面量）；复核一
+      includeRootPath 根条目 1970 零时刻已修（仓库根取 repo 行 CreatedAt「根随仓生」戳、查询无关性成立，
+      A26/A27 双端形态一致——L009-2 Risks① 清偿）。matrix D01-R05 随翻 compatible。
+    note: >-
+      lastModified 秒级 .000Z 维持既定 audit 派生族拼写（值归一）。LOOP 010 池四项探针票全数出证收口
+      （XSS 四角 4/4、NameValidator 全 SAME、转义不对称=T-L010-2 ③ 成功体统一无 HTML 转义、无仓段臂
+      =T-L010-2 ④ 前提推翻——参照四变体恒 404 "Not Found" 信封已对齐，rest-api.md:119 文案刷新票归
+      reverse-engineer）。越界信息记录不立案：参照属性写面默认递归怪癖（§6-b，供 properties 契约排差）。
+      LOOP 012 池项登记（T-L011-1 Outputs E1-E4 取证）：**mdTimestamps 递归臂升级票素材已齐**——参照
+      文件夹 PUT（默认递归）子项 props-mtime 出现@写入时刻且二次写再移动、直写单子项只动该子项（E1-E4）；
+      BinFlow recursive=1 子项 props 确已写入（E3 回读在）但 mdTimestamps.properties 缺席——根因
+      recordPropsAudit 只记 addressed 节点一行、propModifiedTimes 审计派生无子项行；实现方向=propsTargets
+      逐 target 记审计行或 NodeProps 存储层 per-node 变更时刻。递归缺省语义差（参照默认递归 vs BinFlow
+      显式 recursive=1）系 FR-89.2/决策 11.40 族既有裁量另计，非本池项范围。
+  evidence: reports/compatibility/L008-list-params-diff.md §3 + T-L009-2.md + L010-list-p2-diff.md §1-§4（32/32 终态）
+- id: rest/user-detail-vendor-content-type
+  surface: 'GET /api/security/users/{name} 200 面 Content-Type（vendor 串缺位）'
+  classification: BUG
+  rationale: >-
+    L009-3 差分残留①（2026-09-12）：参照 application/vnd.org.jfrog.artifactory.security.User+json vs
+    BinFlow application/json——面级既有差（任何名字拼写皆然，非臂级）。同族先例=?list 面 vendor CT
+    （…storage.FileList+json）已随 T-L009-2 的 writeJSONBodyCT 助手对齐——机制现成可复用。
+  authority: { type: differential, ref: "reports/agents/T-L009-3.md Outputs 残留 DIFF ①" }
+  review_gate: LOOP 010 微票（writeJSONBodyCT 复用；matrix D04-R02 note 已挂指针）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      T-L010-2 ①（刮擦实例 × :8082 差分）：handleUserGet 改 writeJSONBodyCT + userDetailMediaType 常量
+      （application/vnd.org.jfrog.artifactory.security.User+json，无 charset 后缀）——差分 CT 双端同串；
+      TestUserDetailVendorContentType 精确串断言。附带：writeJSONBodyCT 弃 MarshalIndent 改 Encoder
+      SetEscapeHTML(false)（成功体与错误体统一无 HTML 转义——L009-3 姿态推至成功面）。
+  evidence: reports/agents/T-L009-3.md（残留①）+ T-L010-2.md（①落地+差分双端同串）
+- id: rest/permissions-v1-empty-actions-validation-skip
+  surface: v1 keyed PUT 空 actions 列表的主体校验豁免（校验随 actions 走）
+  classification: BUG
+  rationale: >-
+    L009-3 旁观发现（2026-09-12 双端对照）：空 actions 列表时参照对未知用户/admin 主体放行 201（参照
+    校验器只随 actions 遍历 principals——actions 空即无人被校验）；BinFlow 一律 400（未知主体/admin
+    守卫不因 actions 空而豁免）。语义影响评估：actions 空=无 ACE 授予，放行无提权面——对齐参照口径
+    （校验随 actions 走）低危；非空 actions 的 admin 守卫文案臂（L007-1 已对齐）不受动。
+  authority: { type: differential, ref: "reports/agents/T-L009-3.md Compatibility 漂移点(b)" }
+  review_gate: LOOP 010 微票（校验豁免随 actions 走）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      T-L010-2 ②（七臂差分 status+message 双端一致）：三处校验（admin 守卫/未知用户/未知组）对 keyedV1
+      面按「actions 空即免验」逐主体豁免——n1 未知用户[]=201、n2 admin[]=201、n4 未知组[]=201、
+      n3 未知用户[r]=400 同文案、n5 admin[]+未知[r]=400 未知文案、n6/n7 admin 带动作=400 双单引号文案
+      （豁免粒度与顺序钉死）；富面（/api/v1/permissions POST）冻结不动（BinFlow-native 超集，无参照面）。
+      TestPermissionsV1EmptyActionsValidationSkip 七臂表驱动 + 富面冻结测试。
+  evidence: reports/agents/T-L009-3.md（漂移点 b）+ T-L010-2.md（②七臂落地）
+- id: rest/metadata-plane-download-count-pollution
+  surface: 元数据面下载计数污染（item-info GET 与 ?properties GET/PUT/DELETE 计入 downloadCount）
+  classification: BUG
+  rationale: >-
+    L010-list-p2-diff §6-a（越界发现，2026-09-12 UAT 隔离探针实证）：BinFlow GET /api/storage/{path}
+    （item-info）与 ?properties GET/PUT/DELETE 均经 storageNode→ReposSvc.Get **计入
+    downloadCount/lastDownloaded**——新文件上传后 stats=0 → PUT ?properties 后 =1 → GET ?properties
+    后 =2 → item-info GET 亦 +1；参照侧属性已写已读的文件无 artifactory.stats（A30 参照臂——参照
+    元数据面不计数）。根因：计数器随内容面 Get 直乘（ADR-0044 K69「direct」臂的附带伤害）；?stats
+    面已有 statsNode 非计数解算先例可循。本轮差分夹具以「属性只放在有下载的文件」规避，32/32 不受
+    影响——但该污染会在脏实例上阻 A30 类臂收敛（坑登记）。
+  authority: { type: differential, ref: "reports/compatibility/L010-list-p2-diff.md §6-a（UAT 隔离探针）" }
+  review_gate: LOOP 011 修复票（httpapi 元数据面非计数解算——List-based 精确匹配臂 + 各面拼写回退语义；virtual 解算语义验证前置）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      T-L011-1（uat-l0111-293a754c-wip 活体）：九面隔离探针全 0（iso.txt 上传 stats=0 → PUT/GET/DELETE
+      props=0 → item-info=0 → ?permissions+?list=0 → virtual 面 item-info+props 成员行=0）→ **真内容
+      GET=1——计数器健在**（de-probe 的是面不是计数器）；virtual 前置确认修复（修复前 virtual 面同名读
+      使成员 0→1→2→3）；remote 面顺带第二处 parity：未缓存 remote 路径 item-info 404 不回源（修复前
+      200+整制品拉取+落地+计数；参照同臂 404）；A30 脏实例收敛：干净文件键缺席 / 真下载一次键在@真实
+      时刻 / 参照对照臂（未下载缺席→真 GET 键在→metadata 三面后计数稳定 1）。
+    note: >-
+      **历史污染行不回写=事实保留**（vp.txt 修复前污染行=3 与参照真下载行同形——不清洗存量数据，账面
+      记录事实）。实现载体=storageNode List-based 解算（精确拼写+斜杠回退+display 文件夹标记臂——替代
+      Get 直乘与 T-406 读时物化）；search_ui leadFile 同族直连一并收口。衍生知悉项：元数据面自此不写
+      download audit 行（K69 count/audit 同址原则下 de-probe 同去——报表依赖方知悉）；无行文件夹 display
+      时间戳 epoch 角 case（旧 remote 物化行有真实时刻——可立后续票，T-L011-1 Risks③）。
+  evidence: reports/compatibility/L010-list-p2-diff.md §6-a + T-L011-1.md（修复+九面复验）
+- id: rest/virtual-metadata-faces-404-vs-200
+  surface: virtual 面 ?properties/?stats 应答（参照 404 vs BinFlow 200）
+  classification: UNKNOWN
+  rationale: >-
+    T-L011-1 旁观发现（2026-09-12 双端活体）：参照 ?properties 与 ?stats 打在 virtual 仓上均 **404**；
+    BinFlow 现行 **200**（元数据面作用于 virtual 上有解算语义）。第二臂（同面族）：参照 ?stats 体
+    lastDownloaded/remoteLastDownloaded 为数值 0 **恒在场**，BinFlow omitempty 缺席。裁量核对结论：
+    T-438（?stats 面形态/local 面）与 FR-89.2（properties atomic 臂）**均不覆盖 virtual 元数据面**——
+    T-L011-1 所引「既有裁量」经查不构成本面 authority（dev 侧「先照抄不翻」仅为实现姿态），无
+    INTENTIONAL 锚可引 → 按纪律入 UNKNOWN。对齐方向需裁：对齐参照=virtual 面 404（BinFlow 面收缩，
+    影响控制台 virtual 树元数据消费）；维持超集=200（需 authority）。
+  authority: { type: pending, ref: "产品/conductor 裁（virtual 元数据面：对齐 404 vs 维持 200 超集——无既有 authority 覆盖本面）" }
+  review_gate: LOOP 012 限期升级（INTENTIONAL 终裁需 authority；裁对齐则开面收缩票〔virtual 消费方联动评估〕）
+  evidence: reports/agents/T-L011-1.md（Compatibility 新观察段 + 前置探针①参照对照臂）
 # 条目模式（M3-2 落地）：
 # - id: rest/build-batch-delete-date-range
 #   surface: POST /api/build/delete

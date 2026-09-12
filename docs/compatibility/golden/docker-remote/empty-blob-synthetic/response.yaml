@@ -1,0 +1,31 @@
+# 金样期望响应——docker remote 空 blob digest 合成（Artifactory 参照侧活体采集，L002-2 2026-09-11）
+# schema: golden-response/1（headers+body 合并单文件；断言词汇表同 contracts/docker-remote.yaml 头部声明）
+get:
+  status: 200
+  headers:
+    literal:                       # 活体观察全集（L002-2）——合成路径【不】补校验和族（pending_capture 已闭合）
+      Content-Length: '32'
+      Content-Type: application/octet-stream
+      Docker-Content-Digest: sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
+      Docker-Distribution-Api-Version: registry/2.0
+    absent: [Etag, X-Checksum-Md5, X-Checksum-Sha1, X-Checksum-Sha256, Accept-Ranges, Content-Disposition,
+             X-Artifactory-Filename, X-Artifactory-Origin-Remote-Path, Last-Modified]
+    binflow_superset_note: >-
+      BinFlow（uat-l0022-5f9c48d0）合成路径额外回 Etag(=sha1)/X-Checksum-Md5/Sha1/Sha256/Accept-Ranges——
+      按 normalize superset_policy=tolerate_and_note 容忍（单侧多出非语义头，不判 DIVERGENT；差分报告 C17 段在档）。
+  body:
+    bytes: 32
+    sha256: a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4   # 协议不变量：digest 寻址内容 sha256==digest
+    raw_hex: 1f8b080000096e8800ff621805a360148c5800080000ffff2eafb5ef00040000  # 活体原始 32 字节（gzip 空 tar；BinFlow 侧逐字节一致）
+head:
+  status: 200
+  headers:
+    literal:
+      Content-Length: '32'
+      Content-Type: application/octet-stream
+      Docker-Content-Digest: sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
+      Docker-Distribution-Api-Version: registry/2.0
+    absent: [Etag, X-Checksum-Md5, X-Checksum-Sha1, X-Checksum-Sha256, Accept-Ranges]
+timing:
+  upstream_rtt: false              # 合成路径本地应答；双端活体取证：上游 registry 日志该 digest 0 命中（Artifactory 实测 9.3ms 客户端耗时）
+verdict_witness: 'L002-2 C17 双端活体：两侧均 200/32B/Docker-Content-Digest、上游 0 往返——SAME 维持；金样 derived-from-report → live-captured'

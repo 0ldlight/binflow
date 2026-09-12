@@ -4,16 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
 )
 
-// OAuth-form error codes for the token endpoint (the /v2/token plane renders
-// OAuth-shaped errors, NOT the registry spec body — PRD FR-11's error-body
-// split: the token endpoint negotiates OAuth, every other /v2 route speaks
-// the distribution error schema).
+// OAuth-form error codes for the token endpoint's PARAMETER refusals (the
+// unsupported grant, the method gate — PRD FR-11's error-body split kept
+// for the unobserved corners; the credential 401s answer Artifactory's
+// generic {"errors":[{"status":...}]} model per L000-B C02, see
+// writeStatusFormError).
 const (
 	oauthErrInvalidRequest      = "invalid_request"
 	oauthErrUnsupportedGrant    = "unsupported_grant_type"
@@ -138,22 +138,25 @@ func (h *Handler) serveToken(w http.ResponseWriter, r *http.Request) {
 		if user, pass, ok := formCredentials(r); ok {
 			fp, err := h.authenticateForm(r.Context(), user, pass)
 			if err != nil {
-				h.writeOAuthError(w, http.StatusUnauthorized, oauthErrInvalidClient,
-					"authentication required")
+				// A PRESENT-but-wrong form credential is the refused-
+				// credential family: the Artifactory generic error model,
+				// verbatim "Bad Credentials" (L000-B C02/E1-5).
+				writeStatusFormError(w, http.StatusUnauthorized, "Bad Credentials")
 				return
 			}
 			p = fp
 		}
 	}
 	if p == nil && !h.opts.AnonymousAccess {
-		// No credential (and anonymous closed): OAuth-form 401 with the
-		// Basic challenge — this is the one 401 whose client has nothing to
-		// retry, so the challenge solicits credentials instead of pointing
-		// back at the token endpoint it just came from (T-55 kept this
-		// header untouched while the bodies unified).
+		// No credential (and anonymous closed): the Artifactory generic
+		// error model with the exact observed message (L000-B E1-4:
+		// {"errors":[{"status":401,"message":"Authentication is required"}]})
+		// plus the Basic challenge — the one 401 whose client has nothing
+		// to retry, so the challenge solicits credentials instead of
+		// pointing back at the token endpoint it just came from (T-55 kept
+		// this header untouched while the bodies unified).
 		w.Header().Set("WWW-Authenticate", `Basic realm="BinFlow Registry"`)
-		h.writeOAuthError(w, http.StatusUnauthorized, oauthErrInvalidClient,
-			"authentication required")
+		writeStatusFormError(w, http.StatusUnauthorized, "Authentication is required")
 		return
 	}
 
@@ -276,13 +279,21 @@ func (h *Handler) writeOAuthError(w http.ResponseWriter, status int, code, descr
 // renderTokenAuthFailure shapes a REFUSED credential (wrong password,
 // unknown user, stale/revoked Bearer) that reached /v2/token: the Bearer
 // challenge header stays byte-identical to the plane's default (the client
-// still needs realm/service to retry, ADR-0010 clause 4), while the body is
-// the PRD v1.2/C3 ruling's unified OAuth form — /v2/token's clients speak
-// OAuth, not the registry error schema, and its 400s were already OAuth.
+// still needs realm/service to retry, ADR-0010 clause 4), while the body
+// is Artifactory's generic error model with its exact observed message —
+// 401 {"errors":[{"status":401,"message":"Bad Credentials"}]}, the form
+// the docker CLI renders as "unknown: Bad Credentials" (L000-B C02/E1-5,
+// superseding the PRD v1.2/C3 OAuth-form ruling for the credential 401s;
+// the parameter 400s below stay OAuth — unobserved client-facing corners
+// keep their standing shape).
+// L004-1: the Bearer arms message-split exactly like the ping face (live
+// capture a_tok_expiredbearer.h answers "Token failed verification:
+// expired" on this endpoint too); the challenge header keeps the T-55
+// Bearer form — the live reference's Basic realm on this endpoint is
+// reported for adjudication, not changed here.
 func (h *Handler) renderTokenAuthFailure(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("WWW-Authenticate",
-		fmt.Sprintf(`Bearer realm="%s",service="%s"`, h.realmBase(r)+TokenPath, ServiceID))
-	h.writeOAuthError(w, http.StatusUnauthorized, oauthErrInvalidClient, "authentication required")
+	w.Header().Set("WWW-Authenticate", h.bearerChallenge(r, ""))
+	writeStatusFormError(w, http.StatusUnauthorized, h.bearerRefusalMessage(r.Context(), r))
 }
 
 // isTokenRoute reports whether path belongs to the token endpoint's route

@@ -184,7 +184,9 @@ remote 缓存仓：
 
 **manifest 校验策略**：结构 pass-through（与 local 面一致，无 media type 白名单）；实测 digest 为寻址唯一真相，上游声明 `Docker-Content-Digest` 不一致时**登记不拒绝**（WARN）；by-digest 请求实测不符 → 502 不落盘。ref 边（config/layer 描述符）best-effort 提取，解析失败不影响透传服务。
 
-**降级矩阵（照既有 remote 口径，FR-116.5）**：上游 5xx / 传输故障 / token 交换失败——有过期副本 → `STALE` + `X-Binflow-Upstream-Error` 标记继续服务；无副本 → 404 unfound 族（MANIFEST_UNKNOWN / BLOB_UNKNOWN），**零裸 5xx**。上游 404：digest 键路径写负缓存（missedTTL 窗口内零回源应答 404）+ 过期副本续serve；**tag 404 不写负缓存**（tag 无存储键，直接 404）。上游 401/403（舞步穷尽后）：404 unfound + 摘要（不写负缓存——凭据状态可纠正）。SSRF 拒绝形态照 NFR-S13（400）。
+**降级矩阵（照既有 remote 口径，FR-116.5）**：上游 5xx / 传输故障 / token 交换失败——有过期副本 → `STALE` + `X-Binflow-Upstream-Error` 标记继续服务；无副本 → 404 unfound 族（MANIFEST_UNKNOWN / BLOB_UNKNOWN），**零裸 5xx**。上游 404：写负缓存（键按引用形态——digest 引用键 manifest 节点路径 `<image>/manifests/<hex>`、tag 引用键 `<image>/tags/<tag>`；missedTTL 窗口内重复 miss 零回源本地应答 404）+ 过期副本续serve；TTL 到期回源 +1 并重写行。
+（勘误 2026-09-12：原句「tag 404 不写负缓存」被 L005-1/L006 双端活体证伪——C14 双键法落地，改本句对齐实测行为；证据 reports/compatibility/L005-c14-d1-diff.md §3 / L006-by-digest-cold-miss-diff.md；conductor LOOP 006 收官指令授权 compatibility-engineer 代改，改动理由=行为规格与双端实测矛盾。）
+上游 401/403（舞步穷尽后）：404 unfound + 摘要（不写负缓存——凭据状态可纠正）。SSRF 拒绝形态照 NFR-S13（400）。
 
 **边界与口径**：
 - 写动词全量 405 + `Allow: GET`（RE-05）；缓存失效走 REST 面 RE-06（DELETE /binflow/<repo>/…），/v2 面不做缓存失效动词。

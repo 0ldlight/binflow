@@ -1,0 +1,23 @@
+# 金样元数据——docker remote 拉取序列（首批金样 2/2）
+schema: golden/1
+id: docker-remote/pull-sequence
+contract_ref: contracts/docker-remote.yaml#docker/remote-pull-sequence
+matrix_ref: matrix.yaml#D12-R01
+capture:
+  mode: live-captured               # L002-2 活体重采（2026-09-11）：真实客户端序列在档
+  captured_at: '2026-09-10T21:26Z（UTC）'
+  capture_instance: 'Artifactory-pro 7.161.20（http://localhost:8082，repo audit-probe-docker-remote，上游 registry:3 host.docker.internal:5588，hello-world:latest 首拉+二拉）'
+  capture_commands: >-
+    docker exec difftest-dind sh -c 'echo *** | docker login host.docker.internal:8082 -u admin --password-stdin &&
+    docker pull host.docker.internal:8082/audit-probe-docker-remote/hello-world:latest'（dind docker 27.5.1 经典栈，
+    --insecure-registry=host.docker.internal:8082）；digest 全值经 docker images --digests 与上游推送回执双源核对
+  raw_response_archive: reports/compatibility/L002-contract-replay.md（C04 段：dind 输出 + 上游日志 + BinFlow 同拓扑对拍）
+  history: derived-from-report（L001-2 首评）→ live-captured（L002-2，本档）
+instance_versions:
+  artifactory_ref: Artifactory-pro 7.161.20（revision 86120900）
+  binflow_tested: uat-l0022-5f9c48d0（worktree rev 5f9c48d0 + 未提交 L002-1 docker adapter WIP；同拓扑对拍在报告）
+confidence: high                    # 真实客户端 + digest 全值 + 上游日志直证
+known_gaps:
+- 'manifest 内容字节未锚 fixture——以 digest 不变量锚定（拉取序列的 manifest 即上游字节，sha256==digest）；独立 manifest fixture 归 manifest 条目管辖'
+- '缓存布局侧效应（C05）为 DIVERGENT 在案（known-divergence docker/remote-cache-layout），金样只锚客户端可见面'
+review: L002-2（2026-09-11）活体重采落档；下次评审随 compatibility-engineer 例行

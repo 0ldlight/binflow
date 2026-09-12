@@ -590,19 +590,48 @@ type userListItem struct {
 // input and the DB column (ADR-0026 decision 6: wire=DB=constant). Enabled
 // (M9, T-251/E3) always renders — the read-side closure of the T-208 *bool
 // write seam: the row's DB fact, no "written-here-so-known" UI fallback.
+//
+// L007-1 (D04-R02, field-set alignment with the live reference :8082,
+// wire-verified 2026-09-12) widens the echo with the reference's own
+// columns: the four addon-role bits (policyViewer/policyManager/
+// watchManager/reportsManager — BinFlow models none of those seats, so
+// false, matching the reference's own rows on this instance), the
+// lastLoggedInMillis epoch column (the reference renders it ALWAYS, 0 even
+// beside a populated lastLoggedIn — probed on the admin row — and BinFlow
+// has no millis-precision source, so the constant 0 mirrors the observed
+// wire), offlineMode/mfaStatus/shouldInvite (constant false/"NONE"/false —
+// the all-addons reference's every row), and the status closed set
+// ("ENABLED"/"DISABLED" derived from the enabled column — the reference
+// carries no enabled boolean on this face, the enum is the account state).
+// The widening is ADDITIVE: adminRole/enabled/source and the always-rendered
+// email/groups stay (BinFlow's documented superset — the console user
+// editor's echo drives off adminRole+enabled, and its form seeds off
+// d.email/[...d.groups], so the reference's omit-when-unset renderings
+// would break BinFlow's own consumers); the reference omits email/groups
+// when unset/empty, a superset divergence registered with the L007
+// differential.
 type userDetail struct {
 	Name                     string   `json:"name"`
 	Email                    string   `json:"email"`
 	Admin                    bool     `json:"admin"`
-	AdminRole                string   `json:"adminRole"`
-	Enabled                  bool     `json:"enabled"`
-	Groups                   []string `json:"groups"`
-	LastLoggedIn             string   `json:"lastLoggedIn,omitempty"`
-	Realm                    string   `json:"realm"`
-	Source                   string   `json:"source"`
+	PolicyViewer             bool     `json:"policyViewer"`
+	PolicyManager            bool     `json:"policyManager"`
+	WatchManager             bool     `json:"watchManager"`
+	ReportsManager           bool     `json:"reportsManager"`
 	ProfileUpdatable         bool     `json:"profileUpdatable"`
 	InternalPasswordDisabled bool     `json:"internalPasswordDisabled"`
+	Groups                   []string `json:"groups"`
+	LastLoggedIn             string   `json:"lastLoggedIn,omitempty"`
+	LastLoggedInMillis       int64    `json:"lastLoggedInMillis"`
+	Realm                    string   `json:"realm"`
+	Source                   string   `json:"source"`
+	AdminRole                string   `json:"adminRole"`
+	Enabled                  bool     `json:"enabled"`
+	OfflineMode              bool     `json:"offlineMode"`
 	DisableUIAccess          bool     `json:"disableUIAccess"`
+	MfaStatus                string   `json:"mfaStatus"`
+	Status                   string   `json:"status"`
+	ShouldInvite             bool     `json:"shouldInvite"`
 }
 
 // roleFromStored normalizes a stored users.role spelling onto the closed
@@ -740,15 +769,29 @@ func (s *Server) handleUserList(w http.ResponseWriter, r *http.Request) {
 	writeJSONBody(w, http.StatusOK, items)
 }
 
+// userDetailMediaType is the user detail face's pinned vendor content type
+// (L010-2, ledger rest/user-detail-vendor-content-type; live :8082 7.161.20
+// wire-verified 2026-09-12, no charset suffix) — the ?list/FileList
+// family's CT posture, now shared through writeJSONBodyCT.
+const userDetailMediaType = "application/vnd.org.jfrog.artifactory.security.User+json"
+
 // handleUserGet serves GET /api/security/users/{name} (admin): the single
 // user with the 004 email round-trip (W40), the M4 groups echo (SE-05) and
 // the M9 enabled echo (E3, T-251: the read-side closure of T-208's write
-// seam).
+// seam). L007-1 (D04-R02) joins the reference's field set — the status enum
+// over the enabled column and the lastLoggedIn projection, the SAME
+// audit-derived single query the list face rides (FR-146.3's derivation,
+// absent for a never-logged-in row, absent on a facet-less stack; a failing
+// derivation fails closed, the list face's posture).
 func (s *Server) handleUserGet(w http.ResponseWriter, r *http.Request, name string) {
 	u, err := s.deps.Metadata.Users().Get(r.Context(), name)
 	if err != nil {
 		if errors.Is(err, metadata.ErrUserNotFound) {
-			writePlainError(w, http.StatusNotFound, "User not found")
+			// L009-3 (ledger rest/users-v1-get-unknown-style, wire-verified
+			// :8082 2026-09-12): the reference answers the unknown user with
+			// the errors envelope and the GENERALIZED "Not Found" — the same
+			// wording as an unknown path — not a named "User not found".
+			writeError(w, http.StatusNotFound, "Not Found")
 			return
 		}
 		writePlainError(w, http.StatusInternalServerError, "get user: "+err.Error())
@@ -763,16 +806,32 @@ func (s *Server) handleUserGet(w http.ResponseWriter, r *http.Request, name stri
 	for _, g := range groupRows {
 		groups = append(groups, g.Name)
 	}
-	writeJSONBody(w, http.StatusOK, userDetail{
+	var lastLoggedIn string
+	if s.lastLogin != nil {
+		lastLogins, err := s.lastLogin.LastLogins(r.Context())
+		if err != nil {
+			writePlainError(w, http.StatusInternalServerError, "derive last logins: "+err.Error())
+			return
+		}
+		lastLoggedIn = lastLogins[name]
+	}
+	status := "DISABLED"
+	if u.Enabled {
+		status = "ENABLED"
+	}
+	writeJSONBodyCT(w, http.StatusOK, userDetailMediaType, userDetail{
 		Name:             u.Username,
 		Email:            u.Email,
 		Admin:            u.IsAdmin,
 		AdminRole:        string(roleFromStored(u.Role)),
 		Enabled:          u.Enabled,
 		Groups:           groups,
+		LastLoggedIn:     lastLoggedIn,
 		Realm:            providerRealm(u.Provider),
 		Source:           providerSource(u.Provider),
 		ProfileUpdatable: true,
+		MfaStatus:        "NONE",
+		Status:           status,
 	})
 }
 
@@ -996,7 +1055,10 @@ func (s *Server) handleUserUpdatePost(w http.ResponseWriter, r *http.Request, na
 	u, err := s.deps.Metadata.Users().Get(r.Context(), name)
 	if err != nil {
 		if errors.Is(err, metadata.ErrUserNotFound) {
-			writePlainError(w, http.StatusNotFound, "User not found")
+			// L009-3: the update face's sibling arm — the same generalized
+			// "Not Found" envelope as the GET (ledger rest/users-v1-get-
+			// unknown-style; the 400 family stays plain per L007-1 §3).
+			writeError(w, http.StatusNotFound, "Not Found")
 			return
 		}
 		writePlainError(w, http.StatusInternalServerError, "get user: "+err.Error())

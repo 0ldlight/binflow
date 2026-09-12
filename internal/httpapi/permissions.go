@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -63,6 +65,38 @@ import (
 // GET echo round-trips whatever was stored, verbatim as before. The
 // evaluation semantics live in auth (wildcard.go) — this file only admits
 // the spellings onto the wire.
+
+// L009-3: the classic keyed face's two name validators, replicating the
+// reference's own (wire-verified :8082, 2026-09-12). NameValidator applies
+// to a name the BODY carries; XSSValidator applies to the path key that
+// fills a nameless body. Both answers are errors envelopes.
+const illegalNameChars = `/\:|?<>*"`
+
+const illegalNameMessage = `Illegal name : '/,\,:,|,?,<,>,*,"' is not allowed`
+
+// xssMarkupName is XSSValidator's own pattern, ported verbatim from the
+// decompiled source (XSSValidator.java, Review A E1):
+//
+//	(.*)<(|/|[^/>][^>]+|/[^/>][^>]+)>(.*)
+//
+// evaluated with matches() — the anchors below carry the whole-string
+// semantics. The bracketed content must be empty ("<>"→refuse), a bare
+// slash ("</>"→refuse), or two-or-more characters that do not start with a
+// slash and contain no ">" ("<em>", "<a href=x>", "</xy>" refuse; the
+// one-character "<b>" and the one-letter closing "</x>" pass). The edge
+// groups cannot cross a newline while the negated classes can (RE2 and
+// Java agree on both defaults) — moot at the wire: a name carrying a
+// literal newline is unroutable on the reference (routing-layer 404,
+// probed 2026-09-12). Both directions corner-verified live: </x> 201,
+// </> 400, plus the 25-arm black-box sweep of the first round.
+var xssMarkupName = regexp.MustCompile(`^.*<(|/|[^/>][^>]+|/[^/>][^>]+)>.*$`)
+
+// emptyLinkNames are NameValidator's three literal rejections (decompiled
+// source, Review A E1; wire-verified :8082 2026-09-12): a name that is
+// exactly ".", ".." or "&" answers "Name cannot be empty link: '<name>'".
+// Exact match only — "a&b" and "ok.name" pass (probed: both fall through
+// to the 409/201 arms).
+var emptyLinkNames = map[string]bool{".": true, "..": true, "&": true}
 
 // permissionBody is the wire shape of one permission target.
 type permissionBody struct {
@@ -148,11 +182,215 @@ func manageCoverageOf(ctx context.Context, a auth.Authorizer, p *auth.Principal)
 // route gate answered before any parsing.
 func (s *Server) handlePermissionCreate(w http.ResponseWriter, r *http.Request) {
 	var body permissionBody
+	s.permissionCreateOrReplace(w, r, "", decodeJSONBodyOf(r, &body), body, false)
+}
+
+// ---- L006-B Review A rework: the classic face's v1 dialect acceptance arm ----
+//
+// The reference's v1 PUT body is a DIFFERENT dialect than BinFlow's rich
+// face (decompiled double evidence: PermissionTargetConfigurationImpl — the
+// wire model — plus RestSecurityRequestHandler#createOrReplacePermissionTarget):
+//
+//   - the repositories key spells the member set ("repos" is BinFlow's own);
+//   - includesPattern/excludesPattern are FLAT comma-separated strings;
+//   - principal action lists carry the backend LETTERS r/w/n/d/m (the
+//     ArtifactoryPermission enum's string column; mxm and x exist there too),
+//     and a token that is no exact letter match contributes NO bit —
+//     AceImpl#setPermissionsFromStrings silently clears it, no error.
+//
+// The keyed face accepts BOTH dialects (the alias posture every other dual
+// spelling gets): either key spelling works alone, and two spellings of one
+// knob that disagree refuse. Letters map onto the wire words; mxm/x and any
+// unknown token drop silently (照抄 the reference's silent-clear arm — the
+// reference has no error to mirror); the RICH face stays byte-frozen on its
+// word vocabulary and array patterns.
+type keyedPermissionBody struct {
+	permissionBody
+	Repositories    *[]string `json:"repositories"`    // v1 spelling of repos
+	IncludesPattern *string   `json:"includesPattern"` // v1 flat string (default "**")
+	ExcludesPattern *string   `json:"excludesPattern"` // v1 flat string (default "")
+}
+
+// v1ActionLetters is the backend letter → wire word map (ArtifactoryPermission
+// string column minus the two with no BinFlow seat: mxm = managedXrayMeta,
+// x = distribute — both silently dropped, a registered dialect residual).
+var v1ActionLetters = map[string]string{
+	"r": "read",
+	"w": "write", // the receive-only deploy-cache alias word — same column
+	"n": "annotate",
+	"d": "delete",
+	"m": "manage",
+}
+
+// v1AcceptedWords are the rich-face action words the keyed face also admits
+// verbatim (the hybrid arm: BinFlow-native bodies on the classic path keep
+// working; everything else — the reference's own behavior for non-letters —
+// silently contributes nothing).
+var v1AcceptedWords = map[string]bool{
+	"read": true, "write": true, "deploy-cache": true,
+	"annotate": true, "delete": true, "manage": true,
+}
+
+// translate folds the v1 dialect keys onto the rich body: alias resolution
+// (disagreement refuses, the house posture for dual spellings), flat pattern
+// strings split on "," (empty segments dropped; segments otherwise verbatim,
+// so the v1 detail's join round-trips), and the letters→words action mapping
+// with the reference's silent-clear for unknown tokens.
+func (b keyedPermissionBody) translate() (permissionBody, error) {
+	out := b.permissionBody
+	if b.Repositories != nil {
+		switch {
+		case out.Repos == nil:
+			out.Repos = *b.Repositories
+		case !strSlicesEqualAny(*b.Repositories, out.Repos):
+			return out, fmt.Errorf(
+				"repositories and repos are two spellings of one knob and disagree (%v vs %v)",
+				*b.Repositories, out.Repos)
+		}
+	}
+	if b.IncludesPattern != nil {
+		flat := splitPatternString(*b.IncludesPattern)
+		switch {
+		case out.IncludePatterns == nil:
+			out.IncludePatterns = flat
+		case !strSlicesEqualAny(flat, out.IncludePatterns):
+			return out, fmt.Errorf(
+				"includesPattern and includePatterns are two spellings of one knob and disagree (%q vs %v)",
+				*b.IncludesPattern, out.IncludePatterns)
+		}
+	}
+	if b.ExcludesPattern != nil {
+		flat := splitPatternString(*b.ExcludesPattern)
+		switch {
+		case out.ExcludePatterns == nil:
+			out.ExcludePatterns = flat
+		case !strSlicesEqualAny(flat, out.ExcludePatterns):
+			return out, fmt.Errorf(
+				"excludesPattern and excludePatterns are two spellings of one knob and disagree (%q vs %v)",
+				*b.ExcludesPattern, out.ExcludePatterns)
+		}
+	}
+	out.Principals.Users = translateV1Actions(out.Principals.Users)
+	out.Principals.Groups = translateV1Actions(out.Principals.Groups)
+	return out, nil
+}
+
+// translateV1Actions maps one principal column's action lists onto the wire
+// words. A nil map stays nil (absent); an empty list stays empty (the
+// reference stores a zero-mask ACE, BinFlow a grant-less row).
+func translateV1Actions(m map[string][]string) map[string][]string {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string][]string, len(m))
+	for principal, actions := range m {
+		words := make([]string, 0, len(actions))
+		for _, a := range actions {
+			if w, ok := v1ActionLetters[a]; ok {
+				words = append(words, w)
+				continue
+			}
+			if v1AcceptedWords[a] {
+				words = append(words, a)
+			}
+			// Anything else — the reference's own setPermissionsFromStrings
+			// arm — silently contributes no bit. mxm/x land here too.
+		}
+		out[principal] = words
+	}
+	return out
+}
+
+// splitPatternString splits one v1 flat pattern string on "," dropping the
+// empty segments (the trailing-comma tolerance); segments otherwise verbatim.
+func splitPatternString(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// strSlicesEqualAny compares two string slices element-wise (the keyed
+// merge's agreement check; a copy of repo's local strSlicesEqual posture,
+// kept here so the httpapi plane does not reach into repo internals).
+func strSlicesEqualAny(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// handlePermissionPostV1 serves POST /api/security/permissions/{name}: the
+// reference's own answer for the permissions entity type — the addon layer's
+// updateSecurityEntity handles only users and groups, so "permissions" falls
+// through to a bare 400 (decompiled RestSecurityRequestHandler:336-352;
+// wire-verified 2026-09-12: the errors envelope carrying "Bad Request").
+// Mounting the same answer IS the wire alignment (Review B rework: the
+// earlier "dead verb, do not mount" call was over-strong).
+func (s *Server) handlePermissionPostV1(w http.ResponseWriter, _ *http.Request, name string) {
+	_ = name // the reference's fall-through never reads the key
+	writeError(w, http.StatusBadRequest, "Bad Request")
+}
+
+// handlePermissionPutV1 serves PUT /api/security/permissions/{name} (L006-B,
+// D04-R18 — the classic v1 alias of the same create-or-replace operation).
+// The PATH key governs: a body naming a different non-empty target refuses
+// with the reference's 409 wording (decompile-verified: the isNotBlank guard
+// skips the check for a nameless body, which then creates the entityKey
+// target), and the v1 dialect keys ride alongside the rich spellings.
+func (s *Server) handlePermissionPutV1(w http.ResponseWriter, r *http.Request, name string) {
+	var body keyedPermissionBody
 	decodeErr := decodeJSONBodyOf(r, &body)
+	var plain permissionBody
+	if decodeErr == nil {
+		var terr error
+		plain, terr = body.translate()
+		if terr != nil {
+			decodeErr = terr
+		}
+	}
+	s.permissionCreateOrReplace(w, r, name, decodeErr, plain, true)
+}
+
+// permissionCreateOrReplace is the create-or-replace core both faces share
+// (POST /api/v1/permissions and the classic PUT /api/security/permissions/
+// {name}); pathName is empty on the body-keyed face and carries the
+// URL-decoded path key on the classic one. keyedV1 marks the classic face:
+// its repos-absence/empty 400s and unknown-repository wording follow the
+// reference's handler verbatim (RestSecurityRequestHandler:527-570), while
+// the rich face keeps its frozen single-wording posture.
+func (s *Server) permissionCreateOrReplace(w http.ResponseWriter, r *http.Request, pathName string, decodeErr error, body permissionBody, keyedV1 bool) {
+	// The classic face's path key fills a nameless body BEFORE the gate:
+	// the coverage arm's replace-time union check (B1) looks the existing
+	// row up by name, so the keyed face must carry its real identity from
+	// the start — a holder cannot dodge the union check by omitting the
+	// body name on the path-keyed spelling. nameFromPath remembers which
+	// of the two validators (L009-3) the final name must clear.
+	nameFromPath := false
+	if pathName != "" && decodeErr == nil && strings.TrimSpace(body.Name) == "" {
+		body.Name = pathName
+		nameFromPath = true
+	}
 	p := principalFrom(r.Context())
 	if s.canManage(r.Context(), p, auth.CapSecurityWrite) {
 		if decodeErr != nil {
-			writePlainError(w, http.StatusBadRequest, decodeErr.Error())
+			// The keyed face carries its decode 400 in the errors envelope
+			// too (the reference's own is a Jackson message in the same
+			// envelope; BinFlow keeps its own wording, L009-3).
+			if keyedV1 {
+				writeError(w, http.StatusBadRequest, decodeErr.Error())
+			} else {
+				writePlainError(w, http.StatusBadRequest, decodeErr.Error())
+			}
 			return
 		}
 	} else {
@@ -183,7 +421,55 @@ func (s *Server) handlePermissionCreate(w http.ResponseWriter, r *http.Request) 
 		writePlainError(w, http.StatusBadRequest, "permission target name is required")
 		return
 	}
+	// L009-3, the classic face's two name validators (wire-verified :8082
+	// 2026-09-12): a name the BODY carries must clear NameValidator — the
+	// illegal-character set answers the verbatim "Illegal name" 400, the
+	// three literal names (".", "..", "&") answer the "empty link" 400 —
+	// and both fire BEFORE the 409 mismatch check (a malicious body name
+	// against a benign path key answers the validator, not the 409). A
+	// nameless body's path key skips NameValidator entirely (an entity-key
+	// "n1/n2" and even "." are accepted, probed) and instead clears
+	// XSSValidator's source pattern — see xssMarkupName. Both run before
+	// the repositories validation. The rich face keeps its frozen posture.
+	if keyedV1 {
+		if nameFromPath {
+			if xssMarkupName.MatchString(body.Name) {
+				writeError(w, http.StatusBadRequest, "Name may contains a Cross-Site Scripting expression")
+				return
+			}
+		} else if strings.ContainsAny(body.Name, illegalNameChars) {
+			writeError(w, http.StatusBadRequest, illegalNameMessage)
+			return
+		} else if emptyLinkNames[body.Name] {
+			writeError(w, http.StatusBadRequest, "Name cannot be empty link: '"+body.Name+"'")
+			return
+		}
+	}
+	// The classic face's one keyed-family rule (L006-B, live reference
+	// 2026-09-12): the path key and a non-empty body name may not disagree
+	// — the reference's 409 wording, verbatim. (After the gate: BinFlow's
+	// security-first plane answers the family-4 403 before the 409 for a
+	// non-writer.)
+	if pathName != "" && body.Name != pathName {
+		// L009-3: the reference carries this 409 in the errors envelope
+		// (wire-verified :8082 2026-09-12), like every other 4xx of the
+		// keyed face — the wording itself is unchanged.
+		writeError(w, http.StatusConflict,
+			"The permission target name that was provided in the request path does not match the permission name in the provided permission configuration object.")
+		return
+	}
 	if len(body.Repos) == 0 {
+		if keyedV1 {
+			// The reference handler's dual wording (decompiled, lines
+			// 545-550): a null repositories field and an empty one are two
+			// different 400s — carried in the errors envelope (L009-3).
+			if body.Repos == nil {
+				writeError(w, http.StatusBadRequest, "Permission target request missing repositories.")
+			} else {
+				writeError(w, http.StatusBadRequest, "Permission target must contain at least one repository.")
+			}
+			return
+		}
 		writePlainError(w, http.StatusBadRequest, "Permission target request missing repositories: repos must contain at least one repository")
 		return
 	}
@@ -201,6 +487,15 @@ func (s *Server) handlePermissionCreate(w http.ResponseWriter, r *http.Request) 
 			continue
 		}
 		if _, err := s.deps.Repos.Get(r.Context(), repo); err != nil {
+			if keyedV1 {
+				// The reference's own wording (decompiled line 554; the
+				// wildcard buckets above ride the same exemption it gives
+				// ANY/ANY LOCAL/ANY REMOTE/ANY DISTRIBUTION) — in the
+				// errors envelope (L009-3).
+				writeError(w, http.StatusBadRequest, fmt.Sprintf(
+					"Permission target contains a reference to a non-existing repository '%s'.", repo))
+				return
+			}
 			writePlainError(w, http.StatusBadRequest, fmt.Sprintf("permission target references an unknown repository %q", repo))
 			return
 		}
@@ -210,12 +505,53 @@ func (s *Server) handlePermissionCreate(w http.ResponseWriter, r *http.Request) 
 		writePlainError(w, http.StatusInternalServerError, "list users for validation: "+err.Error())
 		return
 	}
-	known := make(map[string]bool, len(users))
+	known := make(map[string]*metadata.User, len(users))
 	for _, u := range users {
-		known[u.Username] = true
+		known[u.Username] = u
+	}
+	if keyedV1 {
+		// L007-1 arm 3 (live :8082, wire-verified 2026-09-12): the classic
+		// face refuses an admin-privileged user as a principal — the
+		// reference's wording verbatim, including its own doubled quote
+		// mark. The scan runs BEFORE the unknown-user check (probed: an
+		// admin plus an unknown user in one body answers the admin
+		// message) and after the repository validation (probed: an
+		// unknown repository plus admin answers the repository message).
+		//
+		// L010-2 (ledger rest/permissions-v1-empty-actions-validation-skip,
+		// live :8082 arms wire-verified 2026-09-12): the validation walks
+		// only principals whose action list is NON-EMPTY — an empty list
+		// grants nothing, and its holder skips this guard (an admin with
+		// [] answers 201; mixed admin["m"]+ghost[] still answers the
+		// admin message above, so the ordering claims stand untouched).
+		for name := range body.Principals.Users {
+			if len(body.Principals.Users[name]) == 0 {
+				continue
+			}
+			if u := known[name]; u != nil && u.IsAdmin {
+				writeError(w, http.StatusBadRequest, fmt.Sprintf(
+					"The user: '%s'' has admin privileges, and cannot be added to a Permission Target.", name))
+				return
+			}
+		}
 	}
 	for name := range body.Principals.Users {
-		if !known[name] {
+		// The keyed face's empty-actions exemption (L010-2 — see the admin
+		// scan above for the probe evidence): no actions, no validation.
+		// The rich face (keyedV1=false) keeps its frozen 400 posture.
+		if keyedV1 && len(body.Principals.Users[name]) == 0 {
+			continue
+		}
+		if _, ok := known[name]; !ok {
+			if keyedV1 {
+				// The reference's wording, pinned by the L009-3/L010-2
+				// live-wire differential (seven-arm status+message parity,
+				// T-L010-2 ②); the rich face keeps the frozen plane's.
+				// Errors envelope (L009-3).
+				writeError(w, http.StatusBadRequest, fmt.Sprintf(
+					"Permission target contains a reference to a non-existing user: '%s'.", name))
+				return
+			}
 			writePlainError(w, http.StatusBadRequest, fmt.Sprintf("Unable to find user by name '%s'.", name))
 			return
 		}
@@ -230,7 +566,19 @@ func (s *Server) handlePermissionCreate(w http.ResponseWriter, r *http.Request) 
 		knownGroups[g.Name] = true
 	}
 	for name := range body.Principals.Groups {
+		// Same empty-actions exemption on the group column (the probed
+		// unknown-group-with-[] arm answers 201, L010-2).
+		if keyedV1 && len(body.Principals.Groups[name]) == 0 {
+			continue
+		}
 		if !knownGroups[name] {
+			if keyedV1 {
+				// The reference's own wording (live :8082, 2026-09-12 —
+				// no colon before the quoted name, unlike the user arm).
+				writePlainError(w, http.StatusBadRequest, fmt.Sprintf(
+					"Permission target contains a reference to a non-existing group '%s'.", name))
+				return
+			}
 			// Same family wording as the users arm (auth-model.md section 4:
 			// a principal referencing an unknown user/group is a 400).
 			writePlainError(w, http.StatusBadRequest, fmt.Sprintf("Unable to find group by name '%s'.", name))
@@ -539,9 +887,10 @@ func unmarshalStrings(v string) []string {
 	return out
 }
 
-// handlePermissionDelete serves DELETE /binflow/api/v1/permissions/{name}:
-// the grants vanish with the target (the store deletes both tables in one
-// transaction); an unknown name is a 404 for security writers.
+// handlePermissionDelete serves DELETE /binflow/api/v1/permissions/{name}
+// (and its /api/v1/permissions sibling): the grants vanish with the target
+// (the store deletes both tables in one transaction); an unknown name is a
+// 404 for security writers. Success is the plane's frozen 204.
 //
 // Family 4's exception gate (T-217): a non-security-writer may delete only a
 // target whose every repository sits inside its manage coverage. For such
@@ -550,12 +899,34 @@ func unmarshalStrings(v string) []string {
 // keeps the permission plane's inventory (security:read data) away from
 // principals who cannot list it.
 func (s *Server) handlePermissionDelete(w http.ResponseWriter, r *http.Request, name string) {
+	s.permissionDelete(w, r, name, false)
+}
+
+// handlePermissionDeleteV1 serves DELETE /api/security/permissions/{name}
+// (L007-1, D04-R18 — the classic face): the reference answers 200 with the
+// plain-text confirmation "Successfully deleted permission Target 'x'" and
+// wraps the unknown name in the errors-envelope "Not Found" (live :8082,
+// wire-verified 2026-09-12) — the keyed rendering pair this face now
+// mirrors, where the rich face keeps its frozen 204.
+func (s *Server) handlePermissionDeleteV1(w http.ResponseWriter, r *http.Request, name string) {
+	s.permissionDelete(w, r, name, true)
+}
+
+// permissionDelete is the delete core both faces share: the T-217 gate pair
+// and the store transaction are one behavior, only the terminal renderings
+// split — keyedV1 answers the reference's 200 confirmation text and the
+// envelope 404, the rich face its frozen 204 and plain 404.
+func (s *Server) permissionDelete(w http.ResponseWriter, r *http.Request, name string, keyedV1 bool) {
 	p := principalFrom(r.Context())
 	secWrite := s.canManage(r.Context(), p, auth.CapSecurityWrite)
 	target, _, err := s.deps.Metadata.Permissions().GetTarget(r.Context(), name)
 	switch {
 	case err == nil:
 	case errors.Is(err, metadata.ErrNotFound):
+		if keyedV1 && secWrite {
+			writeError(w, http.StatusNotFound, "Not Found")
+			return
+		}
 		if secWrite {
 			writePlainError(w, http.StatusNotFound, "permission target not found: "+name)
 			return
@@ -579,5 +950,116 @@ func (s *Server) handlePermissionDelete(w http.ResponseWriter, r *http.Request, 
 		Action: audit.ActionPermissionDelete,
 		Detail: auditDetail("name", name),
 	})
+	if keyedV1 {
+		writeText(w, http.StatusOK, fmt.Sprintf("Successfully deleted permission Target '%s'", name))
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---- L006-B (D04-R17/R18): the classic v1 read faces ----
+//
+// /api/security/permissions is Artifactory's original permission-target
+// plane (SecurityResource.java; gap-endpoints section 4, high confidence):
+// the list answers the {name, uri} skeleton (admin only; the uri carries
+// the URL-escaped name), the detail answers the v1 shape — flat patterns
+// and single-letter actions (r/w/n/d/m; annotate is n, rest-api.md's
+// ArtifactoryPermission set). Both read the SAME store rows the rich
+// /api/v1/permissions face serves; only the projection differs.
+
+// permissionTargetRefV1 is the list entry's wire shape.
+type permissionTargetRefV1 struct {
+	Name string `json:"name"`
+	URI  string `json:"uri"`
+}
+
+// permissionTargetV1 is the v1 detail's wire shape: patterns render as the
+// reference's flat default-carrying strings (empty includes = "**", the
+// match-everything default; empty excludes = ""), and principals render as
+// single-letter action lists with only the present kind's key.
+type permissionTargetV1 struct {
+	Name            string                         `json:"name"`
+	IncludesPattern string                         `json:"includesPattern"`
+	ExcludesPattern string                         `json:"excludesPattern"`
+	Repositories    []string                       `json:"repositories"`
+	Principals      map[string]map[string][]string `json:"principals"`
+}
+
+// handlePermissionListV1 serves GET /api/security/permissions: the
+// {name, uri} skeleton over the same ListTargets read the rich face uses.
+// Gate = security:read (the family's read capability; the reference's
+// admin-only role maps onto it the way every other security read does).
+func (s *Server) handlePermissionListV1(w http.ResponseWriter, r *http.Request) {
+	targets, err := s.deps.Metadata.Permissions().ListTargets(r.Context())
+	if err != nil {
+		writePlainError(w, http.StatusInternalServerError, "list permission targets: "+err.Error())
+		return
+	}
+	base := contextURL(r) + "/api/security/permissions/"
+	out := make([]permissionTargetRefV1, 0, len(targets))
+	for _, t := range targets {
+		out = append(out, permissionTargetRefV1{Name: t.Name, URI: base + url.PathEscape(t.Name)})
+	}
+	writeJSONBody(w, http.StatusOK, out)
+}
+
+// handlePermissionGetV1 serves GET /api/security/permissions/{name}: the
+// v1 detail. Unknown name answers the reference's errors envelope carrying
+// the generic "Not Found" (live :8082, wire-verified 2026-09-12; L007-1
+// arm 2 — the plane's earlier plain-text posture retired on this face
+// only, the rich /api/v1/permissions face keeps its frozen wording).
+func (s *Server) handlePermissionGetV1(w http.ResponseWriter, r *http.Request, name string) {
+	target, rows, err := s.deps.Metadata.Permissions().GetTarget(r.Context(), name)
+	if err != nil {
+		if errors.Is(err, metadata.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "Not Found")
+			return
+		}
+		writePlainError(w, http.StatusInternalServerError, "lookup permission target: "+err.Error())
+		return
+	}
+	body := permissionTargetV1{
+		Name:         target.Name,
+		Repositories: unmarshalStrings(target.Repos),
+		Principals:   map[string]map[string][]string{},
+	}
+	// The flat pattern strings: BinFlow stores pattern ARRAYS (the rich
+	// face's model); the v1 face renders them joined with "," (the
+	// reference's separator), with the match-everything default materialized
+	// for an empty includes list.
+	includes := unmarshalStrings(target.Includes)
+	if len(includes) == 0 {
+		includes = []string{"**"}
+	}
+	body.IncludesPattern = strings.Join(includes, ",")
+	body.ExcludesPattern = strings.Join(unmarshalStrings(target.Excludes), ",")
+	for _, row := range rows {
+		// The single-letter action set (r/w/n/d/m) — the reference's own
+		// detail rendering; the words the write faces accept map onto it.
+		letters := make([]string, 0, 5)
+		if row.CanRead {
+			letters = append(letters, "r")
+		}
+		if row.CanWrite {
+			letters = append(letters, "w")
+		}
+		if row.CanAnnotate {
+			letters = append(letters, "n")
+		}
+		if row.CanDelete {
+			letters = append(letters, "d")
+		}
+		if row.CanManage {
+			letters = append(letters, "m")
+		}
+		kind := "users"
+		if row.PrincipalType == "group" {
+			kind = "groups"
+		}
+		if body.Principals[kind] == nil {
+			body.Principals[kind] = map[string][]string{}
+		}
+		body.Principals[kind][row.Principal] = letters
+	}
+	writeJSONBody(w, http.StatusOK, body)
 }

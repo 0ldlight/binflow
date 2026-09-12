@@ -230,7 +230,7 @@ func TestM02bRemoteConfigValidation(t *testing.T) {
 
 // TestM02RemoteExplicitValues: caller-supplied periods override the product
 // defaults in both the canonical config and the remote_configs row (an
-// explicit 0 keeps the default — Artifactory's "unset" spelling).
+// explicit 0 IS the value since ADR-0050 — see TestM02ZeroPeriodsStoreZero).
 func TestM02RemoteExplicitValues(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
@@ -264,9 +264,11 @@ func TestM02RemoteExplicitValues(t *testing.T) {
 	}
 }
 
-// TestM02ZeroPeriodsKeepDefaults: explicit zeros are the "use the default"
-// spelling, not a zero-length cache.
-func TestM02ZeroPeriodsKeepDefaults(t *testing.T) {
+// TestM02ZeroPeriodsStoreZero: since ADR-0050 decision 3 an explicit 0 IS
+// the stored value on the create face too (the reference has no
+// zero-means-default rule); the fetch side keeps its own 0=unset fallback
+// chain — wire/storage and effect are layered.
+func TestM02ZeroPeriodsStoreZero(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
 	mustCreateRemote(t, e, "zero-remote", `{"url":"http://u","retrievalCachePeriodSecs":0,"socketTimeoutSecs":0}`)
@@ -274,8 +276,11 @@ func TestM02ZeroPeriodsKeepDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetConfig: %v", err)
 	}
-	if row.ContentTTLSeconds != 7200 {
-		t.Fatalf("content ttl = %d, want the 7200 default", row.ContentTTLSeconds)
+	if row.ContentTTLSeconds != 0 {
+		t.Fatalf("content ttl = %d, want the explicit 0", row.ContentTTLSeconds)
+	}
+	if row.SocketTimeoutMs != 0 {
+		t.Fatalf("socket timeout ms = %d, want the explicit 0", row.SocketTimeoutMs)
 	}
 }
 

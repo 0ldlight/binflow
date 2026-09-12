@@ -60,21 +60,6 @@ func TestParseBearerChallenge(t *testing.T) {
 	}
 }
 
-// TestV2WirePaths pins the upstream wire spellings: the storage layout's
-// bare hex becomes the wire's sha256: form; tags ride verbatim.
-func TestV2WirePaths(t *testing.T) {
-	if got := v2WireManifestPath("mychart", "0.1.0"); got != "mychart/manifests/0.1.0" {
-		t.Errorf("manifest tag wire = %q", got)
-	}
-	hex := sha256HexOf([]byte("x"))
-	if got := v2WireManifestPath("team/mychart", "sha256:"+hex); got != "team/mychart/manifests/sha256:"+hex {
-		t.Errorf("manifest digest wire = %q", got)
-	}
-	if got := v2WireBlobPath("mychart", hex); got != "mychart/blobs/sha256:"+hex {
-		t.Errorf("blob wire = %q", got)
-	}
-}
-
 // challengingRegistry is one mock OCI registry that guards everything
 // behind a Bearer token: the first unauthenticated request answers 401 +
 // the challenge; the token endpoint exchanges the repository credential
@@ -140,11 +125,13 @@ func writeJSONError(w http.ResponseWriter, status int) {
 }
 
 // newTestSession builds one session pool entry around the mock's facts.
+// The upstream URL is the registry ROOT — the wire path carries /v2/ itself
+// (L000-F).
 func newTestSession(t *testing.T, url string) *remoteSessionEntry {
 	t.Helper()
 	pool := &remoteSessions{}
 	entry, err := pool.forRepo("helmoci-remote", &repo.RemoteUpstream{
-		URL: url + "/v2", Username: "ci", Password: "s3cret",
+		URL: url, Username: "ci", Password: "s3cret",
 		AllowPrivateUpstream: true, // the loopback mock (the admin-set NFR-S13 exemption)
 		SocketTimeoutMs:      2000, ContentTTLSeconds: 7200, MissedTTLSeconds: 1800,
 	})
@@ -163,7 +150,7 @@ func TestSessionBearerDance(t *testing.T) {
 	entry := newTestSession(t, up.url)
 	ctx := context.Background()
 
-	res, err := entry.fetchManifest(ctx, "mychart", "0.1.0", []string{"application/vnd.oci.image.manifest.v1+json"})
+	res, err := entry.fetchManifest(ctx, "mychart", "0.1.0", []string{"application/vnd.oci.image.manifest.v1+json"}, "")
 	if err != nil {
 		t.Fatalf("fetchManifest: %v", err)
 	}
@@ -178,7 +165,7 @@ func TestSessionBearerDance(t *testing.T) {
 	}
 
 	// The cached token: the second fetch rides it without another 401.
-	if _, err := entry.fetchManifest(ctx, "mychart", "0.1.0", nil); err != nil {
+	if _, err := entry.fetchManifest(ctx, "mychart", "0.1.0", nil, ""); err != nil {
 		t.Fatalf("second fetchManifest: %v", err)
 	}
 	if up.hits401.Load() != 1 || up.exchanges.Load() != 1 {
@@ -204,13 +191,13 @@ func TestSessionDanceRefusedCredential(t *testing.T) {
 	up := newChallengingRegistry(t, manifest, "application/vnd.oci.image.manifest.v1+json", sha256HexOf([]byte("b")), []byte("b"))
 	pool := &remoteSessions{}
 	entry, err := pool.forRepo("helmoci-remote", &repo.RemoteUpstream{
-		URL: up.url + "/v2", Username: "ci", Password: "WRONG",
+		URL: up.url, Username: "ci", Password: "WRONG",
 		AllowPrivateUpstream: true, SocketTimeoutMs: 2000,
 	})
 	if err != nil {
 		t.Fatalf("forRepo: %v", err)
 	}
-	_, err = entry.fetchManifest(context.Background(), "mychart", "0.1.0", nil)
+	_, err = entry.fetchManifest(context.Background(), "mychart", "0.1.0", nil, "")
 	if err == nil {
 		t.Fatal("fetchManifest with a refused credential succeeded")
 	}
@@ -234,11 +221,11 @@ func TestSessionPlainUpstream(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	entry := newTestSession(t, srv.URL)
-	res, err := entry.fetchManifest(context.Background(), "mychart", "0.1.0", nil)
+	res, err := entry.fetchManifest(context.Background(), "mychart", "0.1.0", nil, "")
 	if err != nil || res.status != http.StatusOK || string(res.body) != string(manifest) {
 		t.Fatalf("plain fetch = (%v, %d, %q)", err, res.status, res.body)
 	}
-	res2, err := entry.fetchManifest(context.Background(), "mychart", "9.9.9", nil)
+	res2, err := entry.fetchManifest(context.Background(), "mychart", "9.9.9", nil, "")
 	if err != nil || res2.status != http.StatusNotFound {
 		t.Fatalf("plain miss = (%v, %d), want the upstream 404 passed through", err, res2.status)
 	}

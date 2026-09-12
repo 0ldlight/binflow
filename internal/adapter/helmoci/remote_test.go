@@ -76,7 +76,10 @@ func newRemoteFixture(t *testing.T) (down, up *stack, wrapped *httptest.Server, 
 	t.Cleanup(wrapped.Close)
 
 	down = newStack(t)
-	down.seedRemoteRepo(t, "helmoci-remote", wrapped.URL+"/v2/helmoci-local")
+	// The upstream URL is the REGISTRY ROOT; the wire path carries /v2/
+	// itself (L000-F). The upstream's repoKey rides the image namespace
+	// — helmoci-local/mychart, the library/hello-world shape.
+	down.seedRemoteRepo(t, "helmoci-remote", wrapped.URL)
 	return down, up, wrapped, hits, manifest, cfg, chart
 }
 
@@ -89,7 +92,7 @@ func TestRemotePullThroughChain(t *testing.T) {
 	down, _, _, hits, manifest, cfg, chart := newRemoteFixture(t)
 
 	accept := map[string]string{"Accept": mtOCIManifest}
-	status, body, hdr := down.do(http.MethodGet, "/v2/helmoci-remote/mychart/manifests/0.1.0", "", "", nil, accept)
+	status, body, hdr := down.do(http.MethodGet, "/v2/helmoci-remote/helmoci-local/mychart/manifests/0.1.0", "", "", nil, accept)
 	if status != http.StatusOK {
 		t.Fatalf("remote manifest GET status = %d, want 200 (body %s)", status, body)
 	}
@@ -112,7 +115,7 @@ func TestRemotePullThroughChain(t *testing.T) {
 
 	// The blobs: proxied byte-identical (streamed landing).
 	for _, blob := range [][]byte{cfg, chart} {
-		status, body, hdr = down.get("/v2/helmoci-remote/mychart/blobs/sha256:" + sha256HexOf(blob))
+		status, body, hdr = down.get("/v2/helmoci-remote/helmoci-local/mychart/blobs/sha256:" + sha256HexOf(blob))
 		if status != http.StatusOK || body != string(blob) {
 			t.Fatalf("remote blob GET = (%d, %d bytes), want (200, %d bytes)", status, len(body), len(blob))
 		}
@@ -124,14 +127,14 @@ func TestRemotePullThroughChain(t *testing.T) {
 	// The second round trip: everything serves from the cache — the
 	// upstream counter must not move (AC1's assertion).
 	afterBlobs := hits.Load()
-	status, body, hdr = down.do(http.MethodGet, "/v2/helmoci-remote/mychart/manifests/0.1.0", "", "", nil, accept)
+	status, body, hdr = down.do(http.MethodGet, "/v2/helmoci-remote/helmoci-local/mychart/manifests/0.1.0", "", "", nil, accept)
 	if status != http.StatusOK || body != string(manifest) {
 		t.Fatalf("second manifest GET = (%d, %d bytes)", status, len(body))
 	}
 	if got := hdr.Get("X-BinFlow-Cache"); got != "HIT" {
 		t.Errorf("second manifest X-BinFlow-Cache = %q, want HIT", got)
 	}
-	status, body, _ = down.get("/v2/helmoci-remote/mychart/blobs/sha256:" + sha256HexOf(chart))
+	status, body, _ = down.get("/v2/helmoci-remote/helmoci-local/mychart/blobs/sha256:" + sha256HexOf(chart))
 	if status != http.StatusOK || body != string(chart) {
 		t.Fatalf("second blob GET = (%d, %d bytes)", status, len(body))
 	}
@@ -141,17 +144,17 @@ func TestRemotePullThroughChain(t *testing.T) {
 
 	// The cached tag rows back the tags/list face (helm's no-version pull
 	// resolves through it) and the catalog names the cached image.
-	status, body, _ = down.get("/v2/helmoci-remote/mychart/tags/list")
+	status, body, _ = down.get("/v2/helmoci-remote/helmoci-local/mychart/tags/list")
 	if status != http.StatusOK || !strings.Contains(body, `"0.1.0"`) {
 		t.Errorf("remote tags/list = (%d, %s), want 200 naming 0.1.0", status, body)
 	}
 	status, body, _ = down.do(http.MethodGet, "/v2/_catalog", adminUser, adminPass, nil, nil)
-	if status != http.StatusOK || !strings.Contains(body, "helmoci-remote/mychart") {
+	if status != http.StatusOK || !strings.Contains(body, "helmoci-remote/helmoci-local/mychart") {
 		t.Errorf("catalog = (%d, %s), want the remote's cached image", status, body)
 	}
 
 	// By-digest resolution over the cached state (helm pull oci://…@sha256:).
-	status, body, hdr = down.get("/v2/helmoci-remote/mychart/manifests/sha256:" + sha256HexOf(manifest))
+	status, body, hdr = down.get("/v2/helmoci-remote/helmoci-local/mychart/manifests/sha256:" + sha256HexOf(manifest))
 	if status != http.StatusOK || body != string(manifest) {
 		t.Fatalf("remote manifest by digest = (%d, %d bytes)", status, len(body))
 	}
@@ -166,7 +169,7 @@ func TestRemotePullThroughChain(t *testing.T) {
 func TestRemoteUpstreamDeletedCacheServes(t *testing.T) {
 	down, up, _, hits, manifest, _, _ := newRemoteFixture(t)
 
-	status, body, _ := down.do(http.MethodGet, "/v2/helmoci-remote/mychart/manifests/0.1.0", "", "", nil,
+	status, body, _ := down.do(http.MethodGet, "/v2/helmoci-remote/helmoci-local/mychart/manifests/0.1.0", "", "", nil,
 		map[string]string{"Accept": mtOCIManifest})
 	if status != http.StatusOK || body != string(manifest) {
 		t.Fatalf("first pull = (%d, %d bytes)", status, len(body))
@@ -179,7 +182,7 @@ func TestRemoteUpstreamDeletedCacheServes(t *testing.T) {
 		t.Fatalf("upstream delete: %v", err)
 	}
 
-	status, body, hdr := down.do(http.MethodGet, "/v2/helmoci-remote/mychart/manifests/0.1.0", "", "", nil,
+	status, body, hdr := down.do(http.MethodGet, "/v2/helmoci-remote/helmoci-local/mychart/manifests/0.1.0", "", "", nil,
 		map[string]string{"Accept": mtOCIManifest})
 	if status != http.StatusOK || body != string(manifest) {
 		t.Fatalf("post-delete pull = (%d, %d bytes), want the cached copy", status, len(body))
@@ -198,7 +201,7 @@ func TestRemoteUpstreamDeletedCacheServes(t *testing.T) {
 func TestRemoteDegradationMatrix(t *testing.T) {
 	down, _, wrapped, _, manifest, _, _ := newRemoteFixture(t)
 
-	status, body, _ := down.do(http.MethodGet, "/v2/helmoci-remote/mychart/manifests/0.1.0", "", "", nil,
+	status, body, _ := down.do(http.MethodGet, "/v2/helmoci-remote/helmoci-local/mychart/manifests/0.1.0", "", "", nil,
 		map[string]string{"Accept": mtOCIManifest})
 	if status != http.StatusOK {
 		t.Fatalf("first pull status = %d (body %s)", status, body)
@@ -206,8 +209,8 @@ func TestRemoteDegradationMatrix(t *testing.T) {
 	// Expire the cached manifest+blob windows (the row-level clock).
 	past := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
 	for _, path := range []string{
-		"mychart/manifests/" + sha256HexOf(manifest),
-		"mychart/blobs/" + sha256HexOf(manifest),
+		"helmoci-local/mychart/manifests/" + sha256HexOf(manifest),
+		"helmoci-local/mychart/blobs/" + sha256HexOf(manifest),
 	} {
 		if err := down.md.Remote().PutCache(context.Background(), &metadata.RemoteCacheEntry{
 			RepoKey: "helmoci-remote", Path: path, Kind: metadata.RemoteCacheKindContent,
@@ -223,10 +226,10 @@ func TestRemoteDegradationMatrix(t *testing.T) {
 		w.WriteHeader(http.StatusBadGateway)
 	}))
 	closed.Close() // refused from here on
-	down.seedRemoteRepo(t, "helmoci-remote-dead", closed.URL+"/v2/nothing")
+	down.seedRemoteRepo(t, "helmoci-remote-dead", closed.URL)
 
 	// STALE serve of the expired copy, with the marker.
-	status, body, hdr := down.do(http.MethodGet, "/v2/helmoci-remote/mychart/manifests/0.1.0", "", "", nil,
+	status, body, hdr := down.do(http.MethodGet, "/v2/helmoci-remote/helmoci-local/mychart/manifests/0.1.0", "", "", nil,
 		map[string]string{"Accept": mtOCIManifest})
 	if status != http.StatusOK || body != string(manifest) {
 		t.Fatalf("degraded pull = (%d, %d bytes), want the stale copy", status, len(body))
@@ -252,32 +255,44 @@ func TestRemoteDegradationMatrix(t *testing.T) {
 	}
 }
 
-// TestRemoteWriteRefusal: every write verb on the remote repository
-// answers RE-05's 405 + Allow: GET — the read-only proxy contract, before
-// any upload session is minted.
+// TestRemoteWriteRefusal: the remote plane's write refusal answers
+// Artifactory's upload-rejection shape (L000-B C11, evidence E5-1..3) — 400
+// with the generic error model's per-endpoint copy for the three OBSERVED
+// verb families; an unobserved combination (a blob DELETE) keeps RE-05's
+// standing 405 + Allow: GET.
 func TestRemoteWriteRefusal(t *testing.T) {
 	down, _, _, _, manifest, _, _ := newRemoteFixture(t)
 
-	status, body, hdr := down.put("/v2/helmoci-remote/mychart/manifests/0.2.0", manifest,
-		map[string]string{"Content-Type": mtOCIManifest})
-	if status != http.StatusMethodNotAllowed {
-		t.Fatalf("remote manifest PUT status = %d, want 405 (body %s)", status, body)
+	cases := []struct {
+		method, path, wantBody string
+	}{
+		{http.MethodPut, "/v2/helmoci-remote/helmoci-local/mychart/manifests/0.2.0",
+			"Unable to upload a manifest to a remote repository."},
+		{http.MethodPost, "/v2/helmoci-remote/helmoci-local/mychart/blobs/uploads/",
+			"Unable to upload blobs to a remote repository."},
+		{http.MethodDelete, "/v2/helmoci-remote/helmoci-local/mychart/manifests/sha256:" + sha256HexOf(manifest),
+			"Unable to delete a manifest from a remote repository."},
 	}
-	if got := hdr.Get("Allow"); got != http.MethodGet {
-		t.Errorf("405 Allow = %q, want GET", got)
+	for _, tc := range cases {
+		status, body, _ := down.do(tc.method, tc.path, adminUser, adminPass,
+			strings.NewReader(string(manifest)), map[string]string{"Content-Type": mtOCIManifest})
+		if status != http.StatusBadRequest {
+			t.Fatalf("%s %s status = %d, want 400 (body %s)", tc.method, tc.path, status, body)
+		}
+		if !strings.Contains(body, tc.wantBody) {
+			t.Errorf("%s %s body %q lacks the E5 copy %q", tc.method, tc.path, body, tc.wantBody)
+		}
 	}
-	if !strings.Contains(body, "read-only proxy cache") {
-		t.Errorf("405 body %q does not carry the RE-05 wording", body)
-	}
-	status, body, hdr = down.post("/v2/helmoci-remote/mychart/blobs/uploads/", nil, nil)
-	if status != http.StatusMethodNotAllowed || hdr.Get("Allow") != http.MethodGet {
-		t.Fatalf("remote upload POST = (%d, Allow %q), want the 405/GET pair (body %s)",
-			status, hdr.Get("Allow"), body)
-	}
-	status, body, _ = down.do(http.MethodDelete, "/v2/helmoci-remote/mychart/manifests/sha256:"+sha256HexOf(manifest),
+
+	// An unobserved combination keeps the standing 405 + Allow: GET.
+	status, body, hdr := down.do(http.MethodDelete,
+		"/v2/helmoci-remote/helmoci-local/mychart/blobs/sha256:"+sha256HexOf(manifest),
 		adminUser, adminPass, nil, nil)
 	if status != http.StatusMethodNotAllowed {
-		t.Fatalf("remote manifest DELETE status = %d, want 405 (body %s)", status, body)
+		t.Fatalf("blob DELETE status = %d, want the standing 405 (body %s)", status, body)
+	}
+	if got := hdr.Get("Allow"); got != http.MethodGet {
+		t.Errorf("blob DELETE Allow = %q, want GET", got)
 	}
 }
 

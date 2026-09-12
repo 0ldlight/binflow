@@ -145,12 +145,16 @@ func TestT290SocketTimeoutSpellings(t *testing.T) {
 		t.Fatalf("secs-only: ms=%v secs=%v, want 30000/30", cfg["socketTimeoutMillis"], cfg["socketTimeoutSecs"])
 	}
 
-	// A zero ms spelling yields back to the legacy secs field (the fetcher's
-	// fallback order reads a zero column the same way — review minor 1).
+	// A lone explicit 0 on the ms spelling IS the value and WINS over the
+	// legacy secs field (ADR-0050 decision 3 + Review B2: the reference
+	// lands 0 for socketTimeoutMillis:0 even beside a socketTimeoutSecs
+	// value — L008-1b probe on :8082; the secs fallback now applies only
+	// when the ms pair is absent. The FETCH side keeps its own 0=unset
+	// fallback chain — wire/storage and effect are layered).
 	mustCreateRemote(t, e, "zero-ms-remote", `{"url":"http://u","socketTimeoutMs":0,"socketTimeoutSecs":30}`)
 	cfg = remoteCfgOf(t, mustGetRepo(t, e, "zero-ms-remote"))
-	if cfg["socketTimeoutMillis"] != float64(30000) || cfg["socketTimeoutSecs"] != float64(30) {
-		t.Fatalf("zero-ms + secs: ms=%v secs=%v, want 30000/30", cfg["socketTimeoutMillis"], cfg["socketTimeoutSecs"])
+	if cfg["socketTimeoutMillis"] != float64(0) || cfg["socketTimeoutSecs"] != float64(0) {
+		t.Fatalf("zero-ms + secs: ms=%v secs=%v, want 0/0 (the explicit zero wins)", cfg["socketTimeoutMillis"], cfg["socketTimeoutSecs"])
 	}
 
 	// Alias zero-vs-value resolves to the value (not a disagreement).
@@ -187,12 +191,14 @@ func TestT290SmartRemoteValidation(t *testing.T) {
 		{"negative socketTimeoutMs", `{"url":"http://u","socketTimeoutMs":-1}`, "must not be negative"},
 		{"negative metadataRetrievalTimeoutSecs", `{"url":"http://u","metadataRetrievalTimeoutSecs":-60}`, "must not be negative"},
 		{"negative unusedCleanupPeriodHours", `{"url":"http://u","unusedArtifactsCleanupPeriodHours":-24}`, "must not be negative"},
-		{"zero keeps defaults", `{"url":"http://u","socketTimeoutMs":0,"metadataRetrievalTimeoutSecs":0}`, ""},
-		// Review minor 1: an explicit 0 counts as ABSENT in alias
-		// comparison (aligned with the fetcher's 0=unset consumption).
+		{"explicit zeros accepted", `{"url":"http://u","socketTimeoutMs":0,"metadataRetrievalTimeoutSecs":0}`, ""},
+		// Review minor 1 (superseded by ADR-0050 decision 3 / Review B2):
+		// the alias yield now applies only when BOTH spellings are given —
+		// a lone explicit 0 IS the value (the reference stores
+		// socketTimeoutMillis:0 verbatim, L008-1b probe on :8082).
 		{"ms zero + xsd value resolves to value", `{"url":"http://u","socketTimeoutMs":0,"socketTimeoutMillis":800}`, ""},
 		{"xsd zero + ms value resolves to value", `{"url":"http://u","socketTimeoutMillis":0,"socketTimeoutMs":2500}`, ""},
-		{"ms double zero keeps default", `{"url":"http://u","socketTimeoutMs":0,"socketTimeoutMillis":0}`, ""},
+		{"ms double zero is the explicit zero", `{"url":"http://u","socketTimeoutMs":0,"socketTimeoutMillis":0}`, ""},
 		{"miss alias zero + value resolves to value", `{"url":"http://u","missedRetrievalCachePeriodSecs":0,"missRetrievalCachePeriodSecs":90}`, ""},
 		{"miss alias value + zero resolves to value", `{"url":"http://u","missRetrievalCachePeriodSecs":0,"missedRetrievalCachePeriodSecs":60}`, ""},
 		{"non-zero disagreement still refuses", `{"url":"http://u","socketTimeoutMs":1500,"socketTimeoutMillis":2500}`, "disagree"},

@@ -19,6 +19,22 @@ func putRepo(t *testing.T, h *harness, key, body string) *http.Response {
 		[]byte(body), map[string]string{"Content-Type": "application/json"})
 }
 
+// postRepo issues the update-repository POST (the update spelling since
+// ADR-0050: PUT is create-only) and returns the response.
+func postRepo(t *testing.T, h *harness, key, body string) *http.Response {
+	t.Helper()
+	return h.do(http.MethodPost, "/binflow/api/repositories/"+key, adminUser, adminPass,
+		[]byte(body), map[string]string{"Content-Type": "application/json"})
+}
+
+// postRepoStatus is postRepo with the (status, body) shape the wire tests
+// assert on.
+func postRepoStatus(t *testing.T, h *harness, key, body string) (int, string) {
+	t.Helper()
+	resp := postRepo(t, h, key, body)
+	return resp.StatusCode, mustGet(t, resp)
+}
+
 // TestRepositoriesCRUD walks C03 -> C04 -> C05 -> C06 -> C19 plus the C26
 // family as flipped for M3 (FR-15/PRD section 5.6: remote and virtual
 // classes create; the docker combinations stay refused): create 200 plain
@@ -42,8 +58,22 @@ func TestRepositoriesCRUD(t *testing.T) {
 		}
 	})
 
-	t.Run("C03 repeat create is 200 update wording", func(t *testing.T) {
+	t.Run("C03 repeat create is the ADR-0050 create-only 400", func(t *testing.T) {
+		// PUT onto an existing key is create-only since ADR-0050: the
+		// reference's literal create-conflict 400, zero side effects. The
+		// update spelling moved to POST (see the POST arm below).
 		resp := putRepo(t, h, "generic-local", `{"rclass":"local","packageType":"generic"}`)
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("status = %d; body=%s", resp.StatusCode, mustGet(t, resp))
+		}
+		eb := decodeError(t, resp)
+		if !strings.Contains(eb.Errors[0].Message, "Repository key already exists") {
+			t.Fatalf("message = %q, want the key-exists literal", eb.Errors[0].Message)
+		}
+	})
+
+	t.Run("C03 POST update is 200 update wording", func(t *testing.T) {
+		resp := postRepo(t, h, "generic-local", `{"rclass":"local","packageType":"generic","description":"C03 updated"}`)
 		body := mustGet(t, resp)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("status = %d; body=%s", resp.StatusCode, body)
@@ -148,8 +178,18 @@ func TestRepositoriesCRUD(t *testing.T) {
 			// T-493 (FR-157①): url is the CONTEXT url — the /binflow
 			// prefix is part of it (rest-api.md section 2's
 			// <contextUrl>/<key>; the M1 as-built omitted the segment).
-			if it.PackageType != "generic" || it.URL != h.srv.URL+"/binflow/"+it.Key {
-				t.Fatalf("entry %+v: url = %q, want %q", it, it.URL, h.srv.URL+"/binflow/"+it.Key)
+			// D21 (L001-5): a REMOTE row's top-level url is the UPSTREAM
+			// (the C26 create above pinned http://127.0.0.1:9099), not
+			// the self-derived context URL.
+			if it.PackageType != "generic" {
+				t.Fatalf("entry %+v: packageType = %q, want generic", it, it.PackageType)
+			}
+			wantURL := h.srv.URL + "/binflow/" + it.Key
+			if it.Type == "remote" {
+				wantURL = "http://127.0.0.1:9099"
+			}
+			if it.URL != wantURL {
+				t.Fatalf("entry %+v: url = %q, want %q", it, it.URL, wantURL)
 			}
 		}
 		if items[0].Type != "local" || items[2].Type != "remote" || items[3].Type != "virtual" {
@@ -450,8 +490,10 @@ func TestStorageItemInfo(t *testing.T) {
 	})
 }
 
-// TestStorageList (E-10, C17): the ?list rejection ladder (anonymous 403,
-// root 400, file target 400) and the deep listing's relative uris.
+// TestStorageList (E-10, C17; L009-2 recursion semantics): the ?list
+// rejection ladder (anonymous 403, file target 400), the repository root
+// listing, and the deep listing's leading-slash relative uris with no
+// folder-row leak.
 func TestStorageList(t *testing.T) {
 	h := newHarness(t)
 	seedRepo(t, h, "generic-local")
@@ -477,27 +519,45 @@ func TestStorageList(t *testing.T) {
 		decodeError(t, resp)
 	})
 
-	t.Run("root is 400 with the spec wording", func(t *testing.T) {
-		resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local?list&deep=1", adminUser, adminPass, nil, nil)
+	t.Run("repository root lists (L008-3 A26)", func(t *testing.T) {
+		// A file at the repository root makes the arm assertable.
+		resp := h.do(http.MethodPut, "/binflow/generic-local/root.bin", adminUser, adminPass, []byte("root"), nil)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("PUT root.bin: %d", resp.StatusCode)
+		}
+		_ = resp.Body.Close()
+		// The root is listable: 200 with its DIRECT child files only (the
+		// acme subtree appears under deep=1, not here). The root refusal
+		// belongs to requests with no repository segment at all, which the
+		// router never dispatches here.
+		resp = h.do(http.MethodGet, "/binflow/api/storage/generic-local?list", adminUser, adminPass, nil, nil)
+		body := mustGet(t, resp)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d; body=%s", resp.StatusCode, body)
+		}
+		if !strings.Contains(body, `"/root.bin"`) {
+			t.Fatalf("root listing lacks /root.bin: %s", body)
+		}
+		if strings.Contains(body, `"/acme/a.bin"`) || strings.Contains(body, `"/a.bin"`) {
+			t.Fatalf("non-recursive root listing leaked subtree files: %s", body)
+		}
+	})
+
+	t.Run("file target is 400 with the colon wording", func(t *testing.T) {
+		resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local/acme/a.bin?list", adminUser, adminPass, nil, nil)
 		eb := decodeError(t, resp)
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Fatalf("status = %d", resp.StatusCode)
 		}
-		if eb.Errors[0].Message != "Cannot list files of root." {
-			t.Fatalf("message = %q", eb.Errors[0].Message)
+		want := "Expected a folder but found a file, at: generic-local:acme/a.bin"
+		if eb.Errors[0].Message != want {
+			t.Fatalf("message = %q, want %q", eb.Errors[0].Message, want)
 		}
 	})
 
-	t.Run("file target is 400", func(t *testing.T) {
-		resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local/acme/a.bin?list", adminUser, adminPass, nil, nil)
-		if resp.StatusCode != http.StatusBadRequest {
-			t.Fatalf("status = %d", resp.StatusCode)
-		}
-		decodeError(t, resp)
-	})
-
-	t.Run("C17 deep listing has relative uris", func(t *testing.T) {
-		// The folder row for acme exists (explicit mkdir above).
+	t.Run("C17 deep listing has leading-slash uris, no folder-row leak", func(t *testing.T) {
+		// The folder rows for acme and acme/sub exist (mkdir + T-128
+		// materialization); without listFolders they must NOT appear.
 		resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local/acme?list&deep=1", adminUser, adminPass, nil, nil)
 		body := mustGet(t, resp)
 		if resp.StatusCode != http.StatusOK {
@@ -514,36 +574,38 @@ func TestStorageList(t *testing.T) {
 		}
 		got := map[string]int64{}
 		for _, f := range lr.Files {
-			// T-128 (ADR-0016): materialized ancestor folder rows appear in
-			// deep listings as trailing-slash entries with size 0. Skip them
-			// so the assertion stays on the original file nodes.
-			if strings.HasSuffix(f.URI, "/") {
-				continue
-			}
 			got[f.URI] = f.Size
 		}
-		if len(got) != 2 || got["a.bin"] != int64(len("acme/a.bin")) || got["sub/deep.bin"] != int64(len("acme/sub/deep.bin")) {
-			t.Fatalf("files = %v, want relative a.bin and sub/deep.bin", got)
+		want := map[string]int64{
+			"/a.bin":        int64(len("acme/a.bin")),
+			"/sub/deep.bin": int64(len("acme/sub/deep.bin")),
+		}
+		if len(got) != len(want) || got["/a.bin"] != want["/a.bin"] || got["/sub/deep.bin"] != want["/sub/deep.bin"] {
+			t.Fatalf("files = %v, want exactly %v (no folder-row leak)", got, want)
 		}
 	})
 
-	t.Run("shallow depth excludes nested files", func(t *testing.T) {
-		resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local/acme?list&depth=1", adminUser, adminPass, nil, nil)
-		body := mustGet(t, resp)
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("status = %d; body=%s", resp.StatusCode, body)
-		}
-		var lr struct {
-			Files []struct {
-				URI string `json:"uri"`
-			} `json:"files"`
-		}
-		if err := json.Unmarshal([]byte(body), &lr); err != nil {
-			t.Fatalf("body %q: %v", body, err)
-		}
-		for _, f := range lr.Files {
-			if strings.Contains(f.URI, "/") {
-				t.Fatalf("depth=1 returned nested uri %q", f.URI)
+	t.Run("depth without deep stays flat", func(t *testing.T) {
+		// depth is only a modifier: without deep=1 any depth value keeps the
+		// direct-children listing (L008-3 A05-A07, A10).
+		for _, q := range []string{"depth=1", "depth=2", "depth=99"} {
+			resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local/acme?list&"+q, adminUser, adminPass, nil, nil)
+			body := mustGet(t, resp)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("%s: status = %d; body=%s", q, resp.StatusCode, body)
+			}
+			var lr struct {
+				Files []struct {
+					URI string `json:"uri"`
+				} `json:"files"`
+			}
+			if err := json.Unmarshal([]byte(body), &lr); err != nil {
+				t.Fatalf("%s: body %q: %v", q, body, err)
+			}
+			for _, f := range lr.Files {
+				if f.URI != "/a.bin" {
+					t.Fatalf("%s returned non-direct uri %q", q, f.URI)
+				}
 			}
 		}
 	})

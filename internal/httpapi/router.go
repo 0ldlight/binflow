@@ -18,6 +18,7 @@ package httpapi
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -434,6 +435,36 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/system/gc" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleSystemGC)
 
+	// ---- /api/system/storage (LOOP 003 / prune-gc-admin.md E1-E10 —
+	// the Artifactory StorageResource family, the BinFlow-native spelling
+	// under the compatible /api plane like system/license) ----
+	// Ten endpoints: the PUD trio (202 async + persisted 26-field report),
+	// the synchronous gc dot stream, optimize/compress/backup triggers,
+	// the size/info read faces and the deprecated exportds. Gates follow
+	// the family: mutations on system:write (no dry-run exception,
+	// T-214①), reads on system:read. Every other spelling falls to the
+	// E-26 404.
+	case rest == "system/storage/prune/start" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleStoragePruneStart)
+	case rest == "system/storage/prune/stop" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleStoragePruneStop)
+	case rest == "system/storage/prune/status" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleStoragePruneStatus)
+	case rest == "system/storage/gc" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleStorageGCStream)
+	case rest == "system/storage/optimize" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleStorageOptimize)
+	case rest == "system/storage/compress" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleStorageCompress)
+	case rest == "system/storage/backup" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleStorageBackup)
+	case rest == "system/storage/size" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleStorageSize)
+	case rest == "system/storage/info" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleStorageInfo)
+	case rest == "system/storage/exportds" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleStorageExportds)
+
 	// ---- /api/v1/system/cleanup (M11 T-324, FR-102.2; sync, lock-guarded)
 	// ----
 	// POST triggers one run (dry-run default, the gc family's posture —
@@ -828,6 +859,35 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true},
 			s.withName(rest, "v1/permissions/", s.handlePermissionDelete))
 
+	// ---- /api/security/permissions (L006-B, D04-R17/R18 — the classic v1
+	// alias family; gap-endpoints section 4 + SecurityResource.java,
+	// 7.161.20 live-verified 2026-09-12) ----
+	// Artifactory's original permission-target plane, mounted ALONGSIDE the
+	// BinFlow-native /api/v1/permissions: the list (GET, the {name, uri}
+	// skeleton), the detail (GET {name}, the v1 shape with letter actions),
+	// the keyed create-or-replace (PUT {name} — the path key governs, a
+	// disagreeing body name answers the reference's 409) and the delete
+	// (DELETE {name}). The write verbs keep the v1 plane's required-only
+	// route (the family-4 exception gate lives in the shared handler); the
+	// reads gate on security:read. POST {name} answers the reference's own
+	// bare 400 (the addon layer's updateSecurityEntity serves only users
+	// and groups — mounting the same answer is the alignment, Review B).
+	// Every other spelling falls to the E-26 404.
+	case rest == "security/permissions" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead}, s.handlePermissionListV1)
+	case strings.HasPrefix(rest, "security/permissions/") && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
+			s.withNameUnescaped(rest, "security/permissions/", s.handlePermissionGetV1))
+	case strings.HasPrefix(rest, "security/permissions/") && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
+			s.withNameUnescaped(rest, "security/permissions/", s.handlePermissionPostV1))
+	case strings.HasPrefix(rest, "security/permissions/") && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true},
+			s.withNameUnescaped(rest, "security/permissions/", s.handlePermissionPutV1))
+	case strings.HasPrefix(rest, "security/permissions/") && r.Method == http.MethodDelete:
+		s.enforce(w, r, routeAuth{required: true},
+			s.withNameUnescaped(rest, "security/permissions/", s.handlePermissionDeleteV1))
+
 	// ---- /api/repositories (E-04..E-08) ----
 	// The list sits on repo:read (family 5, D2/C22b): readonly_admin sees
 	// the full inventory; a plain user must not (M1 has no per-repository
@@ -883,10 +943,18 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	// documented exception — the handler itself answers the anonymous 403
 	// (rest-api.md section 3), which is why its route gate does NOT carry
 	// required: a 401 challenge would mask the spec's status.
-	case strings.HasPrefix(rest, "storage/"):
+	case rest == "storage" || strings.HasPrefix(rest, "storage/"):
 		repoKey, rel := splitStoragePath(rest)
 		if repoKey == "" {
-			notImplemented(w, "/binflow/api/storage")
+			// L010-2: the no-repo-segment storage request (?list or bare,
+			// with or without the trailing slash) is no route in the
+			// reference either — its live answer (:8082, 7.161.20, four
+			// wire-probed variants 2026-09-12) is the generic 404 errors
+			// envelope "Not Found". The ticket's 400 "Cannot list files of
+			// root." premise did NOT reproduce; that wording survives only
+			// in stale reverse docs (rest-api.md section 3 refresh is the
+			// reverse-engineer's LOOP 010 item).
+			writeError(w, http.StatusNotFound, "Not Found")
 			return
 		}
 		if _, ok := r.URL.Query()["list"]; ok && r.Method == http.MethodGet {
@@ -1645,6 +1713,99 @@ func (s *Server) withName(rest, prefix string, h func(http.ResponseWriter, *http
 	}
 }
 
+// withNameUnescaped is withName for name segments the wire carries
+// percent-encoded (L006-B): the classic /api/security/permissions face
+// emits {name, uri} with the name URL-escaped (a target may carry spaces,
+// e.g. "Any Remote"), and JAX-RS decodes the path parameter back before the
+// lookup — the reference's own round-trip. rest arrives from EscapedPath,
+// so the decode happens here, at the seam.
+//
+// L009-3 (wire-verified :8082 2026-09-12): the reference decodes the name a
+// SECOND time with java.net.URLDecoder semantics — '+' becomes a space and
+// a further %XX pass runs — so "pl+name+x", "pl%2Bname%2Bx" and "pl%20name"
+// "%20x" all name the same target, and %2570d2 reaches "pd2". A malformed
+// escape in that second pass answers 400 with the URLDecoder's own wording
+// (an errors envelope); a malformed escape in the wire segment itself never
+// reaches this seam — the HTTP transport rejects the request line with the
+// same bare "400 Bad Request" the reference's connector does.
+func (s *Server) withNameUnescaped(rest, prefix string, h func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name, tail := splitAPIName(rest, prefix)
+		if name == "" || tail != "" {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		decoded, err := url.PathUnescape(name)
+		if err != nil {
+			// Unreachable through the listener (the transport rejects a bad
+			// request line first); kept so a future internal caller cannot
+			// smuggle a raw %zz past the seam into a 404 lookup.
+			writePlainError(w, http.StatusBadRequest, "400 Bad Request")
+			return
+		}
+		second, decErr := urlDecoderDecode(decoded)
+		if decErr != "" {
+			writeError(w, http.StatusBadRequest, decErr)
+			return
+		}
+		h(w, r, second)
+	}
+}
+
+// urlDecoderDecode applies java.net.URLDecoder.decode semantics (the
+// reference's second decode of a keyed permission name, L009-3): '+' maps
+// to a space, %XX decodes byte-wise, and a malformed escape returns the
+// reference's verbatim 400 wording — "Incomplete trailing escape (%)"
+// when fewer than two characters follow the '%', otherwise the first
+// non-hexadecimal character named and coded ("z" = 122).
+func urlDecoderDecode(s string) (string, string) {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '+':
+			b.WriteByte(' ')
+		case '%':
+			if i+2 >= len(s) {
+				return "", "URLDecoder: Incomplete trailing escape (%) pattern"
+			}
+			c1, c2 := s[i+1], s[i+2]
+			if !isHexDigit(c1) {
+				return "", urlIllegalHexMessage(c1)
+			}
+			if !isHexDigit(c2) {
+				return "", urlIllegalHexMessage(c2)
+			}
+			b.WriteByte(hexVal(c1)<<4 | hexVal(c2))
+			i += 2
+		default:
+			b.WriteByte(s[i])
+		}
+	}
+	return b.String(), ""
+}
+
+func urlIllegalHexMessage(c byte) string {
+	return fmt.Sprintf(
+		"URLDecoder: Illegal hex characters in escape (%%) pattern - not a hexadecimal digit: %q = %d",
+		string(rune(c)), c)
+}
+
+func isHexDigit(c byte) bool {
+	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
+}
+
+func hexVal(c byte) byte {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0'
+	case c >= 'a' && c <= 'f':
+		return c - 'a' + 10
+	default:
+		return c - 'A' + 10
+	}
+}
+
 // splitAPIName splits rest after prefix into (name, remainder): the first
 // segment is the name, everything after the following slash is the tail.
 // Both are returned still escaped — handlers unescape where the value is a
@@ -1656,12 +1817,14 @@ func splitAPIName(rest, prefix string) (name, tail string) {
 }
 
 // splitStoragePath splits /api/storage/{repo}/{path} into the repo key and
-// the decoded repo-relative remainder ("" when absent). Dot segments in the
-// remainder are left to the service layer's validators (same defense the
-// content plane relies on); a dot-segment or empty repo key yields "" so the
-// caller answers the E-26 404.
+// the decoded repo-relative remainder ("" when absent). The bare "storage"
+// spelling normalizes onto "storage/" (L010-2: both no-segment forms are
+// the reference's generic 404). Dot segments in the remainder are left to
+// the service layer's validators (same defense the content plane relies
+// on); a dot-segment or empty repo key yields "" so the caller answers the
+// generic 404.
 func splitStoragePath(rest string) (repoKey, relPath string) {
-	seg := strings.TrimPrefix(rest, "storage/")
+	seg := strings.TrimPrefix(strings.TrimPrefix(rest, "storage"), "/")
 	if seg == "" {
 		return "", ""
 	}

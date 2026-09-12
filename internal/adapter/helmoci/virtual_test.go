@@ -64,7 +64,9 @@ func newVirtualFixture(t *testing.T) (down, up *stack, wrapped *httptest.Server,
 
 	down = newStack(t)
 	down.seedRepo(t, "virt-local", repo.TypeLocal, Protocol)
-	down.seedRemoteRepo(t, "virt-remote", wrapped.URL+"/v2/helmoci-local")
+	// Registry-root upstream URL (L000-F): the upstream's repoKey rides
+	// the image namespace — helmoci-local/upchart.
+	down.seedRemoteRepo(t, "virt-remote", wrapped.URL)
 	down.seedRepo(t, "helmoci-virt", repo.TypeVirtual, Protocol)
 	if err := down.md.Virtual().SetMembers(context.Background(), "helmoci-virt", []string{"virt-local", "virt-remote"}); err != nil {
 		t.Fatalf("seed virtual members: %v", err)
@@ -80,12 +82,12 @@ func newVirtualFixture(t *testing.T) (down, up *stack, wrapped *httptest.Server,
 func TestVirtualDualDomainChain(t *testing.T) {
 	down, _, _, hits, manifestA, cfgA, chartA := newVirtualFixture(t)
 	manifestB, _, chartB := pushChartTo(t, down, "virt-local", "downchart", "0.1.0", "downstream-local")
-	pushChartTo(t, down, "virt-local", "upchart", "0.3.0", "downstream-local")
+	pushChartTo(t, down, "virt-local", "helmoci-local/upchart", "0.3.0", "downstream-local")
 
 	accept := map[string]string{"Accept": mtOCIManifest}
 
 	// The REMOTE domain: first touch pulls through into the member's cache.
-	status, body, hdr := down.do(http.MethodGet, "/v2/helmoci-virt/upchart/manifests/0.1.0", "", "", nil, accept)
+	status, body, hdr := down.do(http.MethodGet, "/v2/helmoci-virt/helmoci-local/upchart/manifests/0.1.0", "", "", nil, accept)
 	if status != http.StatusOK || body != string(manifestA) {
 		t.Fatalf("virtual pull of the upstream chart = (%d, %d bytes), want (200, %d bytes)", status, len(body), len(manifestA))
 	}
@@ -100,7 +102,7 @@ func TestVirtualDualDomainChain(t *testing.T) {
 	}
 	// The chart's blobs through the virtual: byte-identical (config + layer).
 	for _, blob := range [][]byte{cfgA, chartA} {
-		status, body, hdr = down.get("/v2/helmoci-virt/upchart/blobs/sha256:" + sha256HexOf(blob))
+		status, body, hdr = down.get("/v2/helmoci-virt/helmoci-local/upchart/blobs/sha256:" + sha256HexOf(blob))
 		if status != http.StatusOK || body != string(blob) {
 			t.Fatalf("virtual blob GET = (%d, %d bytes), want (200, %d bytes)", status, len(body), len(blob))
 		}
@@ -127,14 +129,14 @@ func TestVirtualDualDomainChain(t *testing.T) {
 
 	// The cached second round trip: HIT markers, the upstream frozen.
 	afterFirst := hits.Load()
-	status, body, hdr = down.do(http.MethodGet, "/v2/helmoci-virt/upchart/manifests/0.1.0", "", "", nil, accept)
+	status, body, hdr = down.do(http.MethodGet, "/v2/helmoci-virt/helmoci-local/upchart/manifests/0.1.0", "", "", nil, accept)
 	if status != http.StatusOK || body != string(manifestA) {
 		t.Fatalf("second virtual pull = (%d, %d bytes)", status, len(body))
 	}
 	if got := hdr.Get("X-BinFlow-Cache"); got != "HIT" {
 		t.Errorf("second virtual pull X-BinFlow-Cache = %q, want HIT", got)
 	}
-	status, body, hdr = down.get("/v2/helmoci-virt/upchart/manifests/sha256:" + sha256HexOf(manifestA))
+	status, body, hdr = down.get("/v2/helmoci-virt/helmoci-local/upchart/manifests/sha256:" + sha256HexOf(manifestA))
 	if status != http.StatusOK || body != string(manifestA) {
 		t.Fatalf("by-digest virtual pull = (%d, %d bytes)", status, len(body))
 	}
@@ -150,7 +152,7 @@ func TestVirtualDualDomainChain(t *testing.T) {
 	// 0.2.0 stays invisible by design (T-363 D-2: a remote member's tag
 	// set is its cached rows — no upstream tags/list proxying; helm pulls
 	// with --version never consult it).
-	status, body, _ = down.get("/v2/helmoci-virt/upchart/tags/list")
+	status, body, _ = down.get("/v2/helmoci-virt/helmoci-local/upchart/tags/list")
 	if status != http.StatusOK {
 		t.Fatalf("virtual tags/list status = %d (body %s)", status, body)
 	}
@@ -169,7 +171,7 @@ func TestVirtualDualDomainChain(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("catalog with a virtual row status = %d (body %s)", status, body)
 	}
-	for _, name := range []string{"helmoci-virt/upchart", "helmoci-virt/downchart"} {
+	for _, name := range []string{"helmoci-virt/helmoci-local/upchart", "helmoci-virt/downchart"} {
 		if !strings.Contains(body, `"`+name+`"`) {
 			t.Errorf("catalog %q does not name %q", body, name)
 		}
@@ -187,7 +189,7 @@ func TestVirtualDualDomainChain(t *testing.T) {
 
 	// Writes refuse with the service-rendered 405 (the C5 spelling
 	// un-routed) — the read walk did not open a deploy path.
-	status, body, hdr = down.put("/v2/helmoci-virt/upchart/manifests/9.9.9", manifestA,
+	status, body, hdr = down.put("/v2/helmoci-virt/helmoci-local/upchart/manifests/9.9.9", manifestA,
 		map[string]string{"Content-Type": mtOCIManifest})
 	if status != http.StatusMethodNotAllowed {
 		t.Fatalf("virtual manifest PUT status = %d, want 405 (body %s)", status, body)
@@ -198,7 +200,7 @@ func TestVirtualDualDomainChain(t *testing.T) {
 	if !strings.Contains(body, "No local repository was configured as local deployment repository") {
 		t.Errorf("virtual PUT body %q does not carry the C5 spelling", body)
 	}
-	status, body, hdr = down.post("/v2/helmoci-virt/upchart/blobs/uploads/", nil, nil)
+	status, body, hdr = down.post("/v2/helmoci-virt/helmoci-local/upchart/blobs/uploads/", nil, nil)
 	if status != http.StatusMethodNotAllowed || hdr.Get("Allow") != http.MethodGet {
 		t.Fatalf("virtual upload POST = (%d, Allow %q), want the 405/GET pair (body %s)", status, hdr.Get("Allow"), body)
 	}
@@ -210,12 +212,12 @@ func TestVirtualDualDomainChain(t *testing.T) {
 func TestVirtualFirstSeenShadowing(t *testing.T) {
 	down, _, _, _, manifestUp, _, _ := newVirtualFixture(t)
 	// The local member shadows the upstream's 0.1.0 with its own body.
-	manifestLocal, _, _ := pushChartTo(t, down, "virt-local", "upchart", "0.1.0", "shadowing-local")
+	manifestLocal, _, _ := pushChartTo(t, down, "virt-local", "helmoci-local/upchart", "0.1.0", "shadowing-local")
 	if string(manifestLocal) == string(manifestUp) {
 		t.Fatal("the shadow fixture built identical manifests — the test cannot discriminate")
 	}
 
-	status, body, hdr := down.do(http.MethodGet, "/v2/helmoci-virt/upchart/manifests/0.1.0", "", "", nil,
+	status, body, hdr := down.do(http.MethodGet, "/v2/helmoci-virt/helmoci-local/upchart/manifests/0.1.0", "", "", nil,
 		map[string]string{"Accept": mtOCIManifest})
 	if status != http.StatusOK || body != string(manifestLocal) {
 		t.Fatalf("shadowed pull = (%d, %d bytes), want the local member's %d bytes", status, len(body), len(manifestLocal))
@@ -228,7 +230,7 @@ func TestVirtualFirstSeenShadowing(t *testing.T) {
 	if err := down.md.Virtual().SetMembers(context.Background(), "helmoci-virt", []string{"virt-remote", "virt-local"}); err != nil {
 		t.Fatalf("reorder members: %v", err)
 	}
-	status, body, hdr = down.do(http.MethodGet, "/v2/helmoci-virt/upchart/manifests/0.1.0", "", "", nil,
+	status, body, hdr = down.do(http.MethodGet, "/v2/helmoci-virt/helmoci-local/upchart/manifests/0.1.0", "", "", nil,
 		map[string]string{"Accept": mtOCIManifest})
 	if status != http.StatusOK || body != string(manifestUp) {
 		t.Fatalf("reordered pull = (%d, %d bytes), want the remote member's %d bytes", status, len(body), len(manifestUp))
@@ -245,7 +247,7 @@ func TestVirtualFirstSeenShadowing(t *testing.T) {
 func TestVirtualDegradationMatrix(t *testing.T) {
 	down, _, wrapped, _, manifestA, _, chartA := newVirtualFixture(t)
 
-	status, body, _ := down.do(http.MethodGet, "/v2/helmoci-virt/upchart/manifests/0.1.0", "", "", nil,
+	status, body, _ := down.do(http.MethodGet, "/v2/helmoci-virt/helmoci-local/upchart/manifests/0.1.0", "", "", nil,
 		map[string]string{"Accept": mtOCIManifest})
 	if status != http.StatusOK || body != string(manifestA) {
 		t.Fatalf("preheat pull = (%d, %d bytes)", status, len(body))
@@ -253,8 +255,8 @@ func TestVirtualDegradationMatrix(t *testing.T) {
 	// Expire the member's cached manifest and layers.
 	past := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
 	for _, path := range []string{
-		"upchart/manifests/" + sha256HexOf(manifestA),
-		"upchart/blobs/" + sha256HexOf(chartA),
+		"helmoci-local/upchart/manifests/" + sha256HexOf(manifestA),
+		"helmoci-local/upchart/blobs/" + sha256HexOf(chartA),
 	} {
 		if err := down.md.Remote().PutCache(context.Background(), &metadata.RemoteCacheEntry{
 			RepoKey: "virt-remote", Path: path, Kind: metadata.RemoteCacheKindContent,
@@ -265,7 +267,7 @@ func TestVirtualDegradationMatrix(t *testing.T) {
 	}
 	wrapped.Close()
 
-	status, body, hdr := down.do(http.MethodGet, "/v2/helmoci-virt/upchart/manifests/0.1.0", "", "", nil,
+	status, body, hdr := down.do(http.MethodGet, "/v2/helmoci-virt/helmoci-local/upchart/manifests/0.1.0", "", "", nil,
 		map[string]string{"Accept": mtOCIManifest})
 	if status != http.StatusOK || body != string(manifestA) {
 		t.Fatalf("degraded virtual pull = (%d, %d bytes), want the stale copy", status, len(body))
@@ -279,7 +281,7 @@ func TestVirtualDegradationMatrix(t *testing.T) {
 
 	// Uncached against the dead upstream: the unfound family (the local
 	// member does not hold the chart either — the walk exhausts).
-	status, body, _ = down.get("/v2/helmoci-virt/upchart/manifests/5.5.5")
+	status, body, _ = down.get("/v2/helmoci-virt/helmoci-local/upchart/manifests/5.5.5")
 	if status != http.StatusNotFound || !strings.Contains(body, "MANIFEST_UNKNOWN") {
 		t.Errorf("uncached degraded virtual pull = (%d, %s), want the 404 spec shape", status, body)
 	}
