@@ -6,10 +6,10 @@ current_iteration: 007
 current_goal: "permissions residuals 三臂 + D3 定向探针 + update-merge 设计票 + 票 C/D + invalid-value 族裁定包"
 iteration_006_seal: "三轨全收零中断；matrix ✅68/◐23（P0 partial→6 行）；攻坚五行清偿+v1 方言真兼容；C14 三面闭环；D06-R17 前提证伪重分类；双审战绩 7/7；iteration-006.md 落盘"
 loop_007_tracks:
-  - { id: L007-1, domain: permissions-rest, owner: dev-go-core, what: "permissions residuals 三臂票（DELETE 204-vs-200/未知名错误体裁/admin 主体 400——台账 rest/permissions-v1-response-shape-residuals）+ 票 C（D04-R02 GET users/{name} 字段集：status 枚举闭集/enabled 布尔/lastLoggedIn 条件/groups 空集形态）" }
-  - { id: L007-2, domain: differential, owner: differential-qa-engineer, what: "D3 定向探针（过期 blob 臂×missedTTL 窗双端复核——known-divergence docker/remote-blob-expired-revalidation 的 LOOP 007 门）+ virtual 面冷 miss 活体差分（L006-2 挂账）" }
-  - { id: L007-3, domain: architecture, owner: architect, what: "update-merge 语义设计票（remote 更新省略=保留 vs 全量替换——族级影响全字段，ADR 候选稿）+ invalid-value 族裁定素材整理（mistyped 400-vs-500/'yes'→true/未知布局名——产品 authority 输入）" }
-  - { id: L007-4, domain: ledger-increment, owner: compatibility-engineer, what: "superset 新行提案（/api/v1/system/backups 超集面）+ security 读族姿态登记（CapSecurityRead vs 参照 admin-only——范围外上报收编）+ D04-R18 残余收窄注记" }
+  - { id: L007-1, domain: permissions-rest, owner: dev-go-core, what: "✅ residuals 三臂+优先序+未识组文案全 SAME（DELETE 200+text/未知名 envelope/admin 拒收逐字——台账三臂闭+连带收口）；票 C users 字段集齐（policy 四管理键/lastLoggedInMillis 恒渲染/lastLoggedIn 条件键审计派生/status 闭集）；差分双端过（独立 :8084）；**新发现候立账×2**：建用户自动入 readers 组、anonymous 用户行（建模级）；翻绿建议 D04-R18+D04-R02→compatible；httpapi 421s 串行绿", status: done }
+  - { id: L007-2, domain: differential, owner: differential-qa-engineer, what: "✅ D3 四臂铁证（参照对已缓存 digest blob 全臂零回源：过期×3/INM/10×TTL 跨窗/真实 CLI；filestore mtime 未动——「阈值后回源」假说无观测面）；virtual 三臂活体全 SAME（seam 机制兑现：tag 冷 miss/TTL 到期/负缓存三形）；**conductor 终裁 D3=BUG 对齐收**（参照语义=blob 豁免检索窗·窗只作用 manifest 面；BinFlow 过度兑现白费 304 往返——LOOP 008 小票+ADR-0012 勘误候选注记）；**新 BUG**：virtual 面冷负 miss 首答 body 注记后缀（virtual 特有，直读面无）；参照实例 04:23Z 一次自行 Exited 5min 收敛（未损）", status: done }
+  - { id: L007-3, domain: architecture, owner: architect, what: "✅ 12 臂活体矩阵（省略=保留/null=清空/空值=数组保留·对象整族复位/PUT-on-existing=400 create-only——**边界发现：BinFlow PUT=更新系自有超集行为，D02 行注记需复核**）；ADR 候选稿 docs/design/repo-update-merge.md（推荐案 A：POST=merge+PUT=create-only；实现面=parseRemoteConfig 基线+指针席位零新增；console 分工已合拍零破坏）；三臂裁定素材（mistyped 500→INTENTIONAL 维持 400/yes→INTENTIONAL 维持 400/布局名→对齐 400+自定义迁移臂待产品二选一）→ 待 conductor ADR 流程 + pending-rulings 折入 R-10", status: done }
+  - { id: L007-4, domain: ledger-increment, owner: compatibility-engineer, what: "✅ 三件+勘正：D06-R30 superset 新行（matrix 200 行/超集 12，锚 ADR-0044 决策 7+9）；security 读族姿态 UNKNOWN 入账（先例核对无既有裁定，BinFlow 门=CapSecurityRead vs 参照实例级无 read-only admin——主体存在性双端一致分歧仅角色轴，LOOP 008 限期）；D04-R18 翻绿预登记；ldt 计数器勘正 11→16（LOOP 006 五行回填漏记）", status: done }
 loop_006_tracks:
   - { id: L006-1, domain: repo-config-rest, owner: dev-go-core, what: "攻坚票 A+B 串行双包：A=D02-R03+R04 仓配置 PUT/POST round-trip（maxUniqueSnapshots/repoLayoutRef/blackedOut/archiveBrowsingEnabled 四域静默丢弃）双清；B=D04-R17+R18+D06-R17 经典路径别名挂载（/api/permissions 与 /api/system/backup/{key} 族——衔接 T-504 别名核定）三清" }
   - { id: L006-2, domain: docker-remote-face, owner: dev-registry-adapter, what: "✅ 五件全清：virtual 读探针 seam（V2MemberManifest !ok 臂 C14 双形读探针，变异验证区分性）/repo doc 行双键法改准/star IMS 组合腿锁封臂+unobserved 注记/过时注释两处直改+helm.md §8.3 建议文本回报/**by-digest 冷 miss 补臂全 SAME（C14 双键法活体证据齐）**；契约建议三条候 compat 增量（star 注记×2/digest 臂补/§8.3 文本）", status: done }
@@ -31,6 +31,7 @@ loop_003_tracks:
 interruptions:
   - { at: 2026-09-11T05:48~05:50Z, what: "三轨全被 API 5h 用量上限 429 击落（限额 06:28:17 重置）；conductor 核实工作树零半成品（皆死于调查/设计段）→ 三轨 SendMessage 断点复活（05:5x 用户令「继续」）" }
   - { at: 2026-09-11T12:28Z, what: "第二波限额击落 L004-1/L004-2（限额 15:24:11 重置）；树零半成品（取证段）；断点复活。**L004-1 中断前翻案级发现：活体参照处理带引号 INM/IMS 回 304，与 L000-B E3-2 相反——复活指令要求双证并排+条件差异矩阵后实现**" }
+  - { at: 2026-09-12T04:44Z, what: "第三波限额击落 LOOP 007 四轨（限额 07:04:47 重置）；L007-4 台账半成品解析正常、余零半成品；四线断点复活（L007-2 指令改 busybox 载体防网络卡点）" }
 infra_fixes:
   - { at: 2026-09-11, what: "lint 钩子修复（update-config 技能流程）：.claude/settings.json 的 if 条件运行时不生效致红树期全 Bash 被封（L003-3 上报，20min 实损）→ 改命令侧 jq 门控（case git commit* → make lint，其余 exit 0）+ if 用文档化语法；非 commit 放行已实证" }
 completed_loop_003_partial:

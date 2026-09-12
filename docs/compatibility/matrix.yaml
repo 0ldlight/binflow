@@ -15,6 +15,16 @@
 #   known-divergence#rest/permissions-v1-response-shape-residuals）；D06-R17 前提证伪重分类 partial→not_applicable
 #   （参照无 /api/system/backup* REST 族——活体+反编译双证，同 ghost-row 勘误款；BinFlow /api/v1/system/backups
 #   超集面建议新行提案报 conductor）；新立台账三条（update-merge/invalid-value/permissions-residuals，LOOP 007 池）。
+# LOOP 007 收官联动（L007-1/2/3，2026-09-12，conductor 指令）：D04-R18、D04-R02 翻 compatible（permissions
+#   三臂收口+台账 resolved / users 字段集对齐带超集注记）；D02-R03 补注 PUT-on-existing 相抵臂（并入 update-merge
+#   台账联裁）；台账 D3 终裁 BUG 对齐收（conductor_ruling）、virtual 冷负 miss 注记新 BUG、readers 默认组/
+#   anonymous 行两建模级 UNKNOWN、update-merge 附 L007-3 证据+ADR 候选稿、invalid-value 附 R-10 裁定素材。
+#   D06-R30 superset 新行=并行轨（L007-4）按本账 LOOP 006 提案落账。
+# L007-4（LOOP 007，2026-09-12）增量三件：① +1 新行 D06-R30（D06-R17 证伪发现的反面——BinFlow
+#   /api/v1/system/backups 超集面落账 superset，conductor 派票授权，L005-3 冻结行集外新行先例款）；② D04-R18
+#   note 预登记翻绿条件（L007-1 residuals 三臂清偿 + 差分复验后随台账 resolved 翻 compatible）；③ known-divergence
+#   新条目 rest/security-read-family-readonly-admin-gate（经典 security 读族门姿 UNKNOWN——L006 Review B
+#   范围外上报收编，authority=pending 产品）。
 
 ---
 schema: 1
@@ -55,35 +65,35 @@ priority_policy:
   - D07/D08 缺位行（build-info/release-bundle）→P1（major enterprise 链，FR-152/153 在途）
   default: P1
 summary:
-  total_rows: 199
+  total_rows: 200
   state_counts:
-    compatible: 68
-    partial: 23
+    compatible: 70
+    partial: 21
     absent: 78
     not_applicable: 19
-    superset: 11
+    superset: 12
   confidence_counts:
-    high: 131
+    high: 132
     medium: 68
     low: 0
   priority_counts:
     P0: 58
     P1: 62
-    P2: 79
+    P2: 80
   by_state_x_priority:
     compatible:
-      P0: 52
+      P0: 54
       P1: 15
       P2: 1
     partial:
-      P0: 6
+      P0: 4
       P1: 12
       P2: 5
     absent:
       P1: 35
       P2: 43
     superset:
-      P2: 11
+      P2: 12
     not_applicable:
       P2: 19
   by_domain:
@@ -108,8 +118,8 @@ summary:
       not_applicable: 2
     D04:
       rows: 35
-      compatible: 17
-      partial: 5
+      compatible: 19
+      partial: 3
       superset: 1
       absent: 12
     D05:
@@ -119,12 +129,12 @@ summary:
       not_applicable: 1
       superset: 1
     D06:
-      rows: 29
+      rows: 30
       compatible: 4
       partial: 3
       absent: 11
       not_applicable: 5
-      superset: 6
+      superset: 7
     D07:
       rows: 11
       absent: 11
@@ -158,7 +168,7 @@ summary:
       not_applicable: 1
   contract_ref_non_null: 10  # L005-3：D12-R01 + D01-R26/R27/R30（L004-3 加链 3 行原计数漏记，一并勘正）+ 新增 D01-R38..R43 六行
   golden_ref_non_null: 1     # D12-R01（empty-blob-synthetic / pull-sequence）——storage-admin 十端点无金样，形态断言锚 L003 差分报告
-  last_difftest_non_null: 10 # L005-3：D12-R01（L000/L004 批次）+ D01-R26/R27/R30 + 新增六行（L003-storage-admin-diff E1-E10 批次）
+  last_difftest_non_null: 16 # L005-3：D12-R01 + D01-R26/R27/R30 + 新增六行（=10）；L007-4 勘正：LOOP 006 收官五行（D02-R03/R04、D04-R17/R18、D06-R17）L006-1/L006-2 回填 last_difftest 未同步计数（10→15 漏记）+ 本程 D06-R30 → 实计 16（逐行 ruby 对账通过）
 rows:
 - row_id: D01-R01
   domain: D01
@@ -707,7 +717,10 @@ rows:
   note: 'L006-1（2026-09-12）翻态 partial→compatible：configJSON 四域（repoLayoutRef/blackedOut/
     maxUniqueSnapshots/archiveBrowsingEnabled）round-trip 缺口闭合（FR-156① 收口）。残余两族已立台账另票：
     更新合并语义（known-divergence#rest/repo-config-update-merge-semantics）+ 非法值形态族
-    （#rest/repo-config-invalid-value-family）——族级/裁定量不占本行主面。'
+    （#rest/repo-config-invalid-value-family）——族级/裁定量不占本行主面。
+    L007-3（2026-09-12）补注：冻结源行「key 冲突 400/409 语义已对齐」旧注记与新实测相抵——参照
+    PUT-on-existing=400 create-only（更新拼写只有 POST），BinFlow PUT-on-existing=更新 200；该臂已并入
+    update-merge 台账裁定范围（L007-3 §2 + ADR 候选稿 docs/design/repo-update-merge.md），随 LOOP 008 联裁。'
 - row_id: D02-R04
   domain: D02
   capability: POST /api/repositories/{key}（更新）
@@ -1047,14 +1060,20 @@ rows:
 - row_id: D04-R02
   domain: D04
   capability: GET /api/security/users/{name}
-  state: partial
+  state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L007-residuals-users-diff.md §2（字段集全腿：新增列 policyViewer/policyManager/watchManager/reportsManager/offlineMode/mfaStatus/shouldInvite/lastLoggedInMillis/status 全补齐同值；email/groups/lastLoggedIn 条件出现键位同）
   priority_class: P0
   layer: A
   source_row: "§5 行 2"
+  note: 'L007-1（2026-09-12）翻态 partial→compatible（带超集注记）：字段集对齐（admin/l007fresh/anonymous
+    三形态活体取证）+ status 映射级同（enabled 直译 ENABLED/DISABLED，参照 DISABLED 为 REST 面不可达态）。
+    超集 tolerated 三键+形态：enabled/adminRole/source 保留、email/groups 恒渲染（""/[]）——console 用户
+    编辑器回显驱动（web/ 非对齐域，严格裁齐需先开 console 前端票，L007-1 §3-2 裁量记录）；lastLoggedIn
+    秒级精度沿 M16 audit 派生族定谳。连带发现两建模级差异另立账（readers 默认组 / anonymous 用户行，
+    known-divergence#rest/user-create-default-group-readers、#rest/anonymous-user-row——不占本行渲染面）。'
 - row_id: D04-R03
   domain: D04
   capability: PUT /api/security/users/{name}（创建，201 无 body）
@@ -1226,19 +1245,19 @@ rows:
 - row_id: D04-R18
   domain: D04
   capability: GET/PUT/DELETE /api/security/permissions/{name}
-  state: partial
+  state: compatible
   confidence: high
   contract_ref:
   golden_ref:
-  last_difftest: reports/compatibility/L006-a-b-diff.md §2.1（GET v1 形/PUT 201 两态 + 409 逐字 SAME；残余三臂=DELETE 204vs200、GET 未知名体裁、POST 死动词）
+  last_difftest: reports/compatibility/L007-residuals-users-diff.md §1（三臂全 SAME：DELETE 200 文案逐字 + 未知名 404 envelope 同体同文（GET/DELETE 双腿）+ admin 主体 400 逐字含双单引号癖性 + 优先序两佐证腿；连带 PUT 未识组 400 收口）
   priority_class: P0
   layer: A
   source_row: "§5 行 18"
-  note: 'L006-1（2026-09-12）裁量维持 partial（残余收窄）：GET/PUT 主臂 SAME（letters 动作/扁平 patterns/
-    includes 空→**；PUT create/replace 皆 201、路径名≠body 名 409 逐字同），但残余非 pattern 分隔注记级——
-    DELETE 状态码分歧（参照 200 纯文本 vs BinFlow 204）+ GET 未知名错误体裁 + POST 死动词三臂为客户端可见
-    实质分歧，已立账 known-divergence#rest/permissions-v1-response-shape-residuals（BUG，LOOP 007 一票三臂）
-    → 残余收窄至该账内三臂，翻绿随台账 resolved。'
+  note: 'L006-1 裁量维持 partial（残余收窄至渲染族三臂账）→ L007-1（2026-09-12）收官翻 compatible——
+    L007-4 预登记的翻绿条件兑现：台账 rest/permissions-v1-response-shape-residuals 三臂清偿且差分复验
+    SAME（DELETE 200 文案逐字 / 未知名 404 envelope GET+DELETE 双腿 / admin 主体 400 逐字含双单引号癖性
+    + 优先序两佐证腿），连带 PUT 未识组腿同链路收口（组名前无冒号与 user 臂异——留痕）。台账 resolved
+    note 载裁量：400 系载体维持纯文本（低于阈值+同面一致）；/api/v1/permissions 自有面 204 冻结不动。'
 - row_id: D04-R19
   domain: D04
   capability: "/api/v2/security/permissions 族（8 条目 + per-user/per-group 6 端点）"
@@ -1751,7 +1770,7 @@ rows:
     /api 面唯一 backup 端点=POST /api/system/storage/backup?key=（D01-R40 已挂已验）；备份配置 CRUD 只在
     UI 内部面（artifactory-rest-ui cfx 平面，界外）。BinFlow /api/v1/system/backups 为 BinFlow-native 超集面
     ——建议 conductor 走新行提案转 superset 登记行（本票不越权立）。confidence medium→high（双源证伪）；
-    priority P0→P2（⛔ 终态口径）。'
+    priority P0→P2（⛔ 终态口径）。L007-4（2026-09-12）：反面超集面已落账 D06-R30（互锚）。'
 - row_id: D06-R18
   domain: D06
   capability: 维护模式族 GET/PUT /api/system/maintenance（BinFlow /api/v1/system/maintenance）
@@ -1888,6 +1907,24 @@ rows:
   layer: A
   source_row: "§7 行 29"
   note: 源 P3→P2
+- row_id: D06-R30
+  domain: D06
+  capability: "（超集）GET/PUT/DELETE /api/v1/system/backups[/{key}]（备份配置 CRUD 族 + 列表；PUT upsert-by-key + cronExp/nextBackupTime 承载）"
+  state: superset
+  confidence: high
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L006-a-b-diff.md §2.1/§2.2（参照侧 /api/system/backup[/{key}]、/api/system/backups 全 404——「参照无此 REST 面」活体+反编译双证的反面锚；BinFlow /api/v1 面本体无对拍对象）
+  priority_class: P2
+  layer: C
+  source_row: "新行入账（L007-4）——冻结行集无行；提案源=D06-R17 note（L006-1 证伪发现的反面），conductor 派票授权"
+  note: 'L007-4（2026-09-12）入账：D06-R17 ghost-row 证伪的反面登记——参照公开 /api 面无 /api/system/backup*
+    配置 CRUD 族（唯一 backup 端点=POST /api/system/storage/backup?key= 挂 D01-R40；配置 CRUD 只在 UI 内部面
+    cfx 平面，界外），BinFlow /api/v1/system/backups 为 BinFlow-native 超集面。BinFlow 自有面规范源=ADR-0044
+    决策 7（三消费面 REST 形态：列表 GET + {key} GET/PUT/DELETE、PUT upsert-by-key、body 承载 payload/cronExp/
+    nextBackupTime）+ 决策 9（调度 CRUD 门=system:write，readonly_admin 403）。contract_ref 留空=超集自有面
+    无参照契约可锚（D06-R20..R25 同款姿态）。confidence high：「参照无面」系 D06-R17 双源证伪高置信结论的
+    直接反面。冻结纪律：195 冻结行集不增删——本行系冻结行集外新行提案落账（L005-3 D01-R38..R43 先例）。'
 - row_id: D07-R01
   domain: D07
   capability: GET /api/build（名清单+lastStarted）
