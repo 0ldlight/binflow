@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strings"
@@ -93,15 +94,22 @@ type repoConfig struct {
 	ChecksumPolicyType      string `json:"checksumPolicyType,omitempty"`
 
 	// ---- M3 remote transport (FR-15; repo-semantics section 7.1 spellings) ----
-
-	Username                       string `json:"username,omitempty"`
-	Password                       string `json:"password,omitempty"` // transport only; repo.Service never persists it (NFR-S14)
-	RetrievalCachePeriodSecs       *int64 `json:"retrievalCachePeriodSecs,omitempty"`
-	MissedRetrievalCachePeriodSecs *int64 `json:"missedRetrievalCachePeriodSecs,omitempty"`
-	SocketTimeoutSecs              *int64 `json:"socketTimeoutSecs,omitempty"`
-	AssumedOfflinePeriodSecs       *int64 `json:"assumedOfflinePeriodSecs,omitempty"`
-	HardFail                       *bool  `json:"hardFail,omitempty"`
-	AllowPrivateUpstream           *bool  `json:"allowPrivateUpstream,omitempty"`
+	//
+	// Username/Password ride as RAW JSON (the enableTokenAuthentication
+	// posture) since ADR-0050: the credential pair's merge semantics need
+	// KEY PRESENCE plus the null-vs-value split to survive this transport —
+	// a typed string flattens null onto "" and a pointer flattens null onto
+	// nil, both indistinguishable from absent. The raw bytes ride verbatim
+	// into the config blob; repo.Service owns the typing gate and the
+	// merge/clear decision (never persisted — NFR-S14).
+	Username                       json.RawMessage `json:"username,omitempty"`
+	Password                       json.RawMessage `json:"password,omitempty"` // transport only; repo.Service never persists it (NFR-S14)
+	RetrievalCachePeriodSecs       *int64          `json:"retrievalCachePeriodSecs,omitempty"`
+	MissedRetrievalCachePeriodSecs *int64          `json:"missedRetrievalCachePeriodSecs,omitempty"`
+	SocketTimeoutSecs              *int64          `json:"socketTimeoutSecs,omitempty"`
+	AssumedOfflinePeriodSecs       *int64          `json:"assumedOfflinePeriodSecs,omitempty"`
+	HardFail                       *bool           `json:"hardFail,omitempty"`
+	AllowPrivateUpstream           *bool           `json:"allowPrivateUpstream,omitempty"`
 
 	// ---- T-495 (FR-158): the metadata TTL wire knob ----
 	//
@@ -303,8 +311,16 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 	switch rclass {
 	case repo.TypeRemote:
 		setStr(m, "url", c.URL)
-		setStr(m, "username", c.Username)
-		setStr(m, "password", c.Password)
+		// ADR-0050: the credential pair rides VERBATIM (null included) so
+		// repo.Service's raw-presence merge can tell omitted (keep) from an
+		// explicit null/"" (clear). setRawJSON is not used because these
+		// seats are values, not pointers.
+		if len(c.Username) > 0 {
+			m["username"] = c.Username
+		}
+		if len(c.Password) > 0 {
+			m["password"] = c.Password
+		}
 		setI64(m, "retrievalCachePeriodSecs", c.RetrievalCachePeriodSecs)
 		setI64(m, "missedRetrievalCachePeriodSecs", c.MissedRetrievalCachePeriodSecs)
 		setI64(m, "socketTimeoutSecs", c.SocketTimeoutSecs)
@@ -609,19 +625,25 @@ func (s *Server) canManage(ctx context.Context, p *auth.Principal, capability au
 	})
 }
 
-// handleRepoPut serves PUT /api/repositories/{key} (E-06/E-07): create, or
-// update when the key exists — both answer 200 plain text (PRD v1.3
-// calibration R2; the create-vs-update wording distinction is kept so
-// scripts can log accurately). M3 (T-80) opens the remote/virtual classes:
-// the type-relevant body fields ride through to repo.Service's typed config
-// (E-07's M1 refusal is inverted per PRD section 5.6; the docker
-// combinations stay refused — that rule is the service's).
+// handleRepoPut serves PUT /api/repositories/{key} (E-06/E-07): CREATE only
+// since ADR-0050 — the reference's update spelling is POST, and a PUT onto
+// an EXISTING key answers the create-only 400 (the reference's literal
+// wording, frozen by the L007-3/L008-1b evidence; zero side effects). M3
+// (T-80) opens the remote/virtual classes: the type-relevant body fields
+// ride through to repo.Service's typed config (E-07's M1 refusal is
+// inverted per PRD section 5.6; the docker combinations stay refused —
+// that rule is the service's).
+//
+// The type refusal precedes the key-exists question (live probe A16: a
+// rclass-less PUT onto an existing key hits "Missing repository type"
+// first): such a body falls into the create path below, which refuses the
+// type before the key question can arise.
 //
 // M7 (ADR-0026, inventory family 6): the route gate is the family-7
-// repoManage write gate (the replace arm of an EXISTING repository); the
-// CREATE arm — the key does not exist yet — splits here onto the global
-// repo:write capability, which is deliberately NOT delegated to manage
-// holders (FR-65: a repo admin cannot create or delete repositories).
+// repoManage write gate; the CREATE arm — the key does not exist yet —
+// splits here onto the global repo:write capability, which is deliberately
+// NOT delegated to manage holders (FR-65: a repo admin cannot create or
+// delete repositories).
 func (s *Server) handleRepoPut(w http.ResponseWriter, r *http.Request, key string) {
 	var body repoConfig
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
@@ -638,37 +660,26 @@ func (s *Server) handleRepoPut(w http.ResponseWriter, r *http.Request, key strin
 	}
 
 	p := principalFrom(r.Context())
+
+	// ADR-0050 decision 2 (PUT = create-only): an existing key refuses with
+	// the reference's create-conflict literal, regardless of body
+	// completeness, and touches nothing — except a body WITHOUT rclass,
+	// which hits the type refusal first (the A16 order) by falling into
+	// the create path below.
+	_, getErr := s.deps.ReposSvc.GetRepo(r.Context(), p, key)
+	switch {
+	case getErr == nil && body.RClass != "":
+		writeError(w, http.StatusBadRequest, fmt.Sprintf(
+			"error when validating repository name: %s : Repository key already exists", key))
+		return
+	case getErr != nil && !errors.Is(getErr, repo.ErrRepoNotFound):
+		s.writeRepoSvcError(w, getErr)
+		return
+	}
+
 	stored := &metadata.Repo{
 		RepoKey: key, Type: body.RClass, PackageType: body.PackageType,
 		Description: body.Description,
-	}
-
-	// Update path first: an existing key makes this an update regardless of
-	// the body's completeness (PUT is the documented M1 update spelling too).
-	current, getErr := s.deps.ReposSvc.GetRepo(r.Context(), p, key)
-	switch {
-	case getErr == nil:
-		if stored.Type == "" {
-			stored.Type = current.Type
-		}
-		if stored.PackageType == "" {
-			stored.PackageType = current.PackageType
-		}
-		config, err := body.configJSON(stored.Type)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		stored.Config = config
-		if _, err := s.deps.ReposSvc.UpdateRepo(r.Context(), p, stored); err != nil {
-			s.writeRepoSvcError(w, err)
-			return
-		}
-		writeText(w, http.StatusOK, fmt.Sprintf("Repository %s update successfully.\n", key))
-		return
-	case !errors.Is(getErr, repo.ErrRepoNotFound):
-		s.writeRepoSvcError(w, getErr)
-		return
 	}
 
 	config, err := body.configJSON(stored.Type)
@@ -704,11 +715,17 @@ func (s *Server) handleRepoPut(w http.ResponseWriter, r *http.Request, key strin
 }
 
 // handleRepoPost serves POST /api/repositories/{key} (update spelling,
-// rest-api.md section 2): 404 when the key is unknown.
+// rest-api.md section 2): 404 when the key is unknown. Since ADR-0050 the
+// description seat MERGES like every other field: an omitted key keeps the
+// stored value, an explicit null/""/value overwrites (null decodes as "").
 func (s *Server) handleRepoPost(w http.ResponseWriter, r *http.Request, key string) {
+	rawBody, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "request body is not valid repository configuration JSON: "+err.Error())
+		return
+	}
 	var body repoConfig
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
-	if err := dec.Decode(&body); err != nil {
+	if err := json.Unmarshal(rawBody, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "request body is not valid repository configuration JSON: "+err.Error())
 		return
 	}
@@ -717,6 +734,16 @@ func (s *Server) handleRepoPost(w http.ResponseWriter, r *http.Request, key stri
 	if err != nil {
 		s.writeRepoSvcError(w, err)
 		return
+	}
+	// ADR-0050 decision 5: description merges — the raw body's key presence
+	// decides keep-vs-overwrite (the typed seat cannot: null and absent
+	// both decode to "").
+	description := body.Description
+	var presence map[string]json.RawMessage
+	if json.Unmarshal(rawBody, &presence) == nil {
+		if _, ok := presence["description"]; !ok {
+			description = current.Description
+		}
 	}
 	rclass := body.RClass
 	if rclass == "" {
@@ -733,7 +760,7 @@ func (s *Server) handleRepoPost(w http.ResponseWriter, r *http.Request, key stri
 	}
 	if _, err := s.deps.ReposSvc.UpdateRepo(r.Context(), p, &metadata.Repo{
 		RepoKey: key, Type: rclass, PackageType: packageType,
-		Description: body.Description, Config: config,
+		Description: description, Config: config,
 	}); err != nil {
 		s.writeRepoSvcError(w, err)
 		return

@@ -1328,6 +1328,9 @@ func (h *Handler) serveRemoteManifestCopy(w http.ResponseWriter, r *http.Request
 // the digest ENFORCED (a body that is not the digest it was requested by
 // never lands under that digest), the engine's degradation matrix on
 // faults. Range/conditional semantics reuse the local plane's server.
+// The retrieval window EXEMPTS this face (the D3 ruling below): a verified
+// standing copy is already the terminal answer for a digest-addressed
+// read, so the expiry arm never re-opens the upstream conversation.
 func (h *Handler) serveRemoteBlob(w http.ResponseWriter, r *http.Request, ref nameRef, tail string) {
 	digestParam, ok := strings.CutPrefix(tail, blobsTail)
 	if !ok || digestParam == "" {
@@ -1369,6 +1372,24 @@ func (h *Handler) serveRemoteBlob(w http.ResponseWriter, r *http.Request, ref na
 		return
 	case repo.RemoteProbeNegative:
 		unfound.write(w, "")
+		return
+	}
+	// The D3 window exemption (conductor LOOP 007 ruling, 2026-09-12;
+	// evidence reports/compatibility/L007-d3-virtual-probe.md §1): the
+	// retrieval window gates the MUTABLE face — a tag can re-point, so an
+	// expired manifest revalidates. A digest-addressed blob is
+	// content-addressed immutable: the standing copy landed through
+	// LandRemoteBlob with the digest ENFORCED at commit, so a copy whose
+	// recorded digest matches the request IS the checksum-verified answer,
+	// and an expiry refetch can only re-transfer the same bytes. The
+	// verified standing copy serves LOCALLY on the expired arm — zero
+	// upstream contact, the cache row untouched (the reference's own
+	// posture: four probe arms, 1×/3×TTL, INM, 10×TTL and a real docker
+	// pull, all zero refetches, the stored file never rewritten). The
+	// negative row above keeps its own window — this arm is the CONTENT
+	// class only.
+	if probe.Node != nil && digestHexOfNode(probe.Node) == hex {
+		h.serveRemoteBlobCopy(w, r, face, probe.Node, remote.CacheHit, "")
 		return
 	}
 	var standing *remoteStanding

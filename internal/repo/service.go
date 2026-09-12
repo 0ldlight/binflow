@@ -2193,7 +2193,7 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		if err := rejectKeypairRefOnNonLocal(r.Type, config); err != nil {
 			return nil, err
 		}
-		rc, password, perr := parseRemoteConfig(config, r.PackageType)
+		rc, password, _, perr := parseRemoteConfig(config, r.PackageType, nil)
 		if perr != nil {
 			return nil, perr
 		}
@@ -2501,9 +2501,12 @@ func (s *service) ListReposFiltered(ctx context.Context, p *Principal, repoType,
 // type and package type are immutable (changing them would silently change
 // every adapter routing decision). A PROVIDED config re-validates and
 // rewrites the type-owned state (the remote_configs row / the virtual member
-// list — full-replace semantics, the Artifactory PUT model); an absent
-// config keeps it, so description-only updates never touch members or
-// credentials.
+// list); the REMOTE arm MERGES on omit (ADR-0050: the stored canonical form
+// is the parse baseline — omitted seats keep their stored values, explicit
+// null/"" clears a scalar, explicit 0 stores 0); local/virtual keep the
+// caller-owned replace posture (their merge is a separate ticket). An
+// absent config keeps the type-owned state, so description-only updates
+// never touch members or credentials.
 func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo) (*metadata.Repo, error) {
 	// T-217 (FR-65, ADR-0026 decision 3 / architecture section 7.1 family 7):
 	// the single-repo configuration family's gate lives in httpapi — the
@@ -2549,11 +2552,12 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 	}
 
 	var (
-		remote         *remoteConfig
-		remotePassword string
-		members        []string
-		configSet      bool
-		privateFrom    *bool
+		remote            *remoteConfig
+		remotePassword    string
+		remotePasswordSet bool
+		members           []string
+		configSet         bool
+		privateFrom       *bool
 	)
 	config := current.Config
 	if r.Config != "" {
@@ -2573,12 +2577,22 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			if err := rejectKeypairRefOnNonLocal(current.Type, r.Config); err != nil {
 				return nil, err
 			}
-			rc, password, perr := parseRemoteConfig(r.Config, current.PackageType)
+			// ADR-0050 (L008-1b): the update face MERGES — the stored
+			// canonical config is the parse baseline, so an omitted field
+			// keeps its stored value instead of falling back to the
+			// product default (the update-merge family BUG). A stored blob
+			// that does not decode (hand-mangled rows) yields a partial
+			// baseline; a baseline without a url then demands one in the
+			// body — the fail-closed posture of the healer path.
+			var baseline remoteConfig
+			_ = json.Unmarshal([]byte(current.Config), &baseline)
+			rc, password, passwordSet, perr := parseRemoteConfig(r.Config, current.PackageType, &baseline)
 			if perr != nil {
 				return nil, perr
 			}
 			remote = &rc
 			remotePassword = password
+			remotePasswordSet = passwordSet
 			if config, err = marshalConfig(rc); err != nil {
 				return nil, err
 			}
@@ -2624,11 +2638,6 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		row := &metadata.RemoteConfig{
 			RepoKey: r.RepoKey,
 			URL:     remote.URL, Username: remote.Username,
-			// Full-replace semantics (the Artifactory PUT model, T-80's
-			// ruling): the new body's password — sealed, or dropped with a
-			// WARN when no master key is configured — replaces the stored
-			// one; a body without a password clears it.
-			Password:             s.sealPassword(ctx, r.RepoKey, remotePassword),
 			ContentTTLSeconds:    remote.RetrievalCachePeriodSecs,
 			MetadataTTLSeconds:   remote.MetadataRetrievalCachePeriodSecs,
 			AllowPrivateUpstream: remote.AllowPrivateUpstream,
@@ -2636,6 +2645,31 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			SocketTimeoutMs:              remote.SocketTimeoutMillis,
 			MetadataRetrievalTimeoutSecs: remote.MetadataRetrievalTimeoutSecs,
 			UnusedCleanupPeriodHours:     remote.UnusedCleanupPeriodHours,
+		}
+		// Credential merge (ADR-0050 decision 4, superseding T-80's
+		// full-replace ruling): a body that OMITS the password key keeps
+		// the stored row's sealed password byte-for-byte; an explicit
+		// null/""/value clears or replaces it (sealPassword's empty
+		// path, or a WARN drop when no master key is configured).
+		switch {
+		case remotePasswordSet:
+			row.Password = s.sealPassword(ctx, r.RepoKey, remotePassword)
+		default:
+			cur, gerr := s.md.Remote().GetConfig(ctx, r.RepoKey)
+			switch {
+			case gerr == nil:
+				row.Password = cur.Password
+			case errors.Is(gerr, metadata.ErrRemoteConfigNotFound):
+				// A missing row (the create-crash window) has nothing to
+				// keep: the healer below creates it with an empty password.
+			default:
+				// Review B1: any other read failure REFUSES the update —
+				// swallowing it as "nothing to keep" would let the
+				// UpdateConfig below overwrite the stored sealed password
+				// with "" (silent credential loss, the exact loss decision
+				// 4 exists to prevent).
+				return nil, fmt.Errorf("remote config %q: %w", r.RepoKey, gerr)
+			}
 		}
 		if err := s.md.Remote().UpdateConfig(ctx, row); err != nil {
 			if !errors.Is(err, metadata.ErrRemoteConfigNotFound) {

@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -98,8 +97,11 @@ func TestRemoteUnfoundBodiesMatchArtifactory(t *testing.T) {
 // evidence report's section 8 walk (the rendering lives in the shared v2
 // REST layer, not a remote-only handler) is INFERENCE; this pins the
 // propagated shape on the virtual face explicitly (L001-1 review B1).
-// The message keeps the walk's upstream-summary suffix — only the prefix
-// and the detail key/value are pinned here.
+// The message is the PLAIN static copy, byte-for-byte: the walk's
+// per-member upstream summaries moved to a WARN line (L007-2 §2.4 — the
+// reference's virtual terminal 404 carries no "(upstream answered …)"
+// suffix, first answer included; the earlier first-answer annotation was
+// the ledger's cold-negative body divergence).
 func TestVirtualUnfoundBodyCarriesRemoteShape(t *testing.T) {
 	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound) // the member's upstream answers nothing
@@ -116,24 +118,24 @@ func TestVirtualUnfoundBodyCarriesRemoteShape(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name, path, wantCode, wantMessagePrefix string
-		wantDetailKey, wantDetailValue          string
+		name, path, wantCode, wantMessage string
+		wantDetailKey, wantDetailValue    string
 	}{
 		{
-			name:              "virtual manifest 404, tag arm",
-			path:              "/v2/docker-virt/myimg/manifests/never-tagged",
-			wantCode:          ErrCodeManifestUnknown,
-			wantMessagePrefix: "The named manifest is not known to the registry.",
-			wantDetailKey:     "manifest",
-			wantDetailValue:   "myimg",
+			name:            "virtual manifest 404, tag arm",
+			path:            "/v2/docker-virt/myimg/manifests/never-tagged",
+			wantCode:        ErrCodeManifestUnknown,
+			wantMessage:     "The named manifest is not known to the registry.",
+			wantDetailKey:   "manifest",
+			wantDetailValue: "myimg",
 		},
 		{
-			name:              "virtual blob 404",
-			path:              "/v2/docker-virt/myimg/blobs/sha256:" + sha256Hex([]byte("virt-absent")),
-			wantCode:          ErrCodeBlobUnknown,
-			wantMessagePrefix: "blob unknown to registry",
-			wantDetailKey:     "blobSum",
-			wantDetailValue:   "sha256:" + sha256Hex([]byte("virt-absent")),
+			name:            "virtual blob 404",
+			path:            "/v2/docker-virt/myimg/blobs/sha256:" + sha256Hex([]byte("virt-absent")),
+			wantCode:        ErrCodeBlobUnknown,
+			wantMessage:     "blob unknown to registry",
+			wantDetailKey:   "blobSum",
+			wantDetailValue: "sha256:" + sha256Hex([]byte("virt-absent")),
 		},
 	} {
 		code, body, _ := down.serveReq(http.MethodGet, tc.path, nil, nil)
@@ -150,8 +152,8 @@ func TestVirtualUnfoundBodyCarriesRemoteShape(t *testing.T) {
 		if got.Code != tc.wantCode {
 			t.Errorf("%s code = %q, want %q", tc.name, got.Code, tc.wantCode)
 		}
-		if !strings.HasPrefix(got.Message, tc.wantMessagePrefix) {
-			t.Errorf("%s message = %q, want the E6 static prefix %q", tc.name, got.Message, tc.wantMessagePrefix)
+		if got.Message != tc.wantMessage {
+			t.Errorf("%s message = %q, want the EXACT E6 static copy %q (no upstream-summary suffix)", tc.name, got.Message, tc.wantMessage)
 		}
 		detail, _ := got.Detail.(map[string]any)
 		if detail[tc.wantDetailKey] != tc.wantDetailValue || len(detail) != 1 {

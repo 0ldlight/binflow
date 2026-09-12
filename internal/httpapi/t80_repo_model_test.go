@@ -329,16 +329,17 @@ func TestM05DockerBoundaryREST(t *testing.T) {
 	})
 }
 
-// ---- update path: the transported fields drive the service's replace ----
+// ---- update path since ADR-0050: POST is the update spelling; the remote
+// arm MERGES on omit, PUT onto an existing key is the create-only 400 ----
 
 func TestRemoteVirtualUpdateREST(t *testing.T) {
-	t.Run("remote PUT replaces the url", func(t *testing.T) {
+	t.Run("remote POST updates the url, merge keeps the rest", func(t *testing.T) {
 		h := repoModelHarness(t)
 		if s, b := putRepoStatus(t, h, "generic-remote",
-			`{"rclass":"remote","packageType":"generic","url":"http://old.example.org"}`); s != http.StatusOK {
+			`{"rclass":"remote","packageType":"generic","url":"http://old.example.org","hardFail":true,"username":"keepme"}`); s != http.StatusOK {
 			t.Fatalf("create: %d %s", s, b)
 		}
-		if s, b := putRepoStatus(t, h, "generic-remote",
+		if s, b := postRepoStatus(t, h, "generic-remote",
 			`{"url":"http://new.example.org/m2"}`); s != http.StatusOK {
 			t.Fatalf("update: %d %s", s, b)
 		}
@@ -347,8 +348,14 @@ func TestRemoteVirtualUpdateREST(t *testing.T) {
 		if conf["url"] != "http://new.example.org/m2" {
 			t.Fatalf("configuration.url after update = %v", conf["url"])
 		}
+		if conf["hardFail"] != true {
+			t.Fatalf("hardFail after url-only update = %v, want the kept true (ADR-0050 merge)", conf["hardFail"])
+		}
+		if conf["username"] != "keepme" {
+			t.Fatalf("username after url-only update = %v, want the kept value", conf["username"])
+		}
 	})
-	t.Run("virtual PUT rewrites the member list", func(t *testing.T) {
+	t.Run("virtual POST rewrites the member list", func(t *testing.T) {
 		h := repoModelHarness(t)
 		if s, b := putRepoStatus(t, h, "another-local", `{"rclass":"local","packageType":"generic"}`); s != http.StatusOK {
 			t.Fatalf("seed second member: %d %s", s, b)
@@ -357,7 +364,7 @@ func TestRemoteVirtualUpdateREST(t *testing.T) {
 			`{"rclass":"virtual","packageType":"generic","repositories":["generic-local"]}`); s != http.StatusOK {
 			t.Fatalf("create: %d %s", s, b)
 		}
-		if s, b := putRepoStatus(t, h, "aggregated",
+		if s, b := postRepoStatus(t, h, "aggregated",
 			`{"repositories":["another-local","generic-local"]}`); s != http.StatusOK {
 			t.Fatalf("update: %d %s", s, b)
 		}
@@ -368,28 +375,70 @@ func TestRemoteVirtualUpdateREST(t *testing.T) {
 			t.Fatalf("members after update = %v", conf["repositories"])
 		}
 	})
-	t.Run("remote update without url is the full-replace refusal", func(t *testing.T) {
-		// Artifactory PUT semantics: a config-carrying update replaces the
-		// whole remote configuration, so it must carry the url.
+	t.Run("remote partial update needs no url since ADR-0050", func(t *testing.T) {
+		// The pre-ADR-0050 url-required 400 of a partial update is gone:
+		// omit = keep. The full matrix lives in the update-merge suites.
 		h := repoModelHarness(t)
 		if s, b := putRepoStatus(t, h, "generic-remote",
 			`{"rclass":"remote","packageType":"generic","url":"http://u"}`); s != http.StatusOK {
 			t.Fatalf("create: %d %s", s, b)
 		}
-		status, body := putRepoStatus(t, h, "generic-remote", `{"username":"bot"}`)
-		if status != http.StatusBadRequest || !strings.Contains(body, "url") {
-			t.Fatalf("partial update = %d %q, want 400 naming url", status, body)
-		}
-		// A description-only update keeps the configuration (no
-		// type-relevant field in the body).
-		status, body = putRepoStatus(t, h, "generic-remote", `{"description":"just words"}`)
+		status, body := postRepoStatus(t, h, "generic-remote", `{"username":"bot"}`)
 		if status != http.StatusOK {
-			t.Fatalf("description-only update = %d %s", status, body)
+			t.Fatalf("partial update = %d %q, want 200 (merge-on-omit)", status, body)
 		}
 		_, cfg := getRepoJSON(t, h, "generic-remote")
 		conf := cfg["configuration"].(map[string]any)
 		if conf["url"] != "http://u" {
+			t.Fatalf("configuration.url after partial update = %v", conf["url"])
+		}
+		if conf["username"] != "bot" {
+			t.Fatalf("configuration.username after partial update = %v", conf["username"])
+		}
+		// A description-only update keeps the configuration (no
+		// type-relevant field in the body).
+		status, body = postRepoStatus(t, h, "generic-remote", `{"description":"just words"}`)
+		if status != http.StatusOK {
+			t.Fatalf("description-only update = %d %s", status, body)
+		}
+		_, cfg = getRepoJSON(t, h, "generic-remote")
+		conf = cfg["configuration"].(map[string]any)
+		if conf["url"] != "http://u" {
 			t.Fatalf("configuration.url after description-only update = %v", conf["url"])
+		}
+	})
+	t.Run("POST unknown key is 404", func(t *testing.T) {
+		h := repoModelHarness(t)
+		status, _ := postRepoStatus(t, h, "never-created", `{"description":"x"}`)
+		if status != http.StatusNotFound {
+			t.Fatalf("POST unknown key = %d, want 404", status)
+		}
+	})
+	t.Run("PUT onto an existing key is the create-only 400", func(t *testing.T) {
+		h := repoModelHarness(t)
+		if s, b := putRepoStatus(t, h, "generic-remote",
+			`{"rclass":"remote","packageType":"generic","url":"http://u"}`); s != http.StatusOK {
+			t.Fatalf("create: %d %s", s, b)
+		}
+		// Complete body: the reference's literal create-conflict refusal,
+		// zero side effects (GET below re-checks the stored config).
+		status, body := putRepoStatus(t, h, "generic-remote",
+			`{"rclass":"remote","packageType":"generic","url":"http://moved.example.org","hardFail":true}`)
+		if status != http.StatusBadRequest || !strings.Contains(body,
+			"error when validating repository name: generic-remote : Repository key already exists") {
+			t.Fatalf("PUT-on-existing = (%d, %q), want the 400 key-exists literal", status, body)
+		}
+		_, cfg := getRepoJSON(t, h, "generic-remote")
+		conf := cfg["configuration"].(map[string]any)
+		if conf["url"] != "http://u" || conf["hardFail"] != false {
+			t.Fatalf("refused PUT left side effects: %v", conf)
+		}
+		// No rclass: the type refusal fires FIRST (the reference's probe
+		// A16 order) — BinFlow's own type wording, the key-exists question
+		// is never reached.
+		status, body = putRepoStatus(t, h, "generic-remote", `{"url":"http://moved.example.org"}`)
+		if status != http.StatusBadRequest || !strings.Contains(body, "repository type") {
+			t.Fatalf("rclass-less PUT-on-existing = (%d, %q), want the type-first 400", status, body)
 		}
 	})
 }

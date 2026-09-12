@@ -109,12 +109,12 @@ func TestRemoteBrowseFlagRoundTripREST(t *testing.T) {
 	})
 }
 
-// TestRemoteBrowseFlagUpdateFlipsAndKeepsREST: the update plane. A
-// config-carrying PUT is the Artifactory full-replace — the flag flips with
-// it; a body without any type-relevant field keeps the stored config (the
-// keep-current signal). A flag-only update still answers the url-required
-// 400 (the remote arm's full-replace precondition, the FE contract for
-// T-461: send the whole form, not the single knob).
+// TestRemoteBrowseFlagUpdateFlipsAndKeepsREST: the update plane since
+// ADR-0050 — POST is the update spelling (PUT is create-only) and the remote
+// arm MERGES: the flag flips with an explicit false, a body without any
+// type-relevant field keeps the stored config, and a flag-only update is now
+// LEGAL (the url may be omitted on the update face — the pre-ADR-0050
+// url-required 400 is gone).
 func TestRemoteBrowseFlagUpdateFlipsAndKeepsREST(t *testing.T) {
 	h := newBrowseFlagHarness(t)
 	if status, body := putRepoStatus(t, h, "browse-up",
@@ -123,9 +123,9 @@ func TestRemoteBrowseFlagUpdateFlipsAndKeepsREST(t *testing.T) {
 		t.Fatalf("create status = %d; body=%s", status, body)
 	}
 
-	// Flip off: the full body carrying an explicit false.
-	if status, body := putRepoStatus(t, h, "browse-up",
-		`{"url":"http://127.0.0.1:9099","listRemoteFolderItems":false}`); status != http.StatusOK {
+	// Flip off: an explicit false, no url needed (merge-on-omit).
+	if status, body := postRepoStatus(t, h, "browse-up",
+		`{"listRemoteFolderItems":false}`); status != http.StatusOK {
 		t.Fatalf("flip-off status = %d; body=%s", status, body)
 	}
 	_, cfg := getRepoJSON(t, h, "browse-up")
@@ -136,7 +136,7 @@ func TestRemoteBrowseFlagUpdateFlipsAndKeepsREST(t *testing.T) {
 
 	// Description-only update: no type-relevant field, the stored config
 	// (flag included) is kept untouched.
-	if status, body := putRepoStatus(t, h, "browse-up", `{"description":"words only"}`); status != http.StatusOK {
+	if status, body := postRepoStatus(t, h, "browse-up", `{"description":"words only"}`); status != http.StatusOK {
 		t.Fatalf("description-only status = %d; body=%s", status, body)
 	}
 	_, cfg = getRepoJSON(t, h, "browse-up")
@@ -145,30 +145,18 @@ func TestRemoteBrowseFlagUpdateFlipsAndKeepsREST(t *testing.T) {
 		t.Fatalf("after description-only update = %v, want the kept false", conf["listRemoteFolderItems"])
 	}
 
-	// The POST update spelling rides the same transport and flips back on.
-	resp := h.do(http.MethodPost, "/binflow/api/repositories/browse-up", adminUser, adminPass,
-		[]byte(`{"url":"http://127.0.0.1:9099","listRemoteFolderItems":true}`),
-		map[string]string{"Content-Type": "application/json"})
-	if postBody := mustGet(t, resp); resp.StatusCode != http.StatusOK {
-		t.Fatalf("POST update status = %d; body=%s", resp.StatusCode, postBody)
+	// The same POST spelling flips back on.
+	if status, body := postRepoStatus(t, h, "browse-up",
+		`{"listRemoteFolderItems":true}`); status != http.StatusOK {
+		t.Fatalf("POST flip-on status = %d; body=%s", status, body)
 	}
 	_, cfg = getRepoJSON(t, h, "browse-up")
 	conf = cfg["configuration"].(map[string]any)
 	if conf["listRemoteFolderItems"] != true {
 		t.Fatalf("after POST flip-on = %v, want true", conf["listRemoteFolderItems"])
 	}
-
-	// A flag-only update is NOT a partial update: the remote arm's
-	// full-replace demands the url, so the knob alone answers the
-	// url-required 400 (same refusal every other remote field gets).
-	status, body := putRepoStatus(t, h, "browse-up", `{"listRemoteFolderItems":false}`)
-	if status != http.StatusBadRequest || !strings.Contains(body, "url is required") {
-		t.Fatalf("flag-only update = (%d, %q), want 400 naming the url requirement", status, body)
-	}
-	_, cfg = getRepoJSON(t, h, "browse-up")
-	conf = cfg["configuration"].(map[string]any)
-	if conf["listRemoteFolderItems"] != true {
-		t.Fatalf("after refused flag-only update = %v, want the kept true", conf["listRemoteFolderItems"])
+	if conf["url"] != "http://127.0.0.1:9099" {
+		t.Fatalf("after flag-only updates = %v, want the kept url", conf["url"])
 	}
 }
 

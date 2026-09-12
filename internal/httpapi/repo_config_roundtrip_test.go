@@ -86,7 +86,7 @@ func TestRepoConfigFourDomainRoundTripWire(t *testing.T) {
 			}[tt.field]
 			updatedJSON, _ := json.Marshal(updated)
 			body = fmt.Sprintf(`{"rclass":"local","%s":%s}`, tt.field, updatedJSON)
-			resp = putRepo(t, h, "lib", body)
+			resp = postRepo(t, h, "lib", body)
 			if out, code := mustGet(t, resp), resp.StatusCode; code != http.StatusOK {
 				t.Fatalf("update status %d body=%s", code, out)
 			}
@@ -257,7 +257,7 @@ func TestBlackedOutWriteRefusalWire(t *testing.T) {
 	seedDockerRepo(t, h, "dock")
 
 	// Black the generic repository out through the config plane.
-	resp := putRepo(t, h, "lib", `{"rclass":"local","blackedOut":true}`)
+	resp := postRepo(t, h, "lib", `{"rclass":"local","blackedOut":true}`)
 	if out, code := mustGet(t, resp), resp.StatusCode; code != http.StatusOK {
 		t.Fatalf("blackout update status %d body=%s", code, out)
 	}
@@ -275,7 +275,7 @@ func TestBlackedOutWriteRefusalWire(t *testing.T) {
 	}
 
 	// Flip off: the write plane reopens.
-	resp = putRepo(t, h, "lib", `{"rclass":"local","blackedOut":false}`)
+	resp = postRepo(t, h, "lib", `{"rclass":"local","blackedOut":false}`)
 	if out, code := mustGet(t, resp), resp.StatusCode; code != http.StatusOK {
 		t.Fatalf("flip-off status %d body=%s", code, out)
 	}
@@ -297,7 +297,7 @@ func TestBlackedOutWriteRefusalWire(t *testing.T) {
 		t.Fatalf("baseline blob upload status %d body=%s", code, out)
 	}
 
-	resp = putRepo(t, h, "dock", `{"rclass":"local","blackedOut":true}`)
+	resp = postRepo(t, h, "dock", `{"rclass":"local","blackedOut":true}`)
 	if out, code := mustGet(t, resp), resp.StatusCode; code != http.StatusOK {
 		t.Fatalf("docker blackout status %d body=%s", code, out)
 	}
@@ -323,7 +323,7 @@ func TestBlackedOutWriteRefusalWire(t *testing.T) {
 
 	// Flip the registry back on: the same push lands (the mark is a live
 	// switch, not a sticky refusal).
-	resp = putRepo(t, h, "dock", `{"rclass":"local","blackedOut":false}`)
+	resp = postRepo(t, h, "dock", `{"rclass":"local","blackedOut":false}`)
 	if out, code := mustGet(t, resp), resp.StatusCode; code != http.StatusOK {
 		t.Fatalf("docker flip-off status %d body=%s", code, out)
 	}

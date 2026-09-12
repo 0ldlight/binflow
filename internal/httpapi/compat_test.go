@@ -19,6 +19,22 @@ func putRepo(t *testing.T, h *harness, key, body string) *http.Response {
 		[]byte(body), map[string]string{"Content-Type": "application/json"})
 }
 
+// postRepo issues the update-repository POST (the update spelling since
+// ADR-0050: PUT is create-only) and returns the response.
+func postRepo(t *testing.T, h *harness, key, body string) *http.Response {
+	t.Helper()
+	return h.do(http.MethodPost, "/binflow/api/repositories/"+key, adminUser, adminPass,
+		[]byte(body), map[string]string{"Content-Type": "application/json"})
+}
+
+// postRepoStatus is postRepo with the (status, body) shape the wire tests
+// assert on.
+func postRepoStatus(t *testing.T, h *harness, key, body string) (int, string) {
+	t.Helper()
+	resp := postRepo(t, h, key, body)
+	return resp.StatusCode, mustGet(t, resp)
+}
+
 // TestRepositoriesCRUD walks C03 -> C04 -> C05 -> C06 -> C19 plus the C26
 // family as flipped for M3 (FR-15/PRD section 5.6: remote and virtual
 // classes create; the docker combinations stay refused): create 200 plain
@@ -42,8 +58,22 @@ func TestRepositoriesCRUD(t *testing.T) {
 		}
 	})
 
-	t.Run("C03 repeat create is 200 update wording", func(t *testing.T) {
+	t.Run("C03 repeat create is the ADR-0050 create-only 400", func(t *testing.T) {
+		// PUT onto an existing key is create-only since ADR-0050: the
+		// reference's literal create-conflict 400, zero side effects. The
+		// update spelling moved to POST (see the POST arm below).
 		resp := putRepo(t, h, "generic-local", `{"rclass":"local","packageType":"generic"}`)
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("status = %d; body=%s", resp.StatusCode, mustGet(t, resp))
+		}
+		eb := decodeError(t, resp)
+		if !strings.Contains(eb.Errors[0].Message, "Repository key already exists") {
+			t.Fatalf("message = %q, want the key-exists literal", eb.Errors[0].Message)
+		}
+	})
+
+	t.Run("C03 POST update is 200 update wording", func(t *testing.T) {
+		resp := postRepo(t, h, "generic-local", `{"rclass":"local","packageType":"generic","description":"C03 updated"}`)
 		body := mustGet(t, resp)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("status = %d; body=%s", resp.StatusCode, body)

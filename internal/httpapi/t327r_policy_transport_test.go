@@ -99,7 +99,7 @@ func TestDebRpmPolicyKeysUpdateReplacesConfig(t *testing.T) {
 		`{"rclass":"local","packageType":"generic","byHash":"ALL","calculateYumMetadata":true}`); status != http.StatusOK {
 		t.Fatalf("create status = %d; body=%s", status, body)
 	}
-	if status, body := putRepoStatus(t, h, "policy-up", `{"byHash":"NONE"}`); status != http.StatusOK {
+	if status, body := postRepoStatus(t, h, "policy-up", `{"byHash":"NONE"}`); status != http.StatusOK {
 		t.Fatalf("update status = %d; body=%s", status, body)
 	}
 	_, cfg := getRepoJSON(t, h, "policy-up")
@@ -110,14 +110,12 @@ func TestDebRpmPolicyKeysUpdateReplacesConfig(t *testing.T) {
 	if _, still := conf["calculateYumMetadata"]; still {
 		t.Errorf("full-replace dropped nothing — calculateYumMetadata = %v survived", conf["calculateYumMetadata"])
 	}
-	// The POST update spelling rides the same transport.
-	resp := h.do(http.MethodPost, "/binflow/api/repositories/policy-up", adminUser, adminPass,
-		[]byte(`{"byHash":"SHA256"}`), map[string]string{"Content-Type": "application/json"})
-	if postBody := mustGet(t, resp); resp.StatusCode != http.StatusOK {
-		t.Fatalf("POST update status = %d; body=%s", resp.StatusCode, postBody)
+	// The POST update spelling carries a second value change.
+	if status, body := postRepoStatus(t, h, "policy-up", `{"byHash":"SHA256"}`); status != http.StatusOK {
+		t.Fatalf("second update status = %d; body=%s", status, body)
 	}
-	// Description-only PUT: no type-relevant field, configuration kept.
-	if status, body := putRepoStatus(t, h, "policy-up", `{"description":"words only"}`); status != http.StatusOK {
+	// Description-only update: no type-relevant field, configuration kept.
+	if status, body := postRepoStatus(t, h, "policy-up", `{"description":"words only"}`); status != http.StatusOK {
 		t.Fatalf("description-only status = %d; body=%s", status, body)
 	}
 	_, cfg = getRepoJSON(t, h, "policy-up")
@@ -200,7 +198,7 @@ func TestByHashEnumValueDomainREST(t *testing.T) {
 			`{"rclass":"local","packageType":"generic","byHash":"ALL"}`); status != http.StatusOK {
 			t.Fatalf("create status = %d; body=%s", status, body)
 		}
-		status, body := putRepoStatus(t, h, "policy-enum-up", `{"byHash":"all"}`)
+		status, body := postRepoStatus(t, h, "policy-enum-up", `{"byHash":"all"}`)
 		if status != http.StatusBadRequest {
 			t.Fatalf("update status = %d; body=%s", status, body)
 		}

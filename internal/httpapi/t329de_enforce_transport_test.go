@@ -79,7 +79,7 @@ func TestHelmEnforceKeysUpdateReplacesConfig(t *testing.T) {
 		t.Fatalf("create status = %d; body=%s", status, body)
 	}
 	// Partial update: one switch flips, the other (absent) is replaced away.
-	if status, body := putRepoStatus(t, h, "enforce-up", `{"forceNonDuplicateChart":false}`); status != http.StatusOK {
+	if status, body := postRepoStatus(t, h, "enforce-up", `{"forceNonDuplicateChart":false}`); status != http.StatusOK {
 		t.Fatalf("update status = %d; body=%s", status, body)
 	}
 	_, cfg := getRepoJSON(t, h, "enforce-up")
@@ -90,8 +90,8 @@ func TestHelmEnforceKeysUpdateReplacesConfig(t *testing.T) {
 	if _, still := conf["forceMetadataNameVersion"]; still {
 		t.Errorf("full-replace dropped nothing — forceMetadataNameVersion = %v survived", conf["forceMetadataNameVersion"])
 	}
-	// Description-only PUT: no type-relevant field, configuration kept.
-	if status, body := putRepoStatus(t, h, "enforce-up", `{"description":"words only"}`); status != http.StatusOK {
+	// Description-only update: no type-relevant field, configuration kept.
+	if status, body := postRepoStatus(t, h, "enforce-up", `{"description":"words only"}`); status != http.StatusOK {
 		t.Fatalf("description-only status = %d; body=%s", status, body)
 	}
 	_, cfg = getRepoJSON(t, h, "enforce-up")

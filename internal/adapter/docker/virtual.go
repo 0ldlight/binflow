@@ -37,8 +37,10 @@ import (
 // transport fault without a copy), and a classified NON-unfound failure —
 // the SSRF chain's 400, the body ceiling's 502 — propagates verbatim
 // (masking a security refusal as a virtual-wide 404 would hide a
-// configured behavior). A walk no member answers ends in the unfound
-// family with the last upstream summary attached — zero naked 5xx.
+// configured behavior). A walk no member answers ends in the PLAIN
+// unfound family — the last member summary rides a WARN line, not the
+// wire body (L007-2 §2.4: the reference's virtual terminal 404 is the
+// plain shape on every arm) — zero naked 5xx.
 
 // virtualPlane resolves the service's v2 virtual aggregation capability;
 // nil when the assembled service predates the seam (a bare test double).
@@ -177,9 +179,18 @@ func (h *Handler) serveVirtualManifest(w http.ResponseWriter, r *http.Request, r
 			summary = why
 		}
 	}
-	// No member answered: the unfound family with the last upstream
-	// summary — never a naked 5xx (FR-116.5 through the aggregation).
-	unfound.write(w, summary)
+	// No member answered: the PLAIN unfound body — the reference's virtual
+	// terminal render carries no upstream summary (L007-2 §2.4: the cold
+	// negative miss answers the reference's 137-byte plain body on EVERY
+	// arm; the first-answer "(upstream answered …)" suffix was a
+	// BinFlow-only wire note). The last member summary moves to the WARN
+	// line — the diagnostic stays, the wire aligns. Never a naked 5xx
+	// (FR-116.5 through the aggregation).
+	if summary != "" {
+		h.log.WarnContext(ctx, "docker virtual: no member answered (terminal unfound)",
+			"repo", ref.repoKey, "image", ref.image, "reference", reference, "last_member_summary", summary)
+	}
+	unfound.write(w, "")
 }
 
 // virtualMemberOutcome classifies one remote member's walk step.
@@ -359,6 +370,15 @@ func (h *Handler) serveVirtualBlob(w http.ResponseWriter, r *http.Request, ref n
 			case repo.RemoteProbeNegative:
 				continue
 			}
+			// The D3 window exemption, member-scoped (the direct face's
+			// ruling in remote.go — the retrieval window gates the mutable
+			// manifest face only; a digest-addressed blob whose standing
+			// copy recorded the requested digest is the checksum-verified
+			// answer and never re-opens the upstream conversation).
+			if blob.Node != nil && digestHexOfNode(blob.Node) == hex {
+				h.serveVirtualBlobCopy(w, r, m.Key, "", blob.Node, remote.CacheHit, "")
+				return
+			}
 			outcome, why := h.serveVirtualRemoteBlob(w, r, plane, ref, m.Key, hex, blob.Node)
 			switch outcome {
 			case virtualMemberServed, virtualMemberFault:
@@ -367,7 +387,13 @@ func (h *Handler) serveVirtualBlob(w http.ResponseWriter, r *http.Request, ref n
 			summary = why
 		}
 	}
-	unfound.write(w, summary)
+	// No member answered: the PLAIN unfound body (the manifest arm's
+	// terminal note above — L007-2 §2.4, the summary to WARN not wire).
+	if summary != "" {
+		h.log.WarnContext(ctx, "docker virtual: no member answered (terminal unfound)",
+			"repo", ref.repoKey, "image", ref.image, "digest", digestPrefixHex(hex), "last_member_summary", summary)
+	}
+	unfound.write(w, "")
 }
 
 // serveVirtualRemoteBlob runs one REMOTE member's blob pull-through as a
