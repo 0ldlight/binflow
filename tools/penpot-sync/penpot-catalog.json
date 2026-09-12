@@ -1,0 +1,675 @@
+{
+  "meta": {
+    "rebuiltAt": "2026-09-12T18:33:44.438Z",
+    "note": "Phase B rebuild — manifest slug→route 全量 (crawl-manifest.json is the authority); capture status = PNG presence. Phase A screens-catalog.json only had 4 entries because the screens phase was chunked; this catalog restores the full mapping.",
+    "manifestScreens": 69,
+    "captured": 46,
+    "groupsWithCaptures": [
+      "Artifacts & Release (2)",
+      "Repos (8)",
+      "Identity & Access (9)",
+      "Security Config (8)",
+      "Platform Config (2)",
+      "Artifactory Services (11)",
+      "Monitoring (3)",
+      "Auth & Shell (3)"
+    ],
+    "groupsWithoutCaptures": [
+      "Other"
+    ]
+  },
+  "screens": [
+    {
+      "slug": "login",
+      "route": "/login",
+      "effort": "core",
+      "group": "Auth & Shell",
+      "captured": true,
+      "note": "pre-auth context; wrong-password error state captured here (1 attempt only)",
+      "states": [
+        "login-error-after",
+        "login-error",
+        "login-form-unexpected"
+      ],
+      "meta": "route: /ui/login\ngroup: Auth & Shell · effort: core\nmanifest note: pre-auth context; wrong-password error state captured here (1 attempt only)\nstates: login-error-after, login-error, login-form-unexpected\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "onboarding",
+      "route": "/admin/onboarding-page",
+      "effort": "best",
+      "group": "Auth & Shell",
+      "captured": true,
+      "note": "routes.yaml not_extracted; may not exist in 7.161 — record honestly if 404",
+      "meta": "route: /ui/admin/onboarding-page\ngroup: Auth & Shell · effort: best\nmanifest note: routes.yaml not_extracted; may not exist in 7.161 — record honestly if 404\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "packages",
+      "route": "/packages",
+      "effort": "core",
+      "group": "Artifacts & Release",
+      "captured": true,
+      "note": "default landing",
+      "states": [
+        "hover-primary-button"
+      ],
+      "meta": "route: /ui/packages\ngroup: Artifacts & Release · effort: core\nmanifest note: default landing\nstates: hover-primary-button\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "tree-general",
+      "route": "/repos/tree/General",
+      "effort": "core",
+      "group": "Repos",
+      "captured": true,
+      "note": "settled instance tree",
+      "dialogs": [
+        "deploy-dialog-open",
+        "set-me-up-configure"
+      ],
+      "meta": "route: /ui/repos/tree/General\ngroup: Repos · effort: core\nmanifest note: settled instance tree\ndialogs: deploy-dialog-open, set-me-up-configure\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "tree-empty-repo",
+      "route": "/repos/tree/General/audit-probe-empty",
+      "effort": "best",
+      "group": "Repos",
+      "captured": true,
+      "note": "deep-link format uncertain; fallback: search box jump",
+      "states": [
+        "empty-repo-tree"
+      ],
+      "meta": "route: /ui/repos/tree/General/audit-probe-empty\ngroup: Repos · effort: best\nmanifest note: deep-link format uncertain; fallback: search box jump\nstates: empty-repo-tree\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "artifact-search-results",
+      "route": "/artifactSearchResults",
+      "effort": "best",
+      "group": "Artifacts & Release",
+      "captured": true,
+      "note": "needs query — triggered via top search box, not bare URL",
+      "meta": "route: /ui/artifactSearchResults\ngroup: Artifacts & Release · effort: best\nmanifest note: needs query — triggered via top search box, not bare URL\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "repos-local",
+      "route": "/admin/repositories/local",
+      "effort": "core",
+      "group": "Repos",
+      "captured": true,
+      "note": "",
+      "dialogs": [
+        "wizard-audit-probe-empty-3-name",
+        "wizard-audit-probe-empty-4-done"
+      ],
+      "meta": "route: /ui/admin/repositories/local\ngroup: Repos · effort: core\ndialogs: wizard-audit-probe-empty-3-name, wizard-audit-probe-empty-4-done\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "repos-remote",
+      "route": "/admin/repositories/remote",
+      "effort": "core",
+      "group": "Repos",
+      "captured": true,
+      "note": "tab variant",
+      "meta": "route: /ui/admin/repositories/remote\ngroup: Repos · effort: core\nmanifest note: tab variant\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "repos-virtual",
+      "route": "/admin/repositories/virtual",
+      "effort": "core",
+      "group": "Repos",
+      "captured": true,
+      "note": "tab variant",
+      "meta": "route: /ui/admin/repositories/virtual\ngroup: Repos · effort: core\nmanifest note: tab variant\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "repo-form-new-local",
+      "route": "/admin/repositories/local/new",
+      "effort": "core",
+      "group": "Repos",
+      "captured": true,
+      "note": "page-form variant of the wizard; wizard dialog captured separately",
+      "dialogs": [
+        "pageform-audit-probe-empty-filled"
+      ],
+      "meta": "route: /ui/admin/repositories/local/new\ngroup: Repos · effort: core\nmanifest note: page-form variant of the wizard; wizard dialog captured separately\ndialogs: pageform-audit-probe-empty-filled\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "repo-form-edit-probe",
+      "route": "/admin/repositories/local/audit-probe-empty/edit",
+      "effort": "best",
+      "group": "Repos",
+      "captured": true,
+      "note": "edit variant",
+      "meta": "route: /ui/admin/repositories/local/audit-probe-empty/edit\ngroup: Repos · effort: best\nmanifest note: edit variant\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "users",
+      "route": "/admin/management/users",
+      "effort": "core",
+      "group": "Identity & Access",
+      "captured": true,
+      "note": "",
+      "states": [
+        "loading-users-list",
+        "permission-denied-admin-route"
+      ],
+      "meta": "route: /ui/admin/management/users\ngroup: Identity & Access · effort: core\nstates: loading-users-list, permission-denied-admin-route\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "user-new",
+      "route": "/admin/management/users/new",
+      "effort": "core",
+      "group": "Identity & Access",
+      "captured": true,
+      "note": "empty-submit first = inline-validation error state",
+      "dialogs": [
+        "user-form-filled"
+      ],
+      "states": [
+        "user-form-validation-error"
+      ],
+      "meta": "route: /ui/admin/management/users/new\ngroup: Identity & Access · effort: core\nmanifest note: empty-submit first = inline-validation error state\ndialogs: user-form-filled\nstates: user-form-validation-error\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "user-edit-probe",
+      "route": "/admin/management/users/audit-probe-user/edit",
+      "effort": "best",
+      "group": "Identity & Access",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/management/users/audit-probe-user/edit\ngroup: Identity & Access · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "groups",
+      "route": "/admin/management/groups",
+      "effort": "core",
+      "group": "Identity & Access",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/management/groups\ngroup: Identity & Access · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "group-new",
+      "route": "/admin/management/groups/new",
+      "effort": "core",
+      "group": "Identity & Access",
+      "captured": true,
+      "note": "",
+      "dialogs": [
+        "group-form-filled"
+      ],
+      "states": [
+        "group-form-validation-error"
+      ],
+      "meta": "route: /ui/admin/management/groups/new\ngroup: Identity & Access · effort: core\ndialogs: group-form-filled\nstates: group-form-validation-error\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "group-edit-probe",
+      "route": "/admin/management/groups/audit-probe-group/edit",
+      "effort": "best",
+      "group": "Identity & Access",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/management/groups/audit-probe-group/edit\ngroup: Identity & Access · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "permissions",
+      "route": "/admin/management/permissions",
+      "effort": "core",
+      "group": "Identity & Access",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/management/permissions\ngroup: Identity & Access · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "permission-new",
+      "route": "/admin/management/permissions/new",
+      "effort": "core",
+      "group": "Identity & Access",
+      "captured": true,
+      "note": "two-step picker dialog + matrix editor captured here",
+      "dialogs": [
+        "permission-matrix-editor",
+        "permission-picker-step"
+      ],
+      "states": [
+        "permission-save-result"
+      ],
+      "extras": [
+        "permission-new-blank"
+      ],
+      "meta": "route: /ui/admin/management/permissions/new\ngroup: Identity & Access · effort: core\nmanifest note: two-step picker dialog + matrix editor captured here\ndialogs: permission-matrix-editor, permission-picker-step\nstates: permission-save-result\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "global-roles",
+      "route": "/admin/management/global_roles",
+      "effort": "best",
+      "group": "Identity & Access",
+      "captured": true,
+      "note": "Projects domain page, present on addons-on instance",
+      "meta": "route: /ui/admin/management/global_roles\ngroup: Identity & Access · effort: best\nmanifest note: Projects domain page, present on addons-on instance\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "security-general-access",
+      "route": "/admin/configuration/security/general",
+      "effort": "core",
+      "group": "Security Config",
+      "captured": true,
+      "note": "access MFE security settings",
+      "meta": "route: /ui/admin/configuration/security/general\ngroup: Security Config · effort: core\nmanifest note: access MFE security settings\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "access-tokens",
+      "route": "/admin/configuration/security/access_tokens",
+      "effort": "core",
+      "group": "Security Config",
+      "captured": true,
+      "note": "Generate Token form opened, NOT submitted",
+      "dialogs": [
+        "token-generate-form"
+      ],
+      "meta": "route: /ui/admin/configuration/security/access_tokens\ngroup: Security Config · effort: core\nmanifest note: Generate Token form opened, NOT submitted\ndialogs: token-generate-form\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "ldap",
+      "route": "/admin/configuration/security/ldap",
+      "effort": "core",
+      "group": "Security Config",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/configuration/security/ldap\ngroup: Security Config · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "oauth",
+      "route": "/admin/configuration/security/oauth",
+      "effort": "core",
+      "group": "Security Config",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/configuration/security/oauth\ngroup: Security Config · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "oauth-new-provider",
+      "route": "/admin/configuration/security/oauth/new_provider",
+      "effort": "best",
+      "group": "Security Config",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/configuration/security/oauth/new_provider\ngroup: Security Config · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "saml",
+      "route": "/admin/configuration/security/saml",
+      "effort": "core",
+      "group": "Security Config",
+      "captured": true,
+      "note": "route literal missing in bundle; route-name evidenced",
+      "meta": "route: /ui/admin/configuration/security/saml\ngroup: Security Config · effort: core\nmanifest note: route literal missing in bundle; route-name evidenced\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "http-sso",
+      "route": "/admin/configuration/security/http_sso",
+      "effort": "best",
+      "group": "Security Config",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/configuration/security/http_sso\ngroup: Security Config · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "crowd",
+      "route": "/admin/configuration/security/crowd_integration",
+      "effort": "best",
+      "group": "Security Config",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/configuration/security/crowd_integration\ngroup: Security Config · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "scim",
+      "route": "/admin/configuration/security/scim",
+      "effort": "best",
+      "group": "Security Config",
+      "captured": false,
+      "note": "7.161-new page, zero prior evidence"
+    },
+    {
+      "slug": "vault-integration",
+      "route": "/admin/configuration/security/vault_integration",
+      "effort": "best",
+      "group": "Security Config",
+      "captured": false,
+      "note": ""
+    },
+    {
+      "slug": "vaults",
+      "route": "/admin/configuration/security/vaults",
+      "effort": "best",
+      "group": "Security Config",
+      "captured": false,
+      "note": ""
+    },
+    {
+      "slug": "integration-central",
+      "route": "/admin/integration/central",
+      "effort": "best",
+      "group": "Other",
+      "captured": false,
+      "note": ""
+    },
+    {
+      "slug": "mail",
+      "route": "/admin/configuration/mail",
+      "effort": "core",
+      "group": "Platform Config",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/configuration/mail\ngroup: Platform Config · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "general-config",
+      "route": "/admin/configuration/general",
+      "effort": "core",
+      "group": "Platform Config",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/configuration/general\ngroup: Platform Config · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "layouts",
+      "route": "/admin/repositories/layouts",
+      "effort": "core",
+      "group": "Repos",
+      "captured": true,
+      "note": "edit variant via first-row click, best-effort",
+      "meta": "route: /ui/admin/repositories/layouts\ngroup: Repos · effort: core\nmanifest note: edit variant via first-row click, best-effort\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "storage-summary",
+      "route": "/admin/monitoring/storage-summary",
+      "effort": "core",
+      "group": "Monitoring",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/monitoring/storage-summary\ngroup: Monitoring · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "federation",
+      "route": "/admin/monitoring/federation-status",
+      "effort": "best",
+      "group": "Monitoring",
+      "captured": true,
+      "note": "Pro",
+      "meta": "route: /ui/admin/monitoring/federation-status\ngroup: Monitoring · effort: best\nmanifest note: Pro\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "system-logs-monitoring",
+      "route": "/admin/monitoring/system_logs",
+      "effort": "best",
+      "group": "Monitoring",
+      "captured": true,
+      "note": "对拍缺口: dual entry vs artifactory/advanced/system_logs",
+      "meta": "route: /ui/admin/monitoring/system_logs\ngroup: Monitoring · effort: best\nmanifest note: 对拍缺口: dual entry vs artifactory/advanced/system_logs\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "af-general-settings",
+      "route": "/admin/artifactory/configuration/artifactory_general",
+      "effort": "core",
+      "group": "Artifactory Services",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/configuration/artifactory_general\ngroup: Artifactory Services · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "property-sets",
+      "route": "/admin/artifactory/configuration/property_sets",
+      "effort": "core",
+      "group": "Artifactory Services",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/configuration/property_sets\ngroup: Artifactory Services · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "reverse-proxy",
+      "route": "/admin/artifactory/configuration/reverse_proxy",
+      "effort": "core",
+      "group": "Artifactory Services",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/configuration/reverse_proxy\ngroup: Artifactory Services · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "user-plugins",
+      "route": "/admin/artifactory/configuration/user_plugins",
+      "effort": "best",
+      "group": "Artifactory Services",
+      "captured": false,
+      "note": ""
+    },
+    {
+      "slug": "backups",
+      "route": "/admin/artifactory/services/backups",
+      "effort": "core",
+      "group": "Artifactory Services",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/services/backups\ngroup: Artifactory Services · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "backup-new",
+      "route": "/admin/artifactory/services/backups/new",
+      "effort": "best",
+      "group": "Artifactory Services",
+      "captured": false,
+      "note": ""
+    },
+    {
+      "slug": "indexer",
+      "route": "/admin/artifactory/services/indexer",
+      "effort": "best",
+      "group": "Artifactory Services",
+      "captured": false,
+      "note": ""
+    },
+    {
+      "slug": "retention-policies",
+      "route": "/admin/artifactory/services/retention/policies",
+      "effort": "best",
+      "group": "Artifactory Services",
+      "captured": false,
+      "note": "Pro; addons-on instance should render"
+    },
+    {
+      "slug": "retention-monitoring",
+      "route": "/admin/artifactory/services/retention/monitoring",
+      "effort": "best",
+      "group": "Artifactory Services",
+      "captured": false,
+      "note": "Pro"
+    },
+    {
+      "slug": "cold-storage",
+      "route": "/admin/artifactory/services/retention/cold_storage_monitoring",
+      "effort": "best",
+      "group": "Artifactory Services",
+      "captured": false,
+      "note": "Pro"
+    },
+    {
+      "slug": "import-export",
+      "route": "/admin/artifactory/import_export",
+      "effort": "core",
+      "group": "Artifactory Services",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/import_export\ngroup: Artifactory Services · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "ie-repositories",
+      "route": "/admin/artifactory/import_export/repositories",
+      "effort": "best",
+      "group": "Artifactory Services",
+      "captured": true,
+      "note": "sub-route shape uncertain",
+      "meta": "route: /ui/admin/artifactory/import_export/repositories\ngroup: Artifactory Services · effort: best\nmanifest note: sub-route shape uncertain\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "security-general-af",
+      "route": "/admin/artifactory/security/general",
+      "effort": "core",
+      "group": "Artifactory Services",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/security/general\ngroup: Artifactory Services · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "certificates",
+      "route": "/admin/artifactory/security/certificates",
+      "effort": "core",
+      "group": "Artifactory Services",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/security/certificates\ngroup: Artifactory Services · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "keys-management",
+      "route": "/admin/artifactory/security/keys_management",
+      "effort": "best",
+      "group": "Artifactory Services",
+      "captured": false,
+      "note": "needs :label param — sidebar click-through"
+    },
+    {
+      "slug": "log-analytics",
+      "route": "/admin/artifactory/advanced/log_analytics",
+      "effort": "best",
+      "group": "Artifactory Services",
+      "captured": false,
+      "note": ""
+    },
+    {
+      "slug": "system-logs-af",
+      "route": "/admin/artifactory/advanced/system_logs",
+      "effort": "core",
+      "group": "Artifactory Services",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/advanced/system_logs\ngroup: Artifactory Services · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "maintenance",
+      "route": "/admin/artifactory/advanced/maintenance",
+      "effort": "core",
+      "group": "Artifactory Services",
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/advanced/maintenance\ngroup: Artifactory Services · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "config-descriptor",
+      "route": "/admin/artifactory/advanced/config_descriptor",
+      "effort": "core",
+      "group": "Artifactory Services",
+      "captured": true,
+      "note": "CodeMirror view",
+      "meta": "route: /ui/admin/artifactory/advanced/config_descriptor\ngroup: Artifactory Services · effort: core\nmanifest note: CodeMirror view\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "security-descriptor",
+      "route": "/admin/artifactory/advanced/security_descriptor",
+      "effort": "best",
+      "group": "Artifactory Services",
+      "captured": false,
+      "note": ""
+    },
+    {
+      "slug": "config-packages",
+      "route": "/admin/artifactory/config_packages",
+      "effort": "best",
+      "group": "Artifactory Services",
+      "captured": false,
+      "note": ""
+    },
+    {
+      "slug": "migration-tool",
+      "route": "/admin/artifactory/migration_tool",
+      "effort": "best",
+      "group": "Artifactory Services",
+      "captured": false,
+      "note": ""
+    },
+    {
+      "slug": "quick-setup",
+      "route": "/quick-setup",
+      "effort": "best",
+      "group": "Auth & Shell",
+      "captured": true,
+      "note": "may force-redirect when not in setup state — record honestly",
+      "meta": "route: /ui/quick-setup\ngroup: Auth & Shell · effort: best\nmanifest note: may force-redirect when not in setup state — record honestly\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
+    },
+    {
+      "slug": "builds",
+      "route": "/builds",
+      "effort": "best",
+      "group": "Artifacts & Release",
+      "captured": false,
+      "note": "likely empty state — bonus empty-state evidence"
+    },
+    {
+      "slug": "bundles-source",
+      "route": "/bundles/source",
+      "effort": "best",
+      "group": "Artifacts & Release",
+      "captured": false,
+      "note": "Pro"
+    },
+    {
+      "slug": "lifecycle",
+      "route": "/artifactory/lifecycle",
+      "effort": "best",
+      "group": "Artifacts & Release",
+      "captured": false,
+      "note": "Pro"
+    },
+    {
+      "slug": "release-bundles",
+      "route": "/artifactory/release-bundles",
+      "effort": "best",
+      "group": "Artifacts & Release",
+      "captured": false,
+      "note": "Pro"
+    },
+    {
+      "slug": "rb-target",
+      "route": "/artifactory/release-bundles/target",
+      "effort": "best",
+      "group": "Artifacts & Release",
+      "captured": false,
+      "note": "Pro"
+    },
+    {
+      "slug": "rb-target-history",
+      "route": "/artifactory/release-bundles/target-history",
+      "effort": "best",
+      "group": "Artifacts & Release",
+      "captured": false,
+      "note": "Pro"
+    },
+    {
+      "slug": "user-profile",
+      "route": "/user_profile",
+      "effort": "core",
+      "group": "Identity & Access",
+      "captured": false,
+      "note": ""
+    },
+    {
+      "slug": "notfound-404",
+      "route": "/__penpot_404_probe__",
+      "effort": "core",
+      "group": "Auth & Shell",
+      "captured": false,
+      "note": "wildcard 404 state",
+      "states": [
+        "route-404"
+      ]
+    }
+  ]
+}
