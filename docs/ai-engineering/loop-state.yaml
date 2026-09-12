@@ -1,10 +1,20 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-12T21:00:00Z
-current_iteration: 011
-current_goal: "计数污染修复 / 票 E+F 裁定合流（与 R-10） / 递归臂升级+root enrich 角 / maven/npm 契约扩面评估"
-iteration_010_seal: "四轨零击落；list 32/32 全收敛（跨三轮 L008→010）；双审首个零拦截轮 11/11；matrix ✅71/◐20 P0 partial 余 3 裁定类；R-6 双败定谳；commits c0d2faa4/293a754c"
+updated: 2026-09-12T23:00:00Z
+current_iteration: 012
+current_goal: "npm dist-tags 扩章首票 / mdTimestamps 递归臂升级 / virtual 元数据裁定限期 / R-15 预授权探针"
+iteration_011_seal: "四轨零击落；计数污染清偿含安全级返工（治理门+ACL 臂复原——ResolveMeta 红检）；R-15 入包 20 席位；扩面评估落地；双审战绩 12/12；commits b4c73a56/d301cf31"
+user_directive_penpot: { at: 2026-09-13T00:1x, sealed: 2026-09-12T19:47Z, what: "✅ Penpot 工程首批交付（A→D 全管线）：爬取器（68+截图/token 六面/nav 树）→ spec 73 板/70 图 → 插件注入（uploadMediaData 正道）52s → MCP a11y 终验十页全在册（file-id=2109e8e8-…-a10cd4b6d37d）。commits 680bc134/f3bb1a61/8936f258。**遗留**：21 屏未捕（Pro 深页需造数）+11 弹窗 gap（人工走查票）+Penpot 账号残留清理待用户定夺（2 空项目+4 重试画布）+ref 内存天花板（与 Penpot 栈共存时 OOM 风险——错峰纪律）" }
+loop_012_tracks:
+  - { id: L012-2b, domain: npm-protocol, owner: dev-registry-adapter, what: "✅ 实现落地：D2 读时重算（absent 才补/present 永不覆盖/纯读投影）/D6 bulk 405/D7 Cache-Control/D5 400 中性/D3-D4 文案；**20 格零未裁定 drift**（基线 8 实差）；CLI 15 用例同退出码向量；**参照自证 quirk**：add 后立即 rm 报 not-a-dist-tag=参照自身陈旧窗行为；遗留=packument 面 latest 重算未裁定（测试钉住现状）；**跨包回归发现**：L008-1b ADR-0050 扫荡漏 adapter/helm+t329de 与 rpm 两测试（第四例跨包半径）→返工中；D12-R05 可翻✅+K60 群零补证转写建议在案；**跨包尾巴已修+全树 14 包绿→commit 17ed328b（含 npm 实现+测试修）**", status: done }
+  - { id: L012-2a, domain: npm-contract, owner: compatibility-engineer, what: "✅ contracts/npm.yaml 首文件 8 条目（IMPLEMENTED 2/DIVERGENT 6——D2 latest 重算 SEQUENCE/D5 INTENTIONAL 不复刻 500/D6 bulk 405 化等全按 conductor 裁定立）；normalize 域（wire_format 反 docker 口径：pretty≡compact/ok-空格/auth401 措辞组）；台账 +6；matrix D12-R05 契约链补；勘误受录（B 实为 400+泄漏非 500）；待 L012-2b 批跑升 VERIFIED", status: done }
+  - { id: L012-1, domain: npm-protocol, owner: differential-qa-engineer, what: "✅ 限额击落零损失（报告中断前已落盘）：**wire 定谳=npm CLI 100% 显式端点族**（零 packument 旁路/etag/rev-dance——V-7 清偿）；20 格矩阵 11 全同/4 文案级/4 status 级；**6 UNKNOWN（D2-D7）→ conductor 全裁对齐收**（D2 latest 读时重算最重/D5 内幕泄漏顺修/D6 bulk 405 化）；K60 抽核 3/3 零补证；提金 4 候选；后段=契约票+实现票+差分批跑三段", status: done }
+  - { id: L012-3, domain: storage-list, owner: dev-go-storage, what: "✅ A 案落地（逐 target 条件化审计行，~85 行零迁移；活体发现**变更条件化语义**：幂等重 PUT/无人携键递归 DELETE parked）；**附带真 BUG 修复**：通配 miss DELETE 原清空全部属性（参照保留）——活体实证后修+回归；E1-E4 八臂全 SAME（红检过）；root 角=参照可写根属性 vs BinFlow 架构不可达——登记转裁不擅扩写面；**双审 APPROVE×0 blocking（worktree 级红检+守卫反向核对）→ commit 5e2c58b0**；台账两笔转 compat 落笔中", status: done }
+  - { id: L012-1, domain: npm-protocol, owner: differential-qa-engineer, what: "npm dist-tags 扩章首票前段：probe 双端真实 wire（npm dist-tag ls/add/rm × :8082/UAT——清偿 V-7 客户端依赖度）+ npm.md K60 族零补证顺带核对 → 产出 dist-tags 证据包" }
+  - { id: L012-2, domain: npm-protocol, owner: dev-registry-adapter, what: "npm dist-tags 后段（前段证据齐后开）：契约首文件 4-6 条目 + normalize 扩组 + 实现补缺（显式端点族——D12-R05 ◐ 缺位）+ CLI 双腿差分 → 行翻绿" }
+  - { id: L012-3, domain: storage-list, owner: dev-go-storage, what: "mdTimestamps 递归臂升级票（E1-E4 素材：递归写移动子项 props-mtime/直写单动——propsTargets 逐 target 审计 or NodeProps per-node 时刻两案择一）+ root P2 enrich 角探针" }
+  - { id: L012-4, domain: rulings-probe, owner: differential-qa-engineer, what: "R-15 预授权探针（§4-4）：R-15c/d 的 project 参数参照实测（:8082 忽略 vs 空集——四象限自动选案）+ R-15a propertiesXml 归属面双面探针（rest-api §1.1 vs matrix 分叉）——预授权式下出证即选案免二次呈批" }
 loop_011_tracks:
   - { id: L011-2, domain: rulings-pack, owner: product-manager, what: "✅ pending-rulings v2.1：R-15a-d 四臂入册（a=501 维持 INTENTIONAL/b=lastModified 实现建议/c=project 探针先行不预设/d=四象限自动选案+§4-4 预授权式）——P0 partial 三行的裁定输入齐备；呈批包 15 编号/20 席位；**上报采纳：R-10 包呈批衰减风险→conductor 醒目提示用户**", status: done }
   - { id: L011-4, domain: uat-refresh, owner: devops-engineer, what: "✅ UAT 基线=uat-l0114-293a754c（detached worktree 构建 vcs.modified=false 纯净证明；数据卷连续性旁证 layer mounted）；刮擦实例核销销账；重建序列入日志供 L011-1 复用", status: done }
