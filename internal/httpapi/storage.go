@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"context"
+	"crypto/md5" //nolint:gosec // G401: md5 here is the reference's propertiesMd5 wire digest (a compatibility hash, never addressing or integrity — those are sha256-only, ADR-0003); same ruling as internal/adapter/docker/digest.go
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -686,14 +688,25 @@ var listQueryParams = []string{
 	"deep", "depth", "listFolders", "mdTimestamps", "statsTimestamps", "includeRootPath", "includePropertiesMd5",
 }
 
-// listOptions is the ?list family's validated parameter set. mdTimestamps /
-// statsTimestamps / includePropertiesMd5 are validated (400 on non-numeric)
-// but not yet consumed — their listing effects are LOOP 010's P2 scope.
+// listOptions is the ?list family's validated parameter set (L010-1 P2: all
+// seven params now consumed).
 type listOptions struct {
 	deep        bool // deep=1: recurse; any other integer value stays flat
 	depth       int  // only a modifier: clamps the deep=1 recursion, never triggers it
 	listFolders bool // listFolders=1: folder rows join files[]
 	includeRoot bool // includeRootPath=1: the queried folder itself leads files[]
+	// mdTimestamps=1: entries (files AND folders) carrying properties gain
+	// mdTimestamps.properties = the node's last property-mutation time; with
+	// statsTimestamps=1 downloaded file entries additionally gain
+	// mdTimestamps.artifactory.stats = the last download time.
+	mdTimestamps bool
+	// statsTimestamps=1: file entries with at least one download gain
+	// mdTimestamps.artifactory.stats (never-download files and folder rows
+	// omit the key).
+	statsTimestamps bool
+	// includePropertiesMd5=1: entries carrying properties gain propertiesMd5
+	// = md5 over the canonical property serialization (propsSetMd5).
+	includePropsMd5 bool
 }
 
 // parseListOptions validates the seven integer params in the reference's
@@ -728,6 +741,12 @@ func parseListOptions(q url.Values) (listOptions, error) {
 			o.listFolders = n == 1
 		case "includeRootPath":
 			o.includeRoot = n == 1
+		case "mdTimestamps":
+			o.mdTimestamps = n == 1
+		case "statsTimestamps":
+			o.statsTimestamps = n == 1
+		case "includePropertiesMd5":
+			o.includePropsMd5 = n == 1
 		}
 	}
 	return o, nil
@@ -744,6 +763,17 @@ type listFile struct {
 	Folder       bool   `json:"folder"`
 	SHA1         string `json:"sha1,omitempty"`
 	SHA2         string `json:"sha2,omitempty"`
+	// MDTimestamps carries mdTimestamps.properties (property-mutation time of
+	// property-carrying entries) and/or mdTimestamps.artifactory.stats (last
+	// download time of downloaded file entries) — each key present only when
+	// the param asked for it AND the node has the underlying fact. Map
+	// marshaling sorts keys, matching the reference's artifactory.stats <
+	// properties order (L010-1 live evidence). Sits after sha2, before
+	// propertiesMd5 (same evidence).
+	MDTimestamps map[string]string `json:"mdTimestamps,omitempty"`
+	// PropertiesMd5 is the property set's canonical md5 (propsSetMd5), only
+	// on property-carrying entries under includePropertiesMd5=1.
+	PropertiesMd5 string `json:"propertiesMd5,omitempty"`
 }
 
 // listResponse is the ?list body.
@@ -773,6 +803,8 @@ type listResponse struct {
 //     triggers recursion alone;
 //   - folder rows appear only under listFolders=1 (`/d2` form, size -1);
 //     includeRootPath=1 leads files[] with the queried folder as `/`;
+//   - mdTimestamps=1 / statsTimestamps=1 / includePropertiesMd5=1 add the
+//     P2 metadata keys (enrichListEntry / propsSetMd5);
 //   - created is the request's wall clock; the body's Content-Type is the
 //     FileList vendor media type.
 func (s *Server) handleStorageList(w http.ResponseWriter, r *http.Request, repoKey, relPath string) {
@@ -822,16 +854,42 @@ func (s *Server) handleStorageList(w http.ResponseWriter, r *http.Request, repoK
 	if dir != "" {
 		prefix = dir + "/"
 	}
+
+	// P2 metadata enrichment (L010-1): mdTimestamps needs each node's last
+	// property-mutation time (audit-derived, see propModifiedTimes); the
+	// property-presence keys and propertiesMd5 need the per-entry property
+	// sets — both read lazily below, only under the asking params.
+	var propMtimes map[string]string
+	if opts.mdTimestamps {
+		propMtimes = s.propModifiedTimes(r.Context(), repoKey)
+	}
+
 	rootModified := ""
 	if node != nil {
 		rootModified = node.UpdatedAt
+		if rootModified == "" {
+			rootModified = node.CreatedAt
+		}
+	} else if opts.includeRoot {
+		// The repository root has no node row; its "/" entry still carries a
+		// REAL timestamp on the reference (the storage root's own mtime —
+		// live evidence L010-1), never the epoch zero. The repo row's
+		// creation time is BinFlow's honest analog (the root materializes
+		// with the repository itself).
+		if row, rerr := s.deps.Repos.Get(r.Context(), repoKey); rerr == nil && row != nil {
+			rootModified = row.CreatedAt
+		}
 	}
 	files := make([]listFile, 0, len(nodes)+1)
 	if opts.includeRoot {
-		files = append(files, listFile{
+		rootEntry := listFile{
 			URI: "/", Size: -1, Folder: true,
 			LastModified: isoMillisUTC(rootModified),
-		})
+		}
+		if node != nil {
+			s.enrichListEntry(r.Context(), &rootEntry, node, opts, propMtimes)
+		}
+		files = append(files, rootEntry)
 	}
 	for _, n := range nodes {
 		rel := strings.TrimPrefix(n.Path, prefix)
@@ -862,6 +920,7 @@ func (s *Server) handleStorageList(w http.ResponseWriter, r *http.Request, repoK
 				}
 			}
 		}
+		s.enrichListEntry(r.Context(), &entry, n, opts, propMtimes)
 		files = append(files, entry)
 	}
 	// The whole listing is one alphabetical order over the entry uris
@@ -881,6 +940,119 @@ func (s *Server) handleStorageList(w http.ResponseWriter, r *http.Request, repoK
 		RemoteDegraded: degraded,
 	}
 	writeJSONBodyCT(w, http.StatusOK, fileListMediaType, resp)
+}
+
+// enrichListEntry applies the P2 metadata parameters to one files[] entry
+// (L010-1, live evidence on the reference): mdTimestamps=1 adds
+// mdTimestamps.properties (only when the node carries properties AND a
+// mutation time is known) and mdTimestamps.artifactory.stats (only on file
+// rows with at least one download, under statsTimestamps=1);
+// includePropertiesMd5=1 adds the property set's canonical md5. Every key is
+// a fact of the node — nothing is faked (a property-carrying node whose
+// mutation time is beyond the audit window simply omits the properties key,
+// the statsInfoBody "never faked" posture).
+func (s *Server) enrichListEntry(ctx context.Context, entry *listFile, node *metadata.Node, opts listOptions, propMtimes map[string]string) {
+	var props map[string][]string
+	if opts.mdTimestamps || opts.includePropsMd5 {
+		var err error
+		props, err = s.deps.Metadata.NodeProps().List(ctx, node.RepoKey, node.Path)
+		if err != nil {
+			s.log.ErrorContext(ctx, "httpapi: list properties read failed",
+				"repo", node.RepoKey, "path", node.Path, "error", err.Error())
+			props = nil
+		}
+	}
+	if len(props) == 0 {
+		props = nil // property-less entries carry neither P2 key
+	}
+	if opts.mdTimestamps && props != nil {
+		if t, ok := propMtimes[node.Path]; ok && t != "" {
+			if entry.MDTimestamps == nil {
+				entry.MDTimestamps = map[string]string{}
+			}
+			entry.MDTimestamps["properties"] = isoMillisUTC(t)
+		}
+	}
+	if opts.statsTimestamps && !entry.Folder {
+		st, err := s.deps.Metadata.Nodes().Stats(ctx, node.RepoKey, node.Path)
+		if err != nil {
+			s.log.ErrorContext(ctx, "httpapi: list stats read failed",
+				"repo", node.RepoKey, "path", node.Path, "error", err.Error())
+		} else if st != nil && st.LastDownloadedAt != "" {
+			// The reference takes max(lastDownloaded, remoteLastDownloaded);
+			// BinFlow has no smart-remote pull-back statistic (the ?stats
+			// face's own UNSOURCED posture), so the local arm is the whole
+			// max.
+			if entry.MDTimestamps == nil {
+				entry.MDTimestamps = map[string]string{}
+			}
+			entry.MDTimestamps["artifactory.stats"] = isoMillisUTC(st.LastDownloadedAt)
+		}
+	}
+	if opts.includePropsMd5 && props != nil {
+		entry.PropertiesMd5 = propsSetMd5(props)
+	}
+}
+
+// propModifiedTimes derives every node's last property-mutation time in one
+// repository from the audit log (props.write / props.delete rows, the only
+// faces that mutate node properties). Two newest-first queries, first sight
+// per path wins; a path present in both actions keeps the newer time
+// (RFC3339 UTC text compares chronologically).
+//
+// ponytail: page capped at 1000 events per action — a repository with more
+// property history than that derives stale/absent mtimes for the tail. The
+// proper face is a metadata GROUP BY (path, max(time)) like
+// AuditStore.LastActionTimes; promote when a listing over heavy property
+// history measurably needs it.
+func (s *Server) propModifiedTimes(ctx context.Context, repoKey string) map[string]string {
+	out := map[string]string{}
+	for _, action := range []string{propsAuditWrite, propsAuditDelete} {
+		events, err := s.deps.Metadata.Audits().Query(ctx, metadata.AuditQuery{
+			RepoKey: repoKey, Action: action, Limit: 1000,
+		})
+		if err != nil {
+			// Degrade to whatever the other action yields: a missing mtime
+			// omits a key, it never wrongs one.
+			s.log.ErrorContext(ctx, "httpapi: property-mtime audit query failed",
+				"repo", repoKey, "action", action, "error", err.Error())
+			continue
+		}
+		for _, e := range events {
+			if e.Path == "" {
+				continue
+			}
+			if prev, seen := out[e.Path]; !seen || e.Time > prev {
+				out[e.Path] = e.Time
+			}
+		}
+	}
+	return out
+}
+
+// propsSetMd5 renders the propertiesMd5 of one property set: md5 over the
+// concatenation of key+value for every value, keys and values each in
+// ascending order, with NO separator anywhere (derived black-box on the
+// reference, L010-1: ten arms including multi-value, multi-key,
+// insertion-order reversal, and folder/file equality — e.g. {pa:[y],pb:[x]}
+// -> md5("paypbx"); the folder and the file carrying the same set answer
+// the same digest, so no path or repo salt exists).
+func propsSetMd5(props map[string][]string) string {
+	keys := make([]string, 0, len(props))
+	for k := range props {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	h := md5.New() //nolint:gosec // G401: the reference's propertiesMd5 compatibility digest, see the import ruling
+	for _, k := range keys {
+		vs := append([]string(nil), props[k]...)
+		sort.Strings(vs)
+		for _, v := range vs {
+			_, _ = h.Write([]byte(k))
+			_, _ = h.Write([]byte(v))
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // writeStorageError maps repo.Service failures of the storage plane.

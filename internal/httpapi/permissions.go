@@ -517,7 +517,17 @@ func (s *Server) permissionCreateOrReplace(w http.ResponseWriter, r *http.Reques
 		// admin plus an unknown user in one body answers the admin
 		// message) and after the repository validation (probed: an
 		// unknown repository plus admin answers the repository message).
+		//
+		// L010-2 (ledger rest/permissions-v1-empty-actions-validation-skip,
+		// live :8082 arms wire-verified 2026-09-12): the validation walks
+		// only principals whose action list is NON-EMPTY — an empty list
+		// grants nothing, and its holder skips this guard (an admin with
+		// [] answers 201; mixed admin["m"]+ghost[] still answers the
+		// admin message above, so the ordering claims stand untouched).
 		for name := range body.Principals.Users {
+			if len(body.Principals.Users[name]) == 0 {
+				continue
+			}
 			if u := known[name]; u != nil && u.IsAdmin {
 				writeError(w, http.StatusBadRequest, fmt.Sprintf(
 					"The user: '%s'' has admin privileges, and cannot be added to a Permission Target.", name))
@@ -526,6 +536,12 @@ func (s *Server) permissionCreateOrReplace(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	for name := range body.Principals.Users {
+		// The keyed face's empty-actions exemption (L010-2 — see the admin
+		// scan above for the probe evidence): no actions, no validation.
+		// The rich face (keyedV1=false) keeps its frozen 400 posture.
+		if keyedV1 && len(body.Principals.Users[name]) == 0 {
+			continue
+		}
 		if _, ok := known[name]; !ok {
 			if keyedV1 {
 				// The reference handler's wording (decompiled
@@ -549,6 +565,11 @@ func (s *Server) permissionCreateOrReplace(w http.ResponseWriter, r *http.Reques
 		knownGroups[g.Name] = true
 	}
 	for name := range body.Principals.Groups {
+		// Same empty-actions exemption on the group column (the probed
+		// unknown-group-with-[] arm answers 201, L010-2).
+		if keyedV1 && len(body.Principals.Groups[name]) == 0 {
+			continue
+		}
 		if !knownGroups[name] {
 			if keyedV1 {
 				// The reference's own wording (live :8082, 2026-09-12 —

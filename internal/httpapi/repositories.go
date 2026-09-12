@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -462,11 +463,20 @@ func writeJSONBody(w http.ResponseWriter, status int, v any) {
 
 // writeJSONBodyCT is writeJSONBody with an explicit content type — the faces
 // whose wire contract pins a vendor media type (?list's
-// application/vnd.org.jfrog.artifactory.storage.FileList+json) share the same
-// rendering path instead of forking it.
+// application/vnd.org.jfrog.artifactory.storage.FileList+json, the user
+// detail's …security.User+json) share the same rendering path instead of
+// forking it. HTML escaping is OFF (L010-2, the escape-asymmetry residual):
+// the reference's Jackson serializer emits & < > raw on success bodies too —
+// writeError's own L009-3 posture, now shared by the success path so an
+// ampersand filename survives the wire byte-for-byte. Encoder.Encode appends
+// the one trailing newline MarshalIndent never wrote — trimmed, keeping the
+// already-aligned bodies byte-stable.
 func writeJSONBodyCT(w http.ResponseWriter, status int, contentType string, v any) {
-	body, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(v); err != nil {
 		writeError(w, http.StatusInternalServerError, "render response: "+err.Error())
 		return
 	}
@@ -474,7 +484,7 @@ func writeJSONBodyCT(w http.ResponseWriter, status int, contentType string, v an
 	h.Set("Content-Type", contentType)
 	h.Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(status)
-	_, _ = w.Write(body)
+	_, _ = w.Write(bytes.TrimSuffix(buf.Bytes(), []byte("\n")))
 }
 
 // writePlainError emits the plain-text error body of the user/permission

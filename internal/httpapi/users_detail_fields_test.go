@@ -151,3 +151,19 @@ func TestUserDetailFieldSetNegative(t *testing.T) {
 		t.Fatalf("unknown user = %d body=%s, want the 404 errors envelope \"Not Found\"", resp.StatusCode, raw)
 	}
 }
+
+// TestUserDetailVendorContentType (L010-2, ledger rest/user-detail-
+// vendor-content-type): the detail face's 200 pins the vendor media type —
+// live :8082 7.161.20 wire-verified 2026-09-12, no charset suffix — riding
+// the same writeJSONBodyCT path the ?list/FileList face established.
+func TestUserDetailVendorContentType(t *testing.T) {
+	h := newHarness(t)
+	resp := h.do(http.MethodGet, "/binflow/api/security/users/admin", adminUser, adminPass, nil, nil)
+	raw := mustGet(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET users/admin = %d body=%s, want 200", resp.StatusCode, raw)
+	}
+	if got := resp.Header.Get("Content-Type"); got != "application/vnd.org.jfrog.artifactory.security.User+json" {
+		t.Fatalf("Content-Type = %q, want the User vendor media type", got)
+	}
+}

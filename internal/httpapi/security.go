@@ -769,6 +769,12 @@ func (s *Server) handleUserList(w http.ResponseWriter, r *http.Request) {
 	writeJSONBody(w, http.StatusOK, items)
 }
 
+// userDetailMediaType is the user detail face's pinned vendor content type
+// (L010-2, ledger rest/user-detail-vendor-content-type; live :8082 7.161.20
+// wire-verified 2026-09-12, no charset suffix) — the ?list/FileList
+// family's CT posture, now shared through writeJSONBodyCT.
+const userDetailMediaType = "application/vnd.org.jfrog.artifactory.security.User+json"
+
 // handleUserGet serves GET /api/security/users/{name} (admin): the single
 // user with the 004 email round-trip (W40), the M4 groups echo (SE-05) and
 // the M9 enabled echo (E3, T-251: the read-side closure of T-208's write
@@ -813,7 +819,7 @@ func (s *Server) handleUserGet(w http.ResponseWriter, r *http.Request, name stri
 	if u.Enabled {
 		status = "ENABLED"
 	}
-	writeJSONBody(w, http.StatusOK, userDetail{
+	writeJSONBodyCT(w, http.StatusOK, userDetailMediaType, userDetail{
 		Name:             u.Username,
 		Email:            u.Email,
 		Admin:            u.IsAdmin,

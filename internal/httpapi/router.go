@@ -943,10 +943,18 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	// documented exception — the handler itself answers the anonymous 403
 	// (rest-api.md section 3), which is why its route gate does NOT carry
 	// required: a 401 challenge would mask the spec's status.
-	case strings.HasPrefix(rest, "storage/"):
+	case rest == "storage" || strings.HasPrefix(rest, "storage/"):
 		repoKey, rel := splitStoragePath(rest)
 		if repoKey == "" {
-			notImplemented(w, "/binflow/api/storage")
+			// L010-2: the no-repo-segment storage request (?list or bare,
+			// with or without the trailing slash) is no route in the
+			// reference either — its live answer (:8082, 7.161.20, four
+			// wire-probed variants 2026-09-12) is the generic 404 errors
+			// envelope "Not Found". The ticket's 400 "Cannot list files of
+			// root." premise did NOT reproduce; that wording survives only
+			// in stale reverse docs (rest-api.md section 3 refresh is the
+			// reverse-engineer's LOOP 010 item).
+			writeError(w, http.StatusNotFound, "Not Found")
 			return
 		}
 		if _, ok := r.URL.Query()["list"]; ok && r.Method == http.MethodGet {
@@ -1809,12 +1817,14 @@ func splitAPIName(rest, prefix string) (name, tail string) {
 }
 
 // splitStoragePath splits /api/storage/{repo}/{path} into the repo key and
-// the decoded repo-relative remainder ("" when absent). Dot segments in the
-// remainder are left to the service layer's validators (same defense the
-// content plane relies on); a dot-segment or empty repo key yields "" so the
-// caller answers the E-26 404.
+// the decoded repo-relative remainder ("" when absent). The bare "storage"
+// spelling normalizes onto "storage/" (L010-2: both no-segment forms are
+// the reference's generic 404). Dot segments in the remainder are left to
+// the service layer's validators (same defense the content plane relies
+// on); a dot-segment or empty repo key yields "" so the caller answers the
+// generic 404.
 func splitStoragePath(rest string) (repoKey, relPath string) {
-	seg := strings.TrimPrefix(rest, "storage/")
+	seg := strings.TrimPrefix(strings.TrimPrefix(rest, "storage"), "/")
 	if seg == "" {
 		return "", ""
 	}

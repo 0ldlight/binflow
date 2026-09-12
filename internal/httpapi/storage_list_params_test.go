@@ -15,12 +15,14 @@ import (
 
 // l009Entry/l009Body decode one ?list response.
 type l009Entry struct {
-	URI          string `json:"uri"`
-	Size         int64  `json:"size"`
-	LastModified string `json:"lastModified"`
-	Folder       bool   `json:"folder"`
-	SHA1         string `json:"sha1"`
-	SHA2         string `json:"sha2"`
+	URI           string            `json:"uri"`
+	Size          int64             `json:"size"`
+	LastModified  string            `json:"lastModified"`
+	Folder        bool              `json:"folder"`
+	SHA1          string            `json:"sha1"`
+	SHA2          string            `json:"sha2"`
+	MDTimestamps  map[string]string `json:"mdTimestamps"`
+	PropertiesMd5 string            `json:"propertiesMd5"`
 }
 
 type l009Body struct {
@@ -385,6 +387,58 @@ func TestStorageListWireForm(t *testing.T) {
 			t.Fatalf("created went backwards: %v then %v", c1, c2)
 		}
 	})
+
+	t.Run("ampersand filename survives the wire unescaped (L010-2 escape asymmetry)", func(t *testing.T) {
+		resp := h.do(http.MethodPut, "/binflow/l009-loc/a&b.txt", adminUser, adminPass, []byte("amp"), nil)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("PUT a&b.txt: %d; body=%s", resp.StatusCode, mustGet(t, resp))
+		}
+		_ = resp.Body.Close()
+		list := h.do(http.MethodGet, "/binflow/api/storage/l009-loc?list", adminUser, adminPass, nil, nil)
+		raw := mustGet(t, list)
+		if list.StatusCode != http.StatusOK {
+			t.Fatalf("GET ?list: %d; body=%s", list.StatusCode, raw)
+		}
+		// The reference's Jackson serializer emits & raw; Go's default HTML
+		// escaping would rewrite it to the & escape sequence — the exact
+		// asymmetry retired by the SetEscapeHTML(false) encoder.
+		if !strings.Contains(raw, `"/a&b.txt"`) {
+			t.Fatalf("listing lacks the raw ampersand uri: %s", raw)
+		}
+		if strings.Contains(raw, "\\u0026") {
+			t.Fatalf("listing carries an escaped ampersand: %s", raw)
+		}
+	})
+}
+
+// TestStorageNoSegmentListArm (L010-2): the no-repo-segment storage request
+// (?list or bare, trailing slash or not) answers the reference's generic 404
+// errors envelope "Not Found" — the 400 "Cannot list files of root." ticket
+// premise did NOT reproduce on the live reference (four wire-probed
+// variants, :8082 7.161.20, 2026-09-12).
+func TestStorageNoSegmentListArm(t *testing.T) {
+	h := newHarness(t)
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{"bare storage with list", "/binflow/api/storage?list"},
+		{"trailing slash with list", "/binflow/api/storage/?list"},
+		{"bare storage without list", "/binflow/api/storage"},
+	} {
+		resp := h.do(http.MethodGet, tc.path, adminUser, adminPass, nil, nil)
+		raw := mustGet(t, resp)
+		var env struct {
+			Errors []struct {
+				Status  int    `json:"status"`
+				Message string `json:"message"`
+			} `json:"errors"`
+		}
+		if resp.StatusCode != http.StatusNotFound || json.Unmarshal([]byte(raw), &env) != nil ||
+			len(env.Errors) != 1 || env.Errors[0].Status != 404 || env.Errors[0].Message != "Not Found" {
+			t.Errorf("%s: got %d body=%s, want the generic 404 errors envelope \"Not Found\"", tc.name, resp.StatusCode, raw)
+		}
+	}
 }
 
 // folderCreatedOf reads a folder's FolderInfo created stamp for comparison.
@@ -406,4 +460,170 @@ func folderCreatedOf(t *testing.T, h *harness, path string) time.Time {
 		t.Fatalf("FolderInfo created %q: %v", fi.Created, err)
 	}
 	return created
+}
+
+// ---- LOOP 010 L010-1: the P2 metadata parameters (mdTimestamps /
+// statsTimestamps / includePropertiesMd5), field forms pinned to live
+// reference evidence taken on :8082 (reports/compatibility/L010-list-p2-diff.md
+// section 1). ----
+
+// putProps writes properties through the FR-89.2 face (the audit row it
+// records is mdTimestamps.properties' source).
+func putProps(t *testing.T, h *harness, path, query string) {
+	t.Helper()
+	resp := h.do(http.MethodPut, "/binflow/api/storage/"+path+"?properties="+query,
+		adminUser, adminPass, nil, nil)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("PUT props %s?properties=%s: %d; body=%s", path, query,
+			resp.StatusCode, mustGet(t, resp))
+	}
+	_ = resp.Body.Close()
+}
+
+// mdOf reads one entry's decoded mdTimestamps off a listing.
+func entryOf(t *testing.T, lb l009Body, uri string) *l009Entry {
+	t.Helper()
+	for i := range lb.Files {
+		if lb.Files[i].URI == uri {
+			return &lb.Files[i]
+		}
+	}
+	t.Fatalf("entry %s not in listing (have %v)", uri, urisOf(lb))
+	return nil
+}
+
+// TestStorageListP2MDTimestampsProperties: mdTimestamps=1 adds
+// mdTimestamps.properties on property-carrying entries (files AND folders,
+// and the includeRootPath "/" row of a property-carrying folder);
+// property-less entries omit the whole key.
+func TestStorageListP2MDTimestampsProperties(t *testing.T) {
+	h := newHarness(t)
+	seedL009Tree(t, h)
+	putProps(t, h, "l009-loc/f0.txt", "p1=v1")
+	putProps(t, h, "l009-loc/d1", "fk=fv")
+
+	_, lb := getL009List(t, h, "l009-loc?list&mdTimestamps=1")
+	f0 := entryOf(t, lb, "/f0.txt")
+	if f0.MDTimestamps["properties"] == "" {
+		t.Errorf("/f0.txt (props p1=v1): mdTimestamps.properties missing: %+v", f0.MDTimestamps)
+	}
+	if ts := f0.MDTimestamps["properties"]; ts != "" && !strings.Contains(ts, "Z") {
+		t.Errorf("/f0.txt mdTimestamps.properties %q: not an ISO8601 UTC stamp", ts)
+	}
+	// Property-less files omit the whole key (direct children of d1 carry
+	// no properties in this fixture).
+	_, lb = getL009List(t, h, "l009-loc/d1?list&mdTimestamps=1")
+	if got := entryOf(t, lb, "/f1.txt").MDTimestamps; len(got) != 0 {
+		t.Errorf("/f1.txt (no props): mdTimestamps present: %+v", got)
+	}
+
+	// Folder rows: /d1 (queried from the root with listFolders) carries the
+	// key; the nested property-less /d2 (child of d1) does not.
+	_, lb = getL009List(t, h, "l009-loc?list&listFolders=1&mdTimestamps=1")
+	if ts := entryOf(t, lb, "/d1").MDTimestamps["properties"]; ts == "" {
+		t.Errorf("/d1 (props fk=fv): mdTimestamps.properties missing")
+	}
+	_, lb = getL009List(t, h, "l009-loc/d1?list&listFolders=1&mdTimestamps=1")
+	if got := entryOf(t, lb, "/d2").MDTimestamps; len(got) != 0 {
+		t.Errorf("/d2 (no props): mdTimestamps present: %+v", got)
+	}
+
+	// The includeRootPath "/" row of the queried folder is enriched the same
+	// way when the folder carries properties.
+	_, lb = getL009List(t, h, "l009-loc/d1?list&includeRootPath=1&mdTimestamps=1")
+	if ts := entryOf(t, lb, "/").MDTimestamps["properties"]; ts == "" {
+		t.Errorf("/ row of property-carrying d1: mdTimestamps.properties missing")
+	}
+}
+
+// TestStorageListP2StatsTimestamps: statsTimestamps=1 adds
+// mdTimestamps.artifactory.stats on downloaded file entries only; combined
+// with mdTimestamps=1 a property-carrying downloaded file carries both keys.
+func TestStorageListP2StatsTimestamps(t *testing.T) {
+	h := newHarness(t)
+	seedL009Tree(t, h)
+	putProps(t, h, "l009-loc/d1/f1.txt", "p1=v1")
+	resp := h.do(http.MethodGet, "/binflow/l009-loc/d1/f1.txt", adminUser, adminPass, nil, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("download f1.txt: %d; body=%s", resp.StatusCode, mustGet(t, resp))
+	}
+	_ = resp.Body.Close()
+
+	_, lb := getL009List(t, h, "l009-loc/d1?list&statsTimestamps=1")
+	f1 := entryOf(t, lb, "/f1.txt")
+	if ts := f1.MDTimestamps["artifactory.stats"]; ts == "" {
+		t.Errorf("/f1.txt (downloaded): mdTimestamps.artifactory.stats missing: %+v", f1.MDTimestamps)
+	}
+	if got := entryOf(t, lb, "/f2.txt").MDTimestamps; len(got) != 0 {
+		t.Errorf("/f2.txt (never downloaded): mdTimestamps present: %+v", got)
+	}
+
+	_, lb = getL009List(t, h, "l009-loc/d1?list&mdTimestamps=1&statsTimestamps=1")
+	f1 = entryOf(t, lb, "/f1.txt")
+	if f1.MDTimestamps["properties"] == "" || f1.MDTimestamps["artifactory.stats"] == "" {
+		t.Errorf("/f1.txt combined params: want both keys, got %+v", f1.MDTimestamps)
+	}
+	// Folder rows never carry the stats key.
+	_, lb = getL009List(t, h, "l009-loc?list&listFolders=1&statsTimestamps=1")
+	if got := entryOf(t, lb, "/d1").MDTimestamps["artifactory.stats"]; got != "" {
+		t.Errorf("/d1 folder row: artifactory.stats present: %q", got)
+	}
+}
+
+// TestStorageListP2PropertiesMd5 pins the canonical property-set digest to
+// the digests the live reference answered for the SAME property sets
+// (cross-system equality, L010-1 evidence section 1): {p1=[v1]} ->
+// c03a74d41225e1c1f65df743e0e49da3, {p1=[v1,v2]} ->
+// e215d43d0a83274a703cca40aa24ce25, {pa=[y],pb=[x]} (merged in the
+// insertion order pb-then-pa) -> e2dc06da45abc3107844d9baa22accf0.
+func TestStorageListP2PropertiesMd5(t *testing.T) {
+	h := newHarness(t)
+	seedL009Tree(t, h)
+	putProps(t, h, "l009-loc/f0.txt", "p1=v1")
+	putProps(t, h, "l009-loc/d1/f1.txt", "p1=v1,p1=v2")
+	putProps(t, h, "l009-loc/d1/f2.txt", "pb=x")
+	putProps(t, h, "l009-loc/d1/f2.txt", "pa=y")
+
+	_, lb := getL009List(t, h, "l009-loc?list&deep=1&includePropertiesMd5=1")
+	for uri, want := range map[string]string{
+		"/f0.txt":    "c03a74d41225e1c1f65df743e0e49da3",
+		"/d1/f1.txt": "e215d43d0a83274a703cca40aa24ce25",
+		"/d1/f2.txt": "e2dc06da45abc3107844d9baa22accf0",
+	} {
+		if got := entryOf(t, lb, uri).PropertiesMd5; got != want {
+			t.Errorf("%s propertiesMd5 = %q, want reference digest %q", uri, got, want)
+		}
+	}
+	if got := entryOf(t, lb, "/d1/d2/f3.txt").PropertiesMd5; got != "" {
+		t.Errorf("property-less /d1/d2/f3.txt carries propertiesMd5 %q", got)
+	}
+
+	// Wire order on a fully enriched entry: sha2, then mdTimestamps, then
+	// propertiesMd5 (the reference's raw entry order).
+	resp := h.do(http.MethodGet, "/binflow/api/storage/l009-loc?list&mdTimestamps=1&includePropertiesMd5=1",
+		adminUser, adminPass, nil, nil)
+	raw := mustGet(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("wire-order list: %d; body=%s", resp.StatusCode, raw)
+	}
+	i, j, k := strings.Index(raw, `"sha2"`), strings.Index(raw, `"mdTimestamps"`), strings.Index(raw, `"propertiesMd5"`)
+	if i < 0 || j <= i || k <= j {
+		t.Errorf("field order sha2(%d) < mdTimestamps(%d) < propertiesMd5(%d) broken in %s", i, j, k, raw)
+	}
+}
+
+// TestStorageListRootEntryStampIsReal: the includeRootPath "/" row at the
+// REPOSITORY ROOT carries the repo's real creation stamp, not the 1970
+// epoch zero (reference evidence: a real root-folder mtime).
+func TestStorageListRootEntryStampIsReal(t *testing.T) {
+	h := newHarness(t)
+	seedL009Tree(t, h)
+	_, lb := getL009List(t, h, "l009-loc?list&includeRootPath=1")
+	got := entryOf(t, lb, "/").LastModified
+	if got == "" || strings.HasPrefix(got, "1970-01-01") {
+		t.Errorf("repo-root \"/\" lastModified = %q, want a real (non-epoch-zero) stamp", got)
+	}
+	if _, err := time.Parse("2006-01-02T15:04:05.000Z07:00", got); err != nil {
+		t.Errorf("repo-root \"/\" lastModified %q not an ISO8601 millis stamp: %v", got, err)
+	}
 }
