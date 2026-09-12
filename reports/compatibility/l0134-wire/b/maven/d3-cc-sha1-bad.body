@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 409,
+      "message": "Checksum error for 'l0134-mvn-cc/com/l0134/probe-app/1.0.0/probe-app-1.0.0.jar.sha1': received 'ffffffffffffffffffffffffffffffffffffffff' but actual is '029b56e3541392c76f9357d5e54580c7175069ff'"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+HTTP/1.1 201 Created
+Content-Type: application/vnd.org.jfrog.artifactory.storage.ItemCreated+json;charset=UTF-8
+Date: Sat, 12 Sep 2026 22:28:35 GMT
+Location: http://localhost:8082/artifactory/l0134-mvn-u/com/l0134/probe-app/3.0.0-SNAPSHOT/probe-app-3.0.0-20260912.222835-1.jar
+X-Artifactory-Id: 33c83e28439cab23:-1b94c513:1a097b74ac7:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Checksum-Sha256: 36a1a37ac9a4743eb9499235bbe221903da104b8f819df26ae4b248d1d724179
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+Transfer-Encoding: chunked
+

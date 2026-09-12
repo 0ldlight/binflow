@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 400,
+      "message": "repository is not empty: \"l0134-r15a-gen\" holds 3 node(s); retry with deleteContent=true to remove them"
+    }
+  ]
+}

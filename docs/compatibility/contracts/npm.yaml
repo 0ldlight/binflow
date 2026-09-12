@@ -26,8 +26,9 @@ scope: local npm 仓 dist-tags 显式端点族 /-/package/<escapedName>/dist-tag
   服务端须 %2f/%2F 大小写等价（m03/m04 双端双绿——maven-npm-pypi.md §5 挂账项闭合）。
   证据面=L012-1 双端活体（npm 10.9.8 CLI 腿 15 case + curl 直发 20 格矩阵；pass2 定稿，pass1 复跑门
   family 退出码向量零差 + 矩阵 byte-identical）。
-  不含：packument GET/PUT 面（publish 深水面，后段票）、/-/ping 与 /-/whoami（K60 族，矩阵 D12-R03 归档）、
-  tarball 面、virtual 仓面。
+  不含：packument GET/PUT 面（publish 深水面，后段票——仅环境流量姿态一条入第二批 npm/env-probe-npm-404）、
+  tarball 面、virtual 仓面。K60 认证/会话族（/-/ping、/-/whoami、login 族、/-/npm/v1 家族）由第二批
+  （L013-2，2026-09-13）覆盖——原「矩阵 D12-R03 归档」挂账清偿，行翻 contract_ref 建议回报 conductor。
 normalize: fixtures/normalize.yaml#npm
 reference_instance: 'Artifactory-pro 7.161.20（http://localhost:8082，admin；匿名访问全局关——差分一律认证臂）'
 binflow_tested_instance: 'BinFlow UAT uat-l0121-d301cf31（http://localhost:8083，ANONYMOUS_ACCESS=true）；判别探针在一次性 d301cf31 容器复判（E0-5：d301cf31..a81cd053 对 internal/adapter/npm 零产品码漂移——证据基线纯）'
@@ -362,10 +363,310 @@ contracts:
     - { kind: difftest, report: reports/compatibility/L012-dist-tags-diff.md, anchor: '§1-D6（bulk 全族 405+Allow 头，原实建分支删除）+ §3 m13-m15 405 文案逐字', date: '2026-09-12' }
   confidence: high
   status: VERIFIED
+# ══ 第二批（L013-2，2026-09-13）：K60 认证/会话族零补证转写 ════════════════════
+# 来源双柱：docs/reverse/npm.md（T-393 定案——npm 10.9.8 本机实物源码逐文件核对 + live 抓包 +
+#   DE 反编译三方互证，K60 域最厚资产）× L012 两批独立 wire（l0121-wire 定稿批 + l0122-wire 复核批
+#   ——L012-dist-tags-diff.md §5「三格与 L012-1 §5 抽核一致（第二次独立复核）」）。
+# 零补证依据（dispatcher 派单援引 diff §5 / T-L012-2b Next 建议）：规格源与 wire 源已互证，不再另开
+#   取证票；两源互证的臂直接 VERIFIED。
+# 零补证边界：单源臂不立 A 侧断言——DE-only 臂（login 缺字段 400 文案）与 as-built-only 臂
+#   （whoami 403 ACL / 405 方法收窄 / -rev 拼写超集）一律降为注记或 error_behavior 未裁臂；
+#   K60-5 面（/-/npm/v1 家族）无任何活体证据 → 整条停 SPECIFIED 待差分批跑。
+# 台账边界（L013-2 票面）：本批不改 known-divergence/matrix——三笔翻账建议（login 缺字段 UNKNOWN、
+#   login id/rev npm-blind INTENTIONAL、D12-R03 contract_ref）回报 conductor 落。
+- id: npm/session-login-put
+  feature: 'K60-1 legacy login（couch PUT：body 凭据 → 201 铸 token；gate 豁免面 T-394 落地）'
+  surface: 'PUT /-/user/org.couchdb.user:<username>'
+  request:
+    method: PUT
+    path: '/-/user/org.couchdb.user:<name>（用户名 encodeURIComponent——npm-profile couchEndpoint；服务端按路径段解析，%2F 等转义不展开）'
+    headers: { content-type: application/json, npm-auth-type: legacy, npm-command: login, note: '无 Authorization 头（live 抓包逐头确认——couch 惯例，npm-profile loginCouch 构造 body 凭据不带 opts.auth；T-374 L1 根因即 httpapi 写门先要求凭据，T-394 豁免收口）' }
+    body: '{"_id":"org.couchdb.user:<name>","name":"<name>","password":"…","type":"user","roles":[],"date":"<ISO8601>"}（服务端只消费 name/password——DE 同构，其余字段忽略）'
+    query: {}
+  authentication: { type: 'gate 豁免（PUT 该路径族不做写凭据前置门）；认证双臂=Authorization 头 principal 优先，无头走 body name+password（argon2id；present-but-wrong 一律 401 绝不静默匿名）', role: user }
+  expect:
+    arms:
+    - when: 'body 凭据正确（无 Authorization 头——npm login --auth-type=legacy 实发形态）'
+      status: 201
+      headers: { note: '响应头未逐项落盘（T-393 wire 记录 + T-394 AC 未捕获头面）——不立头断言' }
+      body:
+        format: any
+        json:
+          keys_exact: [ok, id, token]
+          path_literal: { ok: true }
+          path_pattern: { token: '^.+$' }
+          note: >-
+            npm 只读 token（非空即可）写 .npmrc _authToken 复用（官方 npm-profile putCouch/newCreds）。
+            id 值不立断言：DE 常量 `org.couchdb.user:undefined` vs BinFlow 真实 `org.couchdb.user:<subject>`
+            ——K60 §6 定案（npm-blind，有意差异，台账候选回报）；BinFlow 多出 rev 字段（npm 不读，
+            normalize session_mint.body_superset_fields 记注）。token 随机铸造值过 normalize placeholder
+    - when: 'Authorization 头 principal（.npmrc _auth 等效路径）'
+      status: 201
+      body: { note: 同 body 凭据臂（principal 即登录，subject=principal） }
+    - when: '凭据错误（body 账密 present-but-wrong）'
+      status: 401
+      headers:
+        literal: { WWW-Authenticate: 'Basic realm="<产品名> Realm"' }
+        note: 'B as-built realm="BinFlow Realm"；A 头未捕获（T-393 wire 头面缺）——normalize keep_semantic WWW-Authenticate + realm 占位符化；A 活体复捕后升 literal'
+      body:
+        format: any
+        json:
+          keys_exact: [errors]
+          path_pattern:
+            'errors[0].message': '^(Authentication is required|authentication required)$'
+          note: 'npmjs 官方 couch 形态 {"error":…,"reason":…}；npm-registry-fetch 只按状态码归类（E401）body 形态不敏感（live E401 渲染正常）——K60 §6 裁定 BinFlow errors[] 信封 accepted'
+  side_effects:
+    - '铸 TokenRegistry token：与 POST /api/security/token 同表同吊销链（NE-06）；TTL 720h（as-built）'
+    - 'login 是认证面不是制品写：零制品落盘、不做仓路径写 ACL、不问 addon 授权（DE 同构——K60 §2.3-4；T-394 strict 不外溢 11 行维持 publish/非 couch id/generic 仓全 401）'
+    - '客户端面：npm 成功后改写 .npmrc 凭据行为 _authToken 形态（live：_auth 行被 token 行取代）'
+  error_behavior:
+    - when: 'body 缺 name/password'
+      status: 401
+      body:
+        format: any
+        json: { keys_exact: [errors], path_pattern: { 'errors[0].message': '^(Authentication is required|authentication required)$' } }
+      note: >-
+        未裁定臂（不立 A 侧断言）：DE 逐字 400 `User or Password fields are missing.`（此条补充官方——客户端
+        源码不定义服务端文案）vs BinFlow as-built 401+Basic challenge（T-394 注记 1：近不可达——真实 login 恒带
+        账密；npm 两码同归 E401/ENEEDAUTH 不敏感）。UNKNOWN 候选已回报 conductor（台账建议）；
+        裁对齐则本臂升 status 400 + DE 文案 literal
+    - when: 'Authorization 头 principal 与 body 指名不同账户'
+      status: 403
+      body:
+        format: any
+        json: { keys_exact: [errors] }
+      note: 'as-built 防御臂（为他账户铸 token 不是 login）；A 面未取证不立断言——npm 客户端恒同账户，近不可达'
+  binflow_state:
+    verdict: 'SAME（wire 互证臂全绿：body 凭据 201 铸 token / 头 principal 201 / 错凭据 401→E401 渲染 / gate 豁免 strict 不外溢）'
+    detail: 'T-394 AC1：裸 `npm login --auth-type=legacy` 全绿（服务端 access 行 PUT …/-/user/org.couchdb.user:admin 201 user=anonymous——豁免后 body 臂实证）；AC8：curl 直发 201 幂等再铸 {"ok":true,"token":"75bd…","id":"org.couchdb.user:admin"}；AC6：错口令 E401 且 .npmrc 未写凭据。实现面 grep：internal/httpapi/router.go npmCouchLoginExempt/isCouchUserDocument（gate 豁免）+ internal/adapter/npm/session.go serveLogin（双臂铸 token）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: 'T-393/T-394 实例（M14 B2/B3 窗）+ uat-l0121-d301cf31（disttag-family wire 面）' }
+  evidence:
+    - { kind: probe, report: docs/reverse/npm.md, anchor: '§2.1 客户端真实请求（live 抓包 wire 块）/ §2.2 响应契约三方表 / §2.3 服务端语义', date: '2026-08-31' }
+    - { kind: probe, report: reports/agents/T-394.md, anchor: 'AC 表行 1（裸 legacy login 全链）/ 行 6（错口令 E401）/ 行 8（curl 直发 201 幂等再铸）+ 遗留 1-2', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-diff.md, anchor: '§5 K60 族零补证（D12-R03 转写建议）+ §6-2（本文件蓝本）', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+- id: npm/session-whoami
+  feature: 'K60-2 whoami（认证 200 username；匿名 401+Basic challenge——DE 400 偏差已定案取官方 401 形态）'
+  surface: 'GET /-/whoami'
+  request:
+    method: GET
+    path: /-/whoami
+    headers: { Authorization: 'Bearer <token> 或 Basic（npm whoami 仅 token 形态才发请求——.npmrc 存 username 时官方客户端零 HTTP 直答）' }
+    query: {}
+  authentication: { type: 'bearer|basic', role: user }
+  expect:
+    arms:
+    - when: '已认证（token/Basic）'
+      status: 200
+      headers: { note: 未捕获不立断言 }
+      body:
+        format: any
+        json:
+          keys_exact: [username]
+          note: 'wire 字节：A pretty `{  "username" : "admin"}` / B compact `{"username":"admin"}`——normalize_indent 后同（m17 双批双端同值 admin；差分用户同账则同值）'
+    - when: '匿名（无凭据）'
+      status: 401
+      headers:
+        literal: { WWW-Authenticate: 'Basic realm="<产品名> Realm"' }
+        note: 'B as-built realm="BinFlow Realm"（K60 §3）；A 头未捕获（curl-matrix 无头面）——realm 占位符化（normalize 既有规则）；A 活体复捕后升 literal'
+      body:
+        format: any
+        json:
+          keys_exact: [errors]
+          path_pattern:
+            'errors[0].message': '^(Authentication is required|authentication required)$'
+          note: 'm18 双批双端 401 同形；message 大小写=auth401 措辞组（K60 §6 裁定 BinFlow errors[] 小写 accepted——与 m10 同组）。DE 为 400 User is not authenticated（DE 偏差）——npm 任一码同归 ENEEDAUTH，BinFlow 取官方 npmjs 401 形态（定案）'
+  side_effects: []
+  error_behavior:
+    - when: '已认证但无该仓读权限'
+      status: 403
+      body: { format: any, json: { keys_exact: [errors] } }
+      note: 'as-built 读面 ACL 语义（action=r 走 Authorizer.Can——T-394 注记 2）；规格 K60-2 无此行、A 面未取证——不立断言，adjudication 候选回报（npm 渲染 E403 文案误导，低危：能 login 者通常有读）'
+  binflow_state:
+    verdict: 'SAME（m17 认证臂双批双端 200 同值；m18 匿名臂 401 status 一致——message 在 auth401 措辞组内）'
+    detail: 'm17：A/B 均 200 {"username":"admin"}（pretty/compact 归一）；m18：A/B 均 401 errors 信封（A 首字母大写 / B 小写——措辞组）。非 GET 方法 → 405 为 as-built 收窄（A 未取证，注记不立断言）。实现面 grep：internal/adapter/npm/session.go serveWhoami'
+  version: { artifactory_ref: 7.161.20, binflow_tested: 'uat-l0121-d301cf31（l0121-wire 批）+ uat-l0122b-l0122（l0122-wire 批）' }
+  evidence:
+    - { kind: probe, report: docs/reverse/npm.md, anchor: '§3 K60-2 whoami（live 复核 + DE 400 偏差定案）/ §6 差异汇总第 3 行', date: '2026-08-31' }
+    - { kind: difftest, report: reports/compatibility/l0121-wire/curl-matrix-a.txt, anchor: 'm17/m18（首独立批 A 侧）', capture: '同文件 b 版 + l0122-wire/curl-matrix-{a,b}.txt 对应行（第二次独立复核）', date: '2026-09-12' }
+    - { kind: difftest, report: reports/compatibility/L012-dist-tags-diff.md, anchor: '§5（m16-m18 与 L012-1 §5 抽核一致——第二次独立复核）', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+- id: npm/session-ping
+  feature: 'K60-3 ping（200 空 JSON 对象——NE-07 既有，live 复核一致）'
+  surface: 'GET /-/ping'
+  request:
+    method: GET
+    path: /-/ping
+    headers: { Authorization: '可选（ping 不要求凭据——匿名面双端同 200）' }
+    query: {}
+  authentication: { type: anonymous, role: anonymous }
+  expect:
+    status: 200
+    headers: { note: 未捕获不立断言 }
+    body: { format: any, literal: '{}' }
+  side_effects: []
+  error_behavior: []
+  note: >-
+    HEAD 同形为 as-built 面（session.go GET/HEAD 双收，A 未取证不立断言）；非 GET/HEAD → 405+Allow
+    同为 as-built 收窄注记。npm 客户端 npm-ping 消费本端点（registry 健康检查）——体 {} 即契约本体
+  binflow_state:
+    verdict: 'SAME（m16 双批双端 200 {} 逐字节同——空对象无 pretty/compact 之别）'
+    detail: 'l0121-wire + l0122-wire 两批 curl-matrix m16：A/B 均 200 空 JSON 对象。实现面 grep：internal/adapter/npm/session.go servePing（NE-07）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: 'uat-l0121-d301cf31（l0121-wire 批）+ uat-l0122b-l0122（l0122-wire 批）' }
+  evidence:
+    - { kind: probe, report: docs/reverse/npm.md, anchor: '§3 K60-3 ping（NE-07 既有 live 复核一致）', date: '2026-08-31' }
+    - { kind: difftest, report: reports/compatibility/l0121-wire/curl-matrix-a.txt, anchor: 'm16（首独立批 A 侧 200 {}）', capture: '同文件 b 版 + l0122-wire/curl-matrix-{a,b}.txt m16 行（第二次独立复核同形）', date: '2026-09-12' }
+  confidence: high
+  status: VERIFIED
+- id: npm/session-web-login-posture
+  feature: 'K60-4 web 登录端点不实现（任意 4xx 即正确姿态——npm ≥9 ENYI 自动回落 couch K60-1）'
+  surface: 'POST /-/v1/login'
+  request:
+    method: POST
+    path: /-/v1/login
+    headers: { npm-auth-type: web, note: 'body {}（npm-profile loginWeb 实发）' }
+    body: '{}'
+    query: {}
+  authentication: { type: 'any（端点不实现——匿名 401 写门 / 带凭据 404 端点缺失）', role: any }
+  expect:
+    arms:
+    - when: '匿名（无凭据，npm login 默认 web 首跳实发形态）'
+      status: 401
+      body: { format: any, json: { keys_exact: [errors] } }
+    - when: '带凭据'
+      status: 404
+      body:
+        format: any
+        json:
+          keys_exact: [errors]
+          path_pattern:
+            'errors[0].message': 'npm endpoint -/v1/login is not implemented in BinFlow'
+          note: 'B as-built 端点缺失文案；A 响应未取证不立 A 侧断言（差分批跑候选 m21 格）'
+    client_equivalence: >-
+      客户端等价链（本条断言本体）：npm-profile loginWeb 把任意 4xx 或 500 归 ENYI（WebLoginNotSupported）
+      → verbose「web login not supported, trying couch」→ 自动回落 K60-1 couch PUT。故 BinFlow 不实现
+      web 端点=正确姿态（官方 web 成功路径 {loginUrl,doneUrl}+202/200 轮询不展开——K60 §4 定案）
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: 'SAME（客户端可见等价：默认 npm login 与 --auth-type=legacy 汇聚同一 K60-1 修复点——两链 live 均验证到 couch PUT）'
+    detail: 'T-393 §4 live 全程抓包：POST /-/v1/login 匿名 401（写门）；T-394 AC5 复现：401 → ENYI 回落 couch → Logged in（web 型全链 live 绿）。实现面 grep：route.go parseServiceRoute 无 v1/login 路由（严格 404 家族 NE-08）+ httpapi 写门 401'
+  version: { artifactory_ref: 7.161.20, binflow_tested: 'T-393/T-394 实例（M14 B2/B3 窗）' }
+  evidence:
+    - { kind: probe, report: docs/reverse/npm.md, anchor: '§4 默认 npm login 行为链（live 全程抓包）+ §1 K60-4 定案行', date: '2026-08-31' }
+    - { kind: probe, report: reports/agents/T-394.md, anchor: 'AC 表行 5（web 型 login ENYI 回落 couch 全链 live）', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+- id: npm/session-profile-token-family
+  feature: 'K60-5 npm profile/token 命令族端点不做（/-/npm/v1 家族 404 姿态——等价物=控制台+POST /api/security/token）'
+  surface: 'GET|POST /-/npm/v1/user；GET|POST /-/npm/v1/tokens；DELETE /-/npm/v1/tokens/token/<key>'
+  request:
+    method: 'GET|POST|DELETE'
+    path: '/-/npm/v1/user | /-/npm/v1/tokens | /-/npm/v1/tokens/token/<key>'
+    headers: { Authorization: 'Basic <valid>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    status: 404
+    headers: { note: 未捕获不立断言 }
+    body:
+      format: any
+      json:
+        keys_exact: [errors]
+        note: 'B as-built = parseServiceRoute 无匹配 → routeInvalid 严格 404（NE-08：search/audits/attestations/keys 同族 deliberate 不建）；npm 客户端如实报错（官方客户端契约——npm profile/token 对 404 渲染 E404）。A 侧响应未取证不立断言'
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: 'PENDING-EVIDENCE（零活体证据：两批 wire 均无本族格；UAT 现存仓已拆、免建仓只读探不可达）——B 面按路由语法 grep 判 IMPLEMENTED 起点，差分批跑后升 VERIFIED'
+    detail: '实现面 grep：internal/adapter/npm/route.go parseServiceRoute switch 无 npm/v1 分支 → routeInvalid → 严格 404（K60-5 定案「不做」+ NE-08 注释）。差分批跑候选格：m22 GET /-/npm/v1/user / m23 GET /-/npm/v1/tokens / m24 DELETE token（A/B 双端直发）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: '未测（无活体格——route.go 语法面 d301cf31..bebd92b1 无漂移）' }
+  evidence:
+    - { kind: probe, report: docs/reverse/npm.md, anchor: '§1 K60-5 定案行（不做——官方客户端契约；BinFlow 面 deliberate）', date: '2026-08-31' }
+  confidence: high
+  status: SPECIFIED
+- id: npm/session-login-no409-invariant
+  feature: 'K60-6 login 族永不答 409（couch rev-dance 不变量——幂等重 login 恒 201 再铸）'
+  surface: 'INVARIANT：PUT /-/user/org.couchdb.user:<name>（含 -rev/<rev> 拼写）任意重放序列'
+  request:
+    method: PUT
+    path: '/-/user/org.couchdb.user:<name>[-rev/<rev>]'
+    headers: { note: '同 npm/session-login-put（rev 段 opaque——服务端不消费）' }
+    body: 同 npm/session-login-put
+    query: {}
+  authentication: { type: '同 npm/session-login-put', role: user }
+  expect:
+    invariant: >-
+      login 族任何序列不返回 409（已存在用户 → 201 再铸新 token，幂等 login-mint）——DE 无 409 分支 +
+      BinFlow 无 409 代码路径 + T-394 全栈测试钉幂等再铸 201 非 409。动机（官方全链）：409 是 npm
+      rev-dance 第一跳，服务端答 409 则客户端走 GET ?write=true → 404 → 报错——永不答 409 即整族
+      rev-dance 不可达（K60-6 定案「不做，且设为不变量」）
+    status: 201
+    body: { note: 同 npm/session-login-put 成功臂（再铸 token 值不同——normalize placeholder） }
+  side_effects:
+    - '重复 login 每次铸新 token（旧 token 不吊销——TokenRegistry 多 token 并存）'
+  error_behavior: []
+  spelling_notes:
+    - '-rev/<rev> 拼写：A 路由不可达（{user_id} 单段 @PathParam 吃不下 /）→ 404 姿态；B served-as-login（httpapi isCouchUserDocument case5 豁免 + parseRoute len==5 → 同 handler 201）——B 超集面，客户端不可达（无 409 则 npm 永不发第二跳），K60-6 定案容差内；注记不立断言'
+    - 'GET ?write=true 拼写：B → routeUserLogin GET → 405（PUT only 收窄）；A 未取证——注记不立断言'
+  binflow_state:
+    verdict: 'SAME（不变量双端成立：DE 无 409 分支 / B 无 409 路径 + T-394 幂等 201 live）'
+    detail: 'T-394 全栈测试：幂等再铸 201 非 409（外部包走全装配）+ AC8 curl 直发 201；strict 不外溢行含 -rev 变体谓词单测 21 行（%2F 转义/-rev/尾斜杠）。实现面 grep：internal/httpapi/router.go isCouchUserDocument + internal/adapter/npm/route.go parseServiceRoute len==5 -rev 分支 + session.go serveLogin 无 409'
+  version: { artifactory_ref: 7.161.20, binflow_tested: 'T-394 实例（M14 B3 窗）' }
+  evidence:
+    - { kind: probe, report: docs/reverse/npm.md, anchor: '§1 K60-6 定案行 + §2.2 已存在用户行（DE 无 409 分支）', date: '2026-08-31' }
+    - { kind: probe, report: reports/agents/T-394.md, anchor: '测试段（幂等再铸 201 非 409 + 谓词单测）+ AC8', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+- id: npm/env-probe-npm-404
+  feature: 'npm CLI 环境流量姿态（pacote 自更新横幅检查：任意命令对字面包名 npm 发 GET ×2 → 404 即正常，非协议组成）'
+  surface: 'GET /npm（packument ghost 面——字面包名 "npm"）'
+  request:
+    method: GET
+    path: /npm
+    headers: { accept: 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*', pacote-req-type: packument, 'pacote-pkg-id': 'registry:npm', note: '随任意 npm 命令（publish/install/login…）可发；daily/weekly 限频、404 不记账——实现/测试勿误判为登录协议流量' }
+    query: {}
+  authentication: { type: 'any（横幅检查凭据可选）', role: any }
+  expect:
+    status: 404
+    headers: { note: 未捕获不立断言 }
+    body:
+      format: any
+      json:
+        keys_exact: [errors]
+        path_literal:
+          'errors[0].status': 404
+        note: >-
+          空仓对字面包名 npm 的 404 = 正常姿态（双批双端 wire）。message 措辞：A 裸「Not found」/
+          B「Package 'npm' not found」——packument 面保持 BinFlow 既有文案（LOOP 012 D4 裁定范围明示
+          「writeTagsLookupError 裸文案——packument 面 Package not found 不动」，裸 Not found 仅
+          dist-tags 面）；packument 面整体措辞裁定归后段 packument 票（l0132 探针素材），本条不立逐字断言
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: 'SAME（404 + errors 信封双批双端一致；message 措辞差在 D4 裁定范围注记内——非本条断言面）'
+    detail: 'l0122-wire p1 REQUEST 1：A GET /artifactory/api/npm/l0121-npm/npm → 404（74B pretty「Not found」）；B GET /binflow/api/npm/l0121-npm/npm → 404（98B「Package ''npm'' not found」）。l0121-wire 批同形（第二次独立复核）。packument 深水面（versions 投影/latest 重算）不在本条——见 tools/difftest/l0132/packument-latest-probe.sh（差分腿素材）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: 'uat-l0121-d301cf31（l0121-wire 批）+ uat-l0122b-l0122（l0122-wire 批）' }
+  evidence:
+    - { kind: probe, report: docs/reverse/npm.md, anchor: '§5-1 环境流量注记（GET ×2、404 不记账）', date: '2026-08-31' }
+    - { kind: difftest, report: reports/compatibility/l0122-wire/a/p1-publish-unscoped-100.log, anchor: 'REQUEST 1 GET …/npm → 404（含完整头面 wire）', capture: '同文件 b 版 + l0121-wire/{a,b}/p1-publish-unscoped-100.log（首独立批同形）', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
 # ── 收尾说明 ─────────────────────────────────────────────────────────────────
 # 覆盖统计（L012-2a 首文件，2026-09-13）：8 条目 = IMPLEMENTED 2（put-tag / delete-tag——现值已符，
 #   差分批跑后升 VERIFIED）/ DIVERGENT 6（get[D7] / put-nonexistent-version[D3] / ghost-404[D4] /
 #   put-bad-body[D5] / latest-recompute[D2] / bulk-reject[D6]——全部待 L012-2b 实现票 + 差分批跑翻绿）。
+#   （L012-2b 收官后 8/8 已翻 VERIFIED——见矩阵 D12-R05 note。）
+# 覆盖统计（L013-2 第二批，2026-09-13）：+7 条目 = VERIFIED 6（login-put / whoami / ping /
+#   web-login-posture / no409-invariant / env-probe-npm-404——零补证两源互证直上）+ SPECIFIED 1
+#   （profile-token-family——零活体证据，差分批跑候选 m22-m24 格后升 VERIFIED）。
+#   全文件累计 15 条目：VERIFIED 14 / SPECIFIED 1。
+# 回报 conductor 三笔台账/矩阵建议（本票不改账）：① login 缺字段臂（DE 400 vs B 401——UNKNOWN 候选，
+#   T-394 注记 1 承接）；② login 201 体 id 值 + rev 超集字段（npm-blind INTENTIONAL 候选——authority
+#   = npm.md §6 定案/T-393）；③ D12-R03 行翻 contract_ref=contracts/npm.yaml + last_difftest
+#   =L012-dist-tags-diff.md（m16-m18 wire 腿）。另：whoami 403 ACL 臂（T-394 注记 2）与 K60-5 A 侧
+#   响应面为取证缺口，随差分批跑收。
 # 裁定链：LOOP 012 conductor 六项裁定（D2-D7 全按参照对齐收；D5 例外点=400 不复刻 500；D6=bulk 405 化）
 #   ——BOARD.md sprint tick 2026-09-13 在案；六条 ledger 落 known-divergence.yaml npm 域（5 BUG + 1 INTENTIONAL）。
 # 头面缺口：L012-1 wiretap 未逐项落盘响应头（除 Cache-Control 经报告明证）——差分批跑捕获后补头断言面

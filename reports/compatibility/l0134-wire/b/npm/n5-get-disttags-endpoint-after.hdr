@@ -1,0 +1,7 @@
+HTTP/1.1 200 OK
+Cache-Control: max-age=60
+Content-Type: application/json
+X-Request-Id: 93640b23ee0507d614c53089f2e4f131
+Date: Sat, 12 Sep 2026 22:37:41 GMT
+Content-Length: 39
+

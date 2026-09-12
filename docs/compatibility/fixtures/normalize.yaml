@@ -91,6 +91,10 @@ domains:
           - Authentication is required
           - authentication required
       literals: keep                         # 其余 message 逐字保留比对：D3/D4 对齐后 `and version:<v>` / `Not found` 均为断言面；m12 再删 404 文案双端逐字节一致先例
+      session_mint:                          # L013-2（K60 族第二批）——login 铸造面归一：token 随机/id 值 npm-blind/rev 超集
+        token_value: placeholder             # 201 体 token 随机铸造值 → 占位符（每次 login 新值；npm 只读非空——keys/非空为断言面，值不是）
+        login_id_value: placeholder          # id 值互认占位：A（DE）常量 org.couchdb.user:undefined vs B 真实 org.couchdb.user:<subject>——K60 §6 定案 npm-blind 有意差异，值不作断言面（台账候选回报）
+        body_superset_fields: tolerate_and_note  # B 多出的 rev 字段（K60 §6 定案 npm 不读）——超集记注不判差（沿 headers superset_policy 先例）
     timing:
       compare: magnitude_only
     auth:

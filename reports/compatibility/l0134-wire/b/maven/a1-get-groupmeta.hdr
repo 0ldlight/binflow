@@ -1,0 +1,12 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Content-Length: 325
+Content-Type: application/xml
+Etag: 6f02ad8ec1271875d37494696cf63565c53c3ab1
+Last-Modified: Sat, 12 Sep 2026 22:20:29 GMT
+X-Checksum-Md5: 5e719bab48749111303cc59eef78371d
+X-Checksum-Sha1: 6f02ad8ec1271875d37494696cf63565c53c3ab1
+X-Checksum-Sha256: a7ed52f745520de01fd9fdebd31714a2d93ca36964ecf8484cd3648cabfb3983
+X-Request-Id: f1c81ae66f3593fb99c3fa64c42373cd
+Date: Sat, 12 Sep 2026 22:20:29 GMT
+

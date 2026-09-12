@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 409,
+    "message" : "Suspicious checksum file, content length of 1200 bytes is bigger than allowed."
+  } ]
+}

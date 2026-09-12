@@ -1,0 +1,74 @@
+{
+  "uri": "http://localhost:8083/binflow/api/storage/l0134-mvn-u/com/l0134/probe-cli/1.0.0-SNAPSHOT/",
+  "downloadUri": "",
+  "repo": "l0134-mvn-u",
+  "path": "/com/l0134/probe-cli/1.0.0-SNAPSHOT/",
+  "created": "2026-09-12T22:31:47.000Z",
+  "createdBy": "admin",
+  "lastModified": "2026-09-12T22:32:58.000Z",
+  "modifiedBy": "admin",
+  "lastUpdated": "2026-09-12T22:32:58.000Z",
+  "size": "0",
+  "children": [
+    {
+      "uri": "/maven-metadata.xml",
+      "folder": false
+    },
+    {
+      "uri": "/maven-metadata.xml.md5",
+      "folder": false
+    },
+    {
+      "uri": "/maven-metadata.xml.sha1",
+      "folder": false
+    },
+    {
+      "uri": "/probe-cli-1.0.0-20260912.223143-1.jar",
+      "folder": false
+    },
+    {
+      "uri": "/probe-cli-1.0.0-20260912.223143-1.jar.md5",
+      "folder": false
+    },
+    {
+      "uri": "/probe-cli-1.0.0-20260912.223143-1.jar.sha1",
+      "folder": false
+    },
+    {
+      "uri": "/probe-cli-1.0.0-20260912.223143-1.pom",
+      "folder": false
+    },
+    {
+      "uri": "/probe-cli-1.0.0-20260912.223143-1.pom.md5",
+      "folder": false
+    },
+    {
+      "uri": "/probe-cli-1.0.0-20260912.223143-1.pom.sha1",
+      "folder": false
+    },
+    {
+      "uri": "/probe-cli-1.0.0-20260912.223256-2.jar",
+      "folder": false
+    },
+    {
+      "uri": "/probe-cli-1.0.0-20260912.223256-2.jar.md5",
+      "folder": false
+    },
+    {
+      "uri": "/probe-cli-1.0.0-20260912.223256-2.jar.sha1",
+      "folder": false
+    },
+    {
+      "uri": "/probe-cli-1.0.0-20260912.223256-2.pom",
+      "folder": false
+    },
+    {
+      "uri": "/probe-cli-1.0.0-20260912.223256-2.pom.md5",
+      "folder": false
+    },
+    {
+      "uri": "/probe-cli-1.0.0-20260912.223256-2.pom.sha1",
+      "folder": false
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "repo" : "l0134-mvn-d",
+  "path" : "/com/l0134/probe-app/maven-metadata.xml",
+  "created" : "2026-09-12T22:27:26.817Z",
+  "createdBy" : "admin",
+  "downloadUri" : "http://localhost:8082/artifactory/l0134-mvn-d/com/l0134/probe-app/maven-metadata.xml",
+  "mimeType" : "application/xml",
+  "size" : "328",
+  "checksums" : {
+    "sha1" : "4be9a617a5b2d55d9c9c41fb0391293d10c5c6f6",
+    "md5" : "3db184a0dc8b53e5352b3a076ccd0b33",
+    "sha256" : "c4949545356b8bb9a6bd3e2783535bddad0e95ec36db7d3df47d69a5bd59fa03"
+  },
+  "originalChecksums" : {
+    "sha256" : "c4949545356b8bb9a6bd3e2783535bddad0e95ec36db7d3df47d69a5bd59fa03"
+  },
+  "uri" : "http://localhost:8082/artifactory/l0134-mvn-d/com/l0134/probe-app/maven-metadata.xml"
+}

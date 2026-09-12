@@ -1,0 +1,8 @@
+HTTP/1.1 200 OK
+Cache-Control: no-store
+Content-Type: application/json
+X-Content-Type-Options: nosniff
+X-Request-Id: 6cfc84955065391a91209362f8f620c2
+Date: Sat, 12 Sep 2026 22:18:47 GMT
+Content-Length: 167
+

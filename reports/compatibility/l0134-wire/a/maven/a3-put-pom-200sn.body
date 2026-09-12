@@ -1,0 +1,18 @@
+{
+  "repo" : "l0134-mvn-d",
+  "path" : "/com/l0134/probe-app/2.0.0-SNAPSHOT/probe-app-2.0.0-20260912.222739-1.pom",
+  "created" : "2026-09-12T22:27:39.094Z",
+  "createdBy" : "admin",
+  "downloadUri" : "http://localhost:8082/artifactory/l0134-mvn-d/com/l0134/probe-app/2.0.0-SNAPSHOT/probe-app-2.0.0-20260912.222739-1.pom",
+  "mimeType" : "application/x-maven-pom+xml",
+  "size" : "230",
+  "checksums" : {
+    "sha1" : "5dd8269fd4735b99b3edde6f28e53ef4e6270b03",
+    "md5" : "8fdcf090bd14af589d500ff40d218110",
+    "sha256" : "8f7cd26bf7c3b31e422742a5cd4cf6a18ab408e71b7035d28dda43130250a3e8"
+  },
+  "originalChecksums" : {
+    "sha256" : "8f7cd26bf7c3b31e422742a5cd4cf6a18ab408e71b7035d28dda43130250a3e8"
+  },
+  "uri" : "http://localhost:8082/artifactory/l0134-mvn-d/com/l0134/probe-app/2.0.0-SNAPSHOT/probe-app-2.0.0-20260912.222739-1.pom"
+}

@@ -72,8 +72,8 @@ priority_policy:
 summary:
   total_rows: 200
   state_counts:
-    compatible: 72
-    partial: 19
+    compatible: 73
+    partial: 18
     absent: 78
     not_applicable: 19
     superset: 12
@@ -87,11 +87,11 @@ summary:
     P2: 80
   by_state_x_priority:
     compatible:
-      P0: 55
+      P0: 56
       P1: 16
       P2: 1
     partial:
-      P0: 3
+      P0: 2
       P1: 11
       P2: 5
     absent:
@@ -111,8 +111,8 @@ summary:
       not_applicable: 4
     D02:
       rows: 13
-      partial: 1
-      compatible: 4
+      partial: 0
+      compatible: 5
       absent: 6
       not_applicable: 1
       superset: 1
@@ -698,11 +698,11 @@ rows:
 - row_id: D02-R01
   domain: D02
   capability: GET /api/repositories?type=&packageType=&project=
-  state: partial
+  state: compatible
   confidence: high
   contract_ref: 
   golden_ref: 
-  last_difftest: 
+  last_difftest: reports/compatibility/L013-r15-packument-probes.md §1（R-15c/d 预授权四象限）+ reports/agents/L013-r15c-project-filter.md 五臂复验
   priority_class: P0
   layer: A
   source_row: "§3 行 1"

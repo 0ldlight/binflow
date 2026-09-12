@@ -1,0 +1,9 @@
+[
+  {
+    "key": "docker-local",
+    "description": "",
+    "type": "local",
+    "packageType": "docker",
+    "url": "http://localhost:8083/binflow/docker-local"
+  }
+]
