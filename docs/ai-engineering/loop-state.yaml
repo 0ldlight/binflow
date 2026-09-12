@@ -6,6 +6,9 @@ current_iteration: 010
 current_goal: "P2 三参尾款+合并差分复验 / 复核两项 / 旁观微票四件 / 规格刷新票 / R-6 搭车窗 / R-10 批复驱动"
 iteration_009_seal: "四轨全收（第四波限额击落双 reviewer 复活零损失）；list 25/32 收敛零越界；双审四 blocking 全清（两回归类）；台账 30 条目 resolved 19；双审战绩 10/10；commits 53522a6c/1b4e5dd4"
 loop_010_tracks:
+  - { id: L010-2, domain: httpapi-micro, owner: dev-go-core, what: "✅ 四件全清（探针先行）：vendor CT 同串/空 actions 七臂豁免语义/转义统一 SetEscapeHTML(false)（& 文件名字节同）/无仓段泛化 404——**第 4 件前提被实测推翻**（ref 非 400 Cannot-list-root，L008 §1.12 无探针臂的断言作废）；两台账条目可翻绿+池项收口；附带=DELETE 404 第三次观测（与 L007-1 同、与 L009-3 反——两态探针在 L010-1）；ref 中途崩一次自愈复验过", status: done }
+  - { id: L010-4, domain: cloud-evidence, owner: devops-engineer, what: "✅ R-6 窗口双败定谳③（常量层不可覆盖：子元素+JVM dotted 属性实测送达+property 三面同场仍 TLS 强制）；恢复三验全过（binarystore/system.yaml sha 基线+ping 200+标记制品逐字节）；四问维持静态锚；**静态面备选立票建议**（直读默认+redirect 显式+expiry 可配——产品权）+残余假说两条（endpoint 带 scheme=高性价比并入下个 storage 窗搭车 / camel JVM 键）；第三窗不批（conductor 裁定）", status: done }
+  - { id: L010-3, domain: spec-refresh, owner: reverse-engineer, what: "✅ rest-api.md（表行刷新+11 条勘误块+官方差异 bullet 翻新）+ api-inventory.yaml 同步；活体增益=int32 界/空值缺席双升 high（6 只读臂）；新待取证 3（坏参×文件目标次序/root lastModified 形态/sha2 列出）；rest-compat-matrix 行 5/356 翻态建议转 compat；取证后实例失联=L010-4 窗口操作中（预期）", status: done }
   - { id: L010-1, domain: storage-list, owner: dev-go-storage, what: "P2 三参尾款（mdTimestamps/includePropertiesMd5/statsTimestamps——含跨面等值性规格前置）+ 合并差分复验（32 臂全量重跑 + 延期单臂：空值/int32/四角/XSS）+ 复核两项（root includeRootPath lastModified 形态 / DELETE 未知名两态探针）" }
   - { id: L010-2, domain: httpapi-micro, owner: dev-go-core, what: "旁观微票四件：vendor CT（writeJSONBodyCT 复用）/ 空 actions 放行语义 / 转义不对称（MarshalIndent→无 HTML 转义编码器）/ 无仓段 ?list 臂（400 Cannot list files of root——立账+实现）" }
   - { id: L010-3, domain: spec-refresh, owner: reverse-engineer, what: "规格刷新票：docs/reverse/rest-api.md:119 与 api-inventory.yaml:53 的 ?list 行旧语义（root-400/相对 uri/无七参）刷新为 L008-3+L009-2 实测语义——逐字节复核前置" }

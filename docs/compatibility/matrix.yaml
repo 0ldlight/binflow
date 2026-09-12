@@ -67,8 +67,8 @@ priority_policy:
 summary:
   total_rows: 200
   state_counts:
-    compatible: 70
-    partial: 21
+    compatible: 71
+    partial: 20
     absent: 78
     not_applicable: 19
     superset: 12
@@ -82,11 +82,11 @@ summary:
     P2: 80
   by_state_x_priority:
     compatible:
-      P0: 54
+      P0: 55
       P1: 15
       P2: 1
     partial:
-      P0: 4
+      P0: 3
       P1: 12
       P2: 5
     absent:
@@ -99,8 +99,8 @@ summary:
   by_domain:
     D01:
       rows: 43
-      compatible: 21
-      partial: 6
+      compatible: 22
+      partial: 5
       absent: 10
       superset: 2
       not_applicable: 4
@@ -186,12 +186,16 @@ rows:
   capability: GET /api/storage/{repoKey}/{path}?properties|?list|?stats|?permissions 四臂
   state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref:
+  golden_ref:
+  last_difftest: reports/compatibility/L010-list-p2-diff.md §6-a（A30 参照臂：属性已写已读文件无 artifactory.stats——参照元数据面不计数）
   priority_class: P0
   layer: A
   source_row: "§2 行 2"
+  note: 'LOOP 010（2026-09-12）挂臂级账指针：item-info GET 与 ?properties GET/PUT/DELETE 经 storageNode
+    →ReposSvc.Get 计入 downloadCount（参照不计数——UAT 隔离探针实证，known-divergence
+    #rest/metadata-plane-download-count-pollution BUG，LOOP 011 修复票）——臂级账不占本行四臂主面
+    compatible 态（读写面形态已对齐，计数副作用单账收口）。'
 - row_id: D01-R03
   domain: D01
   capability: GET /api/storage/{repoKey}/{path}?propertiesXml 臂（BinFlow 501 显式拒绝）
@@ -217,19 +221,19 @@ rows:
 - row_id: D01-R05
   domain: D01
   capability: GET ...?list 参数族 deep/depth/listFolders/mdTimestamps/includeRootPath/includePropertiesMd5
-  state: partial
+  state: compatible
   confidence: high
   contract_ref:
   golden_ref:
-  last_difftest: 'T-L009-2（uat-l0092-03396aa1，32 臂矩阵双发两轮）：状态列 32/32 对齐、归一 SAME 25/32——余 7 臂全部且仅落 P2 三参键（mdTimestamps/includePropertiesMd5/statsTimestamps，条目集/uri/size/folder/sha 全同）；前置 reports/compatibility/L008-list-params-diff.md（首轮 26 DIVERGENT）'
+  last_difftest: 'L010-list-p2-diff.md §2-§4（32 臂全量重跑 32/32 归一 SAME 两轮 + 延期单臂四组 19/19 + includeRootPath 根条目时刻形态双端一致）；前置 T-L009-2（25/32——余 7 臂全落 P2 三参）+ L008-list-params-diff（首轮 26 DIVERGENT）'
   priority_class: P0
   layer: A
   source_row: "§2 行 5"
-  note: 'LOOP 009（2026-09-12）收窄 + confidence medium→high（32 臂两轮系统差分）：递归/形态/行为差三连修
-    全 SAME（deep=1 唯一触发/depth 钳层/vendor FileList CT/根可列/七参 400 逐字——known-divergence
-    #rest/storage-list-recursion-semantics resolved）；残余收窄至 P2 三参（mdTimestamps 跨面/
-    includePropertiesMd5 规格前置/statsTimestamps 入列——#rest/storage-list-params-family UNSUPPORTED，
-    LOOP 010 票）。lastModified 秒级维持 M16 定谳；includeRootPath 根条目时刻臂 LOOP 010 逐字节复核。'
+  note: 'LOOP 009 收窄（25/32）→ LOOP 010（2026-09-12）收官翻 compatible：P2 三参全落（跨面等值性
+    规格先行取证 + 32/32 归一两轮 + 空值/int32 界/XSS 四角/NameValidator 延期四组 19/19）——台账
+    #rest/storage-list-params-family resolved；includeRootPath 根条目 1970 零时刻已修（repo 行
+    CreatedAt「根随仓生」）。冻结快照 rest-compat-matrix.md §2 行 5 与修复带 2-3（文件行 356）的
+    「◐ 待核对」历史行以本主账翻态为准（冻结件不回改——留痕即本注）。'
 - row_id: D01-R06
   domain: D01
   capability: PUT /api/storage/{repoKey}/{path}?properties=k=v&recursive&atomic（Set Item Properties）
@@ -1279,8 +1283,10 @@ rows:
     LOOP 009 追记（T-L009-3）：keyed 面 4xx 载体已收口全 errors-envelope（409/双文案/未知仓/未知用户/
     admin 主体/解码失败——L006 记 SAME 系只比文案未比载体，收口后逐字同；上段「400 系维持纯文本」旧
     裁量就该事实作废，envelope SetEscapeHTML(false) 对齐 Jackson）；边缘校验族 resolved（#rest/
-    permissions-v1-edge-validation-family——%zz 原观察系探针工具差，台账 note 存证）+ 新挂两旁观账
-    （空 actions 校验豁免 BUG / DELETE 未知名 200 UNKNOWN——臂级账不占本行态）。'
+    permissions-v1-edge-validation-family——%zz 原观察系探针工具差，台账 note 存证）+ 新挂两旁观账。
+    LOOP 010 终态：空 actions 校验豁免 resolved（T-L010-2 七臂对齐）；DELETE 未知名 200 候选不立账
+    终裁（L010-1 七臂双端两态逐字 SAME 与 L007-1 一致，L009-3 的 200 系实例崩溃前异常态观察——
+    条目撤销，存证在 edge-validation 家族 note）——本面零挂账余量。'
 - row_id: D04-R19
   domain: D04
   capability: "/api/v2/security/permissions 族（8 条目 + per-user/per-group 6 端点）"

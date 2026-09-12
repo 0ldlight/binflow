@@ -403,6 +403,13 @@ entries:
       LOOP 010 池备注（Review B non-blocking 探针票素材，四项均「探针先行」纪律不入本批）：XSS 四角臂
       （`<`+换行等极端角补取样）/ NameValidator 三臂（非法字符集边界补拍）/ 转义不对称（两级解码的
       查找-vs-创建不对称面）/ 无仓段臂（{name} 路径无仓段形态）——待参照臂活体补证后定是否立账。
+      LOOP 010 池收口（2026-09-12）：四项探针票全数出证——XSS 四角 4/4 SAME（L010-list-p2-diff §3）、
+      NameValidator 三字面量全 SAME（§3）、转义不对称收口（T-L010-2 ③ 成功体统一无 HTML 转义）、
+      无仓段臂前提推翻（T-L010-2 ④：参照四变体恒 404 "Not Found" 信封，已按真语义对齐——旧
+      rest-api.md:119 root-400 文案刷新票归 reverse-engineer）。**DELETE 未知名 200 候选不立账终裁**
+      （conductor LOOP 010）：L010-1 七臂双端两态逐字 SAME（从未建成/已删再删=404 envelope、建成删除
+      =200 纯文本——与 L007-1 闭账臂一致）；L009-3 的 200 观察不可复现，判定为参照实例崩溃前异常态
+      观察取证（L010 §6-c DB wedge 事件窗同款情形）——原条目撤销，若再现 200 形态再立账并附实例状态。
   evidence: reports/compatibility/L006-a-b-diff.md §2.1 + T-L006-1.md（⑤/Changes 反编译双证）
 - id: rest/users-v1-get-unknown-style
   surface: GET /api/security/users/{name} 未知名 404 体裁+文案
@@ -465,7 +472,21 @@ entries:
     （?stats 数据已在，只差入列）。
   authority: { type: differential, ref: "reports/compatibility/L008-list-params-diff.md §3 + T-L009-2.md Outputs" }
   review_gate: LOOP 010 P2 票（mdTimestamps 跨面 / includePropertiesMd5 规格前置 / statsTimestamps 入列）
-  evidence: reports/compatibility/L008-list-params-diff.md §3 + T-L009-2.md（32 臂复跑 7 DIFF 全落三参键）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      L010-list-p2-diff.md §1-§4（P2 三参全落）：跨面等值性规格先行取证（§1——mdTimestamps 属性时刻/
+      includePropertiesMd5 序列化 md5/statsTimestamps 各 2-3+ 活体臂）；32 臂全量重跑 **32/32 归一 SAME**
+      两轮（余 7 臂全收敛 A15/A16/A17/A21/A22/A23/A30——含 vendor CT 与 400 body 归一比较全同）；延期
+      单臂四组 19/19（B 空值/空白 9、C int32 界 6、XSS 四角可达角 4、NameValidator 三字面量）；复核一
+      includeRootPath 根条目 1970 零时刻已修（仓库根取 repo 行 CreatedAt「根随仓生」戳、查询无关性成立，
+      A26/A27 双端形态一致——L009-2 Risks① 清偿）。matrix D01-R05 随翻 compatible。
+    note: >-
+      lastModified 秒级 .000Z 维持既定 audit 派生族拼写（值归一）。LOOP 010 池四项探针票全数出证收口
+      （XSS 四角 4/4、NameValidator 全 SAME、转义不对称=T-L010-2 ③ 成功体统一无 HTML 转义、无仓段臂
+      =T-L010-2 ④ 前提推翻——参照四变体恒 404 "Not Found" 信封已对齐，rest-api.md:119 文案刷新票归
+      reverse-engineer）。越界信息记录不立案：参照属性写面默认递归怪癖（§6-b，供 properties 契约排差）。
+  evidence: reports/compatibility/L008-list-params-diff.md §3 + T-L009-2.md + L010-list-p2-diff.md §1-§4（32/32 终态）
 - id: rest/user-detail-vendor-content-type
   surface: 'GET /api/security/users/{name} 200 面 Content-Type（vendor 串缺位）'
   classification: BUG
@@ -475,7 +496,14 @@ entries:
     （…storage.FileList+json）已随 T-L009-2 的 writeJSONBodyCT 助手对齐——机制现成可复用。
   authority: { type: differential, ref: "reports/agents/T-L009-3.md Outputs 残留 DIFF ①" }
   review_gate: LOOP 010 微票（writeJSONBodyCT 复用；matrix D04-R02 note 已挂指针）
-  evidence: reports/agents/T-L009-3.md（Outputs 残留 DIFF ①——面级）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      T-L010-2 ①（刮擦实例 × :8082 差分）：handleUserGet 改 writeJSONBodyCT + userDetailMediaType 常量
+      （application/vnd.org.jfrog.artifactory.security.User+json，无 charset 后缀）——差分 CT 双端同串；
+      TestUserDetailVendorContentType 精确串断言。附带：writeJSONBodyCT 弃 MarshalIndent 改 Encoder
+      SetEscapeHTML(false)（成功体与错误体统一无 HTML 转义——L009-3 姿态推至成功面）。
+  evidence: reports/agents/T-L009-3.md（残留①）+ T-L010-2.md（①落地+差分双端同串）
 - id: rest/permissions-v1-empty-actions-validation-skip
   surface: v1 keyed PUT 空 actions 列表的主体校验豁免（校验随 actions 走）
   classification: BUG
@@ -486,19 +514,29 @@ entries:
     （校验随 actions 走）低危；非空 actions 的 admin 守卫文案臂（L007-1 已对齐）不受动。
   authority: { type: differential, ref: "reports/agents/T-L009-3.md Compatibility 漂移点(b)" }
   review_gate: LOOP 010 微票（校验豁免随 actions 走）
-  evidence: reports/agents/T-L009-3.md（漂移点 b——双端对照观察）
-- id: rest/permissions-v1-delete-unknown-idempotent-200
-  surface: v1 permissions DELETE 未知名应答（200 幂等 vs 404）
-  classification: UNKNOWN
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      T-L010-2 ②（七臂差分 status+message 双端一致）：三处校验（admin 守卫/未知用户/未知组）对 keyedV1
+      面按「actions 空即免验」逐主体豁免——n1 未知用户[]=201、n2 admin[]=201、n4 未知组[]=201、
+      n3 未知用户[r]=400 同文案、n5 admin[]+未知[r]=400 未知文案、n6/n7 admin 带动作=400 双单引号文案
+      （豁免粒度与顺序钉死）；富面（/api/v1/permissions POST）冻结不动（BinFlow-native 超集，无参照面）。
+      TestPermissionsV1EmptyActionsValidationSkip 七臂表驱动 + 富面冻结测试。
+  evidence: reports/agents/T-L009-3.md（漂移点 b）+ T-L010-2.md（②七臂落地）
+- id: rest/metadata-plane-download-count-pollution
+  surface: 元数据面下载计数污染（item-info GET 与 ?properties GET/PUT/DELETE 计入 downloadCount）
+  classification: BUG
   rationale: >-
-    L009-3 旁观发现（2026-09-12）：参照 DELETE car-l009（从未建成的目标）→ 200 "Successfully deleted"；
-    BinFlow → 404。**与 L007-1 已闭合臂相抵**：L007-1 差分记参照 DELETE 未知名=404 errors-envelope
-    "Not Found"（同体同文 SAME——台账 permissions-v1-response-shape-residuals ②臂）——两轮参照观察
-    不一致，复现条件差未定（疑名字形态/前置状态〔目标曾存在与否〕所致）。裁定前置=条件差探针复现：
-    若参照对从未建成目标恒 200 则 BUG 对齐（幂等删除语义）；若条件差则按条件登记。
-  authority: { type: pending, ref: "LOOP 010 探针（DELETE 未知名 × {从未建成/曾建成已删} 两态复现——条件差定谳后定级）" }
-  review_gate: LOOP 010 限期升级（探针复现→BUG 对齐或条件登记）
-  evidence: reports/agents/T-L009-3.md（旁观观察）× reports/compatibility/L007-residuals-users-diff.md §1 臂②（相抵存证）
+    L010-list-p2-diff §6-a（越界发现，2026-09-12 UAT 隔离探针实证）：BinFlow GET /api/storage/{path}
+    （item-info）与 ?properties GET/PUT/DELETE 均经 storageNode→ReposSvc.Get **计入
+    downloadCount/lastDownloaded**——新文件上传后 stats=0 → PUT ?properties 后 =1 → GET ?properties
+    后 =2 → item-info GET 亦 +1；参照侧属性已写已读的文件无 artifactory.stats（A30 参照臂——参照
+    元数据面不计数）。根因：计数器随内容面 Get 直乘（ADR-0044 K69「direct」臂的附带伤害）；?stats
+    面已有 statsNode 非计数解算先例可循。本轮差分夹具以「属性只放在有下载的文件」规避，32/32 不受
+    影响——但该污染会在脏实例上阻 A30 类臂收敛（坑登记）。
+  authority: { type: differential, ref: "reports/compatibility/L010-list-p2-diff.md §6-a（UAT 隔离探针）" }
+  review_gate: LOOP 011 修复票（httpapi 元数据面非计数解算——List-based 精确匹配臂 + 各面拼写回退语义；virtual 解算语义验证前置）
+  evidence: reports/compatibility/L010-list-p2-diff.md §6-a
 # 条目模式（M3-2 落地）：
 # - id: rest/build-batch-delete-date-range
 #   surface: POST /api/build/delete
