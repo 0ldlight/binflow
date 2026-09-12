@@ -1,10 +1,18 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-12T09:00:00Z
-current_iteration: 008
-current_goal: "update-merge ADR 流程+实现 / D3 blob 豁免+virtual 注记双小票 / R-10 裁定包呈批 / 票 D 两段 / 台账卫生批"
-iteration_007_seal: "四轨全收（第三波限额击落断点复活零损失）；matrix ✅70/◐21（P0 partial→4 行）；D3 终裁 BUG 对齐收；update-merge ADR 候选；双审战绩 8/8；iteration-007.md 落盘；commits 253fa6fe/6e12c20f"
+updated: 2026-09-12T12:30:00Z
+current_iteration: 009
+current_goal: "四 UNKNOWN 到期 gate 首件 / list 补参大票（P0+P1）/ stray+users 体裁微票 / ADR-0050 对象列 Errata"
+iteration_008_seal: "五轨零中断；ADR-0050+勘误四入册；update-merge 落地（双审独立命中 P0 静默数据丢失——返工三分流修复）；D3+virtual 闭环；票 D 26/32 分歧面开；R-10 包 16 席位呈批；双审战绩 9/9；commits c03ec55e/03396aa1"
+loop_009_tracks:
+  - { id: L009-1, domain: ledger-gates, owner: compatibility-engineer, what: "✅ 四 gate 改期 LOOP 010（逐条呈批包指针+席位号+翻态分支；R-14 写面取证红线保留）；候裁建议=R-12 最强（ADR-0026 在册仅差用户确认）→ conductor 并入下次呈批提示", status: done }
+loop_010_pool_addenda:
+  - { from: L009-reviewA-rangeout, what: "无仓段 ?list 臂立账候选（bf 404 notImplemented vs ref 400 Cannot list files of root.）+ docs/reverse/{rest-api.md:119,api-inventory.yaml:53} 旧 root-400 文案刷新票（reverse-engineer——LOOP 010 逐字节复核前必须刷新防错规格为底）" }
+  - { from: L009-reviewB-nonblocking, what: "探针微票余两项：转义不对称（writeJSONBodyCT 走 MarshalIndent 恒 HTML 转义 vs 参照裸 &）+ 无仓段臂（与 A 项同）——XSS 四角臂与 NameValidator 三臂已随 A blocking 合流清偿" }
+  - { id: L009-2, domain: storage-list, owner: dev-go-storage, what: "✅ P0+P1 全落地：递归三连修（死守卫根因=尾斜杠计段）+形态五项+行为差三项+listFolders/includeRootPath 两参；**矩阵重跑 25/32 归一 SAME，余 7 臂全落 P2 范围零越界**；两轮无 flake；风险诚实项=root includeRootPath lastModified 形态+空值 deep 400 推定（LOOP 010 复核）；翻绿建议=recursion BUG resolved+params 家族收窄三 P2 参+D01-R05 收窄", status: done }
+  - { id: L009-3, domain: permissions-users-style, owner: dev-go-core, what: "stray+users 体裁微票：permissions 边缘校验①②（%zz 转义 400 对齐+NameValidator 恶意名 400——台账 edge-validation-family ①②）+ users 404 envelope（泛化 Not Found 文案警告在账——不可直译）+ 顺手 permissions_v1_alias_test.go:115 注释改 envelope" }
+  - { id: L009-4, domain: architecture, owner: architect, what: "✅ ADR-0050 Errata 一（对象列两格：显式对象=整体替换〔A14〕/显式 null=保留整族〔A15〕——三格收敛单规则；触发②③清偿①④⑤续挂）；R-6 四路径评估（①JVM 属性可行性最高=下窗第一发②property 第二发③解释性假说④MinIO TLS 最贵须 throwaway 隔离）——排程建议 LOOP 010+ 单窗口封顶搭车不开专窗；双败后二选一=④或静态面备选立票", status: done }
   - { id: L008-1, domain: repo-config-rest, owner: architect→dev-go-core 串行, what: "update-merge ADR-0050 流程（案 A 定谳：POST=merge 三列矩阵+PUT=create-only——PUT=更新超集回撤随 ADR）+ 实现票（parseRemoteConfig 基线+指针席位；D02-R03 联裁注记+PUT 臂差分）", status: in_flight }
   - { id: L008-4a, domain: rulings, owner: product-manager, what: "✅ pending-rulings v2.0 呈批：14 编号/16 席位（R-10abc/R-11①②/R-12~R-14 新增，各带两案+PM 建议）；R-6 显式排除整包批复（evidence-blocked 红线）；conductor 裁定：D2 折入呈批（token 族联裁）、R-6 窗口 LOOP 009+ 候排", status: done }
   - { id: L008-2, domain: docker-remote-face, owner: dev-registry-adapter, what: "✅ 双小票闭环：D3 blob 豁免（standing+digest 已验→本地 HIT 零上游零行重写——四臂 0-vs-0 双端同，10.4×TTL 与真实 CLI 含）；virtual 注记销（walk 终态 plain body，summary 移 WARN last_member_summary）；manifest 面窗语义零改动（控制臂）；ADR-0012 勘误四建议文本已出（architect 入册在途）；销账转 compat 在途", status: done }
@@ -37,6 +45,7 @@ interruptions:
   - { at: 2026-09-11T05:48~05:50Z, what: "三轨全被 API 5h 用量上限 429 击落（限额 06:28:17 重置）；conductor 核实工作树零半成品（皆死于调查/设计段）→ 三轨 SendMessage 断点复活（05:5x 用户令「继续」）" }
   - { at: 2026-09-11T12:28Z, what: "第二波限额击落 L004-1/L004-2（限额 15:24:11 重置）；树零半成品（取证段）；断点复活。**L004-1 中断前翻案级发现：活体参照处理带引号 INM/IMS 回 304，与 L000-B E3-2 相反——复活指令要求双证并排+条件差异矩阵后实现**" }
   - { at: 2026-09-12T04:44Z, what: "第三波限额击落 LOOP 007 四轨（限额 07:04:47 重置）；L007-4 台账半成品解析正常、余零半成品；四线断点复活（L007-2 指令改 busybox 载体防网络卡点）" }
+  - { at: 2026-09-12T15:20Z, what: "第四波限额击落 L009 双 reviewer（限额 17:13:01 重置）——均在审后半段（翻绿已先完成落账）；断点复活续审" }
 infra_fixes:
   - { at: 2026-09-11, what: "lint 钩子修复（update-config 技能流程）：.claude/settings.json 的 if 条件运行时不生效致红树期全 Bash 被封（L003-3 上报，20min 实损）→ 改命令侧 jq 门控（case git commit* → make lint，其余 exit 0）+ if 用文档化语法；非 commit 放行已实证" }
 completed_loop_003_partial:

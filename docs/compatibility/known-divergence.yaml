@@ -249,8 +249,11 @@ entries:
     产品裁（管理面 client 影响以重试语义为主：500 诱发规范客户端重试确定性错误——RFC 9110 §15.5/15.6）。
     裁定素材=docs/prd/ruling-invalid-value-family.md（architect 两案对比+建议立场：维持 400/INTENTIONAL；
     供 PM 折入 pending-rulings 建议编号 R-10）。
+    改期（2026-09-12，LOOP 009 L009-1）：authority 阻塞非证据阻塞——R-10a/b/c 三臂已折入 pending-rulings
+    v2.0 整包呈批（docs/prd/pending-rulings.md §1 R-10a~c + §2-R10，L008-4a），触发条件=用户批复即升级：
+    a/b 维持 400 转 INTENTIONAL（authority=本裁定+ADR 登记），c PM 建议对齐 400——裁对齐开实现票；改期 LOOP 010。
   authority: { type: pending, ref: "产品/架构裁（非法值姿态：统一 decode 400 vs 复刻参照 500/宽容转换——R-10）" }
-  review_gate: LOOP 008 限期升级（R-10 authority 终裁；INTENTIONAL 需 ADR/用户裁决，裁对齐则开实现票）
+  review_gate: LOOP 010 限期（随 R-10 批复升级——用户 authority 待决）
   evidence: reports/compatibility/L006-a-b-diff.md §1.3 + L007-3-update-merge-evidence.md §6（+裁定素材 docs/prd/ruling-invalid-value-family.md，R-10 折入建议）
 - id: rest/permissions-v1-response-shape-residuals
   surface: v1 permissions 面残余渲染族（DELETE 码+文 / GET 未知名体裁 / POST 死动词）
@@ -299,8 +302,12 @@ entries:
     终裁。候选 INTENTIONAL（模型级超集角色，参照存在主体面零差；与 docker/remote-v2-ping-revoked-arm-
     unreachable 同为「参照主体缺位」款）；裁对齐则需经典读族收窄 admin-only（翻转既有 readonly_admin
     200→403 组合，M9「新增不破坏」基调冲突面，影响面=readonly_admin 全部管理面读消费——console 只读视图）。
+    改期（2026-09-12，LOOP 009 L009-1）：authority 阻塞非证据阻塞——R-12 已随 pending-rulings v2.0 整包
+    呈批（docs/prd/pending-rulings.md §1 R-12 + §2-R12，L008-4a；PM 建议维持超集→INTENTIONAL），
+    触发条件=用户批复即升级：INTENTIONAL 终裁补引 ADR-0026 决策 1 为 authority 即转正；裁收窄则开实现票
+    +console 读视图联动评估；改期 LOOP 010。
   authority: { type: pending, ref: "产品/用户裁决（readonly_admin 经典 security 读面姿态：维持 CapSecurityRead 超集 vs 收窄 admin-only）" }
-  review_gate: LOOP 008 限期升级（INTENTIONAL 终裁可引 ADR-0026 决策 1 为 authority——角色本身系 ADR 既有架构位，裁定时补引即转正；裁收窄则开实现票+console 读视图联动评估）
+  review_gate: LOOP 010 限期（随 R-12 批复升级——用户 authority 待决）
   evidence: internal/httpapi/router.go（security 读族 routeAuth.manage=CapSecurityRead 实测）+ docs/reverse/rbac-model.md #2（参照实例级无 read-only admin）
 - id: docker/virtual-remote-cold-negative-body-annotation
   surface: docker virtual 面冷负 miss 首答 body 注记（message 后缀「(upstream answered 404 404 Not Found)」）
@@ -331,8 +338,12 @@ entries:
     L007-1 §3-4 新发现（2026-09-12）：参照建用户自动入默认组 readers（回显 groups:["readers"]），BinFlow
     无此语义（groups=[]）。用户创建默认组成员面，非字段集渲染问题——涉用户/组建模与隐式权限语义
     （readers 组的权限绑定随实例预置），对齐方向（引入默认组语义 vs 建模缺位 INTENTIONAL）需产品裁。
+    改期（2026-09-12，LOOP 009 L009-1）：authority 阻塞非证据阻塞——R-13 已随 pending-rulings v2.0 整包
+    呈批（docs/prd/pending-rulings.md §1 R-13 + §2-R13，L008-4a；PM 建议对齐：引入默认组语义，组权限
+    绑定默认零授权随建模票取证定），触发条件=用户批复即升级：裁对齐开建模+实现票并翻 BUG 修复路径；
+    改期 LOOP 010。
   authority: { type: pending, ref: "产品/建模裁（默认组 readers 语义：引入 vs 有意缺位）" }
-  review_gate: LOOP 008 限期升级（INTENTIONAL 终裁需 authority；裁对齐则开建模+实现票）
+  review_gate: LOOP 010 限期（随 R-13 批复升级——用户 authority 待决）
   evidence: reports/compatibility/L007-residuals-users-diff.md §3-4
 - id: rest/anonymous-user-row
   surface: anonymous 用户行（GET /api/security/users/anonymous，建模级）
@@ -341,8 +352,12 @@ entries:
     L007-1 §3-4 新发现（2026-09-12）：参照有 anonymous 用户行（profileUpdatable=false、
     internalPasswordDisabled=true，§2 三形态活体取证在案），BinFlow 无该行（404）。anonymous 建模级差异
     （虚拟用户行 vs 建模缺位），对齐方向需产品裁（引入虚拟行涉匿名身份建模与权限面联动）。
+    改期（2026-09-12，LOOP 009 L009-1）：authority 阻塞非证据阻塞——R-14 已随 pending-rulings v2.0 整包
+    呈批（docs/prd/pending-rulings.md §1 R-14 + §2-R14，L008-4a；PM 建议对齐：只读虚拟行最小面，写面
+    PUT/DELETE 未取证须实现票内先补取证或按只读拒写登记未取证臂），触发条件=用户批复即升级：裁对齐开
+    建模+实现票并翻 BUG 修复路径；改期 LOOP 010。
   authority: { type: pending, ref: "产品/建模裁（anonymous：虚拟用户行 vs 建模缺位）" }
-  review_gate: LOOP 008 限期升级
+  review_gate: LOOP 010 限期（随 R-14 批复升级——用户 authority 待决）
   evidence: reports/compatibility/L007-residuals-users-diff.md §2/§3-4
 - id: rest/permissions-v1-managedxraymeta-seat
   surface: v1 permissions letters 的 managedXrayMeta（mxm）席位
@@ -369,6 +384,25 @@ entries:
     ①②为可对齐缺口（非正常客户端面，低优先）；③维持超集。
   authority: { type: differential, ref: "reports/compatibility/L006-a-b-diff.md §2.1（%zz 行/无名 body 行/富方言行）" }
   review_gate: LOOP 009 微票（①非法转义 400 + ②恶意名校验两臂对齐；③超集维持不追改——低优先边缘面）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      T-L009-3（uat-l0093b-03396aa1-wip × :8082，26 臂差分）：①臂全 SAME——withNameUnescaped 两级解码
+      （传输层坏请求行裸 400 text/plain 与参照 Jetty 逐字同〔裸 TCP 测试钉死〕+ 第二级复刻 java.net.
+      URLDecoder 语义：坏转义 400 errors-envelope 文案逐字含字符码、plus/双重转义查找与创建同名 4 臂）；
+      ②臂全 SAME——keyed 面 NameValidator（非法字符集 400 envelope "Illegal name : …" 逐字、先于 409）
+      + XSSValidator（<> 形态拒 400 逐字、恰一字符/未闭合放行、先于 repositories、entityKey 臂不走
+      NameValidator）；③超集臂维持（repos 键参照 400 missing vs BinFlow 201——既有登记不追改）。连带
+      载体收口：keyed 面 4xx（409/repositories 双文案/未知仓/未知用户/admin 主体/解码失败）writePlainError
+      →writeError envelope + SetEscapeHTML(false)——L006 记 SAME 系只比文案未比载体，收口后逐字 SAME。
+    note: >-
+      %zz 表述更正存证（L006-a-b-diff §2.1 报告正文不动，随翻绿在案）：原记「BinFlow %zz→404」系探针
+      客户端工具差（% 被重引为 %25 所致）——传输层双端同裸 400，非行为分歧；裸 TCP 钉死
+      （TestPermissionsV1KeyNameTransport400）。XSSValidator 规则为黑盒探针归纳（27 臂取样），`<`+换行
+      等极端角未取证——按 Java/Go regex 同默认（`.` 不跨行）口径实现留痕。
+      LOOP 010 池备注（Review B non-blocking 探针票素材，四项均「探针先行」纪律不入本批）：XSS 四角臂
+      （`<`+换行等极端角补取样）/ NameValidator 三臂（非法字符集边界补拍）/ 转义不对称（两级解码的
+      查找-vs-创建不对称面）/ 无仓段臂（{name} 路径无仓段形态）——待参照臂活体补证后定是否立账。
   evidence: reports/compatibility/L006-a-b-diff.md §2.1 + T-L006-1.md（⑤/Changes 反编译双证）
 - id: rest/users-v1-get-unknown-style
   surface: GET /api/security/users/{name} 未知名 404 体裁+文案
@@ -383,7 +417,88 @@ entries:
     已按台账升级 envelope（permissions 面），本腿系 users 面同族漏网。
   authority: { type: differential, ref: "reports/compatibility/L008-list-params-diff.md §6（附录 A）" }
   review_gate: 并入 users 面体裁统一票（与 L007-1 §3 残差 1〔400 系载体〕同票收口评估——GET/PUT 两处 writePlainError 一并核）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      T-L009-3（26 臂差分）：GET 与更新单用户两臂 writePlainError("User not found") → writeError
+      envelope `{"errors":[{"status":404,"message":"Not Found"}]}`——泛化文案遵本账「不可直译」补齐
+      注意；差分双端 SAME；users_detail_fields_test 404 envelope 断言翻新。L008-3 §6 探针两臂全闭。
+    note: 'DELETE 未知名臂不在本账证据范围（参照行为另立 #rest/permissions-v1-delete-unknown-idempotent-200——两轮观察相抵待条件差查证）。'
   evidence: reports/compatibility/L008-list-params-diff.md §6
+- id: rest/storage-list-recursion-semantics
+  surface: '?list 递归/形态/行为差族（b-1 deep·depth 递归语义 + b-2 形态五维 + b-3 行为差三项）'
+  classification: BUG
+  rationale: >-
+    L008-3 首轮系统差分立账素材（reports/compatibility/L008-list-params-diff.md §2 32 臂矩阵 26
+    DIVERGENT，2026-09-12）：b-1 递归死守卫（尾斜杠计入层数致 deep/depth 全不触发）；b-2 形态五维
+    （条目 uri 相对形/文件夹行形态/顶层尾斜杠/created 时刻语义/vendor Content-Type 缺）；b-3 行为差
+    （仓库根不可列、七参非整数无校验、文件目标 400 文案异）。
+  authority: { type: differential, ref: "reports/compatibility/L008-list-params-diff.md §2/§4" }
+  review_gate: LOOP 009 补参票 P0（递归语义+形态+行为差三连修）
+  resolved:
+    date: '2026-09-12'
+    evidence: >-
+      T-L009-2（uat-l0092-03396aa1，32 臂矩阵双发两轮）：三连修落地——deep=1 唯一递归触发、depth 仅
+      钳层修饰、去尾斜杠计段（9 表臂零泄漏）；形态五项（uri 前导斜杠/文件夹 /d2 形 size-1/顶层去尾
+      斜杠/created=请求时刻毫秒〔+74ms 漂移证据照抄〕/vendor FileList+json CT）；行为差三项（仓库根可
+      列 A26/A27、七参非整数 400 envelope "For input string: \"<v>\"" 逐字、文件目标 400 冒号拼写逐字
+      A24）。复跑终态：状态列 32/32 对齐、**归一 SAME 25/32**、余 7 臂全落 P2 三参键（另账收窄）——
+      零范围外分歧。
+    note: >-
+      lastModified 秒级 .000Z 维持（M16 audit 派生族定谳不翻案）；includeRootPath 根条目 lastModified
+      1970 零时刻臂（A27 参照字段级未取证，时间戳归一掩盖）——LOOP 010 逐字节对拍复核项（T-L009-2
+      Risks①）。空值参数（?deep 无=）400 系 Java parseInt 语义直接读出无直接证据臂（Risks②留痕）。
+      勘误（2026-09-12，L009-2 blocking 修复连带·Review B non-blocking #6）：上句表述失实——锚点
+      getQueryParameterAsInt 的 isNotBlank 守卫在 parseInt **之前**短路，空值回 0 处理（200 并非 400）；
+      blocking 修复后 BinFlow 空值臂与参照一致（isNotBlank→0 缺省），「parseInt 直接读出」推定作废。
+  evidence: reports/compatibility/L008-list-params-diff.md §2/§4 + T-L009-2.md Outputs（32 臂两轮复跑）
+- id: rest/storage-list-params-family
+  surface: '?list 元数据三参未实现（mdTimestamps/includePropertiesMd5/statsTimestamps——L009 收窄后口径）'
+  classification: UNSUPPORTED_FEATURE
+  rationale: >-
+    L008-3 立账素材原口径=五参未读（七参族）；L009-2 补参 P0+P1 后收窄：deep/depth/listFolders/
+    includeRootPath 全 SAME + 七参整数校验 400 逐字，余三 P2 参无列表效果——32 臂中 7 个归一 DIFF 臂
+    **全部且仅**落此三参键（A15/A16/A17 mdTimestamps.properties、A21/A22 propertiesMd5、A23 两键、
+    A30 mdTimestamps.artifactory.stats；条目集/uri 形/size/folder/sha 全同）。三参各自前置：mdTimestamps
+    需属性修改时刻跟踪+属性写面（BinFlow 无 PATCH /api/metadata 面——跨面票）；includePropertiesMd5
+    需属性规范序列化 md5 规格（跨系统等值性待定——compatibility-engineer 先定规格）；statsTimestamps
+    （?stats 数据已在，只差入列）。
+  authority: { type: differential, ref: "reports/compatibility/L008-list-params-diff.md §3 + T-L009-2.md Outputs" }
+  review_gate: LOOP 010 P2 票（mdTimestamps 跨面 / includePropertiesMd5 规格前置 / statsTimestamps 入列）
+  evidence: reports/compatibility/L008-list-params-diff.md §3 + T-L009-2.md（32 臂复跑 7 DIFF 全落三参键）
+- id: rest/user-detail-vendor-content-type
+  surface: 'GET /api/security/users/{name} 200 面 Content-Type（vendor 串缺位）'
+  classification: BUG
+  rationale: >-
+    L009-3 差分残留①（2026-09-12）：参照 application/vnd.org.jfrog.artifactory.security.User+json vs
+    BinFlow application/json——面级既有差（任何名字拼写皆然，非臂级）。同族先例=?list 面 vendor CT
+    （…storage.FileList+json）已随 T-L009-2 的 writeJSONBodyCT 助手对齐——机制现成可复用。
+  authority: { type: differential, ref: "reports/agents/T-L009-3.md Outputs 残留 DIFF ①" }
+  review_gate: LOOP 010 微票（writeJSONBodyCT 复用；matrix D04-R02 note 已挂指针）
+  evidence: reports/agents/T-L009-3.md（Outputs 残留 DIFF ①——面级）
+- id: rest/permissions-v1-empty-actions-validation-skip
+  surface: v1 keyed PUT 空 actions 列表的主体校验豁免（校验随 actions 走）
+  classification: BUG
+  rationale: >-
+    L009-3 旁观发现（2026-09-12 双端对照）：空 actions 列表时参照对未知用户/admin 主体放行 201（参照
+    校验器只随 actions 遍历 principals——actions 空即无人被校验）；BinFlow 一律 400（未知主体/admin
+    守卫不因 actions 空而豁免）。语义影响评估：actions 空=无 ACE 授予，放行无提权面——对齐参照口径
+    （校验随 actions 走）低危；非空 actions 的 admin 守卫文案臂（L007-1 已对齐）不受动。
+  authority: { type: differential, ref: "reports/agents/T-L009-3.md Compatibility 漂移点(b)" }
+  review_gate: LOOP 010 微票（校验豁免随 actions 走）
+  evidence: reports/agents/T-L009-3.md（漂移点 b——双端对照观察）
+- id: rest/permissions-v1-delete-unknown-idempotent-200
+  surface: v1 permissions DELETE 未知名应答（200 幂等 vs 404）
+  classification: UNKNOWN
+  rationale: >-
+    L009-3 旁观发现（2026-09-12）：参照 DELETE car-l009（从未建成的目标）→ 200 "Successfully deleted"；
+    BinFlow → 404。**与 L007-1 已闭合臂相抵**：L007-1 差分记参照 DELETE 未知名=404 errors-envelope
+    "Not Found"（同体同文 SAME——台账 permissions-v1-response-shape-residuals ②臂）——两轮参照观察
+    不一致，复现条件差未定（疑名字形态/前置状态〔目标曾存在与否〕所致）。裁定前置=条件差探针复现：
+    若参照对从未建成目标恒 200 则 BUG 对齐（幂等删除语义）；若条件差则按条件登记。
+  authority: { type: pending, ref: "LOOP 010 探针（DELETE 未知名 × {从未建成/曾建成已删} 两态复现——条件差定谳后定级）" }
+  review_gate: LOOP 010 限期升级（探针复现→BUG 对齐或条件登记）
+  evidence: reports/agents/T-L009-3.md（旁观观察）× reports/compatibility/L007-residuals-users-diff.md §1 臂②（相抵存证）
 # 条目模式（M3-2 落地）：
 # - id: rest/build-batch-delete-date-range
 #   surface: POST /api/build/delete
