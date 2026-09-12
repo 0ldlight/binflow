@@ -684,5 +684,10 @@ entries:
     dist-tags.latest 字段是否同步读时重算未裁定——现状 BinFlow 以 TestDistTagRecomputeIsReadTimeOnly
     钉住（packument 投影与端点族同源重算），参照侧该臂未单独取证。
   authority: { type: differential, ref: 'reports/compatibility/L013-r15-packument-probes.md（七步：DELETE latest→端点族重算回 1.1.0 而 packument 面 latest 消失——两读面矛盾；参照两面均保）' }
-  review_gate: LOOP 013 小修票（packument 投影复用端点族重算——一处改动）；**T-L012-2b 测试「同源重算」声明与 bebd92b1 wire 不符——疑似账实不符或回归，修复票须翻测试断言并追根因**
+  resolved: { date: '2026-09-13', evidence: 'reports/agents/T-L013-r15-packument-latest.md（crownLatest 一处改动；探针 F1=ALIGNED/F3=semver-max 双端；两读面矛盾消除；二次 DELETE 404 证 store 保留删除）' }
+  review_gate: closed（2026-09-13）
   evidence: reports/compatibility/L013-r15-packument-probes.md + reports/agents/T-L012-2b.md（遗留段）
+  note: >-
+    勘误（2026-09-13）：本条初立时对 TestDistTagRecomputeIsReadTimeOnly 的转述有误——该测试原断言的是
+    packument 面 latest 消失（即钉住 bug 面），非「同源重算」；文件头注释本就声明 packument 面在
+    L012-1 证据集之外。根因=账实不符（台账转述误读），非回归。测试已翻面钉两读面。

@@ -469,6 +469,12 @@ func copyManifest(m map[string]any) map[string]any { return copyDoc(m) }
 func renderPackument(doc map[string]any, name, scheme, host, baseURL, repoKey string, slim bool) ([]byte, string, error) {
 	out := copyDoc(doc)
 	delete(out, "_attachments")
+	// L013 R-15 n4: the packument's dist-tags projection crowns an absent
+	// latest from the SAME read-time recompute as the dist-tags endpoint
+	// family (crownLatest, disttag.go D2) — out is a render copy, the stored
+	// document keeps the deletion. Applies under the SLIM negotiation too:
+	// "npm install <pkg>" resolves latest through this very projection.
+	crownLatest(out)
 	prefix := packumentURLPrefix(scheme, host, baseURL, repoKey)
 	for v, mv := range versionsOf(out) {
 		m := mapOf(mv)

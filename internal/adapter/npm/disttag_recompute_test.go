@@ -76,12 +76,20 @@ func TestDistTagReadFaceKeepsExplicitLatest(t *testing.T) {
 	if !strings.Contains(bodyOf(rr), `"latest":"1.0.0"`) {
 		t.Fatalf("ls body = %s, want the explicit older latest untouched", bodyOf(rr))
 	}
+	// The packument face honors the same never-overwrite rule (crownLatest
+	// only fires on an ABSENT latest).
+	rr = s.call(http.MethodGet, "/npm-local/demo-pkg", "", adminPrincipal, nil)
+	if rr.Code != http.StatusOK || !strings.Contains(bodyOf(rr), `"latest":"1.0.0"`) {
+		t.Fatalf("packument = %d %s, want the explicit older latest untouched", rr.Code, bodyOf(rr))
+	}
 }
 
-// TestDistTagRecomputeIsReadTimeOnly: the recompute is a GET-face projection;
-// the STORED document keeps the deletion (the packument face is outside the
-// L012-1 evidence set and awaits its own ruling — pinned here so a later
-// packument ruling flips exactly this assertion, not the whole face).
+// TestDistTagRecomputeIsReadTimeOnly: after DELETE latest, BOTH read faces
+// re-crown latest at read time (L013 R-15 n4: the reference answers
+// latest=1.1.0 on the packument AND the dist-tags endpoint) while the STORED
+// document keeps the deletion — the crown is a GET-face projection, proven
+// by a second DELETE answering the tag-not-found 404. The packument face
+// matters because "npm install <pkg>" resolves latest through it.
 func TestDistTagRecomputeIsReadTimeOnly(t *testing.T) {
 	s := newStack(t)
 	seedPackage(t, s, "demo-pkg", "1.0.0", "1.1.0")
@@ -93,7 +101,19 @@ func TestDistTagRecomputeIsReadTimeOnly(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("packument status = %d; body=%s", rr.Code, bodyOf(rr))
 	}
-	if strings.Contains(bodyOf(rr), `"latest"`) {
-		t.Fatalf("packument dist-tags = leaked recompute; the store must keep the deletion")
+	if !strings.Contains(bodyOf(rr), `"latest":"1.1.0"`) {
+		t.Fatalf("packument dist-tags = %s, want the same read-time recompute as the dist-tags face crowning 1.1.0", bodyOf(rr))
+	}
+	rr = s.call(http.MethodGet, "/npm-local/-/package/demo-pkg/dist-tags", "", adminPrincipal, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("dist-tags status = %d; body=%s", rr.Code, bodyOf(rr))
+	}
+	if !strings.Contains(bodyOf(rr), `"latest":"1.1.0"`) {
+		t.Fatalf("dist-tags = %s, want the read-time recompute crowning 1.1.0", bodyOf(rr))
+	}
+	// Read-time only: the stored document keeps the deletion, so the tag is
+	// still deletable-not-found — a persisted crown would answer 200 here.
+	if rr := s.call(http.MethodDelete, "/npm-local/-/package/demo-pkg/dist-tags/latest", "", adminPrincipal, nil); rr.Code != http.StatusNotFound {
+		t.Fatalf("second delete latest: status %d; body=%s — the crown leaked into the store", rr.Code, bodyOf(rr))
 	}
 }

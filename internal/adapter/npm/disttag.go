@@ -45,18 +45,8 @@ func (h *Handler) serveDistTags(ctx context.Context, w http.ResponseWriter, r *h
 			h.writeTagsLookupError(w, err)
 			return
 		}
+		crownLatest(doc)
 		tags := distTagsOf(doc)
-		// D2: "latest" is recomputed at read time when absent — deleting it
-		// can never leave the package tagless, the recompute crowns the
-		// greatest version (evidence section 3-D2: set latest=1.0.0, DELETE,
-		// GET answers 1.1.0). A PRESENT latest is never overwritten: pointing
-		// latest at an older version is a legitimate client rollback the
-		// reference registry honors.
-		if _, ok := tags["latest"]; !ok {
-			if best := latestVersion(versionsOf(doc)); best != "" {
-				tags["latest"] = best
-			}
-		}
 		// D7: the reference pins a one-minute client freshness window on the
 		// dist-tags read (npm's own fetchTags caching rides it).
 		w.Header().Set("Cache-Control", "max-age=60")
@@ -65,6 +55,34 @@ func (h *Handler) serveDistTags(ctx context.Context, w http.ResponseWriter, r *h
 		w.Header().Set("Allow", "GET, HEAD")
 		writeError(w, http.StatusMethodNotAllowed, msgMethodNotAllowed)
 	}
+}
+
+// crownLatest recomputes an ABSENT "latest" at read time from the greatest
+// stored version — the D2 recompute, defined ONCE here and shared by every
+// read face: the dist-tags collection above and the packument projection
+// (renderPackument) crown from this same source, so the two faces can never
+// disagree (L013 R-15 evidence n4: after DELETE latest the reference still
+// answers latest=1.1.0 on BOTH GET /-/package/<n>/dist-tags and GET /<name>).
+// Deleting latest can never leave the package tagless; the recompute crowns
+// the greatest version. A PRESENT latest is never overwritten: pointing
+// latest at an older version is a legitimate client rollback the reference
+// registry honors. The STORED document is never touched — callers pass a
+// per-request decode or a render copy, so the crown stays a read-time
+// projection (a second DELETE still answers the tag-not-found 404).
+func crownLatest(doc map[string]any) {
+	if _, ok := mapOf(doc["dist-tags"])["latest"]; ok {
+		return
+	}
+	best := latestVersion(versionsOf(doc))
+	if best == "" {
+		return
+	}
+	tags := mapOf(doc["dist-tags"])
+	if tags == nil {
+		tags = map[string]any{}
+		doc["dist-tags"] = tags
+	}
+	tags["latest"] = best
 }
 
 // serveDistTag handles one tag: PUT body is a JSON string naming the
