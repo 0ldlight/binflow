@@ -1,10 +1,15 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-12T07:30:00Z
-current_iteration: 007
-current_goal: "permissions residuals 三臂 + D3 定向探针 + update-merge 设计票 + 票 C/D + invalid-value 族裁定包"
-iteration_006_seal: "三轨全收零中断；matrix ✅68/◐23（P0 partial→6 行）；攻坚五行清偿+v1 方言真兼容；C14 三面闭环；D06-R17 前提证伪重分类；双审战绩 7/7；iteration-006.md 落盘"
+updated: 2026-09-12T09:00:00Z
+current_iteration: 008
+current_goal: "update-merge ADR 流程+实现 / D3 blob 豁免+virtual 注记双小票 / R-10 裁定包呈批 / 票 D 两段 / 台账卫生批"
+iteration_007_seal: "四轨全收（第三波限额击落断点复活零损失）；matrix ✅70/◐21（P0 partial→4 行）；D3 终裁 BUG 对齐收；update-merge ADR 候选；双审战绩 8/8；iteration-007.md 落盘；commits 253fa6fe/6e12c20f"
+loop_008_tracks:
+  - { id: L008-1, domain: repo-config-rest, owner: architect→dev-go-core 串行, what: "update-merge ADR-0050 流程（案 A 定谳：POST=merge 三列矩阵+PUT=create-only——PUT=更新超集回撤随 ADR）+ 实现票（parseRemoteConfig 基线+指针席位；D02-R03 联裁注记+PUT 臂差分）" }
+  - { id: L008-2, domain: docker-remote-face, owner: dev-registry-adapter, what: "D3 blob 豁免小票（已验证 blob 不重取——blob 面检索窗豁免，manifest 面不动；差分复验 §1.2/1.3/1.4 臂）+ virtual 冷 404 注记微票（walk 终态 plain body 对齐 137B）+ ADR-0012 勘误四（窗作用域=blob 豁免）转 architect" }
+  - { id: L008-3, domain: differential, owner: differential-qa-engineer, what: "票 D 前段（D01-R05 ?list 参数族 as-built 核对→差分→补参两段）+ users 面 404 体裁探针（Review A 候选）" }
+  - { id: L008-4, domain: rulings+ledger, owner: conductor→compatibility-engineer, what: "**R-10 裁定包呈批用户**（invalid-value 三臂+update-merge 自定义布局臂+security 读族+建模×2+既有 9 项——pending-rulings.md v2 整编）；台账卫生批五件（mxm 孤儿/stray 三条/resolved rationale 勘误/失实注释/auth-model.md 三键同步）" }
 loop_007_tracks:
   - { id: L007-1, domain: permissions-rest, owner: dev-go-core, what: "✅ residuals 三臂+优先序+未识组文案全 SAME（DELETE 200+text/未知名 envelope/admin 拒收逐字——台账三臂闭+连带收口）；票 C users 字段集齐（policy 四管理键/lastLoggedInMillis 恒渲染/lastLoggedIn 条件键审计派生/status 闭集）；差分双端过（独立 :8084）；**新发现候立账×2**：建用户自动入 readers 组、anonymous 用户行（建模级）；翻绿建议 D04-R18+D04-R02→compatible；httpapi 421s 串行绿", status: done }
   - { id: L007-2, domain: differential, owner: differential-qa-engineer, what: "✅ D3 四臂铁证（参照对已缓存 digest blob 全臂零回源：过期×3/INM/10×TTL 跨窗/真实 CLI；filestore mtime 未动——「阈值后回源」假说无观测面）；virtual 三臂活体全 SAME（seam 机制兑现：tag 冷 miss/TTL 到期/负缓存三形）；**conductor 终裁 D3=BUG 对齐收**（参照语义=blob 豁免检索窗·窗只作用 manifest 面；BinFlow 过度兑现白费 304 往返——LOOP 008 小票+ADR-0012 勘误候选注记）；**新 BUG**：virtual 面冷负 miss 首答 body 注记后缀（virtual 特有，直读面无）；参照实例 04:23Z 一次自行 Exited 5min 收敛（未损）", status: done }
