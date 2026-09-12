@@ -21,11 +21,21 @@ import (
 	"github.com/lzwzzy/binflow/internal/license"
 )
 
-// restPutRepo issues the repositories PUT (create or update) with a JSON
-// body through the full router.
+// restPutRepo issues the repositories PUT (CREATE since ADR-0050 — PUT is
+// create-only) with a JSON body through the full router.
 func (s *stack) restPutRepo(t *testing.T, key, body string) (int, string) {
 	t.Helper()
 	status, respBody, _ := s.do(http.MethodPut, "/binflow/api/repositories/"+key, adminUser, adminPass,
+		strings.NewReader(body), map[string]string{"Content-Type": "application/json"})
+	return status, respBody
+}
+
+// restPostRepo issues the repositories POST — the UPDATE spelling since
+// ADR-0050 (the body may omit rclass: the handler defaults it from the
+// stored row).
+func (s *stack) restPostRepo(t *testing.T, key, body string) (int, string) {
+	t.Helper()
+	status, respBody, _ := s.do(http.MethodPost, "/binflow/api/repositories/"+key, adminUser, adminPass,
 		strings.NewReader(body), map[string]string{"Content-Type": "application/json"})
 	return status, respBody
 }
@@ -130,9 +140,10 @@ func TestRestPolicyKeysDriveReindexBranches(t *testing.T) {
 		}
 	}
 
-	// 4. Flip the opt-in off over REST: the explicit false survives the
-	// round trip and the same request answers the synchronous 200.
-	if status, b := s.restPutRepo(t, "rpm-rest", `{"calculateYumMetadata":false}`); status != http.StatusOK {
+	// 4. Flip the opt-in off over REST (POST, the update spelling since
+	// ADR-0050): the explicit false survives the round trip and the same
+	// request answers the synchronous 200.
+	if status, b := s.restPostRepo(t, "rpm-rest", `{"calculateYumMetadata":false}`); status != http.StatusOK {
 		t.Fatalf("flip-off update = (%d, %s)", status, b)
 	}
 	conf = s.restGetRepoConfig(t, "rpm-rest")

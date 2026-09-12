@@ -19,11 +19,21 @@ import (
 	"github.com/lzwzzy/binflow/internal/license"
 )
 
-// restPutEnforceRepo issues the repositories PUT (create or update) with a
-// JSON body through the full router.
+// restPutEnforceRepo issues the repositories PUT (CREATE since ADR-0050 —
+// PUT is create-only) with a JSON body through the full router.
 func (s *stack) restPutEnforceRepo(t *testing.T, key, body string) (int, string) {
 	t.Helper()
 	status, respBody, _ := s.do(http.MethodPut, "/binflow/api/repositories/"+key, adminUser, adminPass,
+		strings.NewReader(body), map[string]string{"Content-Type": "application/json"})
+	return status, respBody
+}
+
+// restPostEnforceRepo issues the repositories POST — the UPDATE spelling
+// since ADR-0050 (the body may omit rclass: the handler defaults it from
+// the stored row).
+func (s *stack) restPostEnforceRepo(t *testing.T, key, body string) (int, string) {
+	t.Helper()
+	status, respBody, _ := s.do(http.MethodPost, "/binflow/api/repositories/"+key, adminUser, adminPass,
 		strings.NewReader(body), map[string]string{"Content-Type": "application/json"})
 	return status, respBody
 }
@@ -96,9 +106,10 @@ func TestRestEnforceSwitchesDriveUploadHook(t *testing.T) {
 		t.Fatalf("403 body = %q, want the verbatim policy wording %q", body, want)
 	}
 
-	// 4. Flip both switches off over REST: the explicit false pair survives
-	// the round trip and the very upload that was refused now lands.
-	if status, body = s.restPutEnforceRepo(t, "helm-rest-enf",
+	// 4. Flip both switches off over REST (POST, the update spelling since
+	// ADR-0050): the explicit false pair survives the round trip and the
+	// very upload that was refused now lands.
+	if status, body = s.restPostEnforceRepo(t, "helm-rest-enf",
 		`{"forceMetadataNameVersion":false,"forceNonDuplicateChart":false}`); status != http.StatusOK {
 		t.Fatalf("flip-off update = (%d, %s)", status, body)
 	}

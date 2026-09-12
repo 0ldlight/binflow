@@ -57,6 +57,13 @@ const (
 	msgInvalidVer   = "Invalid Version: '%s'"
 	msgTagNotFound  = "npm package not found with name:%s, and tag:%s"
 	msgPackNotFound = "Package '%s' not found"
+
+	// L012-1 dist-tag wire alignment (conductor rulings D3-D6; the reference
+	// cells m05/m07/m08/m09/m13-m15 pin these verbatim).
+	msgTagVersionNotFound = "npm package not found with name:%s, and version:%s"
+	msgGhostNotFound      = "Not found"
+	msgMethodNotAllowed   = "Method Not Allowed"
+	msgInvalidTagBody     = "invalid dist-tag body"
 )
 
 // writeServiceError maps repo.Service sentinels onto the npm plane. The
