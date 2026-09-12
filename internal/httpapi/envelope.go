@@ -26,11 +26,14 @@ type errorEntry struct {
 // writeError emits the errors[] envelope with the given status. Rendering
 // failures are ignored: by the time an error body fails to encode the
 // connection is gone anyway, and headers must not be rewritten after the
-// status line.
+// status line. HTML escaping is OFF (L009-3): the reference's Jackson
+// serializer emits < > & raw, and Go's default < escaping was visibly
+// rewriting the Illegal-name character list on the wire.
 func writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(errorEnvelope{Errors: []errorEntry{{Status: status, Message: message}}})
 }

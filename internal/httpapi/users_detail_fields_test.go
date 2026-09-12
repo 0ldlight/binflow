@@ -130,13 +130,24 @@ func TestUserDetailFieldSet(t *testing.T) {
 	}
 }
 
-// TestUserDetailFieldSetNegative: the unknown name keeps the plane's 404
-// plain text (not the errors envelope — the users face's frozen posture).
+// TestUserDetailFieldSetNegative: the unknown name answers the reference's
+// generalized errors envelope (L009-3, ledger rest/users-v1-get-unknown-
+// style: "Not Found" — the same wording as an unknown path — not a named
+// "User not found").
 func TestUserDetailFieldSetNegative(t *testing.T) {
 	h := newHarness(t)
 	resp := h.do(http.MethodGet, "/binflow/api/security/users/l007-ghost", adminUser, adminPass, nil, nil)
 	raw := mustGet(t, resp)
-	if resp.StatusCode != http.StatusNotFound || raw != "User not found" {
-		t.Fatalf("unknown user = %d body=%s, want the frozen 404 plain text", resp.StatusCode, raw)
+	var env struct {
+		Errors []struct {
+			Status  int    `json:"status"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if resp.StatusCode != http.StatusNotFound ||
+		resp.Header.Get("Content-Type") != "application/json" ||
+		json.Unmarshal([]byte(raw), &env) != nil ||
+		len(env.Errors) != 1 || env.Errors[0].Status != 404 || env.Errors[0].Message != "Not Found" {
+		t.Fatalf("unknown user = %d body=%s, want the 404 errors envelope \"Not Found\"", resp.StatusCode, raw)
 	}
 }

@@ -490,8 +490,10 @@ func TestStorageItemInfo(t *testing.T) {
 	})
 }
 
-// TestStorageList (E-10, C17): the ?list rejection ladder (anonymous 403,
-// root 400, file target 400) and the deep listing's relative uris.
+// TestStorageList (E-10, C17; L009-2 recursion semantics): the ?list
+// rejection ladder (anonymous 403, file target 400), the repository root
+// listing, and the deep listing's leading-slash relative uris with no
+// folder-row leak.
 func TestStorageList(t *testing.T) {
 	h := newHarness(t)
 	seedRepo(t, h, "generic-local")
@@ -517,27 +519,45 @@ func TestStorageList(t *testing.T) {
 		decodeError(t, resp)
 	})
 
-	t.Run("root is 400 with the spec wording", func(t *testing.T) {
-		resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local?list&deep=1", adminUser, adminPass, nil, nil)
+	t.Run("repository root lists (L008-3 A26)", func(t *testing.T) {
+		// A file at the repository root makes the arm assertable.
+		resp := h.do(http.MethodPut, "/binflow/generic-local/root.bin", adminUser, adminPass, []byte("root"), nil)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("PUT root.bin: %d", resp.StatusCode)
+		}
+		_ = resp.Body.Close()
+		// The root is listable: 200 with its DIRECT child files only (the
+		// acme subtree appears under deep=1, not here). The root refusal
+		// belongs to requests with no repository segment at all, which the
+		// router never dispatches here.
+		resp = h.do(http.MethodGet, "/binflow/api/storage/generic-local?list", adminUser, adminPass, nil, nil)
+		body := mustGet(t, resp)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d; body=%s", resp.StatusCode, body)
+		}
+		if !strings.Contains(body, `"/root.bin"`) {
+			t.Fatalf("root listing lacks /root.bin: %s", body)
+		}
+		if strings.Contains(body, `"/acme/a.bin"`) || strings.Contains(body, `"/a.bin"`) {
+			t.Fatalf("non-recursive root listing leaked subtree files: %s", body)
+		}
+	})
+
+	t.Run("file target is 400 with the colon wording", func(t *testing.T) {
+		resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local/acme/a.bin?list", adminUser, adminPass, nil, nil)
 		eb := decodeError(t, resp)
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Fatalf("status = %d", resp.StatusCode)
 		}
-		if eb.Errors[0].Message != "Cannot list files of root." {
-			t.Fatalf("message = %q", eb.Errors[0].Message)
+		want := "Expected a folder but found a file, at: generic-local:acme/a.bin"
+		if eb.Errors[0].Message != want {
+			t.Fatalf("message = %q, want %q", eb.Errors[0].Message, want)
 		}
 	})
 
-	t.Run("file target is 400", func(t *testing.T) {
-		resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local/acme/a.bin?list", adminUser, adminPass, nil, nil)
-		if resp.StatusCode != http.StatusBadRequest {
-			t.Fatalf("status = %d", resp.StatusCode)
-		}
-		decodeError(t, resp)
-	})
-
-	t.Run("C17 deep listing has relative uris", func(t *testing.T) {
-		// The folder row for acme exists (explicit mkdir above).
+	t.Run("C17 deep listing has leading-slash uris, no folder-row leak", func(t *testing.T) {
+		// The folder rows for acme and acme/sub exist (mkdir + T-128
+		// materialization); without listFolders they must NOT appear.
 		resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local/acme?list&deep=1", adminUser, adminPass, nil, nil)
 		body := mustGet(t, resp)
 		if resp.StatusCode != http.StatusOK {
@@ -554,36 +574,38 @@ func TestStorageList(t *testing.T) {
 		}
 		got := map[string]int64{}
 		for _, f := range lr.Files {
-			// T-128 (ADR-0016): materialized ancestor folder rows appear in
-			// deep listings as trailing-slash entries with size 0. Skip them
-			// so the assertion stays on the original file nodes.
-			if strings.HasSuffix(f.URI, "/") {
-				continue
-			}
 			got[f.URI] = f.Size
 		}
-		if len(got) != 2 || got["a.bin"] != int64(len("acme/a.bin")) || got["sub/deep.bin"] != int64(len("acme/sub/deep.bin")) {
-			t.Fatalf("files = %v, want relative a.bin and sub/deep.bin", got)
+		want := map[string]int64{
+			"/a.bin":        int64(len("acme/a.bin")),
+			"/sub/deep.bin": int64(len("acme/sub/deep.bin")),
+		}
+		if len(got) != len(want) || got["/a.bin"] != want["/a.bin"] || got["/sub/deep.bin"] != want["/sub/deep.bin"] {
+			t.Fatalf("files = %v, want exactly %v (no folder-row leak)", got, want)
 		}
 	})
 
-	t.Run("shallow depth excludes nested files", func(t *testing.T) {
-		resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local/acme?list&depth=1", adminUser, adminPass, nil, nil)
-		body := mustGet(t, resp)
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("status = %d; body=%s", resp.StatusCode, body)
-		}
-		var lr struct {
-			Files []struct {
-				URI string `json:"uri"`
-			} `json:"files"`
-		}
-		if err := json.Unmarshal([]byte(body), &lr); err != nil {
-			t.Fatalf("body %q: %v", body, err)
-		}
-		for _, f := range lr.Files {
-			if strings.Contains(f.URI, "/") {
-				t.Fatalf("depth=1 returned nested uri %q", f.URI)
+	t.Run("depth without deep stays flat", func(t *testing.T) {
+		// depth is only a modifier: without deep=1 any depth value keeps the
+		// direct-children listing (L008-3 A05-A07, A10).
+		for _, q := range []string{"depth=1", "depth=2", "depth=99"} {
+			resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local/acme?list&"+q, adminUser, adminPass, nil, nil)
+			body := mustGet(t, resp)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("%s: status = %d; body=%s", q, resp.StatusCode, body)
+			}
+			var lr struct {
+				Files []struct {
+					URI string `json:"uri"`
+				} `json:"files"`
+			}
+			if err := json.Unmarshal([]byte(body), &lr); err != nil {
+				t.Fatalf("%s: body %q: %v", q, body, err)
+			}
+			for _, f := range lr.Files {
+				if f.URI != "/a.bin" {
+					t.Fatalf("%s returned non-direct uri %q", q, f.URI)
+				}
 			}
 		}
 	})

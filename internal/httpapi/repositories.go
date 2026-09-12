@@ -457,13 +457,21 @@ func writePlainText(w http.ResponseWriter, status int, body string) {
 
 // writeJSONBody emits an indented JSON success body.
 func writeJSONBody(w http.ResponseWriter, status int, v any) {
+	writeJSONBodyCT(w, status, "application/json", v)
+}
+
+// writeJSONBodyCT is writeJSONBody with an explicit content type — the faces
+// whose wire contract pins a vendor media type (?list's
+// application/vnd.org.jfrog.artifactory.storage.FileList+json) share the same
+// rendering path instead of forking it.
+func writeJSONBodyCT(w http.ResponseWriter, status int, contentType string, v any) {
 	body, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "render response: "+err.Error())
 		return
 	}
 	h := w.Header()
-	h.Set("Content-Type", "application/json")
+	h.Set("Content-Type", contentType)
 	h.Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(status)
 	_, _ = w.Write(body)

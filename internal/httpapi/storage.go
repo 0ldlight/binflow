@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -670,10 +672,71 @@ func (s *Server) digestTripleOf(ctx context.Context, node *metadata.Node) *check
 	return t
 }
 
-// ---- ?list (E-10, P2) ----
+// ---- ?list (E-10, P2; LOOP 009 L009-2 param family) ----
 
-// listFile is one files[] entry of the ?list response: uri is RELATIVE to
-// the queried directory (rest-api.md section 3).
+// fileListMediaType is the ?list response's pinned vendor content type
+// (L008-3 §1 item 11: application/vnd.org.jfrog.artifactory.storage.FileList+json).
+const fileListMediaType = "application/vnd.org.jfrog.artifactory.storage.FileList+json"
+
+// listQueryParams are the seven integer parameters of the ?list family. Every
+// PRESENT value must parse as an integer (the reference's getQueryParameterAsInt)
+// — anything else answers 400 `For input string: "<v>"`. The boolean arms are on
+// iff the parsed value equals 1 (L008-3 §1 items 1-2, 4, 8).
+var listQueryParams = []string{
+	"deep", "depth", "listFolders", "mdTimestamps", "statsTimestamps", "includeRootPath", "includePropertiesMd5",
+}
+
+// listOptions is the ?list family's validated parameter set. mdTimestamps /
+// statsTimestamps / includePropertiesMd5 are validated (400 on non-numeric)
+// but not yet consumed — their listing effects are LOOP 010's P2 scope.
+type listOptions struct {
+	deep        bool // deep=1: recurse; any other integer value stays flat
+	depth       int  // only a modifier: clamps the deep=1 recursion, never triggers it
+	listFolders bool // listFolders=1: folder rows join files[]
+	includeRoot bool // includeRootPath=1: the queried folder itself leads files[]
+}
+
+// parseListOptions validates the seven integer params in the reference's
+// order-independence: each PRESENT value is parsed once; the error message is
+// Java's Integer.parseInt wording, byte-for-byte (`For input string: "abc"`).
+// A param whose value is EMPTY or blank never reaches the parse — the
+// reference's getQueryParameterAsInt short-circuits on
+// containsKey && isNotBlank BEFORE parseInt and treats the param as 0
+// (ArtifactResource.java:376-382; `?list&deep` is simply an absent deep).
+func parseListOptions(q url.Values) (listOptions, error) {
+	var o listOptions
+	for _, name := range listQueryParams {
+		vals, ok := q[name]
+		if !ok || len(vals) == 0 || strings.TrimSpace(vals[0]) == "" {
+			continue
+		}
+		n, err := strconv.Atoi(vals[0])
+		// Java's parseInt is int32-bounded: a value outside [MinInt32,
+		// MaxInt32] throws the SAME NumberFormatException wording (public
+		// spec; `depth=2147483648` -> `For input string: "2147483648"`).
+		// Go's Atoi is 64-bit and only errors past int64 — the (2^31, 2^63)
+		// window must be caught explicitly (Review A).
+		if err != nil || n > math.MaxInt32 || n < math.MinInt32 {
+			return o, errors.New(`For input string: "` + vals[0] + `"`)
+		}
+		switch name {
+		case "deep":
+			o.deep = n == 1
+		case "depth":
+			o.depth = n
+		case "listFolders":
+			o.listFolders = n == 1
+		case "includeRootPath":
+			o.includeRoot = n == 1
+		}
+	}
+	return o, nil
+}
+
+// listFile is one files[] entry of the ?list response: uri carries a LEADING
+// slash and the path RELATIVE to the queried directory (`/f1.txt`, `/d2/f3.txt`);
+// a folder row spells `/d2` (no trailing slash), size -1, no digests, and mixes
+// with file rows in the one alphabetical order (L008-3 §1 items 4, 9).
 type listFile struct {
 	URI          string `json:"uri"`
 	Size         int64  `json:"size"`
@@ -695,86 +758,129 @@ type listResponse struct {
 	RemoteDegraded string `json:"remoteDegraded,omitempty"`
 }
 
-// handleStorageList serves GET /api/storage/{repo}/{path}?list (E-10). The
-// spec's rejection ladder (rest-api.md section 3, high confidence):
-// anonymous -> 403; the repository root -> 400 "Cannot list files of root.";
-// a file target -> 400. deep=1 asks for the full recursion; depth=N bounds
-// it (M1 subset: list/deep/depth, FR-3-AC8).
+// handleStorageList serves GET /api/storage/{repo}/{path}?list (E-10).
+// Behavior per the L008-3 differential (32-arm matrix, live both sides):
+//
+//   - anonymous -> 403 (kept); the seven integer params validate FIRST — any
+//     present non-numeric value answers 400 `For input string: "<v>"`;
+//   - the repository root lists (200, its direct child files); the reference
+//     refuses only requests carrying no repository segment at all, and the
+//     router never dispatches those here;
+//   - a file target -> 400 `Expected a folder but found a file, at: <repo>:<path>`
+//     (colon spelling);
+//   - recursion triggers on deep=1 ONLY; depth is a modifier that clamps the
+//     recursion (deep=1&depth=N = N levels, depth<=0 = unlimited) and never
+//     triggers recursion alone;
+//   - folder rows appear only under listFolders=1 (`/d2` form, size -1);
+//     includeRootPath=1 leads files[] with the queried folder as `/`;
+//   - created is the request's wall clock; the body's Content-Type is the
+//     FileList vendor media type.
 func (s *Server) handleStorageList(w http.ResponseWriter, r *http.Request, repoKey, relPath string) {
 	p := principalFrom(r.Context())
 	if p == nil {
 		writeError(w, http.StatusForbidden, "listing repository files requires an authenticated user")
 		return
 	}
-	if relPath == "" {
-		writeError(w, http.StatusBadRequest, "Cannot list files of root.")
-		return
-	}
-
-	node, err := s.storageNode(r, p, repoKey, relPath)
+	opts, err := parseListOptions(r.URL.Query())
 	if err != nil {
-		s.writeStorageError(w, err)
-		return
-	}
-	if !isFolderPath(node.Path) {
-		writeError(w, http.StatusBadRequest,
-			"Cannot list files of a file '"+repoKey+"/"+node.Path+"'.")
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	dir := strings.TrimSuffix(node.Path, "/")
+	// The queried directory: relPath "" is the repository root (listable —
+	// no node row exists there, exactly like serveRootFolder's posture).
+	var node *metadata.Node
+	dir := ""
+	if relPath != "" {
+		node, err = s.storageNode(r, p, repoKey, relPath)
+		if err != nil {
+			s.writeStorageError(w, err)
+			return
+		}
+		if !isFolderPath(node.Path) {
+			writeError(w, http.StatusBadRequest,
+				"Expected a folder but found a file, at: "+repoKey+":"+node.Path)
+			return
+		}
+		dir = strings.TrimSuffix(node.Path, "/")
+	}
+
 	nodes, degraded, err := s.listWithNote(r.Context(), p, repoKey, dir)
 	if err != nil {
 		s.writeStorageError(w, err)
 		return
 	}
 
-	// depth bounds the recursion below the queried directory; deep=1 means
-	// unlimited (depth 0).
-	depth := 1
-	if strings.TrimSpace(r.URL.Query().Get("deep")) == "1" {
-		depth = 0
-	} else if dv := r.URL.Query().Get("depth"); dv != "" {
-		if n, perr := strconv.Atoi(dv); perr == nil && n > 0 {
-			depth = n
-		}
+	// Recursion semantics (L008-3 §1 item 3): flat by default; deep=1 opens
+	// the tree with depth as its only clamp (0/negative = unlimited).
+	limit := 1
+	if opts.deep {
+		limit = opts.depth
 	}
 
-	prefix := dir + "/"
-	resp := listResponse{
-		URI:            storageURI(requestBase(r), repoKey, node.Path),
-		Created:        isoMillisUTC(node.CreatedAt),
-		Files:          []listFile{},
-		RemoteDegraded: degraded,
+	prefix := ""
+	if dir != "" {
+		prefix = dir + "/"
+	}
+	rootModified := ""
+	if node != nil {
+		rootModified = node.UpdatedAt
+	}
+	files := make([]listFile, 0, len(nodes)+1)
+	if opts.includeRoot {
+		files = append(files, listFile{
+			URI: "/", Size: -1, Folder: true,
+			LastModified: isoMillisUTC(rootModified),
+		})
 	}
 	for _, n := range nodes {
 		rel := strings.TrimPrefix(n.Path, prefix)
 		if rel == "" {
 			continue // the queried folder row itself
 		}
-		levels := strings.Count(rel, "/")
 		folder := isFolderPath(n.Path)
-		if folder && levels == 0 {
-			continue // the folder row of a direct child: its content lists it
+		if folder && !opts.listFolders {
+			continue // folder rows join only under listFolders=1
 		}
-		if depth > 0 && levels+1 > depth {
+		name := strings.TrimSuffix(rel, "/")
+		if levels := strings.Count(name, "/") + 1; limit > 0 && levels > limit {
 			continue
 		}
 		entry := listFile{
-			URI:          rel,
-			Size:         n.Size,
+			URI:          "/" + name,
 			LastModified: isoMillisUTC(n.UpdatedAt),
 			Folder:       folder,
 		}
-		if !folder && n.Sha256 != "" {
-			entry.SHA2 = n.Sha256
-			if b, berr := s.deps.Metadata.Blobs().Get(r.Context(), n.Sha256); berr == nil && b != nil {
-				entry.SHA1 = b.Sha1
+		if folder {
+			entry.Size = -1
+		} else {
+			entry.Size = n.Size
+			if n.Sha256 != "" {
+				entry.SHA2 = n.Sha256
+				if b, berr := s.deps.Metadata.Blobs().Get(r.Context(), n.Sha256); berr == nil && b != nil {
+					entry.SHA1 = b.Sha1
+				}
 			}
 		}
-		resp.Files = append(resp.Files, entry)
+		files = append(files, entry)
 	}
-	writeJSONBody(w, http.StatusOK, resp)
+	// The whole listing is one alphabetical order over the entry uris
+	// (L008-3 §1 item 14) — folder rows mix with file rows, `/` leads.
+	sort.Slice(files, func(i, j int) bool { return files[i].URI < files[j].URI })
+
+	display := ""
+	if node != nil {
+		display = node.Path
+	}
+	resp := listResponse{
+		// No trailing slash on the queried folder's own uri (root = bare
+		// repo key; L008-3 §1 item 9).
+		URI:            strings.TrimSuffix(storageURI(requestBase(r), repoKey, display), "/"),
+		Created:        time.Now().UTC().Format("2006-01-02T15:04:05.000Z07:00"),
+		Files:          files,
+		RemoteDegraded: degraded,
+	}
+	writeJSONBodyCT(w, http.StatusOK, fileListMediaType, resp)
 }
 
 // writeStorageError maps repo.Service failures of the storage plane.

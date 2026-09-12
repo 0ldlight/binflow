@@ -781,7 +781,11 @@ func (s *Server) handleUserGet(w http.ResponseWriter, r *http.Request, name stri
 	u, err := s.deps.Metadata.Users().Get(r.Context(), name)
 	if err != nil {
 		if errors.Is(err, metadata.ErrUserNotFound) {
-			writePlainError(w, http.StatusNotFound, "User not found")
+			// L009-3 (ledger rest/users-v1-get-unknown-style, wire-verified
+			// :8082 2026-09-12): the reference answers the unknown user with
+			// the errors envelope and the GENERALIZED "Not Found" — the same
+			// wording as an unknown path — not a named "User not found".
+			writeError(w, http.StatusNotFound, "Not Found")
 			return
 		}
 		writePlainError(w, http.StatusInternalServerError, "get user: "+err.Error())
@@ -1045,7 +1049,10 @@ func (s *Server) handleUserUpdatePost(w http.ResponseWriter, r *http.Request, na
 	u, err := s.deps.Metadata.Users().Get(r.Context(), name)
 	if err != nil {
 		if errors.Is(err, metadata.ErrUserNotFound) {
-			writePlainError(w, http.StatusNotFound, "User not found")
+			// L009-3: the update face's sibling arm — the same generalized
+			// "Not Found" envelope as the GET (ledger rest/users-v1-get-
+			// unknown-style; the 400 family stays plain per L007-1 §3).
+			writeError(w, http.StatusNotFound, "Not Found")
 			return
 		}
 		writePlainError(w, http.StatusInternalServerError, "get user: "+err.Error())

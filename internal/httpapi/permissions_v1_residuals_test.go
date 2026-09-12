@@ -80,13 +80,15 @@ func TestPermissionsV1AdminSubjectRefusal(t *testing.T) {
 	h := newHarnessCfg(t, nil, [][2]string{{"l007dev", "l007dev-pw"}})
 	seedRepo(t, h, "generic-local")
 
-	// The refusal, verbatim (the double ' is the reference's own typo).
+	// The refusal, verbatim (the double ' is the reference's own typo) —
+	// in the errors envelope (L009-3: the reference carries every 4xx of
+	// the keyed face in the envelope, wire-verified :8082 2026-09-12).
 	resp := t215As(t, h, http.MethodPut, "api/security/permissions/l007-adm", adminUser, adminPass,
 		`{"repositories":["generic-local"],"principals":{"users":{"admin":["r"]}}}`)
 	raw := readAllT444(t, resp)
 	if resp.StatusCode != http.StatusBadRequest ||
-		raw != "The user: 'admin'' has admin privileges, and cannot be added to a Permission Target." {
-		t.Fatalf("admin principal = %d body=%s, want the reference's 400 verbatim", resp.StatusCode, raw)
+		!strings.Contains(raw, "The user: 'admin'' has admin privileges, and cannot be added to a Permission Target.") {
+		t.Fatalf("admin principal = %d body=%s, want the reference's 400 verbatim in the envelope", resp.StatusCode, raw)
 	}
 
 	// Precedence leg 1: an admin beside an UNKNOWN user still answers the

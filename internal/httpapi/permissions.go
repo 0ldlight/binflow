@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -64,6 +65,38 @@ import (
 // GET echo round-trips whatever was stored, verbatim as before. The
 // evaluation semantics live in auth (wildcard.go) — this file only admits
 // the spellings onto the wire.
+
+// L009-3: the classic keyed face's two name validators, replicating the
+// reference's own (wire-verified :8082, 2026-09-12). NameValidator applies
+// to a name the BODY carries; XSSValidator applies to the path key that
+// fills a nameless body. Both answers are errors envelopes.
+const illegalNameChars = `/\:|?<>*"`
+
+const illegalNameMessage = `Illegal name : '/,\,:,|,?,<,>,*,"' is not allowed`
+
+// xssMarkupName is XSSValidator's own pattern, ported verbatim from the
+// decompiled source (XSSValidator.java, Review A E1):
+//
+//	(.*)<(|/|[^/>][^>]+|/[^/>][^>]+)>(.*)
+//
+// evaluated with matches() — the anchors below carry the whole-string
+// semantics. The bracketed content must be empty ("<>"→refuse), a bare
+// slash ("</>"→refuse), or two-or-more characters that do not start with a
+// slash and contain no ">" ("<em>", "<a href=x>", "</xy>" refuse; the
+// one-character "<b>" and the one-letter closing "</x>" pass). The edge
+// groups cannot cross a newline while the negated classes can (RE2 and
+// Java agree on both defaults) — moot at the wire: a name carrying a
+// literal newline is unroutable on the reference (routing-layer 404,
+// probed 2026-09-12). Both directions corner-verified live: </x> 201,
+// </> 400, plus the 25-arm black-box sweep of the first round.
+var xssMarkupName = regexp.MustCompile(`^.*<(|/|[^/>][^>]+|/[^/>][^>]+)>.*$`)
+
+// emptyLinkNames are NameValidator's three literal rejections (decompiled
+// source, Review A E1; wire-verified :8082 2026-09-12): a name that is
+// exactly ".", ".." or "&" answers "Name cannot be empty link: '<name>'".
+// Exact match only — "a&b" and "ok.name" pass (probed: both fall through
+// to the 409/201 arms).
+var emptyLinkNames = map[string]bool{".": true, "..": true, "&": true}
 
 // permissionBody is the wire shape of one permission target.
 type permissionBody struct {
@@ -340,14 +373,24 @@ func (s *Server) permissionCreateOrReplace(w http.ResponseWriter, r *http.Reques
 	// the coverage arm's replace-time union check (B1) looks the existing
 	// row up by name, so the keyed face must carry its real identity from
 	// the start — a holder cannot dodge the union check by omitting the
-	// body name on the path-keyed spelling.
+	// body name on the path-keyed spelling. nameFromPath remembers which
+	// of the two validators (L009-3) the final name must clear.
+	nameFromPath := false
 	if pathName != "" && decodeErr == nil && strings.TrimSpace(body.Name) == "" {
 		body.Name = pathName
+		nameFromPath = true
 	}
 	p := principalFrom(r.Context())
 	if s.canManage(r.Context(), p, auth.CapSecurityWrite) {
 		if decodeErr != nil {
-			writePlainError(w, http.StatusBadRequest, decodeErr.Error())
+			// The keyed face carries its decode 400 in the errors envelope
+			// too (the reference's own is a Jackson message in the same
+			// envelope; BinFlow keeps its own wording, L009-3).
+			if keyedV1 {
+				writeError(w, http.StatusBadRequest, decodeErr.Error())
+			} else {
+				writePlainError(w, http.StatusBadRequest, decodeErr.Error())
+			}
 			return
 		}
 	} else {
@@ -378,13 +421,40 @@ func (s *Server) permissionCreateOrReplace(w http.ResponseWriter, r *http.Reques
 		writePlainError(w, http.StatusBadRequest, "permission target name is required")
 		return
 	}
+	// L009-3, the classic face's two name validators (wire-verified :8082
+	// 2026-09-12): a name the BODY carries must clear NameValidator — the
+	// illegal-character set answers the verbatim "Illegal name" 400, the
+	// three literal names (".", "..", "&") answer the "empty link" 400 —
+	// and both fire BEFORE the 409 mismatch check (a malicious body name
+	// against a benign path key answers the validator, not the 409). A
+	// nameless body's path key skips NameValidator entirely (an entity-key
+	// "n1/n2" and even "." are accepted, probed) and instead clears
+	// XSSValidator's source pattern — see xssMarkupName. Both run before
+	// the repositories validation. The rich face keeps its frozen posture.
+	if keyedV1 {
+		if nameFromPath {
+			if xssMarkupName.MatchString(body.Name) {
+				writeError(w, http.StatusBadRequest, "Name may contains a Cross-Site Scripting expression")
+				return
+			}
+		} else if strings.ContainsAny(body.Name, illegalNameChars) {
+			writeError(w, http.StatusBadRequest, illegalNameMessage)
+			return
+		} else if emptyLinkNames[body.Name] {
+			writeError(w, http.StatusBadRequest, "Name cannot be empty link: '"+body.Name+"'")
+			return
+		}
+	}
 	// The classic face's one keyed-family rule (L006-B, live reference
 	// 2026-09-12): the path key and a non-empty body name may not disagree
 	// — the reference's 409 wording, verbatim. (After the gate: BinFlow's
 	// security-first plane answers the family-4 403 before the 409 for a
 	// non-writer.)
 	if pathName != "" && body.Name != pathName {
-		writePlainError(w, http.StatusConflict,
+		// L009-3: the reference carries this 409 in the errors envelope
+		// (wire-verified :8082 2026-09-12), like every other 4xx of the
+		// keyed face — the wording itself is unchanged.
+		writeError(w, http.StatusConflict,
 			"The permission target name that was provided in the request path does not match the permission name in the provided permission configuration object.")
 		return
 	}
@@ -392,11 +462,11 @@ func (s *Server) permissionCreateOrReplace(w http.ResponseWriter, r *http.Reques
 		if keyedV1 {
 			// The reference handler's dual wording (decompiled, lines
 			// 545-550): a null repositories field and an empty one are two
-			// different 400s.
+			// different 400s — carried in the errors envelope (L009-3).
 			if body.Repos == nil {
-				writePlainError(w, http.StatusBadRequest, "Permission target request missing repositories.")
+				writeError(w, http.StatusBadRequest, "Permission target request missing repositories.")
 			} else {
-				writePlainError(w, http.StatusBadRequest, "Permission target must contain at least one repository.")
+				writeError(w, http.StatusBadRequest, "Permission target must contain at least one repository.")
 			}
 			return
 		}
@@ -420,8 +490,9 @@ func (s *Server) permissionCreateOrReplace(w http.ResponseWriter, r *http.Reques
 			if keyedV1 {
 				// The reference's own wording (decompiled line 554; the
 				// wildcard buckets above ride the same exemption it gives
-				// ANY/ANY LOCAL/ANY REMOTE/ANY DISTRIBUTION).
-				writePlainError(w, http.StatusBadRequest, fmt.Sprintf(
+				// ANY/ANY LOCAL/ANY REMOTE/ANY DISTRIBUTION) — in the
+				// errors envelope (L009-3).
+				writeError(w, http.StatusBadRequest, fmt.Sprintf(
 					"Permission target contains a reference to a non-existing repository '%s'.", repo))
 				return
 			}
@@ -448,7 +519,7 @@ func (s *Server) permissionCreateOrReplace(w http.ResponseWriter, r *http.Reques
 		// unknown repository plus admin answers the repository message).
 		for name := range body.Principals.Users {
 			if u := known[name]; u != nil && u.IsAdmin {
-				writePlainError(w, http.StatusBadRequest, fmt.Sprintf(
+				writeError(w, http.StatusBadRequest, fmt.Sprintf(
 					"The user: '%s'' has admin privileges, and cannot be added to a Permission Target.", name))
 				return
 			}
@@ -459,8 +530,8 @@ func (s *Server) permissionCreateOrReplace(w http.ResponseWriter, r *http.Reques
 			if keyedV1 {
 				// The reference handler's wording (decompiled
 				// checkForNonExistingPrinciples); the rich face keeps the
-				// frozen plane's.
-				writePlainError(w, http.StatusBadRequest, fmt.Sprintf(
+				// frozen plane's. Errors envelope (L009-3).
+				writeError(w, http.StatusBadRequest, fmt.Sprintf(
 					"Permission target contains a reference to a non-existing user: '%s'.", name))
 				return
 			}

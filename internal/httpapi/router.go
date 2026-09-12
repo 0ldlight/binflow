@@ -18,6 +18,7 @@ package httpapi
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -1710,6 +1711,15 @@ func (s *Server) withName(rest, prefix string, h func(http.ResponseWriter, *http
 // e.g. "Any Remote"), and JAX-RS decodes the path parameter back before the
 // lookup — the reference's own round-trip. rest arrives from EscapedPath,
 // so the decode happens here, at the seam.
+//
+// L009-3 (wire-verified :8082 2026-09-12): the reference decodes the name a
+// SECOND time with java.net.URLDecoder semantics — '+' becomes a space and
+// a further %XX pass runs — so "pl+name+x", "pl%2Bname%2Bx" and "pl%20name"
+// "%20x" all name the same target, and %2570d2 reaches "pd2". A malformed
+// escape in that second pass answers 400 with the URLDecoder's own wording
+// (an errors envelope); a malformed escape in the wire segment itself never
+// reaches this seam — the HTTP transport rejects the request line with the
+// same bare "400 Bad Request" the reference's connector does.
 func (s *Server) withNameUnescaped(rest, prefix string, h func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		name, tail := splitAPIName(rest, prefix)
@@ -1717,10 +1727,74 @@ func (s *Server) withNameUnescaped(rest, prefix string, h func(http.ResponseWrit
 			notImplemented(w, "/binflow/api/"+rest)
 			return
 		}
-		if decoded, err := url.PathUnescape(name); err == nil {
-			name = decoded
+		decoded, err := url.PathUnescape(name)
+		if err != nil {
+			// Unreachable through the listener (the transport rejects a bad
+			// request line first); kept so a future internal caller cannot
+			// smuggle a raw %zz past the seam into a 404 lookup.
+			writePlainError(w, http.StatusBadRequest, "400 Bad Request")
+			return
 		}
-		h(w, r, name)
+		second, decErr := urlDecoderDecode(decoded)
+		if decErr != "" {
+			writeError(w, http.StatusBadRequest, decErr)
+			return
+		}
+		h(w, r, second)
+	}
+}
+
+// urlDecoderDecode applies java.net.URLDecoder.decode semantics (the
+// reference's second decode of a keyed permission name, L009-3): '+' maps
+// to a space, %XX decodes byte-wise, and a malformed escape returns the
+// reference's verbatim 400 wording — "Incomplete trailing escape (%)"
+// when fewer than two characters follow the '%', otherwise the first
+// non-hexadecimal character named and coded ("z" = 122).
+func urlDecoderDecode(s string) (string, string) {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '+':
+			b.WriteByte(' ')
+		case '%':
+			if i+2 >= len(s) {
+				return "", "URLDecoder: Incomplete trailing escape (%) pattern"
+			}
+			c1, c2 := s[i+1], s[i+2]
+			if !isHexDigit(c1) {
+				return "", urlIllegalHexMessage(c1)
+			}
+			if !isHexDigit(c2) {
+				return "", urlIllegalHexMessage(c2)
+			}
+			b.WriteByte(hexVal(c1)<<4 | hexVal(c2))
+			i += 2
+		default:
+			b.WriteByte(s[i])
+		}
+	}
+	return b.String(), ""
+}
+
+func urlIllegalHexMessage(c byte) string {
+	return fmt.Sprintf(
+		"URLDecoder: Illegal hex characters in escape (%%) pattern - not a hexadecimal digit: %q = %d",
+		string(rune(c)), c)
+}
+
+func isHexDigit(c byte) bool {
+	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
+}
+
+func hexVal(c byte) byte {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0'
+	case c >= 'a' && c <= 'f':
+		return c - 'a' + 10
+	default:
+		return c - 'A' + 10
 	}
 }
 

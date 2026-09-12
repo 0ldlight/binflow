@@ -112,7 +112,7 @@ func TestPermissionsV1AliasDetail(t *testing.T) {
 		t.Errorf("admin letters = %v, want [r w n d m] (full %v)", letters, d.Principals)
 	}
 
-	// Unknown name: 404, plain.
+	// Unknown name: 404, the errors envelope ("Not Found", L007-1 upgrade).
 	resp = t215As(t, h, http.MethodGet, "api/security/permissions/nope", adminUser, adminPass, "")
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("unknown detail = %d, want 404", resp.StatusCode)
