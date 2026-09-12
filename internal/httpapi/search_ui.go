@@ -408,13 +408,15 @@ func uiPackageRowOf(r *http.Request, n *metadata.Node) uiPackageRow {
 
 // handleUIPackagesLeadFile serves POST packagesSearch/leadFile: the
 // addressed path's FILE node — a folder is not a lead file and answers the
-// empty 404 (no per-protocol index to elect one).
+// empty 404 (no per-protocol index to elect one). Resolves through the
+// metadata faces' non-counting storageNode (L011-1): a packages lookup is
+// not a download and must not feed the counters.
 func (s *Server) handleUIPackagesLeadFile(w http.ResponseWriter, r *http.Request) {
 	req, ok := parseUIPackage(w, r)
 	if !ok {
 		return
 	}
-	_, node, err := s.deps.ReposSvc.Get(r.Context(), principalFrom(r.Context()), req.RepoKey, req.Path)
+	node, err := s.storageNode(r, principalFrom(r.Context()), req.RepoKey, req.Path)
 	if err != nil || node == nil || isFolderPath(node.Path) {
 		writeUIPackage404Empty(w)
 		return

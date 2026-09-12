@@ -518,6 +518,79 @@ func (s *service) getRemote(ctx context.Context, p *Principal, repoKey, path str
 	return res.Body, res.Node, nil
 }
 
+// ResolveMeta resolves one node row for the /api/storage metadata faces —
+// the content plane's PREDICATES without its side effects (L011-1: no blob
+// open, no markDownload, no download audit row, no upstream fetch — the
+// reference's metadata reads never count, and an uncached remote path
+// answers the honest 404 where Get would fetch and land the whole
+// artifact). The predicates are the ones Get ran, in Get's order (review A
+// B1/B2 — the counting fix must not drop them):
+//
+//   - validateNodePath on the ADDRESSED spelling (the empty/root/degenerate
+//     refusals the old Get front produced verbatim);
+//   - the read gate on the ADDRESSED spelling — the trailing slash is what
+//     the pathMatcher's directory-prefix rule (matchStart under isFolder)
+//     keys on, so a bare-directory permission pattern admits an
+//     explicit-slash subfolder address exactly as the old Get gate did;
+//   - the local governance pattern gate (T-95/W12a dual-value ruling): a
+//     pattern-refused path answers ErrNodeNotFound, indistinguishable from
+//     a missing one — remote/virtual stay ungated, Get's own posture.
+//
+// The row walk is the listing channel's (listRows — the virtual member
+// union and the remote cache rows in the listing order, never an upstream
+// probe), exact-matched on the addressed spelling. A non-local folder
+// whose marker row does not exist (remote pull-throughs land file rows
+// without ancestors) answers the display marker the old arms produced on
+// read — T-406's materialized row, getVirtualFolder's synthesized one —
+// synthesized display-only here: a metadata read leaves every tree
+// exactly as it found it. Local misses stay misses (marker rows exist by
+// construction, materializeAncestors).
+//
+// Exposed through the consumer-side interface assertion (httpapi's
+// metaNodeResolver, the remoteBrowseViewer precedent), deliberately NOT
+// the Service interface: the hand-written adapter fakes that satisfy
+// repo.Service method by method stay untouched.
+func (s *service) ResolveMeta(ctx context.Context, p *Principal, repoKey, path string) (*metadata.Node, error) {
+	if err := validateNodePath(path); err != nil {
+		return nil, err
+	}
+	row, err := s.loadRepoRow(ctx, repoKey)
+	if err != nil {
+		return nil, err
+	}
+	if !s.allow(ctx, p, repoKey, path, ActionRead) {
+		// Distinguish the anonymous challenge from the authenticated denial
+		// so httpapi can answer 401 vs 403 (rest-api section 1.4).
+		if p == nil {
+			return nil, fmt.Errorf("read %s/%s: %w", repoKey, path, ErrUnauthorized)
+		}
+		return nil, fmt.Errorf("read %s/%s: %w", repoKey, path, ErrForbidden)
+	}
+	if row.Type == TypeLocal {
+		if gov := parseGovernance(row.Config); !gov.allowsPath(path) {
+			return nil, fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound)
+		}
+	}
+	nodes, _, err := s.listRows(ctx, p, row, strings.TrimSuffix(path, "/"))
+	if err != nil {
+		return nil, err
+	}
+	for _, n := range nodes {
+		if n.Path == path {
+			return n, nil
+		}
+	}
+	if row.Type != TypeLocal {
+		folder := strings.TrimSuffix(path, "/") + "/"
+		for _, n := range nodes {
+			if strings.HasPrefix(n.Path, folder) {
+				return &metadata.Node{RepoKey: repoKey, Path: folder}, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound)
+}
+
 // Put implements Service.Put: the zero-options PutWithOptions (the
 // exemption is the maven metadata family's, nothing else's).
 func (s *service) Put(ctx context.Context, p *Principal, repoKey, path string, body io.Reader, expect storage.BlobRef, mime string) (*metadata.Node, error) {

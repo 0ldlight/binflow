@@ -544,9 +544,10 @@ func (s *Server) permissionCreateOrReplace(w http.ResponseWriter, r *http.Reques
 		}
 		if _, ok := known[name]; !ok {
 			if keyedV1 {
-				// The reference handler's wording (decompiled
-				// checkForNonExistingPrinciples); the rich face keeps the
-				// frozen plane's. Errors envelope (L009-3).
+				// The reference's wording, pinned by the L009-3/L010-2
+				// live-wire differential (seven-arm status+message parity,
+				// T-L010-2 ②); the rich face keeps the frozen plane's.
+				// Errors envelope (L009-3).
 				writeError(w, http.StatusBadRequest, fmt.Sprintf(
 					"Permission target contains a reference to a non-existing user: '%s'.", name))
 				return

@@ -200,7 +200,9 @@ func (s *Server) handleStorageStats(w http.ResponseWriter, r *http.Request, repo
 // follows the flag), answers both the file and the folder spelling through
 // its exact-match arm, resolves a VIRTUAL address onto the member rows the
 // counts live on, and writes no audit row — so the probe is invisible to
-// the counters and the audit trail alike.
+// the counters and the audit trail alike. Deliberately NO
+// children-derived folder marker (storageNode's display arm): a folder
+// without a row has no statistics source and answers the honest 404.
 func (s *Server) statsNode(r *http.Request, p *auth.Principal, repoKey, relPath string) (*metadata.Node, error) {
 	trimmed := strings.TrimSuffix(relPath, "/")
 	if trimmed == "" {
@@ -214,12 +216,8 @@ func (s *Server) statsNode(r *http.Request, p *auth.Principal, repoKey, relPath 
 	if err != nil {
 		return nil, err
 	}
-	want := trimmed
-	if isFolderPath(relPath) {
-		want = trimmed + "/"
-	}
 	for _, n := range nodes {
-		if n.Path == want {
+		if n.Path == relPath {
 			return n, nil
 		}
 	}
@@ -406,9 +404,30 @@ func principalLetters(m map[string]auth.PrincipalBits) map[string][]string {
 	return out
 }
 
-// storageNode resolves one node row through the content-plane service call
-// so the read-ACL and the anonymous policy apply exactly as on a download.
-// Get addresses a folder row with ErrIsFolder AND the row itself.
+// metaNodeResolver is the metadata faces' resolution seam off the concrete
+// service (consumer-side interface, the remoteBrowseViewer precedent):
+// ResolveMeta lives on *service — the content plane's refusal predicates
+// (path validation, the read gate on the addressed spelling, the local
+// governance pattern gate) around the listing channel's row walk, with no
+// content-plane side effects — but deliberately NOT on the big repo.Service
+// interface, so the hand-written adapter fakes that satisfy it method by
+// method stay untouched. The assertion failing is a wiring bug: it answers
+// the honest 500 (fail closed), never a fallback that silently drops the
+// predicates.
+type metaNodeResolver interface {
+	ResolveMeta(ctx context.Context, p *repo.Principal, repoKey, path string) (*metadata.Node, error)
+}
+
+// storageNode resolves one node row for the /api/storage metadata faces
+// (item-info, ?properties, ?permissions, the ?list queried directory)
+// through ResolveMeta — the L011-1 de-probing: these faces render
+// metadata, they are not downloads, and the reference's counters never
+// move on them (differential evidence: reference item-info via a virtual
+// member 0→0, via an uncached remote 404-no-fetch; the pre-fix BinFlow
+// answered 0→1 per face and fetched-then-200). The refusal predicates
+// still apply exactly as on a download (review A B1/B2: the governance
+// pattern gate and the addressed-spelling read gate — matchStart's folder
+// arm — are Get's own, kept by ResolveMeta).
 //
 // Folder spelling: storage rows keep the trailing slash ("acme/"), while a
 // client addressing the directory through /api/storage usually omits it
@@ -417,15 +436,13 @@ func principalLetters(m map[string]auth.PrincipalBits) map[string][]string {
 // indistinguishable from a sloppy one, and the 404 wording must key on what
 // the client actually sent.
 func (s *Server) storageNode(r *http.Request, p *auth.Principal, repoKey, relPath string) (*metadata.Node, error) {
-	_, node, err := s.deps.ReposSvc.Get(r.Context(), p, repoKey, relPath)
-	if errors.Is(err, repo.ErrIsFolder) && node != nil {
-		return node, nil
+	resolver, ok := s.deps.ReposSvc.(metaNodeResolver)
+	if !ok {
+		return nil, fmt.Errorf("metadata node resolution is not available on this assembly")
 	}
+	node, err := resolver.ResolveMeta(r.Context(), p, repoKey, relPath)
 	if errors.Is(err, repo.ErrNodeNotFound) && relPath != "" && !isFolderPath(relPath) {
-		_, node, err = s.deps.ReposSvc.Get(r.Context(), p, repoKey, relPath+"/")
-		if errors.Is(err, repo.ErrIsFolder) && node != nil {
-			return node, nil
-		}
+		node, err = resolver.ResolveMeta(r.Context(), p, repoKey, relPath+"/")
 	}
 	return node, err
 }
