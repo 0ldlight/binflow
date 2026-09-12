@@ -885,7 +885,7 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			s.withNameUnescaped(rest, "security/permissions/", s.handlePermissionPutV1))
 	case strings.HasPrefix(rest, "security/permissions/") && r.Method == http.MethodDelete:
 		s.enforce(w, r, routeAuth{required: true},
-			s.withNameUnescaped(rest, "security/permissions/", s.handlePermissionDelete))
+			s.withNameUnescaped(rest, "security/permissions/", s.handlePermissionDeleteV1))
 
 	// ---- /api/repositories (E-04..E-08) ----
 	// The list sits on repo:read (family 5, D2/C22b): readonly_admin sees

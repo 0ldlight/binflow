@@ -434,12 +434,28 @@ func (s *Server) permissionCreateOrReplace(w http.ResponseWriter, r *http.Reques
 		writePlainError(w, http.StatusInternalServerError, "list users for validation: "+err.Error())
 		return
 	}
-	known := make(map[string]bool, len(users))
+	known := make(map[string]*metadata.User, len(users))
 	for _, u := range users {
-		known[u.Username] = true
+		known[u.Username] = u
+	}
+	if keyedV1 {
+		// L007-1 arm 3 (live :8082, wire-verified 2026-09-12): the classic
+		// face refuses an admin-privileged user as a principal — the
+		// reference's wording verbatim, including its own doubled quote
+		// mark. The scan runs BEFORE the unknown-user check (probed: an
+		// admin plus an unknown user in one body answers the admin
+		// message) and after the repository validation (probed: an
+		// unknown repository plus admin answers the repository message).
+		for name := range body.Principals.Users {
+			if u := known[name]; u != nil && u.IsAdmin {
+				writePlainError(w, http.StatusBadRequest, fmt.Sprintf(
+					"The user: '%s'' has admin privileges, and cannot be added to a Permission Target.", name))
+				return
+			}
+		}
 	}
 	for name := range body.Principals.Users {
-		if !known[name] {
+		if _, ok := known[name]; !ok {
 			if keyedV1 {
 				// The reference handler's wording (decompiled
 				// checkForNonExistingPrinciples); the rich face keeps the
@@ -463,6 +479,13 @@ func (s *Server) permissionCreateOrReplace(w http.ResponseWriter, r *http.Reques
 	}
 	for name := range body.Principals.Groups {
 		if !knownGroups[name] {
+			if keyedV1 {
+				// The reference's own wording (live :8082, 2026-09-12 —
+				// no colon before the quoted name, unlike the user arm).
+				writePlainError(w, http.StatusBadRequest, fmt.Sprintf(
+					"Permission target contains a reference to a non-existing group '%s'.", name))
+				return
+			}
 			// Same family wording as the users arm (auth-model.md section 4:
 			// a principal referencing an unknown user/group is a 400).
 			writePlainError(w, http.StatusBadRequest, fmt.Sprintf("Unable to find group by name '%s'.", name))
@@ -771,9 +794,10 @@ func unmarshalStrings(v string) []string {
 	return out
 }
 
-// handlePermissionDelete serves DELETE /binflow/api/v1/permissions/{name}:
-// the grants vanish with the target (the store deletes both tables in one
-// transaction); an unknown name is a 404 for security writers.
+// handlePermissionDelete serves DELETE /binflow/api/v1/permissions/{name}
+// (and its /api/v1/permissions sibling): the grants vanish with the target
+// (the store deletes both tables in one transaction); an unknown name is a
+// 404 for security writers. Success is the plane's frozen 204.
 //
 // Family 4's exception gate (T-217): a non-security-writer may delete only a
 // target whose every repository sits inside its manage coverage. For such
@@ -782,12 +806,34 @@ func unmarshalStrings(v string) []string {
 // keeps the permission plane's inventory (security:read data) away from
 // principals who cannot list it.
 func (s *Server) handlePermissionDelete(w http.ResponseWriter, r *http.Request, name string) {
+	s.permissionDelete(w, r, name, false)
+}
+
+// handlePermissionDeleteV1 serves DELETE /api/security/permissions/{name}
+// (L007-1, D04-R18 — the classic face): the reference answers 200 with the
+// plain-text confirmation "Successfully deleted permission Target 'x'" and
+// wraps the unknown name in the errors-envelope "Not Found" (live :8082,
+// wire-verified 2026-09-12) — the keyed rendering pair this face now
+// mirrors, where the rich face keeps its frozen 204.
+func (s *Server) handlePermissionDeleteV1(w http.ResponseWriter, r *http.Request, name string) {
+	s.permissionDelete(w, r, name, true)
+}
+
+// permissionDelete is the delete core both faces share: the T-217 gate pair
+// and the store transaction are one behavior, only the terminal renderings
+// split — keyedV1 answers the reference's 200 confirmation text and the
+// envelope 404, the rich face its frozen 204 and plain 404.
+func (s *Server) permissionDelete(w http.ResponseWriter, r *http.Request, name string, keyedV1 bool) {
 	p := principalFrom(r.Context())
 	secWrite := s.canManage(r.Context(), p, auth.CapSecurityWrite)
 	target, _, err := s.deps.Metadata.Permissions().GetTarget(r.Context(), name)
 	switch {
 	case err == nil:
 	case errors.Is(err, metadata.ErrNotFound):
+		if keyedV1 && secWrite {
+			writeError(w, http.StatusNotFound, "Not Found")
+			return
+		}
 		if secWrite {
 			writePlainError(w, http.StatusNotFound, "permission target not found: "+name)
 			return
@@ -811,6 +857,10 @@ func (s *Server) handlePermissionDelete(w http.ResponseWriter, r *http.Request, 
 		Action: audit.ActionPermissionDelete,
 		Detail: auditDetail("name", name),
 	})
+	if keyedV1 {
+		writeText(w, http.StatusOK, fmt.Sprintf("Successfully deleted permission Target '%s'", name))
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -861,14 +911,15 @@ func (s *Server) handlePermissionListV1(w http.ResponseWriter, r *http.Request) 
 }
 
 // handlePermissionGetV1 serves GET /api/security/permissions/{name}: the
-// v1 detail. Unknown name answers the family's plain 404 (the reference
-// wraps a generic "Not Found" envelope — the plane's established BinFlow
-// error posture keeps plain text, recorded as a rendering divergence).
+// v1 detail. Unknown name answers the reference's errors envelope carrying
+// the generic "Not Found" (live :8082, wire-verified 2026-09-12; L007-1
+// arm 2 — the plane's earlier plain-text posture retired on this face
+// only, the rich /api/v1/permissions face keeps its frozen wording).
 func (s *Server) handlePermissionGetV1(w http.ResponseWriter, r *http.Request, name string) {
 	target, rows, err := s.deps.Metadata.Permissions().GetTarget(r.Context(), name)
 	if err != nil {
 		if errors.Is(err, metadata.ErrNotFound) {
-			writePlainError(w, http.StatusNotFound, "permission target not found: "+name)
+			writeError(w, http.StatusNotFound, "Not Found")
 			return
 		}
 		writePlainError(w, http.StatusInternalServerError, "lookup permission target: "+err.Error())

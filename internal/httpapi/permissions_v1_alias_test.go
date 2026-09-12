@@ -131,10 +131,10 @@ func TestPermissionsV1AliasDetail(t *testing.T) {
 // TestPermissionsV1AliasKeyedPut: the path-keyed create-or-replace — 201 on
 // both arms, the 409 name-mismatch rule, the nameless-body injection.
 func TestPermissionsV1AliasKeyedPut(t *testing.T) {
-	h := newHarness(t)
+	h := newHarnessCfg(t, nil, [][2]string{{"dev", "dev"}})
 	seedRepo(t, h, "generic-local")
 
-	body := `{"name":"l006b-keyed","repos":["generic-local"],"principals":{"users":{"admin":["read"]}}}`
+	body := `{"name":"l006b-keyed","repos":["generic-local"],"principals":{"users":{"dev":["read"]}}}`
 	resp := t215As(t, h, http.MethodPut, "api/security/permissions/l006b-keyed", adminUser, adminPass, body)
 	if raw, code := readAllT444(t, resp), resp.StatusCode; code != http.StatusCreated {
 		t.Fatalf("keyed create = %d body=%s, want 201", code, raw)
@@ -159,7 +159,7 @@ func TestPermissionsV1AliasKeyedPut(t *testing.T) {
 
 	// Nameless body: the path key governs.
 	resp = t215As(t, h, http.MethodPut, "api/security/permissions/l006b-anon-name", adminUser, adminPass,
-		`{"repos":["generic-local"],"principals":{"users":{"admin":["read"]}}}`)
+		`{"repos":["generic-local"],"principals":{"users":{"dev":["read"]}}}`)
 	if raw, code := readAllT444(t, resp), resp.StatusCode; code != http.StatusCreated {
 		t.Fatalf("nameless keyed create = %d body=%s, want 201", code, raw)
 	}
@@ -178,18 +178,22 @@ func TestPermissionsV1AliasKeyedPut(t *testing.T) {
 	}
 }
 
-// TestPermissionsV1AliasDelete: the shared delete handler under the classic
-// path (204; the reference's 200+text is a recorded rendering divergence).
+// TestPermissionsV1AliasDelete: the keyed delete under the classic path —
+// L007-1 arm 1 closed the recorded rendering divergence: the reference's
+// 200 + plain-text confirmation, verbatim.
 func TestPermissionsV1AliasDelete(t *testing.T) {
 	h := newHarness(t)
 	seedRepo(t, h, "generic-local")
 	putTargetWire(t, h, "l006b-del", `{"users":{"admin":["read"]}}`, http.StatusCreated)
 
 	resp := t215As(t, h, http.MethodDelete, "api/security/permissions/l006b-del", adminUser, adminPass, "")
-	if resp.StatusCode != http.StatusNoContent {
-		t.Fatalf("classic delete = %d, want 204", resp.StatusCode)
+	raw := readAllT444(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("classic delete = %d body=%s, want 200", resp.StatusCode, raw)
 	}
-	readAllT444(t, resp)
+	if raw != "Successfully deleted permission Target 'l006b-del'" {
+		t.Errorf("classic delete body = %q, want the reference's confirmation text", raw)
+	}
 	resp = t215As(t, h, http.MethodGet, "api/security/permissions/l006b-del", adminUser, adminPass, "")
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("deleted detail = %d, want 404", resp.StatusCode)
@@ -205,13 +209,13 @@ func TestPermissionsV1AliasDelete(t *testing.T) {
 // silently contribute nothing (AceImpl#setPermissionsFromStrings' own arm);
 // the alias-disagreement 400s mirror the house dual-spelling posture.
 func TestPermissionsV1AliasDialectPut(t *testing.T) {
-	h := newHarness(t)
+	h := newHarnessCfg(t, nil, [][2]string{{"dev", "dev"}})
 	seedRepo(t, h, "generic-local")
 
 	// The full v1 dialect body: repositories key, flat patterns, letters.
 	resp := t215As(t, h, http.MethodPut, "api/security/permissions/l006b-v1dialect", adminUser, adminPass,
 		`{"repositories":["generic-local"],"includesPattern":"sec/**,dist/**","excludesPattern":"tmp/**",`+
-			`"principals":{"users":{"admin":["r","w","n","d","m","mxm","x","zzz"]}}}`)
+			`"principals":{"users":{"dev":["r","w","n","d","m","mxm","x","zzz"]}}}`)
 	if raw, code := readAllT444(t, resp), resp.StatusCode; code != http.StatusCreated {
 		t.Fatalf("v1-dialect create = %d body=%s, want 201", code, raw)
 	}
@@ -233,8 +237,8 @@ func TestPermissionsV1AliasDialectPut(t *testing.T) {
 	if len(d.Repositories) != 1 || d.Repositories[0] != "generic-local" {
 		t.Errorf("repositories = %v, want [generic-local]", d.Repositories)
 	}
-	if letters := strings.Join(d.Principals["users"]["admin"], ""); letters != "rwndm" {
-		t.Errorf("admin letters = %v, want rwndm (mxm/x/zzz silently cleared)", d.Principals["users"]["admin"])
+	if letters := strings.Join(d.Principals["users"]["dev"], ""); letters != "rwndm" {
+		t.Errorf("dev letters = %v, want rwndm (mxm/x/zzz silently cleared)", d.Principals["users"]["dev"])
 	}
 
 	// The dual-spelling disagreement arms (the house alias posture).
@@ -286,7 +290,7 @@ func TestPermissionsV1AliasDialectPut(t *testing.T) {
 	// A rich-dialect body still works on the classic face (the hybrid arm —
 	// the alias is additive, BinFlow-native consumers keep their spelling).
 	resp = t215As(t, h, http.MethodPut, "api/security/permissions/l006b-rich", adminUser, adminPass,
-		`{"repos":["generic-local"],"principals":{"users":{"admin":["read","deploy-cache"]}}}`)
+		`{"repos":["generic-local"],"principals":{"users":{"dev":["read","deploy-cache"]}}}`)
 	if raw, code := readAllT444(t, resp), resp.StatusCode; code != http.StatusCreated {
 		t.Fatalf("rich-dialect on classic face = %d body=%s, want 201", code, raw)
 	}
