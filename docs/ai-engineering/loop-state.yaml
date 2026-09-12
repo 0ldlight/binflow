@@ -1,11 +1,20 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-13T05:15:00Z
-current_iteration: 013
-current_goal: "弹窗走查批 / K60 转写+packument 腿 / 21 Pro 屏补拍 / maven 元数据票 / R-15 预授权 / Penpot 残留清理候授权"
-iteration_012_seal: "五轨+Penpot 全收（第六波限额半程 conductor 接管收尾）；npm 域 8/8 VERIFIED（扩章模式首验成功）；matrix ✅72/◐19 Coverage 48.3%；台账 39 条 resolved 25；commits 5e2c58b0/17ed328b/680bc134/f3bb1a61/8936f258/9fabb6fc/bebd92b1"
+updated: 2026-09-13T08:30:00Z
+current_iteration: 014
+current_goal: "R-15a/b 重呈裁（P0 清零钥匙）/ maven 双 BUG 票 / Penpot 残留候授权 / K60-5 升格腿"
+iteration_013_seal: "五轨全收（限额半程+ref 六连击均自愈/接管）；matrix ✅73/◐18 Coverage 48.6%——P0 partial 2 行；npm 契约 15（14V）；台账 resolved 27；账实不符一例定谳勘误；commits 3453d8bb/9322359c/ae26b103"
+loop_014_tracks:
+  - { id: L014-1, domain: rulings-represent, owner: product-manager, what: "R-15a/b 重呈裁：a=propertiesXml 双面皆服务实态（BinFlow file 面吞参回字节+api 面 404——原「维持 501」案已失据——三新案呈批）；b=lastModified 官方语义（子树 max+Last-Modified 头）——P0 partial 最后两行 D01-R03/R04 的钥匙" }
+  - { id: L014-2, domain: maven-protocol, owner: dev-registry-adapter, what: "maven 双 BUG 票：unique-snapshot 服务端改写（×3 臂同根——buildNumber 时间戳化）+ checksum 旁车物化（15 项→5 项对齐）；三 UNKNOWN（XML 形态/手 PUT/竞态）候裁随票" }
+  - { id: L014-3, domain: penpot-cleanup, owner: conductor, what: "Penpot 残留清理候用户授权（2 空项目+过程稿——含 L013 新增 2）；4 硬阻塞 gap 处置票（GPG keypair 配置拍板/SSO/2k 节点/dark-mode 锚定方案）" }
+  - { id: L014-4, domain: npm-contract, owner: compatibility-engineer, what: "K60-5 升格腿：m21-m24 补格（/-/v1/login A 侧+/-/npm/v1 家族双端）→ SPECIFIED→VERIFIED；login 头面捕获；契约 npm.yaml 条目 15→19±" }
 loop_013_tracks:
+  - { id: L013-1+3, domain: penpot-full, owner: dev-frontend, what: "✅ 全量版交付：弹窗走查 8/12 清偿（+playwright route abort 错误页注入法）+21 Pro 屏（13 新图 8 同形去重）→ **spec 106 板/103 图 catalog 61/69** → 重注入 39s 验讫；Penpot 2.17 适配三件；新行为证据三条（AG-Grid/builds 入口/drawer 双步）；残余 4 gap 各带硬阻塞说明；**ref env 展开失败事件（冷启愈）+Penpot 残留 2 空项目（清理需防误删）**", status: done }
+  - { id: L013-r15c, domain: repo-rest, owner: dev-go-core, what: "✅ project 空集过滤落地（truthful-empty 案乙——无 projects 域下自洽；五臂双端重放全同）；**D02-R01 翻✅——P0 partial 降至 2 行**（D01-R03/R04=R-15a/b 候裁）；commits 3453d8bb/9322359c", status: done }
+  - { id: L013-4+5, domain: differential, owner: differential-qa-engineer, what: "✅ 三案齐收：maven 18 臂（11 同/7 差——2 BUG 候选〔unique-snapshot 改写缺失×3 臂同根/checksum 旁车物化〕+3 UNKNOWN〔XML 形态/手 PUT 重算/竞态〕；真实 mvn 主流路径双端绿）；**R-15c/d 预授权落格案乙**（参照空集过滤→小实现翻✅——零代码假说出局）+R-15a 双面皆服务（BinFlow file 面实为吞参回字节非 501——需重呈裁）；**packument=BUG 成立**（两读面矛盾+疑似账实不符/回归上报）→ conductor 已翻账+双小修票派发（packument 修复+project 过滤）", status: done }
+  - { id: L013-2, domain: npm-contract, owner: compatibility-engineer, what: "✅ K60 转写 7 条目（两源互证直上 VERIFIED×6+K60-5 SPECIFIED 停零活体；npm 契约现 15 条目 14V/1S）+normalize session_mint 组+packument 探针脚本（F1 四分支判定映射台账——合成 obs 自检过未触网）；四不改账建议回报（login 缺字段 UNKNOWN 候选/id+rev INTENTIONAL 候选/D12-R03 链/packument 待 F1）", status: done }
   - { id: L013-1, domain: penpot-dialogs, owner: ux-designer→conductor, what: "弹窗走查批：11 gap 人工取证（user-menu/quick-search/tree-context-menu/delete-confirm 等——states-gaps.md）→截图+DOM 入管线 → spec 增量 → 重注入" }
   - { id: L013-2, domain: npm-contract, owner: compatibility-engineer, what: "K60 群零补证转写（npm.md K60 → contracts/npm.yaml 第二批——L012-2b §5 转写建议）+ packument 裁定腿（双端 GET packument 对照——台账 npm/packument-latest-recompute UNKNOWN）" }
   - { id: L013-3, domain: penpot-pro-screens, owner: dev-frontend, what: "21 Pro 屏补拍：造数（builds/lifecycle/release-bundles/scim/vault——audit-probe 前缀用后删净）→ capture 块链 → spec 重建 → 重注入（全管线自动化 6 分钟）" }
