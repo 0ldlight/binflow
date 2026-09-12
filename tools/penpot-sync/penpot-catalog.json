@@ -1,18 +1,18 @@
 {
   "meta": {
-    "rebuiltAt": "2026-09-12T18:33:44.438Z",
+    "rebuiltAt": "2026-09-12T19:38:58.923Z",
     "note": "Phase B rebuild — manifest slug→route 全量 (crawl-manifest.json is the authority); capture status = PNG presence. Phase A screens-catalog.json only had 4 entries because the screens phase was chunked; this catalog restores the full mapping.",
     "manifestScreens": 69,
-    "captured": 46,
+    "captured": 48,
     "groupsWithCaptures": [
       "Artifacts & Release (2)",
       "Repos (8)",
-      "Identity & Access (9)",
+      "Identity & Access (10)",
       "Security Config (8)",
       "Platform Config (2)",
       "Artifactory Services (11)",
       "Monitoring (3)",
-      "Auth & Shell (3)"
+      "Auth & Shell (4)"
     ],
     "groupsWithoutCaptures": [
       "Other"
@@ -657,19 +657,21 @@
       "route": "/user_profile",
       "effort": "core",
       "group": "Identity & Access",
-      "captured": false,
-      "note": ""
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/user_profile\ngroup: Identity & Access · effort: core\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "notfound-404",
       "route": "/__penpot_404_probe__",
       "effort": "core",
       "group": "Auth & Shell",
-      "captured": false,
+      "captured": true,
       "note": "wildcard 404 state",
       "states": [
         "route-404"
-      ]
+      ],
+      "meta": "route: /ui/__penpot_404_probe__\ngroup: Auth & Shell · effort: core\nmanifest note: wildcard 404 state\nstates: route-404\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     }
   ]
 }
