@@ -710,7 +710,7 @@ rows:
   confidence: high
   contract_ref:
   golden_ref:
-  last_difftest: reports/compatibility/L006-a-b-diff.md §1.1/§1.2（四域三 rclass round-trip 闭合：所设值全回显、remote/virtual 修复前丢弃→现回显、裸建仓默认 remote canonical 注入对齐；virtual 参照自弃三域照抄留证）
+  last_difftest: reports/compatibility/L008-update-merge-diff.md §1（PUT-on-existing 闭环：A10 400 errors 信封逐字 + A11 拒后零副作用 + A12 新建回归同文案）；前置 L006-a-b-diff.md §1.1/§1.2（四域三 rclass round-trip 闭合）
   priority_class: P0
   layer: A
   source_row: "§3 行 3"
@@ -720,7 +720,9 @@ rows:
     （#rest/repo-config-invalid-value-family）——族级/裁定量不占本行主面。
     L007-3（2026-09-12）补注：冻结源行「key 冲突 400/409 语义已对齐」旧注记与新实测相抵——参照
     PUT-on-existing=400 create-only（更新拼写只有 POST），BinFlow PUT-on-existing=更新 200；该臂已并入
-    update-merge 台账裁定范围（L007-3 §2 + ADR 候选稿 docs/design/repo-update-merge.md），随 LOOP 008 联裁。'
+    update-merge 台账裁定范围（L007-3 §2 + ADR 候选稿 docs/design/repo-update-merge.md），随 LOOP 008 联裁。
+    L008-1b（2026-09-12）PUT-on-existing 400 对齐闭环：A10 完整体 400 errors 信封逐字同 + A11 拒后零副作用
+    + A12 PUT 新建回归同文案（ADR-0050 落地复验；台账 rest/repo-config-update-merge-semantics resolved）。'
 - row_id: D02-R04
   domain: D02
   capability: POST /api/repositories/{key}（更新）
@@ -728,7 +730,7 @@ rows:
   confidence: high
   contract_ref:
   golden_ref:
-  last_difftest: reports/compatibility/L006-a-b-diff.md §1.1（POST 更新全字段新值→四域全更新 SAME）+ §1.4（残余：更新合并语义族）
+  last_difftest: reports/compatibility/L008-update-merge-diff.md §1（三列矩阵 13 硬断言臂全 SAME：省略=保留/null 清/空值分族/显式值含 0 存 0/url 可省/对象三格 A7·A14·A15/console 回归 A13）；前置 L006-a-b-diff.md §1.1
   priority_class: P0
   layer: A
   source_row: "§3 行 4"
@@ -736,7 +738,12 @@ rows:
     §1.4——更新合并语义为族级既有差异：参照 POST 省略字段=保留存量（remote 四域 keep 实测）vs BinFlow
     全量替换回落默认（影响 remote 全字段，非四域特例），已立账
     known-divergence#rest/repo-config-update-merge-semantics 转 LOOP 007 另票；非法值形态族另账
-    #rest/repo-config-invalid-value-family。'
+    #rest/repo-config-invalid-value-family。
+    L008-1b（2026-09-12）三列矩阵臂同笔闭环（§1.4 残余清偿，ADR-0050 落地）：省略×标量/credential/数组
+    =保留（sealed 行逐字节不动）、null×标量=清（echo 形归一化 None≡""）、空值分族（标量清/数组留/对象
+    {} 整族复位）、显式值含 0-as-absent 双面收口（T-290 联裁翻绿）、对象族补证格 A14 显式=整体替换/
+    A15 null=整族保留、console 全量表单回归 A13——台账 resolved（归一化四项与 A16/A17/cs-enabled
+    留痕面见 resolved note，非本账轴）。'
 - row_id: D02-R05
   domain: D02
   capability: DELETE /api/repositories/{key}
@@ -1257,7 +1264,10 @@ rows:
     L007-4 预登记的翻绿条件兑现：台账 rest/permissions-v1-response-shape-residuals 三臂清偿且差分复验
     SAME（DELETE 200 文案逐字 / 未知名 404 envelope GET+DELETE 双腿 / admin 主体 400 逐字含双单引号癖性
     + 优先序两佐证腿），连带 PUT 未识组腿同链路收口（组名前无冒号与 user 臂异——留痕）。台账 resolved
-    note 载裁量：400 系载体维持纯文本（低于阈值+同面一致）；/api/v1/permissions 自有面 204 冻结不动。'
+    note 载裁量：400 系载体维持纯文本（低于阈值+同面一致）；/api/v1/permissions 自有面 204 冻结不动。
+    LOOP 008 卫生批补锚：mxm 席位差（known-divergence#rest/permissions-v1-managedxraymeta-seat，INTENTIONAL
+    锚 ADR-0029/0033 Xray 排除域）与边缘校验族（#rest/permissions-v1-edge-validation-family，①②对齐 ③超集）
+    另立账——均不占本行 compatible 态。'
 - row_id: D04-R19
   domain: D04
   capability: "/api/v2/security/permissions 族（8 条目 + per-user/per-group 6 端点）"

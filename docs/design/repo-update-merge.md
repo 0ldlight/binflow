@@ -2,7 +2,7 @@
 
 | 项 | 值 |
 |---|---|
-| 状态 | **候选稿（Proposed）**——L007-3 architect 起草，待 conductor 过 DECISIONS.md ADR 流程；未入册即无效力 |
+| 状态 | **Accepted（2026-09-12）**——ADR-0050 收编（DECISIONS.md，LOOP 008 L008-1a）：案 A 定谳，分歧处以 ADR 为准；本稿保留为实现票任务书载体（§9） |
 | 台账锚 | `docs/compatibility/known-divergence.yaml` → `rest/repo-config-update-merge-semantics`（BUG） |
 | 证据 | E4 活体（reports/compatibility/L007-3-update-merge-evidence.md，2026-09-12 :8082 双仓四臂实测）+ L006-a-b-diff.md §1.4 |
 | 关联 | matrix D02-R03/R04（翻绿不吸收本账）；T-80「全量替换=Artifactory PUT 模型」旧认知（本稿勘误对象） |
@@ -70,3 +70,37 @@ RFC 9110 语义里 PUT=整体替换、且「省略即抹除」本属 PUT 的正�
 - 负：BinFlow 自有「PUT 改仓/全量替换清配置」脚本破坏（UAT 前夜窗口内可接受）；实现+差分验证成本一票。
 - 风险：三列矩阵的字面契约（400 文案、{} 复位边界）需规格票冻结；数组无清空通道若未来被差分打脸（发现了参照的清空通道）走 Errata 回填，不动机制。
 - 验证载体：curl 脚本族 + terraform provider 习惯形态（改单字段 POST）；差分报告归 reports/compatibility/。
+
+## 9. 实现票任务书（ADR-0050 派发级——dev-go-core；conductor 转派用）
+
+裁定 authority = **ADR-0050**（机制面）；字面量以规格票/contract 冻结为准。范围 = 决策 1/2/3/4/5 的 remote 臂 + description 席位 + PUT 回撤；**local/virtual 臂 merge 不在本票**（ADR-0050 决策 5 另票）。路线 = `parseRemoteConfig` 基线注入 + **指针席位零新增**（既有 `remoteConfigInput` 指针席位复用；非指针 string 席位〔username/password〕经 raw-map 键在场判缺）。
+
+### 9.1 文件级改动清单
+
+| # | 文件 | 改动 | 锚（as-built 行号为 2026-09-12 快照） |
+|---|---|---|---|
+| 1 | `internal/repo/config.go` | `parseRemoteConfig` 增**基线模式**：签名加 baseline 参数（如 `parseRemoteConfig(config, packageType string, baseline *remoteConfig)`；CreateRepo 传 nil 维持默认起步）。基线模式起步值 = 存量 canonical（GET 回读形）替代产品默认；指针席位逐席判缺——nil=基线值、非 nil=新值。① URL 必填检查在基线模式放宽：基线有 url 即可（更新面 url 可省）；② period 族 0-as-absent 分支**双面移除**（`for … if !f.given \|\| f.value == 0 { continue }` 的 `\|\| f.value == 0` 子句删除，负值拒与别名分歧拒维持——显式 0 即写 0，create 面同步）；③ username/password 非指针席位：复用 `validateRemoteConfigShape` 已解出的 raw map（或等价 raw 解码）判**键在场**——缺键=保留基线（credential 密文行不动），在场且 ""/null=清，在场有值=写入；**零新增结构席位**；④ `contentSynchronisation` 基线：省略=保留整族、显式 `{}`=整族复位 false、显式对象=子键级写入（`parseContentSynchronisation` 起步值由零值改基线值——**未提子键 disposition 待探针臂（9.3-A14）定案后落**，先行按「未提=基线」实现并表驱动钉死）；⑤ 别名解析（socketTimeoutMs/MissRetrieval）规则不变 | `remoteConfigInput` L211-245（L006-1 指针席位）；`parseRemoteConfig` L328-469 |
+| 2 | `internal/repo/service.go` | `UpdateRepo` remote 臂（L2576）传 baseline：`current.Config` 解出的存量 canonical（存量 unmarshal 先例已在 L2589-2590 审计段）；credential 保留语义落到 `remote_configs` 行——省略 username/password=保留行内存量（含 sealed password 原样），显式 ""/null=清（`sealPassword("")` 清空路径已有）；**勘误 T-80 注释**（L2627-2630 `Full-replace semantics…` 整段替换为 merge 语义 + ADR-0050 引用）；audit detail 结构不变 | `UpdateRepo` L2507-2665；CreateRepo 调用点 L2196 传 nil |
+| 3 | `internal/httpapi/repositories.go` | ① `handleRepoPut` **移除更新臂**（L648-672 的 GetRepo 命中→UpdateRepo 分支）：已存在 key → 400 errors 信封，参照逐字 `error when validating repository name: <key> : Repository key already exists`（建议 handler 直发以控逐字文案；或走 CreateRepo→`ErrRepoExists`→`writeRepoSvcError` 400 面——两路线任选，**文案对拍差分臂 A10 钉死**）；create 臂（含 addon 门、FR-65 分门）不变。② `handleRepoPost` description 席位：raw body 判 `description` 键在场——缺键=传 `current.Description`（保存量），在场（含 null/""）=覆写（null 解码为 ""）；POST 未知 key 404 维持 | `handleRepoPut` L625-704；`handleRepoPost` L708-742 |
+| 4 | `web/src`（console） | **零改动**（验收臂回归证明）：`createRepo`=PUT / `updateRepo`=POST 已分工（lib/repos.ts L182-189）；local 仓 quota「全量替换体」策略在 merge 语义下等价（显式全值=全写） | — |
+| 5 | `internal/httpapi/keypair.go` | **零改动确认项**：`updateRepoKeypairRef`（L396-406）传全量 merged config，merge 语义下行为不变（回归臂覆盖） | — |
+
+### 9.2 单元验收（表驱动，`go test ./internal/repo/... ./internal/httpapi/...`）
+
+1. 三列矩阵 × 三族（省略/null/空值/显式值 4 形态 × 标量/数组/对象 3 族）——remote 臂逐席位断言存量保留/清空/复位/写入；
+2. url 更新面可省（POST `{}` → 200、url 保留）；create 面 url 必填不回退；
+3. credential 单侧清（username 清 password 留 / 反之亦然；省略双留、密文行不动）；
+4. 显式 0 存 0（retrieval/missed/socketTimeout 族；create+update 双面）+ 负值拒 + 别名分歧拒回归；
+5. PUT-on-existing → 400（完整 body / 无 rclass 两臂）；PUT 新建 200 文案不变；POST 未知 key 404；
+6. description 省略保留 / null/"" 清空；
+7. `go build ./...` + `go vet ./...` + `gofmt` 零告警（既有门）。
+
+### 9.3 差分臂清单（curl 双发对拍，tools/difftest 脚本化，报告归 reports/compatibility/）
+
+硬断言臂（对拍 SAME）：A1 省略族×标量（POST `{"hardFail":true}` 单键 → 全字段 keep）；A2 省略族×credential（密文行保留；BinFlow 不回显 password 为既有 NFR-S14 差异账，对拍面排除该字段）；A3 null 族×标量（username/notes/description:null → 清）；A4 null 族×数组（customHttpHeaders:null → 保留）；A5 空值族×标量（password:""/description:"" → 清）；A6 空值族×数组（customHttpHeaders:[] → 保留）；A7 空值族×对象（contentSynchronisation:{} → 整族复位）；A8 显式值族（hardFail:false / maxUniqueSnapshots:0 / retrievalCachePeriodSecs:0 → 存 0/false 回显）；A9 url 省略（POST `{}` → 200 url 保留）；A10 PUT-on-existing 完整 body → 400 逐字（errors 信封）；A11 PUT-on-existing 拒后零副作用（GET 复核原值）；A12 PUT 新建回归（200 create 文案）；A13 console 编辑回归（全量 body 保存 → GET 回读不变）。
+
+探针臂（记录不裁，产出归规格票）：A14 对象部分子键 vs 存量（未提子键 disposition——定 9.1-④ 终稿）；A15 对象族显式 null；A16 PUT-on-existing 无 rclass 的报错次序（`Missing repository type` vs key-exists 谁先）；A17 PUT-on-existing 非 admin 门序（403/400 次序）。
+
+### 9.4 边界与不做
+
+fetch 侧 0 的生效语义不动（既有 0=unset 回落链，ADR-0050 决策 3）；数组清空通道不实现（参照亦无）；local/virtual merge、GET 回显密文块（NFR-S14 对立面）不在本票；矩阵/台账回填归 compatibility-engineer（本票产出差分报告供其引用）。
