@@ -1,10 +1,16 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-12T23:00:00Z
-current_iteration: 012
-current_goal: "npm dist-tags 扩章首票 / mdTimestamps 递归臂升级 / virtual 元数据裁定限期 / R-15 预授权探针"
-iteration_011_seal: "四轨零击落；计数污染清偿含安全级返工（治理门+ACL 臂复原——ResolveMeta 红检）；R-15 入包 20 席位；扩面评估落地；双审战绩 12/12；commits b4c73a56/d301cf31"
+updated: 2026-09-13T05:15:00Z
+current_iteration: 013
+current_goal: "弹窗走查批 / K60 转写+packument 腿 / 21 Pro 屏补拍 / maven 元数据票 / R-15 预授权 / Penpot 残留清理候授权"
+iteration_012_seal: "五轨+Penpot 全收（第六波限额半程 conductor 接管收尾）；npm 域 8/8 VERIFIED（扩章模式首验成功）；matrix ✅72/◐19 Coverage 48.3%；台账 39 条 resolved 25；commits 5e2c58b0/17ed328b/680bc134/f3bb1a61/8936f258/9fabb6fc/bebd92b1"
+loop_013_tracks:
+  - { id: L013-1, domain: penpot-dialogs, owner: ux-designer→conductor, what: "弹窗走查批：11 gap 人工取证（user-menu/quick-search/tree-context-menu/delete-confirm 等——states-gaps.md）→截图+DOM 入管线 → spec 增量 → 重注入" }
+  - { id: L013-2, domain: npm-contract, owner: compatibility-engineer, what: "K60 群零补证转写（npm.md K60 → contracts/npm.yaml 第二批——L012-2b §5 转写建议）+ packument 裁定腿（双端 GET packument 对照——台账 npm/packument-latest-recompute UNKNOWN）" }
+  - { id: L013-3, domain: penpot-pro-screens, owner: dev-frontend, what: "21 Pro 屏补拍：造数（builds/lifecycle/release-bundles/scim/vault——audit-probe 前缀用后删净）→ capture 块链 → spec 重建 → 重注入（全管线自动化 6 分钟）" }
+  - { id: L013-4, domain: maven-protocol, owner: differential-qa-engineer, what: "maven 元数据计算票（扩章次票——评估案：纯 REST 无客户端腿负担、错误文案已逐字——D12-R08 ◐ 锚）" }
+  - { id: L013-5, domain: rulings, owner: conductor, what: "R-15 预授权探针（§4-4 c/d 臂——出证即选案）；Penpot 残留清理候用户授权（红线）" }
 user_directive_penpot: { at: 2026-09-13T00:1x, sealed: 2026-09-12T19:47Z, what: "✅ Penpot 工程首批交付（A→D 全管线）：爬取器（68+截图/token 六面/nav 树）→ spec 73 板/70 图 → 插件注入（uploadMediaData 正道）52s → MCP a11y 终验十页全在册（file-id=2109e8e8-…-a10cd4b6d37d）。commits 680bc134/f3bb1a61/8936f258。**遗留**：21 屏未捕（Pro 深页需造数）+11 弹窗 gap（人工走查票）+Penpot 账号残留清理待用户定夺（2 空项目+4 重试画布）+ref 内存天花板（与 Penpot 栈共存时 OOM 风险——错峰纪律）" }
 loop_012_tracks:
   - { id: L012-2b, domain: npm-protocol, owner: dev-registry-adapter, what: "✅ 实现落地：D2 读时重算（absent 才补/present 永不覆盖/纯读投影）/D6 bulk 405/D7 Cache-Control/D5 400 中性/D3-D4 文案；**20 格零未裁定 drift**（基线 8 实差）；CLI 15 用例同退出码向量；**参照自证 quirk**：add 后立即 rm 报 not-a-dist-tag=参照自身陈旧窗行为；遗留=packument 面 latest 重算未裁定（测试钉住现状）；**跨包回归发现**：L008-1b ADR-0050 扫荡漏 adapter/helm+t329de 与 rpm 两测试（第四例跨包半径）→返工中；D12-R05 可翻✅+K60 群零补证转写建议在案；**跨包尾巴已修+全树 14 包绿→commit 17ed328b（含 npm 实现+测试修）**", status: done }
