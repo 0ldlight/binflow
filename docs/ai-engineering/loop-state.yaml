@@ -1,9 +1,10 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-13T12:45:00Z
-current_iteration: 015
-current_goal: "R-15a/b 终裁驱动（P0 清零）+ 三 maven UNKNOWN 登记 + spec/client 两存量票 + 扩章第三票"
+updated: 2026-09-13T16:30:00Z
+current_iteration: 016
+current_goal: "R-15a/b 终裁驱动 + pypi simple 扩章首票 + npm ghost 深水票 + 三 maven UNKNOWN gate"
+iteration_015_seal: "四轨全收（Docker Desktop 两僵死自愈）；likePrefix 潜伏 bug 修（01867f6d）；扩章择优=pypi simple（cbe46a99）；npm publish 主链实证同形；台账 44 条"
 iteration_014_seal: "三轨+返工全收（第七波限额 B 报告+返工树双幸存）；maven 域翻✅（D12-R08——四 blocking 全闭含 F1 活参照定案）；npm SPECIFIED 清零（16 条目 15V+1I）；双审战绩 13/13；matrix ✅74/◐17 Coverage 49.2%；commits bcf27bfa/f2b3eaeb/71a0eb7b"
 loop_015_tracks:
   - { id: L015-1, domain: rulings, owner: conductor→user, what: "R-15a/b 终裁（v2.2 就绪——PM 建议双实现案：propertiesXml 双面对齐+lastModified 官方语义；批复即开实现票清 P0 partial 两行）；login-missing UNKNOWN gate 本轮" }
