@@ -178,18 +178,21 @@ func (s *nodeStore) ListByPrefix(ctx context.Context, repoKey, prefix string) ([
 	return out, nil
 }
 
-// likePrefix builds a pair of LIKE patterns matching the prefix itself and
-// every path under it: prefix "a" matches "a" and "a/..." but not "ab".
-// The first return is the exact (escaped) path, the second the subtree
-// pattern. LIKE wildcards inside the prefix are escaped so they match
-// literally.
+// likePrefix builds the two match operands for a prefix query: the RAW
+// prefix for the exact arm and the escaped subtree pattern for the LIKE arm
+// (callers spell `path = ? OR path LIKE ? ESCAPE '\'`). Prefix "a" matches
+// "a" and "a/..." but not "ab". The exact arm must stay raw: `=` compares
+// literally, so a LIKE-escaped "%"/"_"/"\" in it (the pre-L015-3 spelling,
+// `\%`) would miss the very node it names — the T-231 percent-path 404
+// (item-info resolves through ListByPrefix with the full file path since
+// L011-1). Only the LIKE operand needs the wildcard escaping.
 func likePrefix(prefix string) (exact, subtree string) {
 	prefix = strings.TrimPrefix(prefix, "/")
 	if prefix == "" {
 		return "", "%"
 	}
 	repl := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
-	return repl.Replace(prefix), repl.Replace(prefix) + "/%"
+	return prefix, repl.Replace(prefix) + "/%"
 }
 
 // CountDownload implements NodeStore.CountDownload (M16 T-438, ADR-0044

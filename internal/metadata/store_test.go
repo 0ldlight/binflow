@@ -152,6 +152,14 @@ func TestListByPrefix(t *testing.T) {
 		"acme/tool.jar",
 		"acorn/other.jar",
 		"zeta/last.jar",
+		// L015-3 regression class: LIKE wildcards as LITERAL path bytes. The
+		// percent file is the T-231 D-1 reproducer spelling; the underscore
+		// sibling proves the subtree arm still escapes (a wildcard would
+		// swallow "underXscore/hidden.txt").
+		"esc/sym'bols$/percent%.txt",
+		"esc/under_score.txt",
+		"esc/under_score/keep.txt",
+		"esc/underXscore/hidden.txt",
 	}
 	for i, p := range paths {
 		sha, size := fakeBlob(i + 1)
@@ -178,6 +186,10 @@ func TestListByPrefix(t *testing.T) {
 			"acme/widget/1.0/widget.jar", "acme/widget/1.1/widget.jar", "acme/tool.jar"}},
 		{"partial component is not a boundary", "ac", nil},
 		{"single file", "zeta/last.jar", []string{"zeta/last.jar"}},
+		{"percent file exact (L015-3, T-231 D-1)", "esc/sym'bols$/percent%.txt", []string{"esc/sym'bols$/percent%.txt"}},
+		{"percent directory", "esc/sym'bols$", []string{"esc/sym'bols$/percent%.txt"}},
+		{"underscore file exact", "esc/under_score.txt", []string{"esc/under_score.txt"}},
+		{"underscore directory stays literal (no wildcard widening into underXscore)", "esc/under_score", []string{"esc/under_score/keep.txt"}},
 		{"no match", "nothing/", nil},
 	}
 	for _, tt := range tests {
@@ -228,7 +240,7 @@ func TestDeleteByPrefix(t *testing.T) {
 	ctx := context.Background()
 	putRepo(t, st, "d")
 	now := metadata.Now()
-	for i, p := range []string{"a/1", "a/2", "ab/3", "b/4"} {
+	for i, p := range []string{"a/1", "a/2", "ab/3", "b/4", "esc/pct%.txt"} {
 		sha, size := fakeBlob(i + 1)
 		if err := st.Blobs().Put(ctx, &metadata.Blob{Sha256: sha, Size: size, CreatedAt: now}); err != nil {
 			t.Fatalf("blob put: %v", err)
@@ -246,6 +258,16 @@ func TestDeleteByPrefix(t *testing.T) {
 	}
 	if n != 2 {
 		t.Fatalf("DeleteByPrefix removed %d, want 2 (a/1, a/2 but not ab/3)", n)
+	}
+	// L015-3: the exact arm of the prefix delete must match a "%" path
+	// literally too (the shared likePrefix operands — pre-fix the escaped
+	// text reached the `=` comparison and the node survived the delete).
+	n, err = st.Nodes().DeleteByPrefix(ctx, "d", "esc/pct%.txt")
+	if err != nil {
+		t.Fatalf("DeleteByPrefix percent: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("DeleteByPrefix percent removed %d, want 1", n)
 	}
 	left, err := st.Nodes().ListByPrefix(ctx, "d", "")
 	if err != nil {
