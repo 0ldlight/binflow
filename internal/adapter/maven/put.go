@@ -3,6 +3,7 @@ package maven
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -47,7 +48,33 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 		h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
 		return
 	}
+	// Review L014-2 B2: a VIRTUAL repository with a configured write route
+	// lands in its local deployment member (repo-semantics 8.2 / T-71) —
+	// the maven policy chain and the snapshot arithmetic consult the MEMBER
+	// (its behavior config, its storage facts); a virtual key holds no
+	// nodes, so consulting it would mint a fresh (ts, N) on every PUT and
+	// accumulate same-buildNumber files forever. The PUT itself still
+	// addresses the ORIGINAL key (the service routes; the audit and the
+	// Location render stay the client's spelling). An unrouted virtual
+	// keeps its row here — the rewrite then declines, and the service's
+	// own C5 405 answers the doomed write.
+	factsKey := repoKey
+	if row.Type == repo.TypeVirtual {
+		if member := routeTargetOf(row.Config); member != "" {
+			if mrow, merr := h.class.Get(ctx, member); merr == nil {
+				factsKey, row = member, mrow
+			}
+		}
+	}
 	cfg := ParseRepoConfig(row.Config)
+	if row.Type != repo.TypeLocal {
+		// The rewrite declines for every non-local chain: a remote PUT
+		// refuses in the service and an unrouted virtual's C5 405 lands
+		// nothing — minting a name against a key with no storage facts is
+		// the B2 accumulation bug, so the behavior reads as non-unique here
+		// regardless of the (leniently parsed) blob.
+		cfg.SnapshotBehavior = BehaviorNonUnique
+	}
 
 	// Release/snapshot handling gates (ME-08): they classify the DEPLOY's
 	// version type from the version directory, and they bind artifact
@@ -78,10 +105,35 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 	}
 
 	if l.Kind == KindSidecar {
-		h.putSidecar(ctx, w, r, p, repoKey, relPath, l, cfg)
+		h.putSidecar(ctx, w, r, p, repoKey, factsKey, relPath, l, cfg)
 		return
 	}
-	h.putFile(ctx, w, r, p, repoKey, relPath, l, cfg)
+	h.putFile(ctx, w, r, p, repoKey, factsKey, relPath, l, cfg)
+}
+
+// routeTargetOf mirrors repo's tolerant virtualRouteTarget (virtual.go):
+// the first non-empty of defaultDeploymentRepo / defaultDeploymentRepoRef /
+// deploymentRepository out of a virtual repository's config JSON. The
+// write-plane seam is deliberately unexported there, so the adapter reads
+// the same caller-owned config blob with the same alias triple and
+// first-wins tolerance — the strict agreement rules live at config time
+// (validateVirtualMembers), and a drifted target surfaces through the
+// service's own target re-load, identically to the seam's contract.
+func routeTargetOf(config string) string {
+	var probe struct {
+		DefaultDeploymentRepo    string `json:"defaultDeploymentRepo"`
+		DefaultDeploymentRepoRef string `json:"defaultDeploymentRepoRef"`
+		DeploymentRepository     string `json:"deploymentRepository"`
+	}
+	if err := json.Unmarshal([]byte(config), &probe); err != nil {
+		return ""
+	}
+	for _, alias := range []string{probe.DefaultDeploymentRepo, probe.DefaultDeploymentRepoRef, probe.DeploymentRepository} {
+		if alias != "" {
+			return alias
+		}
+	}
+	return ""
 }
 
 // putChecksumDeploy implements X-Checksum-Deploy on the maven plane (T-73,
@@ -145,14 +197,17 @@ func (h *Handler) putChecksumDeploy(ctx context.Context, w http.ResponseWriter, 
 
 // putFile lands an artifact or a client maven-metadata.xml document
 // (ME-06: metadata PUTs ride the generic upload chain and are accepted).
+// repoKey is the ADDRESSED key (PUT, Location, audit); factsKey is the
+// repository the maven chain consults (the routed member under a virtual
+// key — equal to repoKey everywhere else).
 func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Request,
-	p *repo.Principal, repoKey, relPath string, l Layout, cfg RepoConfig) {
+	p *repo.Principal, repoKey, factsKey, relPath string, l Layout, cfg RepoConfig) {
 	// L014-2 BUG 1: under snapshotVersionBehavior=unique a -SNAPSHOT file
 	// name is rewritten to the timestamped spelling BEFORE the bytes land
 	// (the 201 Location, the storage node and the calculator trigger all
 	// address the rewritten name; the version directory keeps -SNAPSHOT).
 	if l.Kind == KindArtifact && cfg.SnapshotBehavior == BehaviorUnique && l.Snapshot && !l.Timestamped {
-		if name := h.calc.adjustUniqueSnapshot(ctx, p, repoKey, l); name != l.File {
+		if name := h.calc.adjustUniqueSnapshot(ctx, factsKey, l); name != l.File {
 			relPath = relPath[:strings.LastIndexByte(relPath, '/')+1] + name
 			l.File, l.Timestamped = name, true
 		}
@@ -243,7 +298,7 @@ func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Re
 // body; GET of the sidecar path answers the server-computed digest, as it
 // always did.
 func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http.Request,
-	p *repo.Principal, repoKey, relPath string, l Layout, cfg RepoConfig) {
+	p *repo.Principal, repoKey, factsKey, relPath string, l Layout, cfg RepoConfig) {
 	// Suspicious-size guard first: a checksum file is a digest plus
 	// whitespace; Content-Length beyond the ceiling answers without
 	// reading the body, an oversized chunked body at the read.
@@ -268,14 +323,16 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 	if cfg.SnapshotBehavior == BehaviorUnique && l.TargetKind == KindArtifact &&
 		l.Snapshot && !l.Timestamped {
 		if tl, terr := Parse(l.Target); terr == nil {
-			if name := h.calc.adjustCompanionTarget(ctx, p, repoKey, tl); name != tl.File {
+			if name := h.calc.adjustCompanionTarget(ctx, factsKey, tl); name != tl.File {
 				l.Target = l.Target[:strings.LastIndexByte(l.Target, '/')+1] + name
 			}
 		}
 	}
 
 	// The target must exist: a checksum for nothing registers nothing.
-	rc, node, err := h.svc.Get(ctx, p, repoKey, l.Target)
+	// The lookup consults the FACTS repository — under a virtual key a
+	// content GET would read the aggregate face, not the write target.
+	rc, node, err := h.svc.Get(ctx, p, factsKey, l.Target)
 	if err != nil {
 		if errors.Is(err, repo.ErrNodeNotFound) || errors.Is(err, repo.ErrIsFolder) {
 			writeError(w, http.StatusNotFound,

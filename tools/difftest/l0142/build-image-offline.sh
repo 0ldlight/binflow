@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 
-VER=uat-l0142-b4de1ef5
+VER=uat-l0142r2-bcf27bfa
 ARCH=amd64
 W=/tmp/l0142-img
 ASSETS_IMG=binflow-release-assets:uat-l0134-bebd92b1
@@ -41,5 +41,5 @@ docker tag "binflow:${VER}-alpine-${ARCH}" "binflow:${VER}-alpine"
 
 f="$(docker image inspect "binflow:${VER}-alpine" --format '{{.Os}}/{{.Architecture}}')"
 [ "$f" = "linux/${ARCH}" ] || { echo "ERROR: platform $f"; exit 1; }
-strings -a "$W/ctx/binflow-server" | grep -m1 "uat-l0142-b4de1ef5" >/dev/null && echo "label OK"
+strings -a "$W/ctx/binflow-server" | grep -m1 "uat-l0142r2-bcf27bfa" >/dev/null && echo "label OK"
 echo "OK binflow:${VER}-alpine ($f)"

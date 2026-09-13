@@ -2,10 +2,11 @@ package maven
 
 // L014-2: the server-side unique-snapshot rewrite (spec section 1.3, wire
 // form pinned by the live artifactory-ux 7.161.20 probes — reports/
-// compatibility/L013-maven-evidence.md §1.1 plus the L014-2 probe log) and
-// the registration-only checksum sidecar (BUG 2). Table rows mirror the
-// probe sequence: leader mint, follower trip-join, coordinate overwrite,
-// cross-trip arithmetic, behavior tri-state, already-unique pass-through.
+// compatibility/l0142-wire/probe-log.md, the observation→implementation
+// map) and the registration-only checksum sidecar (BUG 2). Table rows
+// mirror the probe sequence: leader mint, follower trip-join, the pom's
+// next-trip rule (review-B F1), coordinate overwrite, cross-trip
+// arithmetic, behavior tri-state, already-unique pass-through.
 
 import (
 	"context"
@@ -79,41 +80,49 @@ func TestSnapshotRewriteWire(t *testing.T) {
 		t.Errorf("GET rewritten name = %d, want 200", code)
 	}
 
-	// follower: the pom joins the leader's trip (same ts, same N)
+	// follower: the pom joins the leader's trip (same ts, same N) — in a
+	// POMLESS directory (the reference's metadata needs a pom, so its pom
+	// sees no trip here; probe b2/pom-valid)
 	resp = mustPut(t, hs, "maven-local", dir+"/demo-app-2.0.0-SNAPSHOT.pom", pomB("2.0.0-SNAPSHOT"))
 	ts2, n2, _, ext2 := locOf(t, resp)
 	if ts2 != ts1 || n2 != "1" || ext2 != "pom" {
 		t.Fatalf("follower pom = %s-%s, want %s-1 pom", ts2, n2, ts1)
 	}
 
-	// leader second trip: buildNumber +1 (fresh ts when the second differs;
-	// same-second re-trip is the idempotent overwrite branch below)
-	resp = mustPut(t, hs, "maven-local", dir+"/demo-app-2.0.0-SNAPSHOT.jar", jarB("b"))
-	ts3, n3, _, _ := locOf(t, resp)
-	if n3 != "2" {
-		t.Fatalf("second leader N = %s, want 2", n3)
-	}
-	if ts3 == ts1 {
-		t.Logf("second trip landed in the same second (%s): the coordinate-overwrite branch joined trip 1", ts3)
+	// F1 (review B, probe f1a): a pom RE-PUT never joins the current trip
+	// — with the pom-sourced trip now at N=1 it opens N=2 at server-now
+	resp = mustPut(t, hs, "maven-local", dir+"/demo-app-2.0.0-SNAPSHOT.pom", pomB("2.0.0-SNAPSHOT"))
+	if _, n2b, _, _ := locOf(t, resp); n2b != "2" {
+		t.Fatalf("pom re-put = N %s, want 2 (next trip, f1a)", n2b)
 	}
 
-	// re-deploy of the SAME coordinate with the metadata still on the pom's
-	// trip: overwrite in place (reuse the coordinate's ts-N)
+	// leader second trip: the pom re-put moved the trip to N=2, so the
+	// leader mints N=3 (probe f1b aftermath shape)
+	resp = mustPut(t, hs, "maven-local", dir+"/demo-app-2.0.0-SNAPSHOT.jar", jarB("b"))
+	ts3, n3, _, _ := locOf(t, resp)
+	if n3 != "3" {
+		t.Fatalf("second leader N = %s, want 3 (trip moved by the pom re-put)", n3)
+	}
+
+	// re-deploy of the SAME coordinate: overwrite in place (reuse the
+	// coordinate's ts-N)
 	resp = mustPut(t, hs, "maven-local", dir+"/demo-app-2.0.0-SNAPSHOT.jar", jarB("c"))
 	ts4, n4, _, _ := locOf(t, resp)
 	if ts4 != ts3 || n4 != n3 {
 		t.Fatalf("coordinate re-deploy = %s-%s, want %s-%s (in-place overwrite)", ts4, n4, ts3, n3)
 	}
 
-	// classifier file: follower — joins the metadata's trip
+	// classifier file: joins the CURRENT (pom-sourced) trip — the newest
+	// pom's N, not the jar's newer one (probe n5)
 	resp = mustPut(t, hs, "maven-local", dir+"/demo-app-2.0.0-SNAPSHOT-sources.jar", jarB("s"))
-	_, n5, clf5, _ := locOf(t, resp)
+	ts5, n5, clf5, _ := locOf(t, resp)
 	if clf5 != "-sources" {
 		t.Fatalf("classifier Location = %q, want -sources", clf5)
 	}
-	if n5 == "0" {
-		t.Fatalf("classifier N = 0")
+	if n5 != "2" {
+		t.Fatalf("classifier N = %s, want 2 (the pom trip, not the jar's 3)", n5)
 	}
+	_ = ts5
 
 	// metadata arithmetic: the snapshot block tracks the newest unique pom
 	code, body := mustGet(t, hs, "/maven-local/"+dir+"/maven-metadata.xml")
@@ -197,7 +206,8 @@ func TestSnapshotSidecarRewriteAndRegistration(t *testing.T) {
 
 // TestSnapshotRewriteDeterministic drives the adjustment algorithm
 // directly with a pinned clock: the trip table the live reference probe
-// established (L014-2 probe sequence, 17 observations).
+// established (probe-log.md, the round-1 seventeen plus the review-B F1
+// sequence f1a/f1b/n5/n6).
 func TestSnapshotRewriteDeterministic(t *testing.T) {
 	hs := newHarness(t)
 	ctx := context.Background()
@@ -216,7 +226,7 @@ func TestSnapshotRewriteDeterministic(t *testing.T) {
 	}
 	adjust := func(file string) string {
 		t.Helper()
-		return calc.adjustUniqueSnapshot(ctx, p, "maven-local", rel(file))
+		return calc.adjustUniqueSnapshot(ctx, "maven-local", rel(file))
 	}
 	land := func(file string, body []byte) {
 		t.Helper()
@@ -231,44 +241,43 @@ func TestSnapshotRewriteDeterministic(t *testing.T) {
 		calc.recalcSync(ctx, p, trigger{repoKey: "maven-local", orgPath: "com.acme",
 			module: "demo-app", version: "2.0.0-SNAPSHOT"})
 	}
-
-	cases := []struct {
-		name string
-		file string
-		want string
-	}{
-		{"fresh leader mints (T0,1)", "demo-app-2.0.0-SNAPSHOT.jar", "demo-app-2.0.0-20260913.100000-1.jar"},
-		{"pom follows the trip", "demo-app-2.0.0-SNAPSHOT.pom", "demo-app-2.0.0-20260913.100000-1.pom"},
-	}
-	for _, tc := range cases {
-		if got := adjust(tc.file); got != tc.want {
-			t.Errorf("%s: adjust = %q, want %q", tc.name, got, tc.want)
+	step := func(name, file, want string) {
+		t.Helper()
+		if got := adjust(file); got != want {
+			t.Errorf("%s: adjust = %q, want %q", name, got, want)
 		}
-		land(tc.file, []byte(tc.name))
 	}
 
-	// second trip: metadata now says (T0,1); leader mints (T1,2)
+	// T0: fresh directory — leader mints (T0,1); the pom (pomless
+	// directory, no trip) follows the files' trip (probe: b2/pom-valid)
+	step("fresh leader mints (T0,1)", "demo-app-2.0.0-SNAPSHOT.jar", "demo-app-2.0.0-20260913.100000-1.jar")
+	land("demo-app-2.0.0-SNAPSHOT.jar", []byte("v1"))
+	step("pom in a pomless dir follows the files", "demo-app-2.0.0-SNAPSHOT.pom", "demo-app-2.0.0-20260913.100000-1.pom")
+	land("demo-app-2.0.0-SNAPSHOT.pom", []byte("p1"))
+
+	// T1: the trip is the pom's (T0,1). A pom RE-PUT opens the NEXT trip
+	// (probe f1a: never joins) — N=2, nothing at N yet, ts=now
 	clock = clock.Add(90 * time.Second)
-	if got := adjust("demo-app-2.0.0-SNAPSHOT.jar"); got != "demo-app-2.0.0-20260913.100130-2.jar" {
-		t.Fatalf("second trip leader = %q", got)
-	}
+	step("pom re-put opens the next trip (f1a)", "demo-app-2.0.0-SNAPSHOT.pom", "demo-app-2.0.0-20260913.100130-2.pom")
+	land("demo-app-2.0.0-SNAPSHOT.pom", []byte("p2"))
+
+	// trip is now (T1,2). The jar leader mints (now,3) — its coordinate
+	// sits at N=1 < cand 3 (probe jar-fresh-AAA shape)
+	step("leader after pom2 mints (T1,3)", "demo-app-2.0.0-SNAPSHOT.jar", "demo-app-2.0.0-20260913.100130-3.jar")
 	land("demo-app-2.0.0-SNAPSHOT.jar", []byte("v2"))
 
-	// metadata still tracks the POM's trip (T0,1): the jar coordinate at
-	// N=2 >= candidate 2 → in-place overwrite
-	clock = clock.Add(90 * time.Second)
-	if got := adjust("demo-app-2.0.0-SNAPSHOT.jar"); got != "demo-app-2.0.0-20260913.100130-2.jar" {
-		t.Fatalf("coordinate overwrite = %q, want the existing 100130-2", got)
-	}
-	land("demo-app-2.0.0-SNAPSHOT.jar", []byte("v3"))
+	// a THIRD pom: trip (T1,2) → N=3, the jar already sits at N=3 → the
+	// pom completes the leader's trip with ITS timestamp (probe f1b)
+	step("third pom completes the leader trip (f1b)", "demo-app-2.0.0-SNAPSHOT.pom", "demo-app-2.0.0-20260913.100130-3.pom")
 
-	// classifier joins the METADATA's trip even though the jar sits newer
-	if got := adjust("demo-app-2.0.0-SNAPSHOT-javadoc.jar"); got != "demo-app-2.0.0-20260913.100000-1-javadoc.jar" {
-		t.Fatalf("follower with lagging metadata = %q, want the metadata trip 100000-1", got)
-	}
+	// classifier joins the CURRENT trip — the pom-sourced (T1,2), not the
+	// jar's N=3 (probe n5)
+	step("classifier joins the current trip (n5)", "demo-app-2.0.0-SNAPSHOT-javadoc.jar", "demo-app-2.0.0-20260913.100130-2-javadoc.jar")
+
+	// leader coordinate reuse: the jar coordinate sits at N=3 >= cand 3 →
+	// in-place overwrite (probe jar-diff-BBB)
+	step("coordinate overwrite in place", "demo-app-2.0.0-SNAPSHOT.jar", "demo-app-2.0.0-20260913.100130-3.jar")
 
 	// already-unique names pass through untouched
-	if got := adjust("demo-app-2.0.0-20240819.101500-9.jar"); got != "demo-app-2.0.0-20240819.101500-9.jar" {
-		t.Errorf("already-unique adjusted: %q", got)
-	}
+	step("already-unique passthrough", "demo-app-2.0.0-20240819.101500-9.jar", "demo-app-2.0.0-20240819.101500-9.jar")
 }

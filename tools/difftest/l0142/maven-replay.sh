@@ -84,8 +84,30 @@ put b2-put-pom-snap "$OUT/pom-200sn.xml" "$BASE/l0142-mvn-u/$G/$M/2.0.0-SNAPSHOT
 sleep 4
 put b3-put-jar-snap-2 "$OUT/bytes-jar3.bin" "$BASE/l0142-mvn-u/$G/$M/2.0.0-SNAPSHOT/$M-2.0.0-SNAPSHOT.jar"
 sleep 4
+# L014-2 review round: the REUSE arm — further leader PUTs of the same
+# coordinate while the metadata still tracks the pom's trip overwrite the
+# coordinate's existing unique spelling in place (probe: jar-diff-BBB/CCC).
+jarbyte b9 > "$OUT/bytes-jar9.bin"; jarbyte b10 > "$OUT/bytes-jar10.bin"
+put b9-put-jar-snap-3 "$OUT/bytes-jar9.bin" "$BASE/l0142-mvn-u/$G/$M/2.0.0-SNAPSHOT/$M-2.0.0-SNAPSHOT.jar"
+put b10-put-jar-snap-4 "$OUT/bytes-jar10.bin" "$BASE/l0142-mvn-u/$G/$M/2.0.0-SNAPSHOT/$M-2.0.0-SNAPSHOT.jar"
 get b4-get-snapdir-meta "$BASE/l0142-mvn-u/$G/$M/2.0.0-SNAPSHOT/maven-metadata.xml"
 listnames b5-list-snapdir l0142-mvn-u "$G/$M/2.0.0-SNAPSHOT"
+
+# ---- B (review-B F1): the pom rule — pom;pom and pom;jar;pom arms ----
+pom 5.0.0-SNAPSHOT > "$OUT/pom-500.xml"
+F1D=$G/$M/5.0.0-SNAPSHOT
+put f1a-pom1 "$OUT/pom-500.xml" "$BASE/l0142-mvn-u/$F1D/$M-5.0.0-SNAPSHOT.pom"
+sleep 3
+put f1a-pom2 "$OUT/pom-500.xml" "$BASE/l0142-mvn-u/$F1D/$M-5.0.0-SNAPSHOT.pom"
+F2D=$G/$M/6.0.0-SNAPSHOT
+pom 6.0.0-SNAPSHOT > "$OUT/pom-600.xml"
+put f1b-pom1 "$OUT/pom-600.xml" "$BASE/l0142-mvn-u/$F2D/$M-6.0.0-SNAPSHOT.pom"
+sleep 3
+jarbyte f1b > "$OUT/bytes-f1b.bin"
+put f1b-jar "$OUT/bytes-f1b.bin" "$BASE/l0142-mvn-u/$F2D/$M-6.0.0-SNAPSHOT.jar"
+sleep 3
+put f1b-pom2 "$OUT/pom-600.xml" "$BASE/l0142-mvn-u/$F2D/$M-6.0.0-SNAPSHOT.pom"
+put f1b-javadoc "$OUT/bytes-f1b.bin" "$BASE/l0142-mvn-u/$F2D/$M-6.0.0-SNAPSHOT-javadoc.jar"
 # B3: already-unique client name never rewrites
 put b6-put-unique-name "$OUT/bytes-jar1.bin" "$BASE/l0142-mvn-u/$G/$M/2.0.0-SNAPSHOT/$M-2.0.0-20240819.101500-7.jar"
 # sidecar of a -SNAPSHOT artifact (registration target follows the rewrite)

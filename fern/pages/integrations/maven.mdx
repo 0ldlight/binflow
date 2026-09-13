@@ -107,7 +107,7 @@ curl -su admin:$ADMIN_PW $MVN_REPO/com/acme/demo-app/1.0.0/demo-app-1.0.0.jar.sh
 
 | 字段 | 取值 | 行为 |
 |---|---|---|
-| `snapshotVersionBehavior` | `deployer`（默认）/ `non-unique` / `unique` | 均按上传名落盘（`unique` 的服务端改写未实现，行为等同 `deployer`） |
+| `snapshotVersionBehavior` | `unique`（默认）/ `non-unique` / `deployer` | `unique`：PUT `-SNAPSHOT` 文件名改写为 `{module}-{baseRev}-yyyyMMdd.HHmmss-N` 时间戳版本落盘（buildNumber 跨趟递增；已是时间戳名不改写）；`non-unique` / `deployer`：按上传名落盘 |
 | `handleSnapshots` | `true`（默认）/ `false` | `false` 时 SNAPSHOT deploy → **409**（GET 不受影响） |
 | `handleReleases` | `true`（默认）/ `false` | `false` 时 release deploy → **409** |
 

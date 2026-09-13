@@ -46,6 +46,15 @@ def versions_of(body: str) -> list:
     return re.findall(r"<version>([^<]+)</version>", block.group(1)) if block else []
 
 
+# ok_or_missing wraps arms whose wire predates the arm's addition to the
+# replay script: a missing capture reports as not-captured instead of a
+# false verdict.
+def ok_or_missing(name_a: str, name_b: str, ok: bool, note: str = "") -> tuple:
+    captured = bool(rd("a", name_a + ".hdr")) and bool(rd("b", name_b + ".hdr"))
+    if not captured:
+        return "差异", "not captured (wire predates the arm)"
+    return ("一致" if ok else "差异"), note
+
 verdicts: list[tuple[str, str, str, str]] = []  # arm, title, verdict, note
 
 
@@ -104,6 +113,54 @@ judge("B2", "buildNumber trip arithmetic",
       n_of(l1a) == "1" and n_of(l1b) == "1" and n_of(l3a) == "2" and n_of(l3b) == "2"
       and same_trip and same_trip_b,
       f"a: {n_of(l1a)},{n_of(l3a)} b: {n_of(l1b)},{n_of(l3b)} same-trip a={same_trip} b={same_trip_b}")
+
+# B9/B10 (review round): the reuse arm — 3rd/4th leader PUTs of the same
+# coordinate while the metadata still tracks the pom's trip reuse the
+# coordinate's existing unique spelling in place (same Location as b3)
+l9a, l9b = loc("a", "b9-put-jar-snap-3"), loc("b", "b9-put-jar-snap-3")
+l10a, l10b = loc("a", "b10-put-jar-snap-4"), loc("b", "b10-put-jar-snap-4")
+v, note = ok_or_missing("b9-put-jar-snap-3", "b9-put-jar-snap-3",
+                        l9a == l3a and l9b == l3b, f"a={l9a} b={l9b} (b3 a={l3a} b={l3b})")
+verdicts.append(("B9", "3rd leader PUT reuses coordinate in place", v, note))
+v, note = ok_or_missing("b10-put-jar-snap-4", "b10-put-jar-snap-4",
+                        l10a == l3a and l10b == l3b, f"a={l10a} b={l10b}")
+verdicts.append(("B10", "4th leader PUT reuses coordinate in place", v, note))
+
+# F1 arms (review-B round): the pom rule — a pom re-put opens the NEXT trip
+# (f1a: N=2 at now), and a pom after a leader mint completes that trip with
+# the leader's timestamp (f1b).
+pa1, pb1 = loc("a", "f1a-pom1"), loc("b", "f1a-pom1")
+pa2, pb2 = loc("a", "f1a-pom2"), loc("b", "f1a-pom2")
+n_of_pom = lambda s: (re.search(r"-(\d+)\.pom$", s) or [None, "?"])[1]
+v, note = ok_or_missing("f1a-pom2", "f1a-pom2",
+                        n_of_pom(pa1) == "1" and n_of_pom(pa2) == "2" and n_of_pom(pb1) == "1" and n_of_pom(pb2) == "2",
+                        f"a {n_of_pom(pa1)}→{n_of_pom(pa2)} b {n_of_pom(pb1)}→{n_of_pom(pb2)}")
+verdicts.append(("F1a", "pom re-put opens the next trip", v, note))
+
+pj1, qj1 = loc("a", "f1b-jar"), loc("b", "f1b-jar")
+pj2, qj2 = loc("a", "f1b-pom2"), loc("b", "f1b-pom2")
+jd_a, jd_b = loc("a", "f1b-javadoc"), loc("b", "f1b-javadoc")
+strip_pom = lambda s: re.sub(r"\.pom$", ".jar", s)
+v, note = ok_or_missing("f1b-pom2", "f1b-pom2",
+                        strip_pom(pj2) == pj1 and strip_pom(qj2) == qj1,
+                        f"a pom2={pj2} jar={pj1} b pom2={qj2} jar={qj1} (pom completes the leader trip)")
+verdicts.append(("F1b", "pom after leader completes its trip", v, note))
+raw = lambda side, name: next(
+    (l.split(":", 1)[1].strip() for l in rd(side, name + ".hdr").splitlines()
+     if l.lower().startswith("location:")), "")
+trip_re = re.compile(r"-(\d{8}\.\d{6})-(\d+)")
+def trip_of_loc(s):
+    m = trip_re.search(s)
+    return (m.group(1), m.group(2)) if m else ("?", "?")
+# per-SIDE consistency: the javadoc joins the trip THIS side's pom2 opened
+# (the absolute stamps differ across sides — each replay runs at its own
+# wall clock)
+j_side = lambda side: trip_of_loc(raw(side, "f1b-javadoc")) == trip_of_loc(raw(side, "f1b-pom2"))
+v, note = ok_or_missing("f1b-javadoc", "f1b-javadoc",
+                        j_side("a") and j_side("b"),
+                        f"a javadoc={trip_of_loc(raw('a', 'f1b-javadoc'))} pom2={trip_of_loc(raw('a', 'f1b-pom2'))} "
+                        f"b javadoc={trip_of_loc(raw('b', 'f1b-javadoc'))} pom2={trip_of_loc(raw('b', 'f1b-pom2'))}")
+verdicts.append(("F1c", "classifier joins current trip", v, note))
 
 # B3: already-unique name untouched
 raw_loc = lambda side, name: next(
