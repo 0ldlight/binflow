@@ -753,16 +753,68 @@ entries:
   authority: { type: pending, ref: "产品/conductor 裁（手 PUT 可见性：事件驱动回放 vs 同步重算）" }
   review_gate: 已入 pending-rulings v2.3（R-21 席位，L016-3 升格入包——零取证前置）
   evidence: reports/compatibility/L013-maven-evidence.md §0-C1/§1-4 + T-L014-2.md（26 臂表——三 UNKNOWN 之二）
+  note: >-
+    L018-3 分列注记（L017-2 规格票 §1.4 新发现）：「逐字回放」观测面**仅适用版本组目录**（C1 活体臂
+    即组目录）；snapshot 版本目录手 PUT metadata 在参照系**202 丢弃式受理**（字节不落盘、不触发重算，
+    非 deployer 策略仓）——BinFlow 若 snapshot 目录手 PUT 落盘（201）则构成新差异面。R-21 呈批口径
+    按两目录形态分列（组目录=回放 vs 同步重算；snapshot 目录=202 丢弃 vs BinFlow 现状待核对）。
 - id: maven/reference-race-metadata-loss
-  surface: 并行同版本 unique snapshot 竞态的 metadata 丢失（参照自丢）
+  surface: 并行同版本 unique snapshot 竞态的 metadata 丢失（原判「参照自丢」——L017-2 重判为参照确定性行为）
   classification: UNKNOWN
   rationale: >-
     L013-4 C3 臂：并行同版本 unique snapshot（相异字节）双端均 201+仅存一文件（同秒同 buildNumber
-    撞名/同名覆盖）；**参照连 snapshot metadata 一并丢失（404 稳态 2min+）——参照侧反常、BinFlow
-    metadata 俱在（完备）**。实现票无需对齐反常。新根因假说（T-L014-2 Risks⑦-C3）：参照版本目录
-    metadata 生成**要求 pom 存在**（jar-only 目录实测参照 metadata 404 vs BinFlow 从任意文件生成
-    574B）——C3「参照自丢」很可能同根（竞态目录仅 jar）。**建议 reverse-engineer 补规格条目
-    （「版本目录 metadata 需 pom」行为规格）后重分类本条**。
-  authority: { type: pending, ref: "reverse-engineer 规格票前置（pom 前置假说定案）→ conductor 重分类" }
-  review_gate: LOOP 017 复核（L016-3 到期复核改期：pom 前置规格票仍缺——reverse-engineer 域在途；规格票产出后重分类：参照反常面登记形态〔INTENTIONAL-by-reference-anomaly 候选〕或条件化口径；不入 v2.3 呈批包）
-  evidence: reports/compatibility/L013-maven-evidence.md §0-C3/§1-5 + T-L014-2.md（26 臂表——三 UNKNOWN 之三，Risks⑦-C3 pom 前置假说）
+    撞名/同名覆盖）；原判「参照连 snapshot metadata 一并丢失（404 稳态 2min+）= 参照侧反常、BinFlow
+    metadata 俱在（完备）」。L017-2 规格票**证成 pom 前置假说并重判**（docs/reverse/
+    maven-metadata-pom-prerequisite.md §0 定谳，E1 反编译 + E2 :8082 活体双证）：参照 SNAPSHOT
+    版本目录 metadata 生成以**同目录 pom 存在为硬前置**——无 pom 永不生成、重算触发时主动删除
+    （§1.1）；「404 稳态」是 pom 前置的**确定性输出非竞态丢失**；「仅存一文件」= buildNumber 种子 +
+    同秒时间戳撞名的确定性结果（§1.3）。即本条原两观测面均非「反常」。
+  authority: { type: spec_ruling, ref: "docs/reverse/maven-metadata-pom-prerequisite.md（T-L017-2 规格票——E1+E2 双证定谳）" }
+  review_gate: LOOP 017 复核（L016-3 改期后到点）——已按 L017-2 定谳重分类落账（本条 resolved）
+  resolved:
+    date: '2026-09-13'
+    evidence: >-
+      L017-2 规格票定谳（maven-metadata-pom-prerequisite.md §0）：pom 前置假说证成——参照 jar-only
+      SNAPSHOT 目录 metadata 恒 404（无超时窗稳态）+ pom 部署同步生成 + 末 pom 删除触发删除；
+      版本组目录 <versions> 只统计含 pom 子目录（§1.2）。
+    note: >-
+      竞态臂双端同形消解：「双端 201+仅存一文件」经 §1.3 证为确定性结果（buildNumber 种子+同秒撞名），
+      双端一致，不再独立登记。「参照自丢」重判为参照确定性行为后，**唯一差异侧移新条目**
+      #maven/version-metadata-pom-prerequisite（BinFlow jar-only 目录从任意文件生成 metadata=对齐缺口）。
+      snapshot 目录手 PUT 202 丢弃新发现归 #maven/manual-put-metadata-visibility 分列注记。
+  evidence: reports/compatibility/L013-maven-evidence.md §0-C3/§1-5 + T-L014-2.md（26 臂表）+ docs/reverse/maven-metadata-pom-prerequisite.md（§0/§1.1/§1.3 定谳）
+- id: maven/version-metadata-pom-prerequisite
+  surface: Maven 版本目录 metadata 的 pom 前置（jar-only 目录 BinFlow 仍生成——generate-from-any 为缺口）
+  classification: BUG
+  rationale: >-
+    L017-2 定谳的**唯一差异侧**（maven-metadata-pom-prerequisite.md §4-1 重分类建议落账）：参照
+    SNAPSHOT 版本目录 metadata 生成要求同目录 pom 存在（E1+E2 双证）；**BinFlow 从任意文件生成**
+    （jar-only 目录 574B metadata，L013-4 实测）——对齐方向=jar-only 不生成 + 重算触发时删除已生成
+    文件（对齐参照 §1.1 全语义：部署 pom 同步生成 / 删末 pom 触发删除 / 前置判定=.pom 后缀直接子文件）。
+    版本组目录 <versions> 只统计含 pom 子目录的组面语义随实现票一并核对。
+  authority: { type: spec_ruling, ref: "docs/reverse/maven-metadata-pom-prerequisite.md（§1.1/§1.2 行为规格——对齐目标语义源）" }
+  review_gate: LOOP 019 实现票（jar-only 不生成 + 触发删除 + 组目录统计语义；26 臂差分面复跑含 jar-only 臂）
+  evidence: docs/reverse/maven-metadata-pom-prerequisite.md §0/§1 + reports/compatibility/L013-maven-evidence.md §1-5（BinFlow 574B 实测）
+- id: goproxy/list-timestamp-column
+  surface: goproxy @v/list 行尾时间戳列（A 带列 vs BinFlow 纯版本列）
+  classification: INTENTIONAL_DIFFERENCE
+  rationale: >-
+    L018-2 契约化随账（contracts/goproxy.yaml#goproxy/list-latest）：参照 list 形态版本后附空格+时间戳列
+    （反编译可见 S7——官方未定义该列，Artifactory 生产在用=真实 go 客户端兼容反证）；BinFlow 收紧为
+    纯版本列（与 proxy.golang.org 形态一致，规避未定义行为——goproxy.md §4.4/§8-S7 决策）。差分比对经
+    normalize goproxy.list_timestamp_column 剥列后判；客户端可见影响=零（go 命令按行首版本解析）。
+  authority: { type: spec_ruling, ref: "docs/reverse/goproxy.md §8-S7（T-278 规格票收紧决策——PRD 87 口径）" }
+  review_gate: resolved-by-decision（纯版本列冻结为 BinFlow 形态；A 侧逐字对照留差分腿 g1 臂补证时间戳列实形）
+  evidence: docs/reverse/goproxy.md §4.4/§8-S7 + contracts/goproxy.yaml#goproxy/list-latest
+- id: goproxy/sumdb-proxy-unsupported
+  surface: goproxy sumdb 代理三端点（sumdb/sum.golang.org/{supported,lookup,tile}）
+  classification: UNSUPPORTED_FEATURE
+  rationale: >-
+    L018-2 契约化随账（contracts/goproxy.yaml#goproxy/sumdb-404-posture）：BinFlow 显式不实现 sumdb
+    代理（收到按未知路径 404）——PRD §2.2 显式不做清单在册（goproxy.md §9-1）；客户端影响=不能把
+    GONOSUMDB 指到 BinFlow 做校验库镜像，私有模块配方=GONOSUMDB 前缀跳过公网 sumdb（§7.1，勿用
+    GOPRIVATE——会连带绕过 GOPROXY）。A 侧 sumdb 应答未活体（pro go addon 或服务该面——差分腿 g5
+    臂可定 A 实形；不影响 UNSUPPORTED 定性）。
+  authority: { type: spec_ruling, ref: "docs/prd §2.2 显式不做（经 goproxy.md §9-1 登记——T-278/T-285 承载）" }
+  review_gate: 维持不做（非排程项）；A 侧实形留差分腿 g5 臂补证注记
+  evidence: docs/reverse/goproxy.md §9-1/§7.1 + contracts/goproxy.yaml#goproxy/sumdb-404-posture

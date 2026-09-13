@@ -130,3 +130,14 @@ domains:
       compare: magnitude_only               # 索引物化即时性：真实客户端粒度双端 ≤3s 窗口不可分辨（L016 i1/i2 臂；L015 P2b 异步空窗未复现）——只保数量级
     auth:
       basic_credentials: redact
+  goproxy:
+    body:
+      list_timestamp_column: strip        # @v/list 行尾时间戳列（A/S7 反编译形态「v1.0.0 2024-…Z」）剥除后比对——BinFlow 纯版本列系收紧决策（spec §8-S7），列差不判
+      info_time: keep_semantic            # .info Time 值 RFC3339 逐字（PUT 什么 GET 什么——逐字节回读是断言本体，不归一）
+    headers:
+      drop:
+        - Date
+        - X-Request-Id
+        - X-Artifactory-Id
+        - X-Artifactory-Node-Id
+        - X-Jfrog-Version

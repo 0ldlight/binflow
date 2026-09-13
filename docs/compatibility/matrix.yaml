@@ -2416,10 +2416,12 @@ rows:
   confidence: high
   contract_ref: 
   golden_ref: 
-  last_difftest: reports/compatibility/L013-maven-evidence.md + reports/agents/T-L014-2.md（26 臂矩阵 23 一致；unique-snapshot 改写+checksum 旁车双 BUG 闭；F1 pom 规则活参照定案）
+  last_difftest: reports/compatibility/L013-maven-evidence.md + reports/agents/T-L014-2.md（26 臂矩阵 23 一致；unique-snapshot 改写+checksum 旁车双 BUG 闭；F1 pom 规则活参照定案）+ docs/reverse/maven-metadata-pom-prerequisite.md（L017-2 定谳：pom 前置=参照确定性行为——C3 台账 resolved、差异侧移 version-metadata-pom-prerequisite BUG〔LOOP 019 实现票〕；snapshot 目录手 PUT 202 丢弃新发现归 R-21 分列）
   priority_class: P1
   layer: A
   source_row: "§11.1 行 8"
+  note: 'L018-3 联动注记：本行 compatible 态覆盖 26 臂主面；pom 前置缺口（jar-only 目录 BinFlow 仍生成
+    metadata）系臂级账（known-divergence#maven/version-metadata-pom-prerequisite BUG）不占行态。'
 - row_id: D12-R09
   domain: D12
   capability: 重索引族已实现 6 件（conan ×2、deb、helm ×2、yum）
@@ -2447,9 +2449,9 @@ rows:
   capability: goproxy（模块协议原生，GOPROXY 端点在内容面承载）
   state: compatible
   confidence: high
-  contract_ref: 
+  contract_ref: contracts/goproxy.yaml
   golden_ref: 
-  last_difftest: 
+  last_difftest: 'L018-2 契约化（contracts/goproxy.yaml 四条目：VERIFIED 2〔GET 五件套/list-latest——T-285 真客户端腿在册〕/ IMPLEMENTED 1〔PUT 厂商扩展——A 侧待差分腿〕/ INTENTIONAL 1〔sumdb 404〕）；差分腿六臂 probe 已备（probes/goproxy/endpoints-probe.sh）——双实例因并行镜像构建占死未跑，窗口后补'
   priority_class: P1
   layer: A
   source_row: "§11.1 行 11"
