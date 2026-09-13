@@ -69,6 +69,12 @@ func seedRepos(ctx context.Context, t *testing.T, md metadata.Store) {
 			Config: `{"handleReleases":false}`},
 		{RepoKey: "maven-snaponly", Type: repo.TypeLocal, PackageType: Protocol,
 			Config: `{"handleSnapshots":false}`},
+		{RepoKey: "maven-nonunique", Type: repo.TypeLocal, PackageType: Protocol,
+			Config: `{"snapshotVersionBehavior":"non-unique"}`},
+		{RepoKey: "maven-deployer", Type: repo.TypeLocal, PackageType: Protocol,
+			Config: `{"snapshotVersionBehavior":"deployer"}`},
+		{RepoKey: "maven-unique", Type: repo.TypeLocal, PackageType: Protocol,
+			Config: `{"snapshotVersionBehavior":"unique"}`},
 		{RepoKey: "maven-remote", Type: repo.TypeRemote, PackageType: Protocol,
 			Config: `{"url":"http://127.0.0.1:9/upstream"}`},
 		{RepoKey: "maven-virtual", Type: repo.TypeVirtual, PackageType: Protocol, Config: "{}"},
@@ -316,13 +322,28 @@ func TestSidecarStates(t *testing.T) {
 	s1, _, _ := digests(jarBytes)
 	side := "/maven-local/com/acme/demo-app/1.1.0/demo-app-1.1.0.jar.sha1"
 
-	// good value -> 201 and the GET answers the measured digest
-	if resp := hs.serve(http.MethodPut, side, []byte(s1), nil, true); resp.StatusCode != http.StatusCreated {
+	// good value -> 201 (registration only, L014-2: no sidecar item
+	// materializes; Location addresses the TARGET artifact) and the GET
+	// answers the measured digest
+	resp := hs.serve(http.MethodPut, side, []byte(s1), nil, true)
+	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("good sidecar = %d (%s)", resp.StatusCode, drain(t, resp))
+	}
+	if loc := resp.Header.Get("Location"); !strings.HasSuffix(loc, "/demo-app-1.1.0.jar") || strings.HasSuffix(loc, ".sha1") {
+		t.Errorf("sidecar Location = %q, want the target artifact path", loc)
+	}
+	if nodes, lerr := hs.md.Nodes().ListByPrefix(context.Background(), "maven-local", "com/acme/demo-app/1.1.0"); lerr != nil {
+		t.Fatalf("list: %v", lerr)
+	} else {
+		for _, n := range nodes {
+			if strings.HasSuffix(n.Path, ".sha1") || strings.HasSuffix(n.Path, ".md5") || strings.HasSuffix(n.Path, ".sha512") {
+				t.Errorf("sidecar materialized as storage item: %s", n.Path)
+			}
+		}
 	}
 
 	// wrong value on a client-checksums repo -> 409
-	resp := hs.serve(http.MethodPut, side, []byte("deadbeef"), nil, true)
+	resp = hs.serve(http.MethodPut, side, []byte("deadbeef"), nil, true)
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("bad sidecar = %d, want 409", resp.StatusCode)
 	}

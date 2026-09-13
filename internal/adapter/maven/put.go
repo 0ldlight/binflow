@@ -147,6 +147,16 @@ func (h *Handler) putChecksumDeploy(ctx context.Context, w http.ResponseWriter, 
 // (ME-06: metadata PUTs ride the generic upload chain and are accepted).
 func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	p *repo.Principal, repoKey, relPath string, l Layout, cfg RepoConfig) {
+	// L014-2 BUG 1: under snapshotVersionBehavior=unique a -SNAPSHOT file
+	// name is rewritten to the timestamped spelling BEFORE the bytes land
+	// (the 201 Location, the storage node and the calculator trigger all
+	// address the rewritten name; the version directory keeps -SNAPSHOT).
+	if l.Kind == KindArtifact && cfg.SnapshotBehavior == BehaviorUnique && l.Snapshot && !l.Timestamped {
+		if name := h.calc.adjustUniqueSnapshot(ctx, p, repoKey, l); name != l.File {
+			relPath = relPath[:strings.LastIndexByte(relPath, '/')+1] + name
+			l.File, l.Timestamped = name, true
+		}
+	}
 	mime := r.Header.Get("Content-Type")
 	if mime == "" {
 		mime = mimeForPath(relPath, "")
@@ -225,7 +235,13 @@ func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Re
 // putSidecar implements the checksum-file upload chain (rest-api.md
 // section 1.5, high confidence): the sidecar body is the client's declared
 // digest of the TARGET artifact; the >1024B guard, the target-must-exist
-// 404 and the two-policy comparison all precede any storage write.
+// 404 and the two-policy comparison all precede the registration. L014-2
+// BUG 2: a checksum-file PUT is REGISTRATION ONLY — no sidecar storage
+// item materializes (the reference's post-deploy listing shows pom, jar
+// and maven-metadata.xml only; BinFlow's phantom .sha1/.md5 nodes were the
+// E2 divergence). The 201 carries Location = the TARGET artifact and no
+// body; GET of the sidecar path answers the server-computed digest, as it
+// always did.
 func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	p *repo.Principal, repoKey, relPath string, l Layout, cfg RepoConfig) {
 	// Suspicious-size guard first: a checksum file is a digest plus
@@ -246,6 +262,18 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 	}
 	declared := strings.TrimSpace(string(raw)) // trailing newline tolerated (FR-16)
 
+	// Under unique behavior the target of a -SNAPSHOT sidecar is the
+	// REWRITTEN artifact name (the checksum registers against the file
+	// that actually landed, spec section 1.3's companion-follows rule).
+	if cfg.SnapshotBehavior == BehaviorUnique && l.TargetKind == KindArtifact &&
+		l.Snapshot && !l.Timestamped {
+		if tl, terr := Parse(l.Target); terr == nil {
+			if name := h.calc.adjustCompanionTarget(ctx, p, repoKey, tl); name != tl.File {
+				l.Target = l.Target[:strings.LastIndexByte(l.Target, '/')+1] + name
+			}
+		}
+	}
+
 	// The target must exist: a checksum for nothing registers nothing.
 	rc, node, err := h.svc.Get(ctx, p, repoKey, l.Target)
 	if err != nil {
@@ -259,15 +287,11 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 	}
 	_ = rc.Close() //nolint:errcheck // read-only fd; only the node metadata is needed
 
-	// What lands: the server-measured digest under server-generated policy
-	// (the client's claim never becomes stored bytes), the client's own
-	// bytes otherwise — EXCEPT for the metadata family: its target is
-	// server-authoritative and regenerated at any deploy (FR-17), so a
-	// value the client checksummed against the pre-recalculation bytes may
-	// legitimately disagree already. A metadata sidecar mismatch is never
-	// a client error; the measured value lands, keeping the stored bytes
-	// equal to the live-computed answer (checksum consistency, M14).
-	land := raw
+	// The policy comparison stays the artifact-plane gate: a disagreeing
+	// claim on a client-checksums repository is a 409. The metadata family
+	// keeps its tolerance — its target is server-authoritative and
+	// regenerated at any deploy (FR-17), so a client value checksummed
+	// against pre-recalculation bytes may legitimately disagree already.
 	if measured, ok := h.digestOf(ctx, node, l.Algo); ok && measured != declared {
 		if cfg.ChecksumPolicy == ChecksumPolicyClient && l.TargetKind != KindMetadata {
 			writeError(w, http.StatusConflict, fmt.Sprintf(
@@ -275,26 +299,12 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 				repoKey, relPath, declared, measured))
 			return
 		}
-		land = []byte(measured)
 	}
 
-	ref := storage.BlobRef{}
-	if sum := sha256Hex(land); sum != "" {
-		ref.Sha256 = sum
-	}
-	// Sidecars never trigger the overwrite check (repo-semantics section
-	// 3): a checksum file is freely rewritable registration data.
-	mavenNode, err := h.svc.PutWithOptions(ctx, p, repoKey, relPath, bytes.NewReader(land), ref,
-		sidecarContentType, repo.PutOptions{SkipOverwriteCheck: true})
-	if err != nil {
-		h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
-		return
-	}
-	_ = mavenNode // node freshness only; the sidecar 201 carries no body
-
-	// Sidecar deploys answer 201 with Location and no body (rest-api.md
-	// section 1.1's dedicated column for the checksum-file PUT).
-	w.Header().Set("Location", requestBase(r)+"/"+repoKey+"/"+escapePath(relPath))
+	// Registration only (L014-2 BUG 2): the 201 carries the TARGET's
+	// Location and no body (rest-api.md section 1.1's dedicated column for
+	// the checksum-file PUT).
+	w.Header().Set("Location", requestBase(r)+"/"+repoKey+"/"+escapePath(l.Target))
 	w.WriteHeader(http.StatusCreated)
 }
 

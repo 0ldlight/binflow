@@ -89,9 +89,12 @@ func TestProviderRegistration(t *testing.T) {
 // spellings.
 func TestRepoConfigParsing(t *testing.T) {
 	def := ParseRepoConfig("")
-	if def.ChecksumPolicy != ChecksumPolicyClient || def.SnapshotBehavior != BehaviorDeployer ||
+	if def.ChecksumPolicy != ChecksumPolicyClient || def.SnapshotBehavior != BehaviorUnique ||
 		!def.HandleReleases || !def.HandleSnapshots {
 		t.Fatalf("defaults wrong: %+v", def)
+	}
+	if got := ParseRepoConfig(`{"snapshotVersionBehavior":"deployer"}`); got.SnapshotBehavior != BehaviorDeployer {
+		t.Errorf("explicit deployer not honored: %+v", got.SnapshotBehavior)
 	}
 	if got := ParseRepoConfig(`{"checksumPolicyType":"server-generated-checksums","handleSnapshots":false,"snapshotVersionBehavior":"non-unique"}`); got.AcceptsSnapshot() ||
 		!got.AcceptsRelease() || got.ChecksumPolicy != ChecksumPolicyServerGenerated || got.SnapshotBehavior != BehaviorNonUnique {

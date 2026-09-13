@@ -20,10 +20,9 @@ const (
 )
 
 // Snapshot version behaviors (maven-npm-pypi.md section 1.3, high
-// confidence). BinFlow's M3 default is deployer; the unique server-side
-// rewrite is a P2 item (FR-16-AC12) — until it lands, unique behaves as
-// deployer (store under the uploaded name), which the spec's "已是 unique
-// 文件名不改写" rule makes indistinguishable for compliant clients.
+// confidence; the field-absent default pinned by the L013-4 A6 wire: the
+// reference rewrites -SNAPSHOT PUTs in a repository created without the
+// field). L014-2 implements the unique server-side rewrite.
 const (
 	BehaviorDeployer  = "deployer"
 	BehaviorNonUnique = "non-unique"
@@ -39,10 +38,10 @@ type RepoConfig struct {
 	// ChecksumPolicy is ChecksumPolicyClient unless the row spells the
 	// server-generated value.
 	ChecksumPolicy string
-	// SnapshotBehavior records the configured spelling (deployer default).
-	// M3's transfer plane stores every upload under its uploaded name for
-	// all three values — non-unique by definition, deployer by definition,
-	// and unique pending the P2 rewrite.
+	// SnapshotBehavior records the configured spelling. The field-absent
+	// default is unique (the L013-4 A6 wire: a repository created without
+	// the field rewrites -SNAPSHOT PUTs to ts-N); non-unique and deployer
+	// store the uploaded name.
 	SnapshotBehavior string
 	// HandleReleases/HandleSnapshots are true unless explicitly false; a
 	// false value refuses the matching deploy with 409 (ME-08, v1.1
@@ -57,7 +56,7 @@ type RepoConfig struct {
 func ParseRepoConfig(config string) RepoConfig {
 	rc := RepoConfig{
 		ChecksumPolicy:   ChecksumPolicyClient,
-		SnapshotBehavior: BehaviorDeployer,
+		SnapshotBehavior: BehaviorUnique,
 		HandleReleases:   true,
 		HandleSnapshots:  true,
 	}
@@ -76,9 +75,11 @@ func ParseRepoConfig(config string) RepoConfig {
 	switch strings.TrimSpace(raw.SnapshotVersionBehavior) {
 	case BehaviorNonUnique:
 		rc.SnapshotBehavior = BehaviorNonUnique
+	case BehaviorDeployer:
+		rc.SnapshotBehavior = BehaviorDeployer
 	case BehaviorUnique:
 		rc.SnapshotBehavior = BehaviorUnique
-	}
+	} // absent (and any unknown spelling) stays unique — the lenient default
 	if raw.HandleReleases != nil {
 		rc.HandleReleases = *raw.HandleReleases
 	}
