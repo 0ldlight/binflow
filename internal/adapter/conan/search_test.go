@@ -83,8 +83,8 @@ func TestRefSearchMetadata(t *testing.T) {
 	s.putPkgFile("cn-local", r, rev, pidB, fixtureRev(8), "conan_package.tgz", []byte("tgz2")) // no conaninfo
 
 	for _, path := range []string{
-		v2("cn-local", "hello/1.0/myuser/stable/search"),
-		v2("cn-local", "hello/1.0/myuser/stable/revisions/"+rev+"/search"),
+		v2("cn-local", "hello/1.0/myuser/stable/search?q=os%3DMacos"),
+		v2("cn-local", "hello/1.0/myuser/stable/revisions/"+rev+"/search?q=os%3DMacos"),
 		v1("cn-local", "conans/hello/1.0/myuser/stable/search"),
 	} {
 		code, body, _ := s.get(path)
@@ -121,8 +121,9 @@ func TestRefSearchMetadata(t *testing.T) {
 		}
 	}
 
-	// An unknown ref answers the plain 404.
-	code, _, _ := s.get(v2("cn-local", "nope/1.0/_/_/search"))
+	// An unknown ref answers the plain 404 (the q gate runs after the
+	// route; an unexplored q spelling falls through to the as-built face).
+	code, _, _ := s.get(v2("cn-local", "nope/1.0/_/_/search?q=os%3DMacos"))
 	if code != http.StatusNotFound {
 		t.Errorf("unknown ref search = %d, want 404", code)
 	}

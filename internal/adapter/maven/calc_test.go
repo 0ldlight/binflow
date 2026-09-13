@@ -279,12 +279,23 @@ func TestCalcSnapshotDirMatrix(t *testing.T) {
 		},
 		{
 			name:       "classifier entries coexist per extension x classifier",
-			facts:      []string{unique("20260819.162439", 1, "", "jar"), unique("20260819.170001", 2, "sources", "jar")},
+			facts:      []string{unique("20260819.162439", 1, "", "pom"), unique("20260819.162439", 1, "", "jar"), unique("20260819.170001", 2, "sources", "jar")},
 			wantStatus: http.StatusOK,
 			want: []string{
 				"<classifier>sources</classifier>", "<value>1.2.0-20260819.170001-2</value>",
 				"<value>1.2.0-20260819.162439-1</value>",
 			},
+		},
+		{
+			// The pom prerequisite (docs/reverse/
+			// maven-metadata-pom-prerequisite section 1.1, L019): a
+			// jar-only snapshot directory NEVER gains a document, and a
+			// document already there is removed on the recompute —
+			// BinFlow's former 574B jar-only generation is the retired
+			// divergence.
+			name:       "jar-only directory loses its document (pom prerequisite)",
+			facts:      []string{unique("20260819.162439", 1, "", "jar"), nonUnique("", "jar")},
+			wantStatus: http.StatusNotFound,
 		},
 		{
 			name:       "non-unique only: fixed buildNumber 1, no timestamp, -SNAPSHOT values",

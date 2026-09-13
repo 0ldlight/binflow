@@ -285,9 +285,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !h.requireMethod(cw, r, http.MethodGet, http.MethodHead) {
 			return
 		}
+		if rejectBadQuery(cw, r) { // D4: the reference's query-syntax 400
+			return
+		}
 		h.serveRefSearch(ctx, cw, p, repoKey, rt.ref, "") // "" = implicit latest
 	case kindV2RevSearch:
 		if !h.requireMethod(cw, r, http.MethodGet, http.MethodHead) {
+			return
+		}
+		if rejectBadQuery(cw, r) { // D4: the reference's query-syntax 400
 			return
 		}
 		h.serveRefSearch(ctx, cw, p, repoKey, rt.ref, rt.rRev)
@@ -605,7 +611,7 @@ func (h *Handler) writeError(w http.ResponseWriter, err error, repoKey, path str
 	case errors.Is(err, storage.ErrChecksumMismatch):
 		writePlain(w, http.StatusConflict, fmt.Sprintf("Checksum error for '%s/%s': %v", repoKey, path, err))
 	case errors.Is(err, repo.ErrNodeNotFound), errors.Is(err, repo.ErrIsFolder):
-		writePlain(w, http.StatusNotFound, msgPathNotFound)
+		writeEnvelope(w, http.StatusNotFound, msgNotFound)
 	case errors.Is(err, repo.ErrRepoNotFound):
 		writePlain(w, http.StatusNotFound, fmt.Sprintf("Failed to find the repository '%s' specified in the request.", repoKey))
 	case errors.Is(err, repo.ErrInvalidPath), errors.Is(err, errInvalidChecksum),

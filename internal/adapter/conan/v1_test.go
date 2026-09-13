@@ -81,10 +81,11 @@ func TestV1Snapshot(t *testing.T) {
 		t.Errorf("package snapshot = %v, want both package files", snap)
 	}
 
-	// An unknown ref answers the files-channel 404.
+	// An unknown ref answers the D2 envelope (L018 wire v1-22b: the
+	// reference's global "Not Found" fallback).
 	code, body, _ = s.get(v1("cn-local", "conans/nope/1.0/_/_"))
-	if code != http.StatusNotFound || body != msgPathNotFound {
-		t.Errorf("unknown snapshot = (%d, %q), want (404, %q)", code, body, msgPathNotFound)
+	if code != http.StatusNotFound || !isNotFoundEnvelope(body) {
+		t.Errorf("unknown snapshot = (%d, %q), want the 404 Not Found envelope", code, body)
 	}
 }
 
@@ -220,17 +221,17 @@ func TestV1FilesChannel(t *testing.T) {
 		t.Fatalf("package channel GET = (%d, %q)", code, got)
 	}
 
-	// The pinned miss.
+	// The pinned miss: the storage 404 passthrough in the D2 envelope.
 	code, got, _ = s.get(v1("cn-local", "files/myuser/hello/1.0/stable/export/missing.txt"))
-	if code != http.StatusNotFound || got != msgPathNotFound {
-		t.Errorf("channel miss = (%d, %q), want (404, %q)", code, got, msgPathNotFound)
+	if code != http.StatusNotFound || !isNotFoundEnvelope(got) {
+		t.Errorf("channel miss = (%d, %q), want the 404 Not Found envelope", code, got)
 	}
 
-	// S8: checksum-deploy's miss is the explicit passthrough.
+	// S8: checksum-deploy's miss is the explicit passthrough (D2 envelope).
 	code, got, _ = s.put(v1("cn-local", "files/myuser/hello/1.0/stable/export/new.txt"), nil,
 		map[string]string{hdrChecksumDeploy: "true", hdrChecksumSha256: fixtureRev(3)})
-	if code != http.StatusNotFound || got != msgPathNotFound {
-		t.Errorf("channel checksum-deploy miss = (%d, %q), want the explicit 404", code, got)
+	if code != http.StatusNotFound || !isNotFoundEnvelope(got) {
+		t.Errorf("channel checksum-deploy miss = (%d, %q), want the explicit 404 envelope", code, got)
 	}
 
 	// A v2 upload of a NEWER revision flips what the 0-address serves
@@ -296,9 +297,11 @@ func TestV1Deletes(t *testing.T) {
 	if code != http.StatusNotFound || strings.Contains(body, revOld) || strings.Contains(body, revNew) {
 		t.Errorf("post-delete revisions = (%d, %s), want (404, no revision)", code, body)
 	}
-	// The coordinate is wholly gone: a second delete answers the family 404.
-	if code, _, _ = s.delete(v1("cn-local", "conans/hello/1.0/myuser/stable")); code != http.StatusNotFound {
-		t.Errorf("second v1 delete = %d, want 404", code)
+	// The coordinate is wholly gone: a second delete is the reference's
+	// IDEMPOTENT 200 (D3, L018 wire v1-22d — a ghost coordinate succeeds
+	// silently; the v2 plane keeps its 404).
+	if code, body, _ = s.delete(v1("cn-local", "conans/hello/1.0/myuser/stable")); code != http.StatusOK || body != "" {
+		t.Errorf("second v1 delete = (%d, %q), want the idempotent (200, empty)", code, body)
 	}
 	if code, _, _ = s.get(v2("cn-local", "hello/1.0/myuser/stable/latest")); code != http.StatusNotFound {
 		t.Errorf("post-second-delete latest = %d, want 404", code)
@@ -352,9 +355,16 @@ func TestD8WholeTreeRecipeDelete(t *testing.T) {
 					t.Errorf("post-delete %s = %d, want 404", leg.name, code)
 				}
 			}
-			// The index went with the tree: a re-delete is the family 404.
-			if code, _, _ := s.delete(tc.path); code != http.StatusNotFound {
-				t.Errorf("second recipe delete = %d, want 404", code)
+			// The index went with the tree: a re-delete follows the
+			// plane's own posture — the v1 arm is the D3 IDEMPOTENT 200
+			// (a ghost coordinate succeeds silently), the v2 arm keeps
+			// the family 404.
+			wantAgain := http.StatusNotFound
+			if strings.Contains(tc.path, "/"+segV1+"/") {
+				wantAgain = http.StatusOK
+			}
+			if code, _, _ := s.delete(tc.path); code != wantAgain {
+				t.Errorf("second recipe delete = %d, want %d", code, wantAgain)
 			}
 		})
 	}
@@ -412,8 +422,8 @@ func TestV1PackagesDeleteForms(t *testing.T) {
 	r := ref{name: "hello", version: "1.0", user: "myuser", channel: "stable"}
 	s.putRecipeFile("cn-local", r, fixtureRev(1), "conanfile.py", []byte("x"))
 	if code, body, _ := s.post(v1("cn-local", "conans/missing/1.0/_/_/packages/delete"),
-		[]byte(`{"package_ids":["`+fixturePID(3)+`"]}`), nil); code != http.StatusNotFound || body != msgPathNotFound {
-		t.Errorf("unknown-ref packages/delete = (%d, %q), want (404, %q)", code, body, msgPathNotFound)
+		[]byte(`{"package_ids":["`+fixturePID(3)+`"]}`), nil); code != http.StatusNotFound || !isNotFoundEnvelope(body) {
+		t.Errorf("unknown-ref packages/delete = (%d, %q), want the 404 Not Found envelope", code, body)
 	}
 	if code, _, _ := s.post(v1("cn-local", "conans/hello/1.0/myuser/stable/packages/delete"),
 		[]byte(`{"package_ids":["not!!"]}`), nil); code != http.StatusBadRequest {

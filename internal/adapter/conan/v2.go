@@ -20,9 +20,17 @@ import (
 // endpoints). Every response the family renders crosses a capWriter, so
 // the capability headers ride the errors too.
 
-// msgNoRevisions is the pinned empty-chain 404 wording (spec section 3.1,
-// S9).
+// msgNoRevisions is the REMOTE/VIRTUAL faces' empty-chain 404 wording (the
+// local plane answers the D2 envelope instead — errors.go; the as-built
+// remote/virtual rendering is the deferred differential ticket's scope).
 const msgNoRevisions = "Couldn't find revisions"
+
+// msgPathFor is the ghost-delete family's message: the coordinate path
+// WITHOUT a trailing slash (L018 wire v2-10c/v2-11c — the reference quotes
+// the bare path; the as-built plane's trailing slash was the D2 divergence).
+func msgPathFor(prefix string) string {
+	return "Couldn't find path '" + strings.TrimSuffix(prefix, "/") + "'"
+}
 
 // filesResponse is the file-list body: name -> {} per file (spec section
 // 3.1's shape; the .timestamp marker never appears in a listing).
@@ -39,7 +47,7 @@ func (h *Handler) serveLatest(ctx context.Context, cw *capWriter, p *repo.Princi
 	}
 	latest, ok := latestOf(doc.Revisions)
 	if !ok {
-		writePlain(cw, http.StatusNotFound, msgNoRevisions)
+		writeEnvelope(cw, http.StatusNotFound, msgNotFound)
 		return
 	}
 	writeJSONDoc(cw, latest)
@@ -54,7 +62,7 @@ func (h *Handler) serveRevisions(ctx context.Context, cw *capWriter, p *repo.Pri
 		return
 	}
 	if len(doc.Revisions) == 0 {
-		writePlain(cw, http.StatusNotFound, msgNoRevisions)
+		writeEnvelope(cw, http.StatusNotFound, msgNotFound)
 		return
 	}
 	if doc.Reference == "" {
@@ -77,7 +85,7 @@ func (h *Handler) serveFileList(ctx context.Context, cw *capWriter, p *repo.Prin
 		return
 	}
 	if len(files) == 0 {
-		writePlain(cw, http.StatusNotFound, msgPathNotFound)
+		writeEnvelope(cw, http.StatusNotFound, msgNotFound)
 		return
 	}
 	set := make(map[string]struct{}, len(files))
@@ -202,7 +210,7 @@ func (h *Handler) serveRevisionDelete(ctx context.Context, cw *capWriter, p *rep
 		return
 	}
 	if !exists {
-		writePlain(cw, http.StatusNotFound, fmt.Sprintf("Couldn't find path '%s'", revRoot))
+		writeEnvelope(cw, http.StatusNotFound, msgPathFor(revRoot))
 		return
 	}
 	if err := h.svc.Delete(ctx, p, repoKey, revRoot); err != nil {
@@ -226,7 +234,7 @@ func (h *Handler) serveRecipeDelete(ctx context.Context, cw *capWriter, p *repo.
 		return
 	}
 	if !exists {
-		writePlain(cw, http.StatusNotFound, fmt.Sprintf("Couldn't find path '%s'", root))
+		writeEnvelope(cw, http.StatusNotFound, msgPathFor(root))
 		return
 	}
 	if err := h.svc.Delete(ctx, p, repoKey, root); err != nil {
@@ -246,7 +254,7 @@ func (h *Handler) servePackagesDelete(ctx context.Context, cw *capWriter, p *rep
 		return
 	}
 	if !exists {
-		writePlain(cw, http.StatusNotFound, "Couldn't find packages for deletion")
+		writeEnvelope(cw, http.StatusNotFound, "Couldn't find packages for deletion")
 		return
 	}
 	if err := h.svc.Delete(ctx, p, repoKey, dir); err != nil {
@@ -265,7 +273,7 @@ func (h *Handler) servePkgLatest(ctx context.Context, cw *capWriter, p *repo.Pri
 	}
 	latest, ok := latestOf(doc.Revisions)
 	if !ok {
-		writePlain(cw, http.StatusNotFound, msgNoRevisions)
+		writeEnvelope(cw, http.StatusNotFound, msgNotFound)
 		return
 	}
 	writeJSONDoc(cw, latest)
@@ -280,7 +288,7 @@ func (h *Handler) servePkgRevisions(ctx context.Context, cw *capWriter, p *repo.
 		return
 	}
 	if len(doc.Revisions) == 0 {
-		writePlain(cw, http.StatusNotFound, msgNoRevisions)
+		writeEnvelope(cw, http.StatusNotFound, msgNotFound)
 		return
 	}
 	if doc.Reference == "" {
@@ -298,7 +306,7 @@ func (h *Handler) servePkgRevDelete(ctx context.Context, cw *capWriter, p *repo.
 		return
 	}
 	if !exists {
-		writePlain(cw, http.StatusNotFound, fmt.Sprintf("Couldn't find path '%s'", revRoot))
+		writeEnvelope(cw, http.StatusNotFound, msgPathFor(revRoot))
 		return
 	}
 	if err := h.svc.Delete(ctx, p, repoKey, revRoot); err != nil {

@@ -103,6 +103,55 @@ func coordinateOfIndexNode(path string) (ref, bool) {
 	return rf, true
 }
 
+// rejectBadQuery is the v2 packageId-metadata search's query gate (L019
+// D4 ruling): the reference answers the three evidenced spellings — an
+// empty q, a lone `*`, and a full wire ref — with 400
+// "Unexpected query syntax: <echo>" (plain text under a json content type,
+// the reference's own quirk; L018 wire v2-09a + fix-*-pkgmeta-q*). A wire
+// ref re-serializes as the field list the reference's parser prints; the
+// other two echo themselves. Every OTHER spelling keeps the as-built face
+// (200, q ignored): the reference's accepted grammar is unexplored and no
+// real client reaches this endpoint (both CLI wires are q-free), so the
+// deferred grammar arm owns them. false means the request passes.
+func rejectBadQuery(cw *capWriter, r *http.Request) bool {
+	q := r.URL.Query().Get("q")
+	echo := q
+	if q != "" && q != "*" {
+		rf, ok := parseWireRefQuery(q)
+		if !ok {
+			return false
+		}
+		echo = rf.name + ", version=" + rf.version + ", user=" + rf.user + ", channel=" + rf.channel
+	}
+	// The reference labels this body application/json despite the plain
+	// text (v2-09a-pkgmeta.hdr) — Content-Type is a kept semantic (R7).
+	cw.Header().Set("Content-Type", "application/json")
+	writePlain(cw, http.StatusBadRequest, "Unexpected query syntax: "+echo)
+	return true
+}
+
+// parseWireRefQuery parses a `name/version@user/channel` spelling with the
+// route grammar's own segment rules (the echo's shape check).
+func parseWireRefQuery(q string) (ref, bool) {
+	left, right, found := strings.Cut(q, "@")
+	if !found {
+		return ref{}, false
+	}
+	name, version, found := strings.Cut(left, "/")
+	if !found {
+		return ref{}, false
+	}
+	user, channel, found := strings.Cut(right, "/")
+	if !found {
+		return ref{}, false
+	}
+	rf, err := parseRef(name, version, user, channel)
+	if err != nil {
+		return ref{}, false
+	}
+	return rf, true
+}
+
 // serveRefSearch answers GET <ref>/search and <ref>/revisions/{rRev}/search
 // (plus the v1 conans/<ref>/search twin): every packageId under the
 // revision, assembled from the latest pRev's conaninfo.txt (settings/
