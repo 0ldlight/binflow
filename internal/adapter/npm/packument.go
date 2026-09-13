@@ -227,14 +227,19 @@ func versionsOf(doc map[string]any) map[string]any {
 func distOf(version map[string]any) map[string]any { return mapOf(version["dist"]) }
 
 // versionDistTarball returns the stored tarball reference of one version:
-// the path encoded in dist.tarball when it points inside this registry, else
-// the canonical layout path (spec section 2.4 resolution order, simplified —
-// BinFlow always stores the canonical relative path at publish, so the
-// fallback is the rule).
+// the path encoded in dist.tarball when it points inside this registry (a
+// BinFlow-shaped absolute URL reduces to its relative path; a stored RELATIVE
+// path is already registry-relative — publish stores the attachment path the
+// bytes actually landed at, which for a names-agreeing document is the
+// canonical layout), else the canonical layout path (spec section 2.4
+// resolution order, simplified).
 func versionDistTarball(name, version string, dist map[string]any) string {
 	if u := stringOf(dist["tarball"]); u != "" {
 		if rel, ok := relativeTarballPath(u); ok {
 			return rel
+		}
+		if !strings.Contains(u, "://") {
+			return u
 		}
 	}
 	return tarballPath(name, version)
@@ -284,10 +289,10 @@ var topLevelKeep = []string{
 }
 
 // mergePublish folds one published version into the document: the manifest
-// (dist normalized to the canonical tarball path), the request's dist-tags,
-// the time bookkeeping and the root-level passthrough. Returns the merged
-// document.
-func mergePublish(doc map[string]any, name, version string, manifest, root map[string]any,
+// (dist normalized to the tarball path the bytes actually landed at), the
+// request's dist-tags, the time bookkeeping and the root-level passthrough.
+// Returns the merged document.
+func mergePublish(doc map[string]any, name, version, tarball string, manifest, root map[string]any,
 	tags map[string]string, now nowClock) map[string]any {
 	if doc == nil {
 		doc = newPackument(name)
@@ -303,7 +308,7 @@ func mergePublish(doc map[string]any, name, version string, manifest, root map[s
 	if dist == nil {
 		dist = map[string]any{}
 	}
-	dist["tarball"] = tarballPath(name, version)
+	dist["tarball"] = tarball
 	normalized["dist"] = dist
 
 	versions := mapOf(doc["versions"])

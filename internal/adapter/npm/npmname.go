@@ -77,6 +77,25 @@ func tarballPath(name, version string) string {
 	return name + "/" + tarballDir + name + "-" + version + tarballExt
 }
 
+// attachmentTarballPath is the storage path of the tarball a publish carries:
+// the _attachments key IS the wire filename (the download face serves
+// <name>/-/<filename>, whatever version the document declares — L015 N4: the
+// reference's ghost guard checks this path). The name is client-controlled
+// body data and scoped packages legitimately carry a slash
+// (@scope/name-1.0.0.tgz), so safety is judged per SEGMENT: any empty or dot
+// segment would escape the -/ directory and is a 400, never a store.
+func attachmentTarballPath(name, attachment string) (string, error) {
+	if attachment == "" {
+		return "", fmt.Errorf("invalid attachment name %q in npm package '%s'", attachment, name)
+	}
+	for _, seg := range strings.Split(attachment, scopeSep) {
+		if seg == "" || seg == "." || seg == ".." {
+			return "", fmt.Errorf("invalid attachment name %q in npm package '%s'", attachment, name)
+		}
+	}
+	return name + "/" + tarballDir + attachment, nil
+}
+
 // packumentPath is the storage path of the package document node
 // (architecture section 5.4.2).
 func packumentPath(name string) string {
