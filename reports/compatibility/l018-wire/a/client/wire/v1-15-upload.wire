@@ -1,0 +1,175 @@
+{
+ "request": "GET /artifactory/api/conan/l018-conan/v1/ping",
+ "req_headers": {
+  "User-Agent": "Conan/1.66.0 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5",
+  "X-Client-Id": "admin"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Date": "Sun, 13 Sep 2026 15:34:11 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----
+{
+ "request": "GET /artifactory/api/conan/l018-conan/v1/conans/hello18/1.1/l018/stable/digest",
+ "req_headers": {
+  "User-Agent": "Conan/1.66.0 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5",
+  "X-Client-Id": "admin"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 404,
+ "resp_headers": {
+  "Content-Type": "application/json",
+  "Date": "Sun, 13 Sep 2026 15:34:12 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "74B sha256=50c18c2f5c36293e\n{\n  \"errors\" : [ {\n    \"status\" : 404,\n    \"message\" : \"Not Found\"\n  } ]\n}"
+}
+----
+{
+ "request": "GET /artifactory/api/conan/l018-conan/v1/users/check_credentials",
+ "req_headers": {
+  "User-Agent": "Conan/1.66.0 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5",
+  "X-Client-Id": "admin"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Date": "Sun, 13 Sep 2026 15:34:12 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----
+{
+ "request": "GET /artifactory/api/conan/l018-conan/v1/conans/hello18/1.1/l018/stable",
+ "req_headers": {
+  "User-Agent": "Conan/1.66.0 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5",
+  "X-Client-Id": "admin"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 404,
+ "resp_headers": {
+  "Content-Type": "application/json",
+  "Date": "Sun, 13 Sep 2026 15:34:12 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "74B sha256=50c18c2f5c36293e\n{\n  \"errors\" : [ {\n    \"status\" : 404,\n    \"message\" : \"Not Found\"\n  } ]\n}"
+}
+----
+{
+ "request": "POST /artifactory/api/conan/l018-conan/v1/conans/hello18/1.1/l018/stable/upload_urls",
+ "req_headers": {
+  "User-Agent": "Conan/1.66.0 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "application/json",
+  "Authorization": "REDACTED",
+  "Content-Type": "application/json",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5",
+  "X-Client-Id": "admin"
+ },
+ "req_body": "46B sha256=cef28b1297c1452f\n{\"conanfile.py\": 608, \"conanmanifest.txt\": 58}",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "application/json",
+  "Date": "Sun, 13 Sep 2026 15:34:12 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "276B sha256=94eae9da075b8480\n{\n  \"conanmanifest.txt\" : \"http://localhost:8082/artifactory/api/conan/l018-conan/v1/files/l018/hello18/1.1/stable/0/export/conanmanifest.txt\",\n  \"conanfile.py\" : \"http://localhost:8082/artifactory/api/conan/l018-conan/v1/files/l018/hello18/1.1/stable/0/export/conanfile.py\"\n}"
+}
+----
+{
+ "request": "GET /artifactory/api/conan/l018-conan/v1/users/check_credentials",
+ "req_headers": {
+  "User-Agent": "Conan/1.66.0 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5",
+  "X-Client-Id": "admin"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Date": "Sun, 13 Sep 2026 15:34:12 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----
+{
+ "request": "GET /artifactory/api/conan/l018-conan/v1/conans/hello18/1.1/l018/stable/packages/a5ad5696abf650a25eea8f377806b3d5fe234e6e",
+ "req_headers": {
+  "User-Agent": "Conan/1.66.0 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5",
+  "X-Client-Id": "admin"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 404,
+ "resp_headers": {
+  "Content-Type": "application/json",
+  "Date": "Sun, 13 Sep 2026 15:34:12 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "74B sha256=50c18c2f5c36293e\n{\n  \"errors\" : [ {\n    \"status\" : 404,\n    \"message\" : \"Not Found\"\n  } ]\n}"
+}
+----
+{
+ "request": "POST /artifactory/api/conan/l018-conan/v1/conans/hello18/1.1/l018/stable/packages/a5ad5696abf650a25eea8f377806b3d5fe234e6e/upload_urls",
+ "req_headers": {
+  "User-Agent": "Conan/1.66.0 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "application/json",
+  "Authorization": "REDACTED",
+  "Content-Type": "application/json",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5",
+  "X-Client-Id": "admin"
+ },
+ "req_body": "74B sha256=b94a0c9d29a487a2\n{\"conan_package.tgz\": 159, \"conaninfo.txt\": 204, \"conanmanifest.txt\": 113}",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "application/json",
+  "Date": "Sun, 13 Sep 2026 15:34:12 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "552B sha256=b402adf985ca61bc\n{\n  \"conaninfo.txt\" : \"http://localhost:8082/artifactory/api/conan/l018-conan/v1/files/l018/hello18/1.1/stable/0/package/a5ad5696abf650a25eea8f377806b3d5fe234e6e/0/conaninfo.txt\",\n  \"conan_package.tgz\" : \"http://localhost:8082/artifactory/api/conan/l018-conan/v1/files/l018/hello18/1.1/stable/0/package/a5ad5696abf650a25eea8f377806b3d5fe234e6e/0/conan_package.tgz\",\n  \"conanmanifest.txt\" : \"http://localhost:8082/artifactory/api/conan/l018-conan/v1/files/l018/hello18/1.1/stable/0/package/a5ad5696abf650a25eea8f377806b3d5fe234e6e/0/conanmanifest.txt\"\n}"
+}
+----

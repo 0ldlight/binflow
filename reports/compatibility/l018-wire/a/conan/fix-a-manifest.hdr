@@ -1,0 +1,17 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Content-Disposition: attachment; filename="conanmanifest.txt"
+Content-Length: 58
+Content-Type: text/plain
+Date: Sun, 13 Sep 2026 15:43:52 GMT
+Etag: 6446a2e75f563f88d46bf6fb0b48130569c6062b
+Last-Modified: Sun, 13 Sep 2026 15:43:49 GMT
+X-Artifactory-Filename: conanmanifest.txt
+X-Artifactory-Id: f5890f39e7943ed2:4ac32248:1a09b573828:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Artifactory-Origin-Remote-Path: local
+X-Checksum-Md5: 824d204ecf9dfb37d05941e9d833257d
+X-Checksum-Sha1: 6446a2e75f563f88d46bf6fb0b48130569c6062b
+X-Checksum-Sha256: b3b2bc7e1c90be91b5484e178521cd9e4a2641837eb689eefd534298f409ff65
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

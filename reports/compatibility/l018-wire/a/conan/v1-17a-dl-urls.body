@@ -1,0 +1,4 @@
+{
+  "conanmanifest.txt" : "http://localhost:8082/artifactory/api/conan/l018-conan/v1/files/l018/hello18/1.1/stable/0/export/conanmanifest.txt",
+  "conanfile.py" : "http://localhost:8082/artifactory/api/conan/l018-conan/v1/files/l018/hello18/1.1/stable/0/export/conanfile.py"
+}

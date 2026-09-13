@@ -1,0 +1,42 @@
+{
+ "request": "GET /binflow/l018-conan/v1/ping",
+ "req_headers": {
+  "User-Agent": "Conan/1.66.0 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5",
+  "X-Client-Id": ""
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Request-Id": "300fb4d5810a9c2026b8a1ad83dd3dd6",
+  "Date": "Sun, 13 Sep 2026 15:41:05 GMT"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----
+{
+ "request": "GET /binflow/l018-conan/v1/users/authenticate",
+ "req_headers": {
+  "User-Agent": "Conan/1.66.0 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5",
+  "X-Client-Id": ""
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "text/plain; charset=utf-8",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Content-Type-Options": "nosniff",
+  "X-Request-Id": "20dc335087a89a9c0981cf93e65765bc",
+  "Date": "Sun, 13 Sep 2026 15:41:05 GMT"
+ },
+ "resp_body": "64B sha256=58001248d55d3e70\n1f663077ce9fef97f380ef647007f48762e773427d5fa71b5b596ca6e860ffa5"
+}
+----

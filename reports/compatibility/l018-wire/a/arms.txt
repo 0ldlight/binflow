@@ -1,0 +1,27 @@
+[23:33:18] arm 0-setup repos l018-conan(local) + l018-conan-virt(virtual)
+[23:33:22] arm v2-01 ping anon + authed + client-version-check triptych
+[23:33:24] arm v2-02 login (conan 2.31.2 CLI via wireproxy) + curl authenticate
+[23:33:29] arm v2-03 check_credentials (bearer from 02) + bad token
+[23:33:31] arm v2-04 upload recipe+package (conan 2.31.2 CLI)
+[23:33:36] arm v2-05 rev-chain: second revision (content change) + latest/revisions wire
+[23:33:43] arm v2-06 recipe files list (rrev from 05b latest)
+[23:33:43] arm     (rrev=1d56f752d5234544fe1f4269686e099d)
+[23:33:45] arm v2-07 download (conan 2.31.2 CLI fresh cache) + curl file fetch
+[23:33:50] arm v2-08 search (conan list hello18/* — revision-wildcard suffix) + curl q=
+[23:33:53] arm v2-09 packageId metadata (settings/options/recipe_hash=rrev)
+[23:33:53] arm     (pid=NOPID)
+[23:33:56] arm v2-10 delete single revision (old rrev) + ghost rrev 404
+[23:33:58] arm v2-11 delete whole recipe + latest 404 + re-delete
+[23:34:01] arm v1-12 ping (anon + authed)
+[23:34:03] arm v1-13 login (conan 1.66.0 CLI via wireproxy) + curl authenticate
+[23:34:07] arm v1-14 check_credentials (bearer from 13)
+[23:34:09] arm v1-15 upload recipe+package (conan 1.66.0 CLI)
+[23:34:14] arm v1-16 upload_urls (absolute URL form — server self-knowledge)
+[23:34:16] arm v1-17 download_urls + digest (absolute URL form)
+[23:34:18] arm v1-18 snapshot (recipe md5 map + package)
+[23:34:20] arm v1-19 search (curl q= + conan 1.66 CLI)
+[23:34:24] arm v1-20 download (conan 1.66 CLI fresh cache)
+[23:34:29] arm v1-21 v1-data-plane-on-virtual (gate) + only_v2 capability
+[23:34:31] arm v1-22 delete whole tree (CLI remove) + cross-plane v2 404 + re-delete
+[23:34:35] arm T-teardown
+side a: repos kept for triage; run teardown-a.sh after b is green

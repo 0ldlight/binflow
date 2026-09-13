@@ -1,0 +1,10 @@
+{
+  "reference" : "hello18/1.0@l018/stable",
+  "revisions" : [ {
+    "revision" : "1d56f752d5234544fe1f4269686e099d",
+    "time" : "2026-09-13T15:33:38.493+0000"
+  }, {
+    "revision" : "91eaead8ee2bd3f4c9f88021aa40bd82",
+    "time" : "2026-09-13T15:33:33.976+0000"
+  } ]
+}

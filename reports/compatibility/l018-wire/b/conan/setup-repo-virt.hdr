@@ -1,0 +1,7 @@
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+X-Content-Type-Options: nosniff
+X-Request-Id: e06c5381ebc6284a177a1dd15a2bd51e
+Date: Sun, 13 Sep 2026 15:40:21 GMT
+Content-Length: 50
+

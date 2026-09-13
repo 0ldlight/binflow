@@ -1,0 +1,11 @@
+HTTP/1.1 200 OK
+Cache-Control: max-age=60
+Content-Type: application/json
+Date: Sun, 13 Sep 2026 07:36:19 GMT
+Etag: b6b029c43fbbb9e254d7271f4ec370281715fc63
+X-Artifactory-Id: e6874f2239da4561:-56831c4:1a099ac03d8:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Checksum-Sha1: b6b029c43fbbb9e254d7271f4ec370281715fc63
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+Transfer-Encoding: chunked
+

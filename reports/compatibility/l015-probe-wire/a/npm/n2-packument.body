@@ -1,0 +1,31 @@
+{
+  "_id" : "l015-probe-pkg",
+  "_rev" : "1-0",
+  "name" : "l015-probe-pkg",
+  "description" : "l015 expansion probe",
+  "dist-tags" : {
+    "latest" : "1.0.0"
+  },
+  "versions" : {
+    "1.0.0" : {
+      "name" : "l015-probe-pkg",
+      "description" : "l015 expansion probe",
+      "version" : "1.0.0",
+      "scripts" : { },
+      "lastModified" : 1789284976817,
+      "_id" : "l015-probe-pkg@1.0.0",
+      "dist" : {
+        "tarball" : "http://localhost:8082/artifactory/api/npm/l015-npm/l015-probe-pkg/-/l015-probe-pkg-1.0.0.tgz",
+        "shasum" : "8b1b26271ce6b0cbb79e3202ac44c36864eee7df",
+        "integrity" : "sha512-Wq4adgQJ/OH2SKGPT9KLWL3Lt4psTeAZcvWCTDybcnzunqii3CSZVTTF9WOFvNjjyW/t/r8lVfyerHreJ7tasA=="
+      }
+    }
+  },
+  "time" : {
+    "unpublished" : null,
+    "created" : "2026-09-13T07:36:16.817Z",
+    "modified" : "2026-09-13T07:36:16.817Z",
+    "1.0.0" : "2026-09-13T07:36:16.817Z"
+  },
+  "users" : { }
+}

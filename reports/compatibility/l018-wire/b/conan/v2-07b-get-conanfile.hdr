@@ -1,0 +1,11 @@
+HTTP/1.1 200 OK
+Content-Length: 562
+Content-Type: application/octet-stream
+X-Checksum-Md5: 3cd13cad7f8be5525724f9932e47e422
+X-Checksum-Sha1: b355a969c20d2fdf7d19f67b523dae130376234a
+X-Checksum-Sha256: bad68527647e7c87b36764458cf4cb10f1d51cdb4c549505c1eaacbce5edbd07
+X-Conan-Server-Capabilities: complex_search,checksum_deploy,revisions,matrix_params
+X-Conan-Server-Version: 0.20.0
+X-Request-Id: 64bf2fbb226a4ee4b649086c91156af3
+Date: Sun, 13 Sep 2026 15:40:48 GMT
+

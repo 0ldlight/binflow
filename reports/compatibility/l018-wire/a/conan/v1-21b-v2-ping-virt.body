@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Couldn't perform replication, check server logs for more information."
+  } ]
+}

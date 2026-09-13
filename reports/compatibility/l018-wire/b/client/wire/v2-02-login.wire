@@ -1,0 +1,21 @@
+{
+ "request": "GET /binflow/l018-conan/v2/users/authenticate",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "text/plain; charset=utf-8",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Content-Type-Options": "nosniff",
+  "X-Request-Id": "c7ebb7309d9c36b1e0aacc1a96fe1e93",
+  "Date": "Sun, 13 Sep 2026 15:40:28 GMT"
+ },
+ "resp_body": "64B sha256=958a3689a6143a56\n1e84baded0a6db22473ea5fb5c649dd47b0bf0dcb133e70ab7739bfde433da3d"
+}
+----

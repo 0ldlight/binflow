@@ -1,0 +1,235 @@
+{
+ "request": "GET /binflow/l018-conan/v2/users/authenticate",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "text/plain; charset=utf-8",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Content-Type-Options": "nosniff",
+  "X-Request-Id": "71714bef4a90cf9eb74472432b3b6945",
+  "Date": "Sun, 13 Sep 2026 15:40:47 GMT"
+ },
+ "resp_body": "64B sha256=66faeb1bd16972dc\n5a11b1dd047ee66f5c594e6273f551116927674afaa549d08a6a476c5f440307"
+}
+----
+{
+ "request": "GET /binflow/l018-conan/v1/ping",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Request-Id": "49cb89c0320420e0e855252cfe0af4ce",
+  "Date": "Sun, 13 Sep 2026 15:40:48 GMT"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----
+{
+ "request": "GET /binflow/l018-conan/v2/conans/hello18/1.0/l018/stable/latest",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "application/json",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Content-Type-Options": "nosniff",
+  "X-Request-Id": "2c28cc9cb90939d2bcaa27c7b3ff5139",
+  "Date": "Sun, 13 Sep 2026 15:40:48 GMT"
+ },
+ "resp_body": "81B sha256=98990050bd1d2649\n{\"revision\":\"1d56f752d5234544fe1f4269686e099d\",\"time\":\"2026-09-13T15:40:38.929Z\"}"
+}
+----
+{
+ "request": "GET /binflow/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/1d56f752d5234544fe1f4269686e099d/files",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "application/json",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Content-Type-Options": "nosniff",
+  "X-Request-Id": "eb223eced921ca5bb132a3f09bd6ae81",
+  "Date": "Sun, 13 Sep 2026 15:40:48 GMT"
+ },
+ "resp_body": "52B sha256=80c5bad2f163c9e7\n{\"files\":{\"conanfile.py\":{},\"conanmanifest.txt\":{}}}"
+}
+----
+{
+ "request": "GET /binflow/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/1d56f752d5234544fe1f4269686e099d/files/conanfile.py",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "application/octet-stream",
+  "X-Checksum-Md5": "3cd13cad7f8be5525724f9932e47e422",
+  "X-Checksum-Sha1": "b355a969c20d2fdf7d19f67b523dae130376234a",
+  "X-Checksum-Sha256": "bad68527647e7c87b36764458cf4cb10f1d51cdb4c549505c1eaacbce5edbd07",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Request-Id": "ba0685a0781ff611772275d0e5ea8de0",
+  "Date": "Sun, 13 Sep 2026 15:40:48 GMT"
+ },
+ "resp_body": "562B sha256=bad68527647e7c87"
+}
+----
+{
+ "request": "GET /binflow/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/1d56f752d5234544fe1f4269686e099d/files/conanmanifest.txt",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "application/octet-stream",
+  "X-Checksum-Md5": "d7837cf59591ed57b4fbaa906301234f",
+  "X-Checksum-Sha1": "358a4ecfd60536eb895c236e7004068728633cb1",
+  "X-Checksum-Sha256": "5af2444d31ec4bfddd851e6b26fd2bd6ebb201f1e636a64649902ba99bee34fb",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Request-Id": "5d0c7e94d0e387ac4fa22ce716ae1788",
+  "Date": "Sun, 13 Sep 2026 15:40:48 GMT"
+ },
+ "resp_body": "58B sha256=5af2444d31ec4bfd"
+}
+----
+{
+ "request": "GET /binflow/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/1d56f752d5234544fe1f4269686e099d/packages/82339cc4d6db7990c1830d274cd12e7c91ab18a1/latest",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "Conan-Pkgid-Settings": "arch=x86_64;os=Macos",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "application/json",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Content-Type-Options": "nosniff",
+  "X-Request-Id": "a2a6b4ab866d5cbfa6063bfcb988e0b3",
+  "Date": "Sun, 13 Sep 2026 15:40:48 GMT"
+ },
+ "resp_body": "81B sha256=7ff3baa0b20eb5b1\n{\"revision\":\"cf324050d8428db1a3c60d3191599bef\",\"time\":\"2026-09-13T15:40:39.067Z\"}"
+}
+----
+{
+ "request": "GET /binflow/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/1d56f752d5234544fe1f4269686e099d/packages/82339cc4d6db7990c1830d274cd12e7c91ab18a1/revisions/cf324050d8428db1a3c60d3191599bef/files",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "application/json",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Content-Type-Options": "nosniff",
+  "X-Request-Id": "a59ba3f51babf3332cb20b7b682f3ba8",
+  "Date": "Sun, 13 Sep 2026 15:40:48 GMT"
+ },
+ "resp_body": "76B sha256=a1e79b5e155d1655\n{\"files\":{\"conan_package.tgz\":{},\"conaninfo.txt\":{},\"conanmanifest.txt\":{}}}"
+}
+----
+{
+ "request": "GET /binflow/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/1d56f752d5234544fe1f4269686e099d/packages/82339cc4d6db7990c1830d274cd12e7c91ab18a1/revisions/cf324050d8428db1a3c60d3191599bef/files/conanmanifest.txt",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "application/octet-stream",
+  "X-Checksum-Md5": "954c752ef90025b2171f57ebfdcabc56",
+  "X-Checksum-Sha1": "83760992cfe665ae728cf9e4a21e7039c4f07cfc",
+  "X-Checksum-Sha256": "9edf07e2be998accdeb907cdf0bec3479f2567d6c09e35cedd22426c10ea7149",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Request-Id": "e61477c1c53651233330c2cbdb0bbb66",
+  "Date": "Sun, 13 Sep 2026 15:40:48 GMT"
+ },
+ "resp_body": "113B sha256=9edf07e2be998acc"
+}
+----
+{
+ "request": "GET /binflow/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/1d56f752d5234544fe1f4269686e099d/packages/82339cc4d6db7990c1830d274cd12e7c91ab18a1/revisions/cf324050d8428db1a3c60d3191599bef/files/conaninfo.txt",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "application/octet-stream",
+  "X-Checksum-Md5": "67b3feeebe9ea277f200d0be54133dac",
+  "X-Checksum-Sha1": "82339cc4d6db7990c1830d274cd12e7c91ab18a1",
+  "X-Checksum-Sha256": "b0caff675a0a5f34148c49b1219b8577d5825df0fcc1c149ef17113f5dd67b27",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Request-Id": "4f847e5db044dc7e05a1f3ba9804bd7d",
+  "Date": "Sun, 13 Sep 2026 15:40:48 GMT"
+ },
+ "resp_body": "32B sha256=b0caff675a0a5f34"
+}
+----
+{
+ "request": "GET /binflow/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/1d56f752d5234544fe1f4269686e099d/packages/82339cc4d6db7990c1830d274cd12e7c91ab18a1/revisions/cf324050d8428db1a3c60d3191599bef/files/conan_package.tgz",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "application/octet-stream",
+  "X-Checksum-Md5": "e96a671d3865683a2c97875ab26d52ed",
+  "X-Checksum-Sha1": "56e8b0d822d038147fae1440940201bf54cc31c2",
+  "X-Checksum-Sha256": "042b8e34d4e53d65a91520372325a67478a85f9ced63c6832ea0cd042f1e814a",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Request-Id": "1de8a7ee7cbb6ac53ba838d0bf723210",
+  "Date": "Sun, 13 Sep 2026 15:40:48 GMT"
+ },
+ "resp_body": "242B sha256=042b8e34d4e53d65"
+}
+----
