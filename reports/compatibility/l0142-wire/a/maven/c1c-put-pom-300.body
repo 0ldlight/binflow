@@ -1,0 +1,18 @@
+{
+  "repo" : "l0142-mvn-d",
+  "path" : "/com/l0142/probe-app/3.0.0/probe-app-3.0.0.pom",
+  "created" : "2026-09-13T03:44:05.482Z",
+  "createdBy" : "admin",
+  "downloadUri" : "http://localhost:8082/artifactory/l0142-mvn-d/com/l0142/probe-app/3.0.0/probe-app-3.0.0.pom",
+  "mimeType" : "application/x-maven-pom+xml",
+  "size" : "221",
+  "checksums" : {
+    "sha1" : "a57eebcf67313281503f03795f9b839786cf0e30",
+    "md5" : "dfe8a57a14db1fbeb8c88305874db87f",
+    "sha256" : "c30159a73d9768c7cd7514b178aeadee8bd48d0ab2206718cfe6f49482b85d68"
+  },
+  "originalChecksums" : {
+    "sha256" : "c30159a73d9768c7cd7514b178aeadee8bd48d0ab2206718cfe6f49482b85d68"
+  },
+  "uri" : "http://localhost:8082/artifactory/l0142-mvn-d/com/l0142/probe-app/3.0.0/probe-app-3.0.0.pom"
+}

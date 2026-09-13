@@ -1,0 +1,19 @@
+{
+  "uri": "http://localhost:8083/l0142-mvn-u/com/l0142/probe-app/3.0.0-SNAPSHOT/probe-app-3.0.0-20260913.035807-1.jar",
+  "downloadUri": "http://localhost:8083/l0142-mvn-u/com/l0142/probe-app/3.0.0-SNAPSHOT/probe-app-3.0.0-20260913.035807-1.jar",
+  "repo": "l0142-mvn-u",
+  "path": "/com/l0142/probe-app/3.0.0-SNAPSHOT/probe-app-3.0.0-20260913.035807-1.jar",
+  "created": "2026-09-13T03:58:08Z",
+  "createdBy": "admin",
+  "lastModified": "2026-09-13T03:58:09Z",
+  "modifiedBy": "admin",
+  "lastUpdated": "2026-09-13T03:58:09Z",
+  "size": "28",
+  "mimeType": "application/java-archive",
+  "checksums": {
+    "sha1": "743e654fb639554552bfaa61cfc9c3f02db7dfc1",
+    "md5": "83e809c684be0aaa74e3bdc8e5f687a7",
+    "sha256": "a61384b9654cd276a69cca06b25ca09edbb490b3dd934b4d1f2183231b6da4ab"
+  },
+  "originalChecksums": {}
+}

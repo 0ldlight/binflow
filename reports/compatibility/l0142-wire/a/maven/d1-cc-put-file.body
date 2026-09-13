@@ -1,0 +1,18 @@
+{
+  "repo" : "l0142-mvn-cc",
+  "path" : "/com/l0142/probe-app/1.0.0/probe-app-1.0.0.jar",
+  "created" : "2026-09-13T03:44:45.252Z",
+  "createdBy" : "admin",
+  "downloadUri" : "http://localhost:8082/artifactory/l0142-mvn-cc/com/l0142/probe-app/1.0.0/probe-app-1.0.0.jar",
+  "mimeType" : "application/java-archive",
+  "size" : "29",
+  "checksums" : {
+    "sha1" : "009334d70274edbd22c8c72fd3473b7d39c226fe",
+    "md5" : "b6f87296ce9369d13e3e1e42afaf0dc4",
+    "sha256" : "cd024cbb8a9536f236e38d30ec576428adc426f339f2a8994d213c0ce3926b82"
+  },
+  "originalChecksums" : {
+    "sha256" : "cd024cbb8a9536f236e38d30ec576428adc426f339f2a8994d213c0ce3926b82"
+  },
+  "uri" : "http://localhost:8082/artifactory/l0142-mvn-cc/com/l0142/probe-app/1.0.0/probe-app-1.0.0.jar"
+}

@@ -1,0 +1,8 @@
+HTTP/1.1 201 Created
+Date: Sun, 13 Sep 2026 03:44:55 GMT
+Location: http://localhost:8082/artifactory/l0142-mvn-sg/com/l0142/probe-app/1.0.0/probe-app-1.0.0.jar
+X-Artifactory-Id: 5a0cb54a1ec63abb:-7374891:1a097ede790:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+Transfer-Encoding: chunked
+

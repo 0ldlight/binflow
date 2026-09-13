@@ -1,0 +1,8 @@
+HTTP/1.1 201 Created
+Content-Type: application/vnd.org.jfrog.artifactory.storage.ItemCreated+json; charset=UTF-8
+Location: http://localhost:8083/l0142-mvn-u/com/l0142/probe-app/5.0.0-SNAPSHOT/probe-app-5.0.0-20260913.035159-1.pom
+X-Checksum-Sha256: 3b9e7432acd5af3dac488337011ee769ac426240f1e7665eb12d9145a3c10edc
+X-Request-Id: a724c2415d31d4127471e266c048130b
+Date: Sun, 13 Sep 2026 03:51:59 GMT
+Content-Length: 705
+

@@ -1,0 +1,17 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Cache-Control: no-store
+Content-Disposition: attachment; filename="maven-metadata.xml"; filename*=UTF-8''maven-metadata.xml
+Content-Length: 373
+Content-Type: application/xml
+Date: Sun, 13 Sep 2026 03:42:30 GMT
+Etag: a961c2f0e1670c2e8368fa2a099645e8acb73c90
+Last-Modified: Sun, 13 Sep 2026 03:42:22 GMT
+X-Artifactory-Filename: maven-metadata.xml
+X-Artifactory-Id: 5a0cb54a1ec63abb:-7374891:1a097ede790:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Checksum-Md5: 113928aa12ebb26b056a0df5ca2cae4c
+X-Checksum-Sha1: a961c2f0e1670c2e8368fa2a099645e8acb73c90
+X-Checksum-Sha256: a8811db6355b52ea4f6a076ad379eef7f9710b50ca88f699090dafd59d5bebfb
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

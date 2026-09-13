@@ -72,8 +72,8 @@ priority_policy:
 summary:
   total_rows: 200
   state_counts:
-    compatible: 73
-    partial: 18
+    compatible: 74
+    partial: 17
     absent: 78
     not_applicable: 19
     superset: 12
@@ -88,11 +88,11 @@ summary:
   by_state_x_priority:
     compatible:
       P0: 56
-      P1: 16
+      P1: 17
       P2: 1
     partial:
       P0: 2
-      P1: 11
+      P1: 10
       P2: 5
     absent:
       P1: 35
@@ -160,8 +160,8 @@ summary:
       not_applicable: 1
     D12:
       rows: 17
-      compatible: 7
-      partial: 2
+      compatible: 8
+      partial: 1
       absent: 7
       not_applicable: 1
     D13:
@@ -2412,11 +2412,11 @@ rows:
 - row_id: D12-R08
   domain: D12
   capability: Maven 元数据计算（POST /api/maven/calculateMetadata + generatePom + 索引触发）
-  state: partial
+  state: compatible
   confidence: high
   contract_ref: 
   golden_ref: 
-  last_difftest: 
+  last_difftest: reports/compatibility/L013-maven-evidence.md + reports/agents/T-L014-2.md（26 臂矩阵 23 一致；unique-snapshot 改写+checksum 旁车双 BUG 闭；F1 pom 规则活参照定案）
   priority_class: P1
   layer: A
   source_row: "§11.1 行 8"

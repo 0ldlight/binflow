@@ -1,0 +1,17 @@
+{
+  "repo" : "l0142-mvn-d",
+  "path" : "/com/l0142/probe-app/2.0.0-SNAPSHOT",
+  "created" : "2026-09-13T03:42:43.004Z",
+  "createdBy" : "admin",
+  "lastModified" : "2026-09-13T03:42:43.004Z",
+  "modifiedBy" : "admin",
+  "lastUpdated" : "2026-09-13T03:42:43.004Z",
+  "children" : [ {
+    "uri" : "/maven-metadata.xml",
+    "folder" : false
+  }, {
+    "uri" : "/probe-app-2.0.0-20260913.034242-1.pom",
+    "folder" : false
+  } ],
+  "uri" : "http://localhost:8082/artifactory/api/storage/l0142-mvn-d/com/l0142/probe-app/2.0.0-SNAPSHOT"
+}

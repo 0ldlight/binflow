@@ -1,0 +1,30 @@
+{
+  "uri": "http://localhost:8083/binflow/api/storage/l0142-mvn-u/com/l0142/probe-app/2.0.0-SNAPSHOT/",
+  "downloadUri": "",
+  "repo": "l0142-mvn-u",
+  "path": "/com/l0142/probe-app/2.0.0-SNAPSHOT/",
+  "created": "2026-09-13T03:51:35.000Z",
+  "createdBy": "admin",
+  "lastModified": "2026-09-13T03:51:52.000Z",
+  "modifiedBy": "admin",
+  "lastUpdated": "2026-09-13T03:51:52.000Z",
+  "size": "0",
+  "children": [
+    {
+      "uri": "/maven-metadata.xml",
+      "folder": false
+    },
+    {
+      "uri": "/probe-app-2.0.0-20260913.035135-1.jar",
+      "folder": false
+    },
+    {
+      "uri": "/probe-app-2.0.0-20260913.035135-1.pom",
+      "folder": false
+    },
+    {
+      "uri": "/probe-app-2.0.0-20260913.035143-2.jar",
+      "folder": false
+    }
+  ]
+}
