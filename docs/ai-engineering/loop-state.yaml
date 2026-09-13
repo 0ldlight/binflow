@@ -3,7 +3,11 @@ schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
 updated: 2026-09-13T16:30:00Z
 current_iteration: 016
-current_goal: "R-15a/b 终裁驱动 + pypi simple 扩章首票 + npm ghost 深水票 + 三 maven UNKNOWN gate"
+current_goal: "pypi simple 扩章首票（四段闭环）+ npm ghost 深水票 + 三 UNKNOWN gate/R-15 终裁驱动"
+loop_016_tracks:
+  - { id: L016-1, domain: pypi-protocol, owner: differential-qa-engineer, what: "pypi simple 扩章首票前段：probe 补真实 pip/twine 腿+无效 wheel 三态矩阵+302 形态/legacy API 决策取证 → pypi.yaml 契约首文件（simple 面：锚点属性集/链接模板/索引即时性裁定）" }
+  - { id: L016-2, domain: npm-deep, owner: dev-registry-adapter, what: "npm ghost-publish 深水票：守卫语义对齐（tarball 路径冲突 403 vs version 存在性 201）——latest 劫持面收口+契约条目" }
+  - { id: L016-3, domain: rulings-gates, owner: compatibility-engineer, what: "三 maven UNKNOWN gate 到期裁定素材复核+login-missing/build.timestamp/R-15a/b 四裁定包呈批整备（pending-rulings v2.3 或分批）" }
 iteration_015_seal: "四轨全收（Docker Desktop 两僵死自愈）；likePrefix 潜伏 bug 修（01867f6d）；扩章择优=pypi simple（cbe46a99）；npm publish 主链实证同形；台账 44 条"
 iteration_014_seal: "三轨+返工全收（第七波限额 B 报告+返工树双幸存）；maven 域翻✅（D12-R08——四 blocking 全闭含 F1 活参照定案）；npm SPECIFIED 清零（16 条目 15V+1I）；双审战绩 13/13；matrix ✅74/◐17 Coverage 49.2%；commits bcf27bfa/f2b3eaeb/71a0eb7b"
 loop_015_tracks:
