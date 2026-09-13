@@ -757,7 +757,12 @@ entries:
     L018-3 分列注记（L017-2 规格票 §1.4 新发现）：「逐字回放」观测面**仅适用版本组目录**（C1 活体臂
     即组目录）；snapshot 版本目录手 PUT metadata 在参照系**202 丢弃式受理**（字节不落盘、不触发重算，
     非 deployer 策略仓）——BinFlow 若 snapshot 目录手 PUT 落盘（201）则构成新差异面。R-21 呈批口径
-    按两目录形态分列（组目录=回放 vs 同步重算；snapshot 目录=202 丢弃 vs BinFlow 现状待核对）。
+    按两目录形态分列（组目录=回放 vs 同步重算；snapshot 目录=202 丢弃 vs BinFlow 现状——**L019 M2
+    已实测**：mvn 自 PUT snapshot 目录 metadata B 201+同步重算 vs A 202 丢弃，受理码差实锤、终态同=
+    服务端计算形，两案对齐语义均有据）。关联 maven 三小面候选票（LOOP 020+ 池）：①本臂受理码
+    ②XML 渲染形态（R-20 在册）③文件 GET 404 措辞（A "File not found.; Path:" vs B "Failed to
+    find the requested resource"——M1/M3 新面）——详见 #maven/version-metadata-pom-prerequisite
+    resolved.note 遗留段。
 - id: maven/reference-race-metadata-loss
   surface: 并行同版本 unique snapshot 竞态的 metadata 丢失（原判「参照自丢」——L017-2 重判为参照确定性行为）
   classification: UNKNOWN
@@ -793,7 +798,22 @@ entries:
     文件（对齐参照 §1.1 全语义：部署 pom 同步生成 / 删末 pom 触发删除 / 前置判定=.pom 后缀直接子文件）。
     版本组目录 <versions> 只统计含 pom 子目录的组面语义随实现票一并核对。
   authority: { type: spec_ruling, ref: "docs/reverse/maven-metadata-pom-prerequisite.md（§1.1/§1.2 行为规格——对齐目标语义源）" }
-  review_gate: LOOP 019 实现票（jar-only 不生成 + 触发删除 + 组目录统计语义；26 臂差分面复跑含 jar-only 臂）
+  review_gate: LOOP 019 实现票（jar-only 不生成 + 触发删除 + 组目录统计语义）——已验收
+  resolved:
+    date: '2026-09-13'
+    evidence: >-
+      T-L019-1+2（uat-l0191-47f37739 × :8082，实现+复验）：calc.go recalcVersionDir snapshot 分支加 hasPom
+      硬前置（生成门+触发删除一臂双语义——removeMetadata）。三臂复验：M1 jar-only PUT 201→metadata GET
+      **双端 404**；M2 pom PUT→双端 200（buildNumber=1、jar+pom snapshotVersions 同值）；M3 pom DELETE
+      204→settle 10s→双端 404+jar 200（9B 同字节）。**mvn 3.9.16 真腿**：M1 deployFile(generatePom=false)
+      后 GET 404（mvn 探测 404→buildNumber 从 1 起算=§1.3 种子行为活体）/ M2 pom 部署后 200 服务端计算形 /
+      M3 dependency:get RESOLVE-EXIT=0 经生成 metadata 解析落 ~/.m2。组目录 pom-bearing 统计走读核对已对齐。
+    note: >-
+      遗留三小面候选票（LOOP 020+ 池注记，均臂级不重开本账）：①§1.4 受理码——mvn 自 PUT snapshot 目录
+      metadata：A **202 丢弃式受理** vs B 201+同步重算（M2 实测；终态同=服务端形——R-21 分列面）；②XML
+      渲染形态（R-20 在册——A modelVersion 属性+version 后置 vs B 无属性前置，M2 对照在案）；③文件 GET
+      404 措辞（A "File not found.; Path:" vs B "Failed to find the requested resource"——M1/M3 观测，
+      新面未入册）。
   evidence: docs/reverse/maven-metadata-pom-prerequisite.md §0/§1 + reports/compatibility/L013-maven-evidence.md §1-5（BinFlow 574B 实测）
 - id: goproxy/list-timestamp-column
   surface: goproxy @v/list 行尾时间戳列（A 带列 vs BinFlow 纯版本列）
@@ -804,7 +824,7 @@ entries:
     纯版本列（与 proxy.golang.org 形态一致，规避未定义行为——goproxy.md §4.4/§8-S7 决策）。差分比对经
     normalize goproxy.list_timestamp_column 剥列后判；客户端可见影响=零（go 命令按行首版本解析）。
   authority: { type: spec_ruling, ref: "docs/reverse/goproxy.md §8-S7（T-278 规格票收紧决策——PRD 87 口径）" }
-  review_gate: resolved-by-decision（纯版本列冻结为 BinFlow 形态；A 侧逐字对照留差分腿 g1 臂补证时间戳列实形）
+  review_gate: resolved-by-decision（纯版本列冻结为 BinFlow 形态；A 实形已证——L019 g1 活体双证 `v1.0.0 <RFC3339 上传时刻>`〔27B〕vs B 纯列〔7B〕，normalize 剥列一致：反编译单源升双证）
   evidence: docs/reverse/goproxy.md §4.4/§8-S7 + contracts/goproxy.yaml#goproxy/list-latest
 - id: goproxy/sumdb-proxy-unsupported
   surface: goproxy sumdb 代理三端点（sumdb/sum.golang.org/{supported,lookup,tile}）
@@ -818,3 +838,15 @@ entries:
   authority: { type: spec_ruling, ref: "docs/prd §2.2 显式不做（经 goproxy.md §9-1 登记——T-278/T-285 承载）" }
   review_gate: 维持不做（非排程项）；A 侧实形留差分腿 g5 臂补证注记
   evidence: docs/reverse/goproxy.md §9-1/§7.1 + contracts/goproxy.yaml#goproxy/sumdb-404-posture
+- id: conan/auth401-wording
+  surface: 'conan 握手族坏凭据 401 措辞（{v1,v2}/users/{authenticate,check_credentials}）'
+  classification: UNKNOWN
+  rationale: >-
+    L018 wire v2-02c/v2-03b（contracts/conan.yaml#conan/auth401-wording DIVERGENT-D2②）：同码异文——
+    A 坏凭据 `Bad Credentials`（pretty envelope）/ B `invalid credentials`；Bearer 未知值臂 A
+    `Props Authentication Token not found` / B 同措辞。**渲染点在 auth 中间层（adapter 外）**——B 措辞
+    系 httpapi 认证层统一文案，conan adapter 无自定义面；对齐=中间层分型（docker ping P1-P3 分型先例）
+    或维持统一文案 INTENTIONAL，涉跨域一致面（npm/docker 同源文案族）故 UNKNOWN 待裁定票。
+  authority: { type: pending, ref: "产品/conductor 裁定票（401 措辞分型 vs 统一——跨域文案族联动评估）" }
+  review_gate: LOOP 021 裁定票（涉 auth 中间层渲染点，与 docker ping 分型/npm D2 同族可并裁）
+  evidence: reports/compatibility/L018-conan-evidence.md + l018-wire/a/conan/v2-02c-auth-badcred.body + contracts/conan.yaml#conan/auth401-wording

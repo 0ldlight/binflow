@@ -2416,7 +2416,7 @@ rows:
   confidence: high
   contract_ref: 
   golden_ref: 
-  last_difftest: reports/compatibility/L013-maven-evidence.md + reports/agents/T-L014-2.md（26 臂矩阵 23 一致；unique-snapshot 改写+checksum 旁车双 BUG 闭；F1 pom 规则活参照定案）+ docs/reverse/maven-metadata-pom-prerequisite.md（L017-2 定谳：pom 前置=参照确定性行为——C3 台账 resolved、差异侧移 version-metadata-pom-prerequisite BUG〔LOOP 019 实现票〕；snapshot 目录手 PUT 202 丢弃新发现归 R-21 分列）
+  last_difftest: reports/compatibility/L013-maven-evidence.md + reports/agents/T-L014-2.md（26 臂矩阵 23 一致；unique-snapshot 改写+checksum 旁车双 BUG 闭；F1 pom 规则活参照定案）+ docs/reverse/maven-metadata-pom-prerequisite.md（L017-2 定谳）+ T-L019-1+2 实现验收（M1/M2/M3 三臂双端 + mvn 3.9.16 真腿：hasPom 硬前置落地——台账 version-metadata-pom-prerequisite resolved；遗留三小面候选票=受理码/XML 渲染/404 措辞）
   priority_class: P1
   layer: A
   source_row: "§11.1 行 8"
@@ -2451,7 +2451,7 @@ rows:
   confidence: high
   contract_ref: contracts/goproxy.yaml
   golden_ref: 
-  last_difftest: 'L018-2 契约化（contracts/goproxy.yaml 四条目：VERIFIED 2〔GET 五件套/list-latest——T-285 真客户端腿在册〕/ IMPLEMENTED 1〔PUT 厂商扩展——A 侧待差分腿〕/ INTENTIONAL 1〔sumdb 404〕）；差分腿六臂 probe 已备（probes/goproxy/endpoints-probe.sh）——双实例因并行镜像构建占死未跑，窗口后补'
+  last_difftest: 'L019-3 六臂双端两轮（reports/compatibility/L019-goproxy-conan-put.md）：s1 PUT 三件套双端 201 首证 / g1-g6 体面三方字节平价（.info/.mod/.zip≡fixture）/ g5 sumdb 双端 404（A 不服务实锤）——契约四条目升格 VERIFIED 3〔put-upload-triplet 转正+unobserved 收窄为 error 面〕+ INTENTIONAL 1；G1 CT vendor 后缀族断言修订（双形态互认 pattern）+ G3 时间戳列活体双证（台账升置信）。前置 L018-2 契约化（probes/goproxy/endpoints-probe.sh——L018 窗口 docker 全灭未跑，L019-3 复跑版补成）'
   priority_class: P1
   layer: A
   source_row: "§11.1 行 11"
