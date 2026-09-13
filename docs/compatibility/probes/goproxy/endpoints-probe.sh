@@ -60,5 +60,7 @@ done
 # goproxy 差分腿因双实例不可达（docker daemon 被并行镜像构建占死，A/B healthz/ping 均 000）中止：
 #   - A 侧残留仓 l0182-go-local（repo-create 200 后脚本被杀，PUT 未发生——仓为空）——下轮差分腿开跑前先
 #     DELETE http://localhost:8082/artifactory/api/repositories/l0182-go-local 复用同仓（或删后重建）。
-#   - B 侧无残留（repo-create 400 未建仓——go 包型建仓方言待核，probe 脚本复跑前先修 mk() 的 B 臂 body）。
+#   - B 侧无残留（repo-create 400 未建仓）。400 根因已诊（2026-09-13 复查）：license tier community < pro——
+#     packageType 'go' 系 pro 门控面（errors 信封原文明示）。复跑前置=UAT 换 pro 档 license（归
+#     conductor/release-engineer，非脚本可修）；契约 binflow_tested_instance 锚 T-285 窗实例（go 面可用）。
 # 复跑入口：bash docs/compatibility/probes/goproxy/endpoints-probe.sh（六臂；A PUT 挂起根因同 docker 占死）。
