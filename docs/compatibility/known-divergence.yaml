@@ -597,7 +597,7 @@ entries:
     =面扩张票（三动词根姿态 + authz 空路径 + 审计 path="" 跳过放开〔propModifiedTimes 现跳过空 path〕），
     排期维度归产品 → 转 R-16 候裁席位。
   authority: { type: differential, ref: "reports/agents/T-L012-3.md（root 角探针——Changes⑥/Outputs root 段）" }
-  review_gate: R-16 候裁（pending-rulings 席位）→ 裁后排面扩张票（root 三动词+authz 空路径+审计空 path 放开；对齐后 includeRootPath enrich 臂自动可达）
+  review_gate: R-16 席位已入 pending-rulings v2.3 总览表（L016-3）→ 裁后排面扩张票（root 三动词+authz 空路径+审计空 path 放开；对齐后 includeRootPath enrich 臂自动可达）
   evidence: reports/agents/T-L012-3.md（root 角双端取证）
 - id: npm/dist-tags-latest-recompute
   surface: npm local dist-tags DELETE latest 读时语义（L012-1 §3-D2）
@@ -704,7 +704,16 @@ entries:
     客户端不敏感——T-394 注记 1 口径）。对齐方向待裁：B 补 400 臂（gate 豁免后先解 body）vs 维持
     门序 INTENTIONAL（需 authority）。
   authority: { type: pending, ref: "产品/conductor 裁（缺字段臂：400 body 校验先行 vs 维持 401 凭据门序）" }
-  review_gate: LOOP 015 限期升级（裁对齐则 contracts/npm.yaml#npm/session-login-put error_behavior 首臂升 400+文案 literal）
+  review_gate: 已入 pending-rulings v2.3（R-18 席位，真两可不入整包默认位——需点名裁）；裁对齐则 contracts/npm.yaml#npm/session-login-put error_behavior 首臂升 400+文案 literal
+  ruling_material: >-
+    裁定素材（L015-2 补齐，两案对比）：**证据完备性**——DE 文案已活体逐字证实（A 400
+    `User or Password fields are missing.`，L014-4 探针），无需再取证，仅差产品/架构定谳方向。
+    **案甲（对齐 400）**：gate 豁免后先解 body——缺字段即 400+DE 文案 literal；实现面=session login
+    handler body 解析前置（小改）；收益=差分断言逐字同 + 错误语义更精确（400 输入错 vs 401 认证错）；
+    成本=豁免面逻辑前移（匿名缺字段请求到达 body 解析层——无凭据泄露面，仅错误分类变化）。
+    **案乙（维持 401 门序）**：INTENTIONAL——真实客户端恒带双字段（近不可达）、两码客户端同归
+    E401/ENEEDAUTH；需 ADR/用户裁决为 authority；成本=契约 error_behavior 首臂维持 B 姿态注记。
+    呈批建议：随 pending-rulings 批次（可并入 R-10 呈批包或独立席位——PM 定）。
   evidence: docs/compatibility/probes/npm/k60-5-family.sh（L1 臂双端，2026-09-13）+ docs/reverse/npm.md §2.2（DE 行）
 - id: npm/login-idrev-npm-blind
   surface: couch id+rev 直发面（PUT /-/user/.../-rev/<rev>——A 200 vs B 403，npm 不可达）
@@ -720,3 +729,40 @@ entries:
   authority: { type: spec_ruling, ref: "docs/reverse/npm.md §1 K60-6 定案（T-393 规格票——「不做，且设为不变量」）+ LOOP 014 conductor 落账指令" }
   review_gate: resolved-by-design（不实现 rev-dance 帮扶系 K60-6 定案；若未来 npm 客户端形态变化使该面可达则重开）
   evidence: docs/compatibility/probes/npm/k60-5-family.sh（L2 臂双端，2026-09-13）+ docs/reverse/npm.md §2.2/§6
+- id: maven/metadata-xml-shape-three-deviations
+  surface: maven-metadata.xml XML 形态三偏差（modelVersion 属性 / 尾部 version 元素 / snapshot 块子序）
+  classification: UNKNOWN
+  rationale: >-
+    L013-4 18 臂矩阵 A4 臂 + T-L014-2 26 臂复跑维持差异（双端活体，uat-l0134-bebd92b1 /
+    uat-l0142r2-bcf27bfa）：参照 metadata 带 `modelVersion="1.1.0"` 属性 + **尾部 `<version>` 元素**
+    （versioning 之后）；BinFlow 两者皆缺；snapshot 块内 lastUpdated/snapshot 子序不同。
+    **mvn 3.9.16 全容忍新证**（T-L014-2 E1：双端 deploy exit 0/BUILD SUCCESS——MetadataReader 对可选
+    元素缺省容忍；[MVN-MD] schema 两者在册）。对齐方向待裁：补齐三形态（低危渲染对齐票）vs 维持
+    （客户端已容忍——INTENTIONAL 需 authority）。
+  authority: { type: pending, ref: "产品/conductor 裁（XML 形态：补齐对齐 vs 维持容忍缺省）" }
+  review_gate: 已入 pending-rulings v2.3（R-20 席位，L016-3 升格入包——零取证前置）；裁对齐则 maven 计算器渲染面三处补齐+差分复跑
+  evidence: reports/compatibility/L013-maven-evidence.md §0-A4/§1-3 + T-L014-2.md（26 臂表——三 UNKNOWN 之一，Risks⑦-A4 mvn 容忍新证）
+- id: maven/manual-put-metadata-visibility
+  surface: 客户端手 PUT maven-metadata.xml 后的可见性窗口
+  classification: UNKNOWN
+  rationale: >-
+    L013-4 C1 臂 + T-L014-2 复跑维持：参照对客户端直 PUT 的 maven-metadata.xml **逐字回放**（bogus 值
+    可见）直至下次触发事件重算；BinFlow 201 后**同步重算**（手写字节 1s 内不可见）。终态语义双端收敛
+    （真实 mvn 腿 E1 等价）；差异仅非 mvn 手 PUT 路径可见（运维/迁移工具面）。对齐方向待裁：BinFlow
+    改事件驱动重算（保留客户端字节至触发）vs 维持同步重算（INTENTIONAL 需 authority——终态等价论）。
+  authority: { type: pending, ref: "产品/conductor 裁（手 PUT 可见性：事件驱动回放 vs 同步重算）" }
+  review_gate: 已入 pending-rulings v2.3（R-21 席位，L016-3 升格入包——零取证前置）
+  evidence: reports/compatibility/L013-maven-evidence.md §0-C1/§1-4 + T-L014-2.md（26 臂表——三 UNKNOWN 之二）
+- id: maven/reference-race-metadata-loss
+  surface: 并行同版本 unique snapshot 竞态的 metadata 丢失（参照自丢）
+  classification: UNKNOWN
+  rationale: >-
+    L013-4 C3 臂：并行同版本 unique snapshot（相异字节）双端均 201+仅存一文件（同秒同 buildNumber
+    撞名/同名覆盖）；**参照连 snapshot metadata 一并丢失（404 稳态 2min+）——参照侧反常、BinFlow
+    metadata 俱在（完备）**。实现票无需对齐反常。新根因假说（T-L014-2 Risks⑦-C3）：参照版本目录
+    metadata 生成**要求 pom 存在**（jar-only 目录实测参照 metadata 404 vs BinFlow 从任意文件生成
+    574B）——C3「参照自丢」很可能同根（竞态目录仅 jar）。**建议 reverse-engineer 补规格条目
+    （「版本目录 metadata 需 pom」行为规格）后重分类本条**。
+  authority: { type: pending, ref: "reverse-engineer 规格票前置（pom 前置假说定案）→ conductor 重分类" }
+  review_gate: LOOP 017 复核（L016-3 到期复核改期：pom 前置规格票仍缺——reverse-engineer 域在途；规格票产出后重分类：参照反常面登记形态〔INTENTIONAL-by-reference-anomaly 候选〕或条件化口径；不入 v2.3 呈批包）
+  evidence: reports/compatibility/L013-maven-evidence.md §0-C3/§1-5 + T-L014-2.md（26 臂表——三 UNKNOWN 之三，Risks⑦-C3 pom 前置假说）
