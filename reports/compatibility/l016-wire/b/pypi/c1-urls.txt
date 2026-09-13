@@ -1,0 +1,2 @@
+http://localhost:8083/binflow/api/pypi/l016-pypi/packages/hello16/1.0.0/hello16-1.0.0-py3-none-any.whl
+http://localhost:8083/binflow/api/pypi/l016-pypi/packages/hello16/1.0.0/hello16-1.0.0.tar.gz

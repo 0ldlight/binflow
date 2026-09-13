@@ -1,0 +1,9 @@
+HTTP/1.1 302 Found
+Cache-Control: max-age=60
+Content-Length: 0
+Date: Sun, 13 Sep 2026 12:36:18 GMT
+Location: http://localhost:8081/artifactory/api/pypi/l016-pypi/simple/hello16/
+X-Artifactory-Id: f8d6c0001a157348:5410f5e7:1a09abc95b6:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

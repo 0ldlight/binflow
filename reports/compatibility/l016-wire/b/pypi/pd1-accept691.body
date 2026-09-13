@@ -1,0 +1,24 @@
+{
+  "meta": {
+    "api-version": "2.0"
+  },
+  "name": "hello16",
+  "files": [
+    {
+      "filename": "hello16-1.0.0-py3-none-any.whl",
+      "url": "../../packages/hello16/1.0.0/hello16-1.0.0-py3-none-any.whl#sha256=1017bd76f332332f71f39479b0710d35529f5b4d107a7d48d3e20e06a050e1b6",
+      "hashes": {
+        "sha256": "1017bd76f332332f71f39479b0710d35529f5b4d107a7d48d3e20e06a050e1b6"
+      },
+      "size": 848
+    },
+    {
+      "filename": "hello16-1.0.0.tar.gz",
+      "url": "../../packages/hello16/1.0.0/hello16-1.0.0.tar.gz#sha256=558c55183d556360a6930579f52855bfd0927b4950c787effd3a3856b5ed5568",
+      "hashes": {
+        "sha256": "558c55183d556360a6930579f52855bfd0927b4950c787effd3a3856b5ed5568"
+      },
+      "size": 360
+    }
+  ]
+}

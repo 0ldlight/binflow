@@ -1,0 +1,17 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Content-Disposition: attachment; filename="hello16-1.0.0-py3-none-any.whl"
+Content-Length: 848
+Content-Type: application/octet-stream
+Date: Sun, 13 Sep 2026 12:36:21 GMT
+Etag: 664d328aac5e246abd00cbf56a9ca49d263cb296
+Last-Modified: Sun, 13 Sep 2026 12:36:10 GMT
+X-Artifactory-Filename: hello16-1.0.0-py3-none-any.whl
+X-Artifactory-Id: f8d6c0001a157348:5410f5e7:1a09abc95b6:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Artifactory-Origin-Remote-Path: local
+X-Checksum-Md5: 4fc3d1d5d274e64bb3dfb9ced032dd83
+X-Checksum-Sha1: 664d328aac5e246abd00cbf56a9ca49d263cb296
+X-Checksum-Sha256: 1017bd76f332332f71f39479b0710d35529f5b4d107a7d48d3e20e06a050e1b6
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

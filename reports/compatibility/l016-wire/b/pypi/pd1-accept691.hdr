@@ -1,0 +1,8 @@
+HTTP/1.1 200 OK
+Content-Length: 749
+Content-Type: application/vnd.pypi.simple.v1+json; charset=utf-8
+Etag: "b1a43150f8e6eca594b23f1005d56637b5aebab0a1a9beca3606a32c1dc3e32f"
+Vary: Accept
+X-Request-Id: ff435c10b6d38a57e5e607e8d31ce2bf
+Date: Sun, 13 Sep 2026 12:37:20 GMT
+

@@ -1,0 +1,6 @@
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+X-Request-Id: 9c41a8afa5ef752cd26db03bd4e57c9c
+Date: Sun, 13 Sep 2026 12:37:34 GMT
+Content-Length: 243
+

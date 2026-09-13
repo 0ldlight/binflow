@@ -1,0 +1,2 @@
+http://localhost:8082/artifactory/api/pypi/l016-pypi/hello16/1.0.0/hello16-1.0.0-py3-none-any.whl
+http://localhost:8082/artifactory/api/pypi/l016-pypi/hello16/1.0.0/hello16-1.0.0.tar.gz
