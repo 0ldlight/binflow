@@ -9,6 +9,10 @@ loop_016_tracks:
   - { id: L016-1, domain: pypi-protocol, owner: differential-qa-engineer, what: "pypi simple 扩章首票前段：probe 补真实 pip/twine 腿+无效 wheel 三态矩阵+302 形态/legacy API 决策取证 → pypi.yaml 契约首文件（simple 面：锚点属性集/链接模板/索引即时性裁定）" }
   - { id: L016-2, domain: npm-deep, owner: dev-registry-adapter, what: "npm ghost-publish 深水票：守卫语义对齐（tarball 路径冲突 403 vs version 存在性 201）——latest 劫持面收口+契约条目" }
   - { id: L016-3, domain: rulings-gates, owner: compatibility-engineer, what: "三 maven UNKNOWN gate 到期裁定素材复核+login-missing/build.timestamp/R-15a/b 四裁定包呈批整备（pending-rulings v2.3 或分批）" }
+loop_017_tracks:
+  - { id: L017-1, domain: pypi-protocol, owner: dev-registry-adapter, what: "pypi 双 BUG 票：requires-python 三源全丢（表单/sdist 派生/wheel 派生——L016 D1）+ 坏元数据 wheel 入索引污染（L016 D7——对齐参照入库不入索引）；契约 8 DIVERGENT 中 2 BUG 候选臂收口" }
+  - { id: L017-2, domain: maven-spec, owner: reverse-engineer, what: "maven C3 规格票：版本目录 metadata 生成 pom 前置假说规格化（jar-only 目录 404 实证——重分类参照自丢反常面）→ 竞态臂重跑定案" }
+  - { id: L017-3, domain: expansion-assess, owner: compatibility-engineer, what: "扩章第四域评估：docker/storage/npm/pypi 后的下一高价值面（候选：conan/helmoci/debian/rpm 已有规格的厚薄盘点+差分密度估——产排程建议）" }
 iteration_016_seal: "三轨全收（Docker 第三僵死自愈）；pypi 契约 10 条目+npm ghost 收口+呈批包 v2.3（20 席整包）；契约四域 62 条目；commits 8bf07b61/86663cdc/22cbe943"
 iteration_015_seal: "四轨全收（Docker Desktop 两僵死自愈）；likePrefix 潜伏 bug 修（01867f6d）；扩章择优=pypi simple（cbe46a99）；npm publish 主链实证同形；台账 44 条"
 iteration_014_seal: "三轨+返工全收（第七波限额 B 报告+返工树双幸存）；maven 域翻✅（D12-R08——四 blocking 全闭含 F1 活参照定案）；npm SPECIFIED 清零（16 条目 15V+1I）；双审战绩 13/13；matrix ✅74/◐17 Coverage 49.2%；commits bcf27bfa/f2b3eaeb/71a0eb7b"
