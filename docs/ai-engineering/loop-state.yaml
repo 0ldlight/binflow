@@ -13,6 +13,10 @@ loop_017_tracks:
   - { id: L017-1, domain: pypi-protocol, owner: dev-registry-adapter, what: "pypi 双 BUG 票：requires-python 三源全丢（表单/sdist 派生/wheel 派生——L016 D1）+ 坏元数据 wheel 入索引污染（L016 D7——对齐参照入库不入索引）；契约 8 DIVERGENT 中 2 BUG 候选臂收口" }
   - { id: L017-2, domain: maven-spec, owner: reverse-engineer, what: "maven C3 规格票：版本目录 metadata 生成 pom 前置假说规格化（jar-only 目录 404 实证——重分类参照自丢反常面）→ 竞态臂重跑定案" }
   - { id: L017-3, domain: expansion-assess, owner: compatibility-engineer, what: "扩章第四域评估：docker/storage/npm/pypi 后的下一高价值面（候选：conan/helmoci/debian/rpm 已有规格的厚薄盘点+差分密度估——产排程建议）" }
+loop_018_tracks:
+  - { id: L018-1, domain: conan-protocol, owner: differential-qa-engineer, what: "conan 扩章首票前段：v1+v2 双端点族 probe（握手认证/修订链 RREV/绝对 URL/v1 搜索）——真实 conan CLI 1.66+2.31 双版本腿 → conan.yaml 契约蓝本" }
+  - { id: L018-2, domain: goproxy-protocol, owner: compatibility-engineer, what: "goproxy 轻票：23 置信标记规格直转契约（D12-R11 已✅——一票两三条目闭环）+ 差分腿复核" }
+  - { id: L018-3, domain: ledger-reclass, owner: compatibility-engineer, what: "C3 重分类落账（参照自丢→确定性行为——maven-metadata-pom-prerequisite.md 为 authority；BinFlow generate-from-any 立新账）+ R-21 snapshot 目录 202 丢弃分列 + replication engine_protocols 波及注记" }
 iteration_017_seal: "三轨全收（Docker 第四僵死 45min 自愈）；pypi 双 BUG 收口（twine/pip 真实腿逐字）；C3 证成且更强；第五域=conan；commits 9101fb5d/ed302758/89837743"
 iteration_016_seal: "三轨全收（Docker 第三僵死自愈）；pypi 契约 10 条目+npm ghost 收口+呈批包 v2.3（20 席整包）；契约四域 62 条目；commits 8bf07b61/86663cdc/22cbe943"
 iteration_015_seal: "四轨全收（Docker Desktop 两僵死自愈）；likePrefix 潜伏 bug 修（01867f6d）；扩章择优=pypi simple（cbe46a99）；npm publish 主链实证同形；台账 44 条"
