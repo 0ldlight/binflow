@@ -7,8 +7,8 @@ current_goal: "R-15a/b 终裁驱动（P0 清零）+ 三 maven UNKNOWN 登记 + s
 iteration_014_seal: "三轨+返工全收（第七波限额 B 报告+返工树双幸存）；maven 域翻✅（D12-R08——四 blocking 全闭含 F1 活参照定案）；npm SPECIFIED 清零（16 条目 15V+1I）；双审战绩 13/13；matrix ✅74/◐17 Coverage 49.2%；commits bcf27bfa/f2b3eaeb/71a0eb7b"
 loop_015_tracks:
   - { id: L015-1, domain: rulings, owner: conductor→user, what: "R-15a/b 终裁（v2.2 就绪——PM 建议双实现案：propertiesXml 双面对齐+lastModified 官方语义；批复即开实现票清 P0 partial 两行）；login-missing UNKNOWN gate 本轮" }
-  - { id: L015-2, domain: ledger, owner: compatibility-engineer, what: "三 maven UNKNOWN 登记（XML 形态/手 PUT 可见性/参照自丢+C3 pom 前置假说）+ login-missing-fields 裁定素材 + spec build.timestamp 漂移裁决票（epoch-millis 携带形态素材在 probe-log N1 节）" }
-  - { id: L015-3, domain: legacy-fix, owner: dev-go-core, what: "internal/client 存量失败票（T-231/T-233 两用例——worktree 复验系 b4de1ef5 前置即红非回归；定性修复或转票）" }
+  - { id: L015-2, domain: ledger, owner: compatibility-engineer, what: "✅ 四件落地：三 maven UNKNOWN 入账（XML 形态附 mvn 全容忍新证/手 PUT 可见性/参照自丢——C3 带 pom 前置假说标规格票重分类）+login-missing 素材（两案对比）+build.timestamp 独立素材（建议=规格勘误+限定语对冲零成本；R-17 候席位）+matrix 核验账实一致；披露=maven 双 BUG 簇直翻未走台账——conductor 裁量：不回填（26 臂差分即证据链，立账属重复记账）", status: done }
+  - { id: L015-3, domain: legacy-fix, owner: dev-go-core, what: "✅ 双定性收口：5 断言=L009 前导斜杠翻面未同步（翻面）+**真 bug=likePrefix 精确臂返 LIKE 转义文本（T-10 起潜伏，L011-1 ResolveMeta 切换暴露；DeleteByPrefix 同病含 % 前缀漏删）**——seam 一修双受益+9 新测试腿；全树 41 包绿；commit 01867f6d", status: done }
   - { id: L015-4, domain: expansion, owner: differential-qa-engineer, what: "扩章第三票候选取证：npm publish 族（rev-dance 待验证项）或 pypi simple 索引面——评估后择一开工（评估案排程）" }
 loop_014_tracks:
   - { id: L014-4, domain: npm-contract, owner: compatibility-engineer, what: "✅ K60-5 升格 VERIFIED（probe 实跑双端建仓删净）+m21-m24 补格全落+两账（login-missing UNKNOWN gate 015/idrev INTENTIONAL spec_ruling）；npm 契约 **16 条目终态 15V+1I、SPECIFIED 清零**；K60-6 勘误（A 活体 200 非 404）；D12-R03 补链；D02 域陈旧零值键清出复算恢复；LOOP 012 终轮补注双 note（D5 INTENTIONAL/陈旧窗 quirk）", status: done }
