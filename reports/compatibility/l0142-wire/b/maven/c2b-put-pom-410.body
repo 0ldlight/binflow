@@ -1,0 +1,16 @@
+{
+  "uri": "http://localhost:8083/l0142-mvn-d/com/l0142/probe-app/4.1.0/probe-app-4.1.0.pom",
+  "downloadUri": "http://localhost:8083/l0142-mvn-d/com/l0142/probe-app/4.1.0/probe-app-4.1.0.pom",
+  "repo": "l0142-mvn-d",
+  "path": "/com/l0142/probe-app/4.1.0/probe-app-4.1.0.pom",
+  "created": "2026-09-13T03:57:53Z",
+  "createdBy": "admin",
+  "size": "221",
+  "mimeType": "application/xml",
+  "checksums": {
+    "sha1": "4182cd77577827bfbfe1cf7667a68885d98a3fd2",
+    "md5": "79497fb7288ce3542ae0fa2632771c4f",
+    "sha256": "34fdc1e6a6236abed00fc5cf47cd5fe883b8a34258bec0f3cf26a407e87dc5df"
+  },
+  "originalChecksums": {}
+}

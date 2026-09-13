@@ -1,0 +1,35 @@
+== case p1-publish-unscoped-100
+case p1-publish-unscoped-100 exit=0
+== case p2-publish-unscoped-110
+case p2-publish-unscoped-110 exit=0
+== case p3-publish-scoped-100
+case p3-publish-scoped-100 exit=0
+== case p4-publish-scoped-110
+case p4-publish-scoped-110 exit=0
+== case ls1-basic
+case ls1-basic exit=0
+== case add1-beta
+case add1-beta exit=0
+== case add2-idempotent
+case add2-idempotent exit=0
+== case ls2-after-add
+case ls2-after-add exit=0
+== case rm1-beta
+case rm1-beta exit=0
+== case rm2-nonexistent
+case rm2-nonexistent exit=1
+== case ghost-ls
+case ghost-ls exit=1
+== case badver-add
+case badver-add exit=1
+== case scope-ls
+case scope-ls exit=0
+== case scope-add
+case scope-add exit=0
+== case scope-rm
+case scope-rm exit=0
+== notag-prep (direct curl, not tapped)
+prep del latest: 200
+== case notag-ls
+case notag-ls exit=1
+prep put latest: 201

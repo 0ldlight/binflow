@@ -14,15 +14,26 @@ import (
 // Dist-tags: the npm >= 8 family /-/package/<name>/dist-tags[/<tag>] and the
 // legacy PUT /<name>/<tag> spelling (spec endpoint table, high confidence;
 // PRD NE-04 pinned wording: PUT -> 201 {"ok":"created new tag"}, DELETE ->
-// 200 empty, missing -> 404 "npm package not found with name:<n>, and
+// 200 empty, missing tag -> 404 "npm package not found with name:<n>, and
 // tag:<t>").
+//
+// L012-1 wire alignment (reports/compatibility/L012-dist-tags-evidence.md,
+// conductor rulings D2-D7): the collection is READ-ONLY (the reference
+// registry rejects the bulk PUT/POST face with 405 — m13/m14/m15), GET
+// recomputes an absent "latest" at read time (the tag is immortal — D2) and
+// carries Cache-Control: max-age=60 (D7), a PUT naming a missing version
+// answers the version-position 404 wording (D3), a malformed body answers
+// 400 with a neutral message that never leaks the decoder's internals (D5),
+// and a ghost package answers 404 "Not found" (D4).
 
 // distTagsMaxBody bounds the tag payloads (a JSON string or a small map).
 const distTagsMaxBody = 1 << 20
 
-// serveDistTags handles the collection: GET lists, PUT/POST bulk-merge
-// (npm's own dist-tag ls/add flows address the single-tag routes; the bulk
-// shape is the pre-8 registry contract kept for old clients).
+// serveDistTags handles the collection: GET/HEAD lists the tags with the
+// read-time latest recompute; every mutating method is 405 (npm's own
+// dist-tag ls/add/rm flows only ever GET the collection and address the
+// single-tag routes — the bulk shape the pre-8 registry contract allowed is
+// gone from the reference wire, L012-1 m13/m14).
 func (h *Handler) serveDistTags(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	p *Principal, repoKey, name string) {
 	switch r.Method {
@@ -31,46 +42,67 @@ func (h *Handler) serveDistTags(ctx context.Context, w http.ResponseWriter, r *h
 		// branches below read the deployment target's own document.
 		doc, _, _, err := h.loadPackument(ctx, p, repoKey, name)
 		if err != nil {
-			h.writeTagsLookupError(w, err, name)
+			h.writeTagsLookupError(w, err)
 			return
 		}
-		writeJSONBody(w, http.StatusOK, distTagsOf(doc))
-	case http.MethodPut, http.MethodPost:
-		var tags map[string]string
-		dec := json.NewDecoder(io.LimitReader(r.Body, distTagsMaxBody))
-		if err := dec.Decode(&tags); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid dist-tags body: "+err.Error())
-			return
-		}
-		if len(tags) == 0 {
-			writeError(w, http.StatusBadRequest, "dist-tags body must be a non-empty tag map")
-			return
-		}
-		h.setDistTags(ctx, w, p, repoKey, name, tags)
+		crownLatest(doc)
+		tags := distTagsOf(doc)
+		// D7: the reference pins a one-minute client freshness window on the
+		// dist-tags read (npm's own fetchTags caching rides it).
+		w.Header().Set("Cache-Control", "max-age=60")
+		writeJSONBody(w, http.StatusOK, tags)
 	default:
-		w.Header().Set("Allow", "GET, HEAD, PUT, POST")
-		writeError(w, http.StatusMethodNotAllowed, "method "+r.Method+" is not supported on dist-tags")
+		w.Header().Set("Allow", "GET, HEAD")
+		writeError(w, http.StatusMethodNotAllowed, msgMethodNotAllowed)
 	}
 }
 
+// crownLatest recomputes an ABSENT "latest" at read time from the greatest
+// stored version — the D2 recompute, defined ONCE here and shared by every
+// read face: the dist-tags collection above and the packument projection
+// (renderPackument) crown from this same source, so the two faces can never
+// disagree (L013 R-15 evidence n4: after DELETE latest the reference still
+// answers latest=1.1.0 on BOTH GET /-/package/<n>/dist-tags and GET /<name>).
+// Deleting latest can never leave the package tagless; the recompute crowns
+// the greatest version. A PRESENT latest is never overwritten: pointing
+// latest at an older version is a legitimate client rollback the reference
+// registry honors. The STORED document is never touched — callers pass a
+// per-request decode or a render copy, so the crown stays a read-time
+// projection (a second DELETE still answers the tag-not-found 404).
+func crownLatest(doc map[string]any) {
+	if _, ok := mapOf(doc["dist-tags"])["latest"]; ok {
+		return
+	}
+	best := latestVersion(versionsOf(doc))
+	if best == "" {
+		return
+	}
+	tags := mapOf(doc["dist-tags"])
+	if tags == nil {
+		tags = map[string]any{}
+		doc["dist-tags"] = tags
+	}
+	tags["latest"] = best
+}
+
 // serveDistTag handles one tag: PUT body is a JSON string naming the
-// version; DELETE removes.
+// version; DELETE removes; POST is not on the reference wire (m15).
 func (h *Handler) serveDistTag(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	p *Principal, repoKey, name, tag string) {
 	switch r.Method {
-	case http.MethodPut, http.MethodPost:
+	case http.MethodPut:
 		var version string
 		dec := json.NewDecoder(io.LimitReader(r.Body, distTagsMaxBody))
 		if err := dec.Decode(&version); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid dist-tag body: "+err.Error())
+			writeError(w, http.StatusBadRequest, msgInvalidTagBody)
 			return
 		}
 		h.setDistTags(ctx, w, p, repoKey, name, map[string]string{tag: version})
 	case http.MethodDelete:
 		h.deleteDistTag(ctx, w, p, repoKey, name, tag)
 	default:
-		w.Header().Set("Allow", "PUT, POST, DELETE")
-		writeError(w, http.StatusMethodNotAllowed, "method "+r.Method+" is not supported on a dist-tag")
+		w.Header().Set("Allow", "PUT, DELETE")
+		writeError(w, http.StatusMethodNotAllowed, msgMethodNotAllowed)
 	}
 }
 
@@ -81,22 +113,23 @@ func (h *Handler) serveLegacyTagPut(ctx context.Context, w http.ResponseWriter, 
 	var version string
 	dec := json.NewDecoder(io.LimitReader(r.Body, distTagsMaxBody))
 	if err := dec.Decode(&version); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid dist-tag body: "+err.Error())
+		writeError(w, http.StatusBadRequest, msgInvalidTagBody)
 		return
 	}
 	h.setDistTags(ctx, w, p, repoKey, name, map[string]string{tag: version})
 }
 
 // setDistTags validates and merges tags into the packument: every referenced
-// version must exist (404 pinned wording), the caller needs write on the
-// package (the service's Put gate), success answers the pinned 201 body.
+// version must exist (the version-position 404 wording, D3), the caller needs
+// write on the package (the service's Put gate), success answers the pinned
+// 201 body.
 func (h *Handler) setDistTags(ctx context.Context, w http.ResponseWriter, p *Principal,
 	repoKey, name string, tags map[string]string) {
 	h.docMu.Lock()
 	defer h.docMu.Unlock()
 	doc, _, _, err := h.loadPackumentForWrite(ctx, p, repoKey, name)
 	if err != nil {
-		h.writeTagsLookupError(w, err, name)
+		h.writeTagsLookupError(w, err)
 		return
 	}
 	oldDoc := copyDoc(doc)
@@ -107,7 +140,7 @@ func (h *Handler) setDistTags(ctx context.Context, w http.ResponseWriter, p *Pri
 			return
 		}
 		if versions[version] == nil {
-			writeError(w, http.StatusNotFound, fmt.Sprintf(msgTagNotFound, name, tag))
+			writeError(w, http.StatusNotFound, fmt.Sprintf(msgTagVersionNotFound, name, version))
 			return
 		}
 	}
@@ -132,14 +165,15 @@ func (h *Handler) setDistTags(ctx context.Context, w http.ResponseWriter, p *Pri
 }
 
 // deleteDistTag removes one tag; missing package or missing tag is the same
-// pinned 404; success is 200 with an empty body.
+// pinned 404; success is 200 with an empty body. Deleting "latest" succeeds
+// — the read face recomputes it (D2 above).
 func (h *Handler) deleteDistTag(ctx context.Context, w http.ResponseWriter, p *Principal,
 	repoKey, name, tag string) {
 	h.docMu.Lock()
 	defer h.docMu.Unlock()
 	doc, _, _, err := h.loadPackumentForWrite(ctx, p, repoKey, name)
 	if err != nil {
-		h.writeTagsLookupError(w, err, name)
+		h.writeTagsLookupError(w, err)
 		return
 	}
 	oldDoc := copyDoc(doc)
@@ -161,10 +195,10 @@ func (h *Handler) deleteDistTag(ctx context.Context, w http.ResponseWriter, p *P
 }
 
 // writeTagsLookupError renders the dist-tag lookups' failures (missing
-// package = the pinned not-found wording).
-func (h *Handler) writeTagsLookupError(w http.ResponseWriter, err error, name string) {
+// package = the reference's bare "Not found", D4/m05).
+func (h *Handler) writeTagsLookupError(w http.ResponseWriter, err error) {
 	if errors.Is(err, repo.ErrNodeNotFound) {
-		writeError(w, http.StatusNotFound, fmt.Sprintf(msgPackNotFound, name))
+		writeError(w, http.StatusNotFound, msgGhostNotFound)
 		return
 	}
 	h.writeServiceError(w, err)

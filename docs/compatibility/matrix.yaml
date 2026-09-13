@@ -25,6 +25,11 @@
 #   note 预登记翻绿条件（L007-1 residuals 三臂清偿 + 差分复验后随台账 resolved 翻 compatible）；③ known-divergence
 #   新条目 rest/security-read-family-readonly-admin-gate（经典 security 读族门姿 UNKNOWN——L006 Review B
 #   范围外上报收编，authority=pending 产品）。
+# L012-2a（LOOP 012，2026-09-13）npm 契约首文件：D12-R05 落 contract_ref=contracts/npm.yaml（8 条目）+
+#   last_difftest=L012 证据报告 + note「契约化在途」——行态维持 partial（冻结行不改判：6 对齐面待 L012-2b
+#   实现+差分批跑翻绿；行 scope 另含版本 CRUD 子集未契约化）。known-divergence 新增 npm 域 6 条（LOOP 012
+#   conductor 六项裁定 D2-D7 全对齐收落账：5 BUG + D5 400-不复刻-500 为 INTENTIONAL〔conductor_ruling〕）；
+#   normalize.yaml 新增 npm 域（wire_format=normalize_indent + ok_space + 信封措辞组 auth401）。
 
 ---
 schema: 1
@@ -67,14 +72,14 @@ priority_policy:
 summary:
   total_rows: 200
   state_counts:
-    compatible: 71
-    partial: 20
+    compatible: 74
+    partial: 17
     absent: 78
     not_applicable: 19
     superset: 12
   confidence_counts:
-    high: 133
-    medium: 67
+    high: 134
+    medium: 66
     low: 0
   priority_counts:
     P0: 58
@@ -82,12 +87,12 @@ summary:
     P2: 80
   by_state_x_priority:
     compatible:
-      P0: 55
-      P1: 15
+      P0: 56
+      P1: 17
       P2: 1
     partial:
-      P0: 3
-      P1: 12
+      P0: 2
+      P1: 10
       P2: 5
     absent:
       P1: 35
@@ -106,8 +111,7 @@ summary:
       not_applicable: 4
     D02:
       rows: 13
-      partial: 1
-      compatible: 4
+      compatible: 5
       absent: 6
       not_applicable: 1
       superset: 1
@@ -156,8 +160,8 @@ summary:
       not_applicable: 1
     D12:
       rows: 17
-      compatible: 6
-      partial: 3
+      compatible: 8
+      partial: 1
       absent: 7
       not_applicable: 1
     D13:
@@ -693,11 +697,11 @@ rows:
 - row_id: D02-R01
   domain: D02
   capability: GET /api/repositories?type=&packageType=&project=
-  state: partial
+  state: compatible
   confidence: high
   contract_ref: 
   golden_ref: 
-  last_difftest: 
+  last_difftest: reports/compatibility/L013-r15-packument-probes.md §1（R-15c/d 预授权四象限）+ reports/agents/L013-r15c-project-filter.md 五臂复验
   priority_class: P0
   layer: A
   source_row: "§3 行 1"
@@ -2347,12 +2351,15 @@ rows:
   capability: npm 认证族（/-/ping、/-/user/org.couchdb.user:* ×2、/-/v1/login、/-/whoami）
   state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/npm.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L012-dist-tags-diff.md §2/§5（m16 ping / m17 whoami 认证 / m18 whoami 匿名——两轮独立批跑同形）
   priority_class: P1
   layer: A
   source_row: "§11.1 行 3"
+  note: 'L012 收官追记（conductor 终轮③）：K60 群契约化已落——contracts/npm.yaml 载 session-login-put/
+    session-whoami/session-ping/session-web-login-posture/session-login-no409-invariant 五条目（K60-1/2/3/4/6
+    转写，npm.md 规格零补证）；K60-5（/-/npm/v1 家族）停 SPECIFIED 待批跑（LOOP 014 升格腿）。'
 - row_id: D12-R04
   domain: D12
   capability: npm 包面（packument GET/PUT、unpublish ×2）
@@ -2367,14 +2374,19 @@ rows:
 - row_id: D12-R05
   domain: D12
   capability: npm dist-tags 族（/-/package/:pkg/dist-tags GET/PUT + 版本 CRUD 子集，inv-2 计 42 op）
-  state: partial
-  confidence: medium
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  state: compatible
+  confidence: high
+  contract_ref: contracts/npm.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L012-dist-tags-diff.md
   priority_class: P1
   layer: A
   source_row: "§11.1 行 5"
+  note: >-
+    L012-2b 收官（2026-09-13）：六对齐面全落（D2 latest 读时重算/D3-D4 文案/D5 400+中性/D6 bulk 405/D7
+    Cache-Control）→ 差分终版 20 格零未裁定 drift（基线 8 实差）；CLI 15 用例同退出码向量；契约 8/8
+    VERIFIED；台账 npm 域 6 条 resolved。V-7 清偿：npm 10.9.8 全族 100% 显式端点族。残余=packument 面
+    latest 重算未裁定（known-divergence 新账 gate LOOP 013）+版本 CRUD 子集未契约化（下批）。
 - row_id: D12-R06
   domain: D12
   capability: PyPI（simple 索引/包页、packages 直下、upload）
@@ -2400,11 +2412,11 @@ rows:
 - row_id: D12-R08
   domain: D12
   capability: Maven 元数据计算（POST /api/maven/calculateMetadata + generatePom + 索引触发）
-  state: partial
+  state: compatible
   confidence: high
   contract_ref: 
   golden_ref: 
-  last_difftest: 
+  last_difftest: reports/compatibility/L013-maven-evidence.md + reports/agents/T-L014-2.md（26 臂矩阵 23 一致；unique-snapshot 改写+checksum 旁车双 BUG 闭；F1 pom 规则活参照定案）
   priority_class: P1
   layer: A
   source_row: "§11.1 行 8"

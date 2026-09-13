@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 404,
+    "message" : "File not found.; Path: 'l0134-mvn-u:com/l0134/probe-app/3.0.0-SNAPSHOT/maven-metadata.xml'"
+  } ]
+}

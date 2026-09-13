@@ -1,0 +1,10 @@
+HTTP/1.1 200 OK
+Cache-Control: no-store
+Content-Length: 40
+Content-Type: application/x-checksum
+Date: Sun, 13 Sep 2026 03:42:55 GMT
+Last-Modified: Sun, 13 Sep 2026 03:42:55 GMT
+X-Artifactory-Id: 5a0cb54a1ec63abb:-7374891:1a097ede790:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

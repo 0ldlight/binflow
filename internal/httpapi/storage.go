@@ -1015,13 +1015,16 @@ func (s *Server) enrichListEntry(ctx context.Context, entry *listFile, node *met
 // repository from the audit log (props.write / props.delete rows, the only
 // faces that mutate node properties). Two newest-first queries, first sight
 // per path wins; a path present in both actions keeps the newer time
-// (RFC3339 UTC text compares chronologically).
+// (RFC3339 UTC text compares chronologically). Recursive operations write
+// one row per actually-mutated target (L012-3), so every child derives its
+// own write time — the reference's recursive-arm behavior.
 //
 // ponytail: page capped at 1000 events per action — a repository with more
-// property history than that derives stale/absent mtimes for the tail. The
-// proper face is a metadata GROUP BY (path, max(time)) like
-// AuditStore.LastActionTimes; promote when a listing over heavy property
-// history measurably needs it.
+// property history than that derives stale/absent mtimes for the tail, and
+// per-target fan-out rows consume the window faster (one recursive write
+// over N nodes leaves N rows). The proper face is a metadata GROUP BY
+// (path, max(time)) like AuditStore.LastActionTimes; promote when a listing
+// over heavy property history measurably needs it.
 func (s *Server) propModifiedTimes(ctx context.Context, repoKey string) map[string]string {
 	out := map[string]string{}
 	for _, action := range []string{propsAuditWrite, propsAuditDelete} {

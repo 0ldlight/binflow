@@ -1,0 +1,15 @@
+Ticket:       L013 小修票（R-15c/d 落格案乙——GET /api/repositories?project= 空集过滤；loop-state L013-4+5 派发的「project 过滤」双小修票之一）· P0 关联（matrix D02-R01 partial/P0/高置信）
+Role:         dev-go-core（area 实例：internal/httpapi）
+Area:         internal/httpapi（触及 internal/repo 零行——判定见 Changes 第 1 条）
+Input:        reports/compatibility/L013-r15-packument-probes.md §1（r15 五臂实测：参照对未知 project 回 `[]` 过滤、空串双端忽略）；docs/prd/pending-rulings.md §2 R-15c/§2 R-15d 四象限表 + §4-4 预授权式（案乙=非空 project 一律空数组，「BinFlow 无 projects 域 ⇒ truthful answer」）；docs/compatibility/matrix.yaml D02-R01 行（state: partial）
+Changes:      1) 模型判定：metadata.Repo 无 project 字段（RepoKey/Type/PackageType/Description/Config/CreatedAt/UpdatedAt——internal/metadata/api.go:132），全仓无 projects 域（bundle.go:28「no projects domain」明证）→ 按票面第 2 条核查后**不造字段**：案乙裁定（pending-rulings §2 R-15c）明言无项目域下空集语义自洽（truthful empty），「有匹配→过滤集」臂在无域下不可达，属模型缺口非本票硬造面；2) handleRepoList 增 project 过滤分支：TrimSpace 后非空 → 空数组 200（与 c4 非法 type 家族同渲染路径+同 Cache-Control: no-store），空串维持无参语义；3) 新测试文件钉五臂+空白串形态
+Files:        新增 internal/httpapi/repositories_project_filter_test.go；修改 internal/httpapi/repositories.go（handleRepoList +14 行含注释）；删除无
+Tests:        repositories_project_filter_test.go：TestRepositoriesProjectFilter 七臂——c0 基线/c1 未知 project→[]/c2 空串=全量/c3 组合臂→[]/c4 非法 type 对照→[]/空白串=全量（TrimSpace 家族姿态）/c1 字节级 `[]` 非 null；每臂断言 200+Cache-Control: no-store
+Commands:     go build ./... && go vet ./... && gofmt -l internal/httpapi internal/repo（空）&& ~/go/bin/golangci-lint run ./internal/httpapi/... ./internal/repo/...（golangci-lint 不在 PATH，用 ~/go/bin）&& go test ./internal/httpapi/... ./internal/repo/... -count=1 && go test ./internal/httpapi/ -run TestRepositoriesProjectFilter -count=1 -v
+Outputs:      四门：build/vet/gofmt 全过；lint「0 issues.」；测试 ok internal/httpapi 231.153s / ok internal/repo 96.590s；新测试 7/7 PASS（c0/c1/c2/c3/c4/whitespace/literal-empty-array）
+Compatibility: 差分复验（五臂双端重放，BinFlow=工作树实例 :8084〔go build ./cmd/binflow-server，L003-3 §2 工作树实例先例；docker VM 曾 wedge 修复后 8083 为并行轨共享容器 binflow-ga 不动〕，参照=artifactory 容器 :8082 7.161）：c0 双端全量（ref 2 仓 356B / bf 1 仓 180B——实例库存差异，预期）；**c1 双端空集（ref `[ ]` 3B / bf `[]` 2B）——BinFlow 自「忽略回全量」移入「过滤回空集」，静默超集格退出**；c2 双端全量（空串忽略）；c3 双端空集；c4 对照双端空集。残留形态差两条（Content-Type vendor 型 vs application/json；空集渲染 `[ ]` vs `[]`）经 c0/c2/c4 三臂核对为**臂无关的既有家族形态**，非本票引入（原探针同条件判 c4 SAME）。**D02-R01 翻 ✅ 建议：project 轴已落推荐格（参照过滤 × BinFlow 空集=小实现翻 ✅），建议 conductor 翻行并补 last_difftest 记录**（wire 留 /tmp/l013-r15-wire/{a,b}/——临时目录，台账收编时以本日志表格为准）
+Security:     无新增输入面（既有只读端点的新查询参数）；project 值仅做 TrimSpace+非空判定，不进任何存储/日志/拼接；未 commit、未写 BOARD、未动 docs/
+Performance:  无测量面——分支为 O(1) 短路（省一次全量列表读，严格快于原路径）
+Risks:        ①空白串=无参（TrimSpace）是家族姿态外推，探针未测 `%20%20` 臂——已在测试钉死为 BinFlow 姿态，若参照实测分叉属新臂待探针；②「有匹配→过滤集」臂依赖未来 projects 域模型（见 Next）；③`[ ]` vs `[]` 与 Content-Type 家族形态差若日后裁定对齐，属 D02-R01 行内另一轴，不混入本票
+Blockers:     无（环境事故已自愈：docker VM wedge→重启 Docker Desktop+postgres 容器恢复参照；BinFlow 侧走工作树实例绕开）
+Next:         ①conductor：matrix D02-R01 翻 ✅（partial→compatible）+ last_difftest 记录；②未来 projects 域立项时补「有匹配→过滤集」臂（repo 模型加 project 归属字段——届时把 handleRepoList 短路分支换成真过滤）；③Content-Type/空集渲染两家族形态差若要收口，开独立形态票（影响整个 repositories 列表族）

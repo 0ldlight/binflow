@@ -1,0 +1,21 @@
+{
+  "uri": "http://localhost:8083/l0142-mvn-d/com/l0142/probe-app/maven-metadata.xml",
+  "downloadUri": "http://localhost:8083/l0142-mvn-d/com/l0142/probe-app/maven-metadata.xml",
+  "repo": "l0142-mvn-d",
+  "path": "/com/l0142/probe-app/maven-metadata.xml",
+  "created": "2026-09-13T03:50:57Z",
+  "createdBy": "admin",
+  "lastModified": "2026-09-13T03:52:28Z",
+  "modifiedBy": "admin",
+  "lastUpdated": "2026-09-13T03:52:28Z",
+  "size": "328",
+  "mimeType": "application/xml",
+  "checksums": {
+    "sha1": "589a9693562b513b1af4a4c54213f040bd5bb553",
+    "md5": "2eb18d948d9f5811026735b8071ec11b",
+    "sha256": "c51e21e58134c98e0c8ed9ca5ff9308aa1a5a7393a6b3784b24b51a7bfc336ac"
+  },
+  "originalChecksums": {
+    "sha256": "c51e21e58134c98e0c8ed9ca5ff9308aa1a5a7393a6b3784b24b51a7bfc336ac"
+  }
+}

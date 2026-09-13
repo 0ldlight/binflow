@@ -1,0 +1,26 @@
+{
+  "repo" : "l0134-mvn-u",
+  "path" : "/com/l0134/probe-cli/1.0.0-SNAPSHOT",
+  "created" : "2026-09-12T22:31:37.564Z",
+  "createdBy" : "admin",
+  "lastModified" : "2026-09-12T22:31:37.564Z",
+  "modifiedBy" : "admin",
+  "lastUpdated" : "2026-09-12T22:31:37.564Z",
+  "children" : [ {
+    "uri" : "/maven-metadata.xml",
+    "folder" : false
+  }, {
+    "uri" : "/probe-cli-1.0.0-20260912.223050-1.jar",
+    "folder" : false
+  }, {
+    "uri" : "/probe-cli-1.0.0-20260912.223050-1.pom",
+    "folder" : false
+  }, {
+    "uri" : "/probe-cli-1.0.0-20260912.223528-2.jar",
+    "folder" : false
+  }, {
+    "uri" : "/probe-cli-1.0.0-20260912.223528-2.pom",
+    "folder" : false
+  } ],
+  "uri" : "http://localhost:8082/artifactory/api/storage/l0134-mvn-u/com/l0134/probe-cli/1.0.0-SNAPSHOT"
+}

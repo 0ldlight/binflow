@@ -1,0 +1,7 @@
+[ {
+  "key" : "example-repo-local",
+  "description" : "Example artifactory repository",
+  "type" : "LOCAL",
+  "url" : "http://localhost:8082/artifactory/example-repo-local",
+  "packageType" : "Generic"
+} ]

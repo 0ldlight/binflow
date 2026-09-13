@@ -1,0 +1,46 @@
+{
+  "_id" : "l0134-probe-pkg",
+  "_rev" : "1-0",
+  "name" : "l0134-probe-pkg",
+  "description" : "l0134 packument probe",
+  "dist-tags" : {
+    "l0134base" : "1.0.0",
+    "latest" : "1.1.0"
+  },
+  "versions" : {
+    "1.0.0" : {
+      "name" : "l0134-probe-pkg",
+      "description" : "l0134 packument probe",
+      "version" : "1.0.0",
+      "scripts" : { },
+      "lastModified" : 1789252647021,
+      "_id" : "l0134-probe-pkg@1.0.0",
+      "dist" : {
+        "tarball" : "http://localhost:8082/artifactory/api/npm/l0134-npm/l0134-probe-pkg/-/l0134-probe-pkg-1.0.0.tgz",
+        "shasum" : "3b3a92b1b2ed074a0b866053f13f4d75843c6b3e",
+        "integrity" : "sha512-B181ARl3QvWUEzdTfE16RbRiQ6uX7HFgRVE1RW2Kr47cDUPhXYpnMyc7LiomveDn8V99/d6ztZ7BXwpX4b4j4g=="
+      }
+    },
+    "1.1.0" : {
+      "name" : "l0134-probe-pkg",
+      "description" : "l0134 packument probe",
+      "version" : "1.1.0",
+      "scripts" : { },
+      "lastModified" : 1789252581489,
+      "_id" : "l0134-probe-pkg@1.1.0",
+      "dist" : {
+        "tarball" : "http://localhost:8082/artifactory/api/npm/l0134-npm/l0134-probe-pkg/-/l0134-probe-pkg-1.1.0.tgz",
+        "shasum" : "a34fd2b9b466c5bca1e1932eae85b03861c0454a",
+        "integrity" : "sha512-bVWXltjfG5UALpDv0y+ABLx6V1T8MzM0Bi9p32c+2UzcwYGFNefaiGltK2+jtLAD66pDvdFKX5HB0rx3wqL4Hw=="
+      }
+    }
+  },
+  "time" : {
+    "unpublished" : null,
+    "created" : "2026-09-12T22:36:21.489Z",
+    "modified" : "2026-09-12T22:37:27.021Z",
+    "1.0.0" : "2026-09-12T22:37:27.021Z",
+    "1.1.0" : "2026-09-12T22:36:21.489Z"
+  },
+  "users" : { }
+}

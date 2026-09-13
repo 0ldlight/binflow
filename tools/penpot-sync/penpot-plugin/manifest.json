@@ -1,0 +1,7 @@
+{
+  "name": "BinFlow Parity Sync",
+  "description": "Injects the BinFlow/Artifactory parity capture spec (pages, artboards, screenshot bitmaps, annotation zones) into the current Penpot file.",
+  "code": "code.js",
+  "version": 2,
+  "permissions": ["content:read", "content:write"]
+}

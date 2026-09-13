@@ -500,8 +500,26 @@ func writePlainError(w http.ResponseWriter, status int, message string) {
 // M3 (M04, FR-15-AC5) turns the ?type= and ?packageType= filters on: exact
 // column matches through ListReposFiltered, invalid values matching nothing
 // with an empty array rather than an error (rest-api.md section 2).
+// L013 (R-15c/d, matrix D02-R01) adds the ?project= axis as a filter, not a
+// tolerated-and-ignored parameter: the live reference answers the empty set
+// for an unknown project even with the Projects addon inactive (probe arms
+// c1/c3, reports/compatibility/L013-r15-packument-probes.md §1) — the
+// ?type=<invalid> family posture on the project axis (c4). BinFlow has no
+// projects domain, so no repository can carry a project affiliation and
+// "the repositories of project v" is truthfully empty for every v
+// (pending-rulings §2 R-15c 案乙) — the [] answer, never the full list a
+// project-scoped cleanup script would misread as the silent superset. The
+// empty string keeps no-parameter semantics (arm c2: both sides ignore
+// it). The match arm (a project's own repositories) waits on a projects
+// domain in the repo model — the L013 model gap, not a field fabricated
+// here.
 func (s *Server) handleRepoList(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	if strings.TrimSpace(q.Get("project")) != "" {
+		w.Header().Set("Cache-Control", "no-store") // the same wire headers as the full path
+		writeJSONBody(w, http.StatusOK, []repoListItem{})
+		return
+	}
 	repos, err := s.deps.ReposSvc.ListReposFiltered(r.Context(), principalFrom(r.Context()),
 		strings.TrimSpace(q.Get("type")), strings.TrimSpace(q.Get("packageType")))
 	if err != nil {

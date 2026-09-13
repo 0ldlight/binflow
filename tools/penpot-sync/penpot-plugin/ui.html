@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  body { font-family: system-ui, sans-serif; margin: 14px; font-size: 13px; color: #333; }
+  label { display: block; margin-bottom: 4px; font-weight: 600; }
+  input { width: 100%; box-sizing: border-box; padding: 6px 8px; margin-bottom: 10px; border: 1px solid #c9d0e3; border-radius: 4px; }
+  button { padding: 8px 16px; border: 0; border-radius: 4px; background: #556274; color: #fff; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: wait; }
+  #status { margin-top: 10px; white-space: pre-wrap; max-height: 160px; overflow-y: auto; font-size: 12px; }
+  .err { color: #e93838; } .ok { color: #2e7d32; }
+</style>
+</head>
+<body>
+  <label for="spec-url">Spec URL (penpot-spec.json)</label>
+  <input id="spec-url" value="http://localhost:8899/penpot-spec.json" />
+  <button id="go">Generate</button>
+  <div id="status">idle</div>
+<script>
+  const status = document.getElementById('status');
+  const go = document.getElementById('go');
+  go.addEventListener('click', () => {
+    go.disabled = true;
+    status.textContent = 'starting…';
+    parent.postMessage({ type: 'generate', url: document.getElementById('spec-url').value.trim() }, '*');
+  });
+  window.addEventListener('message', (ev) => {
+    const m = ev.data;
+    if (!m || typeof m !== 'object') return;
+    if (m.type === 'log') status.textContent = m.text;
+    if (m.type === 'done') {
+      go.disabled = false;
+      status.className = m.ok ? 'ok' : 'err';
+      status.textContent = m.ok
+        ? `DONE pages=${m.pages} boards=${m.boards} images=${m.images} in ${m.seconds}s`
+        : `ERROR (after ${m.pages || '?'}p): ${m.error || m.errorSample}`;
+      status.dataset.final = m.ok ? 'done' : 'error';
+    }
+  });
+</script>
+</body>
+</html>

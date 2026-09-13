@@ -1,0 +1,14 @@
+{
+  "repo" : "l0142-mvn-u",
+  "path" : "/com/l0142/probe-app/3.0.0-SNAPSHOT",
+  "created" : "2026-09-13T03:44:29.683Z",
+  "createdBy" : "admin",
+  "lastModified" : "2026-09-13T03:44:29.683Z",
+  "modifiedBy" : "admin",
+  "lastUpdated" : "2026-09-13T03:44:29.683Z",
+  "children" : [ {
+    "uri" : "/probe-app-3.0.0-20260913.034429-1.jar",
+    "folder" : false
+  } ],
+  "uri" : "http://localhost:8082/artifactory/api/storage/l0142-mvn-u/com/l0142/probe-app/3.0.0-SNAPSHOT"
+}

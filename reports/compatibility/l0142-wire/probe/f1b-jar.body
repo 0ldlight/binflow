@@ -1,0 +1,18 @@
+{
+  "repo" : "l014p2-mvn-u",
+  "path" : "/com/l014p/probe-app/8.0.0-SNAPSHOT/probe-app-8.0.0-20260913.025223-2.jar",
+  "created" : "2026-09-13T02:52:23.743Z",
+  "createdBy" : "admin",
+  "downloadUri" : "http://localhost:8082/artifactory/l014p2-mvn-u/com/l014p/probe-app/8.0.0-SNAPSHOT/probe-app-8.0.0-20260913.025223-2.jar",
+  "mimeType" : "application/java-archive",
+  "size" : "6",
+  "checksums" : {
+    "sha1" : "c9f08dc8fcaf278e6b57c9f8c08575b70305ae62",
+    "md5" : "251496fb58fc136fee080051d70ba748",
+    "sha256" : "b40f42b8858696ab335794e7d499e5afa029f3c27563f22a4e67f2b84b651aa2"
+  },
+  "originalChecksums" : {
+    "sha256" : "b40f42b8858696ab335794e7d499e5afa029f3c27563f22a4e67f2b84b651aa2"
+  },
+  "uri" : "http://localhost:8082/artifactory/l014p2-mvn-u/com/l014p/probe-app/8.0.0-SNAPSHOT/probe-app-8.0.0-20260913.025223-2.jar"
+}

@@ -1,0 +1,73 @@
+{
+  "_id" : "l0132-pkdoc-pkg",
+  "_rev" : "1-0",
+  "name" : "l0132-pkdoc-pkg",
+  "description" : "l0132 packument latest probe",
+  "dist-tags" : {
+    "latest" : "2.0.0"
+  },
+  "versions" : {
+    "2.0.0" : {
+      "name" : "l0132-pkdoc-pkg",
+      "description" : "l0132 packument latest probe",
+      "version" : "2.0.0",
+      "scripts" : { },
+      "lastModified" : 1789255437349,
+      "_id" : "l0132-pkdoc-pkg@2.0.0",
+      "dist" : {
+        "tarball" : "http://localhost:8082/artifactory/api/npm/l0132-npm/l0132-pkdoc-pkg/-/l0132-pkdoc-pkg-2.0.0.tgz",
+        "shasum" : "b96f76fa634bfb42d1f18c7011b374d7a5dd66c2",
+        "integrity" : "sha512-KbJe+wOjkC47/9ZPt9Ghx40HBYGOyFZ/OlihYX20qCSQwMlPkH+glnV6eNsbT/ubuivt45c3PcC8ehRipyg8mA=="
+      }
+    },
+    "1.0.0" : {
+      "name" : "l0132-pkdoc-pkg",
+      "description" : "l0132 packument latest probe",
+      "version" : "1.0.0",
+      "scripts" : { },
+      "lastModified" : 1789255434687,
+      "_id" : "l0132-pkdoc-pkg@1.0.0",
+      "dist" : {
+        "tarball" : "http://localhost:8082/artifactory/api/npm/l0132-npm/l0132-pkdoc-pkg/-/l0132-pkdoc-pkg-1.0.0.tgz",
+        "shasum" : "3e9cd28cadd77b97bed6bb641c968942edfd8abe",
+        "integrity" : "sha512-bsovbxgIhxQE+VlGyXm594gsoIF6yHobOouL39AFypInDcFvY5eHkqzTVrq6MO2Jj9sQ46hpG/TOLa32kE4nGg=="
+      }
+    },
+    "1.1.0" : {
+      "name" : "l0132-pkdoc-pkg",
+      "description" : "l0132 packument latest probe",
+      "version" : "1.1.0",
+      "scripts" : { },
+      "lastModified" : 1789255435834,
+      "_id" : "l0132-pkdoc-pkg@1.1.0",
+      "dist" : {
+        "tarball" : "http://localhost:8082/artifactory/api/npm/l0132-npm/l0132-pkdoc-pkg/-/l0132-pkdoc-pkg-1.1.0.tgz",
+        "shasum" : "70d7717c8e4bf3303232f7c09ddd178cd5686e55",
+        "integrity" : "sha512-AbLL8pqtANjFrHopuLcK6abZt0tfFizQ5ecWJ9k0SZ0/hYwg45Lhenm+QRbA5RuqyGTI/vImxkIUgLugQ+OsbQ=="
+      }
+    },
+    "1.0.2" : {
+      "name" : "l0132-pkdoc-pkg",
+      "description" : "l0132 packument latest probe",
+      "version" : "1.0.2",
+      "scripts" : { },
+      "lastModified" : 1789255438417,
+      "_id" : "l0132-pkdoc-pkg@1.0.2",
+      "dist" : {
+        "tarball" : "http://localhost:8082/artifactory/api/npm/l0132-npm/l0132-pkdoc-pkg/-/l0132-pkdoc-pkg-1.0.2.tgz",
+        "shasum" : "9185ba3756688eacf401c732c19a7089c8f618cf",
+        "integrity" : "sha512-35Ws7wWHnojKRl2Gz7ziQwOLzjg7sydczcgtbM6AHEu85R5tw73OYeDytdlZ0QEju7NwCDX+liRHZvfeaNAk3A=="
+      }
+    }
+  },
+  "time" : {
+    "unpublished" : null,
+    "2.0.0" : "2026-09-12T23:23:57.349Z",
+    "created" : "2026-09-12T23:23:54.687Z",
+    "modified" : "2026-09-12T23:23:58.417Z",
+    "1.0.0" : "2026-09-12T23:23:54.687Z",
+    "1.1.0" : "2026-09-12T23:23:55.834Z",
+    "1.0.2" : "2026-09-12T23:23:58.417Z"
+  },
+  "users" : { }
+}

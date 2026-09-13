@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>com.l0134</groupId>
+  <artifactId>probe-app</artifactId>
+  <version>3.0.0-SNAPSHOT</version>
+  <versioning>
+    <snapshot>
+      <buildNumber>1</buildNumber>
+    </snapshot>
+    <lastUpdated>20260912222058</lastUpdated>
+    <snapshotVersions>
+      <snapshotVersion>
+        <extension>jar</extension>
+        <value>3.0.0-SNAPSHOT</value>
+        <updated>20260912222058</updated>
+      </snapshotVersion>
+    </snapshotVersions>
+  </versioning>
+</metadata>

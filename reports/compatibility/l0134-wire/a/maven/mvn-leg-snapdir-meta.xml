@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata modelVersion="1.1.0">
+  <groupId>com.l0134</groupId>
+  <artifactId>probe-cli</artifactId>
+  <versioning>
+    <lastUpdated>20260912223530</lastUpdated>
+    <snapshot>
+      <timestamp>20260912.223528</timestamp>
+      <buildNumber>2</buildNumber>
+    </snapshot>
+    <snapshotVersions>
+      <snapshotVersion>
+        <extension>jar</extension>
+        <value>1.0.0-20260912.223528-2</value>
+        <updated>20260912223528</updated>
+      </snapshotVersion>
+      <snapshotVersion>
+        <extension>pom</extension>
+        <value>1.0.0-20260912.223528-2</value>
+        <updated>20260912223528</updated>
+      </snapshotVersion>
+    </snapshotVersions>
+  </versioning>
+  <version>1.0.0-SNAPSHOT</version>
+</metadata>

@@ -1,0 +1,10 @@
+HTTP/1.1 201 Created
+Content-Type: application/vnd.org.jfrog.artifactory.storage.ItemCreated+json;charset=UTF-8
+Date: Sun, 13 Sep 2026 03:43:58 GMT
+Location: http://localhost:8082/artifactory/l0142-mvn-d/com/l0142/probe-app/maven-metadata.xml
+X-Artifactory-Id: 5a0cb54a1ec63abb:-7374891:1a097ede790:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Checksum-Sha256: c51e21e58134c98e0c8ed9ca5ff9308aa1a5a7393a6b3784b24b51a7bfc336ac
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+Transfer-Encoding: chunked
+

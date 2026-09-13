@@ -119,21 +119,46 @@ func TestDistTagsLegacyPut(t *testing.T) {
 	}
 }
 
-// TestDistTagsBulkPut: the collection PUT merges a whole tag map (the old
-// registry contract some tooling still uses).
-func TestDistTagsBulkPut(t *testing.T) {
+// TestDistTagsBulkFacesRejected: the collection PUT/POST bulk face and the
+// single-tag POST are 405 on the reference wire (L012-1 m13-m15) — the bulk
+// shape the pre-8 registry contract allowed is deliberately NOT carried, and
+// no tag may leak into the document through a rejected face.
+func TestDistTagsBulkFacesRejected(t *testing.T) {
 	s := newStack(t)
 	seedPackage(t, s, "demo-pkg", "1.0.0", "1.1.0")
 
-	body := `{"latest":"1.1.0","canary":"1.0.0"}`
-	rr := s.call(http.MethodPut, "/npm-local/-/package/demo-pkg/dist-tags", body, adminPrincipal, nil)
-	if rr.Code != http.StatusCreated {
-		t.Fatalf("bulk status = %d; body=%s", rr.Code, bodyOf(rr))
+	cases := []struct {
+		name   string
+		method string
+		target string
+		body   string
+		allow  string
+	}{
+		{"put collection", http.MethodPut, "/npm-local/-/package/demo-pkg/dist-tags",
+			`{"latest":"1.1.0","canary":"1.0.0"}`, "GET, HEAD"},
+		{"post collection", http.MethodPost, "/npm-local/-/package/demo-pkg/dist-tags",
+			`{"posttag":"1.0.0"}`, "GET, HEAD"},
+		{"post single tag", http.MethodPost, "/npm-local/-/package/demo-pkg/dist-tags/posttag",
+			`"1.0.0"`, "PUT, DELETE"},
 	}
-	rr = s.call(http.MethodGet, "/npm-local/-/package/demo-pkg/dist-tags", "", adminPrincipal, nil)
-	for _, want := range []string{`"latest":"1.1.0"`, `"canary":"1.0.0"`} {
-		if !strings.Contains(bodyOf(rr), want) {
-			t.Fatalf("bulk result %s missing %s", bodyOf(rr), want)
+	for _, tc := range cases {
+		rr := s.call(tc.method, tc.target, tc.body, adminPrincipal, nil)
+		if rr.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("%s: status = %d; body=%s", tc.name, rr.Code, bodyOf(rr))
+		}
+		if got := rr.Header().Get("Allow"); got != tc.allow {
+			t.Fatalf("%s: Allow = %q, want %q", tc.name, got, tc.allow)
+		}
+		if !strings.Contains(bodyOf(rr), `"message": "Method Not Allowed"`) {
+			t.Fatalf("%s: body = %s, want the pinned 405 wording", tc.name, bodyOf(rr))
+		}
+	}
+
+	// Nothing was created through the rejected faces.
+	rr := s.call(http.MethodGet, "/npm-local/-/package/demo-pkg/dist-tags", "", adminPrincipal, nil)
+	for _, leaked := range []string{"canary", "posttag"} {
+		if strings.Contains(bodyOf(rr), leaked) {
+			t.Fatalf("tag %q leaked through a rejected bulk face: %s", leaked, bodyOf(rr))
 		}
 	}
 }

@@ -393,13 +393,15 @@ func TestCalcSyncTriggerTiming(t *testing.T) {
 		t.Fatalf("jar entry missing after sync recalc: %s", body)
 	}
 
-	// non-unique pom: the synchronous row for deployer/non-unique repos.
+	// non-unique pom: the synchronous row for deployer/non-unique repos
+	// (the DEFAULT repository is unique-behavior since L014-2, so this row
+	// needs the repository that spells the behavior).
 	if resp := hs.serve(http.MethodPut,
-		"/maven-local/com/acme/x-app/2.0-SNAPSHOT/x-app-2.0-SNAPSHOT.pom",
+		"/maven-nonunique/com/acme/x-app/2.0-SNAPSHOT/x-app-2.0-SNAPSHOT.pom",
 		[]byte("<project/>"), nil, true); resp.StatusCode != http.StatusCreated {
 		t.Fatalf("non-unique pom PUT = %d", resp.StatusCode)
 	}
-	if status, body := hs.getMeta("maven-local", "com.acme", "x-app", "2.0-SNAPSHOT"); status != http.StatusOK ||
+	if status, body := hs.getMeta("maven-nonunique", "com.acme", "x-app", "2.0-SNAPSHOT"); status != http.StatusOK ||
 		!strings.Contains(body, "<buildNumber>1</buildNumber>") || strings.Contains(body, "<timestamp>") {
 		t.Fatalf("non-unique snapshot document wrong (status %d, %s)", status, body)
 	}

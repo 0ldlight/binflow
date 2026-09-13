@@ -1,0 +1,18 @@
+{
+  "uri": "http://localhost:8083/binflow/api/storage/l0142-mvn-cc/com/l0142/probe-app/1.0.0/",
+  "downloadUri": "",
+  "repo": "l0142-mvn-cc",
+  "path": "/com/l0142/probe-app/1.0.0/",
+  "created": "2026-09-13T04:03:47.000Z",
+  "createdBy": "admin",
+  "lastModified": "2026-09-13T04:03:47.000Z",
+  "modifiedBy": "admin",
+  "lastUpdated": "2026-09-13T04:03:47.000Z",
+  "size": "0",
+  "children": [
+    {
+      "uri": "/probe-app-1.0.0.jar",
+      "folder": false
+    }
+  ]
+}

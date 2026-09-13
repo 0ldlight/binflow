@@ -1,0 +1,1 @@
+MCP verification at 2026-09-12T19:46:52Z: workspace file-id=2109e8e8-d5ea-811c-8008-a10cd4b6d37d pages list confirmed via a11y: [Page 1, Design Tokens, Navigation, Artifacts & Release, Repos, Identity & Access, Security Config, ...] (73 boards / 70 images, injection DONE in 52s)

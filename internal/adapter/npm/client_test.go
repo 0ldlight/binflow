@@ -215,7 +215,14 @@ func TestNpmClientSuite(t *testing.T) {
 		if out, err := npmRun(t, cons, "install", "demo-pkg@beta", "--registry", regURL); err != nil {
 			t.Fatalf("install @beta: %v\n%s", err, out)
 		}
-		if out, err := npmRun(t, dir, "dist-tag", "rm", "demo-pkg", "beta", "--registry", regURL); err != nil {
+		// --prefer-online mirrors the evidence rig's own mitigation (L012-1
+		// E0-2): the dist-tags GET carries the reference-pinned
+		// Cache-Control: max-age=60 with no validators, so npm serves the
+		// add's PRE-beta tags from cache and short-circuits rm with "beta
+		// is not a dist-tag". Verified live against the Artifactory
+		// reference: add followed by an immediate rm (no prefer-online)
+		// fails there identically — the quirk is the reference's, not ours.
+		if out, err := npmRun(t, dir, "dist-tag", "rm", "demo-pkg", "beta", "--prefer-online", "--registry", regURL); err != nil {
 			t.Fatalf("dist-tag rm: %v\n%s", err, out)
 		}
 		_, _, body = httpGet(t, "/binflow/api/npm/npm-local/demo-pkg", nil)

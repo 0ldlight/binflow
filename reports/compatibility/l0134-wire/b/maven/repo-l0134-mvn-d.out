@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 400,
+      "message": "error when validating repository name: l0134-mvn-d : Repository key already exists"
+    }
+  ]
+}
