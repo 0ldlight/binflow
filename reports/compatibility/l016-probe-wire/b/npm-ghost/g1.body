@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 403,
+      "message": "Cannot modify pre-existing version '9.9.9', aborting upload for: 'l016-gh1-pkg'"
+    }
+  ]
+}

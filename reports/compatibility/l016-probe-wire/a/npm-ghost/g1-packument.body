@@ -1,0 +1,31 @@
+{
+  "_id" : "l016-gh1-pkg",
+  "_rev" : "1-0",
+  "name" : "l016-gh1-pkg",
+  "description" : "l016 ghost guard probe",
+  "dist-tags" : {
+    "latest" : "1.0.0"
+  },
+  "versions" : {
+    "1.0.0" : {
+      "name" : "l016-gh1-pkg",
+      "description" : "l016 ghost guard probe",
+      "version" : "1.0.0",
+      "scripts" : { },
+      "lastModified" : 1789302587298,
+      "_id" : "l016-gh1-pkg@1.0.0",
+      "dist" : {
+        "tarball" : "http://localhost:8082/artifactory/api/npm/l016-ghost-npm/l016-gh1-pkg/-/l016-gh1-pkg-1.0.0.tgz",
+        "shasum" : "6a684e9dea29cb78d8720597d5d83b3f0a7cec35",
+        "integrity" : "sha512-wnO1qE8e9TFq7KASB69JRF7aWapQn4dVbbwZJzSftIHxGKR5Wm8kRdEFXN9GeG+QR9kwSauwvnMSno5Z4JVoAA=="
+      }
+    }
+  },
+  "time" : {
+    "unpublished" : null,
+    "created" : "2026-09-13T12:29:47.298Z",
+    "modified" : "2026-09-13T12:29:47.298Z",
+    "1.0.0" : "2026-09-13T12:29:47.298Z"
+  },
+  "users" : { }
+}

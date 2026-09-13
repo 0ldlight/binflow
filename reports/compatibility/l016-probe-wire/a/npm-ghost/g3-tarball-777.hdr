@@ -1,0 +1,17 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Content-Disposition: attachment; filename="l016-gh3-pkg-7.7.7.tgz"
+Content-Length: 29
+Content-Type: application/x-gzip
+Date: Sun, 13 Sep 2026 12:30:05 GMT
+Etag: d885bbbd100dbbed39db7669c27e8e850fbfebb8
+Last-Modified: Sun, 13 Sep 2026 12:30:03 GMT
+X-Artifactory-Filename: l016-gh3-pkg-7.7.7.tgz
+X-Artifactory-Id: f8d6c0001a157348:5410f5e7:1a09abc95b6:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Artifactory-Origin-Remote-Path: local
+X-Checksum-Md5: e6cc77150252516fa0c2cae02a105b32
+X-Checksum-Sha1: d885bbbd100dbbed39db7669c27e8e850fbfebb8
+X-Checksum-Sha256: 335dd98f7448eb8fca604ad9130610eb801cd5f414db7480c59cd3b2a224751e
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+
