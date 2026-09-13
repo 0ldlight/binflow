@@ -646,7 +646,8 @@ entries:
   authority: { type: conductor_ruling, ref: 'LOOP 012 L012-2a 派发（「坏 body 400——契约按 400+文案立」，不复刻参照 500）；BOARD.md sprint tick 2026-09-13' }
   review_gate: LOOP 012 L012-2b（message 中性化过 contracts/npm.yaml#npm/dist-tags-put-bad-body path_pattern 门 + 差分复验）
   evidence: reports/compatibility/L012-dist-tags-evidence.md §3-D5 + l0121-wire/curl-matrix-{a,b}.txt m08/m09
-  resolved: { date: '2026-09-13', evidence: 'reports/compatibility/L012-dist-tags-diff.md（L012-2b 终版：20 格零未裁定 drift；CLI 15 用例同退出码向量；契约 npm.yaml 已翻 VERIFIED）' }
+  resolved: { date: '2026-09-13', evidence: 'reports/compatibility/L012-dist-tags-diff.md（L012-2b 终版：20 格零未裁定 drift；CLI 15 用例同退出码向量；契约 npm.yaml 已翻 VERIFIED）',
+    note: 'D5 INTENTIONAL 维持：契约按 400+中性文案钉（不复刻参照 500——参照对坏输入回 5xx 系自身瑕疵）；m08/m09 为裁定内差异非 drift（终版 §3 归一规则 b）' }
 - id: npm/dist-tags-bulk-surface
   surface: npm local dist-tags bulk 面（PUT/POST 集合 + POST 单 tag 子路径，L012-1 §3-D6，m13-m15）
   classification: BUG
@@ -675,7 +676,8 @@ entries:
 #   rationale: ADR-0045 Errata 定案——批删无 dateRange
 #   authority: { type: adr, ref: DECISIONS.md#adr-0045-e3 }
 #   review_gate: M18+
-  resolved: { date: '2026-09-13', evidence: 'reports/compatibility/L012-dist-tags-diff.md（L012-2b 终版：20 格零未裁定 drift；CLI 15 用例同退出码向量；契约 npm.yaml 已翻 VERIFIED）' }
+  resolved: { date: '2026-09-13', evidence: 'reports/compatibility/L012-dist-tags-diff.md（L012-2b 终版：20 格零未裁定 drift；CLI 15 用例同退出码向量；契约 npm.yaml 已翻 VERIFIED）',
+    note: '参照陈旧窗 quirk 自证（终版 §4）：max-age=60 × npm 客户端 60s HTTP 缓存的组合行为在参照上同序列复现（npm 11.19.0 add→立即 rm 报 not a dist-tag）——非 BinFlow 缺陷；测试 M24 --prefer-online 缓解、参照复现事实在测试注释' }
 - id: npm/packument-latest-recompute
   surface: npm packument（GET /:name）的 latest 读时重算（L012-2b 遗留）
   classification: BUG
@@ -691,3 +693,30 @@ entries:
     勘误（2026-09-13）：本条初立时对 TestDistTagRecomputeIsReadTimeOnly 的转述有误——该测试原断言的是
     packument 面 latest 消失（即钉住 bug 面），非「同源重算」；文件头注释本就声明 packument 面在
     L012-1 证据集之外。根因=账实不符（台账转述误读），非回归。测试已翻面钉两读面。
+- id: npm/login-missing-fields-400-vs-401
+  surface: 'npm legacy login 缺字段臂（PUT /-/user/org.couchdb.user:<name> body 缺 name/password）'
+  classification: UNKNOWN
+  rationale: >-
+    L014-4 探针 L1 臂（2026-09-13 双端活体，probes/npm/k60-5-family.sh）：参照 **400** errors
+    envelope `User or Password fields are missing.`（DE 文案活体逐字证实）vs BinFlow **401**
+    "authentication required"——BinFlow 写门在 body 校验之前（body 凭据臂仅当 name/password 齐备时
+    豁免路径可达，缺字段即落回凭据门）。真实客户端相关度低（npm 恒发双字段；两码同归 E401/ENEEDAUTH
+    客户端不敏感——T-394 注记 1 口径）。对齐方向待裁：B 补 400 臂（gate 豁免后先解 body）vs 维持
+    门序 INTENTIONAL（需 authority）。
+  authority: { type: pending, ref: "产品/conductor 裁（缺字段臂：400 body 校验先行 vs 维持 401 凭据门序）" }
+  review_gate: LOOP 015 限期升级（裁对齐则 contracts/npm.yaml#npm/session-login-put error_behavior 首臂升 400+文案 literal）
+  evidence: docs/compatibility/probes/npm/k60-5-family.sh（L1 臂双端，2026-09-13）+ docs/reverse/npm.md §2.2（DE 行）
+- id: npm/login-idrev-npm-blind
+  surface: couch id+rev 直发面（PUT /-/user/.../-rev/<rev>——A 200 vs B 403，npm 不可达）
+  classification: INTENTIONAL_DIFFERENCE
+  rationale: >-
+    L014-4 探针 L2 臂（2026-09-13 双端活体）：参照 **200** `{"ok": "updated package"}`（K60-6 原注
+    「A 路由不可达→404」表述失实——活体 200，命中路由机制未证不猜）vs BinFlow **403**
+    "authenticated principal cannot log in as another user"（served-as-login 超集面 + principal
+    守卫）。**npm-blind 论证**：K60-1 永不答 409（no409 不变量，双端成立）⇒ npm rev-dance 第二跳
+    永不被发出——该面对真实 npm 客户端不可达，直发差异无对齐收益。K60-6 定案「不做，且设为不变量」
+    覆盖本面。契约面=contracts/npm.yaml#npm/session-login-idrev-direct-call（INTENTIONAL）+
+    no409-invariant spelling_notes 勘误随本条。
+  authority: { type: spec_ruling, ref: "docs/reverse/npm.md §1 K60-6 定案（T-393 规格票——「不做，且设为不变量」）+ LOOP 014 conductor 落账指令" }
+  review_gate: resolved-by-design（不实现 rev-dance 帮扶系 K60-6 定案；若未来 npm 客户端形态变化使该面可达则重开）
+  evidence: docs/compatibility/probes/npm/k60-5-family.sh（L2 臂双端，2026-09-13）+ docs/reverse/npm.md §2.2/§6

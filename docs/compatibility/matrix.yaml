@@ -111,7 +111,6 @@ summary:
       not_applicable: 4
     D02:
       rows: 13
-      partial: 0
       compatible: 5
       absent: 6
       not_applicable: 1
@@ -2352,12 +2351,15 @@ rows:
   capability: npm 认证族（/-/ping、/-/user/org.couchdb.user:* ×2、/-/v1/login、/-/whoami）
   state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/npm.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L012-dist-tags-diff.md §2/§5（m16 ping / m17 whoami 认证 / m18 whoami 匿名——两轮独立批跑同形）
   priority_class: P1
   layer: A
   source_row: "§11.1 行 3"
+  note: 'L012 收官追记（conductor 终轮③）：K60 群契约化已落——contracts/npm.yaml 载 session-login-put/
+    session-whoami/session-ping/session-web-login-posture/session-login-no409-invariant 五条目（K60-1/2/3/4/6
+    转写，npm.md 规格零补证）；K60-5（/-/npm/v1 家族）停 SPECIFIED 待批跑（LOOP 014 升格腿）。'
 - row_id: D12-R04
   domain: D12
   capability: npm 包面（packument GET/PUT、unpublish ×2）
