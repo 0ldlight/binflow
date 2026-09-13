@@ -4,6 +4,10 @@
 #   （+binflow_state 记录差分现值；DIVERGENT 时差异定性建议注在 binflow_state.verdict）。
 # 状态说明：本文件为取证票（L016-1）产出的契约蓝本——双端活体证据全挂 l016-wire；DIVERGENT 条目待
 #   conductor 裁定（BUG 对齐 / INTENTIONAL 保留 / UNSUPPORTED 裁剪）后翻态，实现票（L016 后段）落地。
+#   L017-1（2026-09-13，dev-registry-adapter）：D1（anchor-attrs 的 data-requires-python 三源）与
+#   D7（badwheel-matrix 的 badmeta 态）已按 BUG 对齐实现并差分复验（证据挂 l017-wire，双端真实
+#   twine 7.0.0/pip 26.2.1 复跑）；两条目 binflow_state 记录修复后现值——条目级 status 仍 DIVERGENT
+#   仅因并存的未裁面（D2 rel / D6 索引键）。
 # 客户端锚：twine 7.0.0（发布面——原始 multipart wire 离线 sink 落档 client/twine-raw.req）+
 #   pip 26.2.1（消费面——download×2/install 全腿）；python 3.14.7 venv 钉版。
 # 断言词汇表沿 npm.yaml（expect.status / headers.literal / body.format / body.literal /
@@ -128,12 +132,22 @@ contracts:
     literal: 'data-requires-python="&gt;=3.8" rel="internal"（依序，drp 在前——§3.2 规格序）'
   side_effects: []
   binflow_state:
-    verdict: 'DIVERGENT（data-requires-python 三源全丢=BUG 候选[D1]；rel 全丢=UNKNOWN 倾向对齐[D2]；data-yanked 双端同忽略=一致）'
-    detail: '真实客户端三源证据：t2（twine 表单源）/P4c L015（wheel METADATA 源）/y1（sdist PKG-INFO 服务端派生源）。pip 按 requires-python 过滤候选版本——B 丢属性时 pip 会装上本应跳过的版本（客户端可见）'
-  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l015-ebdb8fb6 }
+    verdict: >-
+      D1 已修复并对齐（L017-1，差分复验绿）：三源全接——BinFlow 在索引渲染时从制品自身字节派生
+      Requires-Python（wheel dist-info/METADATA + sdist PKG-INFO，distmeta.go），twine 表单源值与
+      文件元数据恒同源（twine-raw.req 亲证），故三源渲染结果与 A 逐字一致（data-requires-python="&gt;=3.8"
+      转义形，l017-wire 双端包页逐锚点对拍）。仅 curl 伪造的「表单有值+文件无元数据」臂不可达该值
+      （未取证面，记录级）。条目保持 DIVERGENT 仅因 D2（rel="internal" 仍缺，UNKNOWN 待裁）。
+    detail: >-
+      L017-1 复验（双端 l017-wire/{a,b}/pypi/p2-pkg-page.body）：三锚点（twine sdist 表单源 / twine
+      wheel METADATA 源 / curl sdist 无表单字段的 PKG-INFO 服务端派生源）data-requires-python 逐字同
+      （&gt;=3.8），sha256 fragment/排序同；pip 26.2.1 过滤腿双端同选 rptest-1.0.1（跳过 >=3.99 的
+      1.0.0——D1 客户端可见效果成立）。残差：rel 仍缺（D2）/ href 模板 packages/ 段（D3）。
+  version: { artifactory_ref: 7.161.20, binflow_tested: 'uat-l015-ebdb8fb6 → uat-l0171-7c8bfaba（L017-1 修复腿）' }
   evidence:
     - { kind: difftest, report: reports/compatibility/L016-pypi-evidence.md, anchor: '§1 臂 6/13/15/16 + §2-D1/D2', date: '2026-09-13' }
     - { kind: wire, report: reports/compatibility/l016-wire/a/pypi/y1-index-after.body, anchor: 'A 对 1.0.1 sdist 无表单字段仍渲染 drp（服务端 PKG-INFO 派生）', capture: '同文件 b 版（裸锚点）+ client/twine-raw.req（requires_python 表单源）', date: '2026-09-13' }
+    - { kind: difftest, report: reports/agents/T-L017-1.md, anchor: 'D1 三源差分复验（twine 7.0.0×2 源 + PKG-INFO 派生源 + pip 过滤腿）', capture: 'reports/compatibility/l017-wire/{a,b}/pypi/{p2-pkg-page.body,pd-rptest.log}', date: '2026-09-13' }
   confidence: high
   status: DIVERGENT
 # ── 上传（真实 twine） ────────────────────────────────────────────────────────
@@ -305,8 +319,12 @@ contracts:
       note: '索引键来源分叉（D6 UNKNOWN）；真实 twine 不可达（表单恒自元数据）——低危防御面'
     - when: 'badmeta'
       a_ref: '200 入库、不入任何索引（防污染）'
-      binflow_now: '200 入库、入 hello16 索引（污染页）'
-      note: 'BUG 候选（对齐 A：无有效元数据不入索引——索引完整性）'
+      binflow_now: >-
+        L017-1 已对齐：200 入库、不入任何索引（hello16 页不变 b2-index-after 885B==b1 后现值；
+        /simple/nol016/ 404；根索引同拒——「不入任何索引」语义）。判定机制=索引渲染时解析 wheel
+        zip 的 *.dist-info/METADATA，不可定位（非 zip/L015 P4 伪字节、或无 METADATA 成员）即拒入；
+        上传面仍一律 200。
+      note: 'D7 BUG 已修复（L017-1 差分复验绿，l017-wire b2 臂双端同形：页不变+404）'
     - when: 'badver'
       status: 200
       note: '双端同放行同入索引（服务端对非法版本字符串零校验——twine 客户端挡真实链路；记录级，不裁）'
@@ -314,12 +332,19 @@ contracts:
   side_effects:
     - '三态入库后存储残留（本轮随 repo deleteContent 清除——difftest 命名空间）'
   binflow_state:
-    verdict: 'DIVERGENT（badname 键源[D6 UNKNOWN] + badmeta 索引策略[BUG 候选]；badver 一致放行）'
-    detail: 'b1/b2/b3 各三点对照（upload 码 + 两索引探针）；A 侧 notl016 页 303B / B 侧 hello16 页 632B→807B→980B 累计'
-  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l015-ebdb8fb6 }
+    verdict: >-
+      D7 已修复并对齐（L017-1，差分复验绿：badmeta 双端同「入库不入索引」）；条目保持 DIVERGENT 仅因
+      D6（badname 索引键：A 文件名派生 / B 表单名——UNKNOWN 待裁，本票维持现状）；badver 一致放行不变。
+    detail: >-
+      L017-1 复验（l017-wire/{a,b}/pypi/b2-{badmeta-upload,index-after,under-filename}）：双端 upload 200、
+      hello16 页字节不变、/simple/nol016/ 404。B 侧边界（证据bounded）：坏 sdist（无 PKG-INFO）不入拒集
+      （L016 未取证 sdist 拒入臂，维持索引——见 T-L017-1 Risks）；根索引对「仅坏 wheel」项目同样不列
+      （「不入任何索引」）。b1/b3 臂与 L016 现值同（D6 维持）。
+  version: { artifactory_ref: 7.161.20, binflow_tested: 'uat-l015-ebdb8fb6 → uat-l0171-7c8bfaba（L017-1 修复腿）' }
   evidence:
     - { kind: difftest, report: reports/compatibility/L016-pypi-evidence.md, anchor: '§1 臂 13/14/15 + §3 三态矩阵结论', date: '2026-09-13' }
     - { kind: wire, report: reports/compatibility/l016-wire/a/pypi/b1-index-under-filename.body, anchor: 'A /simple/notl016/ 200（文件名派生键实证）', capture: 'b 版（404）+ b2/b3 index-after 双侧', date: '2026-09-13' }
+    - { kind: difftest, report: reports/agents/T-L017-1.md, anchor: 'D7 三态矩阵差分复验（badmeta 拒入/badname 维持/badver 维持）', capture: 'reports/compatibility/l017-wire/{a,b}/pypi/b1-*,b2-*,b3-*', date: '2026-09-13' }
   confidence: high
   status: DIVERGENT
 # ── ETag 再验证 ───────────────────────────────────────────────────────────────
@@ -379,8 +404,8 @@ contracts:
           keys_exact: [meta, name, files]
           note: >-
             B JSON 全形（749B 落档）：meta.api-version="2.0"；files[]{filename,url[packages/ 相对+#sha256=],
-            hashes{sha256}}——PEP 691 形态合规；但 requires-python 字段同 HTML 面一并缺失（同 D1）。若裁定
-            「对齐参照默认关」则本臂翻 406 或 HTML；若裁定「保留超集」则入 known-divergence INTENTIONAL
+            hashes{sha256},requires-python(omitempty——L017-1 起同 HTML 面派生源渲染)}——PEP 691 形态合规。
+            若裁定「对齐参照默认关」则本臂翻 406 或 HTML；若裁定「保留超集」则入 known-divergence INTENTIONAL
   side_effects: []
   client_note: 'pip 26.2.1 对 HTML/JSON 双吃（pd1 exit 0 双端）——本差异对 pip 不可见；对金样/字节对齐面与老客户端（<22.3 不发 JSON Accept，得 HTML）无破坏'
   binflow_state:

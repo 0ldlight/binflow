@@ -61,7 +61,8 @@ func TestSimpleNormalizationMatrix(t *testing.T) {
 func TestSimplePageShape(t *testing.T) {
 	s := newStack(t)
 	s.uploadOK(t, "demo-pkg", "1.0.0", "zz_last-1.0.0.tar.gz", []byte("zz"))
-	s.uploadOK(t, "demo-pkg", "1.0.0", "aa_first-1.0.0-py3-none-any.whl", []byte("aa"))
+	aaWheel := testWheelBytes(t, "aa_first-1.0.0", "", true)
+	s.uploadOK(t, "demo-pkg", "1.0.0", "aa_first-1.0.0-py3-none-any.whl", aaWheel)
 
 	status, body, hdr := s.get("/binflow/api/pypi/pypi-local/simple/demo-pkg/")
 	if status != http.StatusOK {
@@ -96,7 +97,7 @@ func TestSimplePageShape(t *testing.T) {
 	}
 
 	// The href form: ../../packages/<stored path>#sha256=<hex>.
-	want := `href="../../packages/demo-pkg/1.0.0/aa_first-1.0.0-py3-none-any.whl#sha256=` + sha256Hex([]byte("aa"))
+	want := `href="../../packages/demo-pkg/1.0.0/aa_first-1.0.0-py3-none-any.whl#sha256=` + sha256Hex(aaWheel)
 	if !strings.Contains(body, want) {
 		t.Fatalf("page lacks the exact href form %q:\n%s", want, body)
 	}
@@ -106,7 +107,8 @@ func TestSimplePageShape(t *testing.T) {
 // markup bytes must never inject into the page.
 func TestSimpleHTMLEscaping(t *testing.T) {
 	s := newStack(t)
-	s.uploadOK(t, "demo-pkg", "1.0.0", `a&b<c>"d-1.0.0.whl`, []byte("esc"))
+	s.uploadOK(t, "demo-pkg", "1.0.0", `a&b<c>"d-1.0.0.whl`,
+		testWheelBytes(t, `a&b<c>"d-1.0.0`, "", true))
 
 	_, body, _ := s.get("/binflow/api/pypi/pypi-local/simple/demo-pkg/")
 	for _, raw := range []string{"<c>", `>"d`} {
@@ -275,7 +277,7 @@ func TestSimpleRootIndex(t *testing.T) {
 // posture BinFlow keeps).
 func TestSimpleJSONNegotiation(t *testing.T) {
 	s := newStack(t)
-	content := []byte("wheel-bytes")
+	content := testWheelBytes(t, "demo_pkg-1.0.0", "", true)
 	s.uploadOK(t, "demo-pkg", "1.0.0", "demo_pkg-1.0.0-py3-none-any.whl", content)
 
 	resp := s.do(http.MethodGet, "/binflow/api/pypi/pypi-local/simple/demo-pkg/", "", "", nil,

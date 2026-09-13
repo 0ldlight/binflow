@@ -39,6 +39,22 @@ type indexEntry struct {
 	path     string // full repo-relative node path (<name>/<version>/<filename>)
 	sha256   string
 	size     int64
+	// requiresPython is the Requires-Python value derived from the file's
+	// own metadata (wheel dist-info/METADATA, sdist PKG-INFO — distmeta.go);
+	// "" renders no attribute (L016 D1).
+	requiresPython string
+}
+
+// anchorAttrs renders the optional attribute tail of one anchor. The
+// data-requires-python value is HTML-escaped exactly as the reference
+// spells it (data-requires-python="&gt;=3.8" — L016 wire), sitting after
+// href and before the anchor text. rel/data-yanked remain unimplemented
+// faces (D2 undecided; data-yanked is ignored on both sides by evidence).
+func anchorAttrs(e indexEntry) string {
+	if e.requiresPython == "" {
+		return ""
+	}
+	return ` data-requires-python="` + htmlEscape(e.requiresPython) + `"`
 }
 
 // serveSimple routes the simple-index family:
@@ -166,7 +182,7 @@ func (h *Handler) serveProjectPage(w http.ResponseWriter, r *http.Request, repoK
 	b.WriteString(indexHead)
 	for _, e := range entries {
 		href := "../../" + segPackages + "/" + escapePath(e.path) + "#sha256=" + e.sha256
-		b.WriteString(`<a href="` + htmlEscape(href) + `">` + htmlEscape(e.filename) + "</a>\n")
+		b.WriteString(`<a href="` + htmlEscape(href) + `"` + anchorAttrs(e) + `>` + htmlEscape(e.filename) + "</a>\n")
 	}
 	b.WriteString(indexFoot)
 	writeIndex(w, r, []byte(b.String()), simpleHTMLMediaType)
@@ -174,13 +190,16 @@ func (h *Handler) serveProjectPage(w http.ResponseWriter, r *http.Request, repoK
 
 // writeSimpleJSON renders the PEP 691 JSON form of a project page. The url
 // field carries the same ../../packages/...#sha256= spelling as the HTML
-// href so both forms address identical targets.
+// href so both forms address identical targets; requires-python rides the
+// same derived value as the HTML attribute (omitempty when the file's
+// metadata has none).
 func writeSimpleJSON(w http.ResponseWriter, r *http.Request, name string, entries []indexEntry) {
 	type jsonFile struct {
-		Filename string            `json:"filename"`
-		URL      string            `json:"url"`
-		Hashes   map[string]string `json:"hashes"`
-		Size     int64             `json:"size"`
+		Filename       string            `json:"filename"`
+		URL            string            `json:"url"`
+		Hashes         map[string]string `json:"hashes"`
+		RequiresPython string            `json:"requires-python,omitempty"`
+		Size           int64             `json:"size"`
 	}
 	doc := struct {
 		Meta  map[string]string `json:"meta"`
@@ -193,10 +212,11 @@ func writeSimpleJSON(w http.ResponseWriter, r *http.Request, name string, entrie
 	}
 	for _, e := range entries {
 		doc.Files = append(doc.Files, jsonFile{
-			Filename: e.filename,
-			URL:      "../../" + segPackages + "/" + escapePath(e.path) + "#sha256=" + e.sha256,
-			Hashes:   map[string]string{"sha256": e.sha256},
-			Size:     e.size,
+			Filename:       e.filename,
+			URL:            "../../" + segPackages + "/" + escapePath(e.path) + "#sha256=" + e.sha256,
+			Hashes:         map[string]string{"sha256": e.sha256},
+			RequiresPython: e.requiresPython,
+			Size:           e.size,
 		})
 	}
 	body, err := json.MarshalIndent(doc, "", "  ")
@@ -213,7 +233,9 @@ func writeSimpleJSON(w http.ResponseWriter, r *http.Request, name string, entrie
 // rows and non-<name>/<version>/<filename> shapes are skipped; the walk is
 // a whole-repository listing filtered in memory — the index has no hidden
 // sidecar files by design (maven-npm-pypi.md section 4.5 recommends exactly
-// this reconstruction from artifact facts).
+// this reconstruction from artifact facts). Each surviving entry is then
+// enriched from its own bytes (requires-python derivation + the D7
+// admission verdict, distmeta.go).
 func (h *Handler) projectEntries(ctx context.Context, r *http.Request, repoKey, name string) ([]indexEntry, error) {
 	nodes, err := h.svc.List(ctx, adapter.PrincipalFrom(r.Context()), repoKey, "")
 	if err != nil {
@@ -234,6 +256,7 @@ func (h *Handler) projectEntries(ctx context.Context, r *http.Request, repoKey, 
 		}
 		entries = append(entries, indexEntry{filename: segs[2], path: n.Path, sha256: n.Sha256, size: n.Size})
 	}
+	entries = h.enrichIndexEntries(ctx, entries)
 	// Sorted by filename, ties by full path — deterministic output keeps
 	// the ETag stable (maven-npm-pypi.md section 3.2: entries are emitted
 	// in filename order).
@@ -247,7 +270,9 @@ func (h *Handler) projectEntries(ctx context.Context, r *http.Request, repoKey, 
 }
 
 // projectNames lists the distinct normalized project names of the
-// repository (the root index), sorted.
+// repository (the root index), sorted. The same D7 admission the project
+// page applies governs the root: a project whose every file is
+// metadata-refused ("not in ANY index", L016 b2) does not appear.
 func (h *Handler) projectNames(ctx context.Context, r *http.Request, repoKey string) ([]string, error) {
 	nodes, err := h.svc.List(ctx, adapter.PrincipalFrom(r.Context()), repoKey, "")
 	if err != nil {
@@ -260,6 +285,9 @@ func (h *Handler) projectNames(ctx context.Context, r *http.Request, repoKey str
 		}
 		segs := strings.Split(n.Path, "/")
 		if len(segs) != 3 || segs[0] == "" || segs[1] == "" || segs[2] == "" {
+			continue
+		}
+		if !h.entryFacts(ctx, indexEntry{filename: segs[2], sha256: n.Sha256}).indexable {
 			continue
 		}
 		seen[normalizePackageName(segs[0])] = true

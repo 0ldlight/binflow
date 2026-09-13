@@ -26,7 +26,10 @@ func md5Hex(b []byte) string {
 // server-computed sha256.
 func TestUploadHappyPath(t *testing.T) {
 	s := newStack(t)
-	content := []byte("the wheel body")
+	// A real (metadata-bearing) wheel: the index admission policy (L017-1
+	// D7) refuses metadata-less wheels from the simple index, and this test
+	// asserts the page carries the fragment.
+	content := testWheelBytes(t, "Demo_Pkg-0.1.0", "", true)
 
 	status, body := s.upload("/binflow/api/pypi/pypi-local", map[string]string{
 		":action":          "file_upload",
