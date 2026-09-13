@@ -1,9 +1,9 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-14T00:25:00Z
-current_iteration: 019
-current_goal: "conan 四 DIVERGENT 裁定+实现票 / maven pom-prerequisite 实现票 / goproxy 差分腿复跑 / 批复驱动"
+updated: 2026-09-14T03:15:00Z
+current_iteration: 020
+current_goal: "升格落账 / auth401 裁定票 / maven 台账翻记 / 批复驱动 / helmoci 评估"
 loop_016_tracks:
   - { id: L016-2, domain: npm-deep, owner: dev-registry-adapter, what: "✅ ghost 守卫改 tarball 路径冲突语义（403 逐字+不入索引+latest 不劫持——G1 三臂双端复验）；attachmentTarballPath 段安全；T-261 face-4 翻面；契约第三批 publish-ghost-guard VERIFIED；commit 8bf07b61；Next=crafted 文档门槛二分票（G4 素材备）", status: done }
   - { id: L016-1, domain: pypi-protocol, owner: differential-qa-engineer, what: "pypi simple 扩章首票前段：probe 补真实 pip/twine 腿+无效 wheel 三态矩阵+302 形态/legacy API 决策取证 → pypi.yaml 契约首文件（simple 面：锚点属性集/链接模板/索引即时性裁定）" }
@@ -21,6 +21,7 @@ loop_019_tracks:
   - { id: L019-1, domain: conan-protocol, owner: dev-registry-adapter, what: "conan 四 DIVERGENT 实现票：D2 错误信封族（npm D4 同构打法）/D3 ghost 再删 200 幂等对齐/D4 pkgmeta q 三态——D1 ping 超集维持（client-blind+反编译 replication catch-all 证——INTENTIONAL 候裁不实现）" }
   - { id: L019-2, domain: maven-protocol, owner: dev-registry-adapter, what: "maven pom-prerequisite 实现票：版本目录 metadata 生成加 pom 前置+触发时删除既有+组目录统计语义（docs/reverse/maven-metadata-pom-prerequisite.md 规格）" }
   - { id: L019-3, domain: difftest-rerun, owner: differential-qa-engineer, what: "goproxy 六臂差分腿复跑（窗口后——先清 ref 残留 l0182-go-local）+ conan PUT wire 补臂（A 侧）——两域轻差分批" }
+iteration_019_seal: "双轨全收（Docker 第六僵死自愈）；conan 三面+maven pom 前置实现（复验全 SAME）+goproxy 首活体+conan PUT 首证；conan 契约 14V；commits 47f37739/1915dbe7"
 iteration_018_seal: "三轨全收（Docker 第五僵死+Push Protection 双事件善后）；conan 11V 开局+goproxy 4+C3 闭环；契约六域 77 条目；台账 47 resolved 28；commits 598ce6ec/2151390d/31143ff8"
 iteration_017_seal: "三轨全收（Docker 第四僵死 45min 自愈）；pypi 双 BUG 收口（twine/pip 真实腿逐字）；C3 证成且更强；第五域=conan；commits 9101fb5d/ed302758/89837743"
 iteration_016_seal: "三轨全收（Docker 第三僵死自愈）；pypi 契约 10 条目+npm ghost 收口+呈批包 v2.3（20 席整包）；契约四域 62 条目；commits 8bf07b61/86663cdc/22cbe943"
