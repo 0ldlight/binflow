@@ -1,9 +1,9 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-14T03:15:00Z
-current_iteration: 020
-current_goal: "升格落账 / auth401 裁定票 / maven 台账翻记 / 批复驱动 / helmoci 评估"
+updated: 2026-09-14T06:05:00Z
+current_iteration: 021
+current_goal: "helmoci 扩章首票（六域收官）/ auth401+匿名+限流三裁定包 / maven 三小面对齐票 / 批复驱动"
 loop_016_tracks:
   - { id: L016-2, domain: npm-deep, owner: dev-registry-adapter, what: "✅ ghost 守卫改 tarball 路径冲突语义（403 逐字+不入索引+latest 不劫持——G1 三臂双端复验）；attachmentTarballPath 段安全；T-261 face-4 翻面；契约第三批 publish-ghost-guard VERIFIED；commit 8bf07b61；Next=crafted 文档门槛二分票（G4 素材备）", status: done }
   - { id: L016-1, domain: pypi-protocol, owner: differential-qa-engineer, what: "pypi simple 扩章首票前段：probe 补真实 pip/twine 腿+无效 wheel 三态矩阵+302 形态/legacy API 决策取证 → pypi.yaml 契约首文件（simple 面：锚点属性集/链接模板/索引即时性裁定）" }
@@ -25,6 +25,7 @@ loop_020_tracks:
   - { id: L020-1, domain: ledger-promotions, owner: compatibility-engineer, what: "升格落账终轮：goproxy put VERIFIED+CT 断言修订+sumdb 双证注记；conan D2/D3/D4 evidence 追锚；maven pom-prerequisite 台账 resolved 翻记（验收=LOOP 019 复验）；auth401 分立条目入账" }
   - { id: L020-2, domain: expansion-assess, owner: compatibility-engineer, what: "helmoci 扩章第六域评估（评估案后段首项——/v2 wire 已被 docker 域 25 条目背书；增量=index.yaml 经典面）——三轴一页可裁" }
   - { id: L020-3, domain: docker-put-probe, owner: differential-qa-engineer, what: "conan auth401 措辞族裁定腿：双端 401 形态对照（adapter 外 auth 中间层渲染点）+maven 三小面取证（受理码/XML 渲染/404 措辞）——轻差分批" }
+iteration_020_seal: "双轨全收（Docker 第七僵死自愈）；goproxy 终态 3V+1I+pom resolved+helmoci 六域确认；auth401 族两新面（匿名读/登录限流）；commits 532e4260/1bd93d70"
 iteration_019_seal: "双轨全收（Docker 第六僵死自愈）；conan 三面+maven pom 前置实现（复验全 SAME）+goproxy 首活体+conan PUT 首证；conan 契约 14V；commits 47f37739/1915dbe7"
 iteration_018_seal: "三轨全收（Docker 第五僵死+Push Protection 双事件善后）；conan 11V 开局+goproxy 4+C3 闭环；契约六域 77 条目；台账 47 resolved 28；commits 598ce6ec/2151390d/31143ff8"
 iteration_017_seal: "三轨全收（Docker 第四僵死 45min 自愈）；pypi 双 BUG 收口（twine/pip 真实腿逐字）；C3 证成且更强；第五域=conan；commits 9101fb5d/ed302758/89837743"
