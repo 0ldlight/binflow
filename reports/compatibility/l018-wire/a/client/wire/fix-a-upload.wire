@@ -1,0 +1,222 @@
+{
+ "request": "GET /artifactory/api/conan/l018-conan/v1/ping",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Date": "Sun, 13 Sep 2026 15:43:49 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----
+{
+ "request": "GET /artifactory/api/conan/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 404,
+ "resp_headers": {
+  "Content-Type": "application/json",
+  "Date": "Sun, 13 Sep 2026 15:43:49 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "74B sha256=50c18c2f5c36293e\n{\n  \"errors\" : [ {\n    \"status\" : 404,\n    \"message\" : \"Not Found\"\n  } ]\n}"
+}
+----
+{
+ "request": "GET /artifactory/api/conan/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/91eaead8ee2bd3f4c9f88021aa40bd82/packages/82339cc4d6db7990c1830d274cd12e7c91ab18a1/revisions",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 404,
+ "resp_headers": {
+  "Content-Type": "application/json",
+  "Date": "Sun, 13 Sep 2026 15:43:49 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "74B sha256=50c18c2f5c36293e\n{\n  \"errors\" : [ {\n    \"status\" : 404,\n    \"message\" : \"Not Found\"\n  } ]\n}"
+}
+----
+{
+ "request": "GET /artifactory/api/conan/l018-conan/v2/users/check_credentials",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Date": "Sun, 13 Sep 2026 15:43:49 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----
+{
+ "request": "PUT /artifactory/api/conan/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/91eaead8ee2bd3f4c9f88021aa40bd82/files/conanfile.py",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Checksum-Deploy": "true",
+  "X-Checksum-Sha1": "7d331c00a9c7b451f040ca0623aa5f4cf6646a02"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 201,
+ "resp_headers": {
+  "Date": "Sun, 13 Sep 2026 15:43:49 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----
+{
+ "request": "PUT /artifactory/api/conan/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/91eaead8ee2bd3f4c9f88021aa40bd82/files/conanmanifest.txt",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Checksum-Deploy": "true",
+  "X-Checksum-Sha1": "6446a2e75f563f88d46bf6fb0b48130569c6062b"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 201,
+ "resp_headers": {
+  "Date": "Sun, 13 Sep 2026 15:43:49 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----
+{
+ "request": "PUT /artifactory/api/conan/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/91eaead8ee2bd3f4c9f88021aa40bd82/packages/82339cc4d6db7990c1830d274cd12e7c91ab18a1/revisions/1ac3a71e98953753807b6cef743140cd/files/conan_package.tgz",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Checksum-Deploy": "true",
+  "X-Checksum-Sha1": "6f19f36e2a8cd1f6e67e84ad2d3a4262cfe9d885"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 404,
+ "resp_headers": {
+  "Content-Type": "application/json",
+  "Date": "Sun, 13 Sep 2026 15:43:49 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "157B sha256=683ac47b2e189222\n{\n  \"errors\" : [ {\n    \"status\" : 404,\n    \"message\" : \"Checksum deploy failed. No existing file with SHA1: 6f19f36e2a8cd1f6e67e84ad2d3a4262cfe9d885\"\n  } ]\n}"
+}
+----
+{
+ "request": "PUT /artifactory/api/conan/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/91eaead8ee2bd3f4c9f88021aa40bd82/packages/82339cc4d6db7990c1830d274cd12e7c91ab18a1/revisions/1ac3a71e98953753807b6cef743140cd/files/conan_package.tgz",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Checksum-Sha1": "6f19f36e2a8cd1f6e67e84ad2d3a4262cfe9d885"
+ },
+ "req_body": "243B sha256=d4e8857c4ea02448",
+ "response": 201,
+ "resp_headers": {
+  "Date": "Sun, 13 Sep 2026 15:43:50 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----
+{
+ "request": "PUT /artifactory/api/conan/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/91eaead8ee2bd3f4c9f88021aa40bd82/packages/82339cc4d6db7990c1830d274cd12e7c91ab18a1/revisions/1ac3a71e98953753807b6cef743140cd/files/conaninfo.txt",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Checksum-Deploy": "true",
+  "X-Checksum-Sha1": "82339cc4d6db7990c1830d274cd12e7c91ab18a1"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 201,
+ "resp_headers": {
+  "Date": "Sun, 13 Sep 2026 15:43:50 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----
+{
+ "request": "PUT /artifactory/api/conan/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/91eaead8ee2bd3f4c9f88021aa40bd82/packages/82339cc4d6db7990c1830d274cd12e7c91ab18a1/revisions/1ac3a71e98953753807b6cef743140cd/files/conanmanifest.txt",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Checksum-Deploy": "true",
+  "X-Checksum-Sha1": "c7c428779fb2fdaea0d3a1950a3c9e56bfe2f47b"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 404,
+ "resp_headers": {
+  "Content-Type": "application/json",
+  "Date": "Sun, 13 Sep 2026 15:43:50 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "157B sha256=77b149b4b238b912\n{\n  \"errors\" : [ {\n    \"status\" : 404,\n    \"message\" : \"Checksum deploy failed. No existing file with SHA1: c7c428779fb2fdaea0d3a1950a3c9e56bfe2f47b\"\n  } ]\n}"
+}
+----
+{
+ "request": "PUT /artifactory/api/conan/l018-conan/v2/conans/hello18/1.0/l018/stable/revisions/91eaead8ee2bd3f4c9f88021aa40bd82/packages/82339cc4d6db7990c1830d274cd12e7c91ab18a1/revisions/1ac3a71e98953753807b6cef743140cd/files/conanmanifest.txt",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Checksum-Sha1": "c7c428779fb2fdaea0d3a1950a3c9e56bfe2f47b"
+ },
+ "req_body": "113B sha256=038a992ec15290f7\n1789314229\nconaninfo.txt: 67b3feeebe9ea277f200d0be54133dac\nlicense/LICENSE.txt: 289e7cf69f5fde51281d15e250b1dd23\n",
+ "response": 201,
+ "resp_headers": {
+  "Date": "Sun, 13 Sep 2026 15:43:50 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----

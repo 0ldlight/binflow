@@ -1,0 +1,6 @@
+{
+  "files" : {
+    "conanmanifest.txt" : { },
+    "conanfile.py" : { }
+  }
+}

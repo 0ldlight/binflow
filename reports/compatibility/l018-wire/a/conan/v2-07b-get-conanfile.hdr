@@ -1,0 +1,17 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Content-Disposition: attachment; filename="conanfile.py"
+Content-Length: 562
+Content-Type: text/x-python
+Date: Sun, 13 Sep 2026 15:33:48 GMT
+Etag: b355a969c20d2fdf7d19f67b523dae130376234a
+Last-Modified: Sun, 13 Sep 2026 15:33:38 GMT
+X-Artifactory-Filename: conanfile.py
+X-Artifactory-Id: f5890f39e7943ed2:4ac32248:1a09b573828:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Artifactory-Origin-Remote-Path: local
+X-Checksum-Md5: 3cd13cad7f8be5525724f9932e47e422
+X-Checksum-Sha1: b355a969c20d2fdf7d19f67b523dae130376234a
+X-Checksum-Sha256: bad68527647e7c87b36764458cf4cb10f1d51cdb4c549505c1eaacbce5edbd07
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

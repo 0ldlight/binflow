@@ -11,6 +11,7 @@ package replication_test
 // stack to prove no dispatch regression.
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"crypto/sha1" //nolint:gosec // npm dist.shasum protocol digest
@@ -318,7 +319,29 @@ func TestTwoInstancePypiReplication(t *testing.T) {
 	})
 	store := startReplication(t, a, b, "pypi-src", "pypi-dst")
 
-	wheel := []byte("a wheel-shaped byte string for t195")
+	// A real metadata-bearing wheel: since L017-1 (D7) the simple index
+	// refuses metadata-less wheels (stored but never indexed), so the
+	// fixture must carry a *.dist-info/METADATA member to appear on B's
+	// index page.
+	var wheelBuf bytes.Buffer
+	zw := zip.NewWriter(&wheelBuf)
+	for name, body := range map[string]string{
+		"demo-2.1.0.dist-info/METADATA": "Metadata-Version: 2.1\nName: demo\nVersion: 2.1.0\n",
+		"demo-2.1.0.dist-info/WHEEL":    "Wheel-Version: 1.0\n",
+		"demo/__init__.py":              "",
+	} {
+		w, werr := zw.Create(name)
+		if werr != nil {
+			t.Fatalf("zip create %s: %v", name, werr)
+		}
+		if _, werr = w.Write([]byte(body)); werr != nil {
+			t.Fatalf("zip write %s: %v", name, werr)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("zip close: %v", err)
+	}
+	wheel := wheelBuf.Bytes()
 	var form bytes.Buffer
 	mw := multipart.NewWriter(&form)
 	for field, value := range map[string]string{

@@ -149,15 +149,17 @@ func TestRenderPackumentEscapesTarballRefs(t *testing.T) {
 // FETCH then goes out at the escaped URL and the adapter Layout must decode
 // it back to the literal node path and stream the bytes.
 //
-// versionDistTarball's resolution order (spec section 2.4, pre-existing and
-// untouched by the convergence) has two arms the expectations encode:
+// versionDistTarball's resolution order (spec section 2.4) has two arms the
+// expectations encode:
 //
 //   - a binflow-mount URL whose tail survives reduction is honored verbatim
 //     (every matrix character except a literal '%');
-//   - a '%' in the tail fails the tail's SECOND percent-decode — and the
-//     -rev echo's stored BARE rel never matches the mount shape at all — so
-//     both fall back to the canonical <pkg>/-/<pkg>-<version>.tgz, which the
-//     post-echo assertion pins as-is.
+//   - a '%' in the tail fails the tail's SECOND percent-decode, so that one
+//     falls back to the canonical <pkg>/-/<pkg>-<version>.tgz.
+//
+// The -rev echo stores the reduced BARE rel, which since L016-2 renders
+// VERBATIM (the ghost-guard decision: the stored rel is where the bytes are)
+// — the post-echo assertion pins the same URL faces 1-3 render.
 func TestServeFacesEscapedTarballRoundtrip(t *testing.T) {
 	// The PACKAGE name stays legal so the charset-validated faces (publish,
 	// packument GET) stay in play; the tarball REL name walks the matrix.
@@ -244,12 +246,14 @@ func TestServeFacesEscapedTarballRoundtrip(t *testing.T) {
 				t.Fatalf("tarball content type = %q", ct)
 			}
 
-			// Face 4: the npm 10 echo — PUT the SERVED packument back at -rev,
-			// then re-render. applyRevDocument stores the reduced BARE rel,
-			// which the render's resolution order does not recognize, so the
-			// reference collapses to the canonical spelling — pre-existing
-			// behavior, pinned byte-for-byte (a change here is a semantic
-			// decision, never a silent side effect of the convergence).
+			// Face 4: the npm 10 echo — PUT the SERVED packument back at
+			// -rev, then re-render. L016-2 semantic decision (ghost guard):
+			// a stored BARE rel is the registry-relative path of the bytes
+			// and renders VERBATIM — the echo round-trip is idempotent
+			// (pre-echo and post-echo render the same URL, the one face 3
+			// proves serves the bytes). The pre-L016 collapse to the
+			// canonical spelling was pinned byte-for-byte with a
+			// change-here-is-a-decision note; this is that decision.
 			served := s.call(http.MethodGet, "/npm-local/"+pkg, "", adminPrincipal, nil)
 			rr = s.call(http.MethodPut, "/npm-local/"+pkg+"/-rev/1-abc",
 				bodyOf(served), adminPrincipal, map[string]string{"Content-Type": "application/json"})
@@ -257,7 +261,7 @@ func TestServeFacesEscapedTarballRoundtrip(t *testing.T) {
 				t.Fatalf("echo -rev PUT = %d; body=%s", rr.Code, bodyOf(rr))
 			}
 			rr = s.call(http.MethodGet, "/npm-local/"+pkg, "", adminPrincipal, nil)
-			want := `"tarball":"` + canonicalURL + `"`
+			want := `"tarball":"` + renderedURL + `"`
 			if rr.Code != http.StatusOK || !strings.Contains(bodyOf(rr), want) {
 				t.Fatalf("post-echo packument missing %s (code %d):\n%s", want, rr.Code, bodyOf(rr))
 			}

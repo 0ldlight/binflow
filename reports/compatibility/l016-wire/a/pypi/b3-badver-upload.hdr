@@ -1,0 +1,10 @@
+HTTP/1.1 200 OK
+Content-Length: 0
+Content-Type: application/vnd.org.jfrog.artifactory.storage.ItemCreated+json;charset=UTF-8
+Date: Sun, 13 Sep 2026 12:36:36 GMT
+Location: http://localhost:8081/l016-pypi/hello16/1.0.0/hello16-abc-py3-none-any.whl
+X-Artifactory-Id: f8d6c0001a157348:5410f5e7:1a09abc95b6:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Checksum-Sha256: 1b92d36bc4cb53ee4ce34a31bebe1569e9b26d9aa7edd1595f8240867466cf33
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

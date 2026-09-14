@@ -1,0 +1,669 @@
+# BinFlow 兼容契约——conan v1+v2 端点族（conan 域首文件，L018-1 蓝本，2026-09-13）
+# schema: compat-contract/1 —— 同域多条目单文件（沿 contracts/npm.yaml 先例），条目键面全集：
+#   id/feature/surface/request/authentication/expect/side_effects/error_behavior/version/evidence/
+#   confidence/status（+binflow_state 记差分现值；divergence_ref 于 DIVERGENT/INTENTIONAL 必填）。
+# 作者注：本文件为 L018-1（differential-qa-engineer）据双端活体 wire 起草的蓝本，条目状态为差分现值
+#   记录；入册与翻态裁定权在 compatibility-engineer。证据面=L018 双端（A=Artifactory ref 7.161.20
+#   :8082 / B=BinFlow UAT uat-l0181-74656514 :8083，pro license 装载见 L018-conan-evidence.md §0-2），
+#   真实客户端腿=conan 2.31.2 + conan 1.66.0 双钉版（22 CLI 腿 wireproxy 全捕获、exit=0×22）。
+# 归一依赖（提案 normalize.yaml#conan——未登记前断言面按「归一后」口径写，登记归 compatibility-engineer）：
+#   R1 revision.time iso8601_equivalence / R2 wire_format normalize_indent / R3 token placeholder /
+#   R4 absolute_url_prefix placeholder（路径段=断言面）/ R5 manifest 首行 epoch 剥离 /
+#   R6 制品比内容不比压缩字节 / R7 头 drop-keep 集合——详见 L018-conan-evidence.md §6。
+# 反向门（禁止归一掩盖的待裁差异面）——L019 裁定后状态：D2 错误信封族（ghost GET/尾斜杠两子族）
+#   裁**对齐**已落地（L019 复验翻绿；401 措辞子族未裁，分立 #conan/auth401-wording）；D3 v1 ghost
+#   再删裁**对齐 200 幂等**已落地（翻绿）；D4 pkgmeta q 三态裁**对齐 400**已落地（翻绿；合法 q 语法
+#   未探明面维持 as-built，语法臂归后段差分票）；D1 v2/ping 超集裁**不实现（INTENTIONAL 候裁）**
+#   ——client-blind（22 腿 wire 零 v2/ping）+反编译双证，条目注记在案。
+# 路径形态：A=`/artifactory/api/conan/<repoKey>/v1|v2/…`；B=`/binflow/<repoKey>/v1|v2/…`（repo.md §1
+#   BinFlow 决策）；本文件路径一律写相对 `<conanBase>/`（conanBase=各端前缀+repoKey）。
+domain: conan
+scope: local conan 仓 v1+v2 端点族（握手三端点双前缀/修订链/文件面/搜索/删除/绝对 URL 族）。
+  证据面=L018 双端活体（curl 腿 22 臂 + conan CLI 双版 22 腿 wireproxy wire；pass1）。
+  不含：remote/virtual 数据面读写（T-312 as-built，差分后段票）、reindex 管理端点（§3.3 归管理面）、
+  conan 1 revisions-on 面（默认关形态取证，revisions-on 后段）、`_` 占位 ref 臂（T-340 单侧存量，
+  差分后段）、X-Checksum-Deploy 命中面（本轮双端均未命中——库内无同 sha1 blob，命中臂后段）。
+normalize: fixtures/normalize.yaml#conan（提案——L018-conan-evidence.md §6）
+reference_instance: 'Artifactory-pro 7.161.20（http://localhost:8082，admin；匿名访问全局关——差分一律认证臂）'
+binflow_tested_instance: 'BinFlow UAT uat-l0181-74656514（http://localhost:8083，admin；pro license 装载
+  licenseId 243531c2-2b52-460d-84b0-03dd2be6074a——conan 是 TierPro 包型，community 档建仓 400）'
+client_anchor: 'conan 2.31.2 + conan 1.66.0（双钉版；1.66 默认 revisions 关闭；两版 CLI 差异面=
+  L018-conan-evidence.md §2）'
+contracts:
+# ── 握手：ping（v1 前缀=双端唯一可达面） ─────────────────────────────────────
+- id: conan/handshake-ping
+  feature: 'v1/ping 能力协商（200 空体+能力头三只逐字；virtual 上追加 only_v2——客户端发现 v1 不可用的唯一信道）'
+  surface: 'GET <conanBase>/v1/ping（local + virtual 两 rclass 臂）'
+  request:
+    method: GET
+    path: '<conanBase>/v1/ping'
+    headers: { Authorization: 'Basic <valid>（差分臂；ping 匿名也可达——A 实例匿名关故认证臂取证）', 'X-Conan-Client-Version': '可选（携带时响应加版本检查头——见 error_behavior 注）' }
+    query: {}
+  authentication: { type: 'any（ping 免鉴权语义：repo 存在即 200）', role: any }
+  expect:
+    status: 200
+    headers:
+      literal:
+        X-Conan-Server-Version: '0.20.0'
+        X-Conan-Server-Capabilities: 'complex_search,checksum_deploy,revisions,matrix_params'
+      note: >-
+        双端逐字同（l018-wire/{a,b}/conan/v1-12b-ping-authed.hdr）。virtual 臂值=
+        `complex_search,checksum_deploy,revisions,matrix_params,only_v2`（追加 only_v2——双端逐字同，
+        fix-{a,b}-v1ping-virt.hdr；A 反编译 ConanVersionHeadersResponseDecorator 与 reverse spec §2 双证）。
+        reverse spec §2 置信度 中→高（双端活体）
+    body: { format: none, literal: '' }
+  side_effects: []
+  error_behavior:
+    - { when: 'repo 不存在', ref: conan/error-envelope-family, note: 'A=401 Authentication is required（鉴权先于路由+匿名关）/ B=404 Failed to find the repository——实例姿态差非协议面（npm m02 先例），差分认证臂不触' }
+    - when: '请求带 X-Conan-Client-Version'
+      note: >-
+        版本检查头 `X-Conan-Client-Version-Check`：值映射 <0.16→deprecated / <0.20→outdated / =0.20→current /
+        >0.20→server_outdated。**B 侧四值活体全证**（v2/ping 臂 v2-01c-vcv-*.hdr，B 在 v1/v2 ping 均可达）；
+        A 侧未取证（v2/ping 无路由、本轮未在 v1/ping 携带该头——差分批跑补臂）——不立双端断言，B as-built 值记档
+  binflow_state:
+    verdict: 'SAME（v1/ping local+virtual 两臂能力头逐字双绿——含 only_v2 追加）'
+    detail: 'v1-12b：A/B 均 200 空体+同能力头；fix 腿：v1/ping on virtual 双端 200+only_v2 逐字同。conan 2.31.2 全部操作首跳 v1/ping（22 腿 wire 证）——本端点即 conan 2 客户端的实际能力协商面'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0181-74656514 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L018-conan-evidence.md, anchor: '§1 v1-12 / v1-21 行 + §5 能力头双证行', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/conan/v1-12b-ping-authed.hdr, anchor: '能力头三只', capture: 'b/ 同名 + fix-{a,b}-v1ping-virt.hdr（only_v2）+ b v2-01c-vcv-*.hdr（版本检查四值 B 侧）', date: '2026-09-13' }
+    - { kind: decompile, report: reverse-src/artifactory-7.161.20-partial/src/batch2-protocol/org/artifactory/addon/conan/rest/ConanResource.java, anchor: 'L104-116 handlePing / L284-288 assertConanV2Ready', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── 握手：认证三端点（双前缀） ───────────────────────────────────────────────
+- id: conan/handshake-auth
+  feature: 'users/authenticate（200 体=token 字符串）+ users/check_credentials（200 空/401）——v1/v2 双前缀，conan 2 走 v2、conan 1 走 v1（双版活体）'
+  surface: 'GET <conanBase>/{v1|v2}/users/authenticate；GET <conanBase>/{v1|v2}/users/check_credentials'
+  request:
+    method: GET
+    path: '<conanBase>/{v1|v2}/users/{authenticate,check_credentials}'
+    headers: { Authorization: 'authenticate=Basic <valid>；check=Bearer <token>（conan 客户端 login 后形态）' }
+    query: {}
+  authentication: { type: 'basic（authenticate）/ bearer（check）', role: user }
+  expect:
+    arms:
+    - when: 'authenticate 凭据正确（v2 前缀=conan 2.31.2 实走；v1 前缀=conan 1.66 实走）'
+      status: 200
+      headers: { note: 'A 带全套 X-Conan-* 能力头（响应装饰器全覆盖）；B 同——literal 断言见 handshake-ping' }
+      body:
+        format: any
+        note: >-
+          纯文本 token：A=JWT RS256 806B（jfrt subject）/ B=opaque 64hex——值 placeholder（R3），非空为断言面。
+          conan 客户端 opaque 消费（Bearer 直传）；GitLab 同端点 JWT——token 格式非协议面
+    - when: 'check_credentials 好 token'
+      status: 200
+      body: { format: none, literal: '' }
+    - when: 'authenticate 坏凭据 / check 坏 token'
+      status: 401
+      body: { format: any, note: 'status=断言面；message 措辞差（A `Bad Credentials`/`Props Authentication Token not found` vs B `invalid credentials`）=D2 子族②——L019 分立 #conan/auth401-wording 待裁' }
+  side_effects:
+    - 'conan 1.66 login：v1/ping→v1/users/authenticate 两交换（wire v1-13）；conan 2.31.2 login：仅 v2/users/authenticate 一交换（wire v2-02）——双版前缀偏好双证（reverse spec §2 修正行活体确认）'
+    - '客户端后续请求带 Bearer（check_credentials 为 login 后校验跳）'
+  error_behavior: []
+  binflow_state:
+    verdict: 'SAME（authenticate 200 非空 token / check 200 空 / 坏凭据 401——状态面全绿；token 形态与 401 措辞注记不裁）'
+    detail: 'v2-02b：A 806B JWT / B 64B opaque（R3 placeholder）；v2-02c/v2-03b：401/401（措辞 D2）；v2-03a/v1-14：200 空/200 空；CLI 腿 v2-02-login/v1-13-login wire 双端同构、exit=0'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0181-74656514 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l018-conan-evidence.md, anchor: '§1 v2-02/v2-03/v1-13/v1-14 行', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/conan/v2-02b-authenticate.body, anchor: 'JWT 形态', capture: 'b/ 同名（opaque）+ {a,b}/client/wire/{v2-02-login,v1-13-login}.wire（真实 CLI 前缀偏好）', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── v2/ping 存在性（D1——超集姿态） ──────────────────────────────────────────
+- id: conan/v2ping-posture
+  feature: 'v2/ping 路由存在性：A 无此路由（400 replication catch-all）；B 实现（200+能力头）——client-blind 超集'
+  surface: 'GET <conanBase>/v2/ping'
+  request:
+    method: GET
+    path: <conanBase>/v2/ping
+    headers: { Authorization: 'Basic <valid>（匿名/认证双臂同结果）' }
+    query: {}
+  authentication: { type: any, role: any }
+  expect:
+    arms:
+    - when: 'A（参照直发）'
+      status: 400
+      body:
+        format: any
+        json: { keys_exact: [errors], note: 'message=`Couldn''t perform replication, check server logs for more information.`——v2/ping 落入 ConanResource L199-208 replicationDownloadFile catch-all（A 的 ping 路由仅 @Path("{repoKey}/v1/ping")，L105）' }
+    - when: 'B（BinFlow 直发）'
+      status: 200
+      headers: { note: '能力头三只同 v1/ping（v2-01b）；virtual 臂追加 only_v2（v1-21b）——reverse spec §2 的 {v1|v2} 形态 B 全实现' }
+      body: { format: none, literal: '' }
+    divergence_note: >-
+      **D1（UNKNOWN，倾向 B 保留）**：conan 2.31.2 全部 22 腿 wire 首跳均 v1/ping、零 v2/ping 调用——真实
+      conan 客户端不可达面（client-blind），BinFlow= wider-than-reference 超集（npm `/-/v1/login` 姿态先例）。
+      **连带勘误**：reverse spec §2 握手表 `{v1|v2}/ping` 行对参照不成立（A 仅 v1）；conan.md 该行需修。
+      **L019 裁定（2026-09-14）**：**不实现——INTENTIONAL 候裁**。conductor 方向=保留 B 超集不裁撤
+      （client-blind 面+反编译 ConanResource.java L105 仅 v1 路由双证；npm `/-/v1/login` 先例同型），
+      终局 INTENTIONAL 分类登记归 compatibility-engineer；实现面无动作（B 维持 200+能力头）。
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: 'DIVERGENT-D1（A 400 replication / B 200+能力头——client-blind 超集；**L019 裁不实现=INTENTIONAL 候裁**，分类登记待 compatibility-engineer）'
+    detail: 'v2-01a/b：A 400（anon/authed 同）；v2-01c 四值版本检查 A 不可达/B 四值齐；v1-21b：A virtual 400 / B 200+only_v2。L019 后 B 维持不变（裁定不裁撤超集）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0181-74656514 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L018-conan-evidence.md, anchor: '§1 v2-01 行 + §3-D1', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/conan/v2-01b-ping-authed.body, anchor: '400 replication 文案', capture: 'b/ 同名（200 空+能力头）+ b v2-01c-vcv-0.20.0.hdr（current）', date: '2026-09-13' }
+    - { kind: decompile, report: reverse-src/artifactory-7.161.20-partial/src/batch2-protocol/org/artifactory/addon/conan/rest/ConanResource.java, anchor: 'L105（仅 v1/ping 路由）+ L199-208（catch-all）', date: '2026-09-13' }
+  confidence: high
+  status: DIVERGENT
+  divergence_ref: known-divergence.yaml#conan/v2ping-superset（登记建议——L018 回报 conductor）
+# ── v2 上传（文件 PUT + checksum-deploy 舞步） ───────────────────────────────
+- id: conan/v2-upload
+  feature: 'v2 文件上传：revisions 探测 404→PUT files/{path} 201；每文件 checksum-deploy 探测舞步（X-Checksum-Deploy:true 零体 PUT→404→实体 PUT 201）'
+  surface: 'PUT <conanBase>/v2/conans/<ref>/revisions/{rRev}/files/{path}（recipe 面）+ …/packages/{pid}/revisions/{pRev}/files/{path}（pkg 面）'
+  request:
+    method: PUT
+    path: '<conanBase>/v2/conans/<name>/<ver>/<user>/<ch>/revisions/{rRev}/files/{path}'
+    headers: { Authorization: 'Bearer <token>', 'X-Checksum-Sha1': '<file sha1>', 'X-Checksum-Deploy': 'true（探测跳）——conan 2.31.2 实发形态（wire 亲证）' }
+    body: '文件字节（探测跳 0B / 实体跳全量）'
+    query: {}
+  authentication: { type: bearer, role: user }
+  expect:
+    arms:
+    - when: '新 ref（revisions GET 预探测）'
+      status: 404
+      note: '上传前序：GET revisions 404（新包判定）——CLI wire 首交换族'
+    - when: 'checksum-deploy 探测跳（0B + X-Checksum-Deploy:true）'
+      status: 404
+      note: '库内无同 sha1 blob → 404（checksum_deploy 能力）——客户端随即发实体跳；**命中面（同 blob 已在库→引用建 201）本轮双端未触达，后段臂**'
+    - when: '实体跳（全量字节+X-Checksum-Sha1）'
+      status: 201
+      body: { format: none, literal: '' }
+  side_effects:
+    - '首个文件 PUT 成功后修订登记（rrev 进 index.json + .timestamp）——conan 2.31.2 upload 后 list 立即可见（CLI 腿 v2-08 前 200 revisions 证）'
+    - 'recipe 全套→pkg 全套顺序上传（conanfile.py/conanmanifest.txt→conan_package.tgz/conaninfo.txt/conanmanifest.txt）'
+  error_behavior:
+    - { when: '匿名（无凭据）', note: 'A 实例匿名关不可达臂；401 姿态归 handshake-auth 族——批跑补臂' }
+  binflow_state:
+    verdict: 'SAME（14 交换逐交换同构：请序/状态码全同——客户端可见面最强证据）'
+    detail: 'wire v2-04-upload.wire（r1）+ v2-05-upload-r2.wire：双端 ping→revisions 404→pkg-revisions 404→check_credentials→5 文件×(探测 404→实体 201) 完全同构；rrev 双端逐字同（91eaead8…/1d56f752…——客户端计算的内容哈希跨实例可比）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0181-74656514 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/client/wire/v2-04-upload.wire, anchor: '14 交换全 wire（含 X-Checksum-Deploy 头）', capture: 'b/ 同名 + {v2-05-upload-r2,fix-{a,b}-upload}.wire', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/L018-conan-evidence.md, anchor: '§1 v2-04 行 + §2 上传行（舞步图）', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── v2 修订链 ───────────────────────────────────────────────────────────────
+- id: conan/v2-revision-chain
+  feature: '修订链读面：latest（单修订+time）/revisions（time 降序，首项=latest）；rrev 客户端计算、跨实例逐字同（断言面）'
+  surface: 'GET <conanBase>/v2/conans/<ref>/{latest,revisions}'
+  request:
+    method: GET
+    path: '<conanBase>/v2/conans/<name>/<ver>/<user>/<ch>/{latest,revisions}'
+    headers: { Authorization: 'Basic <valid>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'latest（多修订 ref）'
+      status: 200
+      body:
+        format: any
+        json:
+          keys_exact: [revision, time]
+          path_literal:
+            revision: '<rrev——32hex（conan 2.31.2 活体=conanmanifest md5 形态；**spec §5「sha256 64hex」勘误**）；同内容双端同值>'
+          note: 'time 归一（R1：A `…+0000` ≡ B `…Z`，毫秒保留）后比对；值本身=服务端写时刻（非断言面，R1 归一后形态断言）'
+    - when: 'revisions（多修订）'
+      status: 200
+      body:
+        format: any
+        json:
+          keys_exact: [reference, revisions]
+          note: >-
+            reference=`<name>/<ver>@<user>/<ch>` 逐字；revisions[] 按 time 降序（首项=latest——双端同序）；
+            双 rrev（内容修订 r1/r2）双端逐字同序。wire_format 归一（R2：A pretty ≡ B compact）
+    - when: 'ghost ref latest/revisions'
+      status: 404
+      body:
+        format: any
+        json: { keys_exact: [errors], 'errors[0].message': 'Not Found' }
+        note: 'L019 对齐后双端同构 envelope（conan/error-envelope-family）；indent 归 R2'
+  side_effects: []
+  error_behavior:
+    - { when: '无修订', ref: conan/error-envelope-family }
+  binflow_state:
+    verdict: 'SAME（rrev 值+链结构+降序双绿；time/indent 归一依赖 R1/R2）'
+    detail: 'v2-05b/c：A `1d56f752…/91eaead8…` = B 同值同序；ghost v2-05d 状态 404/404（文案 D2）；fix-{a,b}-latest 复验'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0181-74656514 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/conan/v2-05c-revisions.body, anchor: '双修订链（pretty+`+0000` time）', capture: 'b/ 同名（compact+Z）+ v2-05b/fix-*', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/L018-conan-evidence.md, anchor: '§1 v2-05 行 + §5 rrev 勘误行', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── v2 包面读+下载 ──────────────────────────────────────────────────────────
+- id: conan/v2-package-download
+  feature: '包修订链（packages/{pid}/{latest,revisions,files/{path}}）+ 文件读面 + 真实 conan 2 install 腿——制品字节平价'
+  surface: 'GET <conanBase>/v2/conans/<ref>/revisions/{rRev}/packages/{pid}/revisions/{pRev}/files/{path}；GET …/files/{path}（recipe 面）；SEQUENCE=conan install --requires'
+  request:
+    method: GET
+    path: '<conanBase>/v2/conans/<ref>/revisions/{rRev}[/packages/{pid}/revisions/{pRev}]/files[/{path}]'
+    headers: { Authorization: 'Basic <valid>（curl 腿）/ Bearer（CLI 腿）' }
+    query: {}
+  authentication: { type: 'basic|bearer', role: user }
+  expect:
+    arms:
+    - when: 'pkg latest/revisions'
+      status: 200
+      body: { format: any, note: '{revision,time} / {reference,references→revisions[]} 同 recipe 链形态（reference=`<ref>#<rrev>:<pid>`——B 活体 `…#1d56f752…:82339cc4…`）；prev 双端同值' }
+    - when: 'files 清单（recipe/pkg 两面）'
+      status: 200
+      body:
+        format: any
+        json:
+          keys_exact: [files]
+          note: 'files map 值=空对象 `{}`（键=文件名；键序 ignore——A conanmanifest 先/B conanfile 先）'
+    - when: '文件 GET（conanfile.py / conan_package.tgz）'
+      status: 200
+      note: >-
+        制品平价断言：conanfile.py sha256 双端同（`a76c0ef3…`）；tgz 比解包内容不比压缩字节（R6——gzip header
+        客户端非确定性，双端解包 diff 空）；conanmanifest 比剥离首行 epoch 后内容（R5）
+    - when: 'SEQUENCE conan 2.31.2 install --requires（fresh cache）'
+      client_visible: '11 交换全 200、exit=0 双端同构（wire v2-07-download.wire）——latest→files 清单→逐文件 GET'
+  side_effects: []
+  error_behavior:
+    - { when: 'ghost pid/prev files', ref: conan/error-envelope-family, note: 'L018 A 侧 pid 链曾因 pkgmeta 400 断链误发 ghost 404×4（NOPID 臂）——ghost pid 路径族 404 双端 envelope（L019 对齐后）' }
+  binflow_state:
+    verdict: 'SAME（pkg 链全端点状态/结构双绿 + 制品字节平价三件套 + CLI 腿同构 exit=0）'
+    detail: 'fix-{a,b}-pkg-{latest,revisions,files}/pkg-tgz + v2-06a/v2-07b + fix-sha256.txt；pid `82339cc4d6db7990c1830d274cd12e7c91ab18a1`（40hex）双端同；wire v2-07 11 交换逐交换同构'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0181-74656514 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l018-wire/fix-sha256.txt, anchor: '三件套 sha256 对拍', capture: 'a/b fix-*-pkg-tgz.body（解包 diff 空）', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/client/wire/v2-07-download.wire, anchor: 'install 腿 11 交换', capture: 'b/ 同名', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/L018-conan-evidence.md, anchor: '§1 v2-06/v2-07 行 + §4 平价表', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── v2 pkgmeta 搜索（D4——L019 对齐后形态：三态 q 400） ─────────────────────
+- id: conan/v2-pkgmeta-search
+  feature: '<ref>/search?q= packageId 元数据端点：查询语法校验——空 q/`*`/wire-ref 三态 400 `Unexpected query syntax:`（L019 对齐落地）'
+  surface: 'GET <conanBase>/v2/conans/<ref>/search?q=<query>'
+  request:
+    method: GET
+    path: '<conanBase>/v2/conans/<name>/<ver>/<user>/<ch>/search?q=<query>'
+    headers: { Authorization: 'Basic <valid>' }
+    query: { q: '空串 / `*` / `<name>/<ver>@<user>/<ch>`（三态=L018+L019 双轮取证形态）' }
+  authentication: { type: basic, role: user }
+  expect:
+    status: 400
+    headers: { literal: { Content-Type: application/json }, note: '参照自家的 quirk：纯文本体挂 json CT（v2-09a-pkgmeta.hdr）——CT 是 R7 keep 面，双端同' }
+    body:
+      format: text
+      literal: >-
+        三态回显体：空 q=`Unexpected query syntax: `（25B 尾随空格）；`*`=`Unexpected query syntax: *`；
+        wire-ref=`Unexpected query syntax: <name>, version=<ver>, user=<user>, channel=<ch>`（q 解析后按
+        字段表回显）。三态 L019 双端**逐字节同**（25B/26B/72B）
+    note: >-
+      **D4 L019 对齐**：B 旧形态（q 忽略恒 200 全 pid map）按 conductor 裁定收口为三态 400。合法 q 语法
+      未探明（complex_search 属性查询式）——**非三态拼写维持 as-built 200 全 map**（不猜语法，clean-room
+      铁律），语法探明臂归后段差分票；v1 面 twin（conans/<ref>/search）不在裁定内，维持 as-built
+  side_effects: []
+  error_behavior:
+    - { when: 'ghost ref + 非三态 q', ref: conan/error-envelope-family, note: 'q 闸先于 ref 解析（语法错先报），ghost ref 面仍 404 envelope' }
+  binflow_state:
+    verdict: 'SAME（三态 q 400 体+CT 双端逐字节同——L019 对齐落地+复验，翻绿待 compatibility-engineer 复核入册）'
+    detail: >-
+      L019 复验（uat-l0191-47f37739 × :8082，2026-09-14）：d4-qempty/qstar/qref 三臂 A/B 同码同体
+      （400 25B/26B/72B，`Unexpected query syntax: `/`… *`/`… hello19, version=1.0, user=l019, channel=stable`），
+      CT application/json 双端同；实现=internal/adapter/conan/search.go rejectBadQuery（仅 v2 两路由挂闸）
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0191-47f37739 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/conan/v2-09a-pkgmeta.body, anchor: 'A 三态 400 原始取证（25B）', capture: 'fix-a-pkgmeta-q{ref,star}.body + b/ 同名（L018 时 B 全 map=对齐前形态）', date: '2026-09-13' }
+    - { kind: difftest, report: reports/agents/T-L019-1+2.md, anchor: 'L019 复验 D4 三臂（A/B 逐字节对照表）', date: '2026-09-14' }
+    - { kind: difftest, report: reports/compatibility/L018-conan-evidence.md, anchor: '§3-D4', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+  divergence_ref: known-divergence.yaml#conan/pkgmeta-q-semantics（L019 对齐落地——登记建议改记 resolved-by-alignment）
+# ── v2 搜索 ─────────────────────────────────────────────────────────────────
+- id: conan/v2-search
+  feature: '仓内 recipe 搜索：q=pattern（`*` 通配；尾缀 `/*`=客户端修订通配，服务端剥离后匹配——T-308 D2 双端双证）'
+  surface: 'GET <conanBase>/v2/conans/search?q=<pattern>'
+  request:
+    method: GET
+    path: '<conanBase>/v2/conans/search?q=<pattern>（URL 编码形态亲证：`hello18%2F%2A`）'
+    headers: { Authorization: 'Basic <valid>' }
+    query: { q: 'hello18/*（CLI 实发）/ hello*（curl 臂）' }
+  authentication: { type: basic, role: user }
+  expect:
+    status: 200
+    body:
+      format: any
+      json:
+        keys_exact: [results]
+        note: >-
+          results=[`<name>/<ver>@<user>/<ch>`…]；A pretty/B compact（R2）；命中集双端同（`hello18/1.0@l018/stable`）。
+          `/*` 剥离语义：不剥离则 0 命中——CLI 腿 `conan list "hello18/*"` 200 有果双端同证
+  side_effects: []
+  error_behavior: []
+  client_note: 'conan 2.31.2 `conan list "hello18/*"` wire：v1/ping→search?q=hello18%2F%2A 两交换（v2-08-search.wire 双端同构）'
+  binflow_state:
+    verdict: 'SAME（results 形态+命中集+/* 剥离语义双绿）'
+    detail: 'v2-08b/c：A/B 同命中（47B/39B 仅缩进差）；CLI 腿 exit=0 双端'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0181-74656514 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/conan/v2-08b-search-q.body, anchor: 'results 形态', capture: 'b/ 同名 + {a,b}/client/wire/v2-08-search.wire（%2F%2A 编码形态）', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── v2 删除 ─────────────────────────────────────────────────────────────────
+- id: conan/v2-delete
+  feature: '删除族状态机：单修订 DELETE（200）/ 整 recipe DELETE（200）→ 读面 404 → 再删 404；索引可见性 A 异步/B 同步（D5 记录级）'
+  surface: 'DELETE <conanBase>/v2/conans/<ref>；DELETE …/revisions/{rRev}'
+  request:
+    method: DELETE
+    path: '<conanBase>/v2/conans/<name>/<ver>/<user>/<ch>[/revisions/{rRev}]'
+    headers: { Authorization: 'Basic <valid>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'DELETE 单修订（存在）'
+      status: 200
+      body: { format: none, literal: '' }
+    - when: 'DELETE 整 recipe（存在）'
+      status: 200
+      body: { format: none, literal: '' }
+    - when: '删除后读面（latest/revisions）'
+      status: 404
+      body: { format: any, note: 'status=断言面（文案 D2 族）' }
+    - when: '再删（ghost）'
+      status: 404
+      body:
+        format: any
+        note: '双端 envelope `Couldn''t find path ''<user>/<name>/<ver>/<ch>''`（L019 对齐后同构——B 旧尾斜杠收口；conan/error-envelope-family）'
+    timing_note: >-
+      **D5（记录级）**：单修订删除的索引可见性——A 异步（2s 后 revisions 仍含已删项、8s 后消失）/ B 同步
+      （立即消失）。终态双端一致（真删）；conan 客户端删后不立即 list——不可见面。差分批跑对删除后读面
+      断言须 A 侧 settle ≥8s 或重试读
+  side_effects:
+    - '整 recipe DELETE=坐标根整树（全部修订+全部包）——与 v1 DELETE 同语义（conan/v1-delete-tree 跨面互证）'
+  error_behavior: []
+  binflow_state:
+    verdict: 'SAME（删除族状态机全绿：200/404 转移双端同构；D5 时序+D2 文案注记不裁）'
+    detail: 'v2-10a/b（B 立即缩链 vs A 2s 仍双项）+ fix-a-del-single/rev-after-8s（A 8s 后空→404）；v2-11a/b/c 状态 200/404/404 双端同'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0181-74656514 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/conan/v2-11c-del-again.body, anchor: '再删 404 文案（envelope 无尾斜杠）', capture: 'b/ 同名（裸文本+尾斜杠）+ v2-10b/fix-a-rev-after-8s（D5 时序判别）', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/L018-conan-evidence.md, anchor: '§1 v2-10/v2-11 行 + §3-D5', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── v1 绝对 URL 族 ──────────────────────────────────────────────────────────
+- id: conan/v1-url-family
+  feature: 'v1 URL 换取族：upload_urls（POST body 文件名→size）/download_urls/digest——响应值=绝对 URL（形态断言面）'
+  surface: 'POST <conanBase>/v1/conans/<ref>/upload_urls；GET …/download_urls；GET …/digest（pkg 面 +packages/{pid} 同构）'
+  request:
+    method: 'POST|GET'
+    path: '<conanBase>/v1/conans/<name>/<ver>/<user>/<ch>[/packages/{pid}]/{upload_urls,download_urls,digest}'
+    headers: { Authorization: 'Basic <valid>', 'Content-Type': application/json }
+    body: 'upload_urls={"<file>":<size>,…}；GET 无 body'
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    status: 200
+    body:
+      format: any
+      json:
+        shape: '{"<file>":"<absolute-url>",…}'
+        note: >-
+          绝对 URL 形态（R4 前缀 placeholder 后**逐段断言**）：
+          `…/<conanBase>/v1/files/<user>/<name>/<ver>/<channel>/<rev>/export|package[/<pid>/<prev>]/<file>`
+          ——坐标序 user/name/ver/channel + **默认修订段 `0`**（revisions-off 客户端）+ export|package 双平面。
+          双端逐段同构（A `…:8082/artifactory/api/conan/l018-conan/v1/files/l018/hello18/1.1/stable/0/export/conanfile.py`
+          ≡ B `…:8083/binflow/l018-conan/v1/files/…同段…`）。A 此族取**请求 Host**（:8082）非 Override-Base-Url
+          （:8081）——与 pypi L016 D10 的 Location 行为不同，单列注记（部署敏感面）
+  side_effects:
+    - 'upload_urls 返回的 URL 即 v1 直传通道（PUT files/<path>）——真实 conan 1.66 上传文件 PUT 直发绝对 URL（绕过 API base，wire v1-15 证）'
+  error_behavior: []
+  binflow_state:
+    verdict: 'SAME（三端点形态+URL 逐段同构；前缀 R4 归一）'
+    detail: 'v1-16a/b、v1-17a/b：双端 200 同构；digest=`{"conanmanifest.txt":"<abs-url>"}` 同形。ghost pid upload_urls 双端 200（URL 生成不验存在性）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0181-74656514 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/conan/v1-16a-upload-urls.body, anchor: '绝对 URL 全形', capture: 'b/ 同名 + v1-16b/v1-17a/v1-17b + client/wire/v1-15-upload.wire（8 交换上传链）', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/L018-conan-evidence.md, anchor: '§1 v1-16/v1-17 行 + §3-D9', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── v1 snapshot + 搜索 ──────────────────────────────────────────────────────
+- id: conan/v1-snapshot-search
+  feature: 'v1 snapshot（文件名→md5 map，排除 .timestamp）+ v1 搜索（conans/search?q=）'
+  surface: 'GET <conanBase>/v1/conans/<ref>；GET <conanBase>/v1/conans/search?q='
+  request:
+    method: GET
+    path: '<conanBase>/v1/conans/<name>/<ver>/<user>/<ch> | <conanBase>/v1/conans/search?q=<pattern>'
+    headers: { Authorization: 'Basic <valid>' }
+    query: { q: 'hello*（curl）/ hello18（CLI 实发）' }
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'snapshot（ref 存在）'
+      status: 200
+      body:
+        format: any
+        json:
+          shape: '{"<file>":"<md5 32hex>",…}'
+          note: >-
+            conanfile.py md5 双端逐字同（`dd3b5dec…`——内容锚）；conanmanifest.txt 项=manifest md5，
+            首行 epoch 混入（R5）非断言面。R2 缩进归一
+    - when: 'search'
+      status: 200
+      body: { format: any, json: { keys_exact: [results], note: '同 v2 形态；命中集双端同' } }
+    - when: 'snapshot ghost ref'
+      status: 404
+      body:
+        format: any
+        json: { keys_exact: [errors], 'errors[0].message': 'Not Found' }
+        note: 'L019 对齐后双端同构 envelope（conan/error-envelope-family；L018 wire v1-22b 原始取证）'
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: 'SAME（snapshot md5 内容锚+search 形态双绿）'
+    detail: 'v1-18a：conanfile.py `dd3b5dec…` 双端同（manifest 项 b44c…/0b28… 异=R5 客户端时间戳，已定性）；v1-19a/b 双端同形'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0181-74656514 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/conan/v1-18a-snapshot.body, anchor: 'md5 map（pretty）', capture: 'b/ 同名（compact）+ v1-19a + client/wire/v1-19b-search-cli.wire', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/L018-conan-evidence.md, anchor: '§1 v1-18/v1-19 行 + §3-D10', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── v1 非 local 闸门 ────────────────────────────────────────────────────────
+- id: conan/v1-nonlocal-gate
+  feature: 'v1 数据面 on virtual/remote：400 逐字文案（Unsupported Conan v1…）——握手三端点类无关例外；only_v2 能力发现'
+  surface: 'GET <conanBase>/v1/conans/search?q=（对 virtual 仓发）'
+  request:
+    method: GET
+    path: '<virtual-conanBase>/v1/conans/search?q=<pattern>'
+    headers: { Authorization: 'Basic <valid>' }
+    query: { q: hello* }
+  authentication: { type: basic, role: user }
+  expect:
+    status: 400
+    body:
+      format: any
+      literal: 'Unsupported Conan v1 repository request for ''<repoKey>'''
+      note: >-
+        **双端逐字同**（v1-21a）——reverse spec §1/S6 活体双证。握手三端点（ping/authenticate/check_credentials）
+        在 virtual 同样可达（类无关）：v1/ping on virtual=200+only_v2 能力头（conan/handshake-ping）。
+        remote 臂本轮未建（后段——T-312 remote as-built 已在案）
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: 'SAME（400 状态+逐字文案+能力发现链全绿）'
+    detail: 'v1-21a：A/B 同码同文；v1-21b：B v2/ping on virt 200+only_v2（A 无 v2/ping=D1 域）；fix-{a,b}-v1ping-virt.hdr：only_v2 逐字同'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0181-74656514 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/conan/v1-21a-v1-on-virt.body, anchor: '400 逐字文案', capture: 'b/ 同名 + fix-{a,b}-v1ping-virt.hdr', date: '2026-09-13' }
+    - { kind: decompile, report: reverse-src/artifactory-7.161.20-partial/src/batch2-protocol/org/artifactory/addon/conan/rest/ConanResource.java, anchor: 'L88-102 handleV1 闸门', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── v1 整树删除（跨面互证） ─────────────────────────────────────────────────
+- id: conan/v1-delete-tree
+  feature: 'v1 DELETE <ref>=坐标根整树删（全部修订+包）——与 v2 无修订 DELETE 一面一真；跨面读 404 互证'
+  surface: 'DELETE <conanBase>/v1/conans/<ref>（真实 conan 1.66 remove 腿）'
+  request:
+    method: DELETE
+    path: '<conanBase>/v1/conans/<name>/<ver>/<user>/<ch>'
+    headers: { Authorization: 'Basic <valid>（CLI 腿 Bearer）' }
+    query: {}
+  authentication: { type: 'basic|bearer', role: user }
+  expect:
+    arms:
+    - when: 'DELETE（树存在）'
+      status: 200
+      body: { format: none, literal: '' }
+    - when: '删后 v1 snapshot'
+      status: 404
+      body: { format: any, note: 'status=断言面（文案 D2 族）' }
+    - when: '删后 v2 latest（跨面）'
+      status: 404
+      note: '跨面整树删互证——v1 删除在 v2 读面同 404（T-369 对齐语义双端维持）'
+  side_effects:
+    - '整树删（index.json+全部修订+包）——非 latest 链删'
+  error_behavior:
+    - { when: '再删（ghost）', ref: conan/v1-ghost-delete }
+  binflow_state:
+    verdict: 'SAME（整树删+双面 404 互证全绿）'
+    detail: 'v1-22 腿（CLI remove wire 3 交换）+v1-22b/c：v1 snapshot 404 + v2 latest 404 双端同码'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0181-74656514 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/client/wire/v1-22-remove.wire, anchor: 'CLI remove 3 交换', capture: 'b/ 同名 + {a,b}/conan/v1-22{b,c}*', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/L018-conan-evidence.md, anchor: '§1 v1-22 行 + §5 T-369 维持行', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── v1 ghost 再删（D3——L019 对齐后形态：幂等 200） ─────────────────────────
+- id: conan/v1-ghost-delete
+  feature: 'v1 DELETE ghost ref（树已删后再删）：幂等 200 空体——重复 remove/双操作者竞态静默成功（L019 对齐落地）'
+  surface: 'DELETE <conanBase>/v1/conans/<ref>（ref 不存在时）'
+  request:
+    method: DELETE
+    path: '<conanBase>/v1/conans/<name>/<ver>/<user>/<ch>'
+    headers: { Authorization: 'Basic <valid>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    status: 200
+    body: { format: none, literal: '', note: '幂等接受（空体）；真实 conan 1 客户端可达（`conan remove` ×2 第二跳即此面）' }
+    note: >-
+      **D3 L019 对齐**：B 旧形态（404 `Path not found`）按 conductor 裁定对齐参照 200 幂等。**v2 面 twin
+      维持 404**（conan/v2-delete ghost 臂）——参照自身 v1/v2 两面分叉（v1 ghost 200 / v2 ghost 404），
+      对齐后 B 与 A 两面同型
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: 'SAME（v1 ghost 再删 200 空幂等——L019 对齐落地+复验，翻绿待 compatibility-engineer 复核入册）'
+    detail: >-
+      L019 复验（uat-l0191-47f37739 × :8082，2026-09-14）：d3-del{1,2,3} 三连删 A/B 全 200 空（200/200/200）；
+      实现=internal/adapter/conan/v1.go serveV1RecipeDelete ghost 臂改 200。L018 取证：v1-22d A 200 0B
+      （对齐前 B 404 14B）
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0191-47f37739 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/conan/v1-22d-del-again.hdr, anchor: '200 空（幂等）原始取证', capture: 'b/ 同名（L018 时 404=对齐前形态）', date: '2026-09-13' }
+    - { kind: difftest, report: reports/agents/T-L019-1+2.md, anchor: 'L019 复验 D3 三连删（A/B 200×3）', date: '2026-09-14' }
+    - { kind: difftest, report: reports/compatibility/L018-conan-evidence.md, anchor: '§3-D3', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+  divergence_ref: known-divergence.yaml#conan/v1-ghost-delete-idempotency（L019 对齐落地——登记建议改记 resolved-by-alignment）
+# ── 错误信封族（D2——L019 对齐后形态：ghost 族 errors[] envelope） ───────────
+- id: conan/error-envelope-family
+  feature: 'conan 数据面错误体形态族（ghost GET/ghost DELETE）：errors[] envelope——ghost GET=`Not Found`、ghost rrev/recipe DELETE=`Couldn''t find path ''<p>''`（裸引路径，无尾斜杠）；与 npm D4「Not found」同构收敛（L019 对齐落地）'
+  surface: 'conan LOCAL 数据端点 4xx 响应体（v1+v2 跨面；remote/virtual 面不在本条——差分后段票）'
+  request:
+    method: GET
+    path: '<conanBase>/{v1,v2}/conans/<ghost-ref>/…（代表臂：v2 latest / v2 revisions / v1 snapshot / v2 ghost-rrev DELETE / v2 ghost-recipe DELETE）'
+    headers: { Authorization: 'Basic <valid>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'ghost GET 族（v2 latest/revisions、pkg latest/revisions、files 清单空、v1 snapshot ghost、v1/v2 文件 GET ghost、v1 files 通道 checksum-deploy miss）'
+      status: 404
+      headers: { literal: { Content-Type: application/json } }
+      body:
+        format: json
+        json:
+          keys_exact: [errors]
+          path_literal:
+            'errors[0].status': 404
+            'errors[0].message': 'Not Found'
+        note: >-
+          A 74B pretty（Jackson `" : "`）；B 同构 Go pretty（2-space）——indent 归 R2（normalize_indent），
+          npm D4 同形态先例（writeError 收敛点）。**B 旧形态**（conan 原生裸文本 `Couldn't find revisions`/
+          `Path not found`——恰为 reverse spec §3.1 从 DE 抄录的串，A 真身不回）按 L019 裁定收口
+    - when: 'ghost DELETE 族（v2 单修订/整 recipe/pkg 修订 DELETE 的 ghost 臂）'
+      status: 404
+      headers: { literal: { Content-Type: application/json } }
+      body:
+        format: json
+        json:
+          keys_exact: [errors]
+          path_literal:
+            'errors[0].message': 'Couldn''t find path ''<user>/<name>/<ver>/<ch>[/<rrev>|/<pid>/<prev>]'''
+        note: >-
+          引号内路径**无尾斜杠**（A 真身形态；B 旧形态尾多 `/`=路径拼接规范化差，L019 收口删除）。
+          v2 packages 全删 ghost 臂=`Couldn''t find packages for deletion`（envelope 包裹，A 反编译+规格双证文案）
+    note: >-
+      **D2 L019 对齐（①ghost GET 族+③尾斜杠两子族）**：对齐参照 Not Found envelope（npm D4 同构——
+      adapter 本地 writeEnvelope 收敛点）；conan 原生裸文本两形态收口。**401 措辞子族（②）未在裁定内**
+      ——分立 #conan/auth401-wording
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: 'SAME（ghost GET/DELETE 族 envelope+文案+CT 双端同构——L019 对齐落地+复验，翻绿待 compatibility-engineer 复核入册）'
+    detail: >-
+      L019 复验（uat-l0191-47f37739 × :8082，2026-09-14）五臂：d2-latest/d2-revs/d2-v1snap（404 envelope
+      `Not Found` 同文案同 CT，仅 indent 形态差=R2）+ d2-delrev（`Couldn't find path 'l019/hello19/1.0/stable/
+      deadbeef…'` **无尾斜杠逐字同**）+ d2-delrecipe（`Couldn't find path '_/nope/1.0/_'` 同）。实现=
+      internal/adapter/conan/errors.go writeEnvelope（npm errors.go 同构）+ v1.go/v2.go 各 ghost 臂改写；
+      remote/virtual 面（msgNoRevisions 保留）不在裁定内
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0191-47f37739 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/conan/v2-05d-latest404.body, anchor: 'A envelope Not Found 原始取证（74B pretty）', capture: 'v1-22b/v2-10c/v2-11c 全族 + b/ 同名（L018 时 B 裸文本=对齐前形态）', date: '2026-09-13' }
+    - { kind: difftest, report: reports/agents/T-L019-1+2.md, anchor: 'L019 复验 D2 五臂（A/B 对照表：文案/CT/尾斜杠）', date: '2026-09-14' }
+    - { kind: difftest, report: reports/compatibility/L018-conan-evidence.md, anchor: '§3-D2 + §5 规格勘误行', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+  divergence_ref: known-divergence.yaml#conan/error-envelope-family（L019 对齐落地——登记建议改记 resolved-by-alignment；401 措辞子族移 #conan/auth401-wording）
+# ── 401 措辞族（D2 子族②——L019 分立，未裁） ────────────────────────────────
+- id: conan/auth401-wording
+  feature: 'authenticate 坏凭据 / check_credentials 坏 token 的 401 message 措辞：A `Bad Credentials`/`Props Authentication Token not found` vs B `invalid credentials`（auth 中间层面，adapter 外）'
+  surface: 'GET <conanBase>/{v1,v2}/users/{authenticate,check_credentials}（坏凭据臂）'
+  request:
+    method: GET
+    path: '<conanBase>/{v1,v2}/users/{authenticate,check_credentials}'
+    headers: { Authorization: 'Basic <bad> / Bearer <bad>' }
+    query: {}
+  authentication: { type: 'basic|bearer（坏凭据）', role: user }
+  expect:
+    status: 401
+    body:
+      format: any
+      note: >-
+        status=断言面（双端同）；message 措辞差（A `Bad Credentials` / `Props Authentication Token not found`
+        ——内部措辞泄漏形态 vs B `invalid credentials`）——**D2 三子族之②，L019 裁定未含**，维持差并分立登记。
+        B 侧渲染点在 auth 中间层（internal/adapter 外）——对齐需独立票。npm m18 auth401 措辞组先例可参
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: 'DIVERGENT-D2②（同码异文——措辞面未裁，UNKNOWN 待裁）'
+    detail: 'v2-02c：A `Bad Credentials`（pretty envelope）/ B `invalid credentials`；v2-03b：A `Props Authentication Token not found` / B 同措辞 401'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0181-74656514 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l018-wire/a/conan/v2-02c-auth-badcred.body, anchor: 'A Bad Credentials', capture: 'v2-03b-check-bad.body + b/ 同名两臂', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/L018-conan-evidence.md, anchor: '§3-D2 401 行', date: '2026-09-13' }
+  confidence: high
+  status: DIVERGENT
+  divergence_ref: known-divergence.yaml#conan/auth401-wording（登记建议——L019 自 #conan/error-envelope-family 分立）
+# ── 收尾说明 ─────────────────────────────────────────────────────────────────
+# 覆盖统计（L019 后，2026-09-14）：16 条目 = VERIFIED 14（handshake-ping / handshake-auth / v2-upload /
+#   v2-revision-chain / v2-package-download / v2-search / v2-delete / v1-url-family / v1-snapshot-search /
+#   v1-nonlocal-gate / v1-delete-tree + **L019 翻绿：error-envelope-family[D2①③] / v1-ghost-delete[D3] /
+#   v2-pkgmeta-search[D4]**）+ DIVERGENT 2（v2ping-posture[D1——L019 裁不实现=INTENTIONAL 候裁] /
+#   auth401-wording[D2②——L019 自 error-envelope-family 分立]）。L019 翻绿三条目均经 uat-l0191 双端复验
+#   （reports/agents/T-L019-1+2.md），入册复核权在 compatibility-engineer。
+# 差分批跑可差分 surface（后段票输入）：①v1/ping 携 X-Conan-Client-Version 双端（A 侧版本检查头未取证）；
+#   ②X-Checksum-Deploy 命中臂（先 PUT 文件再探测同 sha1）；③conan 1 revisions-on 面（config set general.revisions=1
+#   后 URL 带 rrev 段形态）；④`_` 占位 ref 匿名形态（T-340 单侧存量）；⑤remote 仓面（T-312 as-built 对拍）；
+#   ⑥D4 A 合法 q 语法探明（属性查询式）；⑦D5 删除后读面 settle 策略（A ≥8s）。
+# 头面缺口：A 侧响应头仅 .hdr 全量落档（无逐臂头断言差距——能力头三只已 literal；CT/WWW-Authenticate 面
+#   批跑捕获后补）。
+# 勘误回流（docs/reverse/conan.md 归 reverse-engineer）：§2 v2/ping 行（A 无路由）+§5 rrev 32hex（非
+#   sha256 64hex）+§3.1 A 侧错误文案（A 回 envelope Not Found）——L018-conan-evidence.md §5 全列。

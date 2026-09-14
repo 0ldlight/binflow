@@ -1,0 +1,17 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Content-Disposition: attachment; filename="hello16-1.0.0.tar.gz"
+Content-Length: 360
+Content-Type: application/x-gzip
+Date: Sun, 13 Sep 2026 12:36:21 GMT
+Etag: a59bf9358dd2fd84391b896db5de4f131ad144cf
+Last-Modified: Sun, 13 Sep 2026 12:36:02 GMT
+X-Artifactory-Filename: hello16-1.0.0.tar.gz
+X-Artifactory-Id: f8d6c0001a157348:5410f5e7:1a09abc95b6:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Artifactory-Origin-Remote-Path: local
+X-Checksum-Md5: fb2fd4e3c7c1ab587642ef34c38d1fa3
+X-Checksum-Sha1: a59bf9358dd2fd84391b896db5de4f131ad144cf
+X-Checksum-Sha256: 558c55183d556360a6930579f52855bfd0927b4950c787effd3a3856b5ed5568
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

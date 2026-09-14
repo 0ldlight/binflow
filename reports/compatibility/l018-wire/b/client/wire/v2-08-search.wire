@@ -1,0 +1,40 @@
+{
+ "request": "GET /binflow/l018-conan/v1/ping",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Request-Id": "8a8544951d23740148bf9ada786e904d",
+  "Date": "Sun, 13 Sep 2026 15:40:51 GMT"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----
+{
+ "request": "GET /binflow/l018-conan/v2/conans/search?q=hello18%2F%2A",
+ "req_headers": {
+  "User-Agent": "Conan/2.31.2 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "application/json",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Content-Type-Options": "nosniff",
+  "X-Request-Id": "e756333a27baa875f22cdb8e4615edac",
+  "Date": "Sun, 13 Sep 2026 15:40:51 GMT"
+ },
+ "resp_body": "39B sha256=52ebb32e6f4a9770\n{\"results\":[\"hello18/1.0@l018/stable\"]}"
+}
+----

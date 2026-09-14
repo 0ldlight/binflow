@@ -61,7 +61,10 @@ func (a *ArtifactInfo) UnmarshalJSON(data []byte) error {
 
 // ArtifactListEntry is one entry in the ?list response (E-10). Size is an
 // int64 NUMBER on the wire (storage.go listFile) — unlike the item-info
-// body, whose size is a string.
+// body, whose size is a string. URI carries a LEADING slash and the path
+// RELATIVE to the queried directory (`/f1.txt`, `/d2/f3.txt`; the L009
+// five-pack, 32-arm dual-system matrix) — the client passes it through
+// verbatim, as the server spelled it.
 type ArtifactListEntry struct {
 	URI    string `json:"uri"`
 	Folder bool   `json:"folder"`

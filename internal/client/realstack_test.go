@@ -255,8 +255,8 @@ func TestClientAgainstRealServerStack(t *testing.T) {
 	if len(listing.Files) != 1 {
 		t.Fatalf("files = %+v, want the single uploaded file", listing.Files)
 	}
-	if listing.Files[0].URI != "hello.txt" || listing.Files[0].Folder || listing.Files[0].Size != int64(len(content)) {
-		t.Errorf("file entry = %+v, want uri hello.txt, folder false, int64 size %d", listing.Files[0], len(content))
+	if listing.Files[0].URI != "/hello.txt" || listing.Files[0].Folder || listing.Files[0].Size != int64(len(content)) {
+		t.Errorf("file entry = %+v, want uri /hello.txt (leading slash), folder false, int64 size %d", listing.Files[0], len(content))
 	}
 
 	// ---- user chain: create (201 empty), read back, list, rotate password ----
@@ -441,7 +441,7 @@ func TestArtifactSpecialPathsRealStack(t *testing.T) {
 			}
 			found := false
 			for _, f := range listing.Files {
-				if f.URI == base {
+				if f.URI == "/"+base {
 					found = true
 					if f.Folder || f.Size != int64(len(content)) {
 						t.Errorf("list entry = %+v, want folder false size %d", f, len(content))
@@ -449,7 +449,7 @@ func TestArtifactSpecialPathsRealStack(t *testing.T) {
 				}
 			}
 			if !found {
-				t.Errorf("listing of %q = %+v, want the literal name %q (decode contract broken)", listDir, listing.Files, base)
+				t.Errorf("listing of %q = %+v, want the literal name %q with the leading slash (decode contract broken)", listDir, listing.Files, base)
 			}
 
 			if err := c.DeleteArtifact(ctx, repoKey, tt.nodePath); err != nil {

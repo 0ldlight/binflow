@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/prd/pending-rulings.md` |
-| 版本 | v2.2（L014-1 重呈裁：R-15a 探针翻案三新案 / R-15b 两案重呈+成本估计 + R-15c/d 落格收注 + as-built 漂移纠偏入路径；v2.1=L011-2 增补：票 E+F 四臂入册 R-15〔§2 R-15 + §3/§4 联动〕；v2.0=L008-4a 整编：新增 R-10 三臂 / R-11 / R-12 / R-13 / R-14 + 既有 9 项复核〔§2.0〕+ §4 批量批复式；v1.0=L002-4 首建 9 项） |
+| 版本 | v2.4（L021-2 三裁定包：+R-22a auth401 措辞族 / R-22b 匿名读默认策略〔ADR-0009 复核，R-2 联动〕 / R-22c 登录失败限流〔security〕——素材 L020-auth401-maven-faces.md；v2.3=L016-3：+R-16~R-21 六席位；v2.2=L014-1 重呈裁：R-15a 探针翻案三新案 / R-15b 两案重呈+成本估计 + R-15c/d 落格收注 + as-built 漂移纠偏入路径；v2.1=L011-2 增补：票 E+F 四臂入册 R-15；v2.0=L008-4a 整编：R-10~R-14 + §4 批量批复式；v1.0=L002-4 首建 9 项） |
 | 维护者 | product-manager（唯写）；裁定结果回写本表 + 各关联账目，不另建副本 |
 | 裁定通道 | 「用户」类经 conductor 转用户终裁；「产品」类 PM 域内可裁、报 conductor 备案；「ADR」类走 DECISIONS.md 流程 |
 
@@ -20,7 +20,7 @@
 | 编号 | 事项 | 当前 BinFlow 行为 | Artifactory 参照行为 | 建议立场（PM） | authority | 状态/限期 |
 |---|---|---|---|---|---|---|
 | R-1 | docker `/v2/token` 签发 TTL 与形态 | `{token(不透明 hex), access_token, expires_in:2592000, issued_at, scope}`（30 天超集） | `{token(JWT), expires_in:9000}`（2.5h，无 issued_at/access_token/scope 键） | **对齐 expires_in=9000**（灭 DIVERGENT 主因 + 安全收紧）；token 内形保留不透明（客户端不解码，吊销链不动），超集键保留 | 产品（TTL/键集）+ 用户（30 天→2.5h 的安全口径确认） | known-divergence UNKNOWN，LOOP 002 限期**已过未升级**——随 v2 呈批；契约 `docker/remote-token-issue` DIVERGENT 待翻 |
-| R-2 | remote 面匿名默认姿态（`/v2/token` 无凭据） | 匿名开：200 签发匿名 pull scope token | 参照实例匿名关：401 `{"errors":[{"status":401,"message":"Authentication is required"}]}`（pretty） | **维持默认开 + 全局 `anonymous_access` 键管辖 remote 面**（与 local 面 v1.3/C6 同键同语义）；对拍以配置态收敛（参照实例切 anonymous 双态取证后锚契约），wire 默认差异登记 INTENTIONAL（部署策略差异非协议语义） | 产品 | known-divergence UNKNOWN，LOOP 002 限期**已过未升级**——随 v2 呈批；契约 `docker/remote-token-anonymous` DIVERGENT 待翻 |
+| R-2 | remote 面匿名默认姿态（`/v2/token` 无凭据） | 匿名开：200 签发匿名 pull scope token | 参照实例匿名关：401 `{"errors":[{"status":401,"message":"Authentication is required"}]}`（pretty） | **维持默认开 + 全局 `anonymous_access` 键管辖 remote 面**（与 local 面 v1.3/C6 同键同语义）；对拍以配置态收敛（参照实例切 anonymous 双态取证后锚契约），wire 默认差异登记 INTENTIONAL（部署策略差异非协议语义） | 产品 | known-divergence UNKNOWN，LOOP 002 限期**已过未升级**——随 v2 呈批；**v2.4 注：全域匿名读面已立 R-22b（ADR-0009 复核）——本席与 R-22b 建议同构（配置态收敛+INTENTIONAL），可并批复**；契约 `docker/remote-token-anonymous` DIVERGENT 待翻 |
 | R-3 | SSRF 私网上游闸（allowPrivateUpstream） | 默认拒私网上游（per-repo 显式键放行，对拍环境即用此键） | 无此闸：remote 仓 url 可指私网 | **维持更严立场 → INTENTIONAL_DIFFERENCE**：安全（SSRF/横向移动面）优先于行为兼容；保留显式配置键（默认 false）服务内网级联场景；登记 ADR 为 authority | 用户（安全 vs 兼容终裁；建议已明确） | known-divergence UNKNOWN，LOOP 003 限期**已过未升级**——随 v2 呈批 |
 | R-4 | HA 链范围 | 无（单节点；servelock，ADR-0002/0004） | HA 心跳/主选举/分布式锁/集群拓扑/任务单节点守卫（wire 协议 H1 UNKNOWN） | **两步走**：① HA-ready 无状态化审查近期做（不锁死、低成本）；② HA 本体最小集（锁/心跳/任务守卫）**进目标但自有形态**（NEW-BUILD 绿地、无 wire 对拍义务——HA 是部署形态非客户端协议），维持 PRODUCT M18+ 候排程，请用户确认排程与最小集边界 | 用户（范围+排程；PRODUCT 2026-09-06 翻案已把 HA 本体放进路线） | gap 总账 `ha-cluster` NEW-BUILD 候选；storage-v2 §1 #17 |
 | R-5 | GCS/Azure 云 provider 是否进目标 | 无（S3 已立；binstore.yaml 保留名 `azure`/`gs` 拒启 + Backend 缝已埋，ADR-0036/0019） | GCS/Azure 模板族（google-storage-v2 / azure-blob-storage{,-v2,-archive} 等 8 模板） | **不进目标（维持 UNSUPPORTED 留缝）**：S3 协议是事实标准对象存储兼容面（GCS/Azure 均有 S3 兼容层）；单二进制 <40MB 成功标准与双 SDK 维护成本不支持；Backend 缝保留，强需求再启 | 用户（终裁；建议已明确） | storage-v2 §1 #15（UNSUPPORTED 留缝）；binary-provider-chain §3.2 |
@@ -39,6 +39,15 @@
 | R-15b | 票 E②：`?lastModified` 臂（matrix D01-R04，P0） | 404 + not-implemented 信封（E-26，与 propertiesXml 同分支同测钉死；冻结件所记 501 已漂移） | 200 `{"uri":…,"lastModified":"yyyy-MM-dd'T'HH:mm:ss.SSSZ"}` + `Last-Modified` 头（**子树 max(lastModified)**）；非 local/cached 仓 400（E1+官方 Get Item Last Modified 端点页双证，高置信；头逐字格式未活体钉死） | **案 A 实现**：官方文档端点（真实消费=CI 增量轮询/缓存失效）；既有能力窄投影——`?list&deep` 全树遍历与逐条 lastModified 已 32/32 SAME；400 臂有 `?permissions` 同款已对齐先例；缺位理由（成本）不成立（见 §2 成本估计） | 产品（裁对齐则开实现票）；呈批随包 | matrix D01-R04 partial（P0/中置信）；v2.2 重呈（LOOP 014-1，as-built 注记纠偏入 §3 路径） |
 | R-15c | 票 F①：`GET /api/repositories?project=` 容忍语义（matrix D02-R01，P0） | 参数未实现过滤（被忽略，回全列表）〔历史态，已裁〕 | **参照实测=过滤（空集）**：`?project=<未知>` → `[]`（Projects addon 未激活仍按过滤语义回答空集）；空串=无参语义；组合臂随主臂（L013 探针 c0–c4 五臂） | ~~探针先行~~→**已落格案乙（truthful-empty）**：非空 `project` → `[]`，空串维持无参语义；「零代码翻 ✅」假说出局（参照未忽略） | 产品（§4-4 预授权式，已执行） | **已收口**：L013-r15c 实现落地（commits 3453d8bb/9322359c，五臂双端重放全同）——**D02-R01 已翻 ✅**，P0 partial 降至 2 行（余 D01-R03/R04=本表 R-15a/b） |
 | R-15d | 票 F②：D02-R01 行收口路径（随 R-15c×探针联动） | —（随裁定分叉）〔历史态，已落格〕 | —（随裁定分叉） | 四象限落格=〔参照过滤/空集 × BinFlow 空集（案乙）〕小实现翻 ✅（推荐格命中，非「PM 反对」格） | 产品（预授权式，已执行） | **已收口**（同 R-15c）；四象限表留档 §2 R-15d 作先例 |
+| R-16 | properties 族根姿态（PUT/GET/DELETE 打仓库根，L012-3 root 角） | 三动词打根一律 400 `invalid artifact path: path is empty`（root-not-a-node 架构姿态→enrich 臂架构性不可达） | 根姿态开放：PUT 根属性 204（默认递归 fan-out 含根自身）、GET 回读在、`?list&includeRootPath&mdTimestamps` 根条目「/」携 properties@写入时刻（双端活体取证） | **对齐（面扩张票）**：参照面开放且双端取证在案；实现=三动词根姿态+authz 空路径+审计 path="" 放开（propModifiedTimes 现跳过空 path）——对齐后 includeRootPath enrich 臂自动可达 | 产品（面扩张排期） | known-divergence `rest/properties-root-posture` BUG（R-16 候裁席位即本行）；无根属性时「/」无 mdTimestamps 双端一致（非分歧面） |
+| R-17 | maven build.timestamp 漂移（spec §1.3 vs wire，mint 时间戳源） | 从 wire（服务端 now）——与参照活体一致、与 spec 文本相反 | mint 路径两次实测均服务端 now；build.timestamp 仅落节点 property，携带形态=deploy 矩阵参数；epoch-millis 等形态未探 | **案甲：规格勘误+限定语**（「已探携带形态内 build.timestamp 不参与 mint」——零实现成本双证在案）；备选案乙=先补 open-set 探针（3-5 臂）再裁 | 产品（规格冲突终裁；素材=docs/compatibility/ruling-material-build-timestamp.md 两案对比） | 规格冲突上报在案（效力序归 conductor→本表）；BinFlow as-built 两案下零改动；不触契约断言（ts 值归一） |
+| R-18 | npm legacy login 缺字段臂（body 缺 name/password） | 401 `authentication required`（写门在 body 校验之前） | 400 `User or Password fields are missing.`（DE 文案活体逐字证实——L014-4 探针） | **两案**：案甲=对齐 400（gate 豁免后先解 body，小改，错误语义更精确）/ 案乙=维持 401 门序 INTENTIONAL（真实客户端恒带双字段近不可达）；PM 建议未定（真两可） | 产品（错误分类定谳） | known-divergence `npm/login-missing-fields-400-vs-401` UNKNOWN（ruling_material 两案已备于台账）；DE 文案已活体证，零取证前置 |
+| R-19 | pypi simple/upload 面裁定族（六臂）——契约 8 DIVERGENT 中 6 UNKNOWN 类 | 各臂 B 姿态详见 contracts/pypi.yaml（simple-root-index 条目形态 ×3 / anchor-attrs rel 全丢 / upload-duplicate 400 / redirect-no-slash 相对 Location / legacy-json-api 404 / pep691 JSON 超集） | 各臂 A 姿态同上（双端活体在案，wire 落 l016 系报告） | **逐臂两案已随契约条目备**（倾向记录：redirect-no-slash 倾向 B 保留+注记；pep691 超集能力做/裁升；legacy-json-api UNSUPPORTED 候选；其余对齐/维持两案）——族批或逐臂批均可 | 产品（逐臂定谳；素材=contracts/pypi.yaml 各 DIVERGENT 条目 binflow_state） | 契约已立账（contracts/pypi.yaml 10 条目）；另 2 BUG 候选臂（anchor-attrs data-requires-python 三源全丢 / badwheel badmeta 索引策略）不走本表——直接开实现票 |
+| R-20 | maven metadata XML 形态三偏差（L016-3 ①升格入包） | modelVersion 属性缺 + 尾部 `<version>` 元素缺 + snapshot 块子序不同 | 三者皆在（双端活体+26 臂复跑维持） | **两案**：对齐（计算器渲染面三处补齐+差分复跑，低危渲染票）/ 维持 INTENTIONAL（**mvn 3.9.16 全容忍新证**——双端 deploy 全绿，客户端已容忍；需 authority） | 产品 | known-divergence `maven/metadata-xml-shape-three-deviations` UNKNOWN（LOOP 016 gate→随本包呈批） |
+| R-21 | maven 手 PUT metadata 可见性窗口（L016-3 ①升格入包） | 201 后同步重算（手写字节 1s 内不可见）〔组目录观测面〕；snapshot 目录手 PUT 现状待核对 | 组目录=逐字回放至下次触发；**snapshot 版本目录=202 丢弃式受理**（字节不落盘不触发重算——L017-2 规格票 §1.4 新发现，呈批口径按两目录形态分列） | **两案**：对齐（组目录改事件驱动回放 + snapshot 目录补 202 丢弃）/ 维持 INTENTIONAL（终态等价论——真实 mvn 腿 E1 双端等价，差异仅手 PUT 工具面可见） | 产品 | known-divergence `maven/manual-put-metadata-visibility` UNKNOWN（分列注记已入台账）；maven C3 已随 L017-2 定谳 resolved（pom 前置=参照确定性行为），差异侧移新条目 `maven/version-metadata-pom-prerequisite` BUG（LOOP 019 实现票，不经本表） |
+| R-22a | auth401 措辞族（坏凭据/匿名 401 message——跨域族 docker/npm/conan 同源渲染点） | 中间层统一 `invalid credentials`（router.go:170-174 单点；v1+v2 全域统一） | 中间层统一 `Bad Credentials`（坏凭据）/`Authentication is required`（匿名）——v1+v2 全域统一（l0203-wire 四臂逐字） | **两案**：案甲=对齐 A 全文案族（中间层分型渲染——docker ping P1-P3 分型先例沿伸；一处渲染点收三域族）；案乙=维持统一文案 INTENTIONAL（client-blind——npm/conan/docker CLI 均按状态码归类不读 message；需 authority）。**PM 建议倾向案甲**（伴生差 realm 串/CT charset/信封缩进三差走 normalize 品牌/归一域不裁） | 产品（文案面；跨域联动） | known-divergence `conan/auth401-wording` UNKNOWN（广度素材 L020-3 c1-c4+代码锚在账） |
+| R-22b | 全域匿名读默认策略（content GET/HEAD——ADR-0009 复核） | **默认放行**（DefaultAnonymousAccess=true，ADR-0009 在册；UAT 翻转位 SECURITY_ANONYMOUS_ACCESS 未执行=红线） | 参照实例全域 deny（401 Authentication is required；匿名不穿透数据面） | **两案**：案甲=对齐 deny 严化（翻 ADR-0009+R-2〔docker remote 匿名〕同收——breaking：现有匿名消费方断）；案乙=**维持 ADR-0009+INTENTIONAL 登记**（补引 ADR 即转正；差分以配置态收敛——anonymous 双态锚契约，R-2 建议同构）。**PM 建议倾向案乙** | 用户（ADR 翻转属用户级）+产品 | known-divergence `rest/anonymous-read-default-policy` UNKNOWN（c2/c4 双端臂） |
+| R-22c | 登录失败限流（连续坏凭据封锁——security 面） | **无机制**（4 次全裸 401） | 第 3 次起 403 倒计时封锁（"recurrent request failures… 9 second(s)"，~15s 冷却自愈——活体） | **两案**：案甲=补安全能力（A 语义对齐非逐字——**自有形态实现**，R-4「进目标但自有形态」同款两步走：先立 security 票定阈值/文案/冷却窗）；案乙=维持缺位（登记为机制缺位非 INTENTIONAL——INTENTIONAL 需 authority 且「不做限流」无产品立场支撑）。**PM 建议倾向案甲变体**（security 票评估后实现） | 用户（安全能力引入）+产品（票面） | known-divergence `rest/login-failure-rate-limit` UNKNOWN（V5 活体） |
 
 ## 2. 逐项详述
 
@@ -247,6 +256,14 @@ curl -su admin:'***' ":8082/artifactory/api/repositories?project=&type=local"
 
 （命令载体归 differential-qa / devops 探针票执行；本清单是裁定素材的取证规格，密码占位不落明文。）
 
+### R-16~R-21（v2.3 新增——素材指针，详情不重复）
+
+六席位证据/两案素材均已完备（零取证前置），出处：
+
+- **R-16/R-17/R-18/R-20/R-21**：known-divergence.yaml 对应条目（rationale 即两案素材；R-17 另有独立两案对比文 `docs/compatibility/ruling-material-build-timestamp.md`；R-18 台账内 `ruling_material` 键）。
+- **R-19**：contracts/pypi.yaml 各 DIVERGENT 条目 `binflow_state`（六臂逐臂两案+倾向记录在 verdict/detail）；wire 证据 l016 系报告。
+- **maven C3 不入包**：`maven/reference-race-metadata-loss` 系参照自身反常面 + pom 前置规格假说未定案——reverse-engineer 规格票前置（gate 已改期 LOOP 017，台账注明）；规格票产出后重分类，届时若需用户裁决再入 v2.x。
+
 ## 3. 裁定后回写路径（约定）
 
 | 裁定项 | 回写目标 |
@@ -264,6 +281,11 @@ curl -su admin:'***' ":8082/artifactory/api/repositories?project=&type=local"
 | R-15a/b 共同（无论裁何案） | **as-built 漂移纠偏**（经 compatibility-engineer）：matrix D01-R03/R04 capability 行文与 rest-compat-matrix §2 行 3/4 冻结件所记「501 显式拒绝」→ 实态「404 E-26 not-implemented 信封」（源证据 storage.go 分支 + compat_test 断言 + L013 探针 p1）；冻结件按 D01-R05 先例不回改、留痕即注。**顺带差异项**转 compatibility-engineer：api 面 PUT 属性 201 FileInfo vs 204（探针 §2 第 3 条，与 D01-R06 ✅ 断言语境核对后定登记形态） |
 | R-15c/R-15d | **已执行收口（L013，§4-4 预授权）**：探针五臂 → 参照=空集过滤 → 案乙小实现落地（commits 3453d8bb/9322359c）→ **matrix D02-R01 已翻 ✅** + contracts repositories 列表臂断言（五臂 wire 现成）+ 本表已收注；无再呈批项 |
 | D2（若随 R-1 联裁） | known-divergence `docker/remote-v2-ping-revoked-arm-unreachable` → INTENTIONAL（authority=R-1 终裁 + 模型级登记）或开吊销态可验实现票 + 本表 §2.0 注记更新 |
+| R-16 | 裁对齐 → 面扩张票（root 三动词+authz 空路径+审计空 path 放开）→ 台账 `rest/properties-root-posture` 转 BUG 修复路径 resolved + matrix 行注记 + 本表；裁维持 → INTENTIONAL（authority=本裁定+ADR）+ 契约 400 姿态冻结 |
+| R-17 | 案甲 → maven-npm-pypi.md §1.3 勘误一句（reverse-engineer 域，限定语对冲）+ 素材文收注 + 本表；案乙 → 探针票（3-5 臂 open set）后回本表 |
+| R-18 | 案甲 → session login handler 小实现票 + 台账 resolved + contracts/npm.yaml `session-login-put` error_behavior 首臂升 400+文案 literal；案乙 → 台账 INTENTIONAL（authority=本裁定）+ 契约 401 姿态冻结 |
+| R-19 | 逐臂裁定 → contracts/pypi.yaml 对应条目升/冻结 + 台账拆条定分类 + matrix D12-R06/R07 域行注记 + 本表；2 BUG 候选臂不经本表直接开实现票 |
+| R-20/R-21 | 裁对齐 → maven 实现票（渲染三处补齐 / 事件驱动重算）+ 台账 resolved；裁维持 → INTENTIONAL（authority=本裁定；R-20 可引 mvn 容忍新证、R-21 可引终态等价论）+ 契约姿态冻结 + 本表 |
 
 > 本表不替任何 authority 拍板；每项终裁后由 product-manager 在本表更新状态列并按上表路径派发回写票。
 
@@ -286,5 +308,8 @@ curl -su admin:'***' ":8082/artifactory/api/repositories?project=&type=local"
    - R-12 维持 CapSecurityRead 超集 → INTENTIONAL（补引 ADR-0026）
    - R-13 对齐（默认组语义）/ R-14 对齐（只读虚拟行）
    - R-15a 案①双面对齐实现 / R-15b 案 A 实现 / R-15c+d 已落格案乙收口（L013，无需再批）
+   - **v2.3 扩容（L016-3）**：R-16 对齐（面扩张票）/ R-17 案甲（规格勘误+限定语）/ **R-18 不在整包内**——真两可（两案均立得住，PM 不预设立场，需点名）/ R-19 倾向混合批（redirect-no-slash 维持 B+注记、pep691 超集做、legacy-json-api UNSUPPORTED、root-index/anchor-rel/upload-duplicate 对齐——逐臂点名可覆盖）/ R-20 维持 INTENTIONAL（mvn 容忍新证）/ R-21 维持 INTENTIONAL（终态等价论）
+   - maven C3 / R-6 维持不入包（spec/证据前置，见 §2 R-16~R-21 节尾注）
+   - **v2.4 扩容（L021-2）**：R-22a 案甲（对齐 A 文案族+分型渲染）/ R-22b 案乙（维持 ADR-0009+INTENTIONAL，R-2 同构）/ R-22c 案甲变体（security 票评估后自有形态实现）
 3. **生效路径**：裁决回执经 conductor 落地——PM 回写本表状态列 + 按 §3 派发回写票；INTENTIONAL 项的 ADR 登记与契约冻结随票；实现/建模类裁定转 tech-lead 拆票。
 4. **预授权式（v2.1 新增，限 R-15c/R-15d；v2.2 注：已被 L013 执行完毕留档）**：用户可一次批「对齐参照实测」——探针出数后 PM 按 §2 R-15d 四象限表自动选案执行并回报（免二次呈批）；探针出第三态（400/复合形态）或落「PM 反对」格时中止预授权、回报 conductor 再呈批。**执行留痕：L013-4+5 已按此式落格案乙并收口（D02-R01 翻 ✅）**。R-15a/R-15b 不适用预授权（均可直接裁，无需取证前置——a 的呈批素材已含 L013 探针五臂 wire，残余转义臂细节随实现票；b 的实现对齐已有高置信规格）。

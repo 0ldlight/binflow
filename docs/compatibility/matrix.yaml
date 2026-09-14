@@ -2416,10 +2416,12 @@ rows:
   confidence: high
   contract_ref: 
   golden_ref: 
-  last_difftest: reports/compatibility/L013-maven-evidence.md + reports/agents/T-L014-2.md（26 臂矩阵 23 一致；unique-snapshot 改写+checksum 旁车双 BUG 闭；F1 pom 规则活参照定案）
+  last_difftest: reports/compatibility/L013-maven-evidence.md + reports/agents/T-L014-2.md（26 臂矩阵 23 一致；unique-snapshot 改写+checksum 旁车双 BUG 闭；F1 pom 规则活参照定案）+ docs/reverse/maven-metadata-pom-prerequisite.md（L017-2 定谳）+ T-L019-1+2 实现验收（M1/M2/M3 三臂双端 + mvn 3.9.16 真腿：hasPom 硬前置落地——台账 version-metadata-pom-prerequisite resolved；遗留三小面候选票=受理码/XML 渲染/404 措辞）
   priority_class: P1
   layer: A
   source_row: "§11.1 行 8"
+  note: 'L018-3 联动注记：本行 compatible 态覆盖 26 臂主面；pom 前置缺口（jar-only 目录 BinFlow 仍生成
+    metadata）系臂级账（known-divergence#maven/version-metadata-pom-prerequisite BUG）不占行态。'
 - row_id: D12-R09
   domain: D12
   capability: 重索引族已实现 6 件（conan ×2、deb、helm ×2、yum）
@@ -2447,9 +2449,9 @@ rows:
   capability: goproxy（模块协议原生，GOPROXY 端点在内容面承载）
   state: compatible
   confidence: high
-  contract_ref: 
+  contract_ref: contracts/goproxy.yaml
   golden_ref: 
-  last_difftest: 
+  last_difftest: 'L019-3 六臂双端两轮（reports/compatibility/L019-goproxy-conan-put.md）：s1 PUT 三件套双端 201 首证 / g1-g6 体面三方字节平价（.info/.mod/.zip≡fixture）/ g5 sumdb 双端 404（A 不服务实锤）——契约四条目升格 VERIFIED 3〔put-upload-triplet 转正+unobserved 收窄为 error 面〕+ INTENTIONAL 1；G1 CT vendor 后缀族断言修订（双形态互认 pattern）+ G3 时间戳列活体双证（台账升置信）。前置 L018-2 契约化（probes/goproxy/endpoints-probe.sh——L018 窗口 docker 全灭未跑，L019-3 复跑版补成）'
   priority_class: P1
   layer: A
   source_row: "§11.1 行 11"

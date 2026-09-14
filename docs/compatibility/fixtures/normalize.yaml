@@ -100,3 +100,44 @@ domains:
     auth:
       basic_credentials: redact
       anonymous_arm: authed_only             # m02：匿名读 A 401（匿名访问全局关）/ B 200（ANONYMOUS_ACCESS=true）——实例配置差非协议面，差分一律认证臂；匿名臂结果仅作实例姿态注记
+  pypi:                                       # L016-1（contracts/pypi.yaml 首文件）——源：L016-pypi-evidence.md §1 差异面 + 提案注
+    headers:
+      drop:
+        - Date
+        - X-Request-Id
+        - X-Artifactory-Id
+        - X-Artifactory-Node-Id
+        - X-Jfrog-Version                   # 实例版本头（参照侧）
+        - Via
+      keep_semantic:
+        - Content-Type                      # 断言面（HTML 页 / PEP 691 JSON 臂 CT 分叉即 D5）；charset 后缀归一（A text/html ≡ B text/html; charset=utf-8）
+        - Cache-Control                     # 对齐候选断言面：参照带 max-age=60（同 npm D7 先例），BinFlow 现无——值参与比对
+        - ETag                              # 304 语义断言面；值算法 opaque（A=31-bit 折迭哈希十进制无引号 / B=sha256hex 带引号）——不作值断言（etag.opaque）
+        - Location                          # 302 臂：host[:port] 替换占位符后比对路径+尾斜杠（A 绝对 URL 的 :8081=Override-Base-Url 部署派生，不作协议断言）；绝对/相对形态差记录为 D10 候选不归一
+        - Vary                              # B 现带 Vary: Accept——保留比对（协商面敏感头）
+      superset_policy: tolerate_and_note    # 单侧多出的非语义头记 superset_note，不判 DIVERGENT（沿三域先例）
+    body:
+      html:
+        wire_format: compare                # simple HTML 逐字是断言面：头模板/锚点属性集/排序（packages/ 段与属性缺失=断言目标 D1-D4，绝不归一）
+        trailing_newline: normalize         # 空根 120B vs 121B——B 尾部 \n 归一（L016 p1 臂判 SAME 口径）
+        sha256_fragment: keep               # #sha256= 是 pip 校验面，逐字（fixture 哈希对拍）
+      json_simple:                          # PEP 691 协商臂（B 侧现值形态）
+        wire_format: normalize_indent       # JSON 缩进归一（沿 npm 域先例）
+        hashes_object: keep                 # files[].hashes.sha256 逐字
+      etag:
+        opaque: true                        # ETag 算法私有（PEP 503 只要求支持）：值不判差，If-None-Match→304 语义是断言面
+    timing:
+      compare: magnitude_only               # 索引物化即时性：真实客户端粒度双端 ≤3s 窗口不可分辨（L016 i1/i2 臂；L015 P2b 异步空窗未复现）——只保数量级
+    auth:
+      basic_credentials: redact
+  goproxy:
+    body:
+      list_timestamp_column: strip        # @v/list 行尾时间戳列（A/S7 反编译形态「v1.0.0 2024-…Z」）剥除后比对——BinFlow 纯版本列系收紧决策（spec §8-S7），列差不判
+      info_time: keep_semantic            # .info Time 值 RFC3339 逐字（PUT 什么 GET 什么——逐字节回读是断言本体，不归一）
+    headers:
+      drop:
+        - Date
+        - X-Request-Id
+        - X-Artifactory-Id
+        - X-Artifactory-Node-Id
+        - X-Jfrog-Version

@@ -736,3 +736,98 @@ contracts:
 # 未收面（不立断言）：同值幂等重 PUT 直发臂（wire 为客户端短路零 PUT）、latest 重算基准分辨臂（semver-max
 #   vs 最近发布——差分批跑候选探针）、DELETE latest 后再 PUT latest 的恢复臂、Cache-Control 值源（固定 vs 配置）、
 #   packument 面/tarball 面/virtual 仓面（后段票）。
+# ══ 第三批（L016-2，2026-09-13）：npm publish ghost 守卫（深水票） ═════════════════════
+# 来源双柱：L015 N4/N4'/g2 差分发现（ghost 201+latest 劫持=BUG 候选）× L016-2 三臂错配细分探针
+#   （tools/difftest/l016/npm-ghost-guard.sh，wire=reports/compatibility/l016-probe-wire/{a,b}/npm-ghost/）。
+# 守卫语义钉死：冲突谓词=tarball 路径（_attachments 名派生），非 versions 声明；消息引声明版本。
+# 投影差边界：A 对 crafted 最小文档永不物化投影（G4 对照臂证与错配无关——L015 §5 既有 UNKNOWN
+#   「最小文档门槛字段」域，本批不裁不猜）；B 恒物化。守卫面（G1/状态面/存储面）双端全对齐。
+- id: npm/publish-ghost-guard
+  feature: 'ghost publish 守卫（versions×attachment 名错配族）：冲突谓词=tarball 路径（attachment 名派生）已存在 → 403；
+    ghost 版本不入索引、latest 不劫持；无冲突 → 201 + 字节落 attachment 路径'
+  surface: PUT /{name}（publish 面——crafted 文档；真实 npm 客户端恒发 names-agree 文档，错配仅可达于直发）
+  request:
+    method: PUT
+    path: /{name}
+    headers: { Authorization: 'Basic <valid>', 'Content-Type': application/json }
+    body: >-
+      错配形态三臂（每臂前置=真实 npm publish 1.0.0 使投影已物化）：G1 attachment 名不在 versions 且路径冲突
+      （versions={9.9.9}、attachment=<pkg>-1.0.0.tgz，1.0.0 已存）；G2 versions 含已存版本+新版本、attachment=新版本
+      （versions={1.0.0,2.0.0}、attachment=<pkg>-2.0.0.tgz）；G3 两者全错（versions={9.9.9}、
+      attachment=<pkg>-7.7.7.tgz，均未存）；G4 对照（crafted 干净 2.0.0，名名相合——投影物化判别臂）
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'G1：attachment 名指向已存 tarball 路径（N4/g2 复刻）'
+      status: 403
+      headers: { note: '响应头未捕获（curl -D 落盘），不立头断言；A pretty/B compact 信封 indent 差归一（normalize_indent）' }
+      body:
+        format: any
+        json:
+          keys_exact: [errors]
+          path_literal:
+            'errors[0].status': 403
+            'errors[0].message': "Cannot modify pre-existing version '<声明版本>', aborting upload for: '<pkg>'
+              （版本位=文档声明版本，非冲突路径版本——L015 N4 + L016 g1 双证；证据态声明版本=9.9.9）"
+          note: '文案与 republish-同版本 403（N3）同模板（msgCannotModify）；守卫谓词在 attachment 路径，消息位在声明版本'
+    - when: 'G2：versions 含已存版本+新版本、attachment=新版本（无路径冲突）'
+      status: 201
+      body: { note: '无守卫（谓词=路径非 versions 声明——文档携带已存版本不触发 403；A/B 双端 201）' }
+    - when: 'G3：两者全错（attachment 版本不在 versions、路径未存）'
+      status: 201
+      body: { note: '无冲突即收——字节落 attachment 路径' }
+    - when: 'G4 对照：crafted 干净新版本（名名相合）'
+      status: 201
+      body: { note: '物化判别臂：A 投影不动（见下 projection_note）——证明 G2/G3 的投影差为 doc 形态驱动非错配驱动' }
+    side_effect_invariants:
+    - 'G1 403 后：packument versions 不含声明版本、latest 不动（N4'' 劫持收口）、ghost 路径无节点'
+    - 'G2/G3 201 后：tarball 字节存于 attachment 路径（GET /{name}/-/<attachment> 200）；版本规范路径不存在（404）'
+    projection_note: >-
+      投影差（非守卫面）：A 对 crafted 最小文档（name/version/dist）永不物化 versions——G2/G3/G4 三臂 packument
+      均仅 [1.0.0]（读回稳定，非异步：+2s 与 +分钟双读一致）；B 恒物化（G2=[1.0.0,2.0.0]、G3=[1.0.0,9.9.9] 且
+      dist.tarball 指向 attachment 真实路径）。G4 对照证该差与错配无关=L015 §5 既有 UNKNOWN
+      （A crafted 最小文档门槛字段，已升 conductor）域，本条目不裁；真实 npm 客户端 publishes 双端均物化（N1/N6 双绿）。
+  side_effects:
+    - '守卫命中（403）：零制品写入、零索引变更、零 dist-tag 变更'
+    - '守卫放行（201）：tarball 节点写于 <name>/-/<attachment 名>（scoped 附件名含斜杠合法：
+      @scope/name-1.0.0.tgz → @scope/name/-/@scope/name-1.0.0.tgz）；B 另物化投影（projection_note 域）'
+  error_behavior:
+    - when: 'attachment 名含空/点段（../、a/../../x、.、..、a//b、/abs——BinFlow 防御臂，A 面未取证）'
+      status: 400
+      body:
+        format: any
+        json:
+          keys_exact: [errors]
+          path_pattern:
+            'errors[0].message': 'invalid attachment name .* in npm package'
+          note: >-
+            附件名是入存储路径的客户端 body 数据（scoped 合法含斜杠）——按段安全判定（空段/点段拒），穿越红线；
+            A 侧行为未取证不立对齐断言，BinFlow 防御姿态注记
+  binflow_state:
+    verdict: >-
+      SAME（守卫面全对齐：G1 403 状态+逐字文案+索引/latest 不变；G2/G3 201；G3 存储面 attachment 路径 200
+      +版本路径 404）——L016-2 修复后 uat-l0162-cd9cb770 复验；修复前 B 为 201+ghost 入索引+latest 劫持（L015 N4 BUG）
+    detail: >-
+      守卫谓词实现=attachmentTarballPath(name, _attachments 首键)+tarballExists（internal/adapter/npm/publish.go
+      publishWithTarball 步骤 4）；消息位=firstVersion（声明版本）。G3 dist.tarball 渲染=B 存储真实路径
+      （renderHonorsStoredRel——-rev echo 回显路径同规则，T-261 face-4 翻面即此决策）。投影差（B 物化/A 不物化）
+      属 crafted 最小文档门槛 UNKNOWN 域，G4 对照臂隔离，不裁
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0162-cd9cb770（工作树 cd9cb770+L016-2 未提交修复） }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L015-expansion-probe.md, anchor: '§1 N3/N4/N4''/N4''''（首证：ghost 403 vs 201+劫持）', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/l015-probe-wire/a/npm/, anchor: 'n4-ghost-publish.body（403 逐字）+ g2-ghost.body（干净复刻）+ g2-packument.body（A crafted 不物化）', capture: 'b/npm/ 对应反例（201+劫持）', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/l016-probe-wire/, anchor: 'a/npm-ghost/{g1,g2,g3,g4}*（三臂+对照 A 侧）+ b/npm-ghost/ 同臂 B 侧（修复后）', date: '2026-09-13' }
+    - { kind: unit, report: internal/adapter/npm/publish_ghost_guard_test.go, anchor: '四测试（G1 逐字+索引+无 ghost 节点 / G2 append / G3 attachment 路径存储+渲染 / 穿越六形 400）', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── 第三批收尾（L016-2，2026-09-13） ─────────────────────────────────────────
+# 覆盖统计：+1 条目 = VERIFIED 1（publish-ghost-guard——守卫面双端复验全绿；投影差归 crafted
+#   最小文档门槛 UNKNOWN 域，G4 对照臂隔离不裁）。全文件累计 17 条目：VERIFIED 15 / SPECIFIED 1
+#   / INTENTIONAL 1。
+# 回报 conductor（L016-2）：① crafted 最小文档门槛字段 UNKNOWN（L015 §5 既有）被 G4 对照臂再次
+#   证实与错配无关——B 恒物化 vs A 永不物化，裁定需后段投影票（候选：对 real-npm 文档逐字段二分）；
+#   ② T-261 face-4 翻面（stored bare rel 渲染 verbatim）为 L016-2 语义决策（回显幂等），无客户端可见回归。
+# 取证环境事故（沿 L015 §4 形态）：Docker Desktop 整体僵死一次（daemon containers/json 502），处置=
+#   全量重启 + 手工 docker start postgres artifactory，penpot/binflow-ga/control-plane 自愈；l016-ghost-*
+#   difftest 命名空间双端已删净，/tmp/l016 已清。

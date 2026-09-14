@@ -1,0 +1,11 @@
+[22:35:04] arm 0-setup repo l017-pypi
+[22:35:06] arm 1-D1a twine upload sdist (form requires_python source)
+[22:35:09] arm 2-D1b twine upload wheel (METADATA source)
+[22:35:11] arm 3-D1c curl sdist 1.0.1 WITHOUT requires_python form field (PKG-INFO server-side derivation)
+[22:35:14] arm 4-pkg-page (D1 render: anchor attrs)
+[22:35:16] arm 5-D7a badname (form name=hello16, file notl016-…whl)
+[22:35:18] arm 6-D7b badmeta (valid zip, NO METADATA)
+[22:35:20] arm 7-D7c badver (file hello16-abc-…whl, form version=1.0.0)
+[22:35:22] arm 8-pip requires-python filter (client-visible D1 effect)
+rptest-1.0.1-py3-none-any.whl
+[22:35:27] arm 99-teardown repo l017-pypi (deleteContent)

@@ -1,0 +1,8 @@
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Sun, 13 Sep 2026 15:33:51 GMT
+X-Artifactory-Id: f5890f39e7943ed2:4ac32248:1a09b573828:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+Transfer-Encoding: chunked
+

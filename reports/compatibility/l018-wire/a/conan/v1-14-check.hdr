@@ -1,0 +1,9 @@
+HTTP/1.1 200 OK
+Content-Length: 0
+Date: Sun, 13 Sep 2026 15:34:07 GMT
+X-Artifactory-Id: f5890f39e7943ed2:4ac32248:1a09b573828:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Conan-Server-Capabilities: complex_search,checksum_deploy,revisions,matrix_params
+X-Conan-Server-Version: 0.20.0
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

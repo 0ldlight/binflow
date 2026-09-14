@@ -597,7 +597,7 @@ entries:
     =面扩张票（三动词根姿态 + authz 空路径 + 审计 path="" 跳过放开〔propModifiedTimes 现跳过空 path〕），
     排期维度归产品 → 转 R-16 候裁席位。
   authority: { type: differential, ref: "reports/agents/T-L012-3.md（root 角探针——Changes⑥/Outputs root 段）" }
-  review_gate: R-16 候裁（pending-rulings 席位）→ 裁后排面扩张票（root 三动词+authz 空路径+审计空 path 放开；对齐后 includeRootPath enrich 臂自动可达）
+  review_gate: R-16 席位已入 pending-rulings v2.3 总览表（L016-3）→ 裁后排面扩张票（root 三动词+authz 空路径+审计空 path 放开；对齐后 includeRootPath enrich 臂自动可达）
   evidence: reports/agents/T-L012-3.md（root 角双端取证）
 - id: npm/dist-tags-latest-recompute
   surface: npm local dist-tags DELETE latest 读时语义（L012-1 §3-D2）
@@ -704,7 +704,16 @@ entries:
     客户端不敏感——T-394 注记 1 口径）。对齐方向待裁：B 补 400 臂（gate 豁免后先解 body）vs 维持
     门序 INTENTIONAL（需 authority）。
   authority: { type: pending, ref: "产品/conductor 裁（缺字段臂：400 body 校验先行 vs 维持 401 凭据门序）" }
-  review_gate: LOOP 015 限期升级（裁对齐则 contracts/npm.yaml#npm/session-login-put error_behavior 首臂升 400+文案 literal）
+  review_gate: 已入 pending-rulings v2.3（R-18 席位，真两可不入整包默认位——需点名裁）；裁对齐则 contracts/npm.yaml#npm/session-login-put error_behavior 首臂升 400+文案 literal
+  ruling_material: >-
+    裁定素材（L015-2 补齐，两案对比）：**证据完备性**——DE 文案已活体逐字证实（A 400
+    `User or Password fields are missing.`，L014-4 探针），无需再取证，仅差产品/架构定谳方向。
+    **案甲（对齐 400）**：gate 豁免后先解 body——缺字段即 400+DE 文案 literal；实现面=session login
+    handler body 解析前置（小改）；收益=差分断言逐字同 + 错误语义更精确（400 输入错 vs 401 认证错）；
+    成本=豁免面逻辑前移（匿名缺字段请求到达 body 解析层——无凭据泄露面，仅错误分类变化）。
+    **案乙（维持 401 门序）**：INTENTIONAL——真实客户端恒带双字段（近不可达）、两码客户端同归
+    E401/ENEEDAUTH；需 ADR/用户裁决为 authority；成本=契约 error_behavior 首臂维持 B 姿态注记。
+    呈批建议：随 pending-rulings 批次（可并入 R-10 呈批包或独立席位——PM 定）。
   evidence: docs/compatibility/probes/npm/k60-5-family.sh（L1 臂双端，2026-09-13）+ docs/reverse/npm.md §2.2（DE 行）
 - id: npm/login-idrev-npm-blind
   surface: couch id+rev 直发面（PUT /-/user/.../-rev/<rev>——A 200 vs B 403，npm 不可达）
@@ -720,3 +729,153 @@ entries:
   authority: { type: spec_ruling, ref: "docs/reverse/npm.md §1 K60-6 定案（T-393 规格票——「不做，且设为不变量」）+ LOOP 014 conductor 落账指令" }
   review_gate: resolved-by-design（不实现 rev-dance 帮扶系 K60-6 定案；若未来 npm 客户端形态变化使该面可达则重开）
   evidence: docs/compatibility/probes/npm/k60-5-family.sh（L2 臂双端，2026-09-13）+ docs/reverse/npm.md §2.2/§6
+- id: maven/metadata-xml-shape-three-deviations
+  surface: maven-metadata.xml XML 形态三偏差（modelVersion 属性 / 尾部 version 元素 / snapshot 块子序）
+  classification: UNKNOWN
+  rationale: >-
+    L013-4 18 臂矩阵 A4 臂 + T-L014-2 26 臂复跑维持差异（双端活体，uat-l0134-bebd92b1 /
+    uat-l0142r2-bcf27bfa）：参照 metadata 带 `modelVersion="1.1.0"` 属性 + **尾部 `<version>` 元素**
+    （versioning 之后）；BinFlow 两者皆缺；snapshot 块内 lastUpdated/snapshot 子序不同。
+    **mvn 3.9.16 全容忍新证**（T-L014-2 E1：双端 deploy exit 0/BUILD SUCCESS——MetadataReader 对可选
+    元素缺省容忍；[MVN-MD] schema 两者在册）。对齐方向待裁：补齐三形态（低危渲染对齐票）vs 维持
+    （客户端已容忍——INTENTIONAL 需 authority）。
+  authority: { type: pending, ref: "产品/conductor 裁（XML 形态：补齐对齐 vs 维持容忍缺省）" }
+  review_gate: 已入 pending-rulings v2.3（R-20 席位，L016-3 升格入包——零取证前置）；裁对齐则 maven 计算器渲染面三处补齐+差分复跑
+  evidence: reports/compatibility/L013-maven-evidence.md §0-A4/§1-3 + T-L014-2.md（26 臂表——三 UNKNOWN 之一，Risks⑦-A4 mvn 容忍新证）
+- id: maven/manual-put-metadata-visibility
+  surface: 客户端手 PUT maven-metadata.xml 后的可见性窗口
+  classification: UNKNOWN
+  rationale: >-
+    L013-4 C1 臂 + T-L014-2 复跑维持：参照对客户端直 PUT 的 maven-metadata.xml **逐字回放**（bogus 值
+    可见）直至下次触发事件重算；BinFlow 201 后**同步重算**（手写字节 1s 内不可见）。终态语义双端收敛
+    （真实 mvn 腿 E1 等价）；差异仅非 mvn 手 PUT 路径可见（运维/迁移工具面）。对齐方向待裁：BinFlow
+    改事件驱动重算（保留客户端字节至触发）vs 维持同步重算（INTENTIONAL 需 authority——终态等价论）。
+  authority: { type: pending, ref: "产品/conductor 裁（手 PUT 可见性：事件驱动回放 vs 同步重算）" }
+  review_gate: 已入 pending-rulings v2.3（R-21 席位，L016-3 升格入包——零取证前置）
+  evidence: reports/compatibility/L013-maven-evidence.md §0-C1/§1-4 + T-L014-2.md（26 臂表——三 UNKNOWN 之二）
+  note: >-
+    L018-3 分列注记（L017-2 规格票 §1.4 新发现）：「逐字回放」观测面**仅适用版本组目录**（C1 活体臂
+    即组目录）；snapshot 版本目录手 PUT metadata 在参照系**202 丢弃式受理**（字节不落盘、不触发重算，
+    非 deployer 策略仓）——BinFlow 若 snapshot 目录手 PUT 落盘（201）则构成新差异面。R-21 呈批口径
+    按两目录形态分列（组目录=回放 vs 同步重算；snapshot 目录=202 丢弃 vs BinFlow 现状——**L019 M2
+    已实测**：mvn 自 PUT snapshot 目录 metadata B 201+同步重算 vs A 202 丢弃，受理码差实锤、终态同=
+    服务端计算形，两案对齐语义均有据）。关联 maven 三小面候选票（LOOP 020+ 池）：①本臂受理码
+    ②XML 渲染形态（R-20 在册）③文件 GET 404 措辞（A "File not found.; Path:" vs B "Failed to
+    find the requested resource"——M1/M3 新面）——详见 #maven/version-metadata-pom-prerequisite
+    resolved.note 遗留段。
+- id: maven/reference-race-metadata-loss
+  surface: 并行同版本 unique snapshot 竞态的 metadata 丢失（原判「参照自丢」——L017-2 重判为参照确定性行为）
+  classification: UNKNOWN
+  rationale: >-
+    L013-4 C3 臂：并行同版本 unique snapshot（相异字节）双端均 201+仅存一文件（同秒同 buildNumber
+    撞名/同名覆盖）；原判「参照连 snapshot metadata 一并丢失（404 稳态 2min+）= 参照侧反常、BinFlow
+    metadata 俱在（完备）」。L017-2 规格票**证成 pom 前置假说并重判**（docs/reverse/
+    maven-metadata-pom-prerequisite.md §0 定谳，E1 反编译 + E2 :8082 活体双证）：参照 SNAPSHOT
+    版本目录 metadata 生成以**同目录 pom 存在为硬前置**——无 pom 永不生成、重算触发时主动删除
+    （§1.1）；「404 稳态」是 pom 前置的**确定性输出非竞态丢失**；「仅存一文件」= buildNumber 种子 +
+    同秒时间戳撞名的确定性结果（§1.3）。即本条原两观测面均非「反常」。
+  authority: { type: spec_ruling, ref: "docs/reverse/maven-metadata-pom-prerequisite.md（T-L017-2 规格票——E1+E2 双证定谳）" }
+  review_gate: LOOP 017 复核（L016-3 改期后到点）——已按 L017-2 定谳重分类落账（本条 resolved）
+  resolved:
+    date: '2026-09-13'
+    evidence: >-
+      L017-2 规格票定谳（maven-metadata-pom-prerequisite.md §0）：pom 前置假说证成——参照 jar-only
+      SNAPSHOT 目录 metadata 恒 404（无超时窗稳态）+ pom 部署同步生成 + 末 pom 删除触发删除；
+      版本组目录 <versions> 只统计含 pom 子目录（§1.2）。
+    note: >-
+      竞态臂双端同形消解：「双端 201+仅存一文件」经 §1.3 证为确定性结果（buildNumber 种子+同秒撞名），
+      双端一致，不再独立登记。「参照自丢」重判为参照确定性行为后，**唯一差异侧移新条目**
+      #maven/version-metadata-pom-prerequisite（BinFlow jar-only 目录从任意文件生成 metadata=对齐缺口）。
+      snapshot 目录手 PUT 202 丢弃新发现归 #maven/manual-put-metadata-visibility 分列注记。
+  evidence: reports/compatibility/L013-maven-evidence.md §0-C3/§1-5 + T-L014-2.md（26 臂表）+ docs/reverse/maven-metadata-pom-prerequisite.md（§0/§1.1/§1.3 定谳）
+- id: maven/version-metadata-pom-prerequisite
+  surface: Maven 版本目录 metadata 的 pom 前置（jar-only 目录 BinFlow 仍生成——generate-from-any 为缺口）
+  classification: BUG
+  rationale: >-
+    L017-2 定谳的**唯一差异侧**（maven-metadata-pom-prerequisite.md §4-1 重分类建议落账）：参照
+    SNAPSHOT 版本目录 metadata 生成要求同目录 pom 存在（E1+E2 双证）；**BinFlow 从任意文件生成**
+    （jar-only 目录 574B metadata，L013-4 实测）——对齐方向=jar-only 不生成 + 重算触发时删除已生成
+    文件（对齐参照 §1.1 全语义：部署 pom 同步生成 / 删末 pom 触发删除 / 前置判定=.pom 后缀直接子文件）。
+    版本组目录 <versions> 只统计含 pom 子目录的组面语义随实现票一并核对。
+  authority: { type: spec_ruling, ref: "docs/reverse/maven-metadata-pom-prerequisite.md（§1.1/§1.2 行为规格——对齐目标语义源）" }
+  review_gate: LOOP 019 实现票（jar-only 不生成 + 触发删除 + 组目录统计语义）——已验收
+  resolved:
+    date: '2026-09-13'
+    evidence: >-
+      T-L019-1+2（uat-l0191-47f37739 × :8082，实现+复验）：calc.go recalcVersionDir snapshot 分支加 hasPom
+      硬前置（生成门+触发删除一臂双语义——removeMetadata）。三臂复验：M1 jar-only PUT 201→metadata GET
+      **双端 404**；M2 pom PUT→双端 200（buildNumber=1、jar+pom snapshotVersions 同值）；M3 pom DELETE
+      204→settle 10s→双端 404+jar 200（9B 同字节）。**mvn 3.9.16 真腿**：M1 deployFile(generatePom=false)
+      后 GET 404（mvn 探测 404→buildNumber 从 1 起算=§1.3 种子行为活体）/ M2 pom 部署后 200 服务端计算形 /
+      M3 dependency:get RESOLVE-EXIT=0 经生成 metadata 解析落 ~/.m2。组目录 pom-bearing 统计走读核对已对齐。
+    note: >-
+      遗留三小面候选票（LOOP 020+ 池注记，均臂级不重开本账）：①§1.4 受理码——mvn 自 PUT snapshot 目录
+      metadata：A **202 丢弃式受理** vs B 201+同步重算（M2 实测；终态同=服务端形——R-21 分列面）；②XML
+      渲染形态（R-20 在册——A modelVersion 属性+version 后置 vs B 无属性前置，M2 对照在案）；③文件 GET
+      404 措辞（A "File not found.; Path:" vs B "Failed to find the requested resource"——M1/M3 观测，
+      新面未入册）。
+  evidence: docs/reverse/maven-metadata-pom-prerequisite.md §0/§1 + reports/compatibility/L013-maven-evidence.md §1-5（BinFlow 574B 实测）
+- id: goproxy/list-timestamp-column
+  surface: goproxy @v/list 行尾时间戳列（A 带列 vs BinFlow 纯版本列）
+  classification: INTENTIONAL_DIFFERENCE
+  rationale: >-
+    L018-2 契约化随账（contracts/goproxy.yaml#goproxy/list-latest）：参照 list 形态版本后附空格+时间戳列
+    （反编译可见 S7——官方未定义该列，Artifactory 生产在用=真实 go 客户端兼容反证）；BinFlow 收紧为
+    纯版本列（与 proxy.golang.org 形态一致，规避未定义行为——goproxy.md §4.4/§8-S7 决策）。差分比对经
+    normalize goproxy.list_timestamp_column 剥列后判；客户端可见影响=零（go 命令按行首版本解析）。
+  authority: { type: spec_ruling, ref: "docs/reverse/goproxy.md §8-S7（T-278 规格票收紧决策——PRD 87 口径）" }
+  review_gate: resolved-by-decision（纯版本列冻结为 BinFlow 形态；A 实形已证——L019 g1 活体双证 `v1.0.0 <RFC3339 上传时刻>`〔27B〕vs B 纯列〔7B〕，normalize 剥列一致：反编译单源升双证）
+  evidence: docs/reverse/goproxy.md §4.4/§8-S7 + contracts/goproxy.yaml#goproxy/list-latest
+- id: goproxy/sumdb-proxy-unsupported
+  surface: goproxy sumdb 代理三端点（sumdb/sum.golang.org/{supported,lookup,tile}）
+  classification: UNSUPPORTED_FEATURE
+  rationale: >-
+    L018-2 契约化随账（contracts/goproxy.yaml#goproxy/sumdb-404-posture）：BinFlow 显式不实现 sumdb
+    代理（收到按未知路径 404）——PRD §2.2 显式不做清单在册（goproxy.md §9-1）；客户端影响=不能把
+    GONOSUMDB 指到 BinFlow 做校验库镜像，私有模块配方=GONOSUMDB 前缀跳过公网 sumdb（§7.1，勿用
+    GOPRIVATE——会连带绕过 GOPROXY）。A 侧 sumdb 应答未活体（pro go addon 或服务该面——差分腿 g5
+    臂可定 A 实形；不影响 UNSUPPORTED 定性）。
+  authority: { type: spec_ruling, ref: "docs/prd §2.2 显式不做（经 goproxy.md §9-1 登记——T-278/T-285 承载）" }
+  review_gate: 维持不做（非排程项）；A 侧实形留差分腿 g5 臂补证注记
+  evidence: docs/reverse/goproxy.md §9-1/§7.1 + contracts/goproxy.yaml#goproxy/sumdb-404-posture
+- id: conan/auth401-wording
+  surface: 'conan 握手族坏凭据 401 措辞（{v1,v2}/users/{authenticate,check_credentials}）'
+  classification: UNKNOWN
+  rationale: >-
+    L018 wire v2-02c/v2-03b（contracts/conan.yaml#conan/auth401-wording DIVERGENT-D2②）：同码异文——
+    A 坏凭据 `Bad Credentials`（pretty envelope）/ B `invalid credentials`；Bearer 未知值臂 A
+    `Props Authentication Token not found` / B 同措辞。**渲染点在 auth 中间层（adapter 外）**——B 措辞
+    系 httpapi 认证层统一文案，conan adapter 无自定义面；对齐=中间层分型（docker ping P1-P3 分型先例）
+    或维持统一文案 INTENTIONAL，涉跨域一致面（npm/docker 同源文案族）故 UNKNOWN 待裁定票。
+  authority: { type: pending, ref: "产品/conductor 裁定票（401 措辞分型 vs 统一——跨域文案族联动评估）" }
+  review_gate: 已入 pending-rulings v2.4（R-22a 席位——L021-2 三裁定包之一）
+  evidence: reports/compatibility/L018-conan-evidence.md + l0203-wire/（L020-3 广度素材：c1-c4 四臂 v1+v2 逐字——双端各自全域统一、渲染点代码锚 router.go:170-174）+ contracts/conan.yaml#conan/auth401-wording
+  note: >-
+    L020-3 广度定案（2026-09-14）：措辞族**双端各自 v1+v2 全域统一**——A 恒 `Bad Credentials`（坏凭据）/
+    `Authentication is required`（匿名）、B 恒 `invalid credentials`；渲染点双端均在 auth 中间层（B=
+    internal/httpapi/router.go:170-174 单点、A=同构中间层 realm 恒 Artifactory Realm）。四个差分点：
+    ①message（本账待裁面）②realm 串（品牌域——normalize R7 占位化）③CT charset 后缀 ④信封缩进
+    （②③④归归一/品牌域不裁）。两案呈批=R-22a。
+- id: rest/anonymous-read-default-policy
+  surface: 全域匿名读默认策略（content GET/HEAD——ADR-0009 默认放行 vs 参照实例全域 deny）
+  classification: UNKNOWN
+  rationale: >-
+    L020-3 新面 V4（c2/c4 臂）：B=DefaultAnonymousAccess=true（internal/config/config.go:17-19，
+    ADR-0009 文档化默认——content GET/HEAD 匿名可读）vs A 实例匿名关（全域 401 "Authentication is
+    required"；c4 匿名穿透到数据面渲染 404 envelope）。同 payload 建仓对照行为分叉；B 翻转位=
+    SECURITY_ANONYMOUS_ACCESS=false。与 R-2（docker remote 匿名默认）同族但面更宽（全域 content 面
+    非仅 remote）。倾向 INTENTIONAL（产品姿态有 ADR-0009 在册背书），parity 口径待裁。
+  authority: { type: pending, ref: "产品/conductor 裁（ADR-0009 复核：维持默认放行+INTENTIONAL vs 对齐参照 deny 严化——R-2 联动）" }
+  review_gate: 已入 pending-rulings v2.4（R-22b 席位）；翻转实例配置属红线未执行
+  evidence: reports/compatibility/L020-auth401-maven-faces.md V4（c2/c4 臂双端）+ ADR-0009
+- id: rest/login-failure-rate-limit
+  surface: 登录失败限流（连续坏凭据封锁——A recurrent-failure block vs B 无机制）
+  classification: UNKNOWN
+  rationale: >-
+    L020-3 新面 V5（security）：A 连续 4 次坏凭据第 3 次起 **403 倒计时封锁**（"This request is blocked
+    due to recurrent request failures, please try again in 9 second(s)"，冷却 ~15s 自愈）vs B 4 次全
+    裸 401 无封锁。安全面差（brute-force 防护缺位）——非「有意差异」而是机制缺位，INTENTIONAL 立不住；
+    对齐形态=安全能力自有形态实现（A 语义对齐非逐字，与 R-4 HA「进目标但自有形态」同款）。
+  authority: { type: pending, ref: "产品/conductor 裁（security 票：补 recurrent-failure block 自有形态 vs 维持缺位登记）" }
+  review_gate: 已入 pending-rulings v2.4（R-22c 席位）——security 立票评估
+  evidence: reports/compatibility/L020-auth401-maven-faces.md V5（c3 第二轮 403 瞬态+冷却复核——限流行为本身即证据）

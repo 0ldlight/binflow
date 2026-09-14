@@ -352,6 +352,11 @@ func lastRelease(vs []string) string {
 // and a pom whose embedded coordinates disagree with its path is a client
 // error BinFlow does not launder into metadata).
 //
+// The SNAPSHOT generator's hard precondition is a pom among the direct
+// child files (docs/reverse/maven-metadata-pom-prerequisite section 1.1):
+// no pom — jar-only or empty — means no document, and a document already
+// there is removed (see the pom-prerequisite branch below).
+//
 // A RELEASE version directory has no generator (the spec defines content
 // rules for version-group and SNAPSHOT directories only; release version
 // discovery is the module document's job, matching Maven Central's
@@ -398,7 +403,13 @@ func (c *calculator) recalcVersionDir(ctx context.Context, p *repo.Principal, t 
 		}
 		return c.removeMetadata(ctx, p, t)
 	}
-	if len(files) == 0 {
+	if !hasPom {
+		// The pom prerequisite (docs/reverse/maven-metadata-pom-prerequisite
+		// section 1.1, L019): a SNAPSHOT directory without a pom NEVER gets
+		// a version document — a jar-only deploy generates nothing (the GET
+		// stays 404), and any recompute trigger actively removes a document
+		// already there (the RTFACT-6242 guard above does not apply: the
+		// path IS a snapshot directory). An empty directory is the same arm.
 		return c.removeMetadata(ctx, p, t)
 	}
 

@@ -58,6 +58,12 @@ const simplePageReadLimit = 16 << 20
 // greedy-free body capture takes the anchor text (the file name).
 var anchorRegExp = regexp.MustCompile(`(?is)<a\s[^>]*href=(?:"([^"]*)"|'([^']*)')[^>]*>(.*?)</a>`)
 
+// requiresPythonAttrRegExp extracts the data-requires-python attribute from
+// one matched anchor so a remote member's derived attribute survives the
+// page remap (the value is HTML-unescaped back to raw form; the local
+// render re-escapes it — simple.go anchorAttrs).
+var requiresPythonAttrRegExp = regexp.MustCompile(`data-requires-python="([^"]*)"`)
+
 // collectedProject is one merged project page in the making.
 type collectedProject struct {
 	entries []indexEntry
@@ -123,7 +129,11 @@ func (h *Handler) collectVirtualProject(ctx context.Context, virtualKey, name st
 			if lerr != nil {
 				return nil, false, lerr
 			}
-			entries = entriesFromNodes(nodes, want)
+			// The same enrichment the member's own page runs: requires-python
+			// derivation and the D7 admission verdict apply identically to a
+			// member's entries, so a virtual view never re-pollutes what the
+			// member's own index refuses.
+			entries = h.enrichIndexEntries(ctx, entriesFromNodes(nodes, want))
 		case repo.TypeRemote:
 			page, perr := h.readMemberSimplePage(ctx, virtualKey, m.Key, want)
 			if perr != nil {
@@ -217,7 +227,7 @@ func (h *Handler) writeProjectPage(w http.ResponseWriter, r *http.Request, name 
 	b.WriteString(indexHead)
 	for _, e := range entries {
 		href := "../../" + segPackages + "/" + escapePath(e.path) + "#sha256=" + e.sha256
-		b.WriteString(`<a href="` + htmlEscape(href) + `">` + htmlEscape(e.filename) + "</a>\n")
+		b.WriteString(`<a href="` + htmlEscape(href) + `"` + anchorAttrs(e) + `>` + htmlEscape(e.filename) + "</a>\n")
 	}
 	b.WriteString(indexFoot)
 	writeIndex(w, r, []byte(b.String()), simpleHTMLMediaType)
@@ -273,10 +283,11 @@ func parseSimplePage(raw []byte) ([]indexEntry, bool) {
 func parseSimpleJSON(raw []byte) ([]indexEntry, bool) {
 	var doc struct {
 		Files []struct {
-			Filename string            `json:"filename"`
-			URL      string            `json:"url"`
-			Hashes   map[string]string `json:"hashes"`
-			Size     int64             `json:"size"`
+			Filename       string            `json:"filename"`
+			URL            string            `json:"url"`
+			Hashes         map[string]string `json:"hashes"`
+			RequiresPython string            `json:"requires-python"`
+			Size           int64             `json:"size"`
 		} `json:"files"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
@@ -288,10 +299,11 @@ func parseSimpleJSON(raw []byte) ([]indexEntry, bool) {
 			continue
 		}
 		entries = append(entries, indexEntry{
-			filename: f.Filename,
-			path:     fetchPathOfHref(f.URL),
-			sha256:   f.Hashes["sha256"],
-			size:     f.Size,
+			filename:       f.Filename,
+			path:           fetchPathOfHref(f.URL),
+			sha256:         f.Hashes["sha256"],
+			requiresPython: f.RequiresPython,
+			size:           f.Size,
 		})
 	}
 	return entries, false
@@ -321,11 +333,15 @@ func parseSimpleHTML(raw []byte) []indexEntry {
 		if v, ok := strings.CutPrefix(u.Fragment, "sha256="); ok {
 			sha = v
 		}
-		entries = append(entries, indexEntry{
+		e := indexEntry{
 			filename: filename,
 			path:     fetchPathOfHref(href),
 			sha256:   sha,
-		})
+		}
+		if a := requiresPythonAttrRegExp.FindSubmatch(m[0]); a != nil {
+			e.requiresPython = html.UnescapeString(string(a[1]))
+		}
+		entries = append(entries, e)
 	}
 	return entries
 }

@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Unsupported Conan v1 repository request for 'l018-conan-virt'"
+  } ]
+}

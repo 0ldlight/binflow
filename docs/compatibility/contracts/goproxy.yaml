@@ -1,0 +1,166 @@
+# BinFlow 兼容契约——goproxy 协议面（第五域轻票，L018-2，2026-09-13）
+# schema: compat-contract/1 —— 同域多条目单文件（沿 docker-remote/npm 先例），条目键面全集：
+#   id/feature/surface/request/authentication/expect/side_effects/error_behavior/version/evidence/
+#   confidence/status（+binflow_state；divergence_ref 于 DIVERGENT/INTENTIONAL 时必填）。
+# 转写源：docs/reverse/goproxy.md（23 置信标记——官方 go.dev/ref/mod + 反编译双源逐行标注；
+#   T-278 规格票 / T-285 实现票）。断言词汇表沿 docker-remote；归一规则=fixtures/normalize.yaml#goproxy。
+# 定级口径（conductor L018-2）：D12-R11 冻结判 ✅/high + T-285 真客户端腿在册 → GET 面条目直上 VERIFIED；
+#   A 侧无活体格的面（PUT 厂商扩展/sumdb）停 IMPLEMENTED 待差分腿（差分腿候选：本票 probe 脚本已备
+#   docs/compatibility/probes/goproxy/endpoints-probe.sh 六臂——2026-09-13 实跑时双实例因并行镜像构建
+#   占死 docker daemon 未执行，healthz/ping 均 000；复跑窗口后补）。
+domain: goproxy
+scope: 'GOPROXY 协议 GET 五端点 + PUT 三件套（厂商扩展）+ sumdb 404 姿态——local 仓主面。
+  不含 remote/virtual 聚合深水面（后段票）与仓根探针。路径：A=$BASE/artifactory/api/go/<repoKey>/、
+  B=$BASE/binflow/<repoKey>/（ADR-0008 前缀分歧——挂载面差登记于 §1 基础形态，不占条目）。'
+normalize: fixtures/normalize.yaml#goproxy
+reference_instance: 'Artifactory-pro 7.161.20（:8082）——A 侧无 goproxy 活体格（本域差分腿未跑）；A 面断言一律锚反编译/官方规格'
+binflow_tested_instance: 'BinFlow T-285 实现实例（M10 窗，go1.26.6 真客户端 L10-L13 全绿）'
+client_anchor: 'go CLI（T-285 实测 go1.26.6；L11 scratch module go mod download/build 全链 exit 0 含大写转义模块）'
+contracts:
+# ── GET 五件套 ───────────────────────────────────────────────────────────────
+- id: goproxy/version-file-suite
+  feature: 'GET .info/.mod/.zip 三件套（逐字节回读 + .info 合成链 + .mod +incompatible 合成 + zip 校验头）'
+  surface: 'GET /<module>/@v/<version>.{info,mod,zip}'
+  request: { method: GET, path: '/<module>/@v/<version>.<ext>', headers: { Authorization: 'Basic <valid>' }, query: {} }
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: '.info 已存（PUT 逐字节回读——官方「服务器不重写」）'
+      status: 200
+      headers:
+        pattern: { Content-Type: '^(application/json|application/json\+info)$' }
+        present: []
+        absent: []
+        note: 'G1（L019 活体）：B=application/json / A=vendor 形 application/json+info——go 客户端不校验 CT，双形态互认（记录级差）'
+      body: { format: any, json: { keys_note: 'Version 必填 canonical；Time 可选 RFC3339——PUT 原文逐字节（sha256 对账锚）' } }
+    - when: '.info 缺但 .zip 在（合成链——服务端生成可过期）'
+      status: 200
+      body: { format: any, json: { keys_exact: [Version, Time], note: 'BinFlow 收敛最小两键（反编译分支多字段，客户端容忍未知键）' } }
+    - when: '.mod 已存'
+      status: 200
+      headers:
+        pattern: { Content-Type: '^(text/plain; charset=utf-8|text/plain\+mod)$' }
+        present: []
+        absent: []
+        note: 'G1 同族：B=text/plain; charset=utf-8 / A=text/plain+mod'
+      body: { format: any, note: '原文逐字节（官方 original unmodified go.mod）' }
+    - when: '.mod 缺且版本 +incompatible'
+      status: 200
+      body: { format: any, literal_pattern: '^module <module-path>\\n$（合成单行——官方义务，触发时机为反编译补充 S6）' }
+    - when: '.zip'
+      status: 200
+      headers: { literal: { Content-Type: application/zip }, present: [X-Checksum-Sha256, X-Checksum-Sha1], absent: [] }
+      body: { format: binary, note: '逐字节；h1 dirhash 系客户端域（服务端不计算不存储）' }
+    - when: '全缺'
+      status: 404
+      body: { format: any, note: 'text/plain 错误体（官方错误 CT 面）' }
+  side_effects: []
+  error_behavior: []
+  unobserved_reference_arms: []
+  binflow_state:
+    verdict: 'VERIFIED（B 真客户端全链 + **A 侧活体双证**：L019 g2/g4/g6 臂——.info/.mod/.zip 体面三方字节平价 A≡B≡fixture（sha256 唯一值）；CT 差=G1 vendor 后缀族（双形态互认，见 headers.note））'
+    detail: 'T-285 L11 go mod download+build exit 0（含大写转义模块）+ TestClientEndToEnd PASS；L019-3 六臂双端两轮复跑稳定（g4 zip checksum 逐轮变值系内嵌 mtime——轮内 A≡B≡fixture 恒成立）。实现面：local.go GET 三件套（合成链 S5/S6/HEAD 410）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: 'T-285 实例（M10 窗）+ uat-l0181-74656514（L019 六臂双端）' }
+  evidence:
+    - { kind: probe, report: docs/reverse/goproxy.md, anchor: '§4.1-4.3（官方+反编译双证行）+ §5.3 checksum 链', date: '2026-08-26' }
+    - { kind: implementation, report: reports/agents/T-285.md, anchor: 'L11 真客户端全链 exit 0（含 Upper/Mod 大写转义）+ TestClientEndToEnd PASS', date: '2026-08-26' }
+    - { kind: difftest, report: reports/compatibility/L019-goproxy-conan-put.md, anchor: '§1 g2/g4/g6 臂（体面三方字节平价）+ §3-G1（CT vendor 后缀族）+ §5 复跑门两轮稳定', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── list / latest ────────────────────────────────────────────────────────────
+- id: goproxy/list-latest
+  feature: '@v/list（zip-only 聚合纯版本列）+ @latest（官方候选序：最高 release > 最高 pre-release > 最近 pseudo）'
+  surface: 'GET /<module>/@v/list | /<module>/@latest'
+  request: { method: GET, path: '/<module>/@v/list|/@latest', headers: { Authorization: 'Basic <valid>' }, query: {} }
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'list（模块有 .zip 版本）'
+      status: 200
+      headers: { literal: { Content-Type: text/plain }, present: [], absent: [] }
+      body:
+        format: any
+        note: >-
+          每行一版本、无 pseudo-version（官方）；BinFlow 纯版本列（S7 收紧决策——A 反编译形态带行尾时间戳列
+          「v1.0.0 2024-…Z」生产在用但官方未定义；normalize goproxy.list_timestamp_column 剥列比对，
+          决策差登 known-divergence#goproxy/list-timestamp-column INTENTIONAL）
+    - when: 'list（模块无 .zip——零版本/不存在）'
+      status: 404
+      body: { format: any, note: 'S13 收紧决策：local 无 zip 即模块未知取 404（官方允许空清单 200——张力在册 §8；空 200 仅 remote 透传上游空 list 出现）' }
+    - when: '@latest'
+      status: 200
+      headers:
+        pattern: { Content-Type: '^(application/json|application/json\+info)$' }
+        present: []
+        absent: []
+        note: 'G1 同族（L019 g3：体与 .info 逐字节同、CT 双形态互认）'
+      body: { format: any, json: { note: '取胜出版本的 .info 响应（含合成链）；无候选 404' } }
+    resolution_note: '客户端时序（官方）：解析 latest 先 list 后 @latest（list 无可用版本才请求）；选定版本后 .info→.mod→.zip——真客户端腿按此时序消费本条目与 version-file-suite'
+  side_effects: []
+  error_behavior: []
+  unobserved_reference_arms: []
+  binflow_state:
+    verdict: 'VERIFIED（B 真客户端解析链 + **A 侧活体双证**：L019 g1/g3 臂——@latest 体与 .info 逐字节同（候选序语义双端同）；list 时间戳列活体实形 A=`v1.0.0 <RFC3339 上传时刻>`〔27B〕vs B 纯列〔7B〕——G3 反编译单源升活体双证，normalize 剥列后一致）'
+    detail: 'T-285 L11/L13 exit 0 + L019-3 六臂两轮稳定。实现面：local.go @v/list（zip-only S8 + 纯版本列 S7 + 零版本 404 S13）+ @latest 候选序（version.go semver+pseudo 比较）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: 'T-285 实例（M10 窗）+ uat-l0181-74656514（L019 六臂双端）' }
+  evidence:
+    - { kind: probe, report: docs/reverse/goproxy.md, anchor: '§4.4/§4.5 + §8-S7/S8/S13（决策与反编译行）', date: '2026-08-26' }
+    - { kind: implementation, report: reports/agents/T-285.md, anchor: 'L11/L13 客户端解析链 exit 0（latest 解析经 list→latest 时序）', date: '2026-08-26' }
+    - { kind: difftest, report: reports/compatibility/L019-goproxy-conan-put.md, anchor: '§1 g1/g3 臂 + §3-G3（时间戳列活体双证——known-divergence 升置信素材）', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── PUT 三件套（厂商扩展） ───────────────────────────────────────────────────
+- id: goproxy/put-upload-triplet
+  feature: 'PUT .zip/.mod/.info 上传三件套（厂商扩展——官方协议只读；BinFlow 校验加严为 PRD 决策）'
+  surface: 'PUT /<module>/@v/<version>.{zip,mod,info}'
+  request: { method: PUT, path: '/<module>/@v/<version>.<ext>', headers: { Authorization: 'Basic <valid>', 'X-Checksum-Sha256': '<可选声明>' }, body: '<文件体>' }
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: '合法三件套（版本 canonical/pseudo/+incompatible；.info JSON Version=URL 版本；.mod module 路径=URL 模块路径）'
+      status: 201
+      body: { format: any, note: 'BinFlow 内容面上传成功码；A 侧成功码未活体（S1 中置信——差分腿候选 s1 臂）' }
+  side_effects:
+    - '落盘解码形态（大写还原）：<decoded-module>/@v/<decoded-version><ext>（wire/存储/回源三态转换 S2）'
+    - '索引：.mod/.zip 节点写 go.name/go.version/package.lowercase 三属性（list 聚合依赖）'
+  error_behavior:
+    - { when: '版本非 canonical/pseudo/+incompatible', status: 400, note: 'PRD 87.3 加严（A 侧不校验任意字节可入——§5.2 决策注记）' }
+    - { when: '.info 非 JSON object / Version 缺或不一致 / Time 非 RFC3339', status: 400, note: '同上（PRD 加严面）' }
+    - { when: '.mod 无 module 指令或路径不一致', status: 400, note: '同上' }
+    - { when: '!!（连续叹号）', status: 400, note: 'S12 畸形模块名（反编译——官方只给正向转义规则）' }
+    - { when: 'checksum 声明不符', status: 409, note: 'client-checksums 策略（§5.3——既有 SPI 面）' }
+  unobserved_reference_arms:
+    - 'A 侧 PUT error 面（400 族/409 checksum）未活体——探针 fixture 全合法无法触发；系 BinFlow PRD 加严面非对齐面（价值低，后段批跑偶得即补）'
+  binflow_state:
+    verdict: 'VERIFIED（成功臂双端活体首证：L019 s1 三件套 PUT 双端 201——A 成功码实锤；G2 记录级差=A 成功响应带 vendor ItemCreated CT+0B / B 无 CT+0B，状态码同、契约无 PUT 响应 CT 断言面）'
+    detail: 'T-285 L10 三件套 curl AC + 校验链单测；L019-3 s1 臂双端两轮稳定。实现面：local.go PUT 校验链（version.go 文法校验/JSON/mod 解析/checksum SPI）+ 索引器（§3.3）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: 'T-285 实例（M10 窗）+ uat-l0181-74656514（L019 s1 双端）' }
+  evidence:
+    - { kind: probe, report: docs/reverse/goproxy.md, anchor: '§4.6/§5.1-5.3 + §8-S1/S2/S12（反编译行）', date: '2026-08-26' }
+    - { kind: implementation, report: reports/agents/T-285.md, anchor: 'L10 三件套 curl AC + 校验链单测', date: '2026-08-26' }
+    - { kind: difftest, report: reports/compatibility/L019-goproxy-conan-put.md, anchor: '§1 s1 臂（PUT 三件套双端 201 首证）+ §3-G2（成功响应 CT 记录级差）', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── sumdb 404 姿态（显式不做） ────────────────────────────────────────────────
+- id: goproxy/sumdb-404-posture
+  feature: 'sumdb 代理三端点不实现（PRD §2.2 显式不做——GONOSUMDB 配方替代，勿指 BinFlow 做校验镜像）'
+  surface: 'GET sumdb/sum.golang.org/{supported,lookup/*,tile/*}'
+  request: { method: GET, path: '/sumdb/sum.golang.org/<…>', headers: { Authorization: 'Basic <valid>' }, query: {} }
+  authentication: { type: basic, role: user }
+  expect:
+    status: 404
+    body: { format: any, note: '未知路径 404 姿态（BinFlow 面）；A 侧 sumdb 代理行为未活体（pro go addon 或服务——差分腿候选 g5 臂），UNSUPPORTED 决策登 known-divergence#goproxy/sumdb-proxy-unsupported' }
+  side_effects: []
+  error_behavior: []
+  unobserved_reference_arms: []
+  binflow_state:
+    verdict: 'INTENTIONAL（不做决策**双端成立**：L019 g5 臂——A 亦 404〔JSON errors envelope "Not Found"〕/ B 404〔text/plain "not found"〕，A 不服务 sumdb 代理实锤——无 UNSUPPORTED 分歧；错误体形态差=记录级，conan/npm D2 信封族同款归统一裁）'
+    detail: '实现面：路径无路由 → 未知路径 404（T-285 测试在案）；客户端影响=GONOSUMDB 前缀跳过公网 sumdb 配方（§7.1）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: 'T-285 实例（M10 窗）+ uat-l0181-74656514（L019 g5 双端）' }
+  evidence:
+    - { kind: probe, report: docs/reverse/goproxy.md, anchor: '§9-1（显式不做登记）+ §7.1 GONOSUMDB 配方（GOPRIVATE 勘误）', date: '2026-08-26' }
+    - { kind: implementation, report: reports/agents/T-285.md, anchor: 'sumdb 路径 404 姿态测试', date: '2026-08-26' }
+    - { kind: difftest, report: reports/compatibility/L019-goproxy-conan-put.md, anchor: '§1 g5 臂（双端 404——A 不服务实锤）+ §3-G4（错误体形态记录级）', date: '2026-09-13' }
+  confidence: high
+  status: INTENTIONAL
+  divergence_ref: known-divergence.yaml#goproxy/sumdb-proxy-unsupported

@@ -1,0 +1,25 @@
+[20:36:53] arm 0-setup repo l016-pypi
+[20:36:56] arm 1-root-empty
+[20:36:58] arm 2-twine-upload-sdist (real twine 7)
+[20:37:01] arm 3-root-immediacy-after-sdist (t0 + poll<=30s)
+  i1 t0 root contains hello16: True
+  i1 materialized at poll1 (~3s)
+[20:37:06] arm 4-twine-upload-wheel (real twine 7, Requires-Python >=3.8 in METADATA)
+[20:37:09] arm 5-root-immediacy-after-wheel (entry form: bare vs slash, rel)
+[20:37:11] arm 6-pkg-page (anchor set: rel/data-requires-python/#sha256/template/sort)
+[20:37:13] arm 7-etag-304
+[20:37:15] arm 8-302-no-slash (Location form)
+[20:37:17] arm 9-anchor-chain (resolve own page href; hop chain + sha256 verify)
+1017bd76f332332f71f39479b0710d35529f5b4d107a7d48d3e20e06a050e1b6  /Users/lzw/dev-center/reports/compatibility/l016-wire/b/pypi/c1-chain1.body
+558c55183d556360a6930579f52855bfd0927b4950c787effd3a3856b5ed5568  /Users/lzw/dev-center/reports/compatibility/l016-wire/b/pypi/c1-chain2.body
+[20:37:19] arm 10-pip-download-default (real pip 26.2.1, wheel pref; PEP 691 Accept)
+[20:37:22] arm 11-pip-download-sdist (--no-binary)
+[20:37:25] arm 12-pip-install --target (real install)
+[20:37:28] arm 13-badwheel-1 badname (form name=hello16, file notl016-…whl)
+[20:37:30] arm 14-badwheel-2 badmeta (valid zip, NO METADATA — twine unreachable client-side)
+[20:37:32] arm 15-badwheel-3 badver (file hello16-abc-…whl, form version=1.0.0 — twine unreachable client-side)
+[20:37:34] arm 14b-duplicate-upload (same path re-upload of good wheel — redeploy policy)
+[20:37:36] arm 16-yanked (sdist 1.0.1 via curl + yanked=true form field)
+[20:37:38] arm 17-legacy-json-latest (/pypi/hello16/json)
+[20:37:41] arm 18-legacy-json-version (/pypi/hello16/1.0.0/json)
+[20:37:43] arm 99-teardown repo l016-pypi (deleteContent)

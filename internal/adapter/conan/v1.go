@@ -100,7 +100,7 @@ func (h *Handler) serveDigest(ctx context.Context, cw *capWriter, r *http.Reques
 			return
 		}
 		if !ok {
-			writePlain(cw, http.StatusNotFound, msgPathNotFound)
+			writeEnvelope(cw, http.StatusNotFound, msgNotFound)
 			return
 		}
 		path = pkgFile(rf.coordinateRoot(), rrev, pid, latest, manifest)
@@ -146,7 +146,7 @@ func (h *Handler) serveDownloadURLs(ctx context.Context, cw *capWriter, r *http.
 			return
 		}
 		if !ok {
-			writePlain(cw, http.StatusNotFound, msgPathNotFound)
+			writeEnvelope(cw, http.StatusNotFound, msgNotFound)
 			return
 		}
 		prefix = pkgFilePrefix(rf.coordinateRoot(), rrev, pid, prev)
@@ -158,7 +158,7 @@ func (h *Handler) serveDownloadURLs(ctx context.Context, cw *capWriter, r *http.
 		return
 	}
 	if len(files) == 0 {
-		writePlain(cw, http.StatusNotFound, msgPathNotFound)
+		writeEnvelope(cw, http.StatusNotFound, msgNotFound)
 		return
 	}
 	base := h.filesBase(r, repoKey, rf) + sub
@@ -223,7 +223,7 @@ func (h *Handler) serveSnapshot(ctx context.Context, cw *capWriter, p *repo.Prin
 			return
 		}
 		if !ok {
-			writePlain(cw, http.StatusNotFound, msgPathNotFound)
+			writeEnvelope(cw, http.StatusNotFound, msgNotFound)
 			return
 		}
 		prefix = pkgFilePrefix(rf.coordinateRoot(), rrev, pid, prev)
@@ -245,7 +245,7 @@ func (h *Handler) serveSnapshot(ctx context.Context, cw *capWriter, p *repo.Prin
 		out[name] = h.md5Of(ctx, n)
 	}
 	if len(out) == 0 {
-		writePlain(cw, http.StatusNotFound, msgPathNotFound)
+		writeEnvelope(cw, http.StatusNotFound, msgNotFound)
 		return
 	}
 	writeJSONDoc(cw, out)
@@ -270,7 +270,12 @@ func (h *Handler) serveV1RecipeDelete(ctx context.Context, cw *capWriter, p *rep
 		return
 	}
 	if !exists {
-		writePlain(cw, http.StatusNotFound, msgPathNotFound)
+		// L019 D3 ruling: the reference's v1 whole-tree delete is
+		// idempotent — a ghost coordinate answers 200 empty (replayed
+		// removes and racing operators succeed silently; L018 wire
+		// v1-22d). The v2 plane keeps its 404: the reference itself
+		// splits the two planes (v2-11c).
+		cw.WriteHeader(http.StatusOK)
 		return
 	}
 	if err := h.svc.Delete(ctx, p, repoKey, root); err != nil {
@@ -313,7 +318,7 @@ func (h *Handler) serveRemoveFiles(ctx context.Context, cw *capWriter, r *http.R
 				return
 			}
 			if !ok {
-				writePlain(cw, http.StatusNotFound, msgPathNotFound)
+				writeEnvelope(cw, http.StatusNotFound, msgNotFound)
 				return
 			}
 			path = pkgFile(rf.coordinateRoot(), rrev, pid, prev, name)
@@ -394,7 +399,7 @@ func (h *Handler) serveV1Files(ctx context.Context, cw *capWriter, r *http.Reque
 				return
 			}
 			if !ok {
-				writePlain(cw, http.StatusNotFound, msgPathNotFound)
+				writeEnvelope(cw, http.StatusNotFound, msgNotFound)
 				return
 			}
 			nodePath = pkgFilePrefix(rt.ref.coordinateRoot(), rrev, rt.pid, prev) + channelFileName(rt.path, rt.pid)
@@ -452,7 +457,7 @@ func (h *Handler) serveV1FilesPut(ctx context.Context, cw *capWriter, r *http.Re
 		}
 		if _, err := h.svc.PutFromBlob(ctx, p, repoKey, nodePath, expect, "application/octet-stream"); err != nil {
 			// S8: the channel's miss is the EXPLICIT 404 passthrough.
-			writePlain(cw, http.StatusNotFound, msgPathNotFound)
+			writeEnvelope(cw, http.StatusNotFound, msgNotFound)
 			return
 		}
 	} else {

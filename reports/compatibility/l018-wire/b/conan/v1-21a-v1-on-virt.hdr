@@ -1,0 +1,9 @@
+HTTP/1.1 400 Bad Request
+Content-Length: 61
+Content-Type: text/plain; charset=utf-8
+X-Conan-Server-Capabilities: complex_search,checksum_deploy,revisions,matrix_params,only_v2
+X-Conan-Server-Version: 0.20.0
+X-Content-Type-Options: nosniff
+X-Request-Id: 7953cd389ac0fead421ec70359d7a630
+Date: Sun, 13 Sep 2026 15:41:29 GMT
+

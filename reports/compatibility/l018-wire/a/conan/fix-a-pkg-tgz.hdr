@@ -1,0 +1,17 @@
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Content-Disposition: attachment; filename="conan_package.tgz"
+Content-Length: 243
+Content-Type: application/x-gzip
+Date: Sun, 13 Sep 2026 15:43:52 GMT
+Etag: 6f19f36e2a8cd1f6e67e84ad2d3a4262cfe9d885
+Last-Modified: Sun, 13 Sep 2026 15:43:49 GMT
+X-Artifactory-Filename: conan_package.tgz
+X-Artifactory-Id: f5890f39e7943ed2:4ac32248:1a09b573828:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Artifactory-Origin-Remote-Path: local
+X-Checksum-Md5: 3424d90b29e752fbcf29e3211298e072
+X-Checksum-Sha1: 6f19f36e2a8cd1f6e67e84ad2d3a4262cfe9d885
+X-Checksum-Sha256: d4e8857c4ea024483ad4bc061645c1c129056a9313a1129ff0976acedca27bf5
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

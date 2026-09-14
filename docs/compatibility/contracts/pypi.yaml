@@ -1,0 +1,432 @@
+# BinFlow 兼容契约——pypi simple 索引面（pypi 域首文件，L016-1，2026-09-13）
+# schema: compat-contract/1 —— 同域多条目单文件扩展（沿 contracts/npm.yaml 先例），条目键面全集：
+#   id/feature/surface/request/authentication/expect/side_effects/error_behavior/version/evidence/confidence/status
+#   （+binflow_state 记录差分现值；DIVERGENT 时差异定性建议注在 binflow_state.verdict）。
+# 状态说明：本文件为取证票（L016-1）产出的契约蓝本——双端活体证据全挂 l016-wire；DIVERGENT 条目待
+#   conductor 裁定（BUG 对齐 / INTENTIONAL 保留 / UNSUPPORTED 裁剪）后翻态，实现票（L016 后段）落地。
+#   L017-1（2026-09-13，dev-registry-adapter）：D1（anchor-attrs 的 data-requires-python 三源）与
+#   D7（badwheel-matrix 的 badmeta 态）已按 BUG 对齐实现并差分复验（证据挂 l017-wire，双端真实
+#   twine 7.0.0/pip 26.2.1 复跑）；两条目 binflow_state 记录修复后现值——条目级 status 仍 DIVERGENT
+#   仅因并存的未裁面（D2 rel / D6 索引键）。
+# 客户端锚：twine 7.0.0（发布面——原始 multipart wire 离线 sink 落档 client/twine-raw.req）+
+#   pip 26.2.1（消费面——download×2/install 全腿）；python 3.14.7 venv 钉版。
+# 断言词汇表沿 npm.yaml（expect.status / headers.literal / body.format / body.literal /
+#   body.html 断言面=头模板+锚点逐字[过 normalize#pypi]）；error_behavior[].ref 指向兄弟条目。
+# 证据基线：A=Artifactory-pro 7.161.20（:8082，匿名关，差分一律认证臂）；B=uat-l015-ebdb8fb6（:8083）。
+domain: pypi
+scope: local pypi 仓 simple 索引面 + upload 面（前缀 /api/pypi/{repoKey}）。
+  覆盖：根索引/包页/锚点属性集/上传（真实 twine）/重复上传/302/legacy JSON API/无效 wheel 三态/ETag/PEP 691 协商。
+  不含：virtual 仓索引合并（§3.6）、remote 仓缓存索引、XML-RPC 搜索、devpi scoped 前缀（低置信面，后段票）。
+normalize: fixtures/normalize.yaml#pypi
+reference_instance: 'Artifactory-pro 7.161.20（http://localhost:8082，admin；匿名访问全局关——差分一律认证臂）'
+binflow_tested_instance: 'BinFlow UAT uat-l015-ebdb8fb6（http://localhost:8083，ANONYMOUS_ACCESS=true）；HEAD cd9cb770 领先 5 commit 中 pypi/httpapi 零改动——行为基线纯'
+client_anchor: 'twine 7.0.0 + pip 26.2.1（python 3.14.7）；twine 原始上传 wire 落 l016-wire/client/twine-raw.req（已脱敏）'
+contracts:
+# ── 根索引 ────────────────────────────────────────────────────────────────────
+- id: pypi/simple-root-index
+  feature: '仓级根索引 GET /simple/（空仓头模板逐字；有包后条目形态——bare href+属性集 vs 尾斜杠裸条目）'
+  surface: 'GET /api/pypi/{repoKey}/simple/'
+  request:
+    method: GET
+    path: /simple/
+    headers: { Authorization: 'Basic <valid>（差分臂认证；A 匿名关）' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: '空仓'
+      status: 200
+      headers: { note: 'CT=text/html（A 无 charset / B ;charset=utf-8——normalize charset 后缀）' }
+      body:
+        format: any
+        literal: '<!DOCTYPE html>\n<html><head><title>Simple Index</title><meta name="api-version" value="2" /></head><body>\n</body></html>'
+        note: '双端逐字节同（唯一差 B 尾部 \n——normalize#pypi html.trailing_newline 归一；L015 P1 120B/121B 同源）'
+    - when: '有包（上传后 GET）'
+      status: 200
+      body:
+        format: any
+        literal: '<!DOCTYPE html>…<body>\n<a href="hello16" data-requires-python="&gt;=3.8" rel="internal">hello16</a>\n</body></html>'
+        note: >-
+          A verbatim（l016-wire/a i1-root-t0.body 197B）：条目=裸包名 href（无尾斜杠）+ 包级 data-requires-python
+          （HTML 转义 &gt;）+ rel="internal"。B 现值：`<a href="hello16/">hello16</a>`（尾斜杠、无属性）——
+          三重差（D1/D2 投影 + href 尾斜杠）；对齐裁定前 literal 按 A 立
+    timing_note: >-
+      物化即时性：真实 twine 上传后 t0（≈2-3s 窗口）双端均含条目（L015 P2b 的 A 异步空窗未在真实客户端
+      粒度复现）；亚秒级 sync-vs-fast-async 分辨未做——差分批跑可选探针
+  side_effects: []
+  error_behavior:
+    - { when: '无读权限', status: 403, body: { format: any, literal: '{"error":"Forbidden","reason":"User has insufficient permissions."}' }, note: '§3.1 规格（高置信）；本轮未派臂——差分批跑候选' }
+  binflow_state:
+    verdict: 'DIVERGENT（条目形态 ×3：尾斜杠/无 data-requires-python/无 rel；空仓臂逐字同）'
+    detail: 'i1-root-t0 双端体对照：A 197B（bare+drp+rel）/ B 152B（slash 裸条目）。即时性双端 ≤3s 窗口均可见'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l015-ebdb8fb6 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L016-pypi-evidence.md, anchor: '§1 臂 1/3/5 + §2-D4', date: '2026-09-13' }
+    - { kind: wire, report: reports/compatibility/l016-wire/a/pypi/i1-root-t0.body, anchor: 'A 根条目模板逐字（drp 转义形）', capture: '同文件 b 版 + i2-root-t0 双侧', date: '2026-09-13' }
+  confidence: high
+  status: DIVERGENT
+# ── 包页 ──────────────────────────────────────────────────────────────────────
+- id: pypi/simple-package-page
+  feature: '包级 simple index GET /simple/{name}/（锚点集、文件名排序、#sha256= fragment、304）'
+  surface: 'GET /api/pypi/{repoKey}/simple/{normalizedName}/（无尾斜杠→302 见 pypi/redirect-no-slash）'
+  request:
+    method: GET
+    path: '/simple/{name}/（PEP 503 规范化名查找——lower+[-_.]→-）'
+    headers: { Authorization: 'Basic <valid>', Accept: 'text/html（默认臂；JSON 协商臂见 pypi/content-negotiation-pep691）' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    status: 200
+    headers:
+      literal: { Cache-Control: 'max-age=60' }
+      note: >-
+        A 活体带 Cache-Control: max-age=60（同 npm 域 D7 先例——npm 裁定对齐收，pypi 建议同款）；
+        CT=text/html（charset 归一）；ETag 值算法 opaque（A=折迭哈希十进制无引号 / B=sha256hex 带引号）
+        ——normalize#pypi etag.opaque，不作值断言；304 语义是断言面
+    body:
+      format: any
+      shape: >-
+        头模板同根索引；每文件一锚点：<a href="{link}"{attrs}>{filename}</a>；条目按文件名排序
+        （whl 先于 tar.gz——字节序 "-"(0x2D)<"."(0x2E)，双端同序）；link 模板 A=`../../{name}/{version}/{filename}#sha256={sha256}`
+        （裸形态）/ B 现值=`../../packages/…`（多 packages/ 段——D3 待裁）；attrs 见 pypi/anchor-attrs
+      literal: '<a href="../../hello16/1.0.0/hello16-1.0.0-py3-none-any.whl#sha256=1017bd76…" data-requires-python="&gt;=3.8" rel="internal">hello16-1.0.0-py3-none-any.whl</a>'
+      note: '#sha256= fragment 双端逐字同（pip 校验面）；值随内容——批跑以 fixture 哈希对拍'
+  side_effects: []
+  error_behavior:
+    - when: '包不存在'
+      status: 404
+      body: { format: any, note: 'A §0 信封 74B / BinFlow 消息体 159B 族（L015 P6）——状态一致消息体差异记录级；批跑后升格裁定' }
+    - when: 'If-None-Match 命中'
+      status: 304
+      body: { format: none, literal: '' }
+      note: '双端 304 复证（e1-etag-cond）；ETag 首取-回传-再验证链为差分批跑固定跳'
+  binflow_state:
+    verdict: 'DIVERGENT（href 模板 packages/ 段[D3] / 无 Cache-Control[D10-族对齐候选]；锚点属性差归 pypi/anchor-attrs；sha256 fragment+排序+304 一致）'
+    detail: 'p2-pkg-page A 530B vs B 455B；c1x 跨形态矩阵：双端对 packages/ 与裸路径路由均 200——差在页面模板非路由'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l015-ebdb8fb6 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L016-pypi-evidence.md, anchor: '§1 臂 6/7/9/9x + §2-D3', date: '2026-09-13' }
+    - { kind: wire, report: reports/compatibility/l016-wire/a/pypi/p2-pkg-page.body, anchor: 'A 包页锚点模板（排序+转义+sha256）', capture: '同文件 b 版 + c1-chain{1,2}.{hdr,body}（链路 0 跳+哈希对拍）+ c1x-{packages,bare} 四点', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/l015-probe-wire, anchor: 'L015 P3/P3-attr/P9（首证批——href 模板/rel/304）', date: '2026-09-13' }
+  confidence: high
+  status: DIVERGENT
+# ── 锚点属性集 ────────────────────────────────────────────────────────────────
+- id: pypi/anchor-attrs
+  feature: '锚点属性集：rel="internal"（Artifactory 私有，PEP 503 无）+ data-requires-python（三源派生）+ data-yanked'
+  surface: '属性派生断言（挂包页/根索引锚点；不独立成面）'
+  request:
+    method: DERIVATION
+    sources:
+      - '表单字段 requires_python（真实 twine 从 PKG-INFO/METADATA 填发——twine-raw.req 亲证）'
+      - 'wheel dist-info METADATA Requires-Python（服务端解析）'
+      - 'sdist PKG-INFO Requires-Python（服务端解析——y1 臂上传未发表单字段，A 仍渲染 ⇒ 服务端派生实证）'
+  authentication: { type: basic, role: user }
+  expect:
+    attrs:
+    - name: data-requires-python
+      render: '值 HTML 转义（`&gt;=3.8`）；有则渲染无则省——逐文件粒度（badver/badname 臂的 METADATA 无 Requires-Python 则该锚点无此属性，A 实证）'
+    - name: rel
+      render: '全条目 rel="internal"（local 仓；remote 改写链接时 external——remote 面后段票）'
+    - name: data-yanked
+      render: '双端对 yanked=true 表单字段均不渲染（y1 臂）——A 写 pypi.yanked 属性但不入索引面（§3.3/§3.2 边界）；本属性断言=双端同不渲染'
+    literal: 'data-requires-python="&gt;=3.8" rel="internal"（依序，drp 在前——§3.2 规格序）'
+  side_effects: []
+  binflow_state:
+    verdict: >-
+      D1 已修复并对齐（L017-1，差分复验绿）：三源全接——BinFlow 在索引渲染时从制品自身字节派生
+      Requires-Python（wheel dist-info/METADATA + sdist PKG-INFO，distmeta.go），twine 表单源值与
+      文件元数据恒同源（twine-raw.req 亲证），故三源渲染结果与 A 逐字一致（data-requires-python="&gt;=3.8"
+      转义形，l017-wire 双端包页逐锚点对拍）。仅 curl 伪造的「表单有值+文件无元数据」臂不可达该值
+      （未取证面，记录级）。条目保持 DIVERGENT 仅因 D2（rel="internal" 仍缺，UNKNOWN 待裁）。
+    detail: >-
+      L017-1 复验（双端 l017-wire/{a,b}/pypi/p2-pkg-page.body）：三锚点（twine sdist 表单源 / twine
+      wheel METADATA 源 / curl sdist 无表单字段的 PKG-INFO 服务端派生源）data-requires-python 逐字同
+      （&gt;=3.8），sha256 fragment/排序同；pip 26.2.1 过滤腿双端同选 rptest-1.0.1（跳过 >=3.99 的
+      1.0.0——D1 客户端可见效果成立）。残差：rel 仍缺（D2）/ href 模板 packages/ 段（D3）。
+  version: { artifactory_ref: 7.161.20, binflow_tested: 'uat-l015-ebdb8fb6 → uat-l0171-7c8bfaba（L017-1 修复腿）' }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L016-pypi-evidence.md, anchor: '§1 臂 6/13/15/16 + §2-D1/D2', date: '2026-09-13' }
+    - { kind: wire, report: reports/compatibility/l016-wire/a/pypi/y1-index-after.body, anchor: 'A 对 1.0.1 sdist 无表单字段仍渲染 drp（服务端 PKG-INFO 派生）', capture: '同文件 b 版（裸锚点）+ client/twine-raw.req（requires_python 表单源）', date: '2026-09-13' }
+    - { kind: difftest, report: reports/agents/T-L017-1.md, anchor: 'D1 三源差分复验（twine 7.0.0×2 源 + PKG-INFO 派生源 + pip 过滤腿）', capture: 'reports/compatibility/l017-wire/{a,b}/pypi/{p2-pkg-page.body,pd-rptest.log}', date: '2026-09-13' }
+  confidence: high
+  status: DIVERGENT
+# ── 上传（真实 twine） ────────────────────────────────────────────────────────
+- id: pypi/upload-twine
+  feature: 'POST / multipart 上传（真实 twine 7.0.0 表单全集；200 空体统一；md5_digest 可缺失）'
+  surface: 'POST /api/pypi/{repoKey}/（multipart/form-data，:action=file_upload）'
+  request:
+    method: POST
+    path: /
+    headers: { Authorization: 'Basic <valid>（twine -u/-p 或 .pypirc）', 'Content-Type': 'multipart/form-data; boundary=…' }
+    body:
+      fields_verbatim: >-
+        twine 7.0.0 实发（sink 落档）：metadata_version=2.1 / summary / requires_python / name / version /
+        pyversion=source / filetype=sdist|bdist_wheel / sha256_digest / blake2_256_digest / :action=file_upload /
+        protocol_version / content。**无 md5_digest**（twine ≥6.2 弃发——服务端必须自算并接受）
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    status: 200
+    headers: { note: '上传成功统一 200（存储层 201 归一为 200——§3.7-6）；响应头未逐项断言' }
+    body: { format: none, literal: '' }
+    client_exit: 'twine 7.0.0 exit 0（t1 sdist / t2 wheel 双腿）'
+  side_effects:
+    - '制品落 {name}/{version}/{filename}（name 用元数据原始名不 normalize——§3.3）；属性族 pypi.name/pypi.normalized.name/pypi.version/pypi.summary/pypi.requires.python/pypi.yanked/pypi.metadata.file.hash（属性面本轮未单独取证）'
+    - '索引物化（根+包页）≤3s 窗口（即时性双端不可分辨——见 simple-root-index timing_note）'
+  error_behavior:
+    - { when: ':action 非 file_upload', ref: pypi/upload-bad-action, note: 'L015 P7/P7b 已取证（A 先查元数据后查 action+大写化；B 先查 action）——验证顺序差记录在案，批跑后裁' }
+    - { when: '同路径重复上传', ref: pypi/upload-duplicate }
+  binflow_state:
+    verdict: 'SAME（happy path：200 空体+twine exit 0 双端；md5 缺失容忍双绿——sha256/blake2 自算路线）'
+    detail: 't1/t2 真实 twine 双腿双端 200；副作用差异（索引属性渲染）归 anchor-attrs / badwheel-matrix 条目'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l015-ebdb8fb6 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L016-pypi-evidence.md, anchor: '§1 臂 2/4 + §1.1 twine wire 字段全集', date: '2026-09-13' }
+    - { kind: wire, report: reports/compatibility/l016-wire/client/twine-raw.req, anchor: 'twine 7.0.0 原始 multipart（已脱敏；无 md5_digest 亲证）', capture: 'client/t2-twine-wheel.log + {a,b} 版（上传 200）', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── 重复上传 ──────────────────────────────────────────────────────────────────
+- id: pypi/upload-duplicate
+  feature: '同路径同文件名重复上传（A 200 幂等接受 / B 400 拒绝——真实 twine 可达的硬差异）'
+  surface: 'POST /api/pypi/{repoKey}/（同一文件二次上传）'
+  request:
+    method: POST
+    path: /
+    headers: { Authorization: 'Basic <valid>' }
+    body: '同 pypi/upload-twine（good wheel 原样重传——b2b 臂）'
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'A（参照）'
+      status: 200
+      body: { format: none, literal: '' }
+      note: '静默接受（重部署允许——npm republish 403 先例在本域不适用）；索引无变化'
+    - when: 'B（BinFlow 现值）'
+      status: 400
+      body:
+        format: any
+        json:
+          path_pattern: { 'errors[0].message': 'already exists in repository .*\; overwriting is not allowed' }
+      note: '覆盖禁拒——文案含 repo 与 path（可作断言面）'
+    client_visible: >-
+      twine upload 误重发是常见操作：A 静默成功 / B 报错中断——客户端可见分叉即本面对齐动机。
+      裁定项：对齐 A（幂等接受）或保留 B（防覆盖）→ conductor（D8，UNKNOWN）
+  side_effects:
+    - 'A：接受后存储层行为（覆盖字节与否）未单独分辨——重传同字节不可辨；裁定对齐时补异字节重传探针'
+  binflow_state:
+    verdict: 'DIVERGENT（200 vs 400——D8，UNKNOWN 待裁）'
+    detail: 'b2b-dup-upload 双端对照：A 200 空 / B 400 overwrite not allowed（b2b-index-after 双端索引均无变化）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l015-ebdb8fb6 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L016-pypi-evidence.md, anchor: '§1 臂 14b + §2-D8', date: '2026-09-13' }
+    - { kind: wire, report: reports/compatibility/l016-wire/a/pypi/b2b-dup-upload.hdr, anchor: 'A 200', capture: 'b 版同文件（400+243B errors 信封）', date: '2026-09-13' }
+  confidence: high
+  status: DIVERGENT
+# ── 302 无尾斜杠 ──────────────────────────────────────────────────────────────
+- id: pypi/redirect-no-slash
+  feature: 'GET /simple/{name}（无尾斜杠）→ 302 补斜杠（Location 形态：A 绝对[Override-Base-Url 派生] / B 相对）'
+  surface: 'GET /api/pypi/{repoKey}/simple/{name}'
+  request:
+    method: GET
+    path: '/simple/{name}（无尾斜杠）'
+    headers: { Authorization: 'Basic <valid>' }
+    query: { skipUrlTranslation: 'poetry UA 自动追加——remote 面参数，local 面透传不消费（§3.7-5；未单独派臂）' }
+  authentication: { type: basic, role: user }
+  expect:
+    status: 302
+    headers:
+      literal: { Location: 'hello16/' }
+      note: >-
+        形态断言解：A 活体=`http://localhost:8081/artifactory/…/simple/hello16/`（绝对 URL，端口 8081=
+        Override-Base-Url 配置派生——部署敏感，host:port 部分不可作协议断言）；B=相对 `hello16/`。
+        RFC 7231 相对 Location 合法、pip 双吃——裁定建议：B 保留相对（normalize#pypi location.host=placeholder
+        后比对路径与尾斜杠语义）；对齐绝对形态需 BinFlow 引入 Override-Base-Url 概念（成本>收益初判）
+    body: { format: none, literal: '' }
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: 'DIVERGENT（D10，UNKNOWN——倾向 B 保留+注记；302 状态/空体/Location 尾斜杠目标三点双端一致）'
+    detail: 'r1-302 双端：302 + Content-Length: 0 + Location 尾斜杠 hello16/——仅绝对/相对形态差'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l015-ebdb8fb6 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L016-pypi-evidence.md, anchor: '§1 臂 8 + §2-D10', date: '2026-09-13' }
+    - { kind: wire, report: reports/compatibility/l016-wire/a/pypi/r1-302.hdr, anchor: 'A Location 绝对 :8081', capture: 'b 版同文件（相对 hello16/）', date: '2026-09-13' }
+  confidence: high
+  status: DIVERGENT
+# ── legacy JSON API ───────────────────────────────────────────────────────────
+- id: pypi/legacy-json-api
+  feature: 'warehouse legacy JSON API（/pypi/{name}/json + /pypi/{name}/{version}/json——非 PEP 691；A 全功能 / B 未实现）'
+  surface: 'GET /api/pypi/{repoKey}/pypi/{name}/json | /pypi/{name}/{version}/json'
+  request:
+    method: GET
+    path: '/pypi/{name}/json、/pypi/{name}/{version}/json'
+    headers: { Authorization: 'Basic <valid>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'A（参照活体——裁定素材全文落档）'
+      status: 200
+      body:
+        format: any
+        json:
+          keys_exact: [info, urls, vulnerabilities, last_serial]
+          shape: >-
+            info{name,version[latest 臂=最高版本，证据态 1.0.1],summary,requires_python,yanked:false,yanked_reason:null,…全字段}
+            urls[]{filename,url,digests{sha256,md5},md5_digest,packagetype,python_version,requires_python,size,
+            upload_time,upload_time_iso_8601,comment_text,yanked,yanked_reason}；version 臂同构、urls 限该版本
+          note: 'l1 1180B / l2 1765B 全文=l016-wire/a——warehouse 兼容形态唯一样本（提金候选）'
+    - when: 'B（BinFlow 现值）'
+      status: 404
+      note: '未实现（UNSUPPORTED 候选）——做/裁二选一升 conductor（D9）。做=按 A 金样逐键；裁=404 姿态入 known-divergence'
+    client_visible: >-
+      消费者=warehouse 老工具链（pip 不走此面——pip 走 simple index）；Artifactory 定位为 warehouse 兼容。
+      无真实 pip/twine 需求 → 裁「不做」的客户端代价低；裁「做」的价值=迁移工具兼容
+  side_effects: []
+  error_behavior:
+    - { when: '包不存在', status: 404, note: '双端同 404（B 实现与否均 404——状态面无差）' }
+  binflow_state:
+    verdict: 'DIVERGENT（200 全功能 vs 404——D9，UNSUPPORTED 候选待裁）'
+    detail: 'l1/l2 双端对照；A 侧 info.version=1.0.1（最高版）+ urls 含双哈希（sha256+md5）+ requires_python 逐文件'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l015-ebdb8fb6 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L016-pypi-evidence.md, anchor: '§1 臂 17/18 + §2-D9', date: '2026-09-13' }
+    - { kind: wire, report: reports/compatibility/l016-wire/a/pypi/l1-legacy-latest.body, anchor: 'A latest 臂全文（warehouse 形态金样候选）', capture: 'l2-legacy-version.body（version 臂）+ b 版两点 404', date: '2026-09-13' }
+    - { kind: difftest, report: reports/compatibility/L015-expansion-probe.md, anchor: 'P10（首证 404）', date: '2026-09-13' }
+  confidence: high
+  status: DIVERGENT
+# ── 无效 wheel 三态 ───────────────────────────────────────────────────────────
+- id: pypi/badwheel-matrix
+  feature: '无效 wheel 三态（坏名/坏元数据/坏版本）入库与索引策略矩阵——twine 7 客户端拦截 badmeta/badver，三态仅 curl 可达（服务端防御面）'
+  surface: 'POST /api/pypi/{repoKey}/（curl 复刻：表单字段良好、文件三态坏）+ 索引副作用三点探（/{form名}/、/{文件名派生名}/）'
+  request:
+    method: POST
+    path: /
+    headers: { Authorization: 'Basic <valid>' }
+    body:
+      states:
+      - 'badname：文件 notl016-1.0.0-py3-none-any.whl（METADATA 自洽 Name=notl016）+ 表单 name=hello16'
+      - 'badmeta：文件 nol016-1.0.0-py3-none-any.whl（zip 有效、无 METADATA 文件）+ 表单 name=hello16'
+      - 'badver：文件 hello16-abc-py3-none-any.whl（version=abc 非 PEP 440）+ 表单 version=1.0.0'
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'badname'
+      a_ref: '200 入库；索引键=文件名派生名（/simple/notl016/ 200 一条；存储路径仍按表单 hello16/1.0.0/）'
+      binflow_now: '200 入库；索引键=表单名（hello16 页混入异名条目；/simple/notl016/ 404）'
+      note: '索引键来源分叉（D6 UNKNOWN）；真实 twine 不可达（表单恒自元数据）——低危防御面'
+    - when: 'badmeta'
+      a_ref: '200 入库、不入任何索引（防污染）'
+      binflow_now: >-
+        L017-1 已对齐：200 入库、不入任何索引（hello16 页不变 b2-index-after 885B==b1 后现值；
+        /simple/nol016/ 404；根索引同拒——「不入任何索引」语义）。判定机制=索引渲染时解析 wheel
+        zip 的 *.dist-info/METADATA，不可定位（非 zip/L015 P4 伪字节、或无 METADATA 成员）即拒入；
+        上传面仍一律 200。
+      note: 'D7 BUG 已修复（L017-1 差分复验绿，l017-wire b2 臂双端同形：页不变+404）'
+    - when: 'badver'
+      status: 200
+      note: '双端同放行同入索引（服务端对非法版本字符串零校验——twine 客户端挡真实链路；记录级，不裁）'
+    client_gate: 'twine 7.0.0 check：badmeta/badver 客户端 InvalidDistribution 拒发（本票实证）；badname 客户端放行但表单自洽不构成错位'
+  side_effects:
+    - '三态入库后存储残留（本轮随 repo deleteContent 清除——difftest 命名空间）'
+  binflow_state:
+    verdict: >-
+      D7 已修复并对齐（L017-1，差分复验绿：badmeta 双端同「入库不入索引」）；条目保持 DIVERGENT 仅因
+      D6（badname 索引键：A 文件名派生 / B 表单名——UNKNOWN 待裁，本票维持现状）；badver 一致放行不变。
+    detail: >-
+      L017-1 复验（l017-wire/{a,b}/pypi/b2-{badmeta-upload,index-after,under-filename}）：双端 upload 200、
+      hello16 页字节不变、/simple/nol016/ 404。B 侧边界（证据bounded）：坏 sdist（无 PKG-INFO）不入拒集
+      （L016 未取证 sdist 拒入臂，维持索引——见 T-L017-1 Risks）；根索引对「仅坏 wheel」项目同样不列
+      （「不入任何索引」）。b1/b3 臂与 L016 现值同（D6 维持）。
+  version: { artifactory_ref: 7.161.20, binflow_tested: 'uat-l015-ebdb8fb6 → uat-l0171-7c8bfaba（L017-1 修复腿）' }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L016-pypi-evidence.md, anchor: '§1 臂 13/14/15 + §3 三态矩阵结论', date: '2026-09-13' }
+    - { kind: wire, report: reports/compatibility/l016-wire/a/pypi/b1-index-under-filename.body, anchor: 'A /simple/notl016/ 200（文件名派生键实证）', capture: 'b 版（404）+ b2/b3 index-after 双侧', date: '2026-09-13' }
+    - { kind: difftest, report: reports/agents/T-L017-1.md, anchor: 'D7 三态矩阵差分复验（badmeta 拒入/badname 维持/badver 维持）', capture: 'reports/compatibility/l017-wire/{a,b}/pypi/b1-*,b2-*,b3-*', date: '2026-09-13' }
+  confidence: high
+  status: DIVERGENT
+# ── ETag 再验证 ───────────────────────────────────────────────────────────────
+- id: pypi/etag-revalidation
+  feature: 'simple 页 ETag/304（If-None-Match 精确串比较命中→304 无 body；算法 opaque 不作值断言）'
+  surface: 'GET /simple/{name}/ + If-None-Match'
+  request:
+    method: GET
+    path: '/simple/{name}/（先 200 取 ETag，回传 If-None-Match 复请求）'
+    headers: { Authorization: 'Basic <valid>', 'If-None-Match': '<首取 ETag 原样>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: '首取'
+      status: 200
+      headers: { note: 'ETag 值形态双端异（A=31-bit 折迭哈希十进制无引号，空仓 "0"；B=sha256hex 带引号）——PEP 503 只要求 ETag/304 支持，算法私有 opaque；normalize#pypi etag.opaque' }
+    - when: '回传命中'
+      status: 304
+      body: { format: none, literal: '' }
+  side_effects: []
+  error_behavior:
+    - { when: 'ETag 过期（页面已变）', status: 200, note: 'L015 P9 首测撞过（回传旧 etag→200 新体）；复取-即用链为批跑标准跳' }
+  binflow_state:
+    verdict: 'SAME（200→304 双端复证；ETag 算法形态差 opaque 归一不判）'
+    detail: 'e1-etag-fresh→e1-etag-cond 双端 304；A etag=883205695 / B etag="7cf8…e1b6"'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l015-ebdb8fb6 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L016-pypi-evidence.md, anchor: '§1 臂 7', date: '2026-09-13' }
+    - { kind: wire, report: reports/compatibility/l016-wire/a/pypi/e1-etag-cond.hdr, anchor: 'A 304', capture: 'b 版同文件 + e1-etag-fresh 双侧', date: '2026-09-13' }
+  confidence: high
+  status: VERIFIED
+# ── PEP 691 协商（新发现面） ──────────────────────────────────────────────────
+- id: pypi/content-negotiation-pep691
+  feature: 'PEP 691 JSON simple 协商（pip 字面 Accept json 优先 → A 仍 HTML[默认关] / B 出 JSON 全形——新发现差异）'
+  surface: 'GET /simple/{name}/（Accept: application/vnd.pypi.simple.v1+json; q=0.9, …v1+html; q=0.8, text/html; q=0.7）'
+  request:
+    method: GET
+    path: '/simple/{name}/'
+    headers:
+      Accept: 'application/vnd.pypi.simple.v1+json; q=0.9, application/vnd.pypi.simple.v1+html; q=0.8, text/html; q=0.7（pip 26 实发形态）'
+      note: '默认臂（无 JSON Accept）双端均出 HTML——本条目只断言协商臂'
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'A（参照）'
+      status: 200
+      headers: { literal: { Content-Type: text/html } }
+      body: { note: 'JSON simple 默认关（pypi.simple.json.format.enabled=false——§3.2 规格活体证实）' }
+    - when: 'B（BinFlow 现值）'
+      status: 200
+      headers: { literal: { 'Content-Type': 'application/vnd.pypi.simple.v1+json; charset=utf-8' } }
+      body:
+        format: any
+        json:
+          keys_exact: [meta, name, files]
+          note: >-
+            B JSON 全形（749B 落档）：meta.api-version="2.0"；files[]{filename,url[packages/ 相对+#sha256=],
+            hashes{sha256},requires-python(omitempty——L017-1 起同 HTML 面派生源渲染)}——PEP 691 形态合规。
+            若裁定「对齐参照默认关」则本臂翻 406 或 HTML；若裁定「保留超集」则入 known-divergence INTENTIONAL
+  side_effects: []
+  client_note: 'pip 26.2.1 对 HTML/JSON 双吃（pd1 exit 0 双端）——本差异对 pip 不可见；对金样/字节对齐面与老客户端（<22.3 不发 JSON Accept，得 HTML）无破坏'
+  binflow_state:
+    verdict: 'DIVERGENT（D5，UNKNOWN——超集能力做/裁升 conductor）'
+    detail: 'pd1-accept691 双端 CT+体对照；B JSON 749B 落档为 B 侧形态基线'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l015-ebdb8fb6 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L016-pypi-evidence.md, anchor: '§1 臂 10n + §2-D5', date: '2026-09-13' }
+    - { kind: wire, report: reports/compatibility/l016-wire/b/pypi/pd1-accept691.body, anchor: 'B PEP 691 JSON 全形', capture: 'a 版同文件（530B HTML）+ 双侧 hdr', date: '2026-09-13' }
+  confidence: high
+  status: DIVERGENT
+# ── 收尾说明 ──────────────────────────────────────────────────────────────────
+# 覆盖统计（L016-1 首文件，2026-09-13）：10 条目 = VERIFIED 2（upload-twine / etag-revalidation——
+#   差分双绿面）/ DIVERGENT 8（simple-root-index / simple-package-page / anchor-attrs / upload-duplicate /
+#   redirect-no-slash / legacy-json-api / badwheel-matrix / content-negotiation-pep691）。
+#   DIVERGENT 定性建议分布：BUG 候选 2（anchor-attrs[D1]/badwheel-matrix[b2 态]）+ 对齐候选 1
+#   （package-page Cache-Control）+ UNSUPPORTED 候选 1（legacy-json-api）+ UNKNOWN 待裁 6（D2/D3/D5/D6/D8/D10）。
+# 客户端腿覆盖：twine 7.0.0 真实上传×2（sdist/wheel）+ twine 原始 wire sink 落档 + pip 26.2.1 真实
+#   download×2（默认/纯 sdist）+ install×1——L015 缺失的真实客户端腿补齐；pip happy path 双端全绿。
+# 未收面（不立断言）：XML-RPC 搜索、devpi scoped 前缀、virtual 合并、remote 面（skipUrlTranslation）、
+#   gzip 协商（L015 P8 双端不 gzip 维持）、属性族 REST 面（pypi.* 属性逐项）、403 权限臂、
+#   badname 异字节重传分辨、A 侧 XML-RPC——后段票/差分批跑候选。
+# 回报 conductor 六笔 UNKNOWN：D5 PEP 691 做/裁、D6 索引键源、D8 重复上传策略、D9 legacy JSON 做/裁、
+#   D3 packages/ 模板、D10 302 形态（+D2 rel 对齐）。

@@ -1,0 +1,64 @@
+{
+ "request": "GET /artifactory/api/conan/l018-conan/v1/ping",
+ "req_headers": {
+  "User-Agent": "Conan/1.66.0 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5",
+  "X-Client-Id": "admin"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Date": "Sun, 13 Sep 2026 15:34:32 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----
+{
+ "request": "GET /artifactory/api/conan/l018-conan/v1/users/check_credentials",
+ "req_headers": {
+  "User-Agent": "Conan/1.66.0 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5",
+  "X-Client-Id": "admin"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Date": "Sun, 13 Sep 2026 15:34:32 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Conan-Server-Capabilities": "complex_search,checksum_deploy,revisions,matrix_params",
+  "X-Conan-Server-Version": "0.20.0",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----
+{
+ "request": "DELETE /artifactory/api/conan/l018-conan/v1/conans/hello18/1.1/l018/stable",
+ "req_headers": {
+  "User-Agent": "Conan/1.66.0 (Darwin 24.6.0; Python 3.14.7; x86_64)",
+  "Accept": "*/*",
+  "Authorization": "REDACTED",
+  "X-Client-Anonymous-Id": "1845e9be746b413149615eba87602fce7f30fdb5",
+  "X-Client-Id": "admin"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Date": "Sun, 13 Sep 2026 15:34:33 GMT",
+  "X-Artifactory-Id": "f5890f39e7943ed2:4ac32248:1a09b573828:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "0B sha256=e3b0c44298fc1c14\n"
+}
+----

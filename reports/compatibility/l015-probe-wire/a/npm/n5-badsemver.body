@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Invalid Version: '1.0', aborting upload for: 'l015-probe-pkg'"
+  } ]
+}

@@ -107,18 +107,20 @@ func decodeAttachmentData(s string) ([]byte, error) {
 }
 
 // firstAttachment returns the attachment npm's flow addresses (spec: "the
-// first attachment"). Key order is the _attachments map's sorted keys for
-// determinism; real clients send exactly one.
-func (b *publishBody) firstAttachment() (attachment, bool) {
+// first attachment"): its NAME — the _attachments key is the wire filename
+// the download face must serve the bytes at — plus the decoded payload. Key
+// order is the _attachments map's sorted keys for determinism; real clients
+// send exactly one.
+func (b *publishBody) firstAttachment() (string, attachment, bool) {
 	keys := make([]string, 0, len(b.attachments))
 	for k := range b.attachments {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	if len(keys) == 0 {
-		return attachment{}, false
+		return "", attachment{}, false
 	}
-	return b.attachments[keys[0]], true
+	return keys[0], b.attachments[keys[0]], true
 }
 
 // firstVersion returns the version this publish carries: the one a dist-tag
@@ -167,11 +169,11 @@ func (h *Handler) servePublish(ctx context.Context, w http.ResponseWriter, r *ht
 		return
 	}
 
-	att, hasAttachment := body.firstAttachment()
+	attName, att, hasAttachment := body.firstAttachment()
 	version, manifest, hasVersion := body.firstVersion()
 
 	if hasAttachment && hasVersion {
-		h.publishWithTarball(ctx, w, p, repoKey, name, body, version, manifest, att)
+		h.publishWithTarball(ctx, w, p, repoKey, name, body, version, manifest, attName, att)
 		return
 	}
 
@@ -213,10 +215,21 @@ func (h *Handler) publishConflict(ctx context.Context, w http.ResponseWriter, p 
 	return false
 }
 
-// publishWithTarball is steps 3..5 and 8..10 (the attachment path).
+// publishWithTarball is steps 3..5 and 8..10 (the attachment path). The
+// tarball path comes from the ATTACHMENT NAME, not the declared version: the
+// _attachments key is the wire filename the download face serves, and the
+// reference's duplicate guard checks exactly that path (L015 N4/g2: a ghost
+// publish declaring 9.9.9 with the attachment named -1.0.0.tgz answers the
+// pinned 403 citing 9.9.9 — the pre-existing 1.0.0 tarball conflicts, the
+// ghost version never enters the index). A document whose names agree (every
+// real npm publish) reduces to the canonical layout path either way.
 func (h *Handler) publishWithTarball(ctx context.Context, w http.ResponseWriter, p *Principal, repoKey, name string,
-	body *publishBody, version string, manifest map[string]any, att attachment) {
-	tb := tarballPath(name, version)
+	body *publishBody, version string, manifest map[string]any, attName string, att attachment) {
+	tb, err := attachmentTarballPath(name, attName)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	// Step 3: write permission on the tarball path (the early authorizer;
 	// repo.Service re-checks the same grant inside Put — defense in depth).
@@ -225,7 +238,9 @@ func (h *Handler) publishWithTarball(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
-	// Step 4: the version must be new (403 ruling, PRD v1.1 Q7).
+	// Step 4: the tarball path must be new (403 ruling, PRD v1.1 Q7; the
+	// ghost-guard evidence L015 N4 — the path, not the declared version, is
+	// the conflict predicate; the message cites the declared version).
 	if h.tarballExists(ctx, p, repoKey, tb) {
 		writeError(w, http.StatusForbidden, fmt.Sprintf(msgCannotModify, version, name))
 		return
@@ -294,7 +309,7 @@ func (h *Handler) publishWithTarball(ctx context.Context, w http.ResponseWriter,
 	} else {
 		doc = newPackument(name)
 	}
-	merged := mergePublish(doc, name, version, manifest, body.raw, body.distTags, h.clock)
+	merged := mergePublish(doc, name, version, tb, manifest, body.raw, body.distTags, h.clock)
 	bumpRev(merged)
 	if err := h.savePackument(ctx, p, repoKey, name, oldDoc, merged); err != nil {
 		h.writeServiceError(w, err)

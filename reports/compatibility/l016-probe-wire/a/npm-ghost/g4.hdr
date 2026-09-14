@@ -1,0 +1,10 @@
+HTTP/1.1 201 Created
+Content-Length: 0
+Content-Type: application/vnd.org.jfrog.artifactory.storage.ItemCreated+json;charset=UTF-8
+Date: Sun, 13 Sep 2026 12:30:06 GMT
+Location: http://localhost:8081/l016-ghost-npm/l016-gh4-pkg/-/l016-gh4-pkg-2.0.0.tgz
+X-Artifactory-Id: f8d6c0001a157348:5410f5e7:1a09abc95b6:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Checksum-Sha256: 11609fc7acba3eebf0dc32d7f88335d074be60a79075ef7904b83e3960c30b79
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

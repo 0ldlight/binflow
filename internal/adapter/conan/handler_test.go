@@ -230,14 +230,16 @@ func TestV2LatestAndRevisionsShape(t *testing.T) {
 			doc.Revisions[0].Revision, doc.Revisions[1].Revision, revB, revA)
 	}
 
-	// The empty chain answers the pinned wording (S9).
+	// The empty chain answers the D2 envelope: the reference's global
+	// "Not Found" fallback, not the conan-native bare string (L018 wire
+	// v2-05d; L019 ruling).
 	code, body, _ = s.get(v2("cn-local", "nope/1.0/_/_/revisions"))
-	if code != http.StatusNotFound || body != msgNoRevisions {
-		t.Errorf("empty revisions = (%d, %q), want (404, %q)", code, body, msgNoRevisions)
+	if code != http.StatusNotFound || !isNotFoundEnvelope(body) {
+		t.Errorf("empty revisions = (%d, %q), want the 404 Not Found envelope", code, body)
 	}
 	code, body, _ = s.get(v2("cn-local", "nope/1.0/_/_/latest"))
-	if code != http.StatusNotFound || body != msgNoRevisions {
-		t.Errorf("empty latest = (%d, %q), want (404, %q)", code, body, msgNoRevisions)
+	if code != http.StatusNotFound || !isNotFoundEnvelope(body) {
+		t.Errorf("empty latest = (%d, %q), want the 404 Not Found envelope", code, body)
 	}
 }
 
@@ -367,10 +369,11 @@ func TestV2PackageFaces(t *testing.T) {
 		t.Errorf("post-delete pkg revisions = %d, want 404", code)
 	}
 
-	// The all-packages delete: pinned wording on empty.
+	// The all-packages delete: pinned wording on empty, D2 envelope body.
 	code, body, _ = s.delete(v2("cn-local", "hello/1.0/myuser/stable/revisions/"+fixtureRev(9)+"/packages"))
-	if code != http.StatusNotFound || body != "Couldn't find packages for deletion" {
-		t.Errorf("packages delete on empty = (%d, %q), want the pinned 404", code, body)
+	if code != http.StatusNotFound || !strings.Contains(body, "Couldn't find packages for deletion") ||
+		!strings.Contains(body, `"errors"`) {
+		t.Errorf("packages delete on empty = (%d, %q), want the pinned 404 in the envelope", code, body)
 	}
 	s.putPkgFile("cn-local", r, rev, pid, fixtureRev(6), "conaninfo.txt", []byte("x"))
 	code, _, _ = s.delete(v2("cn-local", "hello/1.0/myuser/stable/revisions/"+rev+"/packages"))
@@ -390,10 +393,14 @@ func TestV2Deletes(t *testing.T) {
 	s.putRecipeFile("cn-local", r, revA, "conanfile.py", []byte("a"))
 	s.putRecipeFile("cn-local", r, revB, "conanfile.py", []byte("b"))
 
-	// Revision delete: pinned wording on the missing one.
+	// Revision delete: pinned wording on the missing one — envelope body,
+	// the quoted path WITHOUT the trailing slash (L018 wire v2-10c; the
+	// as-built trailing slash was the D2 divergence).
 	code, body, _ := s.delete(v2("cn-local", "hello/1.0/myuser/stable/revisions/"+fixtureRev(9)))
-	if code != http.StatusNotFound || !strings.Contains(body, "Couldn't find path") {
-		t.Errorf("missing rev delete = (%d, %q), want the pinned 404", code, body)
+	want := "Couldn't find path 'myuser/hello/1.0/stable/" + fixtureRev(9) + "'"
+	if code != http.StatusNotFound || !strings.Contains(body, want) ||
+		strings.Contains(body, fixtureRev(9)+"/'") {
+		t.Errorf("missing rev delete = (%d, %q), want %q in the envelope without a trailing slash", code, body, want)
 	}
 	code, _, _ = s.delete(v2("cn-local", "hello/1.0/myuser/stable/revisions/"+revA))
 	if code != http.StatusOK {
