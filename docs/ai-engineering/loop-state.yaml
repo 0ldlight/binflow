@@ -2,9 +2,17 @@
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
 reference_environment: { relocated: 2026-09-15, http: "http://172.16.58.130:8082", version: "7.161.15", auth: "admin (凭据 env 注入)", ssh: "lzw@172.16.58.130 key-auth installed — docker ops run there", note: "旧本地容器已停；差分/probe 全指新参照；版本偏斜新记 B=7.161.15——结论标注源版本纪律不变" }
-updated: 2026-09-15T02:20:00Z
+environment_topology: {
+  corrected: "2026-09-15 用户术语纠正：UAT=uat.binflow.org；本地/dev=172.16.58.130:8083（自 Mac 迁来）",
+  uat: "https://uat.binflow.org（52.79.109.153——真 UAT，HTTPS 308 跳转，version uat.72ae611）",
+  dev: "http://172.16.58.130:8083（容器 binflow-dev〔原 binflow-uat 更名〕，镜像 uat-l0213-b906e7cd-alpine，卷 binflow-uat-data；Mac docker 工作负载已全数迁离）",
+  reference: "http://172.16.58.130:8082（Artifactory pro 7.161.15 + postgres）",
+  mac: "仅 penpot 栈 :9001 留本地 docker（用户设计工具——UI 程序依赖，Docker Desktop 因此保留运行）",
+  discipline: "docker 一律远程执行（ssh lzw@172.16.58.130）；差分/probe 指 reference+dev；UAT 环境结论以 uat.binflow.org 为准"
+}
+updated: 2026-09-15T03:05:00Z
 current_iteration: 023
-current_goal: "UI Phase 1 批 0：双端截图基线（BinFlow :8083 + 新参照 172.16.58.130）"
+current_goal: "UI Phase 1 批 0：双端截图基线（BinFlow dev 172.16.58.130:8083 + 参照 :8082）"
 loop_016_tracks:
   - { id: L016-2, domain: npm-deep, owner: dev-registry-adapter, what: "✅ ghost 守卫改 tarball 路径冲突语义（403 逐字+不入索引+latest 不劫持——G1 三臂双端复验）；attachmentTarballPath 段安全；T-261 face-4 翻面；契约第三批 publish-ghost-guard VERIFIED；commit 8bf07b61；Next=crafted 文档门槛二分票（G4 素材备）", status: done }
   - { id: L016-1, domain: pypi-protocol, owner: differential-qa-engineer, what: "pypi simple 扩章首票前段：probe 补真实 pip/twine 腿+无效 wheel 三态矩阵+302 形态/legacy API 决策取证 → pypi.yaml 契约首文件（simple 面：锚点属性集/链接模板/索引即时性裁定）" }
@@ -185,6 +193,6 @@ p1_gaps: 50
 p2_gaps: 65
 unknown_count: 118        # docs/compatibility/unknown.yaml（110+L000-A 8 条）
 divergence_count: "known-divergence.yaml 四分类台账（Phase 0 未动）"
-uat_status: "up（:8083 = uat-59f33ab5，healthy；L000-D 出证 + conductor 亲验）"
+uat_status: "UAT=https://uat.binflow.org（uat.72ae611 活体验讫 healthz/version 200）；dev=172.16.58.130:8083 binflow-dev healthy（原 Mac :8083 迁来——Mac docker 工作负载清零，唯 penpot 留守）"
 ci_status: "unknown（59f33ab5 推送后未验）"
 next_gap: "LOOP 001 由 L000-B 差分 DIVERGENT + 主账 partial 11 行 P0 面驱动"
