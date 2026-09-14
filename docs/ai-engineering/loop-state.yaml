@@ -10,9 +10,10 @@ environment_topology: {
   mac: "仅 penpot 栈 :9001 留本地 docker（用户设计工具——UI 程序依赖，Docker Desktop 因此保留运行）",
   discipline: "docker 一律远程执行（ssh lzw@172.16.58.130）；差分/probe 指 reference+dev；UAT 环境结论以 uat.binflow.org 为准"
 }
-updated: 2026-09-15T03:05:00Z
+updated: 2026-09-15T03:5x:00Z
 current_iteration: 023
-current_goal: "UI Phase 1 批 0：双端截图基线（BinFlow dev 172.16.58.130:8083 + 参照 :8082）"
+current_goal: "UI Phase 1 批 1：token 收敛（styles/tw → src/design-system 六族+桥接+删旧 tokens.css——验收=四门+截图差分≈0）"
+ui_batch0_seal: "批 0 闭卷（2026-09-15）：31 golden（15 页×亮暗+登录）落 web/e2e/design-baseline.spec.ts-snapshots（embed 只吞 dist 不进二进制）；axe 双主题现值 4 ids 全 moderate/minor（page-has-heading-one ×10 页=批 4 候选）；动态面三处 mask/预算（审计卡/字节计数/lastLogin）；连续两轮差分绿；dev 实例种子（demo-local/remote/virtual+dev-baseline 用户+qa-baseline 组——勿清卷）；commit 1335868d"
 loop_016_tracks:
   - { id: L016-2, domain: npm-deep, owner: dev-registry-adapter, what: "✅ ghost 守卫改 tarball 路径冲突语义（403 逐字+不入索引+latest 不劫持——G1 三臂双端复验）；attachmentTarballPath 段安全；T-261 face-4 翻面；契约第三批 publish-ghost-guard VERIFIED；commit 8bf07b61；Next=crafted 文档门槛二分票（G4 素材备）", status: done }
   - { id: L016-1, domain: pypi-protocol, owner: differential-qa-engineer, what: "pypi simple 扩章首票前段：probe 补真实 pip/twine 腿+无效 wheel 三态矩阵+302 形态/legacy API 决策取证 → pypi.yaml 契约首文件（simple 面：锚点属性集/链接模板/索引即时性裁定）" }
