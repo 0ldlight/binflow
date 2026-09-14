@@ -70,6 +70,9 @@ export declare function ensureUser(
   user: { name: string; password: string; adminRole?: string },
 ): Promise<number>
 export declare function ensureReadGrant(client: SeedClient, userName: string, repoKey?: string): Promise<'created' | 'present'>
+/** ADR-0050 idempotent repo ensure: GET first — absent key PUT-creates,
+ * present key POST-merges the same full body. */
+export declare function ensureRepo(client: SeedClient, def: RepoDef & { key: string }): Promise<number>
 export declare function seedRepos(client: SeedClient, defs: RepoDef[]): Promise<{ key: string; status: number }[]>
 export declare function plannedNodeCount(plan?: TreePlan): number
 export declare function seedTree(

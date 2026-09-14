@@ -53,6 +53,7 @@ export declare const M10_PLAN: M10Plan
 export declare function legacyRepos(plan?: M10Plan): RepoDef[]
 export declare function fixtureBody(repoKey: string, path: string): string
 export declare function legacyFixtures(plan?: M10Plan): LegacyFixture[]
+/** Re-exported from seed-m8.mjs (ADR-0050 GET-first ensure; shared with m8/m9). */
 export declare function ensureRepo(client: SeedClient, def: RepoDef): Promise<number>
 export declare function ensureM10User(
   client: SeedClient,

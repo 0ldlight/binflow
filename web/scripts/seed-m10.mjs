@@ -5,7 +5,8 @@
 // itself a workout of the exact wire every client rides (the seed-m8/seed-m9
 // discipline; makeClient is imported from seed-m8.mjs).
 //
-//   repos   PUT /binflow/api/repositories/{key}        x2  generic + maven
+//   repos   ensureRepo (GET first; PUT create / POST merge per ADR-0050)
+//                                                   x2  generic + maven
 //   users   PUT /binflow/api/security/users/{name}     x2  m10-e2e-user /
 //                                                         m10-e2e-readonly
 //   grant   POST /binflow/api/v1/permissions           x1  m10-e2e-read
@@ -35,9 +36,10 @@
 // CHANGE (the feature), not a survival fixture; it belongs to the FR-89
 // ticket's own tests, not to the frozen legacy set.
 //
-// Everything converges on re-run: PUT repos/users replace with identical
-// bodies, the grant is create-if-absent, file re-PUTs deploy identical bytes
-// (the write plane treats it as an idempotent redeploy).
+// Everything converges on re-run: repos GET-first into PUT-create/POST-merge
+// (ADR-0050: PUT-on-existing is a 400, not a replace), users PUT-replace with
+// identical bodies, the grant is create-if-absent, file re-PUTs deploy
+// identical bytes (the write plane treats it as an idempotent redeploy).
 //
 // Verification is baked in:
 //   counts    2 repos, 2 role users, 1 grant target
@@ -63,7 +65,7 @@
 import { Buffer } from 'node:buffer'
 import { setTimeout as setTimeoutRaced } from 'node:timers'
 
-import { adminCredential, converge, makeClient } from './seed-m8.mjs'
+import { adminCredential, converge, ensureRepo, makeClient } from './seed-m8.mjs'
 
 const httpFetch = globalThis.fetch
 
@@ -107,18 +109,10 @@ export function legacyFixtures(plan = M10_PLAN) {
 
 // ---- idempotent ensure helpers ----------------------------------------------
 
-/** Full-replace repo upsert (the M1 wire posture; 200 replace / would-be 201
- * on first create — both accepted). */
-export async function ensureRepo(client, def) {
-  const r = await client.request('PUT', `/binflow/api/repositories/${def.key}`, {
-    body: {
-      rclass: 'local',
-      packageType: def.packageType,
-      description: def.description,
-    },
-  })
-  return r.status
-}
+/** Repo ensure is shared with seed-m8/seed-m9: ensureRepo GETs first and
+ * applies ADR-0050 (PUT create-only when absent, POST merge when present).
+ * The M1-era "full-replace PUT" posture this helper was born under is gone. */
+export { ensureRepo }
 
 /** Full-replace user upsert carrying adminRole (the M7 7.5 wire posture —
  * the snake spelling, ADR-0026 decision 6). */
@@ -188,8 +182,10 @@ async function putFixture(client, fx) {
  * Every step rides converge() (T-326 D-9①): Playwright's fullyParallel
  * workers each run this seed from their own beforeAll, and on a fresh
  * instance the concurrent first-creates collide at the UNIQUE constraint —
- * T-297's D-9 flake (2 specs, rerun-green). The steps are idempotent
- * full-replace PUTs, so the loser's retry converges on the winner's row. */
+ * T-297's D-9 flake (2 specs, rerun-green). The user PUTs are idempotent
+ * full replaces; the repo step converges inside ensureRepo itself (its
+ * raced-create 400 catch, ADR-0050), with converge() still absorbing any
+ * 5xx collision shape. */
 export async function seedM10(client, { plan = M10_PLAN } = {}) {
   const started = Date.now()
   const repos = []

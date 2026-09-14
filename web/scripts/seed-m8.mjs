@@ -4,13 +4,15 @@
 // itself a workout of the exact wire the console rides.
 //
 //   users   PUT /binflow/api/security/users/{name}      (201 create / 200 replace)
-//   repos   PUT /binflow/api/repositories/{key}          (200)
+//   repos   GET /binflow/api/repositories/{key} first, then PUT (create,
+//           absent — ADR-0050 PUT is create-only) or POST (merge, present)
 //   grants  POST /binflow/api/v1/permissions             (create-if-absent)
 //   tree    PUT /binflow/{repo}/{path}                   (201, ancestors
 //           materialize — T-128 — so one deep PUT yields a whole chain of
 //           folder nodes)
-//   count   GET /binflow/api/storage/{repo}/{dir}?list&deep=1 (files[] + the
-//           queried folder itself)
+//   count   GET /binflow/api/storage/{repo}/{dir}?list&deep=1&listFolders=1
+//           (file AND folder rows — L009 made folder rows opt-in via
+//           listFolders=1; files[] + the queried folder itself)
 //
 // Tree plan (deterministic, so re-runs converge on the same nodes):
 //   perf/                  root                          1 node
@@ -129,7 +131,8 @@ export function makeClient({ base, username, password }) {
  * rerun won because the winner had committed). Retrying is convergent: the
  * winner's row exists, so the retry replaces (200) instead of inserting.
  * Only 5xx/409/429 shapes retry — a 4xx is a real contract problem and must
- * fail fast. */
+ * fail fast (one deliberate exception: ensureRepo catches the repo plane's
+ * raced-create 400 itself, since ADR-0050 made PUT create-only). */
 export async function converge(fn, { attempts = 4, baseDelayMs = 120 } = {}) {
   let lastErr
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -201,20 +204,48 @@ export async function ensureReadGrant(client, userName, repoKey) {
   return 'created'
 }
 
+/** Idempotent repo-config ensure under ADR-0050 (PUT=create-only,
+ * POST=merge-on-omit): GET first — absent key → PUT create; present key →
+ * POST the same full body (every seed-owned seat is explicit, so the merge
+ * converges on the deterministic seed config; the repo's CONTENT is
+ * untouched, which a DELETE+re-create would destroy — the 10k-node tree and
+ * the m9 usage fixtures must survive re-seeds). The PUT 400 catch is the
+ * concurrent first-create race (fullyParallel workers, T-326 D-9①): the
+ * losing PUT answers key-exists, the re-GET sees the winner's row, and the
+ * POST merge converges. Returns the winning request's status. */
+export async function ensureRepo(client, def) {
+  const path = `/binflow/api/repositories/${def.key}`
+  const body = {
+    rclass: def.rclass ?? 'local',
+    packageType: def.packageType ?? 'generic',
+    description: def.description,
+  }
+  const seen = await client.probeGet(path)
+  if (seen.status === 200) return (await client.request('POST', path, { body })).status
+  if (seen.status !== 404) {
+    const err = new Error(`seed: GET ${path} -> ${seen.status}: ${seen.text.slice(0, 300)}`)
+    err.status = seen.status
+    throw err
+  }
+  try {
+    return (await client.request('PUT', path, { body })).status
+  } catch (e) {
+    if (e?.status !== 400) throw e
+    const raced = await client.probeGet(path)
+    if (raced.status !== 200) throw e
+    return (await client.request('POST', path, { body })).status
+  }
+}
+
 /** Seed repositories. defs: [{ key, rclass='local', packageType='generic',
- * description }]. Accepts 200 (replace) and 201 (create). */
+ * description }]. Rides ensureRepo (ADR-0050): 201 PUT-create on a fresh
+ * key, 200 POST-merge on a re-run. */
 export async function seedRepos(client, defs) {
   const out = []
   for (const d of defs) {
     const key = d.key ?? PERM_REPO_FALLBACK
-    const r = await client.request('PUT', `/binflow/api/repositories/${key}`, {
-      body: {
-        rclass: d.rclass ?? 'local',
-        packageType: d.packageType ?? 'generic',
-        description: d.description ?? 'm8 e2e fixture (T-232)',
-      },
-    })
-    out.push({ key, status: r.status })
+    const status = await ensureRepo(client, { description: 'm8 e2e fixture (T-232)', ...d, key })
+    out.push({ key, status })
   }
   return out
 }
@@ -301,9 +332,12 @@ export async function seedTree(client, repoKey, { minNodes = 10_000, concurrency
   return { planned, verified, skipped: false }
 }
 
-/** Deep-list node count below (and including) `path`. */
+/** Deep-list node count below (and including) `path`. listFolders=1: since
+ * L009 the deep list omits folder rows without it, which undercounted the
+ * tree at 1'121 vs the 10'291 planned (files only) and failed the seed's own
+ * verification gate. */
 export async function countTreeNodes(client, repoKey, path) {
-  const r = await client.request('GET', `/binflow/api/storage/${repoKey}/${path}?list&deep=1`)
+  const r = await client.request('GET', `/binflow/api/storage/${repoKey}/${path}?list&deep=1&listFolders=1`)
   const body = JSON.parse(r.text)
   if (!Array.isArray(body.files)) {
     throw new Error(`seed: unexpected ?list shape for ${repoKey}/${path}`)

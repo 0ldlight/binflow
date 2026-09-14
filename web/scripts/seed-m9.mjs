@@ -4,7 +4,8 @@
 // REST plane so every leg tests against the exact wire the console rides
 // (the seed-m8.mjs discipline; makeClient is imported from it).
 //
-//   repos   PUT /binflow/api/repositories/{key}       x50  m9-r00..m9-r49
+//   repos   ensureRepo (GET first; PUT create / POST merge per ADR-0050)
+//                                                   x50  m9-r00..m9-r49
 //   files   PUT /binflow/{key}/m9-seed/usage.bin      x50  non-zero usage (T-253)
 //   groups  PUT /binflow/api/security/groups/{name}   x10  m9-g01..m9-g10
 //   users   PUT /binflow/api/security/users/{name}    x20  u1..u20 (2 per group)
@@ -29,8 +30,9 @@
 // idempotent redeploy (delta 0) — the seed stays convergent.
 //
 // Passwords follow the PRD N-sequence skeleton (u9 -> pw-u9-123). Everything
-// converges on re-run: PUT repos/groups/users replace with identical bodies,
-// targets are create-if-absent (permissions have no PUT).
+// converges on re-run: repos GET-first into PUT-create/POST-merge (ADR-0050:
+// PUT-on-existing is a 400, not a replace), groups/users PUT-replace with
+// identical bodies, targets are create-if-absent (permissions have no PUT).
 //
 // Verification is baked in (admin read plane + two live probes against the
 // M8-tail authorization semantics):
@@ -56,7 +58,7 @@
 // explicit node: import for the same reason.
 import { Buffer } from 'node:buffer'
 
-import { makeClient } from './seed-m8.mjs'
+import { ensureRepo, makeClient } from './seed-m8.mjs'
 
 const httpFetch = globalThis.fetch
 
@@ -193,14 +195,11 @@ export async function seedM9(client, { plan = M9_PLAN } = {}) {
   const keys = repoKeys(plan)
   const repos = []
   for (const key of keys) {
-    const r = await client.request('PUT', `/binflow/api/repositories/${key}`, {
-      body: {
-        rclass: 'local',
-        packageType: 'generic',
-        description: `m9 seed repository ${key} (T-250 fanout fixture)`,
-      },
+    const status = await ensureRepo(client, {
+      key,
+      description: `m9 seed repository ${key} (T-250 fanout fixture)`,
     })
-    repos.push({ key, status: r.status })
+    repos.push({ key, status })
   }
   const usageFiles = await seedUsageContent(client, keys)
   const groups = []
