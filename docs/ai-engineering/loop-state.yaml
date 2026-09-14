@@ -29,6 +29,11 @@ loop_021_tracks:
   - { id: L021-1, domain: helmoci-protocol, owner: differential-qa-engineer, what: "helmoci 扩章首票（六域收官）：index.yaml 计算面 probe（helm CLI 真腿——chart 上传/index 生成/provenance）→ helmoci.yaml 契约（预估 3-5 条目闭环）" }
   - { id: L021-2, domain: rulings-pack, owner: product-manager, what: "三裁定包：auth401 措辞族+匿名读策略（ADR-0009 复核）+登录限流（security 面并入 R-18 或独立）——pending-rulings v2.4 增席" }
   - { id: L021-3, domain: maven-faces, owner: dev-registry-adapter, what: "maven 三小面对齐票：受理码 202 丢弃式/XML 渲染形态/文件 404 措辞——client-blind 收尾（裁定素材已备——若无裁定则按参照对齐实现）" }
+loop_022_tracks:
+  - { id: L022-1, domain: ledger-close, owner: compatibility-engineer, what: "翻绿落账：R-20 XML 形态 resolved+R-21 收窄至组目录半面（L021-3 复验证据）+ helmoci D2/D3 裁定素材补 + conan D1 ping INTENTIONAL 终裁落账" }
+  - { id: L022-2, domain: absent-assess, owner: compatibility-engineer, what: "matrix absent 面攻坚评估：78 行 ❌ 按 D 域分组+证据厚薄+实现缺口三轴排优先序（P1 35/P2 43——产攻坚路线图一页可裁）" }
+  - { id: L022-3, domain: docs-followup, owner: tech-writer, what: "whats-new 破坏性公告（PUT create-only 对 repeat-PUT 脚本）+ openapi 生成器 storageList 七参条目+repositories 语义更新" }
+  - { id: L022-4, domain: wiring-fix, owner: conductor, what: "WithAuthorizer 接线一行（cmd/binflow-server/main.go:410——写 ACL 到 maven metadata 面）+ helmoci 三规格勘误转 reverse-engineer" }
 iteration_021_seal: "四轨全收（Docker 第八僵死自愈）；helmoci 六域收官（七契约 87 条目）；v2.4 整包 23 席位；maven 三小面+文档追平（用户指令）；commits b906e7cd/d1a15995/97032706/d99f356a"
 iteration_020_seal: "双轨全收（Docker 第七僵死自愈）；goproxy 终态 3V+1I+pom resolved+helmoci 六域确认；auth401 族两新面（匿名读/登录限流）；commits 532e4260/1bd93d70"
 iteration_019_seal: "双轨全收（Docker 第六僵死自愈）；conan 三面+maven pom 前置实现（复验全 SAME）+goproxy 首活体+conan PUT 首证；conan 契约 14V；commits 47f37739/1915dbe7"
