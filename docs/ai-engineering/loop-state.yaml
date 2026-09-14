@@ -1,9 +1,9 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-14T12:15:00Z
-current_iteration: 022
-current_goal: "WithAuthorizer 接线 / helmoci D1 升级裁 / R-20/R-21 翻绿落账 / whats-new 公告 / absent 面攻坚评估"
+updated: 2026-09-14T16:35:00Z
+current_iteration: 023
+current_goal: "批次 1 build-info 主战线开工（规格→实现→契约→差分）+ 批次 2 快赢并行"
 loop_016_tracks:
   - { id: L016-2, domain: npm-deep, owner: dev-registry-adapter, what: "✅ ghost 守卫改 tarball 路径冲突语义（403 逐字+不入索引+latest 不劫持——G1 三臂双端复验）；attachmentTarballPath 段安全；T-261 face-4 翻面；契约第三批 publish-ghost-guard VERIFIED；commit 8bf07b61；Next=crafted 文档门槛二分票（G4 素材备）", status: done }
   - { id: L016-1, domain: pypi-protocol, owner: differential-qa-engineer, what: "pypi simple 扩章首票前段：probe 补真实 pip/twine 腿+无效 wheel 三态矩阵+302 形态/legacy API 决策取证 → pypi.yaml 契约首文件（simple 面：锚点属性集/链接模板/索引即时性裁定）" }
@@ -34,6 +34,7 @@ loop_022_tracks:
   - { id: L022-2, domain: absent-assess, owner: compatibility-engineer, what: "matrix absent 面攻坚评估：78 行 ❌ 按 D 域分组+证据厚薄+实现缺口三轴排优先序（P1 35/P2 43——产攻坚路线图一页可裁）" }
   - { id: L022-3, domain: docs-followup, owner: tech-writer, what: "whats-new 破坏性公告（PUT create-only 对 repeat-PUT 脚本）+ openapi 生成器 storageList 七参条目+repositories 语义更新" }
   - { id: L022-4, domain: wiring-fix, owner: conductor, what: "WithAuthorizer 接线一行（cmd/binflow-server/main.go:410——写 ACL 到 maven metadata 面）+ helmoci 三规格勘误转 reverse-engineer" }
+iteration_022_seal: "四轨全收；R-20/R-21 resolved（v2.4 余 21 席）+conan v2ping 终裁+absent-roadmap 六批次+WithAuthorizer 接线+whats-new/openapi；commits 37204895/5acac562/7b94fd33"
 iteration_021_seal: "四轨全收（Docker 第八僵死自愈）；helmoci 六域收官（七契约 87 条目）；v2.4 整包 23 席位；maven 三小面+文档追平（用户指令）；commits b906e7cd/d1a15995/97032706/d99f356a"
 iteration_020_seal: "双轨全收（Docker 第七僵死自愈）；goproxy 终态 3V+1I+pom resolved+helmoci 六域确认；auth401 族两新面（匿名读/登录限流）；commits 532e4260/1bd93d70"
 iteration_019_seal: "双轨全收（Docker 第六僵死自愈）；conan 三面+maven pom 前置实现（复验全 SAME）+goproxy 首活体+conan PUT 首证；conan 契约 14V；commits 47f37739/1915dbe7"
