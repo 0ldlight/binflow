@@ -138,27 +138,43 @@ def build():
        responses={"200": r("仓库配置（canonical 回显）", schema=S("RepoConfig")),
                   "404": r("仓库不存在（`Failed to find the repository '<key>' specified in the request.`）")})
 
-    op("/api/repositories/{key}", "put", "repoPut", "repositories", "建仓 / 替换既有仓",
-       "官方拼写：`PUT /binflow/api/repositories/{key}`。建仓（创建）/ 替换既有仓"
-       "（替换臂与配额字段对覆盖仓的 manage 持有者开放；**建仓臂仍 admin only**）。"
+    op("/api/repositories/{key}", "put", "repoPut", "repositories", "建仓（create-only）",
+       "官方拼写：`PUT /binflow/api/repositories/{key}`。**只建仓**——对已存在的 key 一律 **400**"
+       "（errors 信封逐字 `error when validating repository name: <key> : Repository key already exists`），"
+       "**零副作用**（存量配置原样不动）；body 与路径 key 不一致同样 400。更新拼写只有 POST（merge 语义，见下一端点）。"
+       "admin only（manage 持有者不可建仓）。body 缺 `rclass` 时先撞创建路径的类型校验 400"
+       "（packageType 空槽拒绝——先于 key-exists 判定）。"
        "建仓形态：`rclass=remote + packageType=docker`（community 档——不新增 license 槽）；"
        "`rclass=virtual + packageType=docker` 亦已开闸（聚合读面按成员仓并集服务）——"
        "**rclass × packageType 组合门已全量退役**，建仓面唯一剩余门是 license 档位"
        "（进阶包型在低档位 400 `package type not available on this instance: ...`）。",
        params=[pp("key", "仓库 key")],
-       req_body=body("仓库配置", schema=S("RepoConfig"),
+       req_body=body("仓库配置（全量创建体）", schema=S("RepoConfig"),
                      example={"rclass": "local", "packageType": "generic",
                               "description": "demo"}),
-       responses={"200": r("已替换"), "201": r("已创建"),
-                  "400": r("参数非法", schema=S("ErrorsEnvelope"),
+       responses={"200": r("已创建（纯文本 `Successfully created repository '<key>'`）", ctype="text/plain"),
+                  "400": r("已存在 key（create-only 400，零副作用）/ 参数非法 / body 键与路径 key 不一致",
+                           schema=S("ErrorsEnvelope"),
                            example={"errors": [{"status": 400,
-                                                "message": "Repository key must be at least 2 characters: 'x'"}]})})
+                                                "message": "error when validating repository name: libs-release : Repository key already exists"}]})})
 
-    op("/api/repositories/{key}", "post", "repoPost", "repositories", "改仓（更新配置）",
-       "官方拼写：`POST /binflow/api/repositories/{key}`（含 quotaBytes 配额写；manage 持有者同上）。",
+    op("/api/repositories/{key}", "post", "repoPost", "repositories", "改仓（merge 合并更新）",
+       "官方拼写：`POST /binflow/api/repositories/{key}`。**唯一的更新拼写**，合并语义三列——"
+       "body 里**省略**的字段=保留存量；**`null` / 空串**=清空该字段（数组空值保留、对象 `{}` 整族复位）；"
+       "**显式值**=覆盖（`0` 也是显式值，不作缺省回落）。"
+       "description 层：body 无 `description` 键 = 保留存量；显式 `null`（解码为空串）或值 = 覆写。"
+       "rclass / packageType 省略时沿用存量。未知 key 404。含 quotaBytes 配额写；"
+       "admin 或该仓 manage 持有者（配额写臂对覆盖仓开放）。",
        params=[pp("key", "仓库 key")],
-       req_body=body("仓库配置（增量字段）", schema=S("RepoConfig")),
-       responses={"200": r("已更新")})
+       req_body=body("仓库配置（增量字段——省略即保留）", schema=S("RepoConfig"),
+                     example={"description": "new text"}),
+       responses={"200": r("已更新（纯文本 `Repository <key> update successfully.`）", ctype="text/plain"),
+                  "400": r("body 非法 JSON", schema=S("ErrorsEnvelope"),
+                           example={"errors": [{"status": 400,
+                                                "message": "request body is not valid repository configuration JSON: ..."}]}),
+                  "404": r("仓库不存在（`Repository does not exist: ...`）", schema=S("ErrorsEnvelope"),
+                           example={"errors": [{"status": 404,
+                                                "message": "Repository does not exist: repo \"libs-release\": repository not found"}]})})
 
     op("/api/repositories/{key}", "delete", "repoDelete", "repositories", "删仓",
        "官方拼写：`DELETE /binflow/api/repositories/{key}?deleteContent=`（admin only，不下放）。",

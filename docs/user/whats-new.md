@@ -5,8 +5,50 @@ sidebar_position: 5
 
 # 用户可见变化公告
 
-> 适用版本：本页所述变化的交付版本（控制台交互对齐、计划任务、界面语言三条主线）。
-> 本页面向**已在使用 BinFlow 的读者**：把最近一轮交付中**你会直接看到或需要动手适配**的变化逐一列明——包括若干**推翻此前既定裁定的翻案项**（每项注明「此前 → 现在」）。操作细节一律链到对应指南；本页零内部编号，按变化本身组织。
+> 适用版本：本页所述变化的交付版本（仓库配置动词语义收紧 + 协议语义对齐批次；控制台交互对齐、计划任务、界面语言三条主线）。
+> 本页面向**已在使用 BinFlow 的读者**：把最近的交付批次中**你会直接看到或需要动手适配**的变化逐一列明——包括若干**推翻此前既定裁定的翻案项**（每项注明「此前 → 现在」）。操作细节一律链到对应指南；本页零内部编号，按变化本身组织。
+
+## 破坏性变更：仓库配置动词语义收紧（PUT 只建仓，更新只有 POST）
+
+**此前**：`PUT /binflow/api/repositories/{key}` 对已存在的 key 走「替换更新」（200 生效）。**现在**：**PUT 收紧为只建仓（create-only）**——对已存在的 key 一律 **400**，且**零副作用**（拒绝后存量配置原样不动）：
+
+```json
+{"errors": [{"status": 400, "message": "error when validating repository name: libs-release : Repository key already exists"}]}
+```
+
+- **唯一的更新拼写是 `POST`**，且为**合并语义（三列）**：body 里**省略**的字段保留存量；**`null` / 空串**清空该字段（数组空值保留、对象 `{}` 整族复位）；**显式值**覆盖（`0` 也是显式值，不是缺省）。未知 key 404。
+- **动因**：对齐 Artifactory——参照系统的更新拼写只有 POST；BinFlow 先前「PUT 也能更新」是自有偏差，本批收敛。建仓仍 admin only；更新臂对覆盖仓的 manage 持有者开放（与此前一致）。
+
+**影响面与迁移**（repeat-PUT 更新脚本必读）：
+
+- 「先 PUT 建仓、此后每轮 PUT 刷配置」的脚本 / CI / IaC 模板，从第二个 PUT 起拿到 400。
+- 迁移 = **更新调用 PUT 改 POST**，一行替换；body 不必补全字段（省略即保留，不会丢配置）：
+
+```bash
+# 此前（现在拿到 400）：
+curl -u admin:*** -X PUT "$BASE/binflow/api/repositories/libs-release" \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"local","packageType":"generic","description":"新描述"}'
+
+# 迁移后（更新走 POST，省略字段保留存量）：
+curl -u admin:*** -X POST "$BASE/binflow/api/repositories/libs-release" \
+  -H 'Content-Type: application/json' \
+  -d '{"description":"新描述"}'
+```
+
+- upsert 形脚本改为两步：先 `GET` 探测（404 → `PUT` 建仓；200 → `POST` 更新）。
+- 动词语义表与逐字段合并细则见 [API 参考 · 仓库管理端点](api-reference.md)。
+
+## 协议语义对齐批次：客户端可见面
+
+六个协议域（npm / PyPI / Conan / Docker / Go / Helm）的客户端可见语义逐项对齐 Artifactory 口径，Maven 与存储管理面同步收敛；下列行为经真实客户端（pip / mvn / npm / conan / helm CLI / curl）在隔离实例或双端对照下验证：
+
+- **Maven**：SNAPSHOT 部署缺省 `unique`——落盘名改写为时间戳版本（`demo-app-1.2.0-20260819.212603-2.jar`，buildNumber 跨趟递增；消费侧 `-U` 强刷解析最新）；版本目录的 `maven-metadata.xml` 有 **pom 前置**（目录存在 `.pom` 直接子文件才生成）；`deploy:deploy-file` 免 `generatePom` 的路径 404。见 [Maven 接入](integrations/maven.md)。
+- **PyPI**：simple 索引的 `Requires-Python` 按三源管线取值（twine 上传表单 / wheel `*.dist-info/METADATA` / sdist `PKG-INFO`），服务端从制品字节解析并转义渲染——pip 的版本过滤直接吃到这个值；坏元数据**存而不索引**（上传成功、不进 simple 页）。见 [PyPI 接入](integrations/pypi.md)。
+- **npm**：dist-tags 族语义——`latest` **删不掉**（删除请求本身 200 空体，此后两读面读时重算为最高已发布版本）；集合面 PUT/POST 与单 tag POST 一律 405（npm CLI 只走单 tag 显式端点，不受影响）；dist-tags GET 带 60 秒缓存头（刚改完 tag 立查可能读到旧值，`--prefer-online` 或等 60 秒自愈）；重发同版本按 **tarball 路径占用**判定 403（版本不可变——packument 文档携带历史版本清单不触发，ghost 版本不入索引不劫持 `latest`）。见 [npm 接入](integrations/npm.md)。
+- **Conan**：v1 / v2 双协议面收口——幽灵 revision 的删除分叉、错误信封族、`q` 查询参数门。见 [Conan 接入](integrations/conan.md)。
+- **Docker / Go / Helm**：docker token 流与 `/v2` 根级面、Go Modules 的 sumdb 校验链、Helm chart 的 `index.yaml` 计算面与 digest 口径（`digest` = chart `.tgz` 的裸 sha256）对齐。
+- **存储管理面**：`?list` 清单族**七参数全量**（`deep` / `depth` / `listFolders` / `includeRootPath` + 元数据三参 `mdTimestamps` / `statsTimestamps` / `includePropertiesMd5`；参数出现但非整数值一律 400 `For input string: "<v>"`）；递归属性写**只对真实变更移动属性 mtime**（原值重写不再刷新时间戳）；**下载计数只计内容 GET**（`?stats` 等元数据读不计数）。见 [API 参考](api-reference.md) 与 [属性指南](properties.md)。
 
 ## 界面语言：中英双语可切换
 
@@ -83,11 +125,13 @@ sidebar_position: 5
 
 ## 兼容性影响
 
+- **本批唯一破坏臂**：仓库配置动词语义（PUT 只建仓）——repeat-PUT 更新脚本需按上文迁移；协议语义批其余条目为行为对齐，标准客户端（pip / mvn / npm / conan / helm CLI）无需改动。
 - **旧路径自动折入**：本轮迁移的四个页面路径（系统信息、维护 GC、备份恢复、Webhooks）旧深链打开时**一次性 replace 到新址**，不落 404——书签无需立即更新，但建议尽早改（更早轮次移除的历史重定向窗口口径不变，见[控制台指南 · 旧路径](console.md#旧路径--新路径m9-起不再重定向)）。
 - **默认行为不变**：远端浏览默认关、界面默认中文、事件驱动复制轨不变——不配置新能力时，实例行为与此前一致。
-- **API 面纯增量**：新端点族（维护/备份/调度投影）与 `cron_exp` 字段均为新增；既有端点行为零变化。
+- **控制台批次 API 面纯增量**：新端点族（维护/备份/调度投影）与 `cron_exp` 字段均为新增；既有端点行为零变化。
 
 ## 下一步
 
+- 脚本迁移：[API 参考 · 仓库管理端点](api-reference.md)（PUT/POST 动词语义与合并细则）
 - 新能力上手：[计划任务与定时备份](admin/cron-scheduling.md) · [远端浏览可选档](admin/remote-virtual.md#远端浏览可选档listremotefolderitems) · [界面语言](console.md#界面语言中英双语切换)
 - 从 Artifactory 迁移的逐任务对照：[操作路径对照表](artifactory-path-map.md)

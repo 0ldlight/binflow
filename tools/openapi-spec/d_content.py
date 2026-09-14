@@ -98,12 +98,52 @@ def build():
                   "404": r("node 不存在")},
        security=ANON)
 
+    int32_err = ("七个整数参数任一**出现**且解析失败（非整数或越 int32 界）→ 400 `For input string: \"<v>\"`；"
+                 "空值/空白视为缺席（同未传）")
     op("/api/storage/{repoKey}", "get", "storageList", "artifacts",
        "流式文件清单（仅认证用户）",
-       "官方拼写：`GET /binflow/api/storage/{repoKey}?list`（带路径前缀亦可：`/api/storage/{repoKey}/{path}?list`）。",
+       "官方拼写：`GET /binflow/api/storage/{repoKey}?list`（带路径前缀亦可：`/api/storage/{repoKey}/{path}?list`）。"
+       "七参族全量：`deep`/`depth`/`listFolders`/`includeRootPath` 控制枚举形态，"
+       "`mdTimestamps`/`statsTimestamps`/`includePropertiesMd5` 为条目附加元数据。开关臂按值 ==1 取（其它整数不开启）；"
+       "`depth` 仅作 `deep=1` 的限深，自身不触发递归。响应 Content-Type 为 vendor 形"
+       " `application/vnd.org.jfrog.artifactory.storage.FileList+json`——"
+       "`files[]` 按字母序混排、`uri` 带前导斜杠且相对被查目录；目录行（`listFolders=1`）`uri` 无尾斜杠、`size` -1、"
+       "`folder` true。" + int32_err + "。匿名 403（handler 自答，非 401 挑战）。",
        params=[pp("repoKey", "仓库 key"),
-               q("list", "存在即流式清单（匿名 403——handler 自答，非 401 挑战）", schema={"type": "boolean"})],
-       responses={"200": r("文件清单（流式）"),
+               q("list", "存在即流式清单（匿名 403——handler 自答，非 401 挑战）", schema={"type": "boolean"}),
+               q("deep", "1 = 递归列出子目录内容（缺省 0 平铺；其它整数值不开启——开关臂按 ==1 取）",
+                 schema={"type": "integer", "default": 0}, example=1),
+               q("depth", "deep=1 的递归限深（缺省 0 不限；1 = 只列直接子级）；仅修饰符——自身不触发递归",
+                 schema={"type": "integer", "default": 0}, example=1),
+               q("listFolders", "1 = 目录行并入 files[]（size -1、folder true，与文件行同一字母序）",
+                 schema={"type": "integer", "default": 0}, example=1),
+               q("includeRootPath", "1 = 被查询目录自身以 `/` 行领首 files[]（size -1）",
+                 schema={"type": "integer", "default": 0}, example=1),
+               q("mdTimestamps", "1 = 携带属性的条目（文件与目录）附加 mdTimestamps.properties（属性最近变更时刻）",
+                 schema={"type": "integer", "default": 0}, example=1),
+               q("statsTimestamps", "1 = 有下载史的文件条目附加 mdTimestamps.artifactory.stats（最近下载时刻；从未下载与目录行不附）",
+                 schema={"type": "integer", "default": 0}, example=1),
+               q("includePropertiesMd5", "1 = 携带属性的条目附加 propertiesMd5（属性集 canonical 序列化的 md5）",
+                 schema={"type": "integer", "default": 0}, example=1)],
+       responses={"200": r("文件清单（FileList 形：uri / created / files[]；条目字段 uri·size·lastModified·folder·sha1·sha2 "
+                          "+ 可选 mdTimestamps{}·propertiesMd5）",
+                          schema=obj({"uri": {"type": "string"},
+                                      "created": {"type": "string"},
+                                      "files": arr(obj({"uri": {"type": "string"},
+                                                        "size": {"type": "integer"},
+                                                        "lastModified": {"type": "string"},
+                                                        "folder": {"type": "boolean"},
+                                                        "sha1": {"type": "string"},
+                                                        "sha2": {"type": "string"},
+                                                        "mdTimestamps": obj({"properties": {"type": "string"},
+                                                                             "artifactory.stats": {"type": "string"}},
+                                                                            desc="mdTimestamps=1 / statsTimestamps=1 各自附加的键（仅有底层事实时）"),
+                                                        "propertiesMd5": {"type": "string"}},
+                                                       desc="清单条目（字母序混排；目录行 size -1 无摘要）"))},
+                                      desc="FileList 响应（流式）"),
+                          ctype="application/vnd.org.jfrog.artifactory.storage.FileList+json"),
+                  "400": r(int32_err, schema=S("ErrorsEnvelope"),
+                           example={"errors": [{"status": 400, "message": "For input string: \"abc\""}]}),
                   "403": ERR_403})
 
     op("/api/storage/{repoKey}/{path}", "put", "storagePropertiesPut", "artifacts",
