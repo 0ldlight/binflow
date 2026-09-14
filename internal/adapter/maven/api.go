@@ -60,6 +60,12 @@ type Handler struct {
 	// calc is the maven-metadata.xml calculator (FR-17); nil together with
 	// nodes.
 	calc *calculator
+	// authz answers the write-grant question of the metadata discard
+	// acceptance (L021 face 1) — the 202 path bypasses the service's own
+	// gate, so the grant is asked here. nil (the assembly wired none, the
+	// npm WithAuth convention) leaves the acceptance open to any
+	// authenticated principal; nothing lands either way.
+	authz repo.Authorizer
 }
 
 // New wires the handler. svc is required; class is required (the remote
@@ -70,6 +76,14 @@ func New(svc repo.Service, class repo.ClassReader, ledger BlobLedger, nodes Node
 	if nodes != nil {
 		h.calc = newCalculator(svc, nodes, nil)
 	}
+	return h
+}
+
+// WithAuthorizer attaches the ACL seam the metadata discard acceptance
+// consults (L021 face 1). Chainable like npm's WithAuth; the seam is
+// optional by the same convention.
+func (h *Handler) WithAuthorizer(az repo.Authorizer) *Handler {
+	h.authz = az
 	return h
 }
 

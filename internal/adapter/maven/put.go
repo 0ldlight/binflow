@@ -108,7 +108,47 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 		h.putSidecar(ctx, w, r, p, repoKey, factsKey, relPath, l, cfg)
 		return
 	}
+	// The A-form acceptance of the calculator-owned SNAPSHOT version
+	// document (L020 wire f1, V6; the L013-4 C1 arm splits the levels):
+	// a client PUT of `X/.../<v>-SNAPSHOT/maven-metadata.xml` is
+	// 202-accepted and the body DISCARDED — no storage node, no
+	// recalculation, no envelope. The module (version-group) document's
+	// PUT keeps the store chain (A replays those bytes verbatim there —
+	// the R-21 pending face, unadjudicated). Needs the calculator wired
+	// (the nil-seam assembly keeps the T-67 verbatim-storage behavior)
+	// and fires only where the write would land in a LOCAL repository
+	// (row is the routed member under a virtual key): remote and
+	// un-routed virtual PUTs fall through and keep the 405 refusals.
+	if l.Kind == KindMetadata && l.File == metadataFileName && strings.HasSuffix(l.Module, snapshotSuffix) &&
+		h.calc != nil && row.Type == repo.TypeLocal {
+		h.acceptDiscardedMetadata(ctx, w, r, p, factsKey, relPath)
+		return
+	}
 	h.putFile(ctx, w, r, p, repoKey, factsKey, relPath, l, cfg)
+}
+
+// acceptDiscardedMetadata renders the 202-discard acceptance. The 401/403
+// pair mirrors the store chain's own renderings byte for byte
+// (writeServiceError's ErrUnauthorized/ErrForbidden arms): the acceptance
+// must not become an authorization bypass on a path that no longer runs
+// the service gates — the Authorizer seam (nil = the assembly wired none,
+// the npm WithAuth convention) answers the write-grant question against
+// the FACTS repository, the one the discarded Put would have gated on.
+// The body is drained so the connection stays reusable, then dropped.
+func (h *Handler) acceptDiscardedMetadata(ctx context.Context, w http.ResponseWriter, r *http.Request,
+	p *repo.Principal, factsKey, relPath string) {
+	if p == nil {
+		w.Header().Set("WWW-Authenticate", `Basic realm="BinFlow Realm"`)
+		writeError(w, http.StatusUnauthorized, "Authentication is required to deploy artifacts.")
+		return
+	}
+	if h.authz != nil && !h.authz.Can(ctx, p, factsKey, relPath, repo.ActionWrite) {
+		writeError(w, http.StatusForbidden,
+			fmt.Errorf("write %s/%s: %w", factsKey, relPath, repo.ErrForbidden).Error())
+		return
+	}
+	_, _ = io.Copy(io.Discard, r.Body)
+	w.WriteHeader(http.StatusAccepted)
 }
 
 // routeTargetOf mirrors repo's tolerant virtualRouteTarget (virtual.go):
@@ -273,7 +313,10 @@ func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Re
 
 	// FR-17's trigger taxonomy fires on the LANDED node's repository (a
 	// routed virtual write lands in the deployment member — the facts and
-	// the metadata belong to where the bytes are).
+	// the metadata belong to where the bytes are). The metadata arm is the
+	// module (version-group) document, the plugin-group variant and the
+	// nil-seam assembly: the SNAPSHOT version document never reaches here
+	// (the 202-discard acceptance above).
 	if l.Kind == KindArtifact {
 		h.calc.afterArtifactDeploy(ctx, p, node.RepoKey, l)
 	} else {
