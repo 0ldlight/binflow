@@ -122,7 +122,7 @@ export function AppShell() {
 
   return (
     <div data-slot="app-shell" className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      <aside className="w-56 shrink-0 overflow-y-auto bg-sidebar text-sidebar-foreground">
+      <aside className="w-sidebar shrink-0 overflow-y-auto bg-sidebar text-sidebar-foreground">
         <Sidebar
           groups={groups}
           version={version ? version.version : null}
@@ -140,8 +140,8 @@ export function AppShell() {
           aboutOpen={aboutOpen}
           onAboutOpenChange={setAboutOpen}
         />
-        <main data-slot="app-main" className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-          <div className="mx-auto max-w-[1440px]">
+        <main data-slot="app-main" className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+          <div className="mx-auto max-w-content">
             <Outlet />
           </div>
         </main>

@@ -245,7 +245,7 @@ export function Topbar({
   // ---- OIDC step-up 回跳续铸由壳层承载（AppShell 持 SetMeUp 挂载态） ----
 
   return (
-    <header className="app-topbar sticky top-0 z-[var(--bf-z-nav-sticky,70)] flex h-12 items-center gap-4 border-b border-border bg-background px-5">
+    <header className="app-topbar sticky top-0 z-[var(--bf-z-nav-sticky,70)] flex h-topbar items-center gap-4 border-b border-border bg-background px-6">
       {crumbs ? (
         <nav className="topbar-breadcrumb flex min-w-0 items-center gap-1 text-dense" data-testid="topbar-breadcrumb" aria-label={t('位置')}>
           {crumbs.map((c, i) =>

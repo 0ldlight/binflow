@@ -98,4 +98,11 @@
   --shadow-flat: var(--bf-shadow-1);
   --shadow-overlay: var(--bf-shadow-2);
   --shadow-modal: var(--bf-shadow-3);
+
+  /* ---- 布局尺寸（§3.3 批 2 壳收编：批 1 只定义不消费的新槽位自此进
+   * 消费缝——语义类 w-sidebar / h-topbar / max-w-content 直取 token，
+   * 壳层不再出现 w-56 / h-12 / max-w-[1440px] 字面量（G4 清偿））---- */
+  --spacing-sidebar: var(--bf-sidebar-w);
+  --spacing-topbar: var(--bf-topbar-h);
+  --container-content: var(--bf-content-max);
 }
