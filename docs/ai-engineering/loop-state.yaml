@@ -25,6 +25,10 @@ loop_020_tracks:
   - { id: L020-1, domain: ledger-promotions, owner: compatibility-engineer, what: "升格落账终轮：goproxy put VERIFIED+CT 断言修订+sumdb 双证注记；conan D2/D3/D4 evidence 追锚；maven pom-prerequisite 台账 resolved 翻记（验收=LOOP 019 复验）；auth401 分立条目入账" }
   - { id: L020-2, domain: expansion-assess, owner: compatibility-engineer, what: "helmoci 扩章第六域评估（评估案后段首项——/v2 wire 已被 docker 域 25 条目背书；增量=index.yaml 经典面）——三轴一页可裁" }
   - { id: L020-3, domain: docker-put-probe, owner: differential-qa-engineer, what: "conan auth401 措辞族裁定腿：双端 401 形态对照（adapter 外 auth 中间层渲染点）+maven 三小面取证（受理码/XML 渲染/404 措辞）——轻差分批" }
+loop_021_tracks:
+  - { id: L021-1, domain: helmoci-protocol, owner: differential-qa-engineer, what: "helmoci 扩章首票（六域收官）：index.yaml 计算面 probe（helm CLI 真腿——chart 上传/index 生成/provenance）→ helmoci.yaml 契约（预估 3-5 条目闭环）" }
+  - { id: L021-2, domain: rulings-pack, owner: product-manager, what: "三裁定包：auth401 措辞族+匿名读策略（ADR-0009 复核）+登录限流（security 面并入 R-18 或独立）——pending-rulings v2.4 增席" }
+  - { id: L021-3, domain: maven-faces, owner: dev-registry-adapter, what: "maven 三小面对齐票：受理码 202 丢弃式/XML 渲染形态/文件 404 措辞——client-blind 收尾（裁定素材已备——若无裁定则按参照对齐实现）" }
 iteration_020_seal: "双轨全收（Docker 第七僵死自愈）；goproxy 终态 3V+1I+pom resolved+helmoci 六域确认；auth401 族两新面（匿名读/登录限流）；commits 532e4260/1bd93d70"
 iteration_019_seal: "双轨全收（Docker 第六僵死自愈）；conan 三面+maven pom 前置实现（复验全 SAME）+goproxy 首活体+conan PUT 首证；conan 契约 14V；commits 47f37739/1915dbe7"
 iteration_018_seal: "三轨全收（Docker 第五僵死+Push Protection 双事件善后）；conan 11V 开局+goproxy 4+C3 闭环；契约六域 77 条目；台账 47 resolved 28；commits 598ce6ec/2151390d/31143ff8"
