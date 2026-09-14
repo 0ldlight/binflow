@@ -106,6 +106,14 @@ sha256-content-addressed and deduplicated across every path and repo.
 - **Storage** — disk or S3 (AWS/MinIO), online dual-write migration, `binstore.yaml` provider chain: [S3](docs/user/guides/s3-config.md) · [storage config](docs/user/admin/storage-config.md)
 - **Replication** — event-driven one-way push, on-demand full resync, global block brake: [governance](docs/user/admin/governance.md)
 - **Search** — AQL (`items.find({...})`) plus gavc/prop/pattern endpoints, and the properties system: [AQL](docs/user/aql.md) · [properties](docs/user/properties.md)
+- **REST API** — Artifactory-compatible semantics on the management face: repo
+  config verbs (PUT create-only / POST merge-update: omitted fields keep,
+  `null` clears), recursive property writes (only real mutations move the
+  per-node property mtime), the seven-parameter `?list` file listing
+  (`deep`/`depth`/`listFolders`/`includeRootPath` plus the
+  `mdTimestamps`/`statsTimestamps`/`includePropertiesMd5` metadata trio), and
+  download stats that count content GETs only — metadata reads never inflate
+  them: [`docs/user/api-reference.md`](docs/user/api-reference.md)
 - **Access control** — `user`/`readonly_admin`/`admin` roles, repo-level `manage`, API tokens with optional step-up: [RBAC](docs/user/admin/rbac-roles.md) · [step-up](docs/user/admin/token-step-up.md)
 - **Artifact lifecycle** — copy/move/zip/`archive!`/explode and a trash can with restore + retention: [operations](docs/user/admin/artifact-operations.md) · [trash can](docs/user/admin/trash-can.md)
 - **Webhooks** — HMAC-SHA256 signed delivery with retry semantics: [`docs/user/admin/webhooks.md`](docs/user/admin/webhooks.md)

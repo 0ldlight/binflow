@@ -113,7 +113,7 @@ curl -s -H "Authorization: Bearer $REL_TOKEN" -X PUT \
   -o /dev/null -w '%{http_code}\n'                                     # 204
 ```
 
-属性写操作落审计 `props.write` / `props.delete`（detail 含键摘要与 recursive 标记）。按属性的检索走 `GET /api/search/prop` 与 AQL 的 `@key` 条件（见 [AQL](/search/aql)）。
+属性写操作落审计 `props.write` / `props.delete`（detail 含键摘要与 recursive 标记）。**递归写的 mtime 语义**：一次真实变更的递归写会把**每个被改子项**的属性变更时刻（`?list&mdTimestamps=1` 下的 `mdTimestamps.properties`）移动到写入时刻；值不变的重复写不移动——判定跟着「是否真的改了」而不是「是否发了请求」。属性面读写均**不计入下载统计**（`downloadCount` 只认内容 GET）。按属性的检索走 `GET /api/search/prop` 与 AQL 的 `@key` 条件（见 [AQL](/search/aql)）。
 
 ## 常见报错对照
 

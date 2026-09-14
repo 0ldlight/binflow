@@ -100,8 +100,20 @@ curl -su admin:$ADMIN_PW $MVN_REPO/com/acme/demo-app/1.0.0/demo-app-1.0.0.jar.sh
 
 - mvn 默认 unique deploy：落盘文件名带 timestamp + buildNumber（`demo-app-1.2.0-20260819.212603-2.jar`）；两次 deploy 后 version 级 `maven-metadata.xml` 的 `buildNumber` 递增。
 - 拿最新 SNAPSHOT：消费侧声明 SNAPSHOT 依赖 + `mvn -B -U compile`——`-U` 强刷 metadata 解析到最新 buildNumber。
-- 服务端按存储事实计算 `maven-metadata.xml`；客户端 PUT metadata 被接受并触发重算。
+- 服务端按存储事实计算 `maven-metadata.xml`，但**版本目录的 metadata 有 pom 前置**：目录里存在 `.pom` 直接子文件才生成（见下节）；客户端 PUT metadata 被接受并触发重算。
 - 强刷已缓存 metadata：对缓存路径执行 `DELETE`（删本地缓存）后下次 GET 回源——remote 仓没有 `?refresh` 参数（见 [仓库管理](/admin/repositories)）。
+
+### 版本目录 metadata 的 pom 前置
+
+与 Artifactory 行为对齐：`<artifactId>/<version>/maven-metadata.xml` 只在该版本目录**含 pom** 时生成并保持——`mvn deploy:deploy-file -DgeneratePom=false`（jar-only 目录）GET metadata 得 **404**；补上 pom 部署（`generatePom` 默认 true）后 200；删除目录里最后一个 pom 时既有 metadata 一并删除。组目录 `maven-metadata.xml` 的 `<versions>` 只统计含 pom 的版本目录。真实 `mvn deploy`（走项目 POM）永不触发该边界。
+
+```bash
+mvn -B -q deploy:deploy-file -Durl=$MVN_REPO -DrepositoryId=binflow \
+  -DgroupId=com.acme -DartifactId=demo-app -Dversion=1.0-SNAPSHOT \
+  -Dfile=demo-app.jar -DgeneratePom=false
+curl -s -o /dev/null -w '%{http_code}\n' $MVN_REPO/com/acme/demo-app/1.0-SNAPSHOT/maven-metadata.xml
+# 404（jar-only）；带 pom 重新 deploy 后同请求 200
+```
 
 仓级配置（建仓 JSON）：
 
@@ -144,6 +156,7 @@ repositories {
 | PUT 400 `maven layout: ... at least 3 directories` | 路径不是标准 GAV layout | 用 mvn deploy；通用文件放 generic 仓 |
 | PUT 400 `file name "x.jar" must start with "<artifactId>-<version>"` | 文件名与目录 GAV 不符 | 同上 |
 | 401 `authentication required` | 匿名 deploy，或 `<server>` id 与 `altDeploymentRepository` 首段不一致 | 对齐 id；检查口令 |
+| 版本目录 `maven-metadata.xml` 404 | jar-only 目录（`generatePom=false`）——pom 前置有意不生成 | 要 metadata 就带 pom 部署（`generatePom` 默认 true） |
 | `Could not find artifact`（修好配置后仍报） | 本地 `.lastUpdated` 负缓存 | 清 `maven.repo.local` 或 `mvn -U` |
 | mirror 形态下默认插件解析失败 | virtual 无 Central 成员 | 加 remote 成员（上文第 4 步） |
 

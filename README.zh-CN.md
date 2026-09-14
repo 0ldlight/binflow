@@ -102,6 +102,7 @@ docker compose -f deploy/dev/docker-compose.yml ps
 - **存储**——磁盘或 S3（AWS/MinIO）、在线双写迁移、`binstore.yaml` provider 链：[S3](docs/user/guides/s3-config.md) · [存储配置](docs/user/admin/storage-config.md)
 - **复制**——事件驱动单向 push、按需全量重同步、全局封锁闸：[治理](docs/user/admin/governance.md)
 - **搜索**——AQL（`items.find({...})`）+ gavc/prop/pattern 端点，另有属性系统：[AQL](docs/user/aql.md) · [属性](docs/user/properties.md)
+- **REST API**——管理面与 Artifactory 语义兼容：仓配置动词（PUT 只建 / POST 合并更新：省略字段保留、`null` 清空）、递归属性写（只有真实变更才移动节点属性时刻）、七参 `?list` 目录清单（`deep`/`depth`/`listFolders`/`includeRootPath` 加 `mdTimestamps`/`statsTimestamps`/`includePropertiesMd5` 元数据三参）、下载统计只计内容 GET（元数据面读取不计数）：[`docs/user/api-reference.md`](docs/user/api-reference.md)
 - **访问控制**——`user`/`readonly_admin`/`admin` 三值角色、`manage` 仓库级下放、API Token 与可选 step-up：[RBAC](docs/user/admin/rbac-roles.md) · [step-up](docs/user/admin/token-step-up.md)
 - **制品生命周期**——copy/move/zip/`archive!`/explode 操作族与可恢复、带保留期的回收站：[操作族](docs/user/admin/artifact-operations.md) · [回收站](docs/user/admin/trash-can.md)
 - **Webhook**——HMAC-SHA256 签名投递与重试语义：[`docs/user/admin/webhooks.md`](docs/user/admin/webhooks.md)

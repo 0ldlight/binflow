@@ -77,8 +77,29 @@ shasum -a 256 dl.whl
 
 - 文档头含 `<meta name="api-version" value="2" />`（PEP 629）；条目按文件名排序。
 - 无尾斜杠 `GET .../simple/<name>` → 302 补尾斜杠；`If-None-Match` 命中 → 304。
-- **PEP 691 JSON simple 已支持**：`Accept: application/vnd.pypi.simple.v1+json` → JSON 形态。
+- **PEP 691 JSON simple 已支持**：`Accept: application/vnd.pypi.simple.v1+json` → JSON 形态（`files[].requires-python` 与 HTML 锚点同源派生）。
 - 哈希算法**仅 sha256**；未知名 → 404（`errors[]` 信封）。
+
+## Requires-Python 渲染（pip 版本过滤可见）
+
+simple 页锚点的 `data-requires-python` 属性（PEP 691 JSON 面为 `requires-python` 字段）由**三源管线**取值：twine 上传表单的 `requires_python` 字段、wheel 的 `*.dist-info/METADATA`、sdist 的 `PKG-INFO`——正常发布链三者同源（twine 从打包元数据填发表单），服务端在索引渲染时**从制品自身字节解析并 HTML 转义**（`>=3.8` 渲染为 `&gt;=3.8`）。pip 的版本过滤直接吃到这个值：
+
+```bash
+# 同名包上传两只 wheel：1.0.0 声明 Requires-Python: >=3.99、1.0.1 声明 >=3.8
+pip download demo-pkg==1.0.0 --no-deps --index-url $BASE/binflow/api/pypi/pypi-local/simple
+# ERROR: Ignored the following versions that require a different python version: 1.0.0 Requires-Python >=3.99
+# ERROR: No matching distribution found for demo-pkg==1.0.0
+pip download demo-pkg --no-deps --index-url $BASE/binflow/api/pypi/pypi-local/simple
+# 1.0.1 可装；1.0.0 被 pip 静默跳过
+```
+
+无该声明的文件锚点省略属性（逐文件粒度）。
+
+## 坏元数据 wheel：入库不入索引
+
+上传一只 zip 里没有 `*.dist-info/METADATA` 的 wheel，服务端照常 **200 入库**（字节与属性落库、`packages/` 路径可直取），但**不出现在任何索引里**——simple 包页与根索引都不列它。这是有意的防污染策略：坏制品不挡上传通道，也不污染安装索引。判定机制是索引渲染时解析 wheel 的 METADATA，不可定位即拒入。
+
+twine 7 客户端自身会拒发这类文件（`InvalidDistribution`），该策略主要拦截手工 curl 构造的 multipart 上传。
 
 ## 匿名与凭据
 
@@ -97,6 +118,7 @@ shasum -a 256 dl.whl
 | upload 401 | 匿名上传或凭据错误 | `.pypirc` 配置 username/password |
 | install 404（包明明存在） | index-url 少了 `/simple` 后缀，或仓不对 | 核对 URL 形态；包名大小写/下划线无关（PEP 503） |
 | curl simple 页 302 | 无尾斜杠（规范行为） | 跟随重定向或补尾斜杠 |
+| 上传 200 但 simple 页找不到该文件 | 坏元数据 wheel（无 `*.dist-info/METADATA`）——入库不入索引（有意防污染） | 用规范打包工具（`python -m build` / twine）重新构建上传 |
 
 ## 下一步
 

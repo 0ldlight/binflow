@@ -69,6 +69,13 @@ npm dist-tag ls && npm dist-tag rm demo-pkg beta
 npm unpublish demo-pkg@1.0.1 --force    # 版本从 packument 移除，dist-tags 引用联动清理
 ```
 
+dist-tag 族走显式端点 `/-/package/<name>/dist-tags[/<tag>]`，语义与 npmjs.org 对齐：
+
+- **latest 删不掉**：`DELETE .../dist-tags/latest` 本身 200 空体，但 latest 不是可删状态——此后 GET（dist-tags 端点与 packument 两读面同源）**读时重算**为最高已发布版本。想换 latest 就 `npm dist-tag add demo-pkg@<版本> latest`。
+- **bulk 面 405**：对集合体 PUT/POST、对单 tag 子路径 POST 一律 405（npm 客户端全走单 tag 显式端点，不依赖 bulk）。
+- **响应缓存**：dist-tags GET 带 `Cache-Control: max-age=60`（npm CLI 的 60s 陈旧窗）——刚改完 tag 立即 `dist-tag ls` 可能读到旧值，`--prefer-online` 或等 60s 自愈。
+- 指向不存在版本 → 404 `npm package not found with name:<name>, and version:<version>`；幽灵包 GET → 404 `Not found`。
+
 交互式登录（npm ≥ 9 用 legacy 形态）：`npm login --auth-type=legacy --registry=<registry URL>` 三步输入用户名/口令后即 `Logged in`——服务端在该路径族豁免写认证门、验证 body 凭据后铸 token，并把 `.npmrc` 凭据行改写为 `_authToken` 形态；重复 login 是幂等再铸（恒 201）。默认 web 形态的 `npm login` 服务端不提供 web 端点，npm 客户端自动回落 couch 链，同样可用。注意：登录端点不查仓库权限（认证面非制品写）；无读权限账号 `npm whoami` 会 403，属正常。
 
 ## 发布权限语义（CI 授权最短答案）
@@ -77,7 +84,9 @@ npm unpublish demo-pkg@1.0.1 --force    # 版本从 packument 移除，dist-tags
 |---|---|
 | 发布新版本（含包的第二及以后版本）、`dist-tag add/rm` | **仅 `write`**（与 npmjs.org 语义对齐） |
 | 改既有版本数据：`npm deprecate`、篡改 manifest、删除版本 | **需 `delete`**（无则 403） |
-| 重发同版本（tarball 已存在） | **无条件 403**（有 delete 也拒）——`Cannot modify pre-existing version '<v>'`，版本不可变 |
+| 重发同版本（tarball 路径已存在） | **无条件 403**（有 delete 也拒）——`Cannot modify pre-existing version '<v>', aborting upload for: '<pkg>'`，版本不可变 |
+
+403 的判定谓词是 **tarball 路径**（attachment 名派生）而非文档的 versions 声明：packument 文档携带已存版本号不触发 403（真实 npm publish 的文档恒带全量版本历史，照样能发新版本）；只有 attachment 指向的 tarball 路径已被占用才拒——拒时零写入、零索引变更、`latest` 不被劫持（ghost 版本不入索引）。
 
 **给 CI 发布仓配权：`read` + `write` 即可**；仅当流程需要 deprecate 或改写已发布元数据时才补 `delete`。复制引擎对目标仓同口径——目标凭据 `read` + `write` 即可承载镜像同步，无需 `delete`。
 
