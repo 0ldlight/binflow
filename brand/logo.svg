@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 674 128" fill="none">
+  <title>Binflow logo — 横版 lockup（自适应亮暗）</title>
+  <desc>Binflow 横版 lockup：左 mark（校验和点阵，48 网格 scale 2.25），右 BinFlow wordmark（monoline 圆帽几何构字，字形血统承 UX-1 candidate-1 手工勾画）。双色规则：Bin 用 ink 结构色，Flow 用 accent 品牌色。自适应：默认亮色（ink #1d232c / accent #3d63f2），prefers-color-scheme: dark 自动换暗色值（#e9edf3 / #7b9eff）。wordmark 笔宽 16、cap 高 100（8..92）、i 点 r9；mark 与 wordmark 间距 32。取值见 docs/brand/palette.md。</desc>
+  <style>
+    .mk-ink { fill: #1d232c; }
+    .mk-acc { fill: #3d63f2; }
+    .wt-ink { stroke: #1d232c; }
+    .wt-acc { stroke: #3d63f2; }
+    @media (prefers-color-scheme: dark) {
+      .mk-ink { fill: #e9edf3; }
+      .mk-acc { fill: #7b9eff; }
+      .wt-ink { stroke: #e9edf3; }
+      .wt-acc { stroke: #7b9eff; }
+    }
+  </style>
+  <g class="mk-ink" transform="translate(0 10) scale(2.25)">
+    <circle cx="9" cy="9" r="3.5"/><circle cx="19" cy="9" r="3.5"/><circle cx="29" cy="9" r="3.5"/><circle cx="39" cy="9" r="3.5"/>
+    <circle cx="14" cy="19" r="3.5"/><circle cx="39" cy="19" r="3.5"/>
+    <circle cx="9" cy="29" r="3.5"/><circle cx="19" cy="29" r="3.5"/><circle cx="39" cy="29" r="3.5"/>
+    <circle cx="9" cy="39" r="3.5"/><circle cx="19" cy="39" r="3.5"/><circle cx="29" cy="39" r="3.5"/>
+  </g>
+  <g class="mk-acc" transform="translate(0 10) scale(2.25)">
+    <circle cx="24" cy="19" r="3.9"/>
+    <circle cx="29" cy="29" r="3.9"/>
+    <circle cx="34" cy="39" r="3.9"/>
+  </g>
+  <g transform="translate(140 14)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <g class="wt-ink">
+      <path d="M8 8V92M8 8H34A22 22 0 0 1 34 52H8M8 52H38A20 20 0 0 1 38 92H8"/>
+      <path d="M100 36V92"/>
+      <path d="M142 36V92M142 58C142 44 150 36 164 36C178 36 186 46 186 58V92"/>
+    </g>
+    <circle class="mk-ink" cx="100" cy="13" r="9" stroke="none"/>
+    <g class="wt-acc">
+      <path d="M228 8V92M228 8H276M228 50H266"/>
+      <path d="M318 8V92"/>
+      <path d="M360 64A30 30 0 0 1 420 64A30 30 0 0 1 360 64Z"/>
+      <path d="M462 36V78A16 16 0 0 0 494 78V36M494 36V78A16 16 0 0 0 526 78V36"/>
+    </g>
+  </g>
+</svg>

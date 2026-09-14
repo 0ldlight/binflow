@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- D10 管道弯头（Conduit Elbow）：粗管自顶入仓、直角弯、右向箭头出 = 字面意义的 infrastructure 输送 -->
+  <title>D10 管道弯头</title>
+  <path d="M24 4V28C24 32 27 35 31 35H38" stroke="var(--mark-ink,#1d232c)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M37 26.5 46 35 37 43.5Z" fill="var(--mark-accent,#3d63f2)"/>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- D11 二进制叠印（Binary Overlap）：圆 = 0、竖杠 = 1，两个比特交叠，交集染 accent = 二进制相交成制品 -->
+  <title>D11 二进制叠印</title>
+  <circle cx="18.5" cy="24" r="13.5" stroke="var(--mark-ink,#1d232c)" stroke-width="4.5"/>
+  <rect x="24" y="8" width="11" height="32" rx="5.5" fill="var(--mark-ink,#1d232c)"/>
+  <rect x="24" y="14.4" width="11" height="19.2" fill="var(--mark-accent,#3d63f2)"/>
+</svg>

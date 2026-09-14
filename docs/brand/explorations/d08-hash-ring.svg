@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- D8 指纹环（Hash Ring）：断口环 + accent 弧段补全 = 校验和验证闭环；中心点 = 制品本体 -->
+  <title>D8 指纹环</title>
+  <circle cx="24" cy="24" r="16" stroke="var(--mark-ink,#1d232c)" stroke-width="5" stroke-dasharray="75 25" stroke-dashoffset="-12" stroke-linecap="round" transform="rotate(105 24 24)"/>
+  <path d="M24 8A16 16 0 0 1 37.9 16" stroke="var(--mark-accent,#3d63f2)" stroke-width="5" stroke-linecap="round" fill="none"/>
+  <circle cx="24" cy="24" r="4.5" fill="var(--mark-ink,#1d232c)"/>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- D5 B 字标（monoline B + 三角字怀）：Bin 的首字母几何构字，上字怀换成右指三角 = Flow 藏进字母 -->
+  <title>D5 B 字标</title>
+  <path d="M13 6V42M13 6H27A10 10 0 0 1 27 24H13M13 24H30A9 9 0 0 1 30 42H13" stroke="var(--mark-ink,#1d232c)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M27.5 10 37 17 27.5 24Z" fill="var(--mark-accent,#3d63f2)"/>
+</svg>

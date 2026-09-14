@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- D1 校验和点阵（Digest Lattice）：4x4 砖砌错位点阵 = 二进制数据在仓；三枚 accent 点连成右下-右上对角 = 流经数据的校验路径。standalone 回退亮色，内嵌时吃页面变量 -->
+  <title>D1 校验和点阵</title>
+  <g fill="var(--mark-ink,#1d232c)">
+    <circle cx="9" cy="9" r="3.5"/><circle cx="19" cy="9" r="3.5"/><circle cx="29" cy="9" r="3.5"/><circle cx="39" cy="9" r="3.5"/>
+    <circle cx="14" cy="19" r="3.5"/><circle cx="39" cy="19" r="3.5"/>
+    <circle cx="9" cy="29" r="3.5"/><circle cx="19" cy="29" r="3.5"/><circle cx="39" cy="29" r="3.5"/>
+    <circle cx="9" cy="39" r="3.5"/><circle cx="19" cy="39" r="3.5"/><circle cx="29" cy="39" r="3.5"/>
+  </g>
+  <g fill="var(--mark-accent,#3d63f2)">
+    <circle cx="24" cy="19" r="3.9"/>
+    <circle cx="29" cy="29" r="3.9"/>
+    <circle cx="34" cy="39" r="3.9"/>
+  </g>
+</svg>
