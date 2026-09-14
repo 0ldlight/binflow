@@ -10,9 +10,10 @@ environment_topology: {
   mac: "仅 penpot 栈 :9001 留本地 docker（用户设计工具——UI 程序依赖，Docker Desktop 因此保留运行）",
   discipline: "docker 一律远程执行（ssh lzw@172.16.58.130）；差分/probe 指 reference+dev；UAT 环境结论以 uat.binflow.org 为准"
 }
-updated: 2026-09-15T07:0x:00Z
+updated: 2026-09-15T08:2x:00Z
 current_iteration: 023
-current_goal: "UI Phase 1 批 4：P0 原语补全（四缺件+组件态补全+内嵌 styleguide 路由——§4.2 七态矩阵可视化验收面）"
+current_goal: "UI Phase 1 批 5：旧 CSS 退役（~68 文件机械替换语义类+bits Badge 升格+governance/pager/pkg-icon 类族迁移或删+旧字号别名删——截图差分≈0 等价替换门）"
+ui_batch4_seal: "批 4 闭卷（2026-09-15）：四缺件 shadcn 再生+七态补全+styleguide 构建态门控（生产负证）；空态重皮致 search 5.4kpx 合法翻新（bbox=EmptyState 区）两轮稳；console 1,017,692B；dev=dev.a22a4aa4；commits 70c0ffad/a22a4aa4"
 ui_batch3_seal: "批 3 闭卷（2026-09-15）：Inter latin 48,288B gzip 上线（console-size +48.5KB ≤50KB 预算腿）；body font-family 悬空洞顺手补（FE-P4 遗留）；tabular-nums 两范式；zh/en 像素证据+R6 关闭（零 latin-ext 字符）；e2e 字体责任零（失败集对照仅 1 并行 flake——54 共同失败=pro 租约毒化存量债留证）；dev=dev.a0db311e golden 29 张翻新两轮稳+Inter 活体验证；commits a0db311e"
 ui_batch2_seal: "批 2+seed 债双票闭卷（2026-09-15）：壳布局 token 消费（240/64/1440 桥接语义类）+侧栏 Penpot 重皮+sp 节奏；shell-layout.spec 三腿新腿；dev=dev.2534b634 golden 翻新两轮稳（sidebar 240 实测）；seed-m{8,9,10} ensureRepo GET-first（ADR-0050）+listFolders=1 第二债顺手清；spec 内 ~20 处 PUT-as-replace 遗留候小票；commits 39f72ccf/2534b634"
 ui_batch1_seal: "批 1 闭卷（2026-09-15）：token 六族迁 src/design-system + 旧双层删（-425 行 grep 零断链）+ 消费面零改动（别名）+ 新槽位只定义不消费；四门+两断言绿；explorer 漂移三证排解（值映射/计算样式/同刻渲染——旧 bundle 同败=golden 随实例重启陈化，非代码）；基线重刷纪律入 README（镜像重部署→必重刷）；dev 升 dev.2f70018a（交叉编译+远程换二进制——remote docker.io DNS 污染零拉取路径）；新债=seed-m8 ADR-0050 漂移修票；commits 2f70018a"
