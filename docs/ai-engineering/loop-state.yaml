@@ -1,7 +1,8 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-14T16:35:00Z
+reference_environment: { relocated: 2026-09-15, http: "http://172.16.58.130:8082", version: "7.161.15", auth: "admin (凭据 env 注入)", ssh: "lzw@172.16.58.130 key-auth installed — docker ops run there", note: "旧本地容器已停；差分/probe 全指新参照；版本偏斜新记 B=7.161.15——结论标注源版本纪律不变" }
+updated: 2026-09-15T00:00:00Z
 current_iteration: 023
 current_goal: "批次 1 build-info 主战线开工（规格→实现→契约→差分）+ 批次 2 快赢并行"
 loop_016_tracks:
