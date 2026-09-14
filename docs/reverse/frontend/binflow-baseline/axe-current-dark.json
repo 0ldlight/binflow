@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-09-14T18:49:57.629Z",
+  "capturedAt": "2026-09-14T20:15:14.282Z",
   "theme": "dark",
   "pages": [
     {
@@ -11,7 +11,7 @@
     },
     {
       "route": "explorer",
-      "url": "http://172.16.58.130:8083/binflow/ui/artifacts/demo-local",
+      "url": "http://172.16.58.130:8083/binflow/ui/artifacts/a11y-mu1m8zgzfyo7",
       "violations": [
         {
           "id": "empty-table-header",
@@ -40,7 +40,7 @@
       "route": "builds",
       "url": "http://172.16.58.130:8083/binflow/ui/builds",
       "violations": [],
-      "passes": 39,
+      "passes": 44,
       "incomplete": 1
     },
     {
@@ -151,7 +151,7 @@
           "nodes": 1
         }
       ],
-      "passes": 38,
+      "passes": 44,
       "incomplete": 1
     },
     {

@@ -30,6 +30,13 @@ demo-remote / demo-virtual / dev-baseline 用户 / qa-baseline 组）已在实�
 - audit 页顶行滚动（~2 行登录事件）→ maxDiffPixels 4000
 - users 页 admin 行 lastLogin 秒级时间戳 → mask `user-row-admin td[title]`
 
+## 基线刷新纪律（2026-09-15 批 1 排障定谳）
+
+**每次 dev 镜像重部署（= 实例重启）后必须 `--update-snapshots` 重刷基线**：容器重建改变
+实例状态（会话/审计/计数/remote 连通性），数据承载页 golden 会整体陈化——批 1 时旧
+bundle 对自己一小时前的 golden 同样 15.4kpx 漂移（双端同刻对照仅 64px=光标动画，
+计算样式逐属性等价）——代码无罪，时间有罪。重刷后连跑两轮差分全绿方可交付。
+
 ## 参照侧（双端说明）
 
 Artifactory 参照截图语料 = `docs/reverse/frontend/parity-capture/`（104+ 图，
