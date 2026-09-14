@@ -1,9 +1,9 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-14T06:05:00Z
-current_iteration: 021
-current_goal: "helmoci 扩章首票（六域收官）/ auth401+匿名+限流三裁定包 / maven 三小面对齐票 / 批复驱动"
+updated: 2026-09-14T12:15:00Z
+current_iteration: 022
+current_goal: "WithAuthorizer 接线 / helmoci D1 升级裁 / R-20/R-21 翻绿落账 / whats-new 公告 / absent 面攻坚评估"
 loop_016_tracks:
   - { id: L016-2, domain: npm-deep, owner: dev-registry-adapter, what: "✅ ghost 守卫改 tarball 路径冲突语义（403 逐字+不入索引+latest 不劫持——G1 三臂双端复验）；attachmentTarballPath 段安全；T-261 face-4 翻面；契约第三批 publish-ghost-guard VERIFIED；commit 8bf07b61；Next=crafted 文档门槛二分票（G4 素材备）", status: done }
   - { id: L016-1, domain: pypi-protocol, owner: differential-qa-engineer, what: "pypi simple 扩章首票前段：probe 补真实 pip/twine 腿+无效 wheel 三态矩阵+302 形态/legacy API 决策取证 → pypi.yaml 契约首文件（simple 面：锚点属性集/链接模板/索引即时性裁定）" }
@@ -29,6 +29,7 @@ loop_021_tracks:
   - { id: L021-1, domain: helmoci-protocol, owner: differential-qa-engineer, what: "helmoci 扩章首票（六域收官）：index.yaml 计算面 probe（helm CLI 真腿——chart 上传/index 生成/provenance）→ helmoci.yaml 契约（预估 3-5 条目闭环）" }
   - { id: L021-2, domain: rulings-pack, owner: product-manager, what: "三裁定包：auth401 措辞族+匿名读策略（ADR-0009 复核）+登录限流（security 面并入 R-18 或独立）——pending-rulings v2.4 增席" }
   - { id: L021-3, domain: maven-faces, owner: dev-registry-adapter, what: "maven 三小面对齐票：受理码 202 丢弃式/XML 渲染形态/文件 404 措辞——client-blind 收尾（裁定素材已备——若无裁定则按参照对齐实现）" }
+iteration_021_seal: "四轨全收（Docker 第八僵死自愈）；helmoci 六域收官（七契约 87 条目）；v2.4 整包 23 席位；maven 三小面+文档追平（用户指令）；commits b906e7cd/d1a15995/97032706/d99f356a"
 iteration_020_seal: "双轨全收（Docker 第七僵死自愈）；goproxy 终态 3V+1I+pom resolved+helmoci 六域确认；auth401 族两新面（匿名读/登录限流）；commits 532e4260/1bd93d70"
 iteration_019_seal: "双轨全收（Docker 第六僵死自愈）；conan 三面+maven pom 前置实现（复验全 SAME）+goproxy 首活体+conan PUT 首证；conan 契约 14V；commits 47f37739/1915dbe7"
 iteration_018_seal: "三轨全收（Docker 第五僵死+Push Protection 双事件善后）；conan 11V 开局+goproxy 4+C3 闭环；契约六域 77 条目；台账 47 resolved 28；commits 598ce6ec/2151390d/31143ff8"
