@@ -2,9 +2,9 @@
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
 reference_environment: { relocated: 2026-09-15, http: "http://172.16.58.130:8082", version: "7.161.15", auth: "admin (凭据 env 注入)", ssh: "lzw@172.16.58.130 key-auth installed — docker ops run there", note: "旧本地容器已停；差分/probe 全指新参照；版本偏斜新记 B=7.161.15——结论标注源版本纪律不变" }
-updated: 2026-09-15T00:00:00Z
+updated: 2026-09-15T02:20:00Z
 current_iteration: 023
-current_goal: "批次 1 build-info 主战线开工（规格→实现→契约→差分）+ 批次 2 快赢并行"
+current_goal: "UI Phase 1 批 0：双端截图基线（BinFlow :8083 + 新参照 172.16.58.130）"
 loop_016_tracks:
   - { id: L016-2, domain: npm-deep, owner: dev-registry-adapter, what: "✅ ghost 守卫改 tarball 路径冲突语义（403 逐字+不入索引+latest 不劫持——G1 三臂双端复验）；attachmentTarballPath 段安全；T-261 face-4 翻面；契约第三批 publish-ghost-guard VERIFIED；commit 8bf07b61；Next=crafted 文档门槛二分票（G4 素材备）", status: done }
   - { id: L016-1, domain: pypi-protocol, owner: differential-qa-engineer, what: "pypi simple 扩章首票前段：probe 补真实 pip/twine 腿+无效 wheel 三态矩阵+302 形态/legacy API 决策取证 → pypi.yaml 契约首文件（simple 面：锚点属性集/链接模板/索引即时性裁定）" }
