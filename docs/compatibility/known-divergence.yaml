@@ -848,5 +848,34 @@ entries:
     系 httpapi 认证层统一文案，conan adapter 无自定义面；对齐=中间层分型（docker ping P1-P3 分型先例）
     或维持统一文案 INTENTIONAL，涉跨域一致面（npm/docker 同源文案族）故 UNKNOWN 待裁定票。
   authority: { type: pending, ref: "产品/conductor 裁定票（401 措辞分型 vs 统一——跨域文案族联动评估）" }
-  review_gate: LOOP 021 裁定票（涉 auth 中间层渲染点，与 docker ping 分型/npm D2 同族可并裁）
-  evidence: reports/compatibility/L018-conan-evidence.md + l018-wire/a/conan/v2-02c-auth-badcred.body + contracts/conan.yaml#conan/auth401-wording
+  review_gate: 已入 pending-rulings v2.4（R-22a 席位——L021-2 三裁定包之一）
+  evidence: reports/compatibility/L018-conan-evidence.md + l0203-wire/（L020-3 广度素材：c1-c4 四臂 v1+v2 逐字——双端各自全域统一、渲染点代码锚 router.go:170-174）+ contracts/conan.yaml#conan/auth401-wording
+  note: >-
+    L020-3 广度定案（2026-09-14）：措辞族**双端各自 v1+v2 全域统一**——A 恒 `Bad Credentials`（坏凭据）/
+    `Authentication is required`（匿名）、B 恒 `invalid credentials`；渲染点双端均在 auth 中间层（B=
+    internal/httpapi/router.go:170-174 单点、A=同构中间层 realm 恒 Artifactory Realm）。四个差分点：
+    ①message（本账待裁面）②realm 串（品牌域——normalize R7 占位化）③CT charset 后缀 ④信封缩进
+    （②③④归归一/品牌域不裁）。两案呈批=R-22a。
+- id: rest/anonymous-read-default-policy
+  surface: 全域匿名读默认策略（content GET/HEAD——ADR-0009 默认放行 vs 参照实例全域 deny）
+  classification: UNKNOWN
+  rationale: >-
+    L020-3 新面 V4（c2/c4 臂）：B=DefaultAnonymousAccess=true（internal/config/config.go:17-19，
+    ADR-0009 文档化默认——content GET/HEAD 匿名可读）vs A 实例匿名关（全域 401 "Authentication is
+    required"；c4 匿名穿透到数据面渲染 404 envelope）。同 payload 建仓对照行为分叉；B 翻转位=
+    SECURITY_ANONYMOUS_ACCESS=false。与 R-2（docker remote 匿名默认）同族但面更宽（全域 content 面
+    非仅 remote）。倾向 INTENTIONAL（产品姿态有 ADR-0009 在册背书），parity 口径待裁。
+  authority: { type: pending, ref: "产品/conductor 裁（ADR-0009 复核：维持默认放行+INTENTIONAL vs 对齐参照 deny 严化——R-2 联动）" }
+  review_gate: 已入 pending-rulings v2.4（R-22b 席位）；翻转实例配置属红线未执行
+  evidence: reports/compatibility/L020-auth401-maven-faces.md V4（c2/c4 臂双端）+ ADR-0009
+- id: rest/login-failure-rate-limit
+  surface: 登录失败限流（连续坏凭据封锁——A recurrent-failure block vs B 无机制）
+  classification: UNKNOWN
+  rationale: >-
+    L020-3 新面 V5（security）：A 连续 4 次坏凭据第 3 次起 **403 倒计时封锁**（"This request is blocked
+    due to recurrent request failures, please try again in 9 second(s)"，冷却 ~15s 自愈）vs B 4 次全
+    裸 401 无封锁。安全面差（brute-force 防护缺位）——非「有意差异」而是机制缺位，INTENTIONAL 立不住；
+    对齐形态=安全能力自有形态实现（A 语义对齐非逐字，与 R-4 HA「进目标但自有形态」同款）。
+  authority: { type: pending, ref: "产品/conductor 裁（security 票：补 recurrent-failure block 自有形态 vs 维持缺位登记）" }
+  review_gate: 已入 pending-rulings v2.4（R-22c 席位）——security 立票评估
+  evidence: reports/compatibility/L020-auth401-maven-faces.md V5（c3 第二轮 403 瞬态+冷却复核——限流行为本身即证据）
