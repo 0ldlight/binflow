@@ -1,0 +1,18 @@
+{
+  "repo" : "l021-helm",
+  "path" : "/l021chart-0.1.0.tgz",
+  "created" : "2026-09-14T04:25:28.324Z",
+  "createdBy" : "admin",
+  "downloadUri" : "http://localhost:8082/artifactory/l021-helm/l021chart-0.1.0.tgz",
+  "mimeType" : "application/x-gzip",
+  "size" : "4927",
+  "checksums" : {
+    "sha1" : "7eb06c75849d6e5b911e3269c316bed4eee63aa5",
+    "md5" : "0dcbd241d1217d1bc69aa25c1640178a",
+    "sha256" : "b6ecbe48331b216b39c751851d3eae5425f4134cc2c6fa29ba39dbe00fd55bfc"
+  },
+  "originalChecksums" : {
+    "sha256" : "b6ecbe48331b216b39c751851d3eae5425f4134cc2c6fa29ba39dbe00fd55bfc"
+  },
+  "uri" : "http://localhost:8082/artifactory/l021-helm/l021chart-0.1.0.tgz"
+}

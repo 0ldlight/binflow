@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  l021chart:
+  - apiVersion: v2
+    created: 2026-09-14T04:25:29.694555524Z
+    description: A Helm chart for Kubernetes
+    digest: b6ecbe48331b216b39c751851d3eae5425f4134cc2c6fa29ba39dbe00fd55bfc
+    name: l021chart
+    urls:
+    - local://l021chart-0.1.0.tgz
+    type: application
+    appVersion: "1.16.0"
+    version: "0.1.0"
+generated: 2026-09-14T04:25:29.759560053Z

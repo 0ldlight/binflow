@@ -1,0 +1,11 @@
+[00:41:54] arm 0-setup repo l019-conan-put(local conan)
+[00:41:56] arm cp-01 upload_urls(recipe face)
+[00:41:57] arm     (url_py=http://localhost:8082/artifactory/api/conan/l019-conan-put/v1/files/l019/hello19/1.0/stable/0/export/conanfile.py)
+url_py=http://localhost:8082/artifactory/api/conan/l019-conan-put/v1/files/l019/hello19/1.0/stable/0/export/conanfile.py
+url_mf=http://localhost:8082/artifactory/api/conan/l019-conan-put/v1/files/l019/hello19/1.0/stable/0/export/conanmanifest.txt
+[00:41:59] arm cp-02 direct PUT conanfile.py (no checksum headers)
+[00:42:01] arm cp-03 direct PUT conanmanifest.txt (X-Checksum-Sha1)
+[00:42:03] arm cp-04 readback: files GET + v1 snapshot
+cp-04a byte-parity: SAME
+[00:42:05] arm T-teardown
+residue A: 0

@@ -1,0 +1,38 @@
+{
+ "request": "GET /binflow/l021-helm/index.yaml",
+ "req_headers": {
+  "User-Agent": "Helm/4.2.4",
+  "Authorization": "REDACTED"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "text/yaml",
+  "X-Checksum-Md5": "18645bb3f2b503fa2bf6ef5aafe6ed28",
+  "X-Checksum-Sha1": "8b60c004e0cff891cc44069a165ca267ddb98e78",
+  "X-Checksum-Sha256": "97cd9e93f1db704210b6301abc1cbcf049dc27c95a816f16f798243cffdf7410",
+  "X-Request-Id": "ad2fa485f187c3819d0f8495e5d60869",
+  "Date": "Mon, 14 Sep 2026 04:26:22 GMT"
+ },
+ "resp_body": "1042B sha256=97cd9e93f1db7042\napiVersion: v1\nentries:\n  l021chart:\n    - apiVersion: v2\n      appVersion: \"1.16.0\"\n      created: \"2026-09-14T04:25:55Z\"\n      description: A Helm chart for Kubernetes\n      digest: 3fc51d3f208cd50fe845db65a03984bc3600a1fc5878ce06c5134ac07e9c9732\n      name: l021chart\n      type: application\n      urls:\n        - l021chart-0.10.0.tgz\n      version: \"0.10.0\"\n    - apiVersion: v2\n      appVersion: \"1.16.0\"\n      created: \"2026-09-14T04:25:54Z\"\n      description: A Helm chart for Kubernetes\n      digest: 1f586b7a90f6231d07ea41376d918d630711ea824a4ef8e3952a13b9575d3dd4\n      name: l021chart\n      type: application\n      urls:\n        - l021chart-0.2.0.tgz\n      version: \"0.2.0\"\n    - apiVersion: v2\n      appVersion: \"1.16.0\"\n      created: \"2026-09-14T04:25:28Z\"\n      description: A Helm chart for Kubernetes\n      digest: b6ecbe48331b216b39c751851d3eae5425f4134cc2c6fa29ba39dbe00fd55bfc\n      name: l021chart\n      type: application\n      urls:\n        - l021chart-0.1.0.tgz\n      version: \"0.1.0\"\ngenerated: \"2026-09-14T04:25:55Z\"\n"
+}
+----
+{
+ "request": "GET /binflow/l021-helm/index.yaml",
+ "req_headers": {
+  "User-Agent": "Helm/4.2.4",
+  "Authorization": "REDACTED"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "text/yaml",
+  "X-Checksum-Md5": "18645bb3f2b503fa2bf6ef5aafe6ed28",
+  "X-Checksum-Sha1": "8b60c004e0cff891cc44069a165ca267ddb98e78",
+  "X-Checksum-Sha256": "97cd9e93f1db704210b6301abc1cbcf049dc27c95a816f16f798243cffdf7410",
+  "X-Request-Id": "0d9edf5aae9f49f85aa9446c38e0a59c",
+  "Date": "Mon, 14 Sep 2026 04:26:23 GMT"
+ },
+ "resp_body": "1042B sha256=97cd9e93f1db7042\napiVersion: v1\nentries:\n  l021chart:\n    - apiVersion: v2\n      appVersion: \"1.16.0\"\n      created: \"2026-09-14T04:25:55Z\"\n      description: A Helm chart for Kubernetes\n      digest: 3fc51d3f208cd50fe845db65a03984bc3600a1fc5878ce06c5134ac07e9c9732\n      name: l021chart\n      type: application\n      urls:\n        - l021chart-0.10.0.tgz\n      version: \"0.10.0\"\n    - apiVersion: v2\n      appVersion: \"1.16.0\"\n      created: \"2026-09-14T04:25:54Z\"\n      description: A Helm chart for Kubernetes\n      digest: 1f586b7a90f6231d07ea41376d918d630711ea824a4ef8e3952a13b9575d3dd4\n      name: l021chart\n      type: application\n      urls:\n        - l021chart-0.2.0.tgz\n      version: \"0.2.0\"\n    - apiVersion: v2\n      appVersion: \"1.16.0\"\n      created: \"2026-09-14T04:25:28Z\"\n      description: A Helm chart for Kubernetes\n      digest: b6ecbe48331b216b39c751851d3eae5425f4134cc2c6fa29ba39dbe00fd55bfc\n      name: l021chart\n      type: application\n      urls:\n        - l021chart-0.1.0.tgz\n      version: \"0.1.0\"\ngenerated: \"2026-09-14T04:25:55Z\"\n"
+}
+----

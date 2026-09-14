@@ -1,0 +1,38 @@
+== L019-3 goproxy 六臂复跑 run1（2026-09-14 00:40 前后；入口 tools/difftest/l019/goproxy-endpoints-probe.sh；上游 docs/compatibility/probes/goproxy/endpoints-probe.sh + file=${5:-} 一行修）==
+== setup
+repo-create A: 200
+repo-create B: 200
+== s1 播种 PUT 三件套
+A  s1-put-zip     -> 201 application/vnd.org.jfrog.artifactory.storage.ItemCreated+json;charset=UTF-8 |
+B  s1-put-zip     -> 201  |
+A  s1-put-mod     -> 201 application/vnd.org.jfrog.artifactory.storage.ItemCreated+json;charset=UTF-8 |
+B  s1-put-mod     -> 201  |
+A  s1-put-info    -> 201 application/vnd.org.jfrog.artifactory.storage.ItemCreated+json;charset=UTF-8 |
+B  s1-put-info    -> 201  |
+== g1-g6
+A  g1-list        -> 200 text/plain | v1.0.0 2026-09-13T16:40:42Z
+B  g1-list        -> 200 text/plain; charset=utf-8 | v1.0.0
+A  g2-info        -> 200 application/json+info | {"Version": "v1.0.0", "Time": "2026-09-13T00:00:00Z"}
+B  g2-info        -> 200 application/json | {"Version": "v1.0.0", "Time": "2026-09-13T00:00:00Z"}
+A  g3-latest      -> 200 application/json+info | {"Version": "v1.0.0", "Time": "2026-09-13T00:00:00Z"}
+B  g3-latest      -> 200 application/json | {"Version": "v1.0.0", "Time": "2026-09-13T00:00:00Z"}
+A  g4-zip         -> 200 application/zip | PK.]s        （二进制体落 run bodies；tr 非法字节序列警告=zip 二进制，无害）
+B  g4-zip         -> 200 application/zip | PK.]s
+A  g5-sumdb       -> 404 application/json | {   "errors" : [ {     "status" : 404,     "message" : "Not Found"   } ] }
+B  g5-sumdb       -> 404 text/plain; charset=utf-8 | not found
+A  g6-mod         -> 200 text/plain+mod | module example.com/l018mod  go 1.21
+B  g6-mod         -> 200 text/plain; charset=utf-8 | module example.com/l018mod  go 1.21
+== checksum headers (g4)
+A Content-Type: application/zip
+A X-Checksum-Md5: ed43460916ff904f24d6d1574471f665
+A X-Checksum-Sha1: af25bd6d4b76b9d6cdb55ec4630861162913cd8b
+A X-Checksum-Sha256: a9752bab610c1a019fa2d491758dcbc0438ddd4caaa1e72cb0602de2a54ca316
+B Content-Type: application/zip
+B X-Checksum-Md5: ed43460916ff904f24d6d1574471f665
+B X-Checksum-Sha1: af25bd6d4b76b9d6cdb55ec4630861162913cd8b
+B X-Checksum-Sha256: a9752bab610c1a019fa2d491758dcbc0438ddd4caaa1e72cb0602de2a54ca316
+== cleanup
+repo-delete A: 200
+repo-delete B: 200
+residue A: 0
+residue B: 0

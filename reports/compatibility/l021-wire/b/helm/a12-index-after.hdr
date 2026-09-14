@@ -1,0 +1,12 @@
+HTTP/1.1 200 OK
+Content-Length: 717
+Connection: keep-alive
+Content-Type: text/yaml
+Date: Mon, 14 Sep 2026 04:26:33 GMT
+Keep-Alive: timeout=4
+Proxy-Connection: keep-alive
+X-Checksum-Md5: eb8e28eabf752faa4050c541eff3d6a8
+X-Checksum-Sha1: dc60278468137aba6a26466e4e92caa9b7de2aaa
+X-Checksum-Sha256: 92dd0a3c2c3e24443267e1412dadba80d37b55133a79537befca7717535fc687
+X-Request-Id: fbf0e4af881fd263d04962908990ae9c
+

@@ -1,0 +1,21 @@
+HTTP/1.1 200 OK
+Content-Length: 1032
+Accept-Ranges: bytes
+Cache-Control: no-store
+Connection: keep-alive
+Content-Disposition: attachment; filename="index.yaml"
+Content-Type: text/plain
+Date: Mon, 14 Sep 2026 04:26:20 GMT
+Etag: 5b54fb0fb30bafca742f24d32107aca018c948d2
+Keep-Alive: timeout=4
+Last-Modified: Mon, 14 Sep 2026 04:25:55 GMT
+Proxy-Connection: keep-alive
+X-Artifactory-Filename: index.yaml
+X-Artifactory-Id: 0e5d4a9dd6c98d39:-617cfc2f:1a09e25f859:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Artifactory-Origin-Remote-Path: local
+X-Checksum-Md5: 8fd92aea00edf9f3d9b75838fddad33a
+X-Checksum-Sha1: 5b54fb0fb30bafca742f24d32107aca018c948d2
+X-Checksum-Sha256: 5c2cc309e50ff94177a77689b045eff2247b8d9e3b03dae1511a1b1dd8171bac
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

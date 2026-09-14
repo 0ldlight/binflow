@@ -1,0 +1,3 @@
+from conan import ConanFile
+class hello19Recipe(ConanFile):
+    settings = "os"

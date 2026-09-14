@@ -1,0 +1,10 @@
+HTTP/1.1 201 Created
+Content-Length: 0
+Connection: keep-alive
+Date: Mon, 14 Sep 2026 04:25:29 GMT
+Keep-Alive: timeout=4
+Location: l021chart-0.1.0.tgz
+Proxy-Connection: keep-alive
+X-Checksum-Sha256: b6ecbe48331b216b39c751851d3eae5425f4134cc2c6fa29ba39dbe00fd55bfc
+X-Request-Id: 0a69a102f6bc2b49df596cdd48b760f8
+

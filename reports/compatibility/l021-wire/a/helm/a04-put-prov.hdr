@@ -1,0 +1,13 @@
+HTTP/1.1 201 Created
+Transfer-Encoding: chunked
+Connection: keep-alive
+Content-Type: application/vnd.org.jfrog.artifactory.storage.ItemCreated+json;charset=UTF-8
+Date: Mon, 14 Sep 2026 04:26:19 GMT
+Keep-Alive: timeout=4
+Location: http://localhost:8082/artifactory/l021-helm/l021chart-0.1.0.tgz.prov
+Proxy-Connection: keep-alive
+X-Artifactory-Id: 0e5d4a9dd6c98d39:-617cfc2f:1a09e25f859:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Checksum-Sha256: 5328fcf221d1f5b3b48a135b6c67214d3d9cd548e2a36b0df35818fbf719741b
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

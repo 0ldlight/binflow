@@ -1,0 +1,20 @@
+HTTP/1.1 200 OK
+Content-Length: 595
+Accept-Ranges: bytes
+Connection: keep-alive
+Content-Disposition: attachment; filename="l021chart-0.1.0.tgz.prov"
+Content-Type: application/octet-stream
+Date: Mon, 14 Sep 2026 04:26:19 GMT
+Etag: deff7d2b1e3e2ddbc43d58836588750c1250d3a1
+Keep-Alive: timeout=4
+Last-Modified: Mon, 14 Sep 2026 04:26:18 GMT
+Proxy-Connection: keep-alive
+X-Artifactory-Filename: l021chart-0.1.0.tgz.prov
+X-Artifactory-Id: 0e5d4a9dd6c98d39:-617cfc2f:1a09e25f859:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Artifactory-Origin-Remote-Path: local
+X-Checksum-Md5: ec2fd7516558283b5abc71cdaad7c240
+X-Checksum-Sha1: deff7d2b1e3e2ddbc43d58836588750c1250d3a1
+X-Checksum-Sha256: 5328fcf221d1f5b3b48a135b6c67214d3d9cd548e2a36b0df35818fbf719741b
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

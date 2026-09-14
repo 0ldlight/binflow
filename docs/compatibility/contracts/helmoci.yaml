@@ -1,0 +1,265 @@
+# BinFlow 兼容契约——helmoci 域（经典 chart 仓面首文件，L021-1 蓝本，2026-09-14）
+# schema: compat-contract/1 —— 同域多条目单文件（沿 contracts/conan.yaml 先例），条目键面全集：
+#   id/feature/surface/request/authentication/expect/side_effects/error_behavior/version/evidence/
+#   confidence/status（+binflow_state 记差分现值；divergence_ref 于 DIVERGENT/INTENTIONAL 必填）。
+# 作者注：本文件为 L021-1（differential-qa-engineer）据双端活体 wire 起草的蓝本，条目状态为差分现值
+#   记录；入册与翻态裁定权在 compatibility-engineer。证据面=L021 双端（A=Artifactory ref 7.161.20
+#   :8082〔baseUrl 未配置——urls 形态取证背景，见 index-generation 条〕/ B=BinFlow UAT
+#   uat-l0213-b906e7cd :8083〔helm 码径与 70061946 逐字节同一——git diff 70061946..b906e7cd
+#   internal/adapter/helm internal/repo cmd 为空；版签差=并行轨道 L021-3 共用工作树〕，pro license
+#   装载 licenseId 243531c2-2b52-460d-84b0-03dd2be6074a——helm/helmoci 均 TierPro 包型〕），
+#   真实客户端腿=helm 4.2.4（repo add/update/show/pull/pull --verify 五腿 wireproxy 全捕获）。
+# 域口径：本文件=经典 chart 仓面（index.yaml 计算物 + tgz + .prov + repo CLI）；HelmOCI 的 oci:// 面
+#   经 docker /v2 单码径共享，已被 docker-remote 域 25 条目背书（expansion-assessment-v3 口径），
+#   不在本文件重复立条。
+# 归一依赖（提案 normalize.yaml#helmoci——未登记前断言面按「归一后」口径写，登记归
+#   compatibility-engineer）：N1 index 时间戳 iso8601_equivalence+precision+quote 容忍 /
+#   N2 yaml 布局 normalize_layout（字段序+缩进）/ N3 头 drop-keep 集合——详见
+#   L021-helmoci-evidence.md §6。
+# 路径形态：A=下载面 `$BASE/artifactory/api/helm/<repoKey>/…`、上传面 `$BASE/artifactory/<repoKey>/<path>`
+#   （JFrog 文档 curl -T 形态）；B=主面内容面 `$BASE/binflow/<repoKey>/…`、只读别名
+#   `$BASE/binflow/api/helm/<repoKey>/…`（helm.md §1.1 BinFlow 定案——本轮活体双证：a02/a05 别名腿
+#   200 与主面同字节）。本文件路径一律写相对面。
+domain: helmoci
+scope: 经典 Helm chart 仓 LOCAL 端点族（chart 上传与 index.yaml 计算/排序/删改/reindex、tgz 下载、
+  .prov 并置、helm repo CLI 往返、auth 门）。证据面=L021 双端活体（12 臂 curl + helm CLI 五腿 wire，
+  全臂双端执行零 skipped）。不含：virtual 聚合与 URL 改写（§7 面——差分后段票）、remote 回源
+  （chartsBaseUrl/_external——后段）、enforce layout 两开关（仓配置默认关，本轮未开——后段臂）、
+  namespace 模式（虚仓开关面）、HelmOCI oci:// 面（docker 域已背书）。
+normalize: fixtures/normalize.yaml#helmoci（提案——L021-helmoci-evidence.md §6）
+reference_instance: 'Artifactory-pro 7.161.20（http://localhost:8082，admin；匿名访问全局关、
+  Override Base URL 未配置——此两项为实例配置背景，影响 urls 形态与 anon 臂取证口径）'
+binflow_tested_instance: 'BinFlow UAT uat-l0213-b906e7cd（http://localhost:8083，admin；pro license
+  licenseId 243531c2-2b52-460d-84b0-03dd2be6074a；helm 码径与派发版 70061946 同一——差分现值可归）'
+client_anchor: 'helm 4.2.4（本机 brew 钉版；经典仓面协议与 helm 3 同族——index.yaml+tgz 无版本分叉；
+  CLI 腿 User-Agent=Helm/4.2.4 wire 亲证）'
+contracts:
+# ── index.yaml 计算面（上传→生成→排序→删改→reindex；含 urls 形态 D1） ────────
+- id: helmoci/index-generation
+  feature: 'PUT .tgz → 201 + index.yaml 自动计算：apiVersion v1 / entries.<name> 版本条目（digest=裸 hex
+    sha256、version/appVersion 恒引号、created/generated ISO8601）/ SemVer 降序 / DELETE 移除条目 / reindex 异步重算'
+  surface: 'PUT <repoKey>/<chart>-<ver>.tgz（存储内容面）；GET/HEAD <repoKey>/index.yaml；DELETE <repoKey>/<chart>-<ver>.tgz；POST api/helm/<repoKey>/reindex'
+  request:
+    method: 'PUT|GET|HEAD|DELETE|POST'
+    path: '<上传/删除=存储内容面相对路径；index=仓根 index.yaml；reindex=api/helm/<repoKey>/reindex>'
+    headers: { Authorization: 'Basic <valid>', 'Content-Type': 'application/x-gzip（PUT tgz）/ application/pgp-signature（PUT prov）' }
+    query: {}
+  authentication: { type: basic, role: admin }
+  expect:
+    arms:
+    - when: 'PUT 新 chart tgz'
+      status: 201
+      body: { format: none, literal: '' }
+    - when: 'GET index.yaml（上传后）'
+      status: 200
+      body:
+        format: yaml
+        yaml:
+          path_literal:
+            apiVersion: v1
+            'entries.<name>[].digest': '<tgz sha256 裸 hex——双端与本地 shasum 三方逐字同（断言面）>'
+            'entries.<name>[].version': '"<semver>"（恒双引号——双端同，S4 活体双证）'
+            'entries.<name>[].appVersion': '"<appVersion>"（恒双引号——双端同）'
+            generated: '<ISO8601（归一 N1 后形态断言：A 纳秒无引号 ≡ B 秒级带引号）>'
+          note: >-
+            同名多版本条目按 SemVer 降序（0.10.0>0.2.0>0.1.0——双端同序，字符串序可判别子集设计）；
+            字段集=Chart.yaml 承载集（apiVersion/appVersion/created/description/digest/name/type/urls/version）
+            + 服务端附加 digest/created/urls；无 serverInfo（双端同）。YAML 布局（字段序/缩进/列表风格）
+            双端异构归 N2
+    - when: 'DELETE tgz（条目存在）'
+      status: 204
+      note: 'index.yaml 条目随删移除（A 异步索引器实测 ≤2s；B 同步）——终态双端同（a12 双绿）'
+    - when: 'POST reindex'
+      status: 200
+      body:
+        format: text
+        note: >-
+          异步调度语义双端同（200 即受理、后台重算、完成后 index 条目保全——a11 后双端 3 条目在）；
+          **措辞异**：A `Recalculating index for helm repository l021-helm scheduled to run` /
+          B `Helm chart index calculation for repository 'l021-helm' has been scheduled.`——D3 措辞族待裁
+    - when: 'HEAD index.yaml'
+      status: 200
+      headers:
+        note: 'A Content-Type text/plain / B text/yaml——D2 CT 族待裁（helm 客户端双端均可解析，client-blind）'
+  side_effects:
+    - 'PUT tgz 成功 → index.yaml read-modify-write 回写仓根（A 事件队列异步/B 请求内同步——可见时延双端均 <10s）'
+    - 'DELETE tgz → 条目移除（按 chart.name+version）'
+    - 'reindex → 全仓重算（清空重加），完成后条目集与重算前一致（a11 后 3/3）'
+  error_behavior: []
+  divergence_note: >-
+    **D1（UNKNOWN——INTENTIONAL 候裁）：index 条目 urls[0] 形态**。A（本实例 baseUrl 未配置）=
+    `local://<chart>-<ver>.tgz`（伪 scheme）；B=相对路径 `<chart>-<ver>.tgz`（helm.md §5.1 HL-2
+    BinFlow 定案：urls 默认 relative）。helm.md §5.1 DE 所称「A 默认 absolute」在 baseUrl 未配置的
+    参照实例上不成立（fallback 形态 local:// 未见于 DE——规格勘误候选）；baseUrl 已配置的 absolute
+    臂本轮不可测（改实例配置越红线）。**真实客户端影响**：helm 4 对 local:// 直接拒绝
+    （`scheme "local" not supported`——repo-cli-roundtrip 条 D1 连带面）；相对路径 B 侧五腿全绿。
+    分类建议 UNKNOWN（INTENTIONAL 候裁依据：HL-2 在册决策 + B 侧客户端可用性反超参照配置态），
+    终局裁定归 compatibility-engineer/conductor
+  binflow_state:
+    verdict: 'SAME×9 面 / DIVERGENT×1 面（urls 形态 D1）——digest/排序/引号/时间戳语义/删改状态机/reindex 语义全绿'
+    detail: >-
+      a01/a03/a12 状态机 201/201、204/204；digest 三版本双端=夹具 sha256 逐字同（b6ecbe48…/1f586b7a…/
+      3fc51d3f…）；排序双端同 SemVer 降序；index 无 .prov 条目双端同（S14 双证）；a11 reindex 200+条目保全。
+      异：urls 形态（D1）、index CT（D2 子面）、时间戳精度/引号与 YAML 布局（N1/N2 归一面）
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0213-b906e7cd }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L021-helmoci-evidence.md, anchor: '§1 a01-a03/a11/a12 行 + §2 urls 形态对照', date: '2026-09-14' }
+    - { kind: difftest, report: reports/compatibility/l021-wire/a/helm/a02-index.body, anchor: 'A index 全形（local:// urls + 纳秒 created）', capture: 'b/ 同名（relative urls）+ {a,b}/helm/a03-index.body（三版本排序）+ a/client/cli-a.wire（1032B 三条目 A 索引 wire）', date: '2026-09-14' }
+  confidence: high
+  status: DIVERGENT
+  divergence_ref: known-divergence.yaml#helmoci/index-urls-mode（登记建议——L021 回报 conductor）
+# ── chart tgz 下载面 ─────────────────────────────────────────────────────────
+- id: helmoci/chart-download
+  feature: 'GET tgz 经下载面：200 流 + application/x-gzip + X-Checksum-Md5/Sha1/Sha256 三头（值=制品真实校验和，双端逐字同）+ 字节平价；B 别名面同字节'
+  surface: 'GET <repoKey>/<chart>-<ver>.tgz（A=api/helm/<repoKey>/ 下载面；B=内容面主面 + api/helm/<repoKey> 只读别名）'
+  request:
+    method: GET
+    path: '<下载面相对路径>/<chart>-<ver>.tgz'
+    headers: { Authorization: 'Basic <valid>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    status: 200
+    headers:
+      literal:
+        Content-Type: application/x-gzip
+        X-Checksum-Sha256: '<body sha256——与 index 条目 digest 同值（双端同）>'
+      note: >-
+        X-Checksum-Md5/Sha1/Sha256 三头双端**逐字同值**（0dcbd241…/7eb06c75…/b6ecbe48…——制品字节平价
+        的头面孪生证据）；A 另带 Content-Length/Etag/Last-Modified/Content-Disposition/X-Artifactory-*
+        存储文件头族（N3 drop 集），B 带 X-Request-Id
+    body: { format: binary, note: '字节平价：双端 GET 体 sha256 == 上传夹具 sha256（b6ecbe48…）三方逐字同' }
+  side_effects: []
+  error_behavior:
+    - { when: 'ghost tgz 路径', note: '双端 404（a12 删后再取面未单列臂——沿用 DELETE 后读面 404 通用语义，批跑补臂候选）' }
+  binflow_state:
+    verdict: 'SAME（状态/CT/三校验和头值/字节平价/别名面全绿——本域最强一致面）'
+    detail: 'a05：A api/helm 面、B 内容面与别名面三通道 sha256 同为 b6ecbe48…；三校验和头值双端逐字同；Content-Type 双端同 application/x-gzip'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0213-b906e7cd }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l021-wire/a/helm/a05-get-tgz.hdr, anchor: 'A 三校验和头', capture: 'b/helm/a05-get-tgz.hdr + a05-get-tgz-alias.hdr（B 别名 200）+ a05-get-tgz.body 三方 sha256 对拍', date: '2026-09-14' }
+    - { kind: difftest, report: reports/compatibility/L021-helmoci-evidence.md, anchor: '§1 a05 行 + §3 平价表', date: '2026-09-14' }
+  confidence: high
+  status: VERIFIED
+# ── provenance 文件面 ────────────────────────────────────────────────────────
+- id: helmoci/provenance
+  feature: '.prov 与 tgz 并置存储：PUT 201（普通文件，不进 index.yaml）+ GET 200 字节平价 + helm pull --verify 经 <tgz-url>.prov 取数全链'
+  surface: 'PUT/GET <repoKey>/<chart>-<ver>.tgz.prov（上传走存储内容面；下载走下载面）'
+  request:
+    method: 'PUT|GET'
+    path: '<repoKey>/<chart>-<ver>.tgz.prov'
+    headers: { Authorization: 'Basic <valid>', 'Content-Type': 'application/pgp-signature（PUT；GET 响应 CT 见 note）' }
+    query: {}
+  authentication: { type: basic, role: admin }
+  expect:
+    arms:
+    - when: 'PUT .prov'
+      status: 201
+    - when: 'GET .prov'
+      status: 200
+      body: { format: binary, note: '字节平价：双端 GET 体 sha256 == 上传夹具（5328fcf2…）三方逐字同；A CT=application/octet-stream / B=text/plain; charset=utf-8——D2 CT 族子面（client-blind：helm 取 prov 后按内容验签，CT 不参与）' }
+    - when: 'index.yaml 内容'
+      note: '双端 index 均无 .prov 条目（grep prov=0 双端同）——S14「.prov 不进 index」双端活体双证'
+    - when: 'helm pull --verify --keyring <pub>'
+      client_visible: 'B 全链 exit=0：`Chart Hash Verified: sha256:b6ecbe48…`（wire 亲证取数路径 GET <repoKey>/<chart>-<ver>.tgz.prov → 200 → GPG 验签+哈希核对）；A exit=1（D1 连带——index urls local:// 在取数前即炸）'
+  side_effects:
+    - '.prov 落盘为普通文件节点（无索引事件、无 chart.* 属性写入——与 tgz 上传链分置）'
+  error_behavior: []
+  binflow_state:
+    verdict: 'SAME（PUT/GET/字节平价/不进 index 四面全绿；--verify 全链 B 绿 A 因 D1 不可达——归 urls-mode 连带非独立面）'
+    detail: 'a04/a09：双端 PUT 201/201、GET sha256 同 5328fcf2…、index 无 prov 条目；B --verify exit 0 + Hash Verified 输出 + wire prov GET 200'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0213-b906e7cd }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l021-wire/b/client/cli-b-fix.wire, anchor: 'B --verify 腿 prov GET 交换（X-Checksum-Sha256=5328fcf2…）', capture: '{a,b}/helm/a04-{put,get}-prov.{hdr,body} + {a,b}/client/a09-pull-verify.log', date: '2026-09-14' }
+    - { kind: difftest, report: reports/compatibility/L021-helmoci-evidence.md, anchor: '§1 a04/a09 行', date: '2026-09-14' }
+  confidence: high
+  status: VERIFIED
+# ── helm repo CLI 往返（真实客户端腿） ───────────────────────────────────────
+- id: helmoci/repo-cli-roundtrip
+  feature: 'helm repo add + repo update（GET index.yaml 解析）双端可达；show chart / pull --version（相对 urls 解析→tgz 字节==digest）——A 侧因 D1 urls 形态 show/pull/verify 三腿拒绝'
+  surface: 'SEQUENCE：helm repo add <alias> <下载面 base> → helm repo update <alias> → helm show chart <alias>/<chart> --version <v> → helm pull <alias>/<chart> --version <v> [--verify --keyring <pub>]'
+  request:
+    method: GET
+    path: '<下载面>/index.yaml；<解析 urls[0] 后的 tgz/prov 取数路径>'
+    headers: { Authorization: 'Basic <repo add 凭据存储>', 'User-Agent': 'Helm/4.2.4' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'repo add + repo update（双端）'
+      client_visible: 'exit=0 ×4；wire 亲证 GET index.yaml → 200（A text/plain / B text/yaml 均可解析）——helm 对 index YAML 双端同受'
+    - when: 'show chart + pull（B）'
+      client_visible: >-
+        exit=0 ×2；show 输出 chart 元数据（type: application / version: 0.1.0）；pull 产物 sha256 ==
+        index digest == 夹具（b6ecbe48…）三方同——**相对 urls 按 repo base 解析成功**（helm.md 待验证
+        清单第 1 项「helm repo update 对 relative urls 形态 index 的解析」活体定谳：helm 3/4 完整支持）
+    - when: 'show chart + pull + pull --verify（A）'
+      client_visible: >-
+        exit=1 ×3，`Error: scheme "local" not supported`——D1 连带面（index urls local:// 在 urls[0]
+        解析时被 helm 拒绝；repo add/update 不触 urls 故绿）。**非 B 独立缺陷**：根因=helmoci/index-generation
+        的 urls 形态分叉，A 侧修复路径=实例配 baseUrl（配置面越权本轮不动）
+  side_effects:
+    - 'helm 客户端本地 repositories.yaml 落 repo 配置（含 base URL 与凭据）'
+  error_behavior: []
+  binflow_state:
+    verdict: 'DIVERGENT-by-D1（A show/pull/verify 三腿 exit 1 / B 五腿全绿 exit 0——差分根因单一归 D1，B 侧零独立缺陷）'
+    detail: 'a07-a09：A add/update exit 0×2 + show/pull/verify exit 1×3（local://）；B add/update/show/pull/verify exit 0×5 + pull 产物 sha256==digest + verify 验签输出；wire={a}/client/cli-a.wire（A 两交换）+ {b}/client/cli-b{,-fix}.wire（B prov 取数交换）'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0213-b906e7cd }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l021-wire/a/client/cli-a.wire, anchor: 'A repo add/update 两交换（index 200+local:// urls 全文）', capture: '{a,b}/client/a07-*.log + {a,b}/client/a08-*.log + b/client/cli-b-fix.wire', date: '2026-09-14' }
+    - { kind: difftest, report: reports/compatibility/L021-helmoci-evidence.md, anchor: '§1 a07-a09 行 + §3 CLI 腿表', date: '2026-09-14' }
+  confidence: high
+  status: DIVERGENT
+  divergence_ref: known-divergence.yaml#helmoci/index-urls-mode（同 index-generation D1——连带面不另立登记）
+# ── auth 门 ─────────────────────────────────────────────────────────────────
+- id: helmoci/auth-gate
+  feature: '经典仓数据面认证门：坏凭据 401（状态面双端同）；匿名可达性=实例配置面（A 匿名全局关→401 / B 匿名读开→200）'
+  surface: 'GET <下载面>/index.yaml（匿名臂 + 坏凭据臂）'
+  request:
+    method: GET
+    path: '<下载面>/index.yaml'
+    headers: { Authorization: '缺席（匿名）/ Basic <bad>（坏凭据）' }
+    query: {}
+  authentication: { type: 'none|basic（坏凭据）', role: any }
+  expect:
+    arms:
+    - when: '坏凭据'
+      status: 401
+      body:
+        format: any
+        note: >-
+          状态=断言面（双端同）；message 措辞 A `Bad Credentials`（errors envelope）/ B `invalid credentials`
+          ——**跨域已知族 #auth401-wording**（conan D2②/npm m18 同款，L020-3 裁定材料在途），本域不另立
+    - when: '匿名'
+      status: '401（A——实例匿名全局关）| 200（B——匿名读开，index 全文返回）'
+      note: >-
+        实例配置姿态差非协议面（A 关/B 开均为 as-configured）；协议断言=「认证后可达」（双端绿）。
+        B 匿名读返回完整 index（a10-anon-index.body 落档）——BinFlow 私有仓默认匿名读姿态已在
+        storage-admin/auth 域口径内，此处仅记 helm 面一致于该姿态
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: 'SAME（401 状态面 + 认证后可达；anon 姿态=实例配置记录级；措辞归跨域族）'
+    detail: 'a10：badcred 401/401（措辞族）；anon A=401+WWW 面 / B=200 index 全文'
+  version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0213-b906e7cd }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/l021-wire/a/helm/a10-badcred-index.body, anchor: 'A Bad Credentials envelope', capture: 'b/ 同名（invalid credentials）+ {a,b}/helm/a10-anon-index.{hdr,body}', date: '2026-09-14' }
+    - { kind: difftest, report: reports/compatibility/L021-helmoci-evidence.md, anchor: '§1 a10 行 + §3-D5', date: '2026-09-14' }
+  confidence: high
+  status: VERIFIED
+# ── 收尾说明 ─────────────────────────────────────────────────────────────────
+# 覆盖统计（L021，2026-09-14）：5 条目 = VERIFIED 3（chart-download / provenance / auth-gate）+
+#   DIVERGENT 2（index-generation[D1 urls 形态] / repo-cli-roundtrip[D1 连带]——两处同一根因）。
+#   待裁差异面 4：D1 urls 形态（INTENTIONAL 候裁）/ D2 CT 族（index text/plain vs text/yaml、prov
+#   octet-stream vs text/plain）/ D3 reindex 措辞 / 401 措辞（跨域族 #auth401-wording 不另立）；
+#   记录级 1：D5 anon 姿态（实例配置）。BUG 0 / UNSUPPORTED 0。
+# 差分批跑可差分 surface（后段票输入）：①absolute urls 臂（A 配 baseUrl 后对拍——需 conductor 授权
+#   配置变更或配 baseUrl 的第二参照）；②enforce layout 两开关（forceMetadataNameVersion 403 文案/
+#   forceNonDuplicateChart 403）；③virtual 聚合 + URL 改写（S8 全分支）；④remote chartsBaseUrl/
+#   _external/_transitive；⑤X-Checksum-Deploy 命中臂；⑥head-index 虚仓 200/404 面；⑦ghost tgz/prov
+#   404 envelope 形态。
+# 头面缺口：A 存储文件头族（Etag/Last-Modified/Content-Disposition）B 缺位——N3 drop 集登记，
+#   Cache-Control no-store 语义面（B 缺）待 storage 域口径。
+# 勘误回流（docs/reverse/helm.md 归 reverse-engineer）：§2 GET index 成功响应「text/yaml」对 A 真身
+#   不成立（live=text/plain）；§5.1 urls 生成规则漏 baseUrl 未配置时的 local:// fallback 形态——
+#   L021-helmoci-evidence.md §5 全列。

@@ -1,0 +1,9 @@
+HTTP/1.1 401 Unauthorized
+Content-Length: 80
+Connection: keep-alive
+Content-Type: application/json;charset=ISO-8859-1
+Date: Mon, 14 Sep 2026 04:26:25 GMT
+Keep-Alive: timeout=4
+Proxy-Connection: keep-alive
+Www-Authenticate: Basic realm="Artifactory Realm"
+

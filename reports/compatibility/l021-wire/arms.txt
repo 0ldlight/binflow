@@ -1,0 +1,24 @@
+
+=== setup: create l021-helm (helm local) on A and B ===
+
+=== a01 upload l021chart-0.1.0.tgz ===
+
+=== a02 index.yaml after first upload (settle-aware) ===
+
+=== a03 upload 0.2.0 + 0.10.0, index ordering ===
+
+=== a04 provenance PUT/GET ===
+
+=== a05 tgz download via helm face ===
+
+=== a06 HEAD index + CT ===
+
+=== a07-a09 helm CLI legs (wireproxy: 19021->8082, 19022->8083) ===
+
+=== a10 auth gate ===
+
+=== a11 reindex ===
+
+=== a12 delete 0.10.0 → index entry removal ===
+
+=== probe run complete ===
