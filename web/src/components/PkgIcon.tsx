@@ -20,7 +20,7 @@ import './pkg-icon.css'
 // [命名例外]（README §1）：deb.svg ↔ wire 'debian'（目录名取任务口径）；
 //   go.svg 与 wire 值 'go' 同名（注记性例外，零映射）。
 // [暗底提亮] 11 个官方深色在暗色磁贴/表格面 <3:1（AC3 抽查），提亮档见
-//   pkg-icon.css 尾块 + tokens.css 的 --bf-pkgicon-*（K61 登记 README §4）。
+//   pkg-icon.css 尾块 + token 层（design-system）的 --bf-pkgicon-*（K61 登记 README §4）。
 
 /** 图标 id = PackageType ∪ addon 两枚（trashcan/webhook，License 矩阵用） */
 export type PkgIconId = PackageType | 'trashcan' | 'webhook'

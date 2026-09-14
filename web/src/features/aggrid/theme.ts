@@ -1,4 +1,4 @@
-// AG Grid v36 主题桥（新栈 token 桥接层——.ts 文件，与 styles/tw 同级的
+// AG Grid v36 主题桥（新栈 token 桥接层——.ts 文件，与 design-system/ 同级的
 // token 消费定位；assert-tokens 的 TSX 腿不扫本层，语义等价 MuiProvider
 // 的 palette 复刻位：唯一职责是把 AG Grid 的 Theming API 参数桥到
 // --bf-* 语义 token——值随 <html data-theme> 活动解析，深浅零双轨）。

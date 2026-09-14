@@ -1,0 +1,10 @@
+/*
+ * 字体接入骨架（design-system-plan §5——批 3 启用，本文件批 1 只建骨架，
+ * 不引入任何字体/依赖，也不被任何入口 import）。
+ *
+ * 批 3 落点：@import '@fontsource-variable/inter'（latin wght 单轴，
+ * 48,256B woff2 经 vite 管道落 dist/assets——relink-assets.mjs face 2
+ * 既有覆盖面），font-display: swap；--bf-font-sans 头部前置 'Inter'
+ * （token 层 typography.css 单点）；zh 回退栈原样（不引中文 webfont）。
+ * CDN 否决理由与体积预算见 §5——自托管/离线部署是一等场景。
+ */

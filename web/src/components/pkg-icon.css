@@ -19,7 +19,7 @@
 /* ---------- 暗底提亮（K61，package-icons/README §4 登记） ----------
  * 11 个官方深色在暗色宿主面（磁贴/药丸 surface-2、矩阵表格 surface-1）
  * 对比度 <3:1（T-390 全枚实测，报告 reports/agents/T-390.md）：保色相抬
- * 明度，提亮档定义在 tokens.css 的 --bf-pkgicon-*（token 定义层），最差
+ * 明度，提亮档定义在 token 层（design-system）的 --bf-pkgicon-*，最差
  * 宿主 surface-3（悬停态）实测 ≥3.4。亮色主题零覆盖——原官方色在亮底
  * 全部 ≥3:1。仅挂 brand：mono 的 currentColor 天然随文字色，不在提亮面。
  *

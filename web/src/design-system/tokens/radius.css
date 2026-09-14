@@ -1,0 +1,14 @@
+/*
+ * 族 4 — Radius（design-system-plan §3.4；5 变量）。
+ *
+ * 控制台密度维持小圆角（不追画布工具的大圆角语态）。xs/full 为批 1
+ * 新槽位（tag/kbd 微圆角、pill 徽章/toggle）——只定义不消费。
+ */
+
+:root {
+  --bf-r-xs: 2px; /* 批 1 新槽位：tag/kbd 微圆角（只定义不消费） */
+  --bf-r-sm: 4px; /* 输入/badge */
+  --bf-r-md: 6px; /* 按钮/卡片 */
+  --bf-r-lg: 8px; /* modal/drop zone */
+  --bf-r-full: 9999px; /* 批 1 新槽位：pill 徽章/toggle（只定义不消费） */
+}

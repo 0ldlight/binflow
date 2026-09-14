@@ -1,34 +1,27 @@
 /*
- * 新栈 Tailwind 入口（frontend-rewrite-architecture §3）。
+ * 新栈 Tailwind 入口（design-system-plan §3.0——唯一 Tailwind 入口）。
+ * 批 1 自旧 tw 两文件层迁入，@theme 桥接逐条原样（值零改动，shadcn 原语
+ * 消费面零改动——截图差分≈0 的批 1 验收前提）。
  *
- * - 色值唯一事实源 = 同目录 tokens.css（--bf-* 双主题变量）；本文件只做
+ * - 色值唯一事实源 = ./tokens/（六族分文件，index.css 聚合）；本文件只做
  *   @theme 桥接（--color 与 --font 与 --radius 三族 → var(--bf-*)），零
- *   色值字面量——assert-tokens.mjs 把 styles/tw 整层视为 token 定义层
- *   豁免，闸对层外 CSS 的语义不降。
+ *   色值字面量——assert-tokens.mjs 把 tokens/ 视为 token 定义层豁免，
+ *   本文件不含字面量故无需豁免，闸对层外 CSS 的语义不降。
  * - dark 变体绑 [data-theme="dark"]（selector 策略，非 .dark class）——
- *   与现 ThemeContext / localStorage 'binflow-console-theme' 的
- *   <html data-theme> 机制零迁移成本（architecture §3）。
+ *   与现 ThemeProvider / localStorage 'binflow-console-theme' 的
+ *   <html data-theme> 机制零迁移成本。
  * - @theme inline：工具类直取 var(--bf-*)，不落 --color-* 中间变量，
  *   data-theme 整组覆盖对每个工具类即时生效。
- * - preflight 随 tailwindcss 引入（新应用整页换栈后生效；P1 共存期本
- *   文件不进旧应用模块图——见 app/foundation.ts 冒烟说明）。
- * - 与旧 CSS 共存纪律：本层独立于 styles/{base,pages,governance}.css，
- *   零选择器交集（仅 :root/[data-theme] 变量声明，同名同值不冲突）。
- */
-/*
- * P2 共存期纪律：preflight 关闭——新栈与旧 MUI 树（LegacyBridge）同页
- * 共存，Tailwind preflight 的元素重置会与 MUI CssBaseline / 旧 base.css
- * 的元素基线互相覆盖（注入序不定）。@layer theme+utilities 只引两件，
- * preflight（base 全量元素重置）在 MUI=0 终验（整页换栈）时恢复——
- * 恢复点见 frontend-rewrite-architecture §3。
+ * - preflight 关闭 + utilities 去层化：与旧栈 styles/{base,pages,
+ *   governance}.css 同页共存的级联纪律（旧 CSS 是未分层规则，
+ *   layer(utilities) 在级联里恒输给未分层规则——去层后按导入序取胜，
+ *   本文件在 main.tsx 最后引入）。批 5 旧 CSS 退役后评估恢复分层形态。
+ * - 批 1 新槽位（ring/状态软底/ctl/布局尺寸/motion）不进桥接——桥接是
+ *   消费缝，新槽位只定义不消费（design-system-plan §6 批 1 行）。
  */
 @import 'tailwindcss/theme.css' layer(theme);
-/* utilities 去层化：旧栈 styles/{base,pages,governance}.css 是未分层
- * CSS——layer(utilities) 在级联里恒输给未分层规则（如 a { text-
- * decoration: none } 压掉 underline 工具类）。去层后按导入序取胜
- * （tailwind.css 在 main.tsx 最后引入）；MUI=0 终验时恢复分层形态。 */
 @import 'tailwindcss/utilities.css';
-@import './tokens.css';
+@import './tokens/index.css';
 
 /* 暗色变体：跟随 <html data-theme="dark">（ADR-0029 Q2：亮色为默认主题） */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
@@ -79,11 +72,12 @@
   --color-sidebar-foreground: var(--bf-sidebar-text);
   --color-sidebar-muted-foreground: var(--bf-sidebar-text-2);
 
-  /* ---- 字体（sans 与 MuiProvider FONT_STACK 同源迁入）---- */
+  /* ---- 字体（sans 栈与 token 层同源；批 3 前置 Inter）---- */
   --font-sans: var(--bf-font-sans);
   --font-mono: var(--bf-mono);
 
-  /* ---- 密度字号（总令 §二十四 dense：13px 表格主档 / 12px 辅助）---- */
+  /* ---- 密度字号（总令 §二十四 dense：13px 表格主档 / 12px 辅助；
+   * 经旧字号名别名解析到九级新阶，值不变）---- */
   --text-dense: var(--bf-fs-body);
   --text-dense--line-height: 1.45;
   --text-aux: var(--bf-fs-aux);

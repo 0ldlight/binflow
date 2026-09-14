@@ -1,0 +1,31 @@
+/*
+ * 族 6 — Elevation & Motion（design-system-plan §3.6；z 四层 + 动效三档）。
+ *
+ * 动效槽位（dur/ease）为批 1 新增——只定义不消费（现役过渡仍是
+ * Tailwind transition-colors 默认 150ms 隐式值；批 6 浮层/抽屉/toast
+ * 接管）。prefers-reduced-motion 降级为 axe/可达性硬要求（宪章状态
+ * 全覆盖的可及性腿）：有消费面后即随媒体查询整体降到 1ms。
+ */
+
+:root {
+  /* ---------- 层级 ---------- */
+  --bf-z-nav-sticky: 70;
+  --bf-z-dropdown: 80;
+  --bf-z-modal: 90;
+  --bf-z-toast: 100;
+
+  /* ---------- 动效（批 1 新槽位，只定义不消费——批 6 消费） ---------- */
+  --bf-dur-fast: 120ms; /* 微交互/hover */
+  --bf-dur-base: 160ms; /* 下拉/浮层 */
+  --bf-dur-slow: 240ms; /* modal/抽屉/toast 自动消隐 */
+  --bf-ease: cubic-bezier(0.2, 0, 0, 1); /* Linear 式减速出 */
+}
+
+/* 可及性：用户偏好减动效时动效档整体降为近零（消费面接入后生效） */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --bf-dur-fast: 1ms;
+    --bf-dur-base: 1ms;
+    --bf-dur-slow: 1ms;
+  }
+}

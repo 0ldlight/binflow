@@ -26,14 +26,14 @@ import { createAppRouter } from '@/app/router'
 import { consumeStepUpFragment } from '@/lib/stepUpGrant'
 import { initI18n } from '@/i18n'
 
-import './styles/tokens.css'
 import './styles/base.css'
 import './styles/pages.css'
 import './styles/governance.css'
-// 新栈 Tailwind 入口（styles/tw/tailwind.css——@theme 桥接 + dark 变体绑
-// [data-theme]）。preflight 在共存期关闭（tailwind.css 头注——与旧
-// base.css 的元素基线零冲突）；MUI=0 终验时评估恢复整栈。
-import './styles/tw/tailwind.css'
+// 设计系统入口（design-system/tailwind.css——token 六族聚合 + @theme
+// 桥接 + dark 变体绑 [data-theme]；批 1 收编，值零改动）。preflight 在
+// 共存期关闭（tailwind.css 头注——与旧 base.css 的元素基线零冲突）；
+// 批 5 旧 CSS 退役后评估恢复整栈。
+import './design-system/tailwind.css'
 
 // OIDC step-up 回跳 fragment 消费（T-260 / architecture §14.3-2）：渲染前
 // 同步完成——grant 提取入内存 + history.replaceState 抹除。无 fragment

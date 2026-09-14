@@ -53,7 +53,7 @@ const PWA_SPECS = [
 //     relink-assets 的自校验禁止 dist 下任何 "/binflow/ui/" 引号字面量
 //     （那是给「死资产 URL」设的闸，app 路由引用走相对形合规且语义同）。
 //   - scope 缺省 = start_url 的父目录（= /binflow/ui/），规范自带，不复制。
-//   - theme/background = tokens.css 双主题值的 PWA 面（侧栏身份层恒深 /
+//   - theme/background = token 层（design-system）双主题值的 PWA 面（侧栏身份层恒深 /
 //     内容底亮色）；display standalone = 控制台作为独立应用窗的形态。
 const MANIFEST = {
   name: 'BinFlow Console',

@@ -7,13 +7,14 @@ import markDark from '../assets/brand/mark-dark.svg?url'
 //
 // 资产真身 = web/src/assets/brand/*.svg（K56 生产件逐字拷贝，零改动：
 // 换稿 = ux-designer 替换文件，本组件与全部消费位零返工——「资产参数化
-// 单点引用」的票面口径）。色板已锚定 tokens.css 的 --bf-text/--bf-accent
+// 单点引用」的票面口径）。色板已锚定 token 层（design-system）的
+// --bf-text/--bf-accent
 // 双主题值：改 token 必须同步 K56 母版（docs/design/brand/logo/
 // candidate-1/README.md §1 的同步纪律）——组件层不做任何颜色消费
 // （assert-tokens 腿 2/3 的扫描面因此天然干净）。
 //
 // 变体选择规则（亮暗版各就各位）：
-//   BrandMark    —— 侧栏顶专用（24px）。侧栏两主题恒为深底（tokens.css
+//   BrandMark    —— 侧栏顶专用（24px）。侧栏两主题恒为深底（token 层
 //                   --bf-sidebar 系：亮色主题 #1b2430 / 暗色 #0b0e13），
 //                   故固定 mark-dark（浅描边 + 亮双箭），不随主题切换。
 //   BrandLockup  —— 登录页品牌区（48px 高档）。背景是随主题的 --bf-bg，

@@ -1,0 +1,60 @@
+/*
+ * 族 2 — Typography（design-system-plan §3.2，Inter 九级）。
+ *
+ * 批 1 只定义九级新阶（2xs~3xl）+ 字重/数字特性槽位，消费面零改动：
+ * 旧六级名（fs-aux 等）在尾部别名到同值新阶，桥接层（../tailwind.css
+ * --text-* 映射）经别名解析——值逐档相等（12/13/14/16/20/24），截图
+ * 差分≈0。九级生效（lg/3xl 两新档进消费面、Inter 上栈）在批 3。
+ *
+ * CJK 回退栈原样保留（Inter 无 CJK 字形，zh 文本回退 PingFang SC /
+ * Microsoft YaHei——批 3 引 Inter 时在 --bf-font-sans 头部前置
+ * 'Inter' 即可）。tabular-nums 规则：默认关（--bf-font-feature），
+ * 表格/时间戳列局部开启（批 3 落地；sha256/时间列的比例数字会抖动）。
+ */
+
+:root {
+  /* ---------- 九级字阶（§3.2 表；lg/3xl 为新档，批 1 只定义不消费） ---------- */
+  --bf-fs-2xs: 11px; /* overline/kbd/侧栏分组标签 */
+  --bf-fs-xs: 12px; /* 辅助列/徽章（←fs-aux） */
+  --bf-fs-sm: 13px; /* 表格密度主档（←fs-body） */
+  --bf-fs-base: 14px; /* 表单/正文默认（←fs-form） */
+  --bf-fs-md: 16px; /* 卡片标题/tab（←fs-h3） */
+  --bf-fs-lg: 18px; /* 弹窗标题（新档——批 1 只定义不消费） */
+  --bf-fs-xl: 20px; /* 页面标题（←fs-h2） */
+  --bf-fs-2xl: 24px; /* 登录品牌（←fs-h1） */
+  --bf-fs-3xl: 30px; /* 空态/登录展示位（新档——批 1 只定义不消费） */
+
+  /* ---------- 行高（逐级配套） ---------- */
+  --bf-lh-2xs: 1.4;
+  --bf-lh-xs: 1.4;
+  --bf-lh-sm: 1.45;
+  --bf-lh-base: 1.5;
+  --bf-lh-md: 1.45;
+  --bf-lh-lg: 1.4;
+  --bf-lh-xl: 1.35;
+  --bf-lh-2xl: 1.3;
+  --bf-lh-3xl: 1.2;
+
+  /* ---------- 字重（Inter 可变轴覆盖；批 1 只定义不消费） ---------- */
+  --bf-weight-regular: 400;
+  --bf-weight-medium: 500;
+  --bf-weight-semibold: 600;
+
+  /* ---------- 数字特性（默认关；批 3 表格/时间列局部 tabular-nums） ---------- */
+  --bf-font-feature: 'tnum' 0;
+
+  /* ---------- 字体栈（console-ux §7；批 3 前置 'Inter'） ---------- */
+  --bf-font-sans: system-ui, -apple-system, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --bf-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas,
+    'Liberation Mono', monospace;
+
+  /* ---------- 旧字号名别名（消费面零改动；批 5 旧 CSS 退役清偿后删） ----------
+   * 指向同值新阶（§3.2 迁移映射），非复制字面量——单一事实源在新阶。 */
+  --bf-fs-aux: var(--bf-fs-xs);
+  --bf-fs-body: var(--bf-fs-sm);
+  --bf-fs-form: var(--bf-fs-base);
+  --bf-fs-h3: var(--bf-fs-md);
+  --bf-fs-h2: var(--bf-fs-xl);
+  --bf-fs-h1: var(--bf-fs-2xl);
+}
