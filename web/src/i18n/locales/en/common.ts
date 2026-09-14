@@ -68,6 +68,7 @@ registerEn('common', {
   "还没有仓库": "No repositories yet",
   "回收站": "Trash Can",
   "加载失败（HTTP {v1}）": "Load failed (HTTP {v1})",
+  "错误详情": "Error details",
   "健康": "Health",
   "禁用": "Disabled",
   "来源": "Source",

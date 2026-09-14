@@ -16,8 +16,9 @@
  *   governance}.css 同页共存的级联纪律（旧 CSS 是未分层规则，
  *   layer(utilities) 在级联里恒输给未分层规则——去层后按导入序取胜，
  *   本文件在 main.tsx 最后引入）。批 5 旧 CSS 退役后评估恢复分层形态。
- * - 批 1 新槽位（ring/状态软底/ctl/布局尺寸/motion）不进桥接——桥接是
- *   消费缝，新槽位只定义不消费（design-system-plan §6 批 1 行）。
+ * - 批 1 新槽位（ring/状态软底/ctl/布局尺寸/motion）原只定义不消费；
+ *   批 2（布局尺寸）/批 4（状态软底、动效、radius xs/full）按消费面
+ *   逐步进桥（design-system-plan §6 分批行）；ctl 高度档仍未消费。
  */
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css';
@@ -57,6 +58,13 @@
   --color-info: var(--bf-info);
   --color-info-foreground: var(--bf-surface-1);
 
+  /* ---- 状态软底（批 4 状态矩阵消费缝：软底徽章/alert/toast 底——
+   * §3.1 只定义不消费的槽位自此进桥；danger 经 shadcn 语义名 destructive）---- */
+  --color-success-surface: var(--bf-success-surface);
+  --color-warning-surface: var(--bf-warning-surface);
+  --color-destructive-surface: var(--bf-danger-surface);
+  --color-info-surface: var(--bf-info-surface);
+
   /* ---- 三阶纵深 + 弱化文字（§5.1 灰阶节奏）---- */
   --color-surface-1: var(--bf-surface-1);
   --color-surface-2: var(--bf-surface-2);
@@ -89,15 +97,25 @@
   --text-h2: var(--bf-fs-h2);
   --text-h2--line-height: 1.3;
 
-  /* ---- 圆角（覆盖 Tailwind 默认档为本仓 token）---- */
+  /* ---- 圆角（覆盖 Tailwind 默认档为本仓 token；xs/full 批 4 进桥：
+   * tag/kbd 微圆角与 pill/开关全圆——值与 Tailwind 默认同值零漂移）---- */
+  --radius-xs: var(--bf-r-xs);
   --radius-sm: var(--bf-r-sm);
   --radius-md: var(--bf-r-md);
   --radius-lg: var(--bf-r-lg);
+  --radius-full: var(--bf-r-full);
 
   /* ---- 阴影（浮层三档）---- */
   --shadow-flat: var(--bf-shadow-1);
   --shadow-overlay: var(--bf-shadow-2);
   --shadow-modal: var(--bf-shadow-3);
+
+  /* ---- 动效（批 4 消费缝：Tabs 指示/开关滑块等微交互；
+   * prefers-reduced-motion 时 tokens 层已整组降 1ms）---- */
+  --transition-duration-fast: var(--bf-dur-fast);
+  --transition-duration-base: var(--bf-dur-base);
+  --transition-duration-slow: var(--bf-dur-slow);
+  --transition-timing-function-standard: var(--bf-ease);
 
   /* ---- 布局尺寸（§3.3 批 2 壳收编：批 1 只定义不消费的新槽位自此进
    * 消费缝——语义类 w-sidebar / h-topbar / max-w-content 直取 token，
