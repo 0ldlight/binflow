@@ -164,6 +164,17 @@ export const appRoutes: RouteObject[] = [
   {
     element: <RootLayout />,
     children: [
+      // —— styleguide（批 4 §6：构建态门控）——
+      // 仅 (a) vite dev server（import.meta.env.DEV）与 (b) styleguide 模式
+      // 构建（npm run build:styleguide → vite build --mode styleguide，
+      // e2e 腿的隔离实例产物）注册。生产构建（默认 production 模式）两个
+      // 谓词都被 vite 静态替换为 false——条件展开折叠为空数组，本行 lazy
+      // import 随死分支 tree-shake，生产 dist 无 StyleguidePage chunk
+      // （负证口径：grep dist/assets 无 styleguide 产物 + 路由渲染空白）。
+      // 环境判别模式 = 仓库既有 import.meta.env 面（i18n index 同款）。
+      ...(import.meta.env.DEV || import.meta.env.MODE === 'styleguide'
+        ? [{ path: '/dev/styleguide', element: lazyEl(() => import('@/pages/dev/StyleguidePage')) }]
+        : []),
       { path: '/login', element: lazyEl(LoginPage) },
       {
         path: '/',
