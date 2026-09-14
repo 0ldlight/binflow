@@ -26,6 +26,11 @@ import { createAppRouter } from '@/app/router'
 import { consumeStepUpFragment } from '@/lib/stepUpGrant'
 import { initI18n } from '@/i18n'
 
+// 字体先于一切皮肤（批 3，design-system-plan §5）：@font-face 是文档全局
+// 注册（不随级联序生效），放首位让字体请求在样式表头部即被发现，swap 窗口
+// 最短；body 基线规则见 fonts.css 尾注——首位=级联最弱位，共存期旧全局层
+// 仍可覆盖（与下方 tailwind.css 末位引入的让位纪律同构）。
+import './design-system/fonts.css'
 import './styles/base.css'
 import './styles/pages.css'
 import './styles/governance.css'

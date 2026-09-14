@@ -19,6 +19,10 @@
   color: var(--bf-text-2);
   font-size: var(--bf-fs-aux);
   white-space: nowrap;
+  /* 批 3：Inter 比例数字会让计数抖动——计数行补 tnum（security/
+   * repositories 两域 .table-foot 同款；新栈 pager-range 走 Tailwind
+   * tabular-nums 工具类） */
+  font-variant-numeric: tabular-nums;
 }
 
 /* T-387（FR-125.2 L1）：工具栏尾动作组（列选器 + 刷新）——仓库/审计两页

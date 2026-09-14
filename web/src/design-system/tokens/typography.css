@@ -43,9 +43,10 @@
   /* ---------- 数字特性（默认关；批 3 表格/时间列局部 tabular-nums） ---------- */
   --bf-font-feature: 'tnum' 0;
 
-  /* ---------- 字体栈（console-ux §7；批 3 前置 'Inter'） ---------- */
-  --bf-font-sans: system-ui, -apple-system, 'Segoe UI', 'PingFang SC',
-    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  /* ---------- 字体栈（console-ux §7；批 3 已前置 'Inter'——fonts.css
+   * @font-face 真身在位，CJK 回退栈原样：zh 文本落 PingFang SC 等） ---------- */
+  --bf-font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI',
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   --bf-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas,
     'Liberation Mono', monospace;
 

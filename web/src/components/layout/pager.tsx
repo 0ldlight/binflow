@@ -65,7 +65,12 @@ export function Pager({
   const count = Math.max(1, pageCount)
   return (
     <div className="pager flex flex-wrap items-center justify-end gap-3 py-2 text-dense">
-      <span className="pager-range text-aux text-muted-foreground" data-testid="pager-range">
+      {/* tabular-nums：批 3 Inter 比例数字会让区间/计数抖动（旧栈 .table-foot
+       * 走 font-variant-numeric 同款；此处新栈用 Tailwind 工具类） */}
+      <span
+        className="pager-range text-aux tabular-nums text-muted-foreground"
+        data-testid="pager-range"
+      >
         {total === null
           ? t('显示 {from} – {to}（末页未知）', { from, to })
           : t('显示 {from} – {to} / 共 {total} 项', { from, to, total })}
