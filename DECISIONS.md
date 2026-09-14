@@ -190,6 +190,7 @@
 - 勘误一（2026-08-19，T-79 依 PRD v1.1/v1.2 定案回写，决策方向不变、故障语义对齐）: **决策 2 的「无副本 → 502 spec 信封」作废**。PRD 定案（T-60，FR-20-AC5/M44，repo-semantics §7.6 高置信度）：上游 5xx/超时/连接失败 → 仓标记 **assumed-offline**（静默期 `assumedOfflinePeriodSecs` 默认 300s，期内零上游流量——取代本 ADR「不自动熔断」表述，静默期即轻量熔断）；有缓存（**含过期**）→ 服务缓存 + 附 `X-Binflow-Upstream-Error: <摘要>` 头（取代原 `Warning: 111` 方案，网关可观测性头 + 客户端等价感知）；无缓存 → **404**（E-01，message 含 offline/assumed offline 状态）；仅 `hardFail: true`（默认 false）时改 **502**。另补 PRD 定案的负缓存语义：上游 404 → 写负缓存（missedRetrievalCachePeriodSecs）+ 若本地有过期副本仍回发（"expired but serving"）。
 - 勘误二（2026-08-19，T-79）：**决策 3/5 的参数面实现以 PRD v1.2 §6 NFR-S13 为准**，本 ADR 正文数字为设计草案：① 重定向上限 **5 跳**（本文 3 跳作废），每跳完整重过校验链、拒绝即 400；② 超时统一为仓配置 `socketTimeoutSecs` 默认 **15s**（本文连接 10s/响应头 30s 双值作废）；③ 体量上限分型：**非 streaming 缓冲型响应（packument/simple/metadata）64MB**、超限截断报 502（本文「8GB 全局响应体上限」表述作废，artifact 流式落盘不受 64MB 限）；④ 缓存 TTL 默认对齐 PRD C4：`retrievalCachePeriodSecs` **7200** / `missedRetrievalCachePeriodSecs` **1800**（本文 content_ttl 86400/metadata_ttl 600 的默认值列名与数值以 003 迁移实现票为准对齐 PRD 字段名）；⑤ **建仓时只做 scheme/格式校验**（PRD FR-15-AC3：私网 URL 建仓成功，IP 校验全部在**请求时**执行——DNS/网络可变，本文「配置时全 IP 解析拒绝违者 400」弱化为请求时双检的唯一防线；`allowPrivateUpstream` 豁免语义不变，仅 admin 可设 + 审计）。凭据加密（决策 4）经 PRD v1.2 Q1 正式采纳关闭，双方一致无需勘误。
 - 勘误三（2026-09-11，L001-4 依 LOOP 000 差分证据追加，机制轴零翻动——仅默认值分包型细化）: **勘误二 ④ 的「`retrievalCachePeriodSecs` 默认 7200」表述修订为包型默认**——docker/helmoci remote 仓内容类 TTL 默认 **21600s（6h）**（出处：Artifactory `RepoConfigDefaultValues.DEFAULT_DOCKER_REMOTE_RETRIEVAL_CACHE_PERIOD`，E1 反编译 + E4 运行时，7.161.20；L000-docker-remote-evidence §E3-4），其余包型维持 7200s。三边界：① 仅在仓**未显式设置**时生效（显式值优先，`remote_configs.content_ttl_seconds > 0` 即显式）；② 存量行已是显式 7200 **不回改**（合法显式值；不引入「显式 vs 默认」区分列）；③ 新建 docker/helmoci remote 建仓默认取包型默认。解析单点化（internal/remote 导出解析函数，repo facts 与 engine loadRepo 双消费同步——`effectiveV2SocketTimeoutMs`「one order, two consumers」先例）。详细设计见 docs/design/remote-cache-v2.md §5.1。
+- 勘误四（2026-09-12，依 conductor LOOP 007 终裁由 L008-2 实现并双端复验，机制轴零翻动——再验证臂的**作用面**收窄）: **决策 1 的「命中已过期 → 条件请求」再验证臂限定于可变引用面（manifest-by-tag / metadata 类），digest blob 面（内容寻址不可变）豁免检索窗**——本勘误前该臂对 blob 面的隐含覆盖作废。规则：已验证 standing 副本（落盘即 digest 强校验——probe.Node 非空且 node.Sha256==请求 hex）在检索窗到期后**本地应答**（无条件 GET → 200 全 face；quoted INM → 本地 304 full artifact face），零上游往返、remote_cache 行不重写（fetched/expires 不滑窗）、blob 文件 mtime 不动——到期重取对内容不可变面是语义空转（blob GET 结果不可能变化，每窗白付一次上游往返+带宽；参照即此语义二分：可变 tag 面重验 / 内容寻址面豁免）。证据链：L007-2 定向探针四臂铁证（reports/compatibility/L007-d3-virtual-probe.md §1，2026-09-12——1×TTL×3 / quoted INM / 10.4×TTL / 真实 docker CLI 27.5.1 pull，全臂参照上游计数 0、filestore mtime 全程未动，「参照在某窗后回源」假说排除）+ conductor LOOP 007 终裁（BUG 对齐收）+ L008-2 实现双端复验（uat-l0082-d3，四臂上游 0-vs-0 全同 + 行不重写实证；serveRemoteBlob/serveVirtualBlob 已验证 standing 副本豁免臂——virtual 成员 walk 面同款、成员域 standing 判定）；**manifest 控制臂窗语义一字未动**（过期条件 GET→上游 304 仍回源）。边界：负缓存行先判早退语义不变（负 miss 后 standing 副本在 missedTTL 内不可见=既有行为维持）；脏行 sha256 不匹配回落旧回源路径（测试锁、非本账面）；豁免臂 X-Binflow-Cache 取 HIT（超集头契约 tolerated——STALE 词义保留给故障降级，勘误一的 expired-but-serving 面不受影响）。known-divergence `docker/remote-blob-expired-revalidation`（resolved 2026-09-12）authority 链自本勘误起增 adr 指针（type: adr, ref: 本条）。
 
 ## ADR-0013: virtual 仓库解析顺序与 M3 写路由边界
 - 状态: Accepted
@@ -1371,3 +1372,50 @@
   - **ADR-0015**: **预登记 Errata 触发未发生**——设计稿 §5 预留「若规格票要求 `/api/v1/system/gc` 本身翻 202 则需 Errata」；实测规格（prune-gc-admin §6）与实现（L003-1 §2「旧面 apply 极性不动——两族并存」）均保持旧端点不动（apply 极性、同步执行），新族挂 Artifactory 路径并存——**无需 Errata**。其勘误② P2 债（`GET /api/v1/system/gc` 状态端点不做）未清偿亦未恶化：**Errata 候选（可选、低优先）** = 是否宣告该 P2 债已被新族 `prune/status` 面吸收（旧面维持无状态端点）——属 conductor 派票裁量，非强制勘误；本 ADR 不动 ADR-0015。
   - **ADR-0006**: 无冲突——sha256/uploads 形态差异由其后果条款承载，本 ADR 的 INTENTIONAL ①②即其预留差异位的正式 authority 清偿。
 - 软缝协议: 本 ADR 定机制（判词分布/facet 形态/删除纪律单源/极性并存/authority 链），字面契约（26 字段逐键形态、409/412 信封文案、E 族响应字面量）以冻结源两文档与 L004-3 契约条目冻结为准；分歧以 Errata 留痕回填（V-7 活体取证翻案 = 显式登记的回填触发条件）。效力序 = 用户裁决 > 规格票 > ADR > PRD。
+
+## ADR-0050: 仓配置更新语义终案——POST=merge 三列矩阵 + PUT=create-only（update-merge 族级 BUG 收口；L007-3 候选稿收编）
+
+- 状态: Accepted（2026-09-12，LOOP 008 L008-1a 正式化——收编候选稿 docs/design/repo-update-merge.md〔状态行同日 Proposed→Accepted 并注本 ADR；分歧处以本 ADR 为准，设计稿保留为实现票任务书载体〕；证据 = L007-3 十二臂活体取证 reports/compatibility/L007-3-update-merge-evidence.md〔2026-09-12，参照 :8082 Artifactory pro 7.161.20，E4 活体〕+ L006-a-b-diff.md §1.4；known-divergence `rest/repo-config-update-merge-semantics`（BUG）的裁定 authority = 本条〔type: adr〕——实现票落地 + 差分复验后台账 resolved，矩阵 D02-R03 补注臂随之闭环）
+- 日期: 2026-09-12
+- 背景: BinFlow 仓配置更新面（PUT/POST `/api/repositories/{key}` → `repo.Service.UpdateRepo`）对 configJSON 是**全量替换回落产品默认**（`parseRemoteConfig` 从默认起步、input 覆盖；省略席位回落默认而非存量）；参照 Artifactory 是**合并**（省略=保留存量）。行为面后果：任何「只发改字段」的参照习惯脚本（terraform provider、curl 拧开关、部分回传体）在 BinFlow 静默丢失全部未回传配置（credential/period/布局/四域全族）——族级 BUG（影响 remote 全字段 + handler 面 description 席位，见决策 5）。L007-3 十二臂取证钉死参照语义：① 更新拼写只有 POST，**PUT-on-existing = 400 create-only**（body 完整与否同拒、拒后零副作用）vs BinFlow PUT-on-existing = 更新 200（**更新系超集行为**）；② 合并语义三列矩阵全族实测（三列形态互异，一个规则走不通三族）；③ 参照**无 0-as-absent 规则**（显式 0 建仓与更新均存 0）vs BinFlow period 族显式 0 视为缺省（T-290 族相邻差异）；④ service.go:2627 `Full-replace semantics (the Artifactory PUT model, T-80's ruling)` 注释与实测相抵——T-80 旧认知（非 ADR，无册可勘）随实现票勘误。
+- 候选方案:
+  - A. **严格对齐**：POST=merge（三列矩阵）+ PUT=create-only（已存在 key → 400）。
+  - B. merge + PUT 更新超集：POST 同 A；PUT-on-existing 维持 BinFlow 更新行为（也走 merge）。
+  - C. 维持全量替换：现状不动，known-divergence 改 INTENTIONAL 登记。
+  - 对比轴：兼容差（A 零 / B PUT 臂永久超集差〔参照 400 处 BinFlow 200，须永久登记〕/ C 族级实质分歧照旧）；迁移冲击（A 破坏 BinFlow 自有「PUT 改仓」脚本 / B 零 / C 零）；破坏面（A 破坏的是 BinFlow 自有习惯非参照习惯，UAT 前夜无外部存量承诺，回撤窗口现在最便宜 / B 无 / C 持续伤害参照习惯迁移者）；实现量（A = merge 基线注入 + PUT 存在性 400 一处 / B = merge 基线注入 / C = 零）；维护（A 单更新入口单语义 / B 双更新入口语义须同步演进，双入口漂移风险）。
+- 决策: **案 A 定谳**。要点落册：
+  1. **POST = merge-on-omit 三列矩阵**（更新面 `/api/repositories/{key}`，机制层裁定；矩阵全族实测）：
+     | 输入形态 | 标量/字符串（含 credential） | 数组 | 对象（contentSynchronisation 族） |
+     |---|---|---|---|
+     | 省略键 | **保留存量**（url 更新面亦可省） | 保留存量 | 保留存量（整族） |
+     | 显式 null | 清空 | **保留**（null 不清数组） | 未测（证据缺口——实现按「null=保留」先行，探针臂定案） |
+     | 显式空值（""/[]/{}） | 清空（""） | **保留**（[]；未发现数组清空通道，不实现） | **整族复位**（{} → 四子键全 false） |
+     | 显式值 | 写入（**0 与 false 即 0/false**） | 覆盖写入 | 子键级写入（未提子键 disposition = 证据缺口，探针臂定案） |
+     三列互异是机制本体：实现不得用一个规则走三族。
+  2. **PUT = create-only**：PUT-on-existing（已存在 key）→ **400** errors 信封，参照逐字 `error when validating repository name: <key> : Repository key already exists`（字面冻结归规格票，见软缝）；机制 = handleRepoPut 移除更新臂、已存在 key 落入 create 路径撞既有 `ErrRepoExists`（httpapi writeRepoSvcError 已映射 400）。**BinFlow「PUT 也能改仓」的超集行为回撤**——console 前端已按 createRepo=PUT / updateRepo=POST 分工（web/src/lib/repos.ts），零破坏。
+  3. **显式 0 = 存 0**（period 族 0-as-absent 于 create/update **双面**收口，随本 ADR 联裁）：wire 面与存储面对齐参照（显式 0 写 0、回显 0）；**fetch 侧 0 的生效语义维持既有 0=unset 回落链**（ADR-0012 勘误三边界①「content_ttl_seconds > 0 即显式」的 storage 解析机制不动——wire 回显与 fetch 生效分层）。别名解析（socketTimeoutMs/MissRetrieval 双拼写、非零分歧拒）规则不变。
+  4. **credential 族单侧清**：username/password 各自独立走三列矩阵——省略=保留存量（密文行不动），显式 ""/null=清（清 username 不动 password、反之亦然）。BinFlow 恒不回显 password（NFR-S14）维持——参照 GET 回显密文块的差异是既有安全姿态账，不随本 ADR 翻。
+  5. **范围**：remote 臂（台账 BUG 本体）+ handler 面 description 席位（现状 `current.Description = r.Description` 无条件覆写，省略即清——同属合并语义修复）先行；**local 臂**（caller-owned passthrough blob，无 canonical 席位）与 **virtual 臂**（members 显式列表替换语义维持；参照行为待取证）的 merge **另立实现票**，不在本裁定范围预支。
+  6. **breaking note 单窗口**：本 ADR 的两处行为变更（PUT-on-existing 200→400；全量替换→merge）合并为 release note breaking changes **首条单窗口公告**，无双轨期、无兼容开关（参照无 escape hatch，双轨 = 自造差异）。
+- 理由: ADR-0003（行为对齐 Artifactory）下 C 不可辩护——参照生态标准脚本形态大量依赖省略=保留，全量替换要求客户端永远回传全量 body，与参照习惯根本冲突，且丢配置是**静默数据损失**。A vs B：A 单更新入口、语义最简、兼容差清零；B 的 PUT 臂超集差是**永久登记的实质分歧**（参照 400 处 BinFlow 200），且双更新入口语义须同步演进——为保留一个 BinFlow 自有（非参照）的习惯买单不成比例。回撤窗口判断：BinFlow UAT 前夜、无外部存量承诺，行为回撤现在最便宜；拖过 GA 则同一回撤变成对外 breaking。RFC 9110 张力（说明，不改变决策）：教科书语义 PUT=整体替换且「省略即抹除」本属 PUT 正统——参照的实际形态反于教科书（PUT=创建、POST=patch 更新，省略=保留更像 PATCH 骑在 POST 上）。本决策对齐**事实生态**（十年 Artifactory 客户端习惯）而非 RFC 纯度，依据 ADR-0003 优先；代价是 REST 面延续参照的非正统动词分工——这是兼容层的既定立场，不是本 ADR 引入的新债。
+- 后果:
+  - 正：族级 BUG 收口（remote 全字段 + description 席位）；参照习惯脚本（部分回传体、terraform provider、curl 改单字段）迁移零修改；known-divergence `rest/repo-config-update-merge-semantics` 实现票落地 + 差分复验后 resolved（authority = 本条）；矩阵 D02-R03 的 L007-3 补注臂（PUT-on-existing 相抵）随实现闭环，行态 compatible 维持；D02-R04 注记残余同笔清偿。
+  - 负：BinFlow 自有「PUT 改仓」脚本断（改 POST 或接受 400）；依赖全量替换清配置的脚本须改显式 null——**迁移注意：存量「全量替换」行为的升级窗口**（升级公告置 breaking 首条；现存仓的存量 canonical 即 merge 基线，无数据迁移、仅行为面变更）；实现 + 差分验证成本一票。
+  - 风险：三列矩阵的字面契约（400 文案逐字、{} 复位边界、对象族 null、子键未提 disposition、数组清空通道若未来被差分发现）需规格票冻结——任一被打脸走 Errata 回填不动机制；fetch 侧存量 0 的参照生效语义未取证（wire 面已对齐，生效面挂探针）。
+  - 实现票任务书（dev-go-core 派发级：文件/验收/差分臂清单，`parseRemoteConfig` 基线注入 + 指针席位零新增路线）= docs/design/repo-update-merge.md 尾部「实现票任务书」节（conductor 转派用）。
+  - 验证载体：真实客户端形态——curl 脚本族（省略族/null 族/空值族/显式 0 族/PUT-on-existing 族五组 ≥12 臂双发对拍，归 tools/difftest、报告归 reports/compatibility/）+ console 编辑回归（全量 body 在 merge 语义下结果不变）；单元面 `go test ./internal/repo/... ./internal/httpapi/...` 表驱动三列矩阵。
+- 交叉对账（显式列 Errata 候选，不静默改）:
+  - **ADR-0012**: 机制无冲突——勘误三边界①（「>0 即显式」的包型默认解析）与勘误二（socketTimeout 等参数面）全部维持；本 ADR 只在其上加 wire/storage 分层（显式 0 存 0 回显 0，fetch 生效走回落链）。**Errata 触发条件预登记**：若差分取证揭示参照 fetch 侧对存量 0 有独立生效语义（如 0=永不再验），则勘误三与本 ADR 决策 3 均需 Errata 回填。
+  - **ADR-0044**: 无冲突——其 PUT 语义各面独立（backups `PUT upsert-by-key` 对齐官方备份面、maintenance GET/PUT、replication PUT 空 cronExp=删行），本 ADR 的 create-only **仅限 `/api/repositories/{key}` 仓配置面**，不得外推为全局动词规则（参照自身就是逐面动词惯例）。无 Errata。
+  - **ADR-0049**: 无冲突——注记 B（docker/helmoci TTL 21600s）经 ADR-0012 勘误三链路不受影响；本 ADR 不触存储链。无 Errata。
+  - **ADR-0026**: **Errata 候选（文字级，conductor 派票裁量）**——其决策 3 枚举「`PUT /api/repositories/{key}` 的替换既有仓臂」走 CanManageRepo：本 ADR 后该臂不可达（PUT-on-existing 恒 400），表述过时；机制轴零翻动（family-7 路由门、建仓臂 repo:write 分门、m-holder 边界全部维持——门在 400 之前照常生效，非 m-holder 仍 403）。勘误回填 = 措辞收编注记，非翻案。
+  - **D02-R03 行注记联动（矩阵域，非 ADR Errata）**: 冻结源行「key 冲突 400/409 语义已对齐」旧注记已由 L007-3 补注在 matrix.yaml 显式失效（compatibility-engineer 域在案）；实现票差分复验后注记回填「PUT-on-existing 400 对齐闭环」，行态 compatible 维持。
+  - **T-80 旧裁定**（「全量替换=Artifactory PUT 模型」，service.go:2627 注释）: 非 ADR 无册可勘——由本 ADR 取代，注释随实现票勘误（不属 Errata 程序，留痕于此）。
+- 软缝协议: 本 ADR 定机制（三列矩阵 + create-only + 显式 0=存 0 + credential 单侧清）；字面契约（400 文案逐字、`Missing repository type` 与 key-exists 的报错次序、密文回显形态、对象族 null/子键未提 disposition）以规格票/compatibility contract 冻结为准。Errata 回填触发条件（显式登记）：① 数组清空通道被差分发现；② 对象族显式 null 实测≠保留；③ 子键未提 disposition 实测≠基线；④ fetch 侧存量 0 生效语义实测≠回落链；⑤ PUT-on-existing 非 admin 门序实测（403/400 次序）。效力序 = 用户裁决 > 规格票 > ADR > PRD。
+- Errata 一（2026-09-12，L008-1 实现票差分触发软缝预登记条件③——A14 实测推翻决策 1 矩阵对象列草案格；正文原行保留，机制轴零翻动）: **决策 1 矩阵对象列两格修订**——
+  ① **作废**「显式值 = 子键级写入（未提子键 disposition = 证据缺口）」格，替换为：**显式对象 = 整体替换——提及子键写入、未提子键复位 false**（A14：存量 stats/props 双 true → POST 单子键对象 → 目标子键落 false **且未提子键复位 false**，非并集基线；双端 SAME，**as-built 即整体替换**——实现票按取证落地，任务书 §9.1-④「先行按未提=基线实现」指示随之作废）；
+  ② **收口**「显式 null = 未测（证据缺口）」格：实测 = **保留整族**（A15：`contentSynchronisation:null` → 存量双 true 原样；双端 SAME，与先行实现一致）——预登记触发条件②随之关闭（实测=保留=按保留实现，无翻案）。
+  机制轴维持项：三列矩阵框架、省略=保留整族、`{}`=整族复位（A14 复核臂与 L007-3 一致）不动；**`{}` 复位格在整体替换语义下为其自然推论**（零特例——对象列三格收敛为单规则：显式对象整体替换、null/省略保留）。
+  触发条件清单状态：②③已清偿（③触发并随本 Errata 收口）；**①（数组清空通道）④（fetch 侧存量 0 生效语义）⑤（PUT-on-existing 非 admin 门序——A17 anonymous 腿已证 401 先行，authenticated 非 admin 腿缺口留痕）仍开放**。
+  旁证留痕（非本 Errata 面，规格票素材）：参照 cs 输入认 nested 拼写（statistics.enabled）vs BinFlow flat（statisticsEnabled，T-317 xsd 锚）——既有 wire 拼写族；B2 socketTimeout 别名对显式 0 语义（`socketTimeoutMillis:0` 胜过 secs 无回落、alias 对内 0 让位非零侧、参照不识 ms/secs 两拼写）= 决策 3 的字面细化（显式 0=存 0 的别名面推论），机制无冲突。
+  证据：reports/compatibility/L008-update-merge-diff.md §0（A14/A15 臂）+ §2 对拍矩阵（对象族双格 SAME）+ B2 段。
