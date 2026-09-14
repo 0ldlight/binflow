@@ -356,8 +356,8 @@ function RepoGeneral({ repoKey }: { repoKey: string }) {
         <div className="kv mb-1 flex gap-2 text-dense">
           <span className="k w-36 shrink-0 text-muted-foreground">{tt('包类型')}</span>
           <span className="flex gap-1">
-            <span className="badge neutral rounded-sm bg-secondary px-1.5 py-px text-[11px]">{m.packageType}</span>
-            <span className="badge neutral rounded-sm bg-secondary px-1.5 py-px text-[11px]">{m.rclass}</span>
+            <span className="inline-flex items-center gap-1 rounded-sm bg-secondary px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-muted-foreground">{m.packageType}</span>
+            <span className="inline-flex items-center gap-1 rounded-sm bg-secondary px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-muted-foreground">{m.rclass}</span>
           </span>
         </div>
         <div className="kv mb-1 flex gap-2 text-dense">
@@ -526,7 +526,7 @@ function NodeGeneral({
               {node.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="badge neutral rounded-sm bg-secondary px-1.5 py-px text-[11px]"
+                  className="inline-flex items-center gap-1 rounded-sm bg-secondary px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-muted-foreground"
                   data-testid={`tag-badge-${tag}`}
                   title={`tag: ${tag}`}
                 >

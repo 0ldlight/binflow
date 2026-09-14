@@ -113,10 +113,10 @@ function FieldControl({
     return (
       <div className={`authcfg-field${field.full ? ' full' : ''}`}>
         {/* 锁定展示不是表单控件——非 label 元素（label 只指表单控件，axe） */}
-        <span className="text-aux text-2">{field.label}</span>
+        <span className="text-aux text-muted-foreground">{field.label}</span>
         <span
           data-testid={field.anchor}
-          className="mono inline-block rounded-sm border border-border bg-surface-2 px-3 py-1.5 text-dense"
+          className="font-mono inline-block rounded-sm border border-border bg-surface-2 px-3 py-1.5 text-dense"
           lang="en"
         >
           {String(value ?? '')}
@@ -299,7 +299,7 @@ function SamlCertCard({ canWrite }: { canWrite: boolean }) {
   return (
     <div className="authcfg-group rounded-md border border-border p-3">
       <h3 className="mb-0.5 text-dense font-semibold">{tt('SP 加密证书（服务提供方公钥）')}</h3>
-      <p className="authcfg-group-hint mb-2 text-dense text-2">
+      <p className="authcfg-group-hint mb-2 text-dense text-muted-foreground">
         {tt('Use Encrypted Assertion 需要 IdP 持有本服务的公钥证书（勾选保存时若未生成，服务端会自动生成一份）。私钥由服务端密封保存、永不外发——这里只有公钥面。')}
       </p>
       {/* 四态：loading 骨架 / 错误卡 + 重试 / 数据态分「未生成/已生成」 */}
@@ -319,7 +319,7 @@ function SamlCertCard({ canWrite }: { canWrite: boolean }) {
           )}
           {fingerprint && (
             <div className="authcfg-cert-fp">
-              <span className="mono font-mono" lang="en">{fingerprint}</span>{' '}
+              <span className="font-mono text-[0.95em] [overflow-wrap:anywhere]" lang="en">{fingerprint}</span>{' '}
               <CopyButton value={fingerprint} label={tt('证书指纹')} />
             </div>
           )}
@@ -454,7 +454,7 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
           {def.groups.map((g) => (
             <div className="authcfg-group mb-4 rounded-md border border-border p-3" key={g.title}>
               <h3 className="mb-0.5 text-dense font-semibold">{g.title}</h3>
-              {g.hint && <p className="authcfg-group-hint mb-2 text-dense text-2">{g.hint}</p>}
+              {g.hint && <p className="authcfg-group-hint mb-2 text-dense text-muted-foreground">{g.hint}</p>}
               <div className="authcfg-grid">
                 {g.fields.map((f) => (
                   <FieldControl
@@ -476,7 +476,7 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
           {/* 测试连接（POST …/test 双形态：候选 = 当前表单值；存量 = 空体） */}
           <div className="authcfg-group mb-4 rounded-md border border-border p-3" data-testid="authcfg-test">
             <h3 className="mb-0.5 text-dense font-semibold">{tt('测试连接')}</h3>
-            <p className="authcfg-group-hint mb-2 text-dense text-2">
+            <p className="authcfg-group-hint mb-2 text-dense text-muted-foreground">
               {tt('候选探测提交当前表单值（不落库）；存量探测直接探测已保存配置。LDAP 可附测试账号做真实用户绑定（§1.6——两半须齐备）。')}
             </p>
             <div className="authcfg-test-actions flex flex-wrap items-center gap-2">
@@ -580,7 +580,7 @@ export default function AuthConfigPage() {
     <div data-testid="authcfg-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">{tt('认证配置')}</h2>
-        <span className="text-aux text-2">{def.head}</span>
+        <span className="text-aux text-muted-foreground">{def.head}</span>
       </div>
 
       <p className="page-note" data-testid="authcfg-note-effect">

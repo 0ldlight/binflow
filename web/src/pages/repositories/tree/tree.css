@@ -26,7 +26,7 @@
   padding: var(--bf-sp-2);
   max-height: calc(100vh - 220px);
   overflow-y: auto;
-  font-size: var(--bf-fs-body);
+  font-size: var(--bf-fs-sm);
 }
 
 .tree-node {
@@ -67,11 +67,6 @@
   flex: none;
 }
 
-.tree-node .mono {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .tree-skel {
   padding: var(--bf-sp-1) var(--bf-sp-2);
 }
@@ -80,7 +75,7 @@
 .tree-empty-level {
   padding: 2px var(--bf-sp-2);
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
 }
 
 /* ---------- Docker 仓树（T-134 G32a/G32b）：tag 徽标 + digest 行 ----------
@@ -115,7 +110,7 @@
   border-radius: var(--bf-r-sm);
   color: var(--bf-accent);
   cursor: pointer;
-  font-size: var(--bf-fs-form);
+  font-size: var(--bf-fs-base);
 }
 
 .tree-breadcrumb .crumb:hover {
@@ -165,7 +160,7 @@
 
 .node-detail-head h3 {
   margin: 0;
-  font-size: var(--bf-fs-h3);
+  font-size: var(--bf-fs-md);
   word-break: break-all;
 }
 
@@ -192,7 +187,7 @@
   border-radius: var(--bf-r-md);
   padding: var(--bf-sp-3);
   margin-bottom: var(--bf-sp-3);
-  font-size: var(--bf-fs-form);
+  font-size: var(--bf-fs-base);
 }
 
 .node-verify.ok {
@@ -209,14 +204,14 @@
 
 .node-verify .sub {
   margin-top: var(--bf-sp-1);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-2);
   word-break: break-all;
 }
 
 .node-perms h4 {
   margin: 0 0 var(--bf-sp-2);
-  font-size: var(--bf-fs-form);
+  font-size: var(--bf-fs-base);
 }
 
 .perm-chips {
@@ -224,11 +219,6 @@
   flex-direction: column;
   gap: var(--bf-sp-1);
   align-items: flex-start;
-}
-
-.perm-chips .chip-item .mono {
-  margin-left: auto;
-  color: var(--bf-accent);
 }
 
 /* 上传对话框样式族（.upload-* / .drop-zone / .gav-grid / .preview-path /

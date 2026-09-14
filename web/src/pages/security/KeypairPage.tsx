@@ -151,7 +151,7 @@ export default function KeypairPage() {
     <div data-testid="keypair-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">{t('签名密钥（GPG Key Pairs）')}</h2>
-        <span className="text-aux text-2">{t('实例级签名密钥对面（导入 / 服务端生成 / 校验 / 仓库关联）——私钥与口令永不回显')}</span>
+        <span className="text-aux text-muted-foreground">{t('实例级签名密钥对面（导入 / 服务端生成 / 校验 / 仓库关联）——私钥与口令永不回显')}</span>
         <span className="ml-auto flex gap-2">
           <Button variant="outline" size="sm" data-testid="keypair-create-import" disabled={!admin || readOnly} onClick={() => setDialog('import')}>
             {t('导入密钥对')}
@@ -236,7 +236,7 @@ export default function KeypairPage() {
                       )}
                     </td>
                     <td className="px-3 py-1.5">
-                      <span className="text-2" title={`${r.updatedAt} · ${r.updatedBy}`}>
+                      <span className="text-muted-foreground" title={`${r.updatedAt} · ${r.updatedBy}`}>
                         {r.updatedAt ? r.updatedAt.replace('T', ' ').slice(0, 19) : '—'}
                       </span>
                     </td>

@@ -27,7 +27,7 @@ function SubsystemRow({ name, st }: { name: string; st: SubsystemStatus }) {
         <span className={`status-dot ${ok ? 'ok' : 'err'}`} aria-hidden="true" />
         {name}
       </span>
-      <span className={ok ? 'text-2' : ''} title={st.detail ?? ''}>
+      <span className={ok ? 'text-muted-foreground' : ''} title={st.detail ?? ''}>
         {ok ? 'ok' : (st.detail ?? st.status)}
       </span>
     </div>
@@ -68,7 +68,7 @@ export default function SystemInfoPage() {
     <div data-testid="settings">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">{t('系统信息')}</h2>
-        <span className="text-aux text-2">{t('只读展示（配置面经实例 YAML 管理，无控制台写端点）')}</span>
+        <span className="text-aux text-muted-foreground">{t('只读展示（配置面经实例 YAML 管理，无控制台写端点）')}</span>
       </div>
 
       <section className="card section" data-testid="settings-instance">

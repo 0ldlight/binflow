@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CopyButton } from '@/components/layout/copy-button'
+import { Badge } from '@/components/ui/badge'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { ApiError, apiJSON } from '@/lib/api'
 import type { AuditEvent } from '@/lib/api'
@@ -196,7 +197,7 @@ export default function SystemLogsPage() {
     <div data-testid="logs-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">{tt('系统日志')}</h2>
-        <span className="text-aux text-2">{tt('系统日志查看器（尾随刷新 / 过滤 / 下载）')}</span>
+        <span className="text-aux text-muted-foreground">{tt('系统日志查看器（尾随刷新 / 过滤 / 下载）')}</span>
       </div>
 
       {/* 源说明行（7.161 三选择器的单源如实降形——不伪造选择器） */}
@@ -204,7 +205,7 @@ export default function SystemLogsPage() {
         <p className="field-hint mb-2 mt-0" data-testid="logs-source">
           {tt('日志源：')}<span className="font-mono" lang="en">{tt('服务进程日志（GET /api/v1/system/logs，slog 环形尾随，最早 → 最新）')}</span>{tt('——超出环形容量的更早日志已淘汰；下载为服务端附件（binflow-service.log）。')}
           {ring?.truncated && (
-            <span className="badge warning ml-2" data-testid="logs-truncated">{tt('环形已满，更早日志已被淘汰')}</span>
+            <Badge variant="tint-warning" className="ml-2" data-testid="logs-truncated">{tt('环形已满，更早日志已被淘汰')}</Badge>
           )}
         </p>
       ) : (
@@ -215,7 +216,7 @@ export default function SystemLogsPage() {
         </p>
       )}
 
-      <div className="filter-bar" role="toolbar" aria-label={tt('系统日志工具栏')}>
+      <div className="flex flex-wrap items-center gap-3 py-3" role="toolbar" aria-label={tt('系统日志工具栏')}>
         <Button
           variant="outline"
           size="sm"
@@ -229,7 +230,7 @@ export default function SystemLogsPage() {
           {paused ? tt('继续') : tt('暂停')}
         </Button>
         <Button variant="outline" size="sm" onClick={doRefreshNow} data-testid="logs-refresh">{tt('立即刷新')}</Button>
-        <span className="text-aux text-2" data-testid="logs-countdown">
+        <span className="text-aux text-muted-foreground" data-testid="logs-countdown">
           {paused ? tt('已暂停尾随') : tt('{countdown} 秒后自动刷新', { countdown: countdown })}
         </span>
         <select
@@ -258,7 +259,7 @@ export default function SystemLogsPage() {
         ) : (
           <Button variant="outline" size="sm" onClick={doDownloadWindow} data-testid="logs-download">{tt('下载当前窗口')}</Button>
         )}
-        <span className="count text-aux text-2" data-testid="logs-updated-at">
+        <span className="ml-auto text-aux text-muted-foreground tabular-nums whitespace-nowrap" data-testid="logs-updated-at">
           {tt('视图更新于：')}
           <span className="font-mono" lang="en">
             {fetchedAt ? fetchedAt.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC') : '—'}

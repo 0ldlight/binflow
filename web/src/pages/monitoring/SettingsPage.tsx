@@ -19,6 +19,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useAuth } from '@/app/AuthContext'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { AlertBox } from '@/components/layout/bits'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { TextInput } from '@/components/layout/fields'
@@ -117,7 +118,7 @@ function KnobsCard() {
           <span className="k">{r.label}</span>
           <span>
             {typeof r.v === 'boolean' ? (
-              r.v ? <span className="badge success">{t('开')}</span> : <span className="badge neutral">{t('关')}</span>
+              r.v ? <Badge variant="tint-success">{t('开')}</Badge> : <Badge variant="tint-neutral">{t('关')}</Badge>
             ) : (
               <span className="font-mono" lang="en">{r.v}</span>
             )}
@@ -394,7 +395,7 @@ export default function SettingsPage() {
     <div data-testid="settings-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">{t('设置')}</h2>
-        <span className="text-aux text-2">{t('运行时旋钮回显与查询限流器管理')}</span>
+        <span className="text-aux text-muted-foreground">{t('运行时旋钮回显与查询限流器管理')}</span>
       </div>
       <KnobsCard />
       <QrlPanel />

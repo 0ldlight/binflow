@@ -205,12 +205,12 @@ export default function PromoteDialog({
               </p>
               <div className="max-h-48 overflow-y-auto rounded-md border border-border p-2">
                 {result.messages.length === 0 ? (
-                  <p className="text-2">{t('（无消息——全部通过）')}</p>
+                  <p className="text-muted-foreground">{t('（无消息——全部通过）')}</p>
                 ) : (
                   result.messages.map((m, i) => (
                     <p
                       key={i}
-                      className={`text-dense ${m.level === 'error' ? 'text-destructive' : m.level === 'warning' ? 'text-warning' : 'text-2'}`}
+                      className={`text-dense ${m.level === 'error' ? 'text-destructive' : m.level === 'warning' ? 'text-warning' : 'text-muted-foreground'}`}
                       lang="en"
                     >
                       <b className="font-mono">[{m.level}]</b> {m.message}

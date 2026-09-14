@@ -18,7 +18,8 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { AlertBox, Badge, CheckRow } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
+import { AlertBox, CheckRow } from '@/components/layout/bits'
 import { TextInput, NativeSelect } from '@/components/layout/fields'
 import { toast } from '@/lib/toast'
 import { ApiError, errText } from '@/lib/api'
@@ -277,7 +278,7 @@ export default function SubscriptionDialog({
               />
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant={draft.types.length > 0 ? 'success' : 'neutral'}>{tt('已选 {v1}', { v1: draft.types.length })}</Badge>
+              <Badge variant={draft.types.length > 0 ? 'tint-success' : 'tint-neutral'}>{tt('已选 {v1}', { v1: draft.types.length })}</Badge>
               <span className="text-aux text-muted-foreground">{tt('已接线（wired）= BinFlow 有触发源；休眠（dormant）= 可订阅、校验通过、永不触发')}</span>
             </div>
           </div>

@@ -29,6 +29,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/app/AuthContext'
 import { Button, ButtonAsChild } from '@/components/ui/button'
 import { CopyButton } from '@/components/layout/copy-button'
+import { Badge } from '@/components/ui/badge'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { canAdminWrite } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
@@ -104,7 +105,7 @@ function BuildNamesView() {
     <div data-testid="builds-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">Builds</h2>
-        <span className="text-aux text-2">{t('CI 构建记录（构建名 → run 号 → run 详情；promote / 保留策略写面）')}</span>
+        <span className="text-aux text-muted-foreground">{t('CI 构建记录（构建名 → run 号 → run 详情；promote / 保留策略写面）')}</span>
       </div>
       {names.status === 'loading' && <StateSkeleton lines={5} />}
       {names.status === 'error' && names.error && <ErrorCard error={names.error} onRetry={names.reload} />}
@@ -241,7 +242,7 @@ function BuildStatuses({ statuses }: { statuses: BuildInfo['statuses'] }) {
             <tr key={`${s.timestamp}|${i}`} className="border-b border-border/60 hover:bg-accent" data-testid={`build-status-row-${i}`}>
               <td className="px-3 py-1.5">
                 {i === 0 ? (
-                  <span className="badge neutral mono" data-testid="build-status-current">{s.status}</span>
+                  <Badge variant="tint-neutral" mono data-testid="build-status-current">{s.status}</Badge>
                 ) : (
                   <span className="font-mono" lang="en">{s.status}</span>
                 )}
@@ -272,10 +273,10 @@ function BuildTimeline({ name, number, started }: { name: string; number: string
       <h3 className="mb-2 text-dense font-semibold">{t('事件时间线（audit）')}</h3>
       {events.status === 'loading' && <StateSkeleton lines={2} />}
       {events.status === 'error' && events.error && (
-        <p className="text-2" title={events.error.message}>{t('时间线不可用（HTTP')} {events.error.status}{t('）')}</p>
+        <p className="text-muted-foreground" title={events.error.message}>{t('时间线不可用（HTTP')} {events.error.status}{t('）')}</p>
       )}
       {events.status === 'ok' && rows.length === 0 && (
-        <p className="text-2">{t('本 run 无 audit 事件行（retention 是名级窗口事件，不归属单个 run）。')}</p>
+        <p className="text-muted-foreground">{t('本 run 无 audit 事件行（retention 是名级窗口事件，不归属单个 run）。')}</p>
       )}
       {events.status === 'ok' && rows.length > 0 && (
         <table className="w-full text-dense">
@@ -296,7 +297,7 @@ function BuildTimeline({ name, number, started }: { name: string; number: string
                 <td className="px-3 py-1.5 font-mono" lang="en">{fmtAuditTime(e.time)}</td>
                 <td className="px-3 py-1.5 font-mono" lang="en">{e.actor}</td>
                 <td className="px-3 py-1.5">
-                  <span className="break-all font-mono text-aux text-2" lang="en">
+                  <span className="break-all font-mono text-aux text-muted-foreground" lang="en">
                     {Object.entries(e.detail)
                       .map(([k, v]) => `${k}=${String(v)}`)
                       .join(' · ')}
@@ -413,7 +414,7 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
           <section className="card section" data-testid="build-modules">
             <h3 className="mb-2 text-dense font-semibold">{t('模块（{v1} 个）', { v1: modules.length })}</h3>
             {modules.length === 0 ? (
-              <p className="text-2">{t('（无模块——append 可按 module id 增量并入）')}</p>
+              <p className="text-muted-foreground">{t('（无模块——append 可按 module id 增量并入）')}</p>
             ) : (
               <table className="w-full text-dense">
                 <thead>

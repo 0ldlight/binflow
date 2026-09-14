@@ -167,12 +167,12 @@ test('users last login column: projection renders, never-login honest, column or
     expect(headers.indexOf('最近登录')).toBeLessThan(headers.length - 1)
 
     // admin 行：截断到秒的呈现形 + title 全值（RFC3339 UTC）
-    const adminCell = page.locator('[data-testid="user-row-admin"] td.mono')
+    const adminCell = page.locator('[data-testid="user-row-admin"] td.font-mono')
     await expect(adminCell).toHaveText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
     await expect(adminCell).toHaveAttribute('title', /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
 
     // 从未登录用户行：整键缺席 → 如实呈现（不伪造）
-    const neverCell = page.locator(`[data-testid="user-row-${name}"] td.mono`)
+    const neverCell = page.locator(`[data-testid="user-row-${name}"] td.font-mono`)
     await expect(neverCell).toHaveText('—（尚未登录）')
 
     // 列头排序控件（三态循环 asc → desc；行序受共享夹具影响不断言具体序）
@@ -193,7 +193,7 @@ test('users last login column: column-selector integration — hide persists acr
   await page.goto('/binflow/ui/admin/security/users')
   const th = page.locator('[data-testid="users-table"] thead th')
   await expect(th).toHaveCount(7) // admin 视角七列闭集（T-492 增最近登录）
-  await expect(page.locator('[data-testid="user-row-admin"] td.mono')).toHaveCount(1)
+  await expect(page.locator('[data-testid="user-row-admin"] td.font-mono')).toHaveCount(1)
 
   // 弃「最近登录」：表头 + 单元格同步退场
   await page.click('[data-testid="users-columns"]')
@@ -202,14 +202,14 @@ test('users last login column: column-selector integration — hide persists acr
   await page.click('[data-testid="users-columns-item-lastlogin"]')
   await expect(page.locator('[data-testid="users-sort-lastlogin"]')).toHaveCount(0)
   await expect(th).toHaveCount(6)
-  await expect(page.locator('[data-testid="user-row-admin"] td.mono')).toHaveCount(0)
+  await expect(page.locator('[data-testid="user-row-admin"] td.font-mono')).toHaveCount(0)
 
   // columnPrefs per-page 持久：localStorage 落盘 + reload 保持
   expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-users'))).toContain('lastLogin')
   await page.reload()
   await expect(page.locator('[data-testid="users-table"]')).toBeVisible()
   await expect(page.locator('[data-testid="users-sort-lastlogin"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="user-row-admin"] td.mono')).toHaveCount(0)
+  await expect(page.locator('[data-testid="user-row-admin"] td.font-mono')).toHaveCount(0)
 
   // 全选复位：列回场 + 存储回空数组
   await page.click('[data-testid="users-columns"]')

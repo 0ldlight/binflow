@@ -326,8 +326,8 @@ export default function RepoDetailPage() {
       <div className="detail-head flex flex-wrap items-center gap-2">
         <span className="key text-lg font-semibold" lang="en">{repo.key}</span>
         <CopyButton value={repo.key} label={t('仓库 key {v1}', { v1: repo.key })} />
-        <span className="badge neutral rounded-sm bg-secondary px-1.5 py-0.5 text-[11px]">{repo.rclass}</span>
-        <span className="badge neutral rounded-sm bg-secondary px-1.5 py-0.5 text-[11px]">{repo.packageType}</span>
+        <span className="inline-flex items-center gap-1 rounded-sm bg-secondary px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-muted-foreground">{repo.rclass}</span>
+        <span className="inline-flex items-center gap-1 rounded-sm bg-secondary px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-muted-foreground">{repo.packageType}</span>
         <div className="detail-head-actions ml-auto flex flex-wrap items-center gap-1.5">
           <Button variant="outline" size="sm" data-testid="repo-setmeup" title={t('Set Me Up：客户端接入向导')} onClick={() => setSmuOpen(true)}>
             Set Me Up
@@ -444,7 +444,7 @@ export default function RepoDetailPage() {
                 {kv('URL', (
                   <span className="font-mono" lang="en">
                     {cfgStr(cfg, 'url')} <CopyButton value={cfgStr(cfg, 'url')} label={t('上游 URL')} />
-                    <span className="badge neutral ml-1 rounded-sm bg-secondary px-1.5 py-px text-[11px]">
+                    <span className="inline-flex items-center gap-1 ml-1 rounded-sm bg-secondary px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-muted-foreground">
                       {cfgStr(cfg, 'url').startsWith('https') ? 'https' : 'http'}
                     </span>
                   </span>

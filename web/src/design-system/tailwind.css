@@ -49,6 +49,8 @@
   --color-border: var(--bf-border);
   --color-input: var(--bf-border);
   --color-ring: var(--bf-accent);
+  /* border-strong（悬停边/虚线拖拽区——批 5 deploy-drop 等价替换消费缝） */
+  --color-border-strong: var(--bf-border-strong);
 
   /* ---- 状态色（BinFlow 自有：徽章/状态灯消费面）---- */
   --color-success: var(--bf-success);
@@ -64,6 +66,21 @@
   --color-warning-surface: var(--bf-warning-surface);
   --color-destructive-surface: var(--bf-danger-surface);
   --color-info-surface: var(--bf-info-surface);
+
+  /* ---- 徽章 tint 配方（批 5 等价替换承载面）：旧 base.css .badge 族的
+   * color-mix 配方逐值迁入（语义色 15%/18% 透明底 + 78% 向正文色收敛的
+   * 文字——T-244 对比度家族收口值）；与批 4 软底（*-surface）并存，
+   * 收敛裁决留给批 6（design-system-plan §6）。tier 档复用 info/warning。 ---- */
+  --color-badge-info: color-mix(in srgb, var(--bf-info) 78%, var(--bf-text));
+  --color-badge-info-soft: color-mix(in srgb, var(--bf-info) 15%, transparent);
+  --color-badge-success: color-mix(in srgb, var(--bf-success) 78%, var(--bf-text));
+  --color-badge-success-soft: color-mix(in srgb, var(--bf-success) 15%, transparent);
+  --color-badge-warning: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
+  --color-badge-warning-soft: color-mix(in srgb, var(--bf-warning) 18%, transparent);
+  --color-badge-danger: color-mix(in srgb, var(--bf-danger) 78%, var(--bf-text));
+  --color-badge-danger-soft: color-mix(in srgb, var(--bf-danger) 15%, transparent);
+  /* admin 徽章 outlined 描边（security.css 批 5 退役迁入——warning 62%） */
+  --color-badge-warning-outline: color-mix(in srgb, var(--bf-warning) 62%, transparent);
 
   /* ---- 三阶纵深 + 弱化文字（§5.1 灰阶节奏）---- */
   --color-surface-1: var(--bf-surface-1);
@@ -86,15 +103,15 @@
 
   /* ---- 密度字号（总令 §二十四 dense：13px 表格主档 / 12px 辅助；
    * 经旧字号名别名解析到九级新阶，值不变）---- */
-  --text-dense: var(--bf-fs-body);
+  --text-dense: var(--bf-fs-sm);
   --text-dense--line-height: 1.45;
-  --text-aux: var(--bf-fs-aux);
+  --text-aux: var(--bf-fs-xs);
   --text-aux--line-height: 1.4;
-  --text-form: var(--bf-fs-form);
+  --text-form: var(--bf-fs-base);
   --text-form--line-height: 1.5;
-  --text-h3: var(--bf-fs-h3);
+  --text-h3: var(--bf-fs-md);
   --text-h3--line-height: 1.4;
-  --text-h2: var(--bf-fs-h2);
+  --text-h2: var(--bf-fs-xl);
   --text-h2--line-height: 1.3;
 
   /* ---- 圆角（覆盖 Tailwind 默认档为本仓 token；xs/full 批 4 进桥：

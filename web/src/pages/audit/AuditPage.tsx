@@ -206,10 +206,10 @@ export default function AuditPage() {
     <div data-testid="audit-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">{tt('审计')}</h2>
-        <span className="text-aux text-2">{tt('只增不改（append-only）；动作值原样呈现')}</span>
+        <span className="text-aux text-muted-foreground">{tt('只增不改（append-only）；动作值原样呈现')}</span>
       </div>
 
-      <div className="filter-bar">
+      <div className="flex flex-wrap items-center gap-3 py-3">
         <Input
           placeholder={tt('仓库 key（精确）')}
           value={repo}
@@ -244,7 +244,7 @@ export default function AuditPage() {
             <option key={a} value={a} lang="en">{a}</option>
           ))}
         </select>
-        <label className="time-field flex items-center gap-1.5 text-aux text-2">
+        <label className="flex items-center gap-1 whitespace-nowrap text-aux text-muted-foreground">
           <span>{tt('起（含）')}</span>
           <input
             type="datetime-local"
@@ -255,7 +255,7 @@ export default function AuditPage() {
             data-testid="audit-filter-since"
           />
         </label>
-        <label className="time-field flex items-center gap-1.5 text-aux text-2">
+        <label className="flex items-center gap-1 whitespace-nowrap text-aux text-muted-foreground">
           <span>{tt('止（不含）')}</span>
           <input
             type="datetime-local"
@@ -278,10 +278,10 @@ export default function AuditPage() {
         {hasFilter && (
           <Button variant="outline" size="sm" onClick={clearFilters}>{tt('清除过滤')}</Button>
         )}
-        <span className="count text-aux text-2" data-testid="audit-count">
+        <span className="ml-auto text-aux text-muted-foreground tabular-nums whitespace-nowrap" data-testid="audit-count">
           {tt('本页')} {events.length} {tt('条')}{pathQ ? tt('（路径过滤命中 {v1}——仅作用于本页窗口）', { v1: rows.length }) : ''}
         </span>
-        <span className="filter-tail-actions ml-auto flex items-center gap-1.5">
+        <span className="ml-auto flex items-center gap-1.5">
 
           <Popover open={colsOpen} onOpenChange={setColsOpen}>
             <PopoverTrigger asChild>
@@ -314,7 +314,7 @@ export default function AuditPage() {
                       if (!last) cols.toggle(c.id)
                     }}
                   >
-                    <span aria-hidden="true" className="col-check">{visible ? '☑' : '☐'}</span>
+                    <span aria-hidden="true" className="inline-block w-[1.25em] text-primary">{visible ? '☑' : '☐'}</span>
                     {c.label}
                   </button>
                 )
@@ -418,9 +418,9 @@ role="menuitem"
                       {cols.isVisible('detail') && (
                         <td className="px-3 py-1.5">
                           {json ? (
-                            <details className="detail-pop">
-                              <summary>detail</summary>
-                              <pre lang="en">{json}</pre>
+                            <details className="relative inline-block">
+                              <summary className="cursor-pointer text-[length:var(--bf-fs-xs)] whitespace-nowrap text-primary">detail</summary>
+                              <pre lang="en" className="absolute right-0 z-[var(--bf-z-dropdown)] m-0 mt-1 min-w-[260px] max-w-[420px] max-h-[220px] overflow-auto rounded-md border bg-surface-1 px-3 py-2 font-mono text-[length:var(--bf-fs-xs)] shadow-overlay whitespace-pre-wrap break-all">{json}</pre>
                             </details>
                           ) : (
                             <span className="text-muted-foreground">—</span>

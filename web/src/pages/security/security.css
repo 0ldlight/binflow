@@ -29,7 +29,7 @@
 
 .form-section > h4 {
   margin: 0 0 var(--bf-sp-2);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-2);
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -60,7 +60,7 @@
   justify-content: space-between;
   padding: var(--bf-sp-2) var(--bf-sp-3);
   border-bottom: 1px solid var(--bf-border);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-2);
   font-weight: 600;
 }
@@ -81,7 +81,7 @@
   align-items: center;
   gap: var(--bf-sp-2);
   min-height: 28px;
-  font-size: var(--bf-fs-body);
+  font-size: var(--bf-fs-sm);
   cursor: pointer;
 }
 
@@ -92,7 +92,7 @@
 
 .transfer-empty {
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   margin: var(--bf-sp-2);
 }
 
@@ -110,7 +110,7 @@
 
 .table-foot {
   margin: var(--bf-sp-2) 0 0;
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -145,7 +145,7 @@
 }
 
 .perm-summary-empty {
-  font-size: var(--bf-fs-body);
+  font-size: var(--bf-fs-sm);
   margin: var(--bf-sp-1) 0 0;
 }
 
@@ -167,13 +167,13 @@
   align-items: center;
   gap: var(--bf-sp-2);
   min-height: 28px;
-  font-size: var(--bf-fs-body);
+  font-size: var(--bf-fs-sm);
   cursor: pointer;
 }
 
 .sec-pick .empty {
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
 }
 
 /* 组 chips（用户详情/列表行内） */
@@ -196,7 +196,7 @@
 }
 
 .perm-section > h3 {
-  font-size: var(--bf-fs-h3);
+  font-size: var(--bf-fs-md);
   margin: 0 0 var(--bf-sp-2);
   padding-bottom: var(--bf-sp-1);
   border-bottom: 1px solid var(--bf-border);
@@ -219,14 +219,14 @@
 
 .pattern-col h4 {
   margin: 0 0 var(--bf-sp-2);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-2);
   font-weight: 600;
 }
 
 .pattern-col .empty {
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   margin-bottom: var(--bf-sp-1);
 }
 
@@ -252,7 +252,7 @@
 
 .pattern-chip .val {
   font-family: var(--bf-mono);
-  font-size: var(--bf-fs-body);
+  font-size: var(--bf-fs-sm);
   overflow-wrap: anywhere;
 }
 
@@ -266,7 +266,7 @@
   border-radius: var(--bf-r-sm);
   color: var(--bf-text-2);
   cursor: pointer;
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
 }
 
 .pattern-chip button:hover,
@@ -299,7 +299,7 @@
   border-radius: var(--bf-r-sm);
   color: var(--bf-text);
   font-family: var(--bf-mono);
-  font-size: var(--bf-fs-body);
+  font-size: var(--bf-fs-sm);
 }
 
 .tester input:focus {
@@ -310,7 +310,7 @@
   margin-top: var(--bf-sp-3);
   padding-top: var(--bf-sp-2);
   border-top: 1px solid var(--bf-border);
-  font-size: var(--bf-fs-body);
+  font-size: var(--bf-fs-sm);
 }
 
 .tester-result .line {
@@ -319,7 +319,7 @@
   align-items: baseline;
   padding: 1px 0;
   color: var(--bf-text-2);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
 }
 
 .tester-result .line .pat {
@@ -370,7 +370,7 @@
 
 .admin-note {
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   margin-top: var(--bf-sp-2);
 }
 
@@ -382,7 +382,7 @@
   gap: 2px;
   max-height: 300px;
   overflow-y: auto;
-  font-size: var(--bf-fs-body);
+  font-size: var(--bf-fs-sm);
 }
 
 .diff-list .d {
@@ -416,7 +416,7 @@
 
 .diff-list .none {
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
 }
 
 /* ============================================================
@@ -441,7 +441,7 @@
 
 .perm-res-step {
   margin: 0 0 var(--bf-sp-2);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-2);
 }
 
@@ -460,7 +460,7 @@
   align-items: center;
   gap: var(--bf-sp-2);
   margin-bottom: var(--bf-sp-3);
-  font-size: var(--bf-fs-body);
+  font-size: var(--bf-fs-sm);
 }
 
 /* T-266 注：T-237 role-warning / T-241 perm-verdict-* 自持对比度类已
@@ -490,13 +490,8 @@
  * 末位 Chip 消费者退役而对 span 恒真）。只追加新类，不改上方已交区块。
  * ============================================================ */
 
-/* admin 角色徽章（warning outlined 形态——文字色两主题 5.2~7.2:1，T-344D
- * 对比度登记的语义对位） */
-.badge-warning-outlined {
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--bf-warning) 62%, transparent);
-  color: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
-}
+/* admin 角色徽章的 warning outlined 形态已随批 5（T-UIB5）迁
+ * ui/Badge tint-warning + border-badge-warning-outline 工具类。 */
 
 /* Status 徽章（E2/E3 enabled 真值——outlined success/error 形态；不挂
  * .badge 基类：行级 .badge 唯一性，ADR-0029 决策 3 沿袭） */
@@ -505,7 +500,7 @@
   align-items: center;
   padding: 1px 8px;
   border-radius: 999px;
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   line-height: 1.5;
   border: 1px solid;
 }

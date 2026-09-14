@@ -31,7 +31,6 @@ import {
 } from '../pages/repositories/commands'
 import type { ClientCreds, CommandBlock } from '../pages/repositories/commands'
 
-import './dialogs.css'
 import { tr } from '../i18n'
 
 const t = tr('console')
@@ -379,7 +378,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
     }
     return (
       <div
-        className="smu-grid-items"
+        className="flex flex-wrap gap-2 my-4"
         role="radiogroup"
         aria-label={t('包类型')}
         data-testid="smu-grid"
@@ -405,7 +404,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
           <button
             type="button"
             key={m.id}
-            className="smu-grid-item"
+            className="inline-flex box-border items-center gap-2 cursor-pointer rounded-full border border-border bg-secondary px-4 py-2 [font-family:inherit] [font-weight:inherit] [font-size:inherit] [line-height:inherit] hover:border-ring hover:bg-surface-3 focus-visible:border-ring focus-visible:bg-surface-3 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             role="radio"
             aria-checked={false}
             title={m.desc}
@@ -420,8 +419,8 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
           >
             {/* T-390（FR-127）：包型身份走 brand 版官方标（字符图标退役）；
                 药丸内与包名同现 = 装饰位（aria-hidden 在 PkgIcon 内） */}
-            <PkgIcon id={m.id} variant="brand" size={18} className="pkg-icon" />
-            <span className="pkg-name">{m.label}</span>
+            <PkgIcon id={m.id} variant="brand" size={18} className="pkg-icon text-primary" />
+            <span className="pkg-name font-semibold text-[length:var(--bf-fs-sm)]">{m.label}</span>
           </button>
         ))}
       </div>
@@ -459,7 +458,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
             <>
               {header(t('选择客户端类型'))}
               <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-                <p className="text-2">{t('选择包类型，了解如何向 BinFlow 解析与部署制品。')}</p>
+                <p className="text-muted-foreground">{t('选择包类型，了解如何向 BinFlow 解析与部署制品。')}</p>
                 {resolving ? <StateSkeleton lines={3} /> : renderGrid()}
               </div>
               <div className="flex justify-end border-t border-border px-4 py-3">
@@ -471,7 +470,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
               {header(
                 <>{t('配置')} {pkgMeta?.label ?? pkg} {t('客户端')}
                   {repoKey && (
-                    <span className="mono" lang="en" style={{ marginLeft: 8, fontSize: 'var(--bf-fs-body)' }}>
+                    <span className="font-mono text-[0.95em]" lang="en" style={{ marginLeft: 8, fontSize: 'var(--bf-fs-sm)' }}>
                       {repoKey}
                     </span>
                   )}
@@ -497,10 +496,10 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
                   <div className="field-hint">{t('下拉只列')} {pkgMeta?.label ?? pkg} {t('类型的仓库。')}</div>
                 </div>
 
-                <div className="smu-tabs" role="tablist" aria-label={t('接入指引')} ref={tabRef} onKeyDown={onTabKeys}>
+                <div className="flex gap-2 border-b border-border my-3" role="tablist" aria-label={t('接入指引')} ref={tabRef} onKeyDown={onTabKeys}>
                   <button
                     type="button"
-                    className="smu-tab"
+                    className="cursor-pointer border-b-2 border-transparent px-3 py-2 -mb-px text-[length:var(--bf-fs-md)] text-muted-foreground [font-family:inherit] [line-height:inherit] font-normal aria-selected:border-ring aria-selected:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
                     role="tab"
                     aria-selected={tab === 'configure'}
                     data-testid="smu-tab-configure"
@@ -508,7 +507,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
                   >{t('配置 Configure')}</button>
                   <button
                     type="button"
-                    className="smu-tab"
+                    className="cursor-pointer border-b-2 border-transparent px-3 py-2 -mb-px text-[length:var(--bf-fs-md)] text-muted-foreground [font-family:inherit] [line-height:inherit] font-normal aria-selected:border-ring aria-selected:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
                     role="tab"
                     aria-selected={tab === 'deploy'}
                     data-testid="smu-tab-deploy"
@@ -516,7 +515,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
                   >{t('部署 Deploy')}</button>
                   <button
                     type="button"
-                    className="smu-tab"
+                    className="cursor-pointer border-b-2 border-transparent px-3 py-2 -mb-px text-[length:var(--bf-fs-md)] text-muted-foreground [font-family:inherit] [line-height:inherit] font-normal aria-selected:border-ring aria-selected:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
                     role="tab"
                     aria-selected={tab === 'resolve'}
                     data-testid="smu-tab-resolve"
@@ -672,20 +671,20 @@ function TokenArea({
   return (
     <section style={{ margin: '12px 0' }}>
       {mint.phase === 'done' ? (
-        <div className="smu-token-panel" data-testid="smu-token-panel">
+        <div className="rounded-md border border-success bg-secondary p-3 my-3" data-testid="smu-token-panel">
           <div>
-            <b>{t('令牌已生成')}</b>{t('（以')} <span className="mono" lang="en">{username}</span> {t('身份自铸）')}</div>
-          <div className="token-line">
-            <code data-testid="smu-token" lang="en">
+            <b>{t('令牌已生成')}</b>{t('（以')} <span className="font-mono text-[0.95em]" lang="en">{username}</span> {t('身份自铸）')}</div>
+          <div className="flex items-center gap-2 my-2">
+            <code className="font-mono text-[length:var(--bf-fs-xs)] break-all" data-testid="smu-token" lang="en">
               {mint.token}
             </code>
             <CopyButton value={mint.token} label="API Token" />
           </div>
           <div className="field-hint">{t('关闭抽屉后不可再查看（服务端只存指纹）。有效期 24 小时（token_id')}{' '}
-            <span className="mono" lang="en">{mint.tokenId}</span>{t('）——CI 与脚本请使用此令牌，不要用控制台口令。')}</div>
+            <span className="font-mono text-[0.95em]" lang="en">{mint.tokenId}</span>{t('）——CI 与脚本请使用此令牌，不要用控制台口令。')}</div>
         </div>
       ) : mint.phase === 'need-password' ? (
-        <div className="smu-stepup" data-testid="smu-stepup">
+        <div className="rounded-md border border-warning bg-secondary p-3 my-3" data-testid="smu-stepup">
           <div className="field" style={{ marginBottom: 8 }}>
             <label htmlFor="smu-password">{t('服务端要求二次口令（step-up）——输入当前账号口令后继续铸币')}</label>
             <input
@@ -705,13 +704,13 @@ function TokenArea({
             />
           </div>
           {mint.error && (
-            <p className="smu-error-inline" role="alert" data-testid="smu-password-error" lang="en">
+            <p className="text-[length:var(--bf-fs-xs)] text-destructive mt-1" role="alert" data-testid="smu-password-error" lang="en">
               {mint.error}
             </p>
           )}
           <details>
-            <summary className="field-hint">{t('服务端原文')}</summary>
-            <pre className="smu-error-raw" lang="en">
+            <summary className="field-hint text-muted-foreground">{t('服务端原文')}</summary>
+            <pre className="font-mono text-[length:var(--bf-fs-xs)] text-muted-foreground break-all" lang="en">
               {mint.raw ?? ''}
             </pre>
           </details>
@@ -730,7 +729,7 @@ function TokenArea({
         <div className="smu-stepup" data-testid="smu-oidc-stepup">
           <p className="field-hint" style={{ marginBottom: 8 }}>{t('服务端要求重新认证（step-up）：SSO 会话铸造令牌需到身份提供方重新登录一次。点击后将跳转登录页 （强制重新输入 IdP 凭据），完成后自动返回此处继续铸币——本抽屉的上下文会被记住。')}</p>
           {mint.error && (
-            <p className="smu-error-inline" role="alert" data-testid="smu-reauth-error" lang="en">
+            <p className="text-[length:var(--bf-fs-xs)] text-destructive mt-1" role="alert" data-testid="smu-reauth-error" lang="en">
               {mint.error}
             </p>
           )}
@@ -738,8 +737,8 @@ function TokenArea({
             <p className="field-hint">{t('重认证凭证已失效（过期、已使用或身份不符）——需重新走一次登录，不会以旧凭证重试。')}</p>
           )}
           <details>
-            <summary className="field-hint">{t('服务端原文')}</summary>
-            <pre className="smu-error-raw" lang="en">
+            <summary className="field-hint text-muted-foreground">{t('服务端原文')}</summary>
+            <pre className="font-mono text-[length:var(--bf-fs-xs)] text-muted-foreground break-all" lang="en">
               {mint.raw ?? ''}
             </pre>
           </details>
@@ -778,7 +777,7 @@ function TokenArea({
               <span className="field-hint" data-testid="smu-pending-hint" style={{ display: 'block' }}>{t('有一笔铸造正在等待重认证完成…（')}{pendingAgeMin} {t('分钟前发起；若已在登录页取消，直接重新生成即可再次发起）')}</span>
             )}
             {mint.phase === 'error' && (
-              <span className="smu-error-inline" role="alert" style={{ display: 'block' }}>{t('铸币失败（HTTP')} {mint.status}{t('）：')}{mint.message}
+              <span className="text-[length:var(--bf-fs-xs)] text-destructive mt-1" role="alert" style={{ display: 'block' }}>{t('铸币失败（HTTP')} {mint.status}{t('）：')}{mint.message}
               </span>
             )}
           </p>

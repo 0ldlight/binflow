@@ -2,9 +2,10 @@
  * 族 2 — Typography（design-system-plan §3.2，Inter 九级）。
  *
  * 批 1 只定义九级新阶（2xs~3xl）+ 字重/数字特性槽位，消费面零改动：
- * 旧六级名（fs-aux 等）在尾部别名到同值新阶，桥接层（../tailwind.css
- * --text-* 映射）经别名解析——值逐档相等（12/13/14/16/20/24），截图
- * 差分≈0。九级生效（lg/3xl 两新档进消费面、Inter 上栈）在批 3。
+ * 旧六级名（fs-aux 等）的尾部别名已随批 5（T-UIB5）删除，桥接层
+ * （../tailwind.css --text-* 映射）与旧 CSS 层均直指九级新阶——值逐档
+ * 相等（12/13/14/16/20/24），截图差分≈0。九级生效（lg/3xl 两新档进
+ * 消费面、Inter 上栈）在批 3。
  *
  * CJK 回退栈原样保留（Inter 无 CJK 字形，zh 文本回退 PingFang SC /
  * Microsoft YaHei——批 3 引 Inter 时在 --bf-font-sans 头部前置
@@ -50,12 +51,6 @@
   --bf-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas,
     'Liberation Mono', monospace;
 
-  /* ---------- 旧字号名别名（消费面零改动；批 5 旧 CSS 退役清偿后删） ----------
-   * 指向同值新阶（§3.2 迁移映射），非复制字面量——单一事实源在新阶。 */
-  --bf-fs-aux: var(--bf-fs-xs);
-  --bf-fs-body: var(--bf-fs-sm);
-  --bf-fs-form: var(--bf-fs-base);
-  --bf-fs-h3: var(--bf-fs-md);
-  --bf-fs-h2: var(--bf-fs-xl);
-  --bf-fs-h1: var(--bf-fs-2xl);
+  /* 旧字号名别名已随批 5（T-UIB5）删除——消费面（旧 CSS 层与桥接槽位）
+   * 已全部直指九级新阶；grep 引用 = 0 见票报。 */
 }

@@ -70,7 +70,7 @@ test('admin: create user with transfer membership, edit partitions, role dropdow
   await page.click('[data-testid="user-form-submit"]')
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: `用户 ${user} 已创建` })).toBeVisible({ timeout: 8000 })
   await expect(page.locator(`[data-testid="user-row-${user}"]`)).toContainText(group)
-  await expect(page.locator(`[data-testid="user-row-${user}"]`).locator('.badge', { hasText: 'user' })).toBeVisible()
+  await expect(page.locator(`[data-testid="user-row-${user}"]`).locator('[data-slot="badge"]', { hasText: 'user' })).toBeVisible()
 
   // —— 编辑器：分区（用户设置/选项/口令/相关组）+ 角色 + 穿梭移出 ——
   await page.goto(`/binflow/ui/admin/security/users/${user}`)
@@ -213,7 +213,7 @@ test('readonly_admin: users/groups read-only walk, write replay stays 403 server
   await page.goto('/binflow/ui/admin/security/users')
   await expect(page.locator('[data-testid="users-readonly-note"]')).toBeVisible()
   await expect(page.locator('[data-testid="users-create"]')).toHaveCount(0)
-  await expect(page.locator(`[data-testid="user-row-${self}"] .badge`)).toContainText('readonly_admin')
+  await expect(page.locator(`[data-testid="user-row-${self}"] [data-slot="badge"]`)).toContainText('readonly_admin')
 
   // 用户编辑器：全编辑面禁用（角色下拉/启用/口令/穿梭/保存）
   await page.goto(`/binflow/ui/admin/security/users/${self}`)

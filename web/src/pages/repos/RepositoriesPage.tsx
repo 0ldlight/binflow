@@ -359,7 +359,7 @@ export default function RepositoriesPage() {
         ))}
       </div>
 
-      <div className="filter-bar flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 py-3">
         <Input
           type="search"
           placeholder={tt('搜索 {v1} 仓 key…', { v1: TYPE_LABEL[tab] })}
@@ -369,7 +369,7 @@ export default function RepositoriesPage() {
           data-testid="repos-filter-key"
           aria-label={tt('搜索仓库 key')}
         />
-        <span className="filter-tail-actions filter-tail-end ml-auto flex items-center gap-1.5">
+        <span className="ml-auto flex items-center gap-1.5">
           <Popover open={colsOpen} onOpenChange={setColsOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" aria-haspopup="menu" aria-expanded={colsOpen} data-testid="repos-columns" title={tt('自定义显示列（偏好保存在本浏览器）')}>
@@ -394,7 +394,7 @@ export default function RepositoriesPage() {
                       if (!last) cols.toggle(c.id)
                     }}
                   >
-                    <span aria-hidden="true" className="col-check">{visible ? '☑' : '☐'}</span>
+                    <span aria-hidden="true" className="inline-block w-[1.25em] text-primary">{visible ? '☑' : '☐'}</span>
                     {c.label}
                   </button>
                 )
@@ -522,7 +522,7 @@ role="menuitem"
                     )}
                     {cols.isVisible('package') && (
                       <td className="px-3 py-1.5">
-                        <span className="badge neutral inline-flex items-center gap-1 rounded-sm bg-secondary px-1.5 py-0.5 text-[11px]">
+                        <span data-variant="tint-neutral" className="inline-flex items-center gap-1 rounded-sm bg-secondary px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-muted-foreground">
                           <PkgIcon id={repo.packageType} variant="mono" size={13} />
                           {PKG_LABEL[repo.packageType] ?? repo.packageType}
                         </span>

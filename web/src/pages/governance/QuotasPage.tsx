@@ -12,7 +12,7 @@ import { Link } from 'react-router-dom'
 
 import { useAuth } from '@/app/AuthContext'
 import { Button, ButtonAsChild } from '@/components/ui/button'
-import { Badge } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { TextInput } from '@/components/layout/fields'
@@ -32,13 +32,13 @@ function WaterBar({ usage }: { usage: RepoUsage }) {
   const quota = usage.quotaBytes
   if (quota <= 0) {
     return (
-      <span className="text-aux text-2">{tt('不限（quotaBytes 0）')}</span>
+      <span className="text-aux text-muted-foreground">{tt('不限（quotaBytes 0）')}</span>
     )
   }
   const pct = Math.min(100, (usage.usedBytes / quota) * 100)
   const cls = usage.usedBytes >= quota ? 'full' : pct >= 80 ? 'warn' : ''
   return (
-    <div className="quota-bar" data-testid={`quota-bar-${usage.repo}`}>
+    <div className="flex items-center gap-2" data-testid={`quota-bar-${usage.repo}`}>
       {/* 新栈水位条（water-bar + .fill——governance.css 既有 token 消费面；
           ≥80% warn、≥100% full，governance spec 的 toHaveClass 钩子保持） */}
       <div
@@ -51,7 +51,7 @@ function WaterBar({ usage }: { usage: RepoUsage }) {
       >
         <div className="fill" style={{ width: `${Math.max(usage.usedBytes > 0 ? 2 : 0, Math.round(pct))}%` }} />
       </div>
-      <span className={`pct${cls ? ` ${cls}` : ''}`}>
+      <span className={`pct min-w-[44px] text-right font-mono text-[length:var(--bf-fs-xs)] whitespace-nowrap ${cls === 'full' ? 'text-destructive' : cls === 'warn' ? 'text-warning' : 'text-muted-foreground'}`}>
         {pct.toFixed(0)}%{usage.usedBytes >= quota ? tt(' 满') : pct >= 80 ? tt(' 高') : ''}
       </span>
     </div>
@@ -114,7 +114,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
         <CopyButton value={repo.key} label={tt('仓库 key {v1}', { v1: repo.key })} />
       </td>
       <td className="px-3 py-1.5">
-        <Badge mono lang="en">{repo.type}</Badge>
+        <Badge variant="tint-neutral" mono lang="en">{repo.type}</Badge>
       </td>
       <td className="px-3 py-1.5">
         {repo.type === 'virtual' ? (
@@ -151,7 +151,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
           <span className="text-muted-foreground">{tt('—（仅 local 仓支持）')}</span>
         )}
       </td>
-      <td className="quota-bar-cell px-3 py-1.5">
+      <td className="w-[240px] px-3 py-1.5">
         {usage.status === 'ok' && u ? <WaterBar usage={u} /> : <span className="text-muted-foreground">—</span>}
       </td>
       <td className="whitespace-nowrap px-3 py-1.5">
@@ -164,7 +164,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
               {tt('取消')}
             </Button>
             {editErr && (
-              <span className="field-error" role="alert">{editErr}</span>
+              <span className="field-error mt-1 block max-w-[280px] whitespace-normal" role="alert">{editErr}</span>
             )}
           </>
         ) : (
@@ -182,7 +182,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
                 {tt('编辑上限')}
               </Button>
             )}{' '}
-            <Link className="text-aux text-2 hover:underline" to={`/admin/repositories/${repo.key}/edit`}>{tt('仓库设置 →')}</Link>
+            <Link className="text-aux text-muted-foreground hover:underline" to={`/admin/repositories/${repo.key}/edit`}>{tt('仓库设置 →')}</Link>
           </>
         )}
       </td>
@@ -201,7 +201,7 @@ export default function QuotasPage() {
     <div data-testid="quotas-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">{tt('配额')}</h2>
-        <span className="text-aux text-2">{tt('水位 ≥80% 黄 · ≥100% 红（此后写入 413）')}</span>
+        <span className="text-aux text-muted-foreground">{tt('水位 ≥80% 黄 · ≥100% 红（此后写入 413）')}</span>
       </div>
       {readOnly && (
         <p className="admin-note" data-testid="quotas-readonly-note">

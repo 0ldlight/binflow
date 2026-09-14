@@ -150,7 +150,7 @@ export default function PropertiesTab({
       confirmLabel: t('删除'),
       body: (
         <p>
-          {PROPS_COPY.deleteLead} <b className="mono" lang="en">{key}</b> {PROPS_COPY.deleteTrail}
+          {PROPS_COPY.deleteLead} <b className="font-mono text-[0.95em]" lang="en">{key}</b> {PROPS_COPY.deleteTrail}
         </p>
       ),
     })

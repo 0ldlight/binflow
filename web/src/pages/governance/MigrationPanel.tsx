@@ -219,7 +219,7 @@ export default function MigrationPanel() {
       )}
       {data && !unconfigured && <MigrationBody data={data} staleError={status.isError ? errText(error) : undefined} />}
       {canStart && (
-        <div className="gc-actions">
+        <div className="flex flex-wrap items-center gap-3 my-3">
           <Button
             variant="outline"
             size="sm"
@@ -232,14 +232,14 @@ export default function MigrationPanel() {
             {starting ? tt('启动中…') : tt('启动迁移')}
           </Button>
           {readOnly ? (
-            <span className="text-aux text-2">{tt('只读管理员：启动迁移为管理面写操作（system:write），入口已禁用——服务端 403 兜底。')}</span>
+            <span className="text-aux text-muted-foreground">{tt('只读管理员：启动迁移为管理面写操作（system:write），入口已禁用——服务端 403 兜底。')}</span>
           ) : (
-            <span className="text-aux text-2">{tt('危险操作——需二次确认（输入 YES）')}</span>
+            <span className="text-aux text-muted-foreground">{tt('危险操作——需二次确认（输入 YES）')}</span>
           )}
         </div>
       )}
       {startError && (
-        <AlertBox severity="error" className="gc-error" testid="migration-start-error">
+        <AlertBox severity="error" testid="migration-start-error">
           <div className="font-medium">
             <span aria-hidden="true">✗</span>
             {startError.status === 409
@@ -247,9 +247,9 @@ export default function MigrationPanel() {
               : tt('迁移启动失败（HTTP {v1}）', { v1: startError.status })}
           </div>
           {startError.status === 409 && (
-            <div className="text-2">{tt('服务端拒绝了本次启动——实例可能已不在双写装配状态；检查 storage.migration 配置后重试，或直接查看上方状态。')}</div>
+            <div className="text-muted-foreground">{tt('服务端拒绝了本次启动——实例可能已不在双写装配状态；检查 storage.migration 配置后重试，或直接查看上方状态。')}</div>
           )}
-          <pre lang="en" className="font-mono text-aux">{startError.message}</pre>
+          <pre lang="en" className="m-0 mt-2 rounded-sm bg-background p-2 font-mono text-[length:var(--bf-fs-xs)] whitespace-pre-wrap break-all">{startError.message}</pre>
         </AlertBox>
       )}
     </section>

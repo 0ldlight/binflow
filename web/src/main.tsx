@@ -33,7 +33,6 @@ import { initI18n } from '@/i18n'
 import './design-system/fonts.css'
 import './styles/base.css'
 import './styles/pages.css'
-import './styles/governance.css'
 // 设计系统入口（design-system/tailwind.css——token 六族聚合 + @theme
 // 桥接 + dark 变体绑 [data-theme]；批 1 收编，值零改动）。preflight 在
 // 共存期关闭（tailwind.css 头注——与旧 base.css 的元素基线零冲突）；

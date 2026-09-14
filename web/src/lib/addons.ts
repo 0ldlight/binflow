@@ -32,10 +32,12 @@ export function normalizeTier(tier: string): LicenseTier {
   return tier === 'pro' || tier === 'enterprise' ? tier : 'community'
 }
 
-/** 档位徽章 class（三色：community=中性灰 地板 / pro=蓝 / enterprise=金） */
-export function tierBadgeClass(tier: string): string {
+/** 档位徽章变体（三色：community=中性灰 地板 / pro=蓝 / enterprise=金；
+ * 批 5 起返回 ui/Badge tint-* 变体名） */
+export type TierBadgeVariant = 'tint-neutral' | 'tint-pro' | 'tint-enterprise'
+export function tierBadgeClass(tier: string): TierBadgeVariant {
   const t = normalizeTier(tier)
-  return t === 'community' ? 'badge neutral' : `badge tier-${t}`
+  return t === 'community' ? 'tint-neutral' : `tint-${t}`
 }
 
 // ---- GET /api/system/license（§15.1.4 字段清单，无文档原文回显） ----

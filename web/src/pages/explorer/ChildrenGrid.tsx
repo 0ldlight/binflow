@@ -218,7 +218,7 @@ export function ChildrenGrid({
             return (
               <span className="flex flex-wrap items-center gap-1">
                 {n.tags.map((tag) => (
-                  <span key={tag} className="badge neutral rounded-sm bg-secondary px-1.5 py-px text-[11px]" data-testid={`tag-badge-${tag}`} title={`tag: ${tag}`}>
+                  <span key={tag} className="inline-flex items-center gap-1 rounded-sm bg-secondary px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-muted-foreground" data-testid={`tag-badge-${tag}`} title={`tag: ${tag}`}>
                     {tag}
                   </span>
                 ))}
@@ -287,7 +287,7 @@ export function ChildrenGrid({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       {/* ---- 过滤栏 + 批量动作栏 ---- */}
-      <div className="filter-bar flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 py-3">
         <Input
           type="search"
           placeholder={tt('过滤当前层（仅已加载集）…')}
@@ -307,7 +307,7 @@ export function ChildrenGrid({
           {tt('只看文件')}
         </Label>
         {total > 0 && (
-          <span className="count text-aux text-muted-foreground">
+          <span className="ml-auto text-aux text-muted-foreground tabular-nums whitespace-nowrap">
             {tt('共')} {total} {tt('项')}
           </span>
         )}

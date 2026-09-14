@@ -621,7 +621,7 @@ test('CFG8: saml sp certificate — empty state, regenerate via danger confirm, 
     const res = await fetch('/binflow/api/v1/admin/security/saml/config/key/public')
     return { status: res.status, text: await res.text() }
   })
-  const fp = card.locator('.authcfg-cert-fp > span.mono') // 限定 span——CopyButton 也带 mono 类
+  const fp = card.locator('.authcfg-cert-fp > span.font-mono') // 限定 span——CopyButton 也带 mono 类
   if (probe.status === 404) {
     // 无证书即无下载物——按钮不渲染（禁用态 MUI 灰对比度不达标，册内注记）
     await expect(download).toHaveCount(0)

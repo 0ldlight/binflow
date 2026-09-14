@@ -17,7 +17,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/app/AuthContext'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/layout/copy-button'
-import { Badge, StatusLabel } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
+import { StatusLabel } from '@/components/layout/bits'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { Pager, useClientPager } from '@/components/layout/pager'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -54,9 +55,9 @@ const COLS_KEY = 'binflow-console-cols-users'
 
 function RoleLabel({ role }: { role: AdminRole }) {
   // 语义 badge（admin = warning outlined 形态的语义对位——对比度登记 T-344D）
-  if (role === 'admin') return <Badge variant="warning" mono lang="en" className="badge-warning-outlined">admin</Badge>
-  if (role === 'readonly_admin') return <Badge mono lang="en">readonly_admin</Badge>
-  return <Badge mono lang="en">user</Badge>
+  if (role === 'admin') return <Badge variant="tint-warning" mono lang="en" className="border border-badge-warning-outline">admin</Badge>
+  if (role === 'readonly_admin') return <Badge variant="tint-neutral" mono lang="en">readonly_admin</Badge>
+  return <Badge variant="tint-neutral" mono lang="en">user</Badge>
 }
 
 function roleBadge(item: UserListItem) {
@@ -118,9 +119,9 @@ export default function UsersPage() {
         </p>
       )}
 
-      {/* 列选器（filter-bar 尾组——本页无工具栏搜索面，用户数 = 实例账号规模） */}
-      <div className="filter-bar">
-        <span className="filter-tail-actions filter-tail-end ml-auto">
+      {/* 列选器（工具栏尾组——本页无工具栏搜索面，用户数 = 实例账号规模） */}
+      <div className="flex flex-wrap items-center gap-3 py-3">
+        <span className="ml-auto inline-flex items-center gap-2">
       {/* 列选器（T-387 L1 / T-414——内联形态：锚字面量对 anchor-audit 可见，
           P2 RepositoriesPage 同款） */}
       <Popover open={colsOpen} onOpenChange={setColsOpen}>
@@ -154,7 +155,7 @@ export default function UsersPage() {
                   if (!last) cols.toggle(c.id)
                 }}
               >
-                <span aria-hidden="true" className="col-check">{visible ? '☑' : '☐'}</span>
+                <span aria-hidden="true" className="inline-block w-[1.25em] text-primary">{visible ? '☑' : '☐'}</span>
                 {c.label}
               </button>
             )
@@ -236,7 +237,7 @@ role="menuitem"
                       )}
                       {cols.isVisible('email') && (
                         <td className="px-3 py-1.5">
-                          <span className="text-2">{r.email}</span>
+                          <span className="text-muted-foreground">{r.email}</span>
                         </td>
                       )}
                       {cols.isVisible('groups') && (
@@ -245,10 +246,10 @@ role="menuitem"
                             <span className="text-muted-foreground">—</span>
                           ) : (
                             <span title={r.groups.join(', ')}>
-                              <Badge>{r.groups.length}</Badge>{' '}
+                              <Badge variant="tint-neutral">{r.groups.length}</Badge>{' '}
                               <span className="sec-chips">
                                 {r.groups.map((g) => (
-                                  <Badge key={g} mono lang="en">{g}</Badge>
+                                  <Badge variant="tint-neutral" key={g} mono lang="en">{g}</Badge>
                                 ))}
                               </span>
                             </span>

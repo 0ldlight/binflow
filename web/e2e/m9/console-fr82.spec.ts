@@ -142,7 +142,7 @@ test('tree filter: filtered-empty state is explicit and clearable, not a bare em
   // 仅「只看文件」收窄出的空（无过滤词）：按实际谓词呈现，不误报「无匹配」
   await page.goto(`/binflow/ui/artifacts/${repoA}/group`) // group 层只有目录 g-one
   await expect(page.locator('[data-testid="tree-row-g-one"]')).toBeVisible()
-  await page.locator('.filter-bar .check-row input').check()
+  await page.locator('.check-row input').first().check()
   await expect(page.locator('[data-testid="empty-state"]')).toContainText('只有目录')
   await page.click('[data-testid="tree-filter-clear"]')
   // P2 栈：children 面 = AG Grid（行是 div[role=row]，非 tbody tr）

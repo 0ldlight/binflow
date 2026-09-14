@@ -14,7 +14,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { ApiError, errText } from '@/lib/api'
@@ -32,13 +32,13 @@ function formatMillis(ts: number): string {
 }
 
 /** 一条记录的可呈现状态 */
-function recordStatus(rec: TroubleshootingRecord): { label: string; color: 'success' | 'danger' | 'warning' } {
+function recordStatus(rec: TroubleshootingRecord): { label: string; color: 'tint-success' | 'tint-danger' | 'tint-warning' } {
   if (rec.errors.length > 0 && rec.response.status === 0) {
-    return { label: tt('发送失败'), color: 'danger' }
+    return { label: tt('发送失败'), color: 'tint-danger' }
   }
   const s = rec.response.status
-  if (s >= 200 && s < 300) return { label: tt('{s} 已送达', { s: s }), color: 'success' }
-  return { label: `${s}`, color: 'danger' }
+  if (s >= 200 && s < 300) return { label: tt('{s} 已送达', { s: s }), color: 'tint-success' }
+  return { label: `${s}`, color: 'tint-danger' }
 }
 
 type RecordsPhase =
@@ -90,8 +90,8 @@ export default function SubscriptionDrawer({
           <SheetTitle className="flex items-center gap-2">
             <span className="break-all font-mono text-base" lang="en">{sub.key}</span>
             <span className="flex-1" />
-            <Badge variant={sub.enabled ? 'success' : 'neutral'}>{sub.enabled ? tt('启用') : tt('停用')}</Badge>
-            {sub.debug && <Badge mono lang="en">debug</Badge>}
+            <Badge variant={sub.enabled ? 'tint-success' : 'tint-neutral'}>{sub.enabled ? tt('启用') : tt('停用')}</Badge>
+            {sub.debug && <Badge variant="tint-neutral" mono lang="en">debug</Badge>}
             <button
               type="button"
               aria-label={tt('关闭')}
@@ -105,7 +105,7 @@ export default function SubscriptionDrawer({
         </SheetHeader>
 
         <div className="flex flex-1 flex-col gap-4 px-4 pb-4">
-          {sub.description && <p className="text-dense text-2">{sub.description}</p>}
+          {sub.description && <p className="text-dense text-muted-foreground">{sub.description}</p>}
 
           <div className="flex flex-col gap-1">
             <span className="text-aux text-muted-foreground">{tt('事件域')}</span>
@@ -113,13 +113,13 @@ export default function SubscriptionDrawer({
             <span className="mt-1 text-aux text-muted-foreground">{tt('事件型（wired = 有触发源）')}</span>
             <div className="flex flex-wrap gap-1">
               {sub.event_filter.event_types.map((t) => (
-                <span
+                <Badge
                   key={t}
-                  className={`badge ${isWired(sub.event_filter.domain, t) ? 'success' : 'neutral'}`}
+                  variant={isWired(sub.event_filter.domain, t) ? 'tint-success' : 'tint-neutral'}
                   lang="en"
                 >
                   {t}
-                </span>
+                </Badge>
               ))}
             </div>
           </div>
@@ -136,7 +136,7 @@ export default function SubscriptionDrawer({
             <div className="break-all font-mono" lang="en">
               {handler?.url ?? '—'} {handler?.url && <CopyButton value={handler.url} label={tt('接收器 URL')} />}
             </div>
-            <p className="text-dense text-2">
+            <p className="text-dense text-muted-foreground">
               {tt('secret：')}{handler?.secret ? tt('已设置（write-only，回显为掩码）') : tt('未设置')}
               {handler?.secret && handler.use_secret_for_signing ? tt('；签名态（HMAC-SHA256 → X-JFrog-Event-Auth）') : ''}
             </p>

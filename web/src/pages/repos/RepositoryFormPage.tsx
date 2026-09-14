@@ -869,9 +869,9 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                             data-testid={`form-member-${o.key}`}
                           />
                           <span className="font-mono" lang="en">{o.key}</span>{' '}
-                          <span className="badge neutral rounded-sm bg-secondary px-1.5 py-px text-[11px]">{o.type}</span>
+                          <span className="inline-flex items-center gap-1 rounded-sm bg-secondary px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-muted-foreground">{o.type}</span>
                           {cfgBool(o.configuration, 'priorityResolution') && (
-                            <span className="badge warning rounded-sm border border-warning px-1.5 py-px text-[11px] text-warning">{t('优先解析')}</span>
+                            <span className="inline-flex items-center gap-1 rounded-sm border border-warning px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-badge-warning bg-badge-warning-soft">{t('优先解析')}</span>
                           )}
                         </Label>
                       ))}

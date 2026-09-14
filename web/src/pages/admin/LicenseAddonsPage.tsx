@@ -15,6 +15,7 @@ import type { ReactNode } from 'react'
 
 import { useAuth } from '@/app/AuthContext'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { AlertBox } from '@/components/layout/bits'
 import { PkgIcon } from '@/components/PkgIcon'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
@@ -140,10 +141,10 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
           <div className="kv">
             <span className="k">{t('当前档位')}</span>
             <span>
-              <span className={`badge ${tierBadgeClass(state.data.tier)}`} data-testid="license-tier" lang="en">
+              <Badge variant={tierBadgeClass(state.data.tier)} data-testid="license-tier" lang="en">
                 {normalizeTier(state.data.tier)}
-              </span>
-              <span className="ml-2 text-2">
+              </Badge>
+              <span className="ml-2 text-muted-foreground">
                 {state.data.licensed ? t('已授权') : t('未安装 license')}
               </span>
             </span>
@@ -259,13 +260,13 @@ function AddonTableRow({ row }: { row: AddonRow }) {
         </span>
       </td>
       <td className="px-3 py-1.5">
-        <span className="badge neutral mono" lang="en">{row.kind}</span>
+        <Badge variant="tint-neutral" mono lang="en">{row.kind}</Badge>
       </td>
       <td className="px-3 py-1.5" data-testid={`addons-tier-${row.id}`}>
         {tier === 'community' ? (
-          <span className="text-2" title={t('community 地板：无 license 也解锁')}>—</span>
+          <span className="text-muted-foreground" title={t('community 地板：无 license 也解锁')}>—</span>
         ) : (
-          <span className={`badge ${tierBadgeClass(tier)}`} lang="en">{tier}</span>
+          <Badge variant={tierBadgeClass(tier)} lang="en">{tier}</Badge>
         )}
       </td>
       <td className="px-3 py-1.5" data-testid={`addons-state-${row.id}`}>
@@ -275,13 +276,13 @@ function AddonTableRow({ row }: { row: AddonRow }) {
           </>
         ) : disabledCfg ? (
           <>
-            <span className="badge warning">{t('⊘ 已禁用')}</span>
-            <span className="ml-1.5 text-2" title={row.reason ?? ''}>{t('配置熔断（addons.disabled）')}</span>
+            <Badge variant="tint-warning">{t('⊘ 已禁用')}</Badge>
+            <span className="ml-1.5 text-muted-foreground" title={row.reason ?? ''}>{t('配置熔断（addons.disabled）')}</span>
           </>
         ) : (
           <>
             <span aria-hidden="true">⊘</span> {t('锁定')}
-            <span className="ml-1.5 text-2" title={row.reason ?? ''}>{t('需要')} {tier} {t('档')}</span>
+            <span className="ml-1.5 text-muted-foreground" title={row.reason ?? ''}>{t('需要')} {tier} {t('档')}</span>
           </>
         )}
       </td>
@@ -315,7 +316,7 @@ export default function LicenseAddonsPage() {
     <div data-testid="license-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">License &amp; Add-ons</h2>
-        <span className="text-aux text-2">{t('档位 × addon 解锁矩阵（实时求值，与门控执行同源）')}</span>
+        <span className="text-aux text-muted-foreground">{t('档位 × addon 解锁矩阵（实时求值，与门控执行同源）')}</span>
       </div>
 
       <LicenseCard rev={rev} onChanged={bump} />

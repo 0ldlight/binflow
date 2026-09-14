@@ -99,7 +99,7 @@ test('admin: governance 5 pages + storage summary + system info; storage table A
   // 量级）+ 用量列非空
   const row = page.locator(`[data-testid="storage-row-${repo}"]`)
   await expect(row).toBeVisible()
-  await expect(row.locator('.badge', { hasText: 'local' })).toBeVisible()
+  await expect(row.locator('[data-slot="badge"]', { hasText: 'local' })).toBeVisible()
   await expect(row).toContainText('generic')
   // 数值面（配额/占用/占比）随存储摘要聚合适终一致；默认并发下摘要计算可
   // 落后行渲染 >5s（T-268 轮 3 实测整行「———」），放宽本行等待窗口。

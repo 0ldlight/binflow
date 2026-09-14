@@ -54,7 +54,7 @@ export function TransferBox({
         onChange={(e) => onToggle(item.name, e.target.checked)}
         {...(itemTestid?.(item.name) ? { 'data-testid': itemTestid(item.name) } : {})}
       />
-      <span className="mono" lang="en">
+      <span className="font-mono text-[0.95em]" lang="en">
         {item.label ?? item.name}
       </span>
       {note(item)}

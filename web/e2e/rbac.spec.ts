@@ -173,7 +173,7 @@ test('V13: readonly_admin walk — admin pages visible, no write entry, replayed
   await expect(ro.locator('[data-testid="users-readonly-note"]')).toBeVisible()
   await expect(ro.locator('[data-testid="users-create"]')).toHaveCount(0)
   await expect(ro.locator(`[data-testid="user-row-${roName}"]`)).toBeVisible()
-  await expect(ro.locator(`[data-testid="user-row-${roName}"] .badge`, { hasText: 'readonly_admin' })).toBeVisible()
+  await expect(ro.locator(`[data-testid="user-row-${roName}"] [data-slot="badge"]`, { hasText: 'readonly_admin' })).toBeVisible()
 
   // 用户详情：GET 回显只读呈现——角色下拉禁用且值 = readonly_admin，保存禁用
   await ro.goto(`${origin}/binflow/ui/admin/security/users/${roName}`)

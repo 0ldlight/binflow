@@ -98,7 +98,9 @@ export function PkgIcon({
   label?: string
 }) {
   const html = svgSource(id, variant)
-  const cls = className ? `pkg-svg ${className}` : 'pkg-svg'
+  // pkg-svg 类名保留：暗底提亮选择器（pkg-icon.css 尾块）与 spec 锚仍挂它；
+  // 布局规则已批 5 迁工具类（inline-flex shrink-0 + svg 满充）
+  const cls = className ? `pkg-svg inline-flex shrink-0 items-center justify-center [&_svg]:block [&_svg]:size-full ${className}` : 'pkg-svg inline-flex shrink-0 items-center justify-center [&_svg]:block [&_svg]:size-full'
   const a11y = label ? { role: 'img' as const, 'aria-label': label } : { 'aria-hidden': true }
   return (
     <span

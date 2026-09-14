@@ -477,14 +477,14 @@ test('contrast rollback (T-266): shared-badge verdict states + role badge axe-cl
     // 命中 → 共享 .badge.success（perm-verdict-success 退役，类名实证）
     await page.fill('[data-testid="perm-pattern-test"]', 'qa/builds/app.bin')
     await expect(verdict).toContainText('匹配')
-    await expect(verdict).toHaveClass(/badge success/)
+    await expect(verdict).toHaveAttribute('data-variant', 'tint-success')
     await expect(verdict).not.toHaveClass(/perm-verdict/)
     await expectA11yClean(page, testInfo, { include: '[data-testid="perm-pattern-result"]' })
 
     // 未命中（exclude 优先）→ 共享 .badge.danger
     await page.fill('[data-testid="perm-pattern-test"]', 'qa/tmp/x.bin')
     await expect(verdict).toContainText('不匹配')
-    await expect(verdict).toHaveClass(/badge danger/)
+    await expect(verdict).toHaveAttribute('data-variant', 'tint-danger')
     await expectA11yClean(page, testInfo, { include: '[data-testid="perm-pattern-result"]' })
   }
 
@@ -496,7 +496,7 @@ test('contrast rollback (T-266): shared-badge verdict states + role badge axe-cl
     await page.evaluate((t) => localStorage.setItem('binflow-console-theme', t), theme)
     await page.goto('/binflow/ui/admin/security/users')
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
-    const adminBadge = page.locator('[data-testid="user-row-admin"] .badge.warning')
+    const adminBadge = page.locator('[data-testid="user-row-admin"] [data-slot="badge"][data-variant="tint-warning"]')
     await expect(adminBadge).toHaveCount(1)
     await expect(adminBadge).toHaveText('admin')
     snapshots[theme] = await adminBadge.evaluate((el) => {

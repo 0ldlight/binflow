@@ -118,7 +118,7 @@ test('tree leaves: dirs expand into folder rows AND file leaves; file-only dirs 
   await page.locator('[data-testid="tree-leaf-docs/guide.md"]').click()
   await expect(page).toHaveURL(`/binflow/ui/artifacts/${key}/docs/guide.md`)
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
-  await expect(page.locator('[data-testid="node-detail"] h3 .mono')).toHaveText('docs/guide.md')
+  await expect(page.locator('[data-testid="node-detail"] h3 .font-mono')).toHaveText('docs/guide.md')
 
   // 叶子选中态（selected class）+ 表行联动选中
   await expect(page.locator('[data-testid="tree-leaf-docs/guide.md"]')).toHaveClass(/selected/)
@@ -215,7 +215,7 @@ test('url model: tab is a path segment, file is the last segment, legacy ?focus=
   await page.reload()
   await expect(page).toHaveURL(shared)
   await expect(page.locator('[data-testid="node-perms"]')).toBeVisible()
-  await expect(page.locator('[data-testid="node-detail"] h3 .mono')).toHaveText('docs/guide.md')
+  await expect(page.locator('[data-testid="node-detail"] h3 .font-mono')).toHaveText('docs/guide.md')
 
   // 页签段深链直达（Artifactory /tree/<TAB>/… 对位形态）
   await page.goto(`/binflow/ui/artifacts/properties/${key}/docs/guide.md`)
