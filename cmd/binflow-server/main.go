@@ -407,7 +407,8 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// whole wiring. The metadata-provider registration feeds the registry
 	// T-66/T-68/T-72 consume (T-63 seam); the nodes seam feeds the
 	// maven-metadata.xml calculator (T-68/FR-17).
-	mavenHandler := maven.New(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.Nodes())
+	mavenHandler := maven.New(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.Nodes()).
+		WithAuthorizer(stack.authSvc)
 	maven.RegisterMetadata()
 	// npm (M3/T-69): the /binflow/api/npm mount rewrites onto the content
 	// plane, so mounting is the Deps.Adapters entry; Register is the
