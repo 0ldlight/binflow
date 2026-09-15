@@ -15,8 +15,8 @@ func filestoreSpace(dir string) (int64, int64) {
 	if err := syscall.Statfs(dir, &st); err != nil {
 		return 0, 0
 	}
-	total := uint64(st.Bsize) * st.Blocks
-	free := uint64(st.Bsize) * st.Bavail
+	total := uint64(st.Bsize) * st.Blocks //nolint:gosec // G115: Bsize is a syscall block size, always positive on a valid filesystem
+	free := uint64(st.Bsize) * st.Bavail  //nolint:gosec // G115: Bsize is a syscall block size, always positive on a valid filesystem
 	return clampBytes(total), clampBytes(free)
 }
 
