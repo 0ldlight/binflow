@@ -142,8 +142,11 @@ func TestBuildRESTUploadAndEchoRoundTrip(t *testing.T) {
 			Modules    []struct {
 				ID        string `json:"id"`
 				Artifacts []struct {
-					Name string `json:"name"`
-					Path string `json:"path"`
+					Name   string `json:"name"`
+					Path   string `json:"path"`
+					Sha1   string `json:"sha1"`
+					Sha256 string `json:"sha256"`
+					Md5    string `json:"md5"`
 				} `json:"artifacts"`
 				Dependencies []struct {
 					ID     string   `json:"id"`
@@ -183,10 +186,13 @@ func TestBuildRESTUploadAndEchoRoundTrip(t *testing.T) {
 		len(api.Dependencies[0].Scopes) != 1 || api.Dependencies[0].Scopes[0] != "test" {
 		t.Fatalf("dependencies echo = %+v", api.Dependencies)
 	}
-	// The artifact's path names no live node: record-only, the echo carries
-	// no association form.
-	if api.Artifacts[0].Path != "" {
-		t.Fatalf("unresolvable artifact echoed a path: %q", api.Artifacts[0].Path)
+	// Diff D4: the artifact echo keeps the document's own path verbatim —
+	// an unresolvable path is echo data, never dropped.
+	if api.Artifacts[0].Path != "libs/pub-app/api-1.0.jar" {
+		t.Fatalf("artifact path echo = %q, want the wire literal", api.Artifacts[0].Path)
+	}
+	if api.Artifacts[0].Sha1 != "aa" || api.Artifacts[0].Sha256 != "bb" || api.Artifacts[0].Md5 != "cc" {
+		t.Fatalf("artifact digest echo = %+v (empty strings must survive too)", api.Artifacts[0])
 	}
 	// A module without segments still echoes empty ARRAYS, never null.
 	if bi.Modules[1].Artifacts == nil || bi.Modules[1].Dependencies == nil {

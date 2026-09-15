@@ -105,8 +105,8 @@ func TestBuildQueryDetailDefaultsAndSlim(t *testing.T) {
 	}
 
 	_, slim := getBuild(t, h, "/binflow/api/build/pub-app/51?slim=true", adminUser, adminPass)
-	if !strings.Contains(slim, `"modules": []`) || !strings.Contains(slim, `"properties": null`) {
-		t.Fatalf("slim shape wrong: %s", slim)
+	if !strings.Contains(slim, `"modules": []`) || strings.Contains(slim, `"properties"`) {
+		t.Fatalf("slim shape wrong (diff D5: the properties key is OMITTED, never null): %s", slim)
 	}
 }
 
@@ -171,9 +171,11 @@ func TestBuildQueryDetail404WithStartedClause(t *testing.T) {
 		t.Fatalf("seed = %d, want 204", code)
 	}
 
+	// Diff D6's live literals: a TRAILING space without the started
+	// clause, a space BEFORE the comma with it.
 	resp, doc := getBuild(t, h, "/binflow/api/build/pub-app/99", adminUser, adminPass)
 	if resp.StatusCode != http.StatusNotFound ||
-		!strings.Contains(doc, "No build was found for build name: pub-app, build number: 99") ||
+		!strings.Contains(doc, "No build was found for build name: pub-app, build number: 99 ") ||
 		strings.Contains(doc, "build started") {
 		t.Fatalf("plain detail 404 = %d %s", resp.StatusCode, doc)
 	}
@@ -181,7 +183,24 @@ func TestBuildQueryDetail404WithStartedClause(t *testing.T) {
 	resp, doc = getBuild(t, h,
 		"/binflow/api/build/pub-app/51?started=2026-09-07T09:00:00.000%2B0000", adminUser, adminPass)
 	if resp.StatusCode != http.StatusNotFound ||
-		!strings.Contains(doc, "No build was found for build name: pub-app, build number: 51, build started: 2026-09-07T09:00:00.000+0000") {
+		!strings.Contains(doc, "No build was found for build name: pub-app, build number: 51 , build started: 2026-09-07T09:00:00.000+0000") {
 		t.Fatalf("started-clause detail 404 = %d %s", resp.StatusCode, doc)
+	}
+
+	// Diff D7: a malformed started literal answers the reference's
+	// DateTimeFormatter shape (the sample: '+' decoded to a space — the
+	// space rides the query string percent-encoded).
+	resp, doc = getBuild(t, h, "/binflow/api/build/pub-app/51?started=2026-09-07T09:00:00.000%200000", adminUser, adminPass)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("malformed started = %d %s, want 400", resp.StatusCode, doc)
+	}
+	var d7 struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if json.Unmarshal([]byte(doc), &d7) != nil || len(d7.Errors) != 1 || d7.Errors[0].Message !=
+		`Invalid format: "2026-09-07T09:00:00.000 0000" is malformed at " 0000"` {
+		t.Fatalf("malformed started body = %s, want diff D7's verbatim 400", doc)
 	}
 }

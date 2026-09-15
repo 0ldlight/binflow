@@ -302,6 +302,14 @@ func (s *Server) handleBuildGet(w http.ResponseWriter, r *http.Request, name, nu
 		return
 	}
 	startedLit := q.Get("started")
+	if startedLit != "" {
+		// The read-side gate first (a malformed literal answers diff D7's
+		// verbatim 400 before any lookup).
+		if _, err := build.NormalizeStarted(startedLit); err != nil {
+			writeError(w, http.StatusBadRequest, invalidFormatMessage(startedLit))
+			return
+		}
+	}
 	c := build.Coordinate{
 		Name: name, Number: number,
 		Started: startedLit, Repo: q.Get("buildRepo"),
@@ -309,9 +317,12 @@ func (s *Server) handleBuildGet(w http.ResponseWriter, r *http.Request, name, nu
 	detail, err := s.builds.GetBuildDetail(r.Context(), principalFrom(r.Context()), c)
 	if err != nil {
 		if errors.Is(err, metadata.ErrBuildNotFound) {
-			msg := "No build was found for build name: " + name + ", build number: " + number
+			// diff D6's live literals: a TRAILING space without the started
+			// clause, a space BEFORE the comma with it.
+			msg := "No build was found for build name: " + name + ", build number: " + number + " "
 			if startedLit != "" {
-				msg += ", build started: " + startedLit
+				msg = "No build was found for build name: " + name + ", build number: " + number +
+					" , build started: " + startedLit
 			}
 			writeError(w, http.StatusNotFound, msg)
 			return
@@ -324,6 +335,58 @@ func (s *Server) handleBuildGet(w http.ResponseWriter, r *http.Request, name, nu
 		"uri":       buildFamilyURI(r, detail.Build.Repo, "/"+url.PathEscape(name)+"/"+url.PathEscape(number)),
 		"buildInfo": s.renderBuildInfo(detail, slimBuildQuery(q)),
 	})
+}
+
+// invalidFormatMessage renders diff D7's verbatim 400 — the reference's
+// DateTimeFormatter failure shape: `Invalid format: "<input>" is malformed
+// at "<rest>"`, where <rest> is the input from the first position the
+// canonical layout stops matching. The longest matching prefix is found by
+// a simple layout walk (the anchor sample: "…​.000 0000" → rest " 0000").
+func invalidFormatMessage(input string) string {
+	rest := malformedAt(input)
+	return fmt.Sprintf("Invalid format: %q is malformed at %q", input, rest)
+}
+
+// malformedAt returns the input from the first position the canonical
+// yyyy-MM-dd'T'HH:mm:ss[.SSS…]<offset> prefix walk breaks ("" when the
+// whole input plausibly continues — the caller's message then names the
+// empty remainder, same as the reference's positional read).
+func malformedAt(input string) string {
+	// Fixed skeleton: digits and separators the canonical layout pins.
+	const skeleton = "0000-00-00T00:00:00"
+	i := 0
+	for ; i < len(skeleton) && i < len(input); i++ {
+		wantDigit := skeleton[i] == '0'
+		isDigit := input[i] >= '0' && input[i] <= '9'
+		if wantDigit {
+			if !isDigit {
+				return input[i:]
+			}
+			continue
+		}
+		if input[i] != skeleton[i] {
+			return input[i:]
+		}
+	}
+	if i >= len(input) {
+		return "" // ran out mid-skeleton — malformed at the (empty) end
+	}
+	// The fraction: '.' followed by digits.
+	if input[i] == '.' {
+		i++
+		for i < len(input) && input[i] >= '0' && input[i] <= '9' {
+			i++
+		}
+		if i >= len(input) {
+			return ""
+		}
+	}
+	// The offset: Z/z or ±hh[:]mm — anything else is the break point.
+	switch input[i] {
+	case 'Z', 'z', '+', '-':
+		return ""
+	}
+	return input[i:]
 }
 
 // slimBuildQuery parses the ?slim= flag (true/1 — anything else or absent
@@ -734,10 +797,10 @@ func (s *Server) renderBuildInfo(d *build.Detail, slim bool) map[string]any {
 		delete(doc, "type")
 	}
 	if slim {
-		// §1 detail row: modules [] and properties null — the jf CLI's
-		// lightweight consumption shape.
+		// §1 detail row as the live wire reads it (diff D5): modules [] and
+		// the properties key OMITTED entirely — never null.
 		doc["modules"] = []buildModuleEcho{}
-		doc["properties"] = nil
+		delete(doc, "properties")
 	} else {
 		doc["modules"] = renderBuildModules(d.Modules)
 		props := make(map[string]any, len(d.Properties))
@@ -749,14 +812,32 @@ func (s *Server) renderBuildInfo(d *build.Detail, slim bool) map[string]any {
 	if _, ok := doc["durationMillis"]; !ok {
 		doc["durationMillis"] = 0 // §3.1's default echo
 	}
+	// diff D5: a buildRetention block echoes with its default trio padded
+	// (count -1, the artifact flag false, the exemption list []) — the
+	// stored document keeps only what the client wrote.
+	if br, ok := doc["buildRetention"].(map[string]any); ok {
+		if _, ok := br["count"]; !ok {
+			br["count"] = -1
+		}
+		if _, ok := br["deleteBuildArtifacts"]; !ok {
+			br["deleteBuildArtifacts"] = false
+		}
+		if _, ok := br["buildNumbersNotToBeDiscarded"]; !ok {
+			br["buildNumbersNotToBeDiscarded"] = []any{}
+		}
+	}
 	if len(d.Promotions) > 0 {
 		statuses := make([]map[string]any, 0, len(d.Promotions))
 		for _, p := range d.Promotions {
 			entry := map[string]any{
 				"status":    p.Status,
 				"timestamp": p.PromotedAt,
-				"comment":   p.Comment,
 				"user":      p.PromotedBy,
+			}
+			// diff D5: an empty comment omits the key (nullable fields
+			// never ride as "").
+			if p.Comment != "" {
+				entry["comment"] = p.Comment
 			}
 			// §3.1's wire shape: timestampDate is the epoch-milliseconds
 			// twin of timestamp (the schema-undocumented field the live
@@ -793,13 +874,19 @@ type buildModuleEcho struct {
 	Dependencies []buildDependencyEcho `json:"dependencies"`
 }
 
+// buildArtifactEcho is diff D4's fidelity shape: the six wire keys with
+// empty strings KEPT (A echoes them; omitempty would drop them) — path is
+// the document's own value verbatim (a relative path is echo data, never
+// the association), originalDeploymentRepo riding when the document
+// carried it.
 type buildArtifactEcho struct {
-	Type   string `json:"type,omitempty"`
-	Sha1   string `json:"sha1,omitempty"`
-	Sha256 string `json:"sha256,omitempty"`
-	Md5    string `json:"md5,omitempty"`
-	Name   string `json:"name,omitempty"`
-	Path   string `json:"path,omitempty"`
+	Type                   string `json:"type"`
+	Sha1                   string `json:"sha1"`
+	Sha256                 string `json:"sha256"`
+	Md5                    string `json:"md5"`
+	Name                   string `json:"name"`
+	Path                   string `json:"path"`
+	OriginalDeploymentRepo string `json:"originalDeploymentRepo,omitempty"`
 }
 
 type buildDependencyEcho struct {
@@ -811,10 +898,10 @@ type buildDependencyEcho struct {
 	Scopes []string `json:"scopes,omitempty"`
 }
 
-// renderBuildModules projects the store's module segment onto the wire echo.
-// Arrays are never null (an empty segment echoes []); the artifact path is
-// the association form "<repo>/<path>" — a record-only row carries no path
-// (the 024 design: the wire path IS the association).
+// renderBuildModules projects the store's module segment onto the wire
+// echo. Arrays are never null (an empty segment echoes []); the artifact
+// row keeps its own wire path verbatim and the stored digests (backfills
+// included — diff D4).
 func renderBuildModules(modules []*metadata.BuildModule) []buildModuleEcho {
 	out := make([]buildModuleEcho, 0, len(modules))
 	for _, m := range modules {
@@ -825,13 +912,9 @@ func renderBuildModules(modules []*metadata.BuildModule) []buildModuleEcho {
 			Dependencies: make([]buildDependencyEcho, 0, len(m.Dependencies)),
 		}
 		for _, a := range m.Artifacts {
-			path := ""
-			if a.RepoKey != "" {
-				path = a.RepoKey + "/" + a.Path
-			}
 			echo.Artifacts = append(echo.Artifacts, buildArtifactEcho{
 				Type: a.Type, Sha1: a.Sha1, Sha256: a.Sha256, Md5: a.Md5,
-				Name: a.Name, Path: path,
+				Name: a.Name, Path: a.WirePath, OriginalDeploymentRepo: a.OriginalRepo,
 			})
 		}
 		for _, dep := range m.Dependencies {

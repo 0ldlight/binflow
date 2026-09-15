@@ -493,35 +493,21 @@ func TestPromoteFailFastDanglingArtifacts(t *testing.T) {
 	w.uploadBuild(t, travis, genericDoc("dangle-app", "1",
 		"2026-09-07T10:00:00.000+0000", "dev-libs", "gone/1.bin", "1b1b"))
 
-	// §11.5-5 (E12): failFast (the default) refuses through the messages[]
-	// body at 400 with the aborting sentence; the status row is SKIPPED
-	// (§11.5-8's skipping notice rides along).
-	res, err := w.promote(t, travis, "dangle-app", "1", `{"targetRepo":"rel-libs"}`)
-	if err != nil {
-		t.Fatalf("failFast dangling promote: %v", err)
+	// §11.5-5 (E12) as the differential pinned it (diff D1): the failFast
+	// abort is a THROWN bad-request — the errors[] envelope carries the
+	// aborting sentence verbatim, no messages body, no history row.
+	_, err := w.promote(t, travis, "dangle-app", "1", `{"targetRepo":"rel-libs"}`)
+	var se *repo.StatusError
+	if !errors.As(err, &se) || se.Code != http.StatusBadRequest {
+		t.Fatalf("failFast dangling = %v, want the 400 envelope refusal", err)
 	}
-	if res.HTTPStatus != http.StatusBadRequest {
-		t.Fatalf("failFast dangling = %d, want the 400 messages body", res.HTTPStatus)
-	}
-	aborted, skipped := false, false
-	for _, m := range res.Messages {
-		if m.Level == "ERROR" && m.Message ==
-			"Unable to find artifacts of build 'dangle-app' #1 from artifactory-build-info repo: aborting promotion." {
-			aborted = true
-		}
-		if m.Level == "INFO" && strings.Contains(m.Message, "Skipping promotion status update") {
-			skipped = true
-		}
-	}
-	if !aborted || !skipped {
-		t.Fatalf("messages = %+v, want the E12 abort row + the status-skip notice", res.Messages)
-	}
-	if res.Status != "" {
-		t.Fatalf("status = %q, want no history row under failFast refusal", res.Status)
+	if se.Message != "Unable to find artifacts of build 'dangle-app' #1 from artifactory-build-info repo: aborting promotion." {
+		t.Fatalf("dangling message = %q", se.Message)
 	}
 	// The lenient arm: ONE warning row with the artifact names, 200, and
-	// the status update DOES land (E12: "warning 后继续").
-	res, err = w.promote(t, travis, "dangle-app", "1", `{"targetRepo":"rel-libs","failFast":false,"status":"released"}`)
+	// the status update DOES land (E12: "warning 后继续") — and no summary
+	// row rides along (diff D2).
+	res, err := w.promote(t, travis, "dangle-app", "1", `{"targetRepo":"rel-libs","failFast":false,"status":"released"}`)
 	if err != nil {
 		t.Fatalf("failFast=false promote: %v", err)
 	}
@@ -531,18 +517,9 @@ func TestPromoteFailFastDanglingArtifacts(t *testing.T) {
 	if res.Artifacts != 0 {
 		t.Fatalf("migrated = %d, want 0", res.Artifacts)
 	}
-	warned, byName := false, false
-	for _, m := range res.Messages {
-		if m.Level == "WARNING" && strings.Contains(m.Message,
-			"Unable to find the following artifacts of build 'dangle-app' #1:") {
-			warned = true
-			if strings.Contains(m.Message, "app.bin") {
-				byName = true
-			}
-		}
-	}
-	if !warned || !byName {
-		t.Fatalf("messages carry no E12 names warning: %+v", res.Messages)
+	if len(res.Messages) != 1 || res.Messages[0].Level != "WARNING" ||
+		res.Messages[0].Message != "Unable to find the following artifacts of build 'dangle-app' #1: app.bin" {
+		t.Fatalf("lenient messages = %+v, want exactly the one E12 names warning", res.Messages)
 	}
 	if res.Status != "released" {
 		t.Fatalf("lenient status = %q, want the history row to land", res.Status)

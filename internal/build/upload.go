@@ -104,12 +104,12 @@ type Module struct {
 	Dependencies []*Dependency     `json:"dependencies"`
 }
 
-// Artifact is one wire artifacts[] entry. Path is the association: the
-// "<repoKey>/<node path>" whole form whose repo segment splits into the
-// build_artifacts nodes FK — the 024 design ("the wire path IS the
-// association"). A path that does not resolve to a live node (or whose
-// sha256 disagrees with the node's) lands record-only: the row is kept, no
-// association is claimed.
+// Artifact is one wire artifacts[] entry. The manifest channel's address
+// pair is originalDeploymentRepo + path (L023-2F, diff D3: the pair a
+// build-info document carries resolves the node DIRECTLY); the legacy
+// "<repoKey>/<node path>" split of a bare path remains as the compat arm.
+// A path that resolves to no live node (or whose sha256 disagrees with the
+// node's) lands record-only: the row is kept, no association is claimed.
 type Artifact struct {
 	Type   string `json:"type"`
 	Sha1   string `json:"sha1"`
@@ -117,6 +117,9 @@ type Artifact struct {
 	Md5    string `json:"md5"`
 	Name   string `json:"name"`
 	Path   string `json:"path"`
+	// OriginalDeploymentRepo is the wire sixth key (diff D4: the echo keeps
+	// it; D3: the manifest channel's repo half).
+	OriginalDeploymentRepo string `json:"originalDeploymentRepo"`
 }
 
 // Dependency is one wire dependencies[] entry: what the build CONSUMED.
@@ -578,6 +581,7 @@ func (s *Service) toStoreModules(ctx context.Context, wire []*Module) ([]*metada
 				Seq: int64(i), Name: a.Name, Type: a.Type,
 				Sha1: digests.sha1, Sha256: digests.sha256, Md5: digests.md5,
 				RepoKey: repoKey, Path: nodePath,
+				WirePath: a.Path, OriginalRepo: a.OriginalDeploymentRepo,
 			})
 		}
 		for i, d := range m.Dependencies {
@@ -597,35 +601,44 @@ func (s *Service) toStoreModules(ctx context.Context, wire []*Module) ([]*metada
 	return out, nil
 }
 
-// resolveArtifactNode splits the wire path "<repoKey>/<node path>" and
-// resolves the association against the live nodes table: an existing node
-// carries the FK pair, everything else (no seam wired, no '/' in the path,
-// missing node, or a sha256 disagreement) lands record-only ("", ""). A
-// store failure short of not-found propagates — a flaky lookup must not
-// silently degrade the association.
+// resolveArtifactNode resolves the association against the live nodes
+// table — the manifest channel first (originalDeploymentRepo + path, the
+// pair the document itself addresses the node by, diff D3), the legacy
+// "<repoKey>/<node path>" split of a bare path as the compat arm. An
+// existing node carries the FK pair; everything else (no seam wired, no
+// address, missing node, or a sha256 disagreement) lands record-only
+// ("", ""). A store failure short of not-found propagates — a flaky
+// lookup must not silently degrade the association.
 func (s *Service) resolveArtifactNode(ctx context.Context, a *Artifact) (repoKey, path string, err error) {
-	if a.Path == "" || s.nodes == nil {
+	if s.nodes == nil {
 		return "", "", nil
 	}
-	repoKey, path, ok := strings.Cut(a.Path, "/")
-	if !ok || repoKey == "" || path == "" {
-		// No repo segment to hang the FK on: record-only.
-		return "", "", nil
+	candidates := [][2]string{}
+	if a.OriginalDeploymentRepo != "" && a.Path != "" {
+		candidates = append(candidates, [2]string{a.OriginalDeploymentRepo, a.Path})
 	}
-	node, err := s.nodes.Get(ctx, repoKey, path)
-	if err != nil {
-		if errors.Is(err, metadata.ErrNodeNotFound) {
-			return "", "", nil
+	if a.Path != "" {
+		if rk, p, ok := strings.Cut(a.Path, "/"); ok && rk != "" && p != "" {
+			candidates = append(candidates, [2]string{rk, p})
 		}
-		return "", "", err
 	}
-	if a.Sha256 != "" && node.Sha256 != "" &&
-		!strings.EqualFold(a.Sha256, node.Sha256) {
-		// The document and the node disagree: keeping the association would
-		// forge a link the checksums refute — record-only.
-		return "", "", nil
+	for _, c := range candidates {
+		node, err := s.nodes.Get(ctx, c[0], c[1])
+		if err != nil {
+			if errors.Is(err, metadata.ErrNodeNotFound) {
+				continue
+			}
+			return "", "", err
+		}
+		if a.Sha256 != "" && node.Sha256 != "" &&
+			!strings.EqualFold(a.Sha256, node.Sha256) {
+			// The document and the node disagree: keeping the association
+			// would forge a link the checksums refute — record-only.
+			continue
+		}
+		return c[0], c[1], nil
 	}
-	return repoKey, path, nil
+	return "", "", nil
 }
 
 // toStoreProperties converts the wire properties map into the sorted row

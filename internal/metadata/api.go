@@ -994,6 +994,11 @@ type NodePropStore interface {
 	// of the node; naming keys it does not carry is not an error
 	// (delete is idempotent — the caller answers 204 either way).
 	Delete(ctx context.Context, repoKey, path string, keys []string) error
+	// FindByProps returns the nodes carrying EVERY given key=value
+	// property (L023-2F: the build-property channel of the promote
+	// artifact collection, the aql.md property face's metadata-plane
+	// equivalent). limit <= 0 caps at 1000.
+	FindByProps(ctx context.Context, props map[string]string, limit int) ([]*Node, error)
 }
 
 // UsageStore is the quota accounting seam over repo_usage (004; ADR-0015
@@ -1195,6 +1200,13 @@ type BuildArtifact struct {
 	// RepoKey/Path are the resolved nodes association ('' = record-only).
 	RepoKey string
 	Path    string
+	// WirePath is the document's own `path` value, echoed verbatim (a
+	// relative "x/y/a.jar" is echo data, never the association); WirePath
+	// + OriginalRepo (the wire `originalDeploymentRepo`) form the manifest
+	// channel's address pair — the promote collection's primary resolver
+	// (L023-2F, diff report D3/D4).
+	WirePath     string
+	OriginalRepo string
 }
 
 // BuildDependency is one row of build_dependencies. ID is the wire `id`
