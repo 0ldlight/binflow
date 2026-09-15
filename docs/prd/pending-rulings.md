@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/prd/pending-rulings.md` |
-| 版本 | v2.4（L021-2 三裁定包：+R-22a auth401 措辞族 / R-22b 匿名读默认策略〔ADR-0009 复核，R-2 联动〕 / R-22c 登录失败限流〔security〕——素材 L020-auth401-maven-faces.md；v2.3=L016-3：+R-16~R-21 六席位；v2.2=L014-1 重呈裁：R-15a 探针翻案三新案 / R-15b 两案重呈+成本估计 + R-15c/d 落格收注 + as-built 漂移纠偏入路径；v2.1=L011-2 增补：票 E+F 四臂入册 R-15；v2.0=L008-4a 整编：R-10~R-14 + §4 批量批复式；v1.0=L002-4 首建 9 项） |
+| 版本 | v2.5（L023-3 buildinfo 域增席：+R-23a media-type label 族〔D8〕/ R-23b 自定义 buildRepo projects 门〔D9〕——素材 L023-buildinfo-diff.md §3/§9 + contracts/buildinfo.yaml；**整包席位 23→25**；v2.4=L021-2 三裁定包：+R-22a auth401 措辞族 / R-22b 匿名读默认策略〔ADR-0009 复核，R-2 联动〕 / R-22c 登录失败限流〔security〕——素材 L020-auth401-maven-faces.md；v2.3=L016-3：+R-16~R-21 六席位；v2.2=L014-1 重呈裁：R-15a 探针翻案三新案 / R-15b 两案重呈+成本估计 + R-15c/d 落格收注 + as-built 漂移纠偏入路径；v2.1=L011-2 增补：票 E+F 四臂入册 R-15；v2.0=L008-4a 整编：R-10~R-14 + §4 批量批复式；v1.0=L002-4 首建 9 项） |
 | 维护者 | product-manager（唯写）；裁定结果回写本表 + 各关联账目，不另建副本 |
 | 裁定通道 | 「用户」类经 conductor 转用户终裁；「产品」类 PM 域内可裁、报 conductor 备案；「ADR」类走 DECISIONS.md 流程 |
 
@@ -49,6 +49,8 @@
 | R-22b | 全域匿名读默认策略（content GET/HEAD——ADR-0009 复核） | **默认放行**（DefaultAnonymousAccess=true，ADR-0009 在册；UAT 翻转位 SECURITY_ANONYMOUS_ACCESS 未执行=红线） | 参照实例全域 deny（401 Authentication is required；匿名不穿透数据面） | **两案**：案甲=对齐 deny 严化（翻 ADR-0009+R-2〔docker remote 匿名〕同收——breaking：现有匿名消费方断）；案乙=**维持 ADR-0009+INTENTIONAL 登记**（补引 ADR 即转正；差分以配置态收敛——anonymous 双态锚契约，R-2 建议同构）。**PM 建议倾向案乙** | 用户（ADR 翻转属用户级）+产品 | known-divergence `rest/anonymous-read-default-policy` UNKNOWN（c2/c4 双端臂） |
 | R-22c | 登录失败限流（连续坏凭据封锁——security 面） | **无机制**（4 次全裸 401） | 第 3 次起 403 倒计时封锁（"recurrent request failures… 9 second(s)"，~15s 冷却自愈——活体） | **两案**：案甲=补安全能力（A 语义对齐非逐字——**自有形态实现**，R-4「进目标但自有形态」同款两步走：先立 security 票定阈值/文案/冷却窗）；案乙=维持缺位（登记为机制缺位非 INTENTIONAL——INTENTIONAL 需 authority 且「不做限流」无产品立场支撑）。**PM 建议倾向案甲变体**（security 票评估后实现） | 用户（安全能力引入）+产品（票面） | known-divergence `rest/login-failure-rate-limit` UNKNOWN（V5 活体） |
 | R-22d | helmoci 措辞族（D3 reindex 受理 message + D2 CT 族注记） | reindex `Helm chart index calculation for repository '<key>' has been scheduled.`；index CT=text/yaml、prov=text/plain; charset=utf-8 | reindex `Recalculating index for helm repository <key> scheduled to run`；index CT=text/plain、prov=application/octet-stream | **两案（D3）**：对齐 A message 串（一处受理渲染）/ 维持 B 串 INTENTIONAL（client-blind——状态/异步语义/条目保全双端同，纯 message 差）。**PM 建议倾向对齐**（与 R-22a 同构口径，可并批复）。**D2 CT 族不入裁位**——client-blind（helm 双端均解析）+ helm.md §2 表「text/yaml」对 A 真身不成立系**规格勘误票**（reverse-engineer 域）+ charset 后缀差归 normalize R7 域 | 产品（D3 message 面） | 素材=L021-helmoci-evidence.md §D2/D3（两 DIVERGENT 契约条目的裁定面——D1 urls 形态另案后段） |
+| R-23a | build REST 族 media-type label 双面（L023-2D D8，7 单元候裁维持） | text 面（DELETE 200 E6/批删/retention count 门）标 `text/plain`（**更正确**——body 实为纯文本）；json 面恒 `application/json` | text 面统一标 `application/json`（**错标**——body 是纯文本；spec §11.6「text/plain」字面活体复伪）；json 面回 vendor 型（BuildInfo/Builds/BuildsByName/PromotionResult+json） | **两案**：案甲=对齐复刻（text 面错标 application/json 照抄 + json 面 vendor 型补齐——writeJSONBodyCT 先例机制现成；差分断言逐字同） / 案乙=维持正确标签 INTENTIONAL（client-blind——jf 2.122.0 真腿双通过，客户端不校验 label；「更正确」是产品姿态，需 ADR 登记）。**PM 建议倾向案甲**（json 面 vendor 缺位与 rest/user-detail-vendor-content-type 同族且该族已按对齐收；text 面错标随批一并复刻，保 parity 单口径——除非用户裁定「正确性优先于 parity」则案乙） | 产品（label 面）；案乙需 ADR | known-divergence `buildinfo/media-type-label-family` UNKNOWN（LOOP 024 限期）；**翻绿联动**：裁定后 matrix D07-R04/R08/R10 翻 compatible（本轮候裁态挂账） |
+| R-23b | 自定义 buildRepo 写门（PUT ?buildRepo=<X>-build-info——L023-2D D9） | 无门 204（BinFlow 无 projects 域——ADR-0045 点 6/M17 面外；读路径双端均无门） | 400 projects 门（`<projectKey>-build-info` 须 project 存在；文案对缺仓/缺 project/缺后缀三因共用「does not exist」——误导性文案为参照真值） | **两案**：案甲=超集承接 INTENTIONAL（参照存在主体〔缺省 buildRepo 路径〕双端零差，分歧仅 BinFlow 自有可达面显现——「无域可门」的结构性结果；与 R-12「参照主体缺位」同款，补引 ADR-0045 点 6 即转正）/ 案乙=最小仓存在校验门（复刻 400+文案的仓存在臂；但「project 存在」语义无域不可复刻——对齐不完整且引入半门）。**PM 建议倾向案甲**（对齐路径需先裁 projects 域边界，成本外溢；自定义 buildRepo 在 BinFlow 生态无消费方） | 产品（域边界姿态）；案甲补引 ADR-0045 | known-divergence `buildinfo/custom-buildrepo-projects-gate` UNKNOWN（LOOP 024 限期）；contracts/buildinfo.yaml#buildinfo/custom-buildrepo-gate DIVERGENT 待翻 |
 
 ## 2. 逐项详述
 
@@ -265,6 +267,24 @@ curl -su admin:'***' ":8082/artifactory/api/repositories?project=&type=local"
 - **R-19**：contracts/pypi.yaml 各 DIVERGENT 条目 `binflow_state`（六臂逐臂两案+倾向记录在 verdict/detail）；wire 证据 l016 系报告。
 - **maven C3 不入包**：`maven/reference-race-metadata-loss` 系参照自身反常面 + pom 前置规格假说未定案——reverse-engineer 规格票前置（gate 已改期 LOOP 017，台账注明）；规格票产出后重分类，届时若需用户裁决再入 v2.x。
 
+### R-23a/R-23b（v2.5 新增——buildinfo 域，L023-3）
+
+素材：known-divergence.yaml `buildinfo/media-type-label-family` / `buildinfo/custom-buildrepo-projects-gate`（rationale 即两案素材）+ reports/compatibility/L023-buildinfo-diff.md §3 D8/D9 + §9.1（复验维持）+ contracts/buildinfo.yaml。证据 E5 双轮（L023-2D 全环 + L023-2G 复验 dev.c6f6c71a，判定集逐 case 一致）；两案素材完备，零取证前置。
+
+**R-23a media-type label 族（D8）**——body 文案本体两轮逐字 SAME，7 单元唯一差=Content-Type label：
+
+- **事实双柱**：① A 对 text body（E6 双段/批删/count 门 400）统一错标 `application/json`——spec §11.6「text/plain」字面活体复伪（错标系参照信封渲染器惯性，非有意设计）；② B 标 `text/plain` 是「更正确」标签。json 面 A 回 vendor 型、B 恒裸型（与 rest/user-detail-vendor-content-type 同族，该族已按对齐收——writeJSONBodyCT 机制现成）。
+- **两案**：案甲=对齐复刻（text 面错标照抄 + json 面 vendor 补齐；差分断言逐字同；一票两臂）；案乙=维持正确标签 INTENTIONAL（jf 真腿 client-blind 双证；需 ADR 登记「正确性优先于 parity」的产品姿态，text/json 两面分别冻结）。
+- **PM 论证**：client-blind 对两案均成立（差异体=N2 归一层已消化，不伤客户端）——裁定轴不是兼容而是「parity 单口径 vs 标签正确性」；json 面 vendor 缺位有同族已对齐先例，案甲使该域与全域姿态一致。
+- **翻绿联动**：裁定后 D07-R04/R08/R10 三行翻 compatible（本轮候裁态挂账）；案甲另需 label 修复票+差分复验。
+
+**R-23b 自定义 buildRepo projects 门（D9）**——A=400 projects 门（project 须存在，文案三因共用）vs B=204 无门；读路径双端均无门（27 单元 SAME）：
+
+- **结构定性**：BinFlow 无 projects 域（ADR-0045 点 6/M17 面外）→ B 的无门系「无域可门」的结构性结果非实现缺位——与 R-12（readonly_admin 参照主体缺位）同款。
+- **两案**：案甲=超集承接 INTENTIONAL（参照存在主体面〔缺省 buildRepo 路径〕双端零差；补引 ADR-0045 点 6 即转正）；案乙=最小仓存在校验门（复刻 400+文案的仓存在臂——但「project 存在」臂无域不可复刻，对齐不完整且造半门）。
+- **PM 论证**：案乙的对齐完整性缺口使其收益封顶（最多灭 1 单元差的仓存在臂，project 臂永久分歧）；自定义 buildRepo 在 BinFlow 生态无消费方（缺省路径全覆盖）；裁对齐的完整路径需先立项 projects 域——成本外溢远超本面。
+- **回写**：案甲 → 台账 INTENTIONAL（authority=本裁定+ADR-0045 点 6）+ 契约 204 姿态冻结；案乙 → 门+文案票+差分复验。
+
 ## 3. 裁定后回写路径（约定）
 
 | 裁定项 | 回写目标 |
@@ -287,6 +307,8 @@ curl -su admin:'***' ":8082/artifactory/api/repositories?project=&type=local"
 | R-18 | 案甲 → session login handler 小实现票 + 台账 resolved + contracts/npm.yaml `session-login-put` error_behavior 首臂升 400+文案 literal；案乙 → 台账 INTENTIONAL（authority=本裁定）+ 契约 401 姿态冻结 |
 | R-19 | 逐臂裁定 → contracts/pypi.yaml 对应条目升/冻结 + 台账拆条定分类 + matrix D12-R06/R07 域行注记 + 本表；2 BUG 候选臂不经本表直接开实现票 |
 | R-20/R-21 | 裁对齐 → maven 实现票（渲染三处补齐 / 事件驱动重算）+ 台账 resolved；裁维持 → INTENTIONAL（authority=本裁定；R-20 可引 mvn 容忍新证、R-21 可引终态等价论）+ 契约姿态冻结 + 本表 |
+| R-23a | 案甲 → label 修复票（text 面错标复刻 + json 面 vendor 补齐〔writeJSONBodyCT 复用〕）+ 差分复验 → 台账 resolved + 契约 label 断言升格 + **matrix D07-R04/R08/R10 翻 ✅** + 本表；案乙 → 台账 INTENTIONAL（authority=本裁定+ADR 登记）+ 契约 label 姿态冻结 + D07-R04/R08/R10 随翻 ✅（label 差异出判定面）+ 本表 |
+| R-23b | 案甲 → 台账 INTENTIONAL（authority=本裁定+ADR-0045 点 6）+ 契约 204 姿态冻结 + 本表；案乙 → 门+文案票（仓存在臂）+ 差分复验 + 台账 resolved + 本表 |
 
 > 本表不替任何 authority 拍板；每项终裁后由 product-manager 在本表更新状态列并按上表路径派发回写票。
 
@@ -313,5 +335,6 @@ curl -su admin:'***' ":8082/artifactory/api/repositories?project=&type=local"
    - maven C3 / R-6 维持不入包（spec/证据前置，见 §2 R-16~R-21 节尾注）
    - **v2.4 扩容（L021-2）**：R-22a 案甲（对齐 A 文案族+分型渲染）/ R-22b 案乙（维持 ADR-0009+INTENTIONAL，R-2 同构）/ R-22c 案甲变体（security 票评估后自有形态实现）
    - **v2.4 增补（L022-1④）**：+R-22d helmoci 措辞族（D3 两案+D2 归一/勘误注记）；R-20/R-21 已随 L022-1 实现落地收口（表内划线留档，不占批复面）
+   - **v2.5 扩容（L023-3）**：R-23a 案甲（text 面错标复刻+json 面 vendor 补齐）/ R-23b 案甲（超集承接 INTENTIONAL，补引 ADR-0045 点 6）——整包席位 23→25；两席均零取证前置可即批
 3. **生效路径**：裁决回执经 conductor 落地——PM 回写本表状态列 + 按 §3 派发回写票；INTENTIONAL 项的 ADR 登记与契约冻结随票；实现/建模类裁定转 tech-lead 拆票。
 4. **预授权式（v2.1 新增，限 R-15c/R-15d；v2.2 注：已被 L013 执行完毕留档）**：用户可一次批「对齐参照实测」——探针出数后 PM 按 §2 R-15d 四象限表自动选案执行并回报（免二次呈批）；探针出第三态（400/复合形态）或落「PM 反对」格时中止预授权、回报 conductor 再呈批。**执行留痕：L013-4+5 已按此式落格案乙并收口（D02-R01 翻 ✅）**。R-15a/R-15b 不适用预授权（均可直接裁，无需取证前置——a 的呈批素材已含 L013 探针五臂 wire，残余转义臂细节随实现票；b 的实现对齐已有高置信规格）。

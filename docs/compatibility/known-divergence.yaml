@@ -910,3 +910,50 @@ entries:
   authority: { type: conductor_ruling, ref: "LOOP 022 / L022-1 ③ 终裁（client-blind 超集+反编译 catch-all——B 恒优不撤）" }
   review_gate: resolved-by-decision（维持 200+能力头；若参照后续版本改观则重开）
   evidence: reports/compatibility/L018-conan-evidence.md（D1 臂）+ contracts/conan.yaml#conan/v2ping-posture
+- id: buildinfo/media-type-label-family
+  surface: build REST 族 media-type label 双面（text 面：DELETE 200 E6/批删/retention count 门 400——A 标 application/json〔错标，body 实为纯文本〕vs B text/plain；json 面：A 回 vendor 型 BuildInfo/Builds/BuildsByName/PromotionResult+json vs B 恒 application/json）
+  classification: UNKNOWN
+  rationale: >-
+    L023-2D 立账 + L023-2G 复验维持（2026-09-15，dev.c6f6c71a × A 7.161.15）：body 文案本体两轮逐字 SAME，
+    7 单元（11/13a/13c/23a/23c/24a/24b）唯一差=Content-Type label。双证：① spec §11.6「400 回
+    text/plain」字面活体复伪——A 对 text body 统一错标 application/json（非有意设计，系参照信封渲染器
+    的惯性标签）；② B 的 text/plain 是「更正确」标签（body 确为纯文本）。json 面 vendor 型缺位与
+    rest/user-detail-vendor-content-type 同族（该面已按对齐收——writeJSONBodyCT 先例机制现成）。
+    jf 2.122.0 真腿双通过（client-blind——jf 不校验 Content-Type label）。INTENTIONAL 候选（保留正确
+    标签）与对齐候选（错标复刻/vendor 补齐）均立得住——产品语义裁定，无 authority 在案不入
+    INTENTIONAL。normalize N2 json-family 等价已登记（fixtures/normalize.yaml#buildinfo），
+    label 值不参与判定、差异本体归本条。
+  authority: { type: pending, ref: "产品/用户裁（text 面错标复刻 vs 保留正确标签；json 面 vendor 补齐与维持）——pending-rulings v2.5 R-23a" }
+  review_gate: LOOP 024 限期升级（随 R-23a 批复：裁维持→INTENTIONAL+契约 label 断言冻结；裁对齐→label 修复票+差分复验后 matrix D07-R04/R08/R10 翻绿）
+  evidence: reports/compatibility/L023-buildinfo-diff.md D8 + §9.1（维持）+ §9.2-R1 + contracts/buildinfo.yaml（delete-path/batch-delete/retention 三条目 divergence_ref）
+- id: buildinfo/custom-buildrepo-projects-gate
+  surface: 自定义 buildRepo 写门（PUT /api/build?buildRepo=<X>-build-info——A=400 projects 门 vs B=204 无门；读路径双端均无门）
+  classification: UNKNOWN
+  rationale: >-
+    L023-2D 立账 + L023-2G 复验维持（2026-09-15）：A 的门=projects 域（BuildCreationService L92-97：
+    <projectKey>-build-info 须 project X 存在；报错文案对「仓不存在/project 不存在/缺后缀」三因共用
+    `Build info repository '<X>-build-info' does not exist`——误导性文案为参照真值）；读路径无此校验
+    （27 单元双端 404 同）。BinFlow 无 projects 域（ADR-0045 点 6/M17 面外）→ B 无门 204 系「无域可门」
+    的结构性结果，非实现缺位——与 rest/security-read-family-readonly-admin-gate 同为「参照域缺位」款。
+    INTENTIONAL 候选（超集承接：参照存在主体〔缺省 buildRepo 路径〕双端零差，分歧仅在 BinFlow 自有
+    可达面显现——自定义 buildRepo 写路径 B 恒成功）。裁对齐=引入仓存在性校验门（含三因共用文案），
+    但「project 存在」语义在无 projects 域下不可复刻（最多复刻仓存在臂）——对齐路径需先裁 projects
+    域边界，成本外溢。
+  authority: { type: pending, ref: "产品/用户裁（无 projects 域下的 buildRepo 写门：超集承接 INTENTIONAL vs 最小仓存在校验）——pending-rulings v2.5 R-23b" }
+  review_gate: LOOP 024 限期升级（随 R-23b 批复：裁超集→INTENTIONAL+契约 204 姿态冻结；裁校验→门+文案票+差分复验）
+  evidence: reports/compatibility/L023-buildinfo-diff.md D9 + §2.5 27/28 行 + §9.1（维持）+ contracts/buildinfo.yaml#buildinfo/custom-buildrepo-gate
+- id: buildinfo/aql-property-channel
+  surface: 'AQL property 查询入口（jf build-publish 后置步骤踩中——B 400 `Unknown AQL field: property` → jf exit=1）'
+  classification: UNSUPPORTED_FEATURE
+  rationale: >-
+    L023-2D/2G jf 2.122.0 真腿双轮证实（2026-09-15）：jf build-publish 在 PUT 落库成功后的后置步骤发
+    AQL property 查询（build 属性回查）→ B 400 → **exit=1**（PUT 本身已成功，号单/modules 可见）。该面
+    = docs/reverse/aql.md §15 已冻结的 M17 面外维持 400 面（build.properties/module.properties 入口——
+    T-511 翻转点），非新缺位。**本腿新增的 client-impact 证据**：该面在 build-publish 主链路上被真实
+    客户端确定性踩中（凡上传 build-tagged 制品的 publish 必触发后置查询）——非偶发角落面。维持
+    UNSUPPORTED 分类（authority=规格冻结面），但建议 T-511 提权（P1 升 P0 评估）或拆 build-publish
+    专用最小面（property 入口只读子集）——jf 主链路 exit 码是真实 CI 断面。伴随既有债：B
+    /api/system/version 回 'dev' 的 jf 解析尾错（票外，另案）。
+  authority: { type: spec_ruling, ref: "docs/reverse/aql.md §15（build.properties 入口 M17 面外维持 400——T-511 翻转点冻结面）" }
+  review_gate: T-511 范围（提权/拆票建议已随 L023-2D §8 下步④ 上报 conductor；翻转即 resolved）
+  evidence: reports/compatibility/L023-buildinfo-diff.md D11 + §4 jf publish 腿 + §9.1（维持）+ l023d-wire/{a,b}/jf-legs.log

@@ -193,7 +193,7 @@ completed_tasks:
 compatibility_score:
   source: "docs/compatibility/matrix.yaml（L000-C 后唯一事实源；rest-compat-matrix.md 降级历史快照）"
   before: { compatible: 57, partial: 28, absent: 80, not_applicable: 17, superset: 11, total: 193, note: "迁移后权威基线（含 D06-R13 冻结后翻态）" }
-  after: null   # 本轮收口时填
+  after: { compatible: 77, partial: 17, absent: 75, not_applicable: 19, superset: 12, total: 200, note: "L023 批次 1 build-info 落账（L023-3）：D07-R01/R02/R03 absent→compatible（L023-2D/2G 差分双轮+实现链 c42fb255/9716d500/dbc52c66/c6f6c71a）；total 193→200 系 before 快照后冻结行集外新行提案 +7（D01-R38..43、D06-R30），以 matrix summary 逐行对账为准" }
 
 p0_gaps: ["U-STG-01 BinaryProvider 存储链（已 partial——残余 U-STG-12~19）", "U-PROTO-01 docker remote 代理 v2（L000-B 在途）", "U-ENT-05 entitlement 同源"]
 p1_gaps: 50
