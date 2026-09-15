@@ -192,29 +192,18 @@ func TestBuildWebhookUploadPromoteRetentionWeaving(t *testing.T) {
 	}
 	// The real promotion fires promoted (status-only arm — nothing
 	// migrated, the event is about the RUN).
-	if code, body := st.do(http.MethodPost, "/binflow/api/build/promote/pub-app/51",
-		`{"status":"released"}`); code != http.StatusOK {
-		t.Fatalf("promote = %d %s", code, body)
-	}
-	rows = st.deliveriesOf(t, "build-promo")
-	if len(rows) != 1 {
-		t.Fatalf("promoted deliveries = %d, want 1", len(rows))
-	}
-	if env := parseBuildEnvelope(t, rows[0].Payload); env.EventType != "promoted" ||
-		env.Data.BuildName != "pub-app" || env.Data.BuildNumber != "51" {
-		t.Fatalf("promoted envelope: %+v", env)
-	}
-
-	// A second run falls outside a count=1 window: retention (inline)
-	// discards it and fires deleted for exactly that run.
+	// A second, NEWER run; the count=1 window (inline — E9's default)
+	// discards the older run 51 and fires deleted for exactly that run.
+	// (§11.6-5's promoted exemption is why the promote arm runs AFTER the
+	// window here: run 51 carries no promotion yet.)
 	newer := strings.Replace(hookUploadDoc, `"number": "51"`, `"number": "52"`, 1)
 	newer = strings.Replace(newer, "2026-09-07T10:00:00.000+0000", "2026-09-07T12:00:00.000+0000", 1)
 	if code, body := st.do(http.MethodPut, "/binflow/api/build", newer); code != http.StatusNoContent {
 		t.Fatalf("second upload = %d %s", code, body)
 	}
 	if code, body := st.do(http.MethodPost, "/binflow/api/build/retention/pub-app?async=false",
-		`{"count":1}`); code != http.StatusOK {
-		t.Fatalf("retention = %d %s", code, body)
+		`{"count":1}`); code != http.StatusNoContent {
+		t.Fatalf("retention = %d %s, want 204", code, body)
 	}
 	rows = st.deliveriesOf(t, "build-del")
 	if len(rows) != 1 {
@@ -223,6 +212,16 @@ func TestBuildWebhookUploadPromoteRetentionWeaving(t *testing.T) {
 	if env := parseBuildEnvelope(t, rows[0].Payload); env.EventType != "deleted" ||
 		env.Data.BuildNumber != "51" || env.Data.BuildStarted != "2026-09-07T10:00:00.000+0000" {
 		t.Fatalf("deleted envelope: %+v", env)
+	}
+
+	// The promote arm follows the window (the surviving run 52 promotes —
+	// the earlier position would have exempted run 51 from the deletion).
+	if code, body := st.do(http.MethodPost, "/binflow/api/build/promote/pub-app/52",
+		`{"status":"released"}`); code != http.StatusOK {
+		t.Fatalf("promote 52 = %d %s", code, body)
+	}
+	if n := len(st.deliveriesOf(t, "build-promo")); n != 1 {
+		t.Fatalf("promoted deliveries = %d, want 1", n)
 	}
 
 	// The uploads kept firing throughout (two runs published).

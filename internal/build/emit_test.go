@@ -173,7 +173,7 @@ func TestRetentionEmitsDeletedPerDiscardedRun(t *testing.T) {
 	w.upload(emitDoc("old-app", "3", "2026-09-07T10:00:00.000+0000"))
 
 	plan, err := w.svc.PrepareRetention(context.Background(), adminP, "old-app", "",
-		build.RetentionRequest{Count: 1})
+		build.RetentionRequest{Count: retCount(1)})
 	if err != nil {
 		t.Fatalf("prepare retention: %v", err)
 	}

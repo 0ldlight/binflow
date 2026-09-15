@@ -1176,6 +1176,12 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true}, s.handleBuildUpload)
 	case rest == "build" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true}, s.handleBuildList)
+	case rest == "build/delete" && r.Method == http.MethodPost:
+		// L023-2C (FR-152.2 / build-info.md §11.7, E10's six-field body):
+		// the batch-deletion twin — same command and wording family as the
+		// DELETE path face, the ARRAY body carrying build numbers with
+		// characters a CSV cannot (the endpoint's reason to exist).
+		s.enforce(w, r, routeAuth{required: true}, s.handleBuildBatchDelete)
 	case strings.HasPrefix(rest, "build/append/"):
 		if r.Method != http.MethodPost {
 			notImplemented(w, "/binflow/api/"+rest)

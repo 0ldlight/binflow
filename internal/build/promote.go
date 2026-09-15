@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -183,11 +184,13 @@ func abortf(status int, format string, args ...any) error {
 // Gate ladder (rejection precedes existence — no oracle for the denied):
 //
 //  1. body parse + the promote-specific validation (the 400 family);
-//  2. w(targetRepo, "") ∧ r(buildRepo, buildName) — ADR-0045 decision 5. A
-//     promotion WITHOUT targetRepo (the status-only arm, §2.4) drops the w
-//     half: nothing outside the build domain is touched. body properties
-//     additionally demand a(targetRepo, "") — Errata ④㋔, the official
-//     target-annotate link of the properties arm;
+//  2. w(buildRepo, buildName) ∧ — when a target is named — w(targetRepo,
+//     ""): ADR-0045 decision 5 as Errata 二③ amended it (§11.5-1's upload
+//     assertion on the build side). A promotion WITHOUT targetRepo (the
+//     status-only arm, §2.4) runs the build-side gate alone: nothing
+//     outside the build domain is touched. The properties arm's annotate
+//     right is asserted PER ITEM at the annotation pass (§11.5-7 — the
+//     miss answers a warning row, never an upfront 403);
 //  3. the run must exist (404), THEN the target repository (must exist and
 //     be LOCAL — virtual/remote refuse, decision 5's target ruling);
 //  4. per-artifact: the carriers re-run their own ladders (source r, target
@@ -236,12 +239,11 @@ func (s *Service) Promote(ctx context.Context, p *Principal, c Coordinate, raw [
 
 	// Gate 2 — before the run lookup, before the target row: a denied caller
 	// learns nothing about either (NFR-S80's no-oracle law).
-	if !s.CanRead(ctx, p, c.Repo, c.Name) {
-		// §11.5-1 asserts the build's UPLOAD right here; BinFlow's gate is
-		// ADR-0045 decision 5's r(buildRepo) — the divergence is registered
-		// for the ADR's Accepted-period review, the §7 sentence below is
-		// the read face's own (the gate that actually ran).
-		return nil, fmt.Errorf("promote %s#%s: %w", c.Name, c.Number, forbiddenf(p, "access", "Read"))
+	if !s.allow(ctx, p, c.Repo, c.Name, auth.ActionWrite) {
+		// §11.5-1's build-side assertion: the promote gate is the build's
+		// UPLOAD right (ADR-0045 Errata 二③ flipped decision 5's r(buildRepo)
+		// arm to w) — the §7 upload sentence answers.
+		return nil, fmt.Errorf("promote %s#%s: %w", c.Name, c.Number, forbiddenf(p, "upload", "Upload"))
 	}
 	if !statusOnly {
 		if !s.allow(ctx, p, req.TargetRepo, "", auth.ActionWrite) {
@@ -836,15 +838,66 @@ func (s *Service) carrierFailure(req *PromotionRequest, err error, res *Promotio
 
 // RetentionRequest is the POST /api/build/retention/{name} body, the
 // official four-field set verbatim: the artifact-deletion flag, the count
-// window (keep the newest N runs; <= 0 = no count window), the
-// minimumBuildDate floor (an ISO8601 timestamp — builds STARTED before it
-// are discardable; not a day count, the Errata ① correction), and the
-// exemption list.
+// window, the minimumBuildDate floor (an ISO8601 timestamp — runs STARTED
+// before its date are discardable; not a day count, the Errata ①
+// correction), and the exemption list. Count is the tri-state of §11.6-1:
+// absent = -1 (no count dimension), an EXPLICIT value must be positive —
+// count=0 answers the spec's verbatim 400 (the wire face renders it).
 type RetentionRequest struct {
 	DeleteBuildArtifacts         bool     `json:"deleteBuildArtifacts"`
-	Count                        int      `json:"count"`
+	Count                        *int     `json:"count"`
 	MinimumBuildDate             string   `json:"minimumBuildDate"`
 	BuildNumbersNotToBeDiscarded []string `json:"buildNumbersNotToBeDiscarded"`
+}
+
+// countWindow resolves the count dimension: -1 = not enabled, a positive
+// N = keep the newest N.
+func (r *RetentionRequest) countWindow() int {
+	if r.Count == nil {
+		return -1
+	}
+	return *r.Count
+}
+
+// UnmarshalJSON tolerates the wire's string-typed count: the official CLI
+// sends `"count":"1"` (the jf build-discard spelling), which the
+// reference's Jackson coerces — a strict *int would 400 a real client.
+// The number and numeric-string spellings both land; anything else is the
+// honest decode error.
+func (r *RetentionRequest) UnmarshalJSON(b []byte) error {
+	type alias struct {
+		DeleteBuildArtifacts         bool            `json:"deleteBuildArtifacts"`
+		Count                        json.RawMessage `json:"count"`
+		MinimumBuildDate             string          `json:"minimumBuildDate"`
+		BuildNumbersNotToBeDiscarded []string        `json:"buildNumbersNotToBeDiscarded"`
+	}
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	r.DeleteBuildArtifacts = a.DeleteBuildArtifacts
+	r.MinimumBuildDate = a.MinimumBuildDate
+	r.BuildNumbersNotToBeDiscarded = a.BuildNumbersNotToBeDiscarded
+	raw := strings.TrimSpace(string(a.Count))
+	if raw == "" || raw == "null" {
+		r.Count = nil
+		return nil
+	}
+	var n int
+	if err := json.Unmarshal(a.Count, &n); err == nil {
+		r.Count = &n
+		return nil
+	}
+	var str string
+	if err := json.Unmarshal(a.Count, &str); err == nil {
+		i, convErr := strconv.Atoi(strings.TrimSpace(str))
+		if convErr != nil {
+			return fmt.Errorf("count %q is neither a number nor a numeric string: %w", str, ErrInvalidBuildInfo)
+		}
+		r.Count = &i
+		return nil
+	}
+	return fmt.Errorf("count must be a number or a numeric string: %w", ErrInvalidBuildInfo)
 }
 
 // RetentionPlan is the VALIDATED window: the gate, the 404 and the discard
@@ -879,8 +932,10 @@ func (s *Service) PrepareRetention(ctx context.Context, p *Principal, name, buil
 	if buildRepo == "" {
 		buildRepo = metadata.DefaultBuildRepo
 	}
-	if req.Count < 0 {
-		return nil, fmt.Errorf("retention count %d is negative: %w", req.Count, ErrInvalidBuildInfo)
+	if c := req.countWindow(); c != -1 && c <= 0 {
+		// §11.6-1's positive gate: an explicit count=0 (or negative) is the
+		// spec's verbatim 400 — the wire face renders it text/plain.
+		return nil, &WireError{msg: "Max count retention needs to be a positive number", sentinel: ErrInvalidBuildInfo}
 	}
 	floor := ""
 	if req.MinimumBuildDate != "" {
@@ -888,7 +943,7 @@ func (s *Service) PrepareRetention(ctx context.Context, p *Principal, name, buil
 		if err != nil {
 			return nil, fmt.Errorf("retention minimumBuildDate: %w", err)
 		}
-		floor = normalized
+		floor = normalized[:10] // date granularity: §11.6-4 compares DATES
 	}
 	if !s.allow(ctx, p, buildRepo, name, auth.ActionDelete) {
 		return nil, fmt.Errorf("retention %s: %w", name, forbiddenf(p, "delete", "Delete"))
@@ -900,28 +955,50 @@ func (s *Service) PrepareRetention(ctx context.Context, p *Principal, name, buil
 	if len(rows) == 0 {
 		return nil, fmt.Errorf("retention %s: %w", name, metadata.ErrBuildNotFound)
 	}
+	// The shared exemptions (§11.6-5): the pinned list, and every run with
+	// a non-empty promotion history (releaseStatus set = once promoted) —
+	// never deleted by retention, and NOT counted against the window (the
+	// kept set may therefore fall below count).
 	exempt := map[string]bool{}
 	for _, n := range req.BuildNumbersNotToBeDiscarded {
 		exempt[n] = true
 	}
+	promoted := func(row *metadata.BuildNumber) bool {
+		promos, err := s.store.ListPromotions(ctx, name, row.Number, row.Started, buildRepo)
+		if err != nil {
+			return false // a read fault must not widen the deletion set
+		}
+		for _, pr := range promos {
+			if pr.Status != "" {
+				return true
+			}
+		}
+		return false
+	}
+
 	plan := &RetentionPlan{name: name, repo: buildRepo, req: req}
-	for i, row := range rows { // newest first (ListBuildNumbers' contract)
-		if exempt[row.Number] {
+	var remaining []*metadata.BuildNumber // pass-2's arithmetic base
+	// Pass 1 (date, §11.6-4): runs whose started DATE is strictly earlier
+	// than the floor's date leave first; their numbers join no count
+	// arithmetic afterwards.
+	for _, row := range rows { // newest first (ListBuildNumbers' contract)
+		if exempt[row.Number] || promoted(row) {
 			plan.kept++
 			continue
 		}
-		outside := false
-		if floor != "" && row.Started < floor { // canonical UTC literals: lexicographic = chronological
-			outside = true
-		}
-		if req.Count > 0 && i >= req.Count {
-			outside = true
-		}
-		if outside {
+		if floor != "" && row.Started[:10] < floor {
 			plan.discard = append(plan.discard, row)
-		} else {
-			plan.kept++
+			continue
 		}
+		remaining = append(remaining, row)
+	}
+	// Pass 2 (count): among the survivors of pass 1, the newest N stay and
+	// the rest leave (remaining is already started-desc).
+	if window := req.countWindow(); window > 0 && len(remaining) > window {
+		plan.discard = append(plan.discard, remaining[window:]...)
+		plan.kept += window
+	} else {
+		plan.kept += len(remaining)
 	}
 	return plan, nil
 }

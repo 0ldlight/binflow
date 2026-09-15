@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -83,6 +84,10 @@ type Info struct {
 	Started    string            `json:"started"`
 	Modules    []*Module         `json:"modules"`
 	Properties map[string]string `json:"properties"`
+	// BuildRetention is the optional §2.5 block: its presence triggers the
+	// window's execution at the tail of THIS publication (§11.6-8 —
+	// publishing is the other trigger besides POST /retention).
+	BuildRetention *RetentionRequest `json:"buildRetention"`
 }
 
 // Module is one wire modules[] entry. ID is the append merge key (same id =
@@ -233,19 +238,23 @@ func trimLE20(s string) string {
 	return strings.TrimLeftFunc(s, func(r rune) bool { return r <= 0x20 })
 }
 
-// wireError carries a spec-verbatim wire message under a domain sentinel
+// WireError carries a spec-verbatim wire message under a domain sentinel
 // identity: errors.Is matches the sentinel while Error() stays the exact
 // spec sentence (a plain %w wrap would leak the sentinel's own text onto
 // the wire after the message — build-info.md's pinned wordings are whole
-// messages, not prefixes).
-type wireError struct {
+// messages, not prefixes). Exported since the retention count gate rides
+// text/plain — the wire layer needs the type to see it.
+type WireError struct {
 	msg      string
 	sentinel error
 }
 
-func (e *wireError) Error() string { return e.msg }
-func (e *wireError) Is(target error) bool {
-	return target == e.sentinel // errors.Is compares by identity here
+func (e *WireError) Error() string { return e.msg }
+
+// Is matches the carried sentinel by identity — errors.Is(err, sentinel)
+// keeps working through the clean-message carrier.
+func (e *WireError) Is(target error) bool {
+	return target == e.sentinel
 }
 
 // validateHiddenCoords refuses the hidden-coordinate spellings the
@@ -255,10 +264,10 @@ func (e *wireError) Is(target error) bool {
 // verbatim 400 wording.
 func validateHiddenCoords(name, number string) error {
 	if strings.HasPrefix(trimLE20(name), ".") {
-		return &wireError{msg: "Build name must not start with '.'", sentinel: ErrInvalidBuildInfo} //nolint:staticcheck // ST1005: build-info.md §11.3's verbatim wire wording
+		return &WireError{msg: "Build name must not start with '.'", sentinel: ErrInvalidBuildInfo} //nolint:staticcheck // ST1005: build-info.md §11.3's verbatim wire wording
 	}
 	if strings.HasPrefix(trimLE20(number), ".") {
-		return &wireError{msg: "Build number must not start with '.'", sentinel: ErrInvalidBuildInfo} //nolint:staticcheck // ST1005: build-info.md §11.3's verbatim wire wording
+		return &WireError{msg: "Build number must not start with '.'", sentinel: ErrInvalidBuildInfo} //nolint:staticcheck // ST1005: build-info.md §11.3's verbatim wire wording
 	}
 	return nil
 }
@@ -388,11 +397,35 @@ func (s *Service) Upload(ctx context.Context, p *Principal, raw []byte, buildRep
 		Type: EventUploaded, Name: c.Name, Number: c.Number,
 		Started: c.Started, Repo: c.Repo, Principal: p,
 	})
+	// §11.6-8's publish-tail trigger: a document carrying a buildRetention
+	// block runs its own window synchronously at the tail of this
+	// publication. Best-effort by design — the publication already stood;
+	// a window fault is logged, never a failed PUT over landed data.
+	if info.BuildRetention != nil {
+		s.runRetentionTail(ctx, p, c.Name, c.Repo, *info.BuildRetention)
+	}
 	sum := sha256.Sum256([]byte(payload))
 	return &UploadResult{
 		Created: created, Started: c.Started, Repo: c.Repo,
 		Checksum: hex.EncodeToString(sum[:]),
 	}, nil
+}
+
+// runRetentionTail executes one publish-carried retention window
+// (§11.6-8): same Prepare/Execute pair the REST retention face runs, the
+// ladder's rejections (an invalid count gate, an unknown name) logged
+// rather than answered — the upload's own response is already decided.
+func (s *Service) runRetentionTail(ctx context.Context, p *Principal, name, repo string, req RetentionRequest) {
+	plan, err := s.PrepareRetention(ctx, p, name, repo, req)
+	if err != nil {
+		slog.WarnContext(ctx, "build: publish-tail retention window refused",
+			"build", name, "error", err.Error())
+		return
+	}
+	if _, err := plan.Execute(ctx, s, p); err != nil {
+		slog.WarnContext(ctx, "build: publish-tail retention window failed",
+			"build", name, "error", err.Error())
+	}
 }
 
 // Append is POST /api/build/append/{name}/{number} (Errata ①: POST, the

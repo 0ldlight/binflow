@@ -402,11 +402,11 @@ func TestBuildRESTRetentionWindowOnTheWire(t *testing.T) {
 	if resp.StatusCode != http.StatusNotFound || !strings.Contains(body, "Build-Info not found") {
 		t.Fatalf("unknown retention = %d %s", resp.StatusCode, body)
 	}
-	// The sync arm: number 1 (outside the floor, beyond count=2 is nobody —
-	// only 3 runs) is deleted inline.
+	// The sync arm (the DEFAULT since E9): number 1 (outside the floor,
+	// beyond count=2 is nobody — only 3 runs) is deleted before the 204.
 	resp, body = post(adminUser, adminPass, "rwire-app", "?async=false")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("sync retention = %d %s", resp.StatusCode, body)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("sync retention = %d %s, want 204 (E7/E9: the sync arm answers after the deletions)", resp.StatusCode, body)
 	}
 	if strings.TrimSpace(body) != "" {
 		t.Fatalf("retention body = %q, want the empty official form", body)
@@ -426,12 +426,13 @@ func TestBuildRESTRetentionWindowOnTheWire(t *testing.T) {
 		t.Fatal("retention audit rows missing (build.retention / build.delete)")
 	}
 
-	// The async default: seed two more runs and let the detached window
-	// complete (polled — the official async=true posture).
+	// The async=true arm: seed one more outside-floor run and let the
+	// detached window complete (polled; E9 made sync the DEFAULT, so the
+	// arm is now explicit).
 	seed("4", "2026-08-20T10:00:00.000+0000")
-	resp, _ = post(adminUser, adminPass, "rwire-app", "")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("async retention = %d, want 200", resp.StatusCode)
+	resp, _ = post(adminUser, adminPass, "rwire-app", "?async=true")
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("async retention = %d, want 204", resp.StatusCode)
 	}
 	deadline := time.Now().Add(10 * time.Second)
 	for {

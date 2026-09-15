@@ -27,6 +27,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -438,11 +439,13 @@ func (s *Server) handleBuildPromote(w http.ResponseWriter, r *http.Request, name
 }
 
 // handleBuildRetention serves POST /api/build/retention/{buildName}
-// (build-info.md §1/§2.5): the four-field window body, ?async= (default
-// TRUE — the official posture; the execution moves off the request path, the
-// 200 answers from the VALIDATED plan). async=false runs the window inline:
-// the ladder (403/404/400) answers synchronously, a mid-execution store
-// fault answers the honest 500 — success stays the official bare 200.
+// (build-info.md §1/§2.5/§11.6 — the E7/E9-corrected contract): POSTING the
+// window RUNS it. ?async= defaults FALSE (the synchronous source reading —
+// the deletions complete before the 204 answers); async=true moves only the
+// execution off the request path. The count gate (an absent body or an
+// explicit count=0) answers the spec's verbatim text/plain 400; a
+// mid-execution fault answers §11.6-2's verbatim sentence. Success is 204
+// empty on both arms.
 func (s *Server) handleBuildRetention(w http.ResponseWriter, r *http.Request, name string) {
 	if s.buildsUnavailable(w) {
 		return
@@ -452,6 +455,11 @@ func (s *Server) handleBuildRetention(w http.ResponseWriter, r *http.Request, na
 	}
 	raw, ok := readBuildBody(w, r)
 	if !ok {
+		return
+	}
+	if len(bytes.TrimSpace(raw)) == 0 {
+		// §11.6-1: a missing body is the count gate's own 400.
+		writeText(w, http.StatusBadRequest, "Max count retention needs to be a positive number")
 		return
 	}
 	var req build.RetentionRequest
@@ -464,10 +472,15 @@ func (s *Server) handleBuildRetention(w http.ResponseWriter, r *http.Request, na
 	p := principalFrom(r.Context())
 	plan, err := s.builds.PrepareRetention(r.Context(), p, name, q.Get("buildRepo"), req)
 	if err != nil {
+		var we *build.WireError
+		if errors.As(err, &we) {
+			writeText(w, http.StatusBadRequest, we.Error()) // the count gate rides text/plain
+			return
+		}
 		s.writeBuildError(w, err)
 		return
 	}
-	async := true
+	async := false // E9: the JAX-RS primitive default, the synchronous arm
 	if v := q.Get("async"); v != "" {
 		if b, perr := strconv.ParseBool(v); perr == nil {
 			async = b
@@ -478,8 +491,8 @@ func (s *Server) handleBuildRetention(w http.ResponseWriter, r *http.Request, na
 		}
 	}
 	if async {
-		// The official default: the window runs detached (validation already
-		// answered; a background failure is logged, never a silent loss).
+		// The window runs detached (validation already answered; a
+		// background failure is logged, never a silent loss).
 		detached := context.WithoutCancel(r.Context())
 		go func() {
 			defer func() {
@@ -493,14 +506,87 @@ func (s *Server) handleBuildRetention(w http.ResponseWriter, r *http.Request, na
 					"build", name, "error", err.Error())
 			}
 		}()
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	if _, err := plan.Execute(r.Context(), s.builds, p); err != nil {
-		s.writeBuildError(w, err)
+		// §11.6-2's verbatim fault sentence (text/plain 400).
+		writeText(w, http.StatusBadRequest,
+			"Errors have occurred while maintaining build retention. Please review the logs for further information.")
 		return
 	}
-	w.WriteHeader(http.StatusOK) // empty body, the undocumented official success form
+	w.WriteHeader(http.StatusNoContent) // empty body, the official success form
+}
+
+// batchDeleteRequest is the POST /api/build/delete body (§11.7/E10's
+// six-field set): the array form carries build numbers with characters a
+// CSV cannot — the reason this endpoint exists beside the DELETE family.
+type batchDeleteRequest struct {
+	BuildRepo       string   `json:"buildRepo"`
+	Project         string   `json:"project"`
+	BuildName       string   `json:"buildName"`
+	BuildNumbers    []string `json:"buildNumbers"`
+	DeleteArtifacts bool     `json:"deleteArtifacts"`
+	DeleteAll       bool     `json:"deleteAll"`
+}
+
+// handleBuildBatchDelete serves POST /api/build/delete (§11.7): the body
+// twin of the run-deletion face — same DeleteRuns command, same E6 wording
+// family, same two-branch 404 law; the blank-name 400 lives HERE (the body
+// can carry it, the path family cannot).
+func (s *Server) handleBuildBatchDelete(w http.ResponseWriter, r *http.Request) {
+	if s.buildsUnavailable(w) {
+		return
+	}
+	if refuseBuildProjects(w, r) {
+		return
+	}
+	raw, ok := readBuildBody(w, r)
+	if !ok {
+		return
+	}
+	var req batchDeleteRequest
+	if err := json.Unmarshal(raw, &req); err != nil {
+		writeError(w, http.StatusBadRequest,
+			"build deletion body is not valid JSON: "+err.Error())
+		return
+	}
+	if strings.TrimSpace(req.BuildName) == "" {
+		writeError(w, http.StatusBadRequest, "Please state the name of the build to be removed")
+		return
+	}
+	if !req.DeleteAll && len(req.BuildNumbers) == 0 {
+		writeError(w, http.StatusBadRequest, "Please provide at least one build number to delete")
+		return
+	}
+	res, err := s.builds.DeleteRuns(r.Context(), principalFrom(r.Context()),
+		req.BuildName, req.BuildRepo, req.BuildNumbers, req.DeleteAll, req.DeleteArtifacts)
+	if err != nil {
+		switch {
+		case errors.Is(err, build.ErrBuildNumbersNotFound):
+			writeError(w, http.StatusNotFound, "Unable to find the given build numbers")
+		case errors.Is(err, metadata.ErrBuildNotFound):
+			writeError(w, http.StatusNotFound, "Unable to find build '"+req.BuildName+"'")
+		default:
+			s.writeBuildError(w, err)
+		}
+		return
+	}
+	if req.DeleteAll {
+		writeText(w, http.StatusOK,
+			"All builds '"+req.BuildName+"' under '"+res.Repo+"' have been deleted successfully") // E6: no trailing period
+		return
+	}
+	var sb strings.Builder
+	sb.WriteString("The following builds have been deleted successfully: ")
+	sb.WriteString(quoteJoin(res.Deleted))
+	sb.WriteString(".\n")
+	if len(res.Missing) > 0 {
+		sb.WriteString("Warning - the following builds could not be removed: ")
+		sb.WriteString(quoteJoin(res.Missing))
+		sb.WriteString(".\n")
+	}
+	writeText(w, http.StatusOK, sb.String())
 }
 
 // handleBuildDelete serves DELETE /api/build/{buildName}: the run

@@ -126,11 +126,11 @@ func newPromoteWorld(t *testing.T) *promoteWorld {
 	put("dev-build-read", []string{metadata.DefaultBuildRepo}, "veronica", true, false, false, false)
 	// ursula: target write only, no build-repo read.
 	put("rel-write", []string{"rel-libs"}, "ursula", false, true, true, false)
-	// wenda: the properties-arm refuser — r(buildRepo) + r(source) +
-	// w/d(target), no a anywhere.
+	// wenda: the properties-arm refuser — r+w(buildRepo, the §11.5-1/Errata
+	// 二③ build-side gate) + r(source) + w/d(target), no a anywhere.
 	put("wenda-src", []string{"dev-libs"}, "wenda", true, false, false, false)
 	put("wenda-target", []string{"rel-libs"}, "wenda", false, true, true, false)
-	put("wenda-build", []string{metadata.DefaultBuildRepo}, "wenda", true, false, false, false)
+	put("wenda-build", []string{metadata.DefaultBuildRepo}, "wenda", true, true, false, false)
 	return w
 }
 
@@ -709,6 +709,10 @@ func TestPromoteDockerImageClosureReplayAndReconciliation(t *testing.T) {
 	}
 }
 
+// retCount is the *int literal helper of the retention tests (§11.6-1's
+// tri-state: nil = absent).
+func retCount(n int) *int { return &n }
+
 // TestRetentionWindowDeletesOutsideAndKeepsInside: the §2.5 window —
 // minimumBuildDate floors the deletable set, count caps the survivors,
 // buildNumbersNotToBeDiscarded exempts, deleteBuildArtifacts removes the
@@ -732,7 +736,7 @@ func TestRetentionWindowDeletesOutsideAndKeepsInside(t *testing.T) {
 
 	plan, err := w.builds.PrepareRetention(ctx, travis, "ret-app", "", build.RetentionRequest{
 		DeleteBuildArtifacts:         true,
-		Count:                        2,
+		Count:                        retCount(2),
 		MinimumBuildDate:             "2026-09-01T00:00:00Z",
 		BuildNumbersNotToBeDiscarded: []string{"2"},
 	})
@@ -794,12 +798,12 @@ func TestRetentionGateAndUnknownName(t *testing.T) {
 	ctx := context.Background()
 	for _, name := range []string{"ret-app", "ghost-app"} {
 		if _, err := w.builds.PrepareRetention(ctx, veronica, name, "",
-			build.RetentionRequest{Count: 1}); !errors.Is(err, build.ErrForbidden) {
+			build.RetentionRequest{Count: retCount(1)}); !errors.Is(err, build.ErrForbidden) {
 			t.Fatalf("retention gate (%s) = %v, want ErrForbidden (veronica holds no d)", name, err)
 		}
 	}
 	if _, err := w.builds.PrepareRetention(ctx, travis, "ghost-app", "",
-		build.RetentionRequest{Count: 1}); !errors.Is(err, metadata.ErrBuildNotFound) {
+		build.RetentionRequest{Count: retCount(1)}); !errors.Is(err, metadata.ErrBuildNotFound) {
 		t.Fatalf("unknown retention name = %v, want ErrBuildNotFound", err)
 	}
 	// A malformed floor refuses 400-class.
