@@ -47,7 +47,7 @@ func (s *Service) DeleteRuns(ctx context.Context, p *Principal, name, buildRepo 
 		return nil, fmt.Errorf("build repo %q contains control characters: %w", c.Repo, ErrInvalidCoordinate)
 	}
 	if !s.allow(ctx, p, c.Repo, c.Name, auth.ActionDelete) {
-		return nil, fmt.Errorf("build %s delete: %w", c.Name, ErrForbidden)
+		return nil, fmt.Errorf("delete build %s: %w", c.Name, forbiddenf(p, "delete", "Delete"))
 	}
 
 	rows, err := s.store.ListBuildNumbers(ctx, c.Name, c.Repo)

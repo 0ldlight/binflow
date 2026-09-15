@@ -322,13 +322,13 @@ func (s *Service) Upload(ctx context.Context, p *Principal, raw []byte, buildRep
 	c.Started = started
 
 	if !s.allow(ctx, p, c.Repo, c.Name, auth.ActionWrite) {
-		return nil, fmt.Errorf("build %s#%s: %w", c.Name, c.Number, ErrForbidden)
+		return nil, fmt.Errorf("upload build %s#%s: %w", c.Name, c.Number, forbiddenf(p, "upload", "Upload"))
 	}
 	created := true
 	if _, err := s.store.GetBuild(ctx, c.Name, c.Number, c.Started, c.Repo); err == nil {
 		// Overwrite arm: the official delete-permission note (Errata ①).
 		if !s.allow(ctx, p, c.Repo, c.Name, auth.ActionDelete) {
-			return nil, fmt.Errorf("build %s#%s overwrite: %w", c.Name, c.Number, ErrForbidden)
+			return nil, fmt.Errorf("overwrite build %s#%s: %w", c.Name, c.Number, forbiddenf(p, "delete", "Delete"))
 		}
 		created = false
 	} else if !errors.Is(err, metadata.ErrBuildNotFound) {
@@ -396,18 +396,19 @@ func (s *Service) Upload(ctx context.Context, p *Principal, raw []byte, buildRep
 }
 
 // Append is POST /api/build/append/{name}/{number} (Errata ①: POST, the
-// module-ARRAY body, 204 on success): the incremental merge face.
+// module-ARRAY body, 204 on success): the incremental segment face.
 //
-// Gate: Deploy ∧ Delete per the official permission note — BinFlow
-// w(buildRepo, name) ∧ d(buildRepo, name), evaluated BEFORE the parent
+// Gate (§11.4-2): Delete asserted first, then Upload — BinFlow
+// d(buildRepo, name) ∧ w(buildRepo, name), evaluated BEFORE the parent
 // lookup (a denied caller gets 403 with no existence oracle). The parent
 // must already exist: a missing run answers metadata.ErrBuildNotFound (the
-// caller renders the spec's verbatim "Build-Info not found"; T-507 leftover
-// 3 — the FK's generic error is never the mapper's input).
+// caller renders E4's verbatim "The build <name>:<number> is not found").
 //
-// Merge law (Errata ④): modules merge BY ID — an incoming module whose id
-// already exists APPENDS its artifacts and dependencies to that module
-// (never overwrites); a new id lands as a new module. Nothing is dropped.
+// Concatenation law (§11.4-3 / E5 — the merge-by-id reading is VOIDED):
+// the incoming array is APPENDED to the existing modules as-is — same-id
+// modules are never merged, never overwritten, never deduplicated;
+// duplicates coexist as separate rows each holding its own artifacts and
+// dependencies (the live probe's two mod-a entries). Nothing is dropped.
 func (s *Service) Append(ctx context.Context, p *Principal, c Coordinate, raw []byte) (*metadata.Build, error) {
 	c = c.Resolve()
 	if err := c.Validate(); err != nil {
@@ -421,9 +422,13 @@ func (s *Service) Append(ctx context.Context, p *Principal, c Coordinate, raw []
 		c.Started = started
 	}
 
-	if !s.allow(ctx, p, c.Repo, c.Name, auth.ActionWrite) ||
-		!s.allow(ctx, p, c.Repo, c.Name, auth.ActionDelete) {
-		return nil, fmt.Errorf("build %s#%s append: %w", c.Name, c.Number, ErrForbidden)
+	// §11.4-2: the delete right is asserted FIRST, then the upload right —
+	// the failure order decides which §7 sentence answers.
+	if !s.allow(ctx, p, c.Repo, c.Name, auth.ActionDelete) {
+		return nil, fmt.Errorf("append build %s#%s: %w", c.Name, c.Number, forbiddenf(p, "delete", "Delete"))
+	}
+	if !s.allow(ctx, p, c.Repo, c.Name, auth.ActionWrite) {
+		return nil, fmt.Errorf("append build %s#%s: %w", c.Name, c.Number, forbiddenf(p, "upload", "Upload"))
 	}
 
 	// Parent first: the 404 verdict on a missing run precedes any body
@@ -446,7 +451,8 @@ func (s *Service) Append(ctx context.Context, p *Principal, c Coordinate, raw []
 
 	// Read-modify-write under one lock: two concurrent appends to the same
 	// run must both land (last-writer-wins on a stale base would silently
-	// drop a whole merge — CI-frequency traffic makes the global lock free).
+	// drop a whole segment — CI-frequency traffic makes the global lock
+	// free).
 	s.mergeMu.Lock()
 	defer s.mergeMu.Unlock()
 
@@ -454,20 +460,24 @@ func (s *Service) Append(ctx context.Context, p *Principal, c Coordinate, raw []
 	if err != nil {
 		return nil, fmt.Errorf("build %s#%s append read: %w", c.Name, c.Number, err)
 	}
-	merged := mergeModules(existing, incoming)
-	if err := s.store.PutModules(ctx, c.Name, c.Number, parent.Started, c.Repo, merged); err != nil {
+	// LIST CONCATENATION (E5): existing rows first, the incoming array
+	// appended at the tail — no id matching, no dedup, order preserved.
+	concat := make([]*metadata.BuildModule, 0, len(existing)+len(incoming))
+	concat = append(concat, existing...)
+	concat = append(concat, incoming...)
+	if err := s.store.PutModules(ctx, c.Name, c.Number, parent.Started, c.Repo, concat); err != nil {
 		return nil, fmt.Errorf("build %s#%s append write: %w", c.Name, c.Number, err)
 	}
 	// The append's audit row (decision 10's build.append — one row per
-	// successful merge, the modules merged as the detail), then the
-	// webhook uploaded event on the SAME tail (T-510: an append is a
-	// publication of the run it merged into — the resolved parent's
+	// successful concatenation, the modules appended as the detail), then
+	// the webhook uploaded event on the SAME tail (T-510: an append is a
+	// publication of the run it landed on — the resolved parent's
 	// coordinates, not the caller's looser addressing).
 	s.recordAudit(ctx, audit.Event{
 		Actor: actorOf(p), Action: audit.ActionBuildAppend,
 		Repo: c.Repo, Path: c.Name,
 		Detail: fmt.Sprintf(`{"number":%q,"modules_in":%d,"modules_total":%d}`,
-			c.Number, len(incoming), len(merged)),
+			c.Number, len(incoming), len(concat)),
 	})
 	s.emitWebhook(ctx, WebhookEvent{
 		Type: EventUploaded, Name: parent.Name, Number: parent.Number,
@@ -485,37 +495,6 @@ func actorOf(p *Principal) string {
 	return p.Name
 }
 
-// mergeModules folds incoming into existing by module id: same id appends
-// artifacts and dependencies (seq reassigned after the module's current
-// tail), a new id appends a whole module. existing is reused in place —
-// callers hand over a private slice.
-func mergeModules(existing, incoming []*metadata.BuildModule) []*metadata.BuildModule {
-	out := append([]*metadata.BuildModule(nil), existing...)
-	byID := make(map[string]*metadata.BuildModule, len(out))
-	for _, m := range out {
-		byID[m.ID] = m
-	}
-	for _, m := range incoming {
-		dst, ok := byID[m.ID]
-		if !ok {
-			byID[m.ID] = m
-			out = append(out, m)
-			continue
-		}
-		base := int64(len(dst.Artifacts))
-		for i, a := range m.Artifacts {
-			a.Seq = base + int64(i)
-			dst.Artifacts = append(dst.Artifacts, a)
-		}
-		base = int64(len(dst.Dependencies))
-		for i, d := range m.Dependencies {
-			d.Seq = base + int64(i)
-			dst.Dependencies = append(dst.Dependencies, d)
-		}
-	}
-	return out
-}
-
 // decodeModuleArray parses the append body: a JSON ARRAY of modules (the
 // official + first-party-OpenAPI form; the historic single-object shape is
 // superseded — build-info.md §5's divergence note). An empty array is a
@@ -530,14 +509,12 @@ func decodeModuleArray(raw []byte) ([]*Module, error) {
 }
 
 // toStoreModules converts the wire modules into store rows: validation
-// (non-empty ids, no duplicate ids inside one document, segment caps) and
-// the per-artifact node association.
+// (non-empty ids, segment caps) and the per-artifact node association.
 func (s *Service) toStoreModules(ctx context.Context, wire []*Module) ([]*metadata.BuildModule, error) {
 	if len(wire) > maxInfoModules {
 		return nil, fmt.Errorf("build info carries %d modules (max %d): %w", len(wire), maxInfoModules, ErrInvalidBuildInfo)
 	}
 	out := make([]*metadata.BuildModule, 0, len(wire))
-	seen := make(map[string]bool, len(wire))
 	for _, m := range wire {
 		if m == nil {
 			continue
@@ -545,10 +522,9 @@ func (s *Service) toStoreModules(ctx context.Context, wire []*Module) ([]*metada
 		if m.ID == "" {
 			return nil, fmt.Errorf("module id is empty: %w", ErrInvalidBuildInfo)
 		}
-		if seen[m.ID] {
-			return nil, fmt.Errorf("duplicate module id %q: %w", m.ID, ErrInvalidBuildInfo)
-		}
-		seen[m.ID] = true
+		// Duplicate module ids are LEGAL (E5's concat law; the reference's
+		// build.block.duplicate.entries switch defaults false) — each row
+		// lands at its own ordinal.
 		if len(m.Artifacts) > maxModuleArtifacts {
 			return nil, fmt.Errorf("module %q carries %d artifacts (max %d): %w",
 				m.ID, len(m.Artifacts), maxModuleArtifacts, ErrInvalidBuildInfo)

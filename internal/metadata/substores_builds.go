@@ -176,8 +176,11 @@ func (s *buildStore) ListBuildNumbers(ctx context.Context, name, repo string) ([
 
 // PutModules implements BuildStore.PutModules: one transaction that drops
 // the previous segment (the modules delete cascades artifacts and
-// dependencies) and inserts the new one whole. The parent FK rejects an
-// orphan segment — the caller's not-found mapping.
+// dependencies) and inserts the new one whole. Module identity is the
+// ORDINAL (026): same-id modules are separate rows — the append face's
+// list-concatenation law (build-info.md §11.4-E5) stores duplicates, so
+// the slice order IS the storage order. The parent FK rejects an orphan
+// segment — the caller's not-found mapping.
 func (s *buildStore) PutModules(ctx context.Context, name, number, started, repo string, modules []*BuildModule) error {
 	repo = normalizeBuildRepo(repo)
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -192,19 +195,19 @@ func (s *buildStore) PutModules(ctx context.Context, name, number, started, repo
 		return wrapExec("builds modules clear", name+"#"+number, err)
 	}
 	const modStmt = `INSERT INTO build_modules
-		(build_name, build_number, started, build_repo, module_id, module_type)
-		VALUES (?, ?, ?, ?, ?, ?)`
+		(build_name, build_number, started, build_repo, ord, module_id, module_type)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`
 	const artStmt = `INSERT INTO build_artifacts
-		(build_name, build_number, started, build_repo, module_id, seq,
+		(build_name, build_number, started, build_repo, module_ord, module_id, seq,
 		 name, type, sha1, sha256, md5, repo_key, path)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	const depStmt = `INSERT INTO build_dependencies
-		(build_name, build_number, started, build_repo, module_id, seq,
+		(build_name, build_number, started, build_repo, module_ord, module_id, seq,
 		 dep_id, dep_type, scopes, sha1, sha256, md5)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	for _, m := range modules {
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	for ord, m := range modules {
 		if _, err := tx.ExecContext(ctx, modStmt,
-			name, number, started, repo, m.ID, m.Type); err != nil {
+			name, number, started, repo, ord, m.ID, m.Type); err != nil {
 			return wrapExec("builds modules put", name+"#"+number+"/"+m.ID, err)
 		}
 		for _, a := range m.Artifacts {
@@ -215,14 +218,14 @@ func (s *buildStore) PutModules(ctx context.Context, name, number, started, repo
 				nodeRepo, nodePath = a.RepoKey, a.Path
 			}
 			if _, err := tx.ExecContext(ctx, artStmt,
-				name, number, started, repo, m.ID, a.Seq,
+				name, number, started, repo, ord, m.ID, a.Seq,
 				a.Name, a.Type, a.Sha1, a.Sha256, a.Md5, nodeRepo, nodePath); err != nil {
 				return wrapExec("build artifacts put", name+"#"+number+"/"+m.ID, err)
 			}
 		}
 		for _, d := range m.Dependencies {
 			if _, err := tx.ExecContext(ctx, depStmt,
-				name, number, started, repo, m.ID, d.Seq,
+				name, number, started, repo, ord, m.ID, d.Seq,
 				d.ID, d.Type, d.Scopes, d.Sha1, d.Sha256, d.Md5); err != nil {
 				return wrapExec("build dependencies put", name+"#"+number+"/"+m.ID, err)
 			}
@@ -235,72 +238,76 @@ func (s *buildStore) PutModules(ctx context.Context, name, number, started, repo
 }
 
 // ListModules implements BuildStore.ListModules: three ordered reads
-// stitched in memory (module_id, then seq inside each module).
+// stitched in memory (module ord, then seq inside each module — the wire
+// order the segment was stored in, duplicates included).
 func (s *buildStore) ListModules(ctx context.Context, name, number, started, repo string) ([]*BuildModule, error) {
 	repo = normalizeBuildRepo(repo)
 	coords := []any{name, number, started, repo}
 
-	out, byID, err := s.listModuleRows(ctx, coords, name+"#"+number)
+	out, byOrd, err := s.listModuleRows(ctx, coords, name+"#"+number)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.attachArtifacts(ctx, coords, name+"#"+number, byID); err != nil {
+	if err := s.attachArtifacts(ctx, coords, name+"#"+number, byOrd); err != nil {
 		return nil, err
 	}
-	if err := s.attachDependencies(ctx, coords, name+"#"+number, byID); err != nil {
+	if err := s.attachDependencies(ctx, coords, name+"#"+number, byOrd); err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// listModuleRows reads the module rows ordered by module_id, returning
-// both the ordered slice and the id index the attach passes stitch into.
-func (s *buildStore) listModuleRows(ctx context.Context, coords []any, key string) ([]*BuildModule, map[string]*BuildModule, error) {
+// listModuleRows reads the module rows ordered by ord, returning both the
+// ordered slice and the ord index the attach passes stitch into.
+func (s *buildStore) listModuleRows(ctx context.Context, coords []any, key string) ([]*BuildModule, map[int64]*BuildModule, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT module_id, module_type FROM build_modules WHERE `+buildCoordsWhere+`
-		 ORDER BY module_id`, coords...)
+		 ORDER BY ord`, coords...)
 	if err != nil {
 		return nil, nil, wrapExec("builds modules list", key, err)
 	}
 	defer func() { _ = rows.Close() }()
-	byID := make(map[string]*BuildModule)
+	byOrd := make(map[int64]*BuildModule)
 	var out []*BuildModule
+	var ord int64
 	for rows.Next() {
 		m := &BuildModule{}
 		if err := rows.Scan(&m.ID, &m.Type); err != nil {
 			return nil, nil, wrapExec("builds modules list scan", key, err)
 		}
-		byID[m.ID] = m
+		byOrd[ord] = m
+		ord++
 		out = append(out, m)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, nil, wrapExec("builds modules list rows", key, err)
 	}
-	return out, byID, nil
+	return out, byOrd, nil
 }
 
-// attachArtifacts appends each artifact row to its module (seq order); a
-// NULL association reads back as ” — the record-only shape.
-func (s *buildStore) attachArtifacts(ctx context.Context, coords []any, key string, byID map[string]*BuildModule) error {
+// attachArtifacts appends each artifact row to its module (module ord,
+// then seq order); a NULL association reads back as ” — the record-only
+// shape.
+func (s *buildStore) attachArtifacts(ctx context.Context, coords []any, key string, byOrd map[int64]*BuildModule) error {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT module_id, seq, name, type, sha1, sha256, md5, repo_key, path
-		 FROM build_artifacts WHERE `+buildCoordsWhere+` ORDER BY module_id, seq`, coords...)
+		`SELECT module_ord, seq, name, type, sha1, sha256, md5, repo_key, path
+		 FROM build_artifacts WHERE `+buildCoordsWhere+` ORDER BY module_ord, seq`, coords...)
 	if err != nil {
 		return wrapExec("build artifacts list", key, err)
 	}
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var (
-			mid                string
+			mord               int64
 			a                  BuildArtifact
 			nodeRepo, nodePath sql.NullString
 		)
-		if err := rows.Scan(&mid, &a.Seq, &a.Name, &a.Type, &a.Sha1, &a.Sha256, &a.Md5,
+		if err := rows.Scan(&mord, &a.Seq, &a.Name, &a.Type, &a.Sha1, &a.Sha256, &a.Md5,
 			&nodeRepo, &nodePath); err != nil {
 			return wrapExec("build artifacts list scan", key, err)
 		}
 		a.RepoKey, a.Path = nodeRepo.String, nodePath.String
-		if m, ok := byID[mid]; ok {
+		if m, ok := byOrd[mord]; ok {
 			m.Artifacts = append(m.Artifacts, &a)
 		}
 	}
@@ -310,24 +317,24 @@ func (s *buildStore) attachArtifacts(ctx context.Context, coords []any, key stri
 	return nil
 }
 
-// attachDependencies appends each dependency row to its module (seq
-// order).
-func (s *buildStore) attachDependencies(ctx context.Context, coords []any, key string, byID map[string]*BuildModule) error {
+// attachDependencies appends each dependency row to its module (module
+// ord, then seq order).
+func (s *buildStore) attachDependencies(ctx context.Context, coords []any, key string, byOrd map[int64]*BuildModule) error {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT module_id, seq, dep_id, dep_type, scopes, sha1, sha256, md5
-		 FROM build_dependencies WHERE `+buildCoordsWhere+` ORDER BY module_id, seq`, coords...)
+		`SELECT module_ord, seq, dep_id, dep_type, scopes, sha1, sha256, md5
+		 FROM build_dependencies WHERE `+buildCoordsWhere+` ORDER BY module_ord, seq`, coords...)
 	if err != nil {
 		return wrapExec("build dependencies list", key, err)
 	}
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
-		var mid string
+		var mord int64
 		d := &BuildDependency{}
-		if err := rows.Scan(&mid, &d.Seq, &d.ID, &d.Type, &d.Scopes,
+		if err := rows.Scan(&mord, &d.Seq, &d.ID, &d.Type, &d.Scopes,
 			&d.Sha1, &d.Sha256, &d.Md5); err != nil {
 			return wrapExec("build dependencies list scan", key, err)
 		}
-		if m, ok := byID[mid]; ok {
+		if m, ok := byOrd[mord]; ok {
 			m.Dependencies = append(m.Dependencies, d)
 		}
 	}

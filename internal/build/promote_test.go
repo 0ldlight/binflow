@@ -126,7 +126,9 @@ func newPromoteWorld(t *testing.T) *promoteWorld {
 	put("dev-build-read", []string{metadata.DefaultBuildRepo}, "veronica", true, false, false, false)
 	// ursula: target write only, no build-repo read.
 	put("rel-write", []string{"rel-libs"}, "ursula", false, true, true, false)
-	// wenda: the properties-arm refuser — r(buildRepo) + w/d(target), no a.
+	// wenda: the properties-arm refuser — r(buildRepo) + r(source) +
+	// w/d(target), no a anywhere.
+	put("wenda-src", []string{"dev-libs"}, "wenda", true, false, false, false)
 	put("wenda-target", []string{"rel-libs"}, "wenda", false, true, true, false)
 	put("wenda-build", []string{metadata.DefaultBuildRepo}, "wenda", true, false, false, false)
 	return w
@@ -263,7 +265,9 @@ func TestPromoteStatusOnlyFlipsStatusAndWritesHistoryAndAudit(t *testing.T) {
 // refusals precede the run's existence (no oracle, NFR-S80/S81).
 func TestPromoteGateArmsAndNoOracle(t *testing.T) {
 	w := newPromoteWorld(t)
+	w.seedLocalRepo(t, "dev-libs", "generic")
 	w.seedLocalRepo(t, "rel-libs", "generic")
+	w.seedNode(t, "dev-libs", "gate/1.bin", "bb22", 16)
 	w.uploadBuild(t, travis, genericDoc("gate-app", "1",
 		"2026-09-07T10:00:00.000+0000", "dev-libs", "gate/1.bin", "bb22"))
 	body := `{"status":"released","targetRepo":"rel-libs"}`
@@ -285,14 +289,26 @@ func TestPromoteGateArmsAndNoOracle(t *testing.T) {
 			}
 		})
 	}
-	// The properties arm demands annotate on the target (Errata ④㋔): wenda
-	// holds r(buildRepo) + w(target) but no a.
-	props := `{"status":"released","targetRepo":"rel-libs","properties":{"release":"v1"}}`
-	if _, err := w.promote(t, wenda, "gate-app", "1", props); !errors.Is(err, build.ErrForbidden) {
-		t.Fatalf("properties arm without annotate = %v, want ErrForbidden", err)
+	// The properties arm's §11.5-7 posture: a missing annotate right is a
+	// PER-ITEM warning row (failFast then answers 400 with the messages
+	// body), never an upfront 403 — wenda holds r(buildRepo) + w(target)
+	// but no a.
+	res, err := w.promote(t, wenda, "gate-app", "1",
+		`{"status":"released","targetRepo":"rel-libs","copy":true,"properties":{"release":"v1"},"failFast":false}`)
+	if err != nil {
+		t.Fatalf("properties arm without annotate: %v", err)
 	}
-	if _, err := w.promote(t, wenda, "ghost-app", "1", props); !errors.Is(err, build.ErrForbidden) {
-		t.Fatalf("properties arm denial (nonexistent run) = %v, want the SAME ErrForbidden", err)
+	if res.HTTPStatus != 0 {
+		t.Fatalf("lenient properties arm = %d, want 200", res.HTTPStatus)
+	}
+	annotWarn := false
+	for _, m := range res.Messages {
+		if m.Level == "WARNING" && strings.Contains(m.Message, "User doesn't have permissions to annotate") {
+			annotWarn = true
+		}
+	}
+	if !annotWarn {
+		t.Fatalf("messages carry no annotate warning: %+v", res.Messages)
 	}
 }
 
@@ -411,16 +427,21 @@ func TestPromoteTargetValidation(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("seed virtual: %v", err)
 	}
+	w.seedNode(t, "dev-libs", "t/1.bin", "0a0a", 16)
 	w.uploadBuild(t, travis, genericDoc("tgt-app", "1",
 		"2026-09-07T10:00:00.000+0000", "dev-libs", "t/1.bin", "0a0a"))
 
+	// §11.5-4: a missing key, a non-local family and an un-routable
+	// virtual (no defaultDeploymentRepo) all answer the SAME verbatim 404
+	// by the caller's key; a virtual WITH a default deployment repo
+	// resolves to that local repository and proceeds.
 	for _, tc := range []struct {
 		name   string
 		body   string
 		wantIn string
 	}{
-		{"missing repo", `{"targetRepo":"no-such"}`, "not found"},
-		{"virtual target", `{"targetRepo":"virt-libs"}`, "must be a local repository"},
+		{"missing repo", `{"targetRepo":"no-such"}`, "Cannot find target repository by the key 'no-such'"},
+		{"unrouted virtual target", `{"targetRepo":"virt-libs"}`, "Cannot find target repository by the key 'virt-libs'"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// admin passes the w(target) gate unconditionally, so the
@@ -430,13 +451,34 @@ func TestPromoteTargetValidation(t *testing.T) {
 			if err == nil {
 				t.Fatalf("target %q accepted", tc.body)
 			}
-			if !errors.Is(err, build.ErrInvalidBuildInfo) {
-				t.Fatalf("error = %v, want the 400-family sentinel", err)
+			var se *repo.StatusError
+			if !errors.As(err, &se) || se.Code != http.StatusNotFound {
+				t.Fatalf("error = %v, want the verbatim 404 StatusError", err)
 			}
-			if !strings.Contains(err.Error(), tc.wantIn) {
-				t.Fatalf("message %q missing %q", err.Error(), tc.wantIn)
+			if se.Message != tc.wantIn {
+				t.Fatalf("message = %q, want exactly %q", se.Message, tc.wantIn)
 			}
 		})
+	}
+
+	// The routed virtual: defaultDeploymentRepo resolves to the local
+	// member and the promotion proceeds onto it.
+	if err := w.store.Repos().Create(context.Background(), &metadata.Repo{
+		RepoKey: "routed-virt", Type: "virtual", PackageType: "generic",
+		Config:    `{"members": ["dev-libs"], "defaultDeploymentRepo": "dev-libs"}`,
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("seed routed virtual: %v", err)
+	}
+	res, err := w.promote(t, adminP, "tgt-app", "1", `{"status":"released","targetRepo":"routed-virt"}`)
+	if err != nil {
+		t.Fatalf("routed virtual promote: %v", err)
+	}
+	if res.HTTPStatus != 0 {
+		t.Fatalf("routed virtual = %d, want 200", res.HTTPStatus)
+	}
+	if res.Status != "released" {
+		t.Fatalf("status = %q (the history row must land on the resolved arm)", res.Status)
 	}
 }
 
@@ -451,29 +493,59 @@ func TestPromoteFailFastDanglingArtifacts(t *testing.T) {
 	w.uploadBuild(t, travis, genericDoc("dangle-app", "1",
 		"2026-09-07T10:00:00.000+0000", "dev-libs", "gone/1.bin", "1b1b"))
 
-	_, err := w.promote(t, travis, "dangle-app", "1", `{"targetRepo":"rel-libs"}`)
-	var se *repo.StatusError
-	if !errors.As(err, &se) || se.Code != http.StatusBadRequest {
-		t.Fatalf("failFast dangling = %v, want a 400 StatusError", err)
+	// §11.5-5 (E12): failFast (the default) refuses through the messages[]
+	// body at 400 with the aborting sentence; the status row is SKIPPED
+	// (§11.5-8's skipping notice rides along).
+	res, err := w.promote(t, travis, "dangle-app", "1", `{"targetRepo":"rel-libs"}`)
+	if err != nil {
+		t.Fatalf("failFast dangling promote: %v", err)
 	}
-	if !strings.Contains(se.Message, "no live node association") {
-		t.Fatalf("dangling message = %q", se.Message)
+	if res.HTTPStatus != http.StatusBadRequest {
+		t.Fatalf("failFast dangling = %d, want the 400 messages body", res.HTTPStatus)
 	}
-	res, err := w.promote(t, travis, "dangle-app", "1", `{"targetRepo":"rel-libs","failFast":false}`)
+	aborted, skipped := false, false
+	for _, m := range res.Messages {
+		if m.Level == "ERROR" && m.Message ==
+			"Unable to find artifacts of build 'dangle-app' #1 from artifactory-build-info repo: aborting promotion." {
+			aborted = true
+		}
+		if m.Level == "INFO" && strings.Contains(m.Message, "Skipping promotion status update") {
+			skipped = true
+		}
+	}
+	if !aborted || !skipped {
+		t.Fatalf("messages = %+v, want the E12 abort row + the status-skip notice", res.Messages)
+	}
+	if res.Status != "" {
+		t.Fatalf("status = %q, want no history row under failFast refusal", res.Status)
+	}
+	// The lenient arm: ONE warning row with the artifact names, 200, and
+	// the status update DOES land (E12: "warning 后继续").
+	res, err = w.promote(t, travis, "dangle-app", "1", `{"targetRepo":"rel-libs","failFast":false,"status":"released"}`)
 	if err != nil {
 		t.Fatalf("failFast=false promote: %v", err)
+	}
+	if res.HTTPStatus != 0 {
+		t.Fatalf("lenient arm = %d, want 200", res.HTTPStatus)
 	}
 	if res.Artifacts != 0 {
 		t.Fatalf("migrated = %d, want 0", res.Artifacts)
 	}
-	warned := false
+	warned, byName := false, false
 	for _, m := range res.Messages {
-		if m.Level == "warning" && strings.Contains(m.Message, "no live node association") {
+		if m.Level == "WARNING" && strings.Contains(m.Message,
+			"Unable to find the following artifacts of build 'dangle-app' #1:") {
 			warned = true
+			if strings.Contains(m.Message, "app.bin") {
+				byName = true
+			}
 		}
 	}
-	if !warned {
-		t.Fatalf("messages carry no dangling warning: %+v", res.Messages)
+	if !warned || !byName {
+		t.Fatalf("messages carry no E12 names warning: %+v", res.Messages)
+	}
+	if res.Status != "released" {
+		t.Fatalf("lenient status = %q, want the history row to land", res.Status)
 	}
 }
 

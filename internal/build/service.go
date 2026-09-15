@@ -34,6 +34,37 @@ type Authorizer interface {
 // httpapi layer maps it to 403 (NFR-S80's first arm).
 var ErrForbidden = errors.New("build: forbidden")
 
+// ForbiddenError is the §7 verbatim denial (L023-2B, build-info.md §7's
+// source-pinned wording): the user-interpolated sentence the reference's
+// build faces answer with, carried under the ErrForbidden sentinel so the
+// wire layer renders the exact text at 403 while errors.Is keeps working.
+// The verb pair is fixed per face: access/Read (the read faces), upload/
+// Upload (the upload face's w gate), delete/Delete (the delete-dependent
+// arms — overwrite, append's first gate, deletion, retention).
+type ForbiddenError struct {
+	User  string
+	Verb  string // "access" | "upload" | "delete"
+	Need  string // "Read" | "Upload" | "Delete"
+	cause error
+}
+
+func (e *ForbiddenError) Error() string {
+	return fmt.Sprintf("The user: '%s' is not authorized to %s build info. %s permission is needed.",
+		e.User, e.Verb, e.Need)
+}
+
+func (e *ForbiddenError) Unwrap() error { return e.cause }
+
+// forbiddenf mints one §7 denial for the acting principal (anonymous has
+// no name to interpolate — the reference's own anonymous spelling).
+func forbiddenf(p *Principal, verb, need string) error {
+	user := "anonymous"
+	if p != nil && p.Name != "" {
+		user = p.Name
+	}
+	return &ForbiddenError{User: user, Verb: verb, Need: need, cause: ErrForbidden}
+}
+
 // Service is the build domain's ACL face (T-507, FR-152.1) and, since
 // T-508, its write orchestration: the allow() mirror, the CanRead
 // projection and the server-side visible-set filter the read faces run —
@@ -118,7 +149,7 @@ func (s *Service) GetBuild(ctx context.Context, p *Principal, c Coordinate) (*me
 		return nil, err
 	}
 	if !s.CanRead(ctx, p, c.Repo, c.Name) {
-		return nil, fmt.Errorf("build %s#%s: %w", c.Name, c.Number, ErrForbidden)
+		return nil, fmt.Errorf("get build %s#%s: %w", c.Name, c.Number, forbiddenf(p, "access", "Read"))
 	}
 	b, err := s.store.GetBuild(ctx, c.Name, c.Number, c.Started, c.Repo)
 	if err != nil {

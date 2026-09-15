@@ -286,10 +286,13 @@ func TestBuildsStoreModulesSegment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list modules: %v", err)
 	}
-	if len(got) != 2 || got[0].ID != "mod-a" || got[1].ID != "mod-b" {
-		t.Fatalf("modules = %+v, want [mod-a mod-b] ordered by id", got)
+	// Module order is the stored ORDINAL (the wire order, 026) — no id
+	// sort: the append face stores duplicate ids as separate rows
+	// (build-info.md §11.4-E5's list-concatenation law).
+	if len(got) != 2 || got[0].ID != "mod-b" || got[1].ID != "mod-a" {
+		t.Fatalf("modules = %+v, want [mod-b mod-a] in insertion order", got)
 	}
-	a := got[0]
+	a := got[1]
 	if len(a.Artifacts) != 2 || a.Artifacts[0].Seq != 0 || a.Artifacts[0].Name != "a.jar" ||
 		a.Artifacts[1].Name != "a-sources.jar" {
 		t.Errorf("mod-a artifacts = %+v, want wire order by seq", a.Artifacts)
@@ -298,8 +301,8 @@ func TestBuildsStoreModulesSegment(t *testing.T) {
 		a.Dependencies[0].Scopes != "compile,test" {
 		t.Errorf("mod-a dependencies = %+v, want seq order with scopes joined", a.Dependencies)
 	}
-	if a.Type != "gradle" || got[1].Type != "maven" {
-		t.Errorf("module types = %q/%q, want round-tripped", a.Type, got[1].Type)
+	if a.Type != "gradle" || got[0].Type != "maven" {
+		t.Errorf("module types = %q/%q, want round-tripped", a.Type, got[0].Type)
 	}
 
 	// The replace law: PutModules swaps the segment whole, not merge.

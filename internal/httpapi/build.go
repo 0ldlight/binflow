@@ -124,6 +124,12 @@ func (s *Server) writeBuildError(w http.ResponseWriter, err error) {
 		writeError(w, se.Code, se.Message)
 		return
 	}
+	var fe *build.ForbiddenError
+	if errors.As(err, &fe) {
+		// §7's verbatim sentence, clean — the wrap prefixes never ride.
+		writeError(w, http.StatusForbidden, fe.Error())
+		return
+	}
 	switch {
 	case errors.Is(err, build.ErrForbidden):
 		writeError(w, http.StatusForbidden, err.Error())
@@ -400,6 +406,12 @@ func (s *Server) handleBuildPromote(w http.ResponseWriter, r *http.Request, name
 		Started: q.Get("started"), Repo: q.Get("buildRepo"),
 	}, raw)
 	if err != nil {
+		if errors.Is(err, metadata.ErrBuildNotFound) {
+			// §11.5-2's verbatim run-404 (the repo the caller addressed).
+			writeError(w, http.StatusNotFound, "Cannot find a build by the name: "+name+
+				", number: "+number+", repo: "+buildRepoQuery(r))
+			return
+		}
 		s.writeBuildError(w, err)
 		return
 	}
@@ -414,7 +426,13 @@ func (s *Server) handleBuildPromote(w http.ResponseWriter, r *http.Request, name
 	if res.Messages == nil {
 		res.Messages = []build.PromotionMessage{}
 	}
-	writeJSONBody(w, http.StatusOK, struct {
+	status := res.HTTPStatus
+	if status == 0 {
+		status = http.StatusOK
+	}
+	// §11.5-9: failFast with any ERROR/WARNING answers the SAME messages
+	// body at 400.
+	writeJSONBody(w, status, struct {
 		Messages []build.PromotionMessage `json:"messages"`
 	}{Messages: res.Messages})
 }
@@ -658,7 +676,11 @@ func (s *Server) renderBuildInfo(d *build.Detail, slim bool) map[string]any {
 			// twin of timestamp (the schema-undocumented field the live
 			// probe pinned); repository/ciUser are omitted whole when the
 			// promotion carried none — nullable fields never ride as "".
-			if t, err := time.Parse(time.RFC3339, p.PromotedAt); err == nil {
+			// The stamp parses as the SSSZ promotion form or an RFC3339
+			// row written before that form landed.
+			if t, err := time.Parse("2006-01-02T15:04:05.000-0700", p.PromotedAt); err == nil {
+				entry["timestampDate"] = t.UnixMilli()
+			} else if t, err := time.Parse(time.RFC3339, p.PromotedAt); err == nil {
 				entry["timestampDate"] = t.UnixMilli()
 			}
 			if p.TargetRepo != "" {

@@ -194,11 +194,10 @@ func TestBuildRESTUploadAndEchoRoundTrip(t *testing.T) {
 	}
 }
 
-// TestBuildRESTAppendMergesByIDOnTheWire: the AC's merge assertion — a
-// second publish carrying a dependencies section MERGES into the same
-// module by id (204 empty), and the GET face shows the union with the
-// original rows intact.
-func TestBuildRESTAppendMergesByIDOnTheWire(t *testing.T) {
+// TestBuildRESTAppendConcatenatesOnTheWire: E5's law — the appended array
+// lands at the TAIL as-is; the same-id module is a DUPLICATE entry (never
+// a merge), the original rows intact (204 empty).
+func TestBuildRESTAppendConcatenatesOnTheWire(t *testing.T) {
 	h := newBuildHarness(t)
 	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("seed upload = %d", resp.StatusCode)
@@ -236,28 +235,26 @@ func TestBuildRESTAppendMergesByIDOnTheWire(t *testing.T) {
 	if err := json.Unmarshal([]byte(doc), &detail); err != nil {
 		t.Fatalf("detail JSON: %v", err)
 	}
-	var apiMod *struct {
-		ID           string            `json:"id"`
-		Artifacts    []json.RawMessage `json:"artifacts"`
-		Dependencies []struct {
-			ID string `json:"id"`
-		} `json:"dependencies"`
+	// Three rows: the seeded segment, then the appended array in order —
+	// the SECOND com.example:api:1.0 is a duplicate entry holding exactly
+	// its own rows (E5's live-probe shape).
+	if len(detail.BuildInfo.Modules) != 3 {
+		t.Fatalf("modules after append = %d, want 3 (1 seeded + 2 appended — concat, no merge): %s",
+			len(detail.BuildInfo.Modules), doc)
 	}
-	for i := range detail.BuildInfo.Modules {
-		if detail.BuildInfo.Modules[i].ID == "com.example:api:1.0" {
-			apiMod = &detail.BuildInfo.Modules[i]
-		}
+	// Seeded segment first (api, web), the appended array at the tail
+	// (api duplicate).
+	first, dup := detail.BuildInfo.Modules[0], detail.BuildInfo.Modules[2]
+	if first.ID != "com.example:api:1.0" || len(first.Dependencies) != 1 ||
+		first.Dependencies[0].ID != "junit:junit:4.13" {
+		t.Fatalf("seeded module must survive untouched: %+v", first)
 	}
-	if apiMod == nil {
-		t.Fatalf("merged module missing: %s", doc)
+	if detail.BuildInfo.Modules[1].ID != "com.example:web:1.0" {
+		t.Fatalf("seeded web module misplaced: %+v", detail.BuildInfo.Modules[1])
 	}
-	if len(apiMod.Dependencies) != 2 || len(apiMod.Artifacts) != 2 {
-		t.Fatalf("module after append = %d artifacts / %d deps, want 2/2 (merge, not overwrite): %s",
-			len(apiMod.Artifacts), len(apiMod.Dependencies), doc)
-	}
-	if apiMod.Dependencies[0].ID != "junit:junit:4.13" ||
-		apiMod.Dependencies[1].ID != "org:lib:2.0" {
-		t.Fatalf("dependency union order = %+v", apiMod.Dependencies)
+	if dup.ID != "com.example:api:1.0" || len(dup.Artifacts) != 1 || len(dup.Dependencies) != 1 ||
+		dup.Dependencies[0].ID != "org:lib:2.0" {
+		t.Fatalf("duplicate module must hold exactly its own rows: %+v", dup)
 	}
 }
 
