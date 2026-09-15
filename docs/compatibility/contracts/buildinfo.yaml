@@ -1,0 +1,338 @@
+# BinFlow 兼容契约——build-info REST 端点族（buildinfo 域首文件，L023-2D 蓝本，2026-09-15）
+# schema: compat-contract/1 —— 条目键面全集：
+#   id/feature/surface/request/authentication/expect/side_effects/error_behavior/version/evidence/
+#   confidence/status（+binflow_state 记差分现值；divergence_ref 于 DIVERGENT/INTENTIONAL 必填）。
+# 作者注：本文件为 L023-2D（differential-qa-engineer）据双端活体 wire 起草的蓝本，条目状态为差分现值
+#   记录；入册与翻态裁定权在 compatibility-engineer。证据面=L023 双端（A=Artifactory pro 7.161.15
+#   :8082 / B=BinFlow dev dev.77033399 :8083），REST 44 判定单元 + jf 2.122.0 真腿 4×2。
+#   差分报告=reports/compatibility/L023-buildinfo-diff.md（D-item 编号在其 §3）。
+# 归一依赖（提案 fixtures/normalize.yaml#buildinfo，报告 §1 N1-N6）：
+#   N1 头 drop 集 / N2 Content-Type json-family 等价（vendor≠裸型单列 D8）/ N3 X-Checksum-Sha256
+#   hex64 shape / N4 绝对 URL 前缀占位 / N5 statuses[] 服务端时钟戳 shape / N6 名清单断言域。
+# 面外维持（不立条目）：rename（D07-R09）、docker promote 独立端点（R11→build-info.md §2.6）、
+#   patternArtifacts、diff 响应形态、project 过滤族。
+domain: buildinfo
+scope: build REST 面 M17 七族（上传/append/查询单/列表族/单删/批删/promote/retention）。
+  证据面=L023-2D 双端活体（curl 族 44 单元 + jf 2.122.0 真腿双发）。不含：buildinfo 仓文件面直传
+  （ADR-0045 载体轴 A——BinFlow REST 面为唯一入口）、LATEST 哨兵 body 族、webhook 联动（T-510 面）。
+normalize: fixtures/normalize.yaml#buildinfo（提案——L023-buildinfo-diff.md §1）
+reference_instance: 'Artifactory pro 7.161.15（http://172.16.58.130:8082，admin；buildinfo 域 pro 档全开）'
+binflow_tested_instance: 'BinFlow dev dev.77033399（http://172.16.58.130:8083，admin；含 L023-2A/B/C 对位）'
+client_anchor: 'jf 2.122.0（build-publish/build-promote/build-discard 真腿）+ curl 差分族'
+contracts:
+# ── 上传：PUT /api/build（全量） ─────────────────────────────────────────────
+- id: buildinfo/put-upload
+  feature: 'PUT /api/build 全量上传（name/number 在 body；204 空体 + X-Checksum-Sha256 头；hidden 坐标 400；同坐标覆盖；同号不同 started 并存；artifactoryPrincipal 覆写）'
+  surface: 'PUT <apiBase>/build[?buildRepo=&project=]'
+  request:
+    method: PUT
+    path: '<apiBase>/build'
+    headers: { Authorization: 'Basic <valid>', Content-Type: application/json }
+    query: { buildRepo: '可选（缺省 artifactory-build-info；自定义=<projectKey>-build-info——projects 门见 error_behavior）' }
+    body: 'build info JSON（version/name/number/started/buildAgent/agent/url[/properties][/modules][/buildRetention]）'
+  authentication: { type: basic, role: 'upload（覆盖需 delete）' }
+  expect:
+    status: 204
+    headers:
+      shape: { X-Checksum-Sha256: '<hex64>' }
+      note: '值=服务端存储 manifest 的 sha256（principal 已覆写+重序列化后），非请求原文——双端同构口径（L023-2A 登记漂移）'
+    body: { format: none, literal: '' }
+  side_effects:
+    - 'build JSON 落库（四元 name/number/started/repo 唯一）'
+    - 'artifactoryPrincipal ← 认证用户；1-2 digest 缺失行按已有 checksum 反查补全（源码级，未差分）'
+    - 'body 携 buildRetention 块时发布尾部同步执行 retention（E7）'
+    - 'webhook uploaded 事件（T-510 面）'
+  error_behavior:
+    - { when: 'name/number 去前导空白后以 . 开头', status: 400, literal_body: 'errors[] 信封 Build name must not start with ''.''/Build number must not start with ''.''' }
+    - { when: '?buildRepo=<X>-build-info 而 project X 不存在（A）', status: 400, ref: buildinfo/custom-buildrepo-gate }
+    - { when: '畸形 body', status: 400 }
+  binflow_state:
+    verdict: 'SAME（01/04/05 单元）'
+    detail: '204+头形/hidden 双文案逐字双绿。残差在详情回显侧（buildinfo/get-detail D4/D5），不在本面'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.1 01/04/05 行', date: '2026-09-15' }
+    - { kind: difftest, report: reports/compatibility/l023d-wire, anchor: '{a,b}/01-crud-put-204-sha256hdr.* + 04/05-*', date: '2026-09-15' }
+  confidence: high
+  status: VERIFIED
+# ── 列表：GET /api/build（名清单） ───────────────────────────────────────────
+- id: buildinfo/get-list
+  feature: '名清单 + lastStarted（顶级 uri 绝对 + ?buildRepo= 串；条目 uri 相对 /<name>；lastStarted UTC 归一；名序=各名最新 run 日期升序；空态 404）'
+  surface: 'GET <apiBase>/build[?buildRepo=&project=]'
+  request: { method: GET, path: '<apiBase>/build', headers: { Authorization: 'Basic <valid>' }, query: {} }
+  authentication: { type: basic, role: read }
+  expect:
+    status: 200
+    body:
+      format: json
+      shape: '顶级 uri=<BASE>/api/build?buildRepo=<解析仓>；builds[]:{uri:"/<name>", lastStarted:"yyyy-MM-dd''T''HH:mm:ss.SSSZ(+0000)"}'
+      ordering: '按各名最新 run 日期升序（L023-2D 双活体收口——build-info.md §9 #5 关闭）'
+  side_effects: []
+  error_behavior:
+    - { when: '零 build（或全被权限过滤）', status: 404, literal_body: 'errors[] 信封 No builds were found' }
+    - { when: '?buildRepo= 不存在的仓', status: 404, note: '读路径无仓存在性校验——与写路径不对称（A 源码级）；双端同' }
+  binflow_state:
+    verdict: 'SAME（03/08/27 单元）'
+    detail: 'UTC 归一（+0530 入 +0000 出）/uri 形态/升序/空态 404 逐字双绿'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.1 03/08 行 + §2.5 27 行', date: '2026-09-15' }
+  confidence: high
+  status: VERIFIED
+# ── 号单：GET /api/build/{name} ──────────────────────────────────────────────
+- id: buildinfo/get-numbers
+  feature: '号清单 + started（严格倒序最新在前；同号多 run 同号多行并列；started UTC 归一；空/名不存在 404 逐字）'
+  surface: 'GET <apiBase>/build/{buildName}[?buildRepo=&project=]'
+  request: { method: GET, path: '<apiBase>/build/{buildName}', headers: { Authorization: 'Basic <valid>' }, query: {} }
+  authentication: { type: basic, role: read }
+  expect:
+    status: 200
+    body:
+      format: json
+      shape: '顶级 uri=<BASE>/api/build/<name>?buildRepo=<解析仓>；buildsNumbers[]:{uri:"/<number>", started:SSSZ}'
+      ordering: 'started 严格倒序'
+  side_effects: []
+  error_behavior:
+    - { when: '名不存在或零 run', status: 404, literal_body: 'errors[] 信封 No build was found for build name: <name>' }
+  binflow_state:
+    verdict: 'SAME（06/07/10c/13b/13d 单元）'
+    detail: '倒序/同号并列/UTC 归一/404 逐字双绿'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.1 06/07/10c/13b-d 行', date: '2026-09-15' }
+  confidence: high
+  status: VERIFIED
+# ── 详情：GET /api/build/{name}/{number} ────────────────────────────────────
+- id: buildinfo/get-detail
+  feature: '单 run 详情（started 原样时区回显；durationMillis 缺省 0；statuses[] wire；?slim=true → modules []+properties 键省略；?started= 消歧）'
+  surface: 'GET <apiBase>/build/{buildName}/{buildNumber}[?started=&slim=&buildRepo=]'
+  request: { method: GET, path: '<apiBase>/build/<name>/<number>', headers: { Authorization: 'Basic <valid>' }, query: { slim: 'true → modules []、properties 键省略', started: 'yyyy-MM-dd''T''HH:mm:ss.SSSZ 消歧' } }
+  authentication: { type: basic, role: read }
+  expect:
+    status: 200
+    body:
+      format: json
+      shape: >-
+        {uri:<BASE>/api/build/..., buildInfo:{...payload 回显: started 原样时区/artifactoryPrincipal=认证用户/
+        durationMillis 缺省 0/module artifacts 全字段保留（空串与 path/originalDeploymentRepo 也回）/
+        statuses[]:{status,timestamp SSSZ,timestampDate epoch-ms,user[,comment][,repository][,ciUser]——
+        nullable 键整体省略（comment 空亦省略）}}
+  side_effects: []
+  error_behavior:
+    - when: '坐标不存在'
+      status: 404
+      literal_body: >-
+        errors[] 信封 `No build was found for build name: <n>, build number: <n> `（**尾空格**）；
+        携 ?started= 时 `, build started: <ts>` 子句（**逗号前空格**：<n> , build started:）
+    - when: '?started= 畸形'
+      status: 400
+      literal_body: 'A=`Invalid format: "<v>" is malformed at "<tail>"`（B 现值自有文案——D7）'
+  binflow_state:
+    verdict: 'DIVERGENT（echo 保真族）'
+    detail: 'statuses wire/SSSZ/timestampDate/UTC-vs-原样分野/principal/durationMillis 双绿；B 差四处——artifact echo 丢空串字段+path+originalDeploymentRepo（D4）、slim 发 properties:null 而非省键（D5）、statuses comment 空回 ""（D5）、404 空格口径（D6）+ malformed started 文案（D7）'
+    divergence_ref: 'L023-buildinfo-diff.md D4/D5/D6/D7'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.1 02/09/10a-d 行', date: '2026-09-15' }
+  confidence: high
+  status: DIVERGENT
+# ── 单删：DELETE /api/build/{name} ──────────────────────────────────────────
+- id: buildinfo/delete-path
+  feature: '按号 CSV 删（E6 双段文案 have+Warning+尾换行；404 两分支；同号多 run 每调至多删一；deleteAll 独立文案；?artifacts= 连删制品）'
+  surface: 'DELETE <apiBase>/build/{buildName}?buildNumbers=<csv>&artifacts=0|1&deleteAll=0|1'
+  request:
+    method: DELETE
+    path: '<apiBase>/build/{buildName}'
+    headers: { Authorization: 'Basic <valid>' }
+    query: { buildNumbers: 'CSV；非 deleteAll 必填', artifacts: '0|1', deleteAll: '0|1' }
+  authentication: { type: basic, role: delete }
+  expect:
+    status: 200
+    body:
+      format: text
+      literal: >-
+        部分命中：`The following builds have been deleted successfully: '<name>#<n>'[, '<name>#<n2>'].\n
+        Warning - the following builds could not be removed: '<n>'.\n`（have；分隔 `, `；段尾 `.\n`）；
+        deleteAll：`All builds '<name>' under '<repo>' have been deleted successfully`（无尾点，<repo>=解析 buildRepo）
+    content_type_note: 'A 对本 text body 标 application/json（错标）；B 标 text/plain——D8 待裁'
+  side_effects:
+    - '每 run 一条 build.delete 审计 + webhook deleted'
+    - 'artifacts=1 连删制品'
+  error_behavior:
+    - { when: '非 deleteAll 无号', status: 400, literal_body: 'Please provide at least one build number to delete' }
+    - { when: '名不存在', status: 404, literal_body: 'errors[] 信封 Unable to find build ''<name>''' }
+    - { when: '号全不存在', status: 404, literal_body: 'errors[] 信封 Unable to find the given build numbers' }
+  binflow_state:
+    verdict: 'SAME（body 逐字）/DIVERGENT（Content-Type label）'
+    detail: 'E6 双段/404 两分支/同号怪癖（每调删最新 started 一 run，二次删清→号单 404）全逐字双绿——L023-2A 中置信「至多删一」实现活体复验通过；唯 media-type label 异（D8）'
+    divergence_ref: 'L023-buildinfo-diff.md D8'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.1 11/12a-b/13a-d 行', date: '2026-09-15' }
+  confidence: high
+  status: DIVERGENT
+# ── append：POST /api/build/append/{name}/{number} ──────────────────────────
+- id: buildinfo/append-modules
+  feature: '模块数组尾部拼接（同 id 不合并不覆盖不去重——重复条目并存）；父 run 缺失 404 逐字；204 空体；started 不变'
+  surface: 'POST <apiBase>/build/append/{buildName}/{buildNumber}[?started=&buildRepo=]'
+  request:
+    method: POST
+    path: '<apiBase>/build/append/<name>/<number>'
+    headers: { Authorization: 'Basic <valid>', Content-Type: application/json }
+    body: 'BuildModule 数组（[{id,type,artifacts[],dependencies[],properties}]）'
+  authentication: { type: basic, role: 'delete ∧ upload（断言序 d 先 w 后）' }
+  expect:
+    status: 204
+    body: { format: none, literal: '' }
+  side_effects:
+    - '既有 modules 在前 + incoming 尾接，整体重存（E5——合并键论已证伪）'
+  error_behavior:
+    - { when: '父 run 不存在', status: 404, literal_body: 'errors[] 信封 The build <name>:<number> is not found' }
+  binflow_state:
+    verdict: 'SAME（语义）/DIVERGENT（回显侧）'
+    detail: '同 id append ×2 → mod-a×3 各持己 artifacts 双端一致（E5 钉死）；回显差在 artifact echo（D4，归 get-detail 条目）'
+    divergence_ref: 'L023-buildinfo-diff.md D4（回显面）/本条目语义面无差异'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.2 14/15a/15b 行', date: '2026-09-15' }
+  confidence: high
+  status: VERIFIED
+# ── promote：POST /api/build/promote/{name}/{number} ────────────────────────
+- id: buildinfo/promote
+  feature: 'promotion 执行序（status-only 200 INFO 大写逐字；targetRepo 404 逐字；E12 abort；lenient warning；Skipping 三行；statuses 落库六元组；dryRun/copy/scopes 面未差分）'
+  surface: 'POST <apiBase>/build/promote/{buildName}/{buildNumber}[?buildRepo=]'
+  request:
+    method: POST
+    path: '<apiBase>/build/promote/<name>/<number>'
+    headers: { Authorization: 'Basic <valid>', Content-Type: application/json }
+    body: '{status, comment, ciUser, timestamp(ISO8601 SSSZ), dryRun, sourceRepo, targetRepo, copy, artifacts, dependencies, scopes[], properties, failFast(缺省 true)}'
+  authentication: { type: basic, role: 'w(buildRepo)（ADR-0045 Errata 二③）∧ 目标仓 w' }
+  expect:
+    status: '200 / 400（双面，见 error_behavior）'
+    body:
+      format: json
+      shape: '{messages:[{level: INFO|WARNING|ERROR（大写）, message}]}；干净成功 = {"messages":[]}'
+      literal_lines: 'Skipping build item relocation: no target repository selected. / Skipping promotion status update: no status received. / Skipping promotion status update: item promotion was completed with errors and warnings. / Skipping promotion status update: invalid\unparsable timestamp <ts>.（字面反斜杠）/ Unable to find the following artifacts of build ''<n>'' #<num>: <names>'
+  side_effects:
+    - '制品搬迁（copy=false=move；目标=解析后 targetRepo；virtual→default deployment local）'
+    - 'statuses 追加（append-only；实现=删除重建；repository=解析后 targetRepo，缺省整体省略；timestamp 缺省=服务端时钟 SSSZ；timestampDate=epoch-ms；user=认证用户；ciUser 原样）'
+  error_behavior:
+    - when: 'E12 failFast 制品不可解析（缺省 failFast=true）'
+      status: 400
+      literal_body: '**errors[] 信封**（非 messages！）：{"errors":[{status:400,message:"Unable to find artifacts of build ''<n>'' #<num> from <buildRepo> repo: aborting promotion."}]}——异常路径走 REST 异常映射器；400+messages 面仅属流程完成路径（invalid timestamp 等）'
+    - { when: 'targetRepo 不存在/非 local 族', status: 404, literal_body: 'errors[] 信封 Cannot find target repository by the key ''<key>''' }
+    - { when: 'run 不存在', status: 404, literal_body: 'errors[] 信封 Cannot find a build by the name: <n>, number: <n>, repo: <r>' }
+    - when: 'failFast=true 且流程完成路径有 ERROR/WARNING'
+      status: 400
+      literal_body: 'messages[] body 同形（PromotionResult.HTTPStatus）——与 E12 异常面并存的双面结构'
+  binflow_state:
+    verdict: 'DIVERGENT（三 BUG——本域最重残差）'
+    detail: '绿面：status-only INFO 逐字/targetRepo 404 逐字/lenient 单名 warning 逐字/invalid timestamp 400+messages 逐字/statuses 六元组（repository/ciUser 省略、显式 timestamp 逐字回显）/user=admin。红面：E12 abort 回 messages body 而非 errors[] 信封（D1）；干净成功 A={"messages":[]} 而 B 追加自造 INFO 汇总行（D2）；制品收集双通道缺——manifest（originalDeploymentRepo+path）与 AQL build 属性均不走 → 可解析制品被误判 abort、搬迁不发生（D3；jf promote 真腿 exit=1 复证）'
+    divergence_ref: 'L023-buildinfo-diff.md D1/D2/D3'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.3 16a-22c 行 + §3 D1/D2/D3 + §4 jf 腿', date: '2026-09-15' }
+    - { kind: decompile, report: '~/Downloads/jfrog-artifactory-7.161.16/build-handler/build-handler-service/src/main/java/com/jfrog/build/service/{BuildPromotionService,BuildArtifactService}.java', anchor: 'L206-210（E12 throw→信封）/ L101/L363-379（manifest 收集分支）', date: '2026-09-15' }
+  confidence: high
+  status: DIVERGENT
+# ── 批删：POST /api/build/delete ────────────────────────────────────────────
+- id: buildinfo/batch-delete
+  feature: 'body 面批删（六字段含 buildRepo；支持特殊字符号；与 DELETE 路径面同 command 同文案族）'
+  surface: 'POST <apiBase>/build/delete'
+  request:
+    method: POST
+    path: '<apiBase>/build/delete'
+    headers: { Authorization: 'Basic <valid>', Content-Type: application/json }
+    body: '{buildRepo, project, buildName, buildNumbers[], deleteArtifacts, deleteAll}'
+  authentication: { type: basic, role: delete }
+  expect:
+    status: 200
+    body: { format: text, literal: '同 buildinfo/delete-path 文案族（E6 双段/deleteAll 无尾点）' }
+  side_effects: '同 DELETE 路径面（含 webhook deleted）'
+  error_behavior:
+    - { when: 'buildName blank', status: 400, literal_body: 'errors[] 信封 Please state the name of the build to be removed' }
+    - { when: '非 deleteAll 无号', status: 400, literal_body: '同路径面 Please provide at least one build number to delete' }
+  binflow_state:
+    verdict: 'SAME（body）/DIVERGENT（label + repo 内插）'
+    detail: '特殊字符号 1.0.0-rc+1 走数组删除 E6 逐字双绿；差=D8 label + deleteAll 文案 <repo> 位 B 回显缺省仓而非解析 buildRepo（D10——源码 BuildDeleteCommand L78 取解析仓；双端活体不可证因 A 写路径 projects 门）'
+    divergence_ref: 'L023-buildinfo-diff.md D8/D10'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.4 23a-c 行 + §3 D10', date: '2026-09-15' }
+    - { kind: decompile, report: '~/Downloads/jfrog-artifactory-7.161.16/build-handler/.../command/BuildDeleteCommand.java', anchor: 'L78 deleteAll 文案 buildRepo 参数', date: '2026-09-15' }
+  confidence: high
+  status: DIVERGENT
+# ── retention：POST /api/build/retention/{name} ─────────────────────────────
+- id: buildinfo/retention
+  feature: '保留策略即执行（count 正数门 400 逐字；两遍删序日期先行；promoted+pinned 豁免不占 count 名额；async 缺省同步；发布尾部触发）'
+  surface: 'POST <apiBase>/build/retention/{buildName}?async=false[&buildRepo=]'
+  request:
+    method: POST
+    path: '<apiBase>/build/retention/<name>'
+    headers: { Authorization: 'Basic <valid>', Content-Type: application/json }
+    query: { async: '缺省 false=同步（E9 源码口径）' }
+    body: '{deleteBuildArtifacts, count(正数;缺省 -1 不启用), minimumBuildDate(ISO 时间戳), buildNumbersNotToBeDiscarded[]}'
+  authentication: { type: basic, role: delete }
+  expect:
+    status: 204
+    body: { format: none, literal: '' }
+  side_effects:
+    - 'POST 即删（E7）：第一遍日期（started 日期严格早于 minimumBuildDate）→ 第二遍 count（幸存非豁免集 started 倒序保最新 N，其余删）；豁免=promotion 历史非空 ∨ number∈豁免清单；豁免不占名额'
+    - 'PUT 携 buildRetention 块时发布尾部同流程（同步）'
+    - 'webhook deleted 事件'
+  error_behavior:
+    - when: 'body 缺失或 count≤0'
+      status: 400
+      literal_body: 'Max count retention needs to be a positive number（纯文本 body；A 的 Content-Type 标 application/json——label 差 D8）'
+  binflow_state:
+    verdict: 'SAME（语义全绿）/DIVERGENT（label）'
+    detail: 'count=0 与 body 缺失同句逐字；count=1 五 run 夹具幸存 [''/3''(count 槽)+''/2''(promoted 豁免)] 双端一致；发布尾部触发（PUT 带 {count:1} → 立即余 [''/6'']）双端一致；jf build-discard --max-builds=1 真腿 discard 语义同；唯 media-type label 异（D8）'
+    divergence_ref: 'L023-buildinfo-diff.md D8'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.4 24a-26b 行 + §4 jf discard 腿', date: '2026-09-15' }
+  confidence: high
+  status: DIVERGENT
+# ── 自定义 buildRepo 写门（projects 面） ────────────────────────────────────
+- id: buildinfo/custom-buildrepo-gate
+  feature: 'PUT ?buildRepo=<X>-build-info 的 projects 门（A：project X 须存在；读路径无门）——BinFlow 无 projects 域的结构性差异'
+  surface: 'PUT <apiBase>/build?buildRepo=<X>-build-info（对照 GET 同参数）'
+  request: { method: PUT, path: '<apiBase>/build?buildRepo=<X>-build-info', headers: { Authorization: 'Basic <valid>' }, body: '最小 build JSON' }
+  authentication: { type: basic, role: upload }
+  expect:
+    status: 'A=400 / B=204'
+    body: 'A：{"errors":[{status:400,message:"Build info repository ''<X>-build-info'' does not exist"}]}——文案对 缺仓/缺 project/缺 -build-info 后缀 三因共用（误导性文案=参照真值）；B：204'
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: 'DIVERGENT（INTENTIONAL 候选待裁）'
+    detail: 'A 门=projects 域（BuildCreationService L92-97：getProjectKeyFromBuildInfoRepoKey→project spec 查空即拒；读路径无此校验——27 单元双端 404 同）。BinFlow 无 projects 域（ADR-0045 点 6/M17 面外）→ 超集承接候选 INTENTIONAL'
+    divergence_ref: 'L023-buildinfo-diff.md D9'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.5 27/28 行 + §3 D9', date: '2026-09-15' }
+    - { kind: decompile, report: '~/Downloads/jfrog-artifactory-7.161.16/build-handler/.../service/BuildCreationService.java', anchor: 'L86-110 createBuildRepoIfNeeded', date: '2026-09-15' }
+  confidence: high
+  status: DIVERGENT
+# ── jf CLI 真腿（L5 客户端协议面锚） ────────────────────────────────────────
+- id: buildinfo/jf-cli-legs
+  feature: 'jf 2.122.0 build-publish/build-promote/build-discard 真腿（upload→publish→promote→discard 链）'
+  surface: 'jf rt upload --build-name/--build-number + jf rt build-publish + jf rt build-promote + jf rt build-discard'
+  request: { method: cli, path: 'jf 2.122.0（A=config l023da；B=逐命令旗标——jf c add 预检调 /artifactory/api/security/encryptedPassword，BinFlow 不仿真 /artifactory 根前缀）', body: '' }
+  authentication: { type: basic, role: admin }
+  expect:
+    status: '退出码比对'
+    body: 'A：upload/publish/promote/discard 全 exit=0；promote 后制品 dev→rel 搬迁；discard --max-builds=1 幸存 [''/9'',''/7'']（count 槽+promoted 豁免——§11.6-5 真腿侧证）。B：upload/discard exit=0；publish exit=1（AQL property 面 400 后置步骤+version=dev 债）；promote exit=1（E12 abort，收集通道缺）'
+  side_effects: []
+  error_behavior:
+    - { when: 'B build-publish 后置 AQL property 查询', status: 400, literal_body: 'Unknown AQL field: property——aql.md §15 build.properties 面（T-511 翻转点）在 build-publish 主链路被真实客户端踩中' }
+  binflow_state:
+    verdict: 'DIVERGENT（publish/promote 两腿）'
+    detail: 'upload/discard 双绿；publish 红根因=AQL property 面（D11 UNSUPPORTED）+version=dev 既有债；promote 红根因=D1/D3'
+    divergence_ref: 'L023-buildinfo-diff.md D11 + §4'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§4 jf 真腿表', date: '2026-09-15' }
+    - { kind: difftest, report: reports/compatibility/l023d-wire, anchor: '{a,b}/jf-legs.log', date: '2026-09-15' }
+  confidence: high
+  status: DIVERGENT
