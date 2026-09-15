@@ -34,14 +34,20 @@ import (
 // gatingPruner parks every Prune call until released — the injected wait
 // the async tests control job timing with. firstDir signals once the walk
 // has settled its first directory (mid-walk stop tests wait on it).
+// parkAfterFirstDir, when non-nil, additionally parks the walk INSIDE that
+// first directory's Observe callback until closed: the stop test's
+// determinism seam (L024-2 — on CI's slower CPUs the authenticated stop
+// POST lost the race against the empty-dir walk, the run completed
+// "finished", and the terminal-status poll timed out 3 runs straight).
 // Everything else delegates to the real engine.
 type gatingPruner struct {
 	storage.Engine
-	entered  chan struct{}
-	release  chan struct{}
-	firstDir chan struct{}
-	once     sync.Once
-	dirOnce  sync.Once
+	entered           chan struct{}
+	release           chan struct{}
+	firstDir          chan struct{}
+	parkAfterFirstDir chan struct{}
+	once              sync.Once
+	dirOnce           sync.Once
 }
 
 func (g *gatingPruner) Prune(ctx context.Context, opts storage.PruneOptions) (*storage.PruneOutcome, error) {
@@ -52,7 +58,12 @@ func (g *gatingPruner) Prune(ctx context.Context, opts storage.PruneOptions) (*s
 		if inner != nil {
 			inner(s)
 		}
-		g.dirOnce.Do(func() { close(g.firstDir) })
+		g.dirOnce.Do(func() {
+			close(g.firstDir)
+			if g.parkAfterFirstDir != nil {
+				<-g.parkAfterFirstDir
+			}
+		})
 	}
 	return g.Engine.(storage.Pruner).Prune(ctx, opts)
 }
@@ -234,6 +245,15 @@ func storageAdminKeysOf(m map[string]any) []string {
 
 func TestStoragePruneStoppedRunLandsStoppedTerminal(t *testing.T) {
 	h, gate := gatingHarness(t)
+	// Determinism (L024-2): park the walk inside directory 00 until the
+	// stop POST is confirmed landed (202 answered) — the walk may not race
+	// ahead to a natural "finished" while the request is in flight.
+	gate.parkAfterFirstDir = make(chan struct{})
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("harness logs on failure:\n%s", h.logs())
+		}
+	})
 
 	if code, _, obj := adminJSON(t, h, http.MethodPost, "/binflow/api/system/storage/prune/start", nil); code != http.StatusAccepted {
 		t.Fatalf("start = %d %v", code, obj)
@@ -247,6 +267,9 @@ func TestStoragePruneStoppedRunLandsStoppedTerminal(t *testing.T) {
 	if code != http.StatusAccepted || obj["info"] != "Prune task stop request submitted" {
 		t.Fatalf("stop = %d %v", code, obj)
 	}
+	// The marker is set server-side: release the parked walk, whose next
+	// directory-boundary Stop probe must consume it.
+	close(gate.parkAfterFirstDir)
 	eventually(t, "stopped terminal status", func() bool {
 		code, obj := pruneStatus(t, h)
 		return code == http.StatusOK && obj["status"] == "stopped"

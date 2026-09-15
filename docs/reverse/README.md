@@ -13,7 +13,7 @@ reverse-engineer 在此产出 **clean-room 行为规格**——让实现者不�
 
 | 文件 | 内容 | 里程碑 |
 |---|---|---|
-| `rest-api.md` | REST 端点表（路径/方法/参数/响应码/示例） | M1 |
+| `rest-api.md` | REST 端点表（路径/方法/参数/响应码/示例）；§3.1 增量属性面（PATCH /api/metadata 全语义 + POST /api/storage 405 移除定案，L024-1） | M1 + L024 |
 | `storage-layout.md` | filestore 目录推导、checksum 命名、元数据序列化 | M1 |
 | `config-formats.md` | artifactory.config.xml / binarystore.xml 要点 → BinFlow 配置映射 | M1 |
 | `repo-semantics.md` | local/remote/virtual 语义、layout 解析、缓存规则 | M1–M3 |
@@ -34,7 +34,7 @@ reverse-engineer 在此产出 **clean-room 行为规格**——让实现者不�
 | `inv-4-addons.md` | 全量功能盘点·分区4（Addon/企业功能）：HA/Xray/Distribution/Build-info/Projects/复制/联邦/插件/事件/许可/DB/存储后端等 91 条 + 外部依赖标注 | 全量盘点 |
 | `goproxy.md` | Go 包型（GOPROXY 协议）行为规格：端点表、`!lower` 转义布局、校验链、rclass 三态、真实客户端矩阵（FR-87 前置，T-278） | M10 |
 | `npm.md` | npm 认证/会话端点族（`/-/` 家族）行为规格：K60 六条定案（login 修复面 / whoami / ping / `-/v1/login` ENYI 回落 / profile·tokens 404 姿态 / rev-dance 不变量）、login wire 语义、`.npmrc` 键匹配坑；「客户端源码即规范」+ live 抓包对拍。范围仅认证族——协议主面仍在 `maven-npm-pypi.md` §0/§2（FR-130.1 前置，T-393；**索引行 T-428 补齐——T-393 遗留 #2 登记**） | M14 |
-| `aql.md` | AQL 与搜索域行为规格：语言子集（域/字段/操作符/尾缀链）、envelope 与错误文案逐字、资源治理 K63 校准、virtual 仓语义、老搜索 14 端点族 OSS 可用性矩阵、基座映射表（FR-132/133/134 前置锚，T-407；官方文档为唯一行为基准 + t226 活体核验）；**§14 M16 增量段**——statistics/usage 域字段集、`/api/search/usage` wire、QRL 全量锚（K72）、dates/creation（K65）、UI 搜索族四端点（FR-148 前置锚，T-435）；**§15 M17 增量段**——builds/modules/dependencies 三入口字段集、build 系 include/sort 联动、`artifacts(build)`/`build.promotions` 入口处置注记（M17 维持 400）、buildArtifacts·dependency wire 锚（FR-152 前置锚，T-488） | M15 + M16 + M17 |
+| `aql.md` | AQL 与搜索域行为规格：语言子集（域/字段/操作符/尾缀链）、envelope 与错误文案逐字、资源治理 K63 校准、virtual 仓语义、老搜索 14 端点族 OSS 可用性矩阵、基座映射表（FR-132/133/134 前置锚，T-407；官方文档为唯一行为基准 + t226 活体核验）；**§14 M16 增量段**——statistics/usage 域字段集、`/api/search/usage` wire、QRL 全量锚（K72）、dates/creation（K65）、UI 搜索族四端点（FR-148 前置锚，T-435）；**§15 M17 增量段**——builds/modules/dependencies 三入口字段集、build 系 include/sort 联动、`artifacts(build)`/`build.promotions` 入口处置注记（M17 维持 400）、buildArtifacts·dependency wire 锚（FR-152 前置锚，T-488）；**§16 L024 增量段**——jf build-publish 实发 AQL 最小面（include 裸 property → properties 输出键）、versions/latestVersion/latestVersionByProperties（真实挂载 /api/versions）/badChecksum wire 与逐字错误、archive·docker-manifests 旧挂载已撤定案（D03 缺行快赢输入，L024-1） | M15 + M16 + M17 + L024 |
 | `remote-browsing.md` | remote 仓远端浏览行为规格：`listRemoteFolderItems` 可选档语义（默认 false）、官方支持面（5 型）与机制声明、13 包型上游枚举能力矩阵（T-425 §1/§2 成稿）、上游故障降级、virtual §8.5 口径扩面（FR-147 前置锚，T-435） | M16 |
 | `cron-scheduling.md` | cron 表达式与调度行为锚：Quartz 语法域表/特殊字符、出厂调度默认值（backup/GC/cleanup 族）、校验时机与拒绝文案、next-run 语义（K70 归位；ADR-0044 软协作缝——FR-150 前置锚，T-435） | M16 |
 | `build-info.md` | Build-info 域行为规格：端点族子集表（上传/append 合并/promotion 状态机/retention/docker promote）、数据模型字段集（wire + 表族 DDL）、权限面两出口（ADR-0045 软缝十项对拍）、webhook·AQL 联动、OSS 档档位核验（FR-152 前置锚，T-488；一手 OpenAPI + 官方参考页双源——本轮活体双损坏零实证） | M17 |

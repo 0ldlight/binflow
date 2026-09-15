@@ -527,3 +527,94 @@ BinFlow 基座（architecture §15.3 + migrations 001/013）：`nodes(repo_key, 
 - 官方（docs.jfrog.com/artifactory/docs，2026-09-06 实取）：`aql-entities-fields-reference.md`（build/module/dependency/artifact/promotion/release 字段表）、`artifactory-query-language.md`（域可用性 6.0.0/7.0.0 + admin 门 + 附着域清单）、`aql-syntax.md`（跨域全路径规则 + delete/update 域限制）、`aql-query-output.md`（include 抑制 + build 默认回显例）、`aql-examples.md`（`artifact.module.build.*` / `module.dependency.item.*` / `@os` 三例）。
 - 既有活体证据（T-407 会话 2026-09-01 转引）：build 系入口 OSS 400 parse error（§2.1 `v14` 锚）+ 两搜索端点 400 Pro 门（§8.2）。
 - 本轮活体：零（双基线损坏——t226 三度探活失败 + pro 7.161 两度；详见 `reports/agents/T-488.md` §0。**容器终态 = 全部复原 stopped，零残留**）。
+
+---
+
+# L024 增量段（D03 搜索族快赢 + jf build-publish AQL 最小面，L024-1，2026-09-16）
+
+> **定位**：① jf CLI 2.122.0 `rt build-publish` 实发 AQL 形态取证（L023 D11「Unknown AQL field: property」断链的对位输入）；② D03 族缺行（R10 versions / R11 latestVersion / R12 latestVersionByProperties / R13 badChecksum / R14 archive / R18 docker manifests）的 wire 规格补全。主文档 §0~§13（M15 冻结）、§14（M16）、§15（M17）条文不动；与既有条目冲突处在本段集中登记。
+>
+> **取证状态**：活体腿恢复——参照 Artifactory **Pro 7.161.15**（VM 172.16.58.130:8082，L023 同实例，本轮从「postgres 孤立网络」故障中修复后全程可用）；jf 实发查询形态 = 本机 jf 2.122.0 对本地回声服务器的**请求体逐字节捕获**（上传成功前提下方触发）。全部探针资产用毕删净（scratch 仓 2 个删除复验零残留、回声服务器杀除、临时目录移除）。
+
+## 16.1 jf build-publish 实发 AQL（D11 断链对位；置信度：高——客户端捕获 + 参照 200 复验双源）
+
+jf 2.122.0 在 `rt upload --build-name/--build-number` 成功后的 `rt build-publish` 阶段**必然**发一条 AQL（本轮上传 1 文件时恰一条；多文件为同一条内多组）。逐字形态：
+
+```
+items.find({"path":{"$ne":"."},"$or":[{"$and":[{"repo":"<repo>","path":"<父目录>" ,"name":"<文件名>"}]}]}).include("name","repo","path","actual_md5","actual_sha1","sha256","size","type","modified","created","property")
+```
+
+**必答查询面**（BinFlow AQL 不满足即 build-publish 主链路断——L023 D11 实证：`Unknown AQL field: property` → jf 报错重试 3 次后 exit=1）：
+
+| # | 查询要素 | 参照行为（当客户端发上列查询…服务端返回…） | 置信度 |
+|---|---|---|---|
+| 1 | criteria：顶层 `{"path":{"$ne":"."}}` + `$or` 数组，组内 `$and` + `repo/path/name` 各 `$eq`（隐式） | 正常求值：`path != "."` 排除**根级文件**（根级文件 path 值 = 字面 `.`，活体逐字）；多 artifact = `$or` 多组同构 `$and` | 高（捕获 + 参照复验） |
+| 2 | include 裸 `"property"`（非 `property.key`/`property.value`） | 行内输出键为 **`properties`**：`"properties":[{"key":…,"value":…},…]`（键值对象数组）；**官方 AQL 字段表未文档化此裸域名单形态——此条补充官方规范** | 高（参照 200 逐字节） |
+| 3 | 有属性条目的 properties 形态 | 数组元素 `{"key","value"}` 两键；**元素顺序不稳定**（两次观测 build.timestamp 首位/build.name 首位各现一次）——实现不得依赖排序 | 高 |
+| 4 | 无属性条目 | **整键 `properties` 省略**（非空数组、非 null） | 高（活体） |
+| 5 | include 其余九字段 | `name/repo/path/actual_md5/actual_sha1/sha256/size/type/modified/created` 按名回显（`modified/created` ISO8601 毫秒 Z；`size` 数字；`type` 小写字符串） | 高 |
+| 6 | 响应 envelope | 标准 `{results, range}`（§3）；jf 不带 `?compact`、不带 `stream` 头 | 高 |
+| 7 | 附带请求头 | POST `Content-Type: text/plain`；jf 携带 `X-JFrog-Art-Api` 或 Bearer（按凭据类型） | 高（捕获 headers） |
+
+**可暂缺面**（jf build-publish 主链路不依赖，排后续批次）：`.sort()/.offset()/.limit()` 尾缀（jf 此链不用）；`$match/$nmatch` 通配（此链全 `$eq/$ne`）；statistics/builds 域入口；`property.key/property.value` 展开式（§2.3 已录，jf 此链不用但契约面建议同批收）；`$msp`；`.transitive`。
+
+**jf 同族其余命令的 AQL 面**：`rt build-append` = `GET /api/build/<上游名>/<号>`，**无 AQL**（捕获）；`rt build-promote` / `rt build-discard` 无 AQL（捕获：promote=POST /api/build/promote/…、discard=POST /api/build/retention/…）；`rt build-add-dependencies --from-rt` 走 repo+通配 AQL——**本轮未捕获成功（CLI 参数形态问题），待验证**（§16.6 V-x）。
+
+## 16.2 D03-R10 `GET /api/search/versions`（置信度：高——反编译 + 参照活体双源）
+
+- 参数：`g`(必) `a`(必) `v`(可选，支持 `*`/`?` 通配) `repos`(CSV 可选) `remote`(int，`1`=含远端)。
+- 当客户端带 `g/a` 命中…：200，`results` 行 = `{"version": "<串>", "integration": <bool>}` 两键瘦行（**无 uri**），按版本**新→旧**排序；SNAPSHOT 在 unique 快照策略仓下回显**展开后的 unique 形态**（`2.0-SNAPSHOT` → `2.0-20260915.175736-1`，integration=true）。vendor CT `application/vnd.org.jfrog.artifactory.search.ArtifactVersionsResult+json`。
+- 当客户端查询无任何命中…：404 errors-envelope `"Unable to find artifact versions"`（逐字，活体）。
+- `v` 带通配：**先查全集、后按 pattern 过滤**（过滤后空集 = 200 `results:[]`，不过 404——过滤发生在空集判定之后，反编译执行序）；`v=1.*` 活体返回 `['1.1','1.0']`。
+- IllegalArgumentException → 400 message 透传（反编译）。
+- **补充官方规范**：官方页未写 404 文案与「过滤后空集仍 200」次序。
+
+## 16.3 D03-R11 `GET /api/search/latestVersion`（置信度：高——双源；两个深层 404 文案为反编译单源）
+
+- 参数同 versions + `exact`(bool)。**Produces text/plain**——命中时 body = 版本号裸串（如 `1.1`），非 JSON。
+- `v` 缺省 → 返回**最新 release**（首个 integration=false）；活体：三版本（含 SNAPSHOT）仓上 `v` 缺省回 `1.1`（跳过 2.0-SNAPSHOT）。
+- `v` 缺省但无任何 release → 404 `"Latest release version not found"`（反编译；活体未构造出，中）。
+- `v` 带通配（`1.*`）→ 首个 pattern 命中行；无命中 → 404 `"Latest integration version not found"`（反编译，中）。
+- `v` 非通配（`1.1`）→ 语义为「该版本线的 integration 版本」——活体在仅有 release 1.1 的仓上返回 404 `"Unable to find artifact versions"`（getArtifactVersions 阶段即空，未到 integration 判定；此机制为单观测推断，中）。
+- 无任何版本命中 → 404 `"Unable to find artifact versions"`（活体逐字，与 versions 同文案）。
+
+## 16.4 D03-R12 最新版本（按属性）——**真实挂载 = `GET /api/versions/{repoKey}/{path}`**（置信度：高）
+
+**主矩阵行 D03-R12 写「`GET /api/search/latestVersionByProperties`」——挂载路径有误**：`SearchResource` 14 子资源清单（§0-3）不含它；现行挂载是独立资源树 `@Path("versions")`（全路径 `/api/versions/{repoKey}/{path}`，官方 reference 页 operationId=`searchLatestVersionByProperties`、路径 `/versions/{repo}/{path}` 双证）。上报 conductor 转 compatibility-engineer 修 matrix 行描述。
+
+| 项 | 行为（当客户端…服务端返回…） | 置信度 |
+|---|---|---|
+| 路径 | `GET /api/versions/{repoKey}/{path}`；`repoKey`/`path` 任一段可用 `_any` 通配（`_any/_any` = 全仓全路径） | 高（官方 + 活体 `_any/_any` 200） |
+| 版本属性 | 以**小写 `version` 属性**为版本源（官方明示）；任意查询参数 = 属性过滤键 | 高 |
+| `listFiles` 缺省/0 | 200 `{"version":"<最新>","artifacts":[]}`——**空数组非省略** | 高（活体逐字节） |
+| `listFiles=1` | 200，artifacts 行 = `{"repo","path"}` **两键**且带**尾逗号**（`"path" : "…",\n  }` ——Artifactory 序列化怪癖，产出**非严格 JSON**；官方文档示例写的 `uri` 键与实际不符——**以活体为准，此条补充官方规范**） | 高（活体原始字节两次） |
+| 无命中 | 404 errors-envelope `"Not Found"`（裸文案） | 高（活体） |
+| 鉴权 | authenticated 非 anonymous（匿名 → 401；hideUnauthorizedResources 开 → 404 裸体）；read 权限按仓 | 高（反编译 + 官方） |
+| Since/档位 | 3.1.1；Pro 档 | 高（官方） |
+
+## 16.5 D03-R13 badChecksum / R14 archive / R18 docker manifests（小行）
+
+- **R13 `GET /api/search/badChecksum?type=&repos=`**（admin 专属，RolesAllowed admin；反编译）：`type` 缺失 → 400 `"No checksum type defined"`；`type` 非法 → 400 `"Checksum type: <t> is not defined"`（两文案活体逐字，**补充官方规范**）；命中 → 200 BadChecksumSearchResult（行含 uri + 实测/登记 checksum 对；**响应上限 10,000**，官方）；非 admin → 403。命中臂需真实坏校验和存储，本轮未构造——形态以官方+反编译为锚（中）。
+- **R14 `GET /api/search/archive`**：**7.161.15 活体 404 `"Not Found"`——deprecated 端点在现行版已撤挂载**（活体；SearchResource 无此子资源，反编译互证）。BinFlow 不实现即对齐现行；主矩阵 R14 行建议转「现行已撤（7.161.x 404）」口径（上报 conductor）。
+- **R18 docker manifests 搜索**：官方 reference 已无 `search/docker/manifests` 页（docs 迁移后并入 Docker 域——现行面 = List Docker Tags `/api/docker/{repoKey}/v2/{image}/tags/list` 族 + Find Parent Manifest Lists〔7.119.0+〕）；7.161.15 活体对 `/api/search/docker/manifests/*` 404。**建议 R18 行按「旧挂载已撤、现行面归 Docker 域（/api/docker/*）」重述**，P2 维持 absent 可辩护（上报 conductor；置信度中——官方页重组系检索推断，未逐页核）。
+
+## 16.6 对既有条目的校正与待验证（零静默升格）
+
+1. **§8.1/§8.2「latestVersionByProperties 为 SearchResource 外挂搜索端点」**：定案其挂载 = `/api/versions/{repoKey}/{path}` 独立资源树，不在 `/api/search` 下（§16.4）。§8.2 外挂行维持历史记录，消费以本段为准。
+2. **§2.3 property 域匹配**：补**裸域名单 include 形态**（`include("property")` → 输出键 `properties` 键值对象数组，§16.1-2/3/4）——官方字段表未载，jf CLI 实发依赖此形态。
+3. **versions/latestVersion 空集 404 族**补入 §8.2 空集语义分化表的第三族：`versions/latestVersion` 未命中 = **404 `"Unable to find artifact versions"`**（与 usage/creation/dates 同为 404 族但文案不同）。
+
+| # | 项 | 现值依据 | 验证途径 |
+|---|---|---|---|
+| V-x | `rt build-add-dependencies --from-rt` 的 AQL 形态（推测 repo+path+name 三 `$match` 通配族） | 本轮 CLI 参数未跑通，零捕获 | 修 CLI 调用形态后重捕（echo 服务器脚本随报告归档于 L024-1） |
+| V-y | latestVersion 两个深层 404 文案（release/integration not found）的活体触发 | 反编译单源 | 构造「有版本但无对应型」语料 |
+| V-z | badChecksum 命中行形态（uri + checksum 对）与 10,000 上限 | 官方 + 反编译（中） | 人为坏校验和仓 |
+| V-aa | `/api/versions` listFiles=1 行在多 artifact 时的尾逗号是否恒现（单 artifact 两次观测） | 活体（高）但样本窄 | 多文件语料复验 |
+| V-ab | `v` 非通配时 getArtifactVersions 的过滤机制（「同线 integration」为单观测推断） | 活体单点 + 机制推断（中） | 多版本线语料 |
+
+## 16.7 L024 增量段取证锚点（2026-09-16 会话）
+
+- 参照：Artifactory Pro **7.161.15** rev 86115900（http://172.16.58.130:8082，admin；本轮修复链见 `reports/agents/L024-1.md` §0——postgres 被 `docker-compose-postgres.yaml` 单文件重启成孤立项目 `rt-postgres`，与 artifactory 分网互不可达 → Access DB 断、router 8046 不监听、8082 死；双 compose 文件同项目 `up -d` 重建后恢复，scratch 仓 l024t-local/l024m-local 用毕全删（6+9 artifacts）零残留）。
+- 客户端捕获：本机 jf 2.122.0（jfrog-cli-go），JFROG_CLI_HOME 隔离临时目录，回声服务器 127.0.0.1:8099（记录 method/path/headers/body 全量；PUT 201+checksum 头是触发 build-publish AQL 的必要条件）。捕获脚本已随探针资产清理删除，形态逐字已固化于 §16.1。
+- 反编译：`rest/resource/search/SearchResource.java`（14 子资源铁证复认）、`rest/resource/search/types/{ArtifactVersionsSearchResource,ArtifactLatestVersionSearchResource,BadChecksumSearchResource}.java`（三资源逐字文案与执行序）、`rest/resource/versions/VersionsResources.java`（`/api/versions` 四路径臂 + `_any` 正则 + 匿名门）、`addon/rest/RestAddonImpl.java#getLatestVersionByProperties`。
+- 官方（2026-09-16 实取）：`reference/searchLatestVersionByProperties`（路径 `/versions/{repo}/{path}`、3.1.1、小写 version 属性、listFiles）、`reference/setitemproperties`（PUT）、`reference/updateitemproperties`（PATCH /api/metadata，6.1.0）、`reference/archiveentrydownload`（内容面 `!` 路由）、List Docker Tags / Find Parent Manifest Lists 页。
