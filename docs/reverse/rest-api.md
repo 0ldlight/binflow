@@ -119,7 +119,9 @@ propertySets([])
 | GET `...?list[&deep&depth&listFolders&mdTimestamps&statsTimestamps&includeRootPath&includePropertiesMd5]` | 流式文件清单（**仅认证用户**；七参按整数解析） | 200 FileList JSON（`uri/created/files[{uri,size,lastModified,folder,sha1,sha2?,mdTimestamps?,propertiesMd5?}]`，条目 uri 前导斜杠；`Content-Type: application/vnd.org.jfrog.artifactory.storage.FileList+json`） | 匿名 → 403；七参值非整数或越 int32 界 → 400 envelope `For input string: "<v>"`；目标是文件 → 400 `Expected a folder but found a file, at: <repo>:<path>`；repo 不存在 → 404；仓库根 → 200 可列 | 高（逐项见下勘误块） |
 | PUT `/api/storage/{repoKey}/{path}?properties=k=v,k2=v1;v2&recursive=&atomic=` | 设属性 | 204 无 body | 属性名为空 → 400 `Properties value cannot be empty.`；属性名非法字符 → 400 | 高 |
 | DELETE `/api/storage/{repoKey}/{path}?properties=k1,k2&recursive=` | 删属性 | 204 | 未指定属性 → 400 `Unspecified properties to delete.` | 高 |
-| POST `/api/storage/{repoKey}/{path}?recursive=&atomic=`（PATCH 语义 v2） | 增量改属性 | 204 | 同上 | 中 |
+| POST `/api/storage/{repoKey}/{path}`（旧「Update Item Properties」形态） | —（**7.161.x 已移除**） | — | **405** errors-envelope `Method Not Allowed`（L024-1 活体逐字；反编译 ArtifactResource 无 @POST 互证） | 高 |
+| PATCH `/api/metadata/{repoKey}/{path}?recursiveProperties=`（**现行增量改属性**，6.1.0+） | body `{"props":{...}}` 增量改属性（值=串/串数组/`null`=删键）；亦接受 `{"stats":{...}}` | 204 无 body | 见 §3.1 | 高 |
+| DELETE `/api/metadata/{repoKey}/{path}?recursive=` | 删**全部**属性 | 204 | item 无属性 → 直接 204（无操作） | 高 |
 
 > **勘误（T-113）**：本表 `?permissions` 行原记「key 为 r/w/d/a 权限位，value 为主体名集合」——键值方向相反，且字母集笔误（annotate 的字母是 `n` 非 `a`，另有 manage=`m`）。正确形态以修正后行为准。依据：`RestAddonImpl#getItemPermissions` 构造 主体名 → 权限字母集合 的映射，逐主体调 `#appendPrincipalsAndPermissions`（**空集合跳过**——无任何权限的主体不出现）；字母集见 `ArtifactoryPermission` 枚举（r/w/n/d/m）；官方 REST 文档 Get Item Permissions 示例同形（`"users":{"bob":["r","w","n"]}`）——代码与官方文档双证。
 >
@@ -142,6 +144,26 @@ propertySets([])
 FileInfo JSON 字段（`o.a.a.api.rest.artifact.RestFileInfo` + `RestBaseStorageInfo`）：`uri`、`downloadUri`、`remoteUrl`（仅 remote-cache 有）、`repo`、`path`（`/` 前缀）、`created`、`createdBy`、`lastModified`、`modifiedBy`、`lastUpdated`、`size`（字符串）、`mimeType`、`checksums{sha1,md5,sha256}`、`originalChecksums{sha1,md5,sha256}`、`properties`（有则带）。FolderInfo：同基础字段 + `children:[{uri:"/<name>", folder:bool}]`（按名排序）。**高**
 
 `recursive` 参数缺省规则：目标是目录 → 默认递归；文件 → 默认非递归；显式传 `0/1`（非布尔字符串）。**中**（`PropertiesAddonImpl#getRecursive`）
+
+### 3.1 增量属性面（L024-1，2026-09-16；置信度：高——反编译 + 参照 7.161.15 活体双源）
+
+**迁移事实**：官方 6.1.0 引入的「Update Item Properties」现行形态是 **`PATCH /api/metadata/{repoKey}/{path}`**（官方 reference 页 + 7.161.15/7.161.24 反编译资源类双证）；旧 `POST /api/storage/{repoKey}/{path}?recursive&atomic` 形态**在 7.161.x 已不存在**——活体 POST 打 /api/storage 逐字回 405 `{"errors":[{"status":405,"message":"Method Not Allowed"}]}`。主矩阵 D01-R08 行的路径描述需照此更新（上报 conductor）。
+
+行为句式（当客户端…服务端返回…）：
+
+1. **PATCH + `{"props":{"k":["v1","v2"]}}`**（新键）→ 204；随后 `GET …?properties` 回 `"k":["v1","v2"]`。**高**
+2. **PATCH 已有键** → 覆盖语义（删旧键再原子写新值，等价 delete+set）→ 204。**高**
+3. **PATCH `{"props":{"k":null}}`** → 删除该键 → 204；键不存在亦 204（幂等）。**高**
+4. **PATCH `{}`（props/stats 双缺）** → 400 envelope `"props or stats fields required"`（逐字）。**高**
+5. **PATCH 值为非串非数组 JSON**（如 `{"props":{"n":5}}`）→ 400 envelope `"Failed to set properties on <repo>:<path>: Failed to parse json object while performing patch properties request."`（逐字，含句号）。**高**
+6. **PATCH 目标不存在** → 400 envelope `"Failed to set properties on <repo>:<path>: Item <repo>:<path> does not exist"`（注意：**400 非 404**；文案 `repo:path` 冒号拼写）。**高**
+7. 数组元素须为字符串——非文本元素（数字等）被静默跳过（反编译，中）。
+8. `recursiveProperties` 语义同 PUT 族 `recursive`（目录缺省递归/文件非递归/`0/1`）；**官方文档列的 `atomicProperties` 参数在 7.161.24 反编译资源层不读取（忽略）**——差异登记。**中**
+9. 执行序 = 先删（null 与被改键）→ 再改 → 后增（任一步失败短路返回其错误码）。**高**（反编译；活体只验终点）
+10. `stats` 腿：`{"stats":{...}}` JSON-merge 进既有下载统计并落库——普通客户端不应触达（登记，低，未活体）。
+11. **三动词权限门**：PATCH/PUT/DELETE 均要求 annotate；无权限 → 403（PATCH 走 403 带文案 `Request for '<repoPath>' is forbidden for user: '<u>', You must have annotate permission on this path`；PUT/DELETE 403 裸）。**高**（反编译）
+12. **virtual/remote 仓上的属性写**（活体逐字，2026-09-16）：PUT `/api/storage` 属性 → **404 envelope `"Not Found"`**（资源层裸 404 状态经全局 mapper 包 envelope——非空体）；PATCH `/api/metadata` → **400 envelope `"Failed to set properties on <repo>:<path>: Repository '<repo>' is not a local repository"`**（与「item 不存在」文案不同）。**高**
+13. **怪癖**：PATCH 的 400 文案在资源层以纯文本构造，但对外包装进标准 errors envelope（`message` 内为纯文案）——活体定案（反编译 entity 与活体 envelope 双证）。**高**
 
 ---
 
