@@ -199,8 +199,8 @@ func (s *buildStore) PutModules(ctx context.Context, name, number, started, repo
 		VALUES (?, ?, ?, ?, ?, ?, ?)`
 	const artStmt = `INSERT INTO build_artifacts
 		(build_name, build_number, started, build_repo, module_ord, module_id, seq,
-		 name, type, sha1, sha256, md5, repo_key, path)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		 name, type, sha1, sha256, md5, repo_key, path, wire_path, original_repo)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	const depStmt = `INSERT INTO build_dependencies
 		(build_name, build_number, started, build_repo, module_ord, module_id, seq,
 		 dep_id, dep_type, scopes, sha1, sha256, md5)
@@ -219,7 +219,8 @@ func (s *buildStore) PutModules(ctx context.Context, name, number, started, repo
 			}
 			if _, err := tx.ExecContext(ctx, artStmt,
 				name, number, started, repo, ord, m.ID, a.Seq,
-				a.Name, a.Type, a.Sha1, a.Sha256, a.Md5, nodeRepo, nodePath); err != nil {
+				a.Name, a.Type, a.Sha1, a.Sha256, a.Md5, nodeRepo, nodePath,
+				a.WirePath, a.OriginalRepo); err != nil {
 				return wrapExec("build artifacts put", name+"#"+number+"/"+m.ID, err)
 			}
 		}
@@ -290,7 +291,7 @@ func (s *buildStore) listModuleRows(ctx context.Context, coords []any, key strin
 // shape.
 func (s *buildStore) attachArtifacts(ctx context.Context, coords []any, key string, byOrd map[int64]*BuildModule) error {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT module_ord, seq, name, type, sha1, sha256, md5, repo_key, path
+		`SELECT module_ord, seq, name, type, sha1, sha256, md5, repo_key, path, wire_path, original_repo
 		 FROM build_artifacts WHERE `+buildCoordsWhere+` ORDER BY module_ord, seq`, coords...)
 	if err != nil {
 		return wrapExec("build artifacts list", key, err)
@@ -303,7 +304,7 @@ func (s *buildStore) attachArtifacts(ctx context.Context, coords []any, key stri
 			nodeRepo, nodePath sql.NullString
 		)
 		if err := rows.Scan(&mord, &a.Seq, &a.Name, &a.Type, &a.Sha1, &a.Sha256, &a.Md5,
-			&nodeRepo, &nodePath); err != nil {
+			&nodeRepo, &nodePath, &a.WirePath, &a.OriginalRepo); err != nil {
 			return wrapExec("build artifacts list scan", key, err)
 		}
 		a.RepoKey, a.Path = nodeRepo.String, nodePath.String

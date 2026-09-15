@@ -73,6 +73,14 @@ type PropsWriter interface {
 	Merge(ctx context.Context, repoKey, path string, props map[string][]string) error
 }
 
+// PropertyFinder is the build-property channel's read seam over the same
+// store (L023-2F, diff D3: metadata.NodePropStore's FindByProps — the
+// nodes tagged build.name/build.number, the reference's AQL property
+// query answered at the metadata plane).
+type PropertyFinder interface {
+	FindByProps(ctx context.Context, props map[string]string, limit int) ([]*metadata.Node, error)
+}
+
 // ErrPromoteUnavailable marks a stack without the carrier seams (a
 // metadata-less or service-less unit build): the promote faces answer the
 // honest 503 instead of pretending.
@@ -280,8 +288,8 @@ func (s *Service) Promote(ctx context.Context, p *Principal, c Coordinate, raw [
 		// §11.5-4's live-pinned row: no target named, nothing migrates.
 		res.msg("info", "Skipping build item relocation: no target repository selected.")
 	case !req.wantArtifacts():
-		res.msg("info", "Promotion of %s#%s to %s completed with artifacts=false (no artifacts migrated)",
-			c.Name, c.Number, req.TargetRepo)
+		// No summary row: the reference's messages[] carries ONLY its own
+		// verbatim rows (diff D2 — success renders {"messages":[]}).
 	default:
 		if err := s.migrateArtifacts(ctx, p, b, &req, tgtRow, props, res); err != nil {
 			if !errors.Is(err, errAbortPromotion) {
@@ -299,8 +307,6 @@ func (s *Service) Promote(ctx context.Context, p *Principal, c Coordinate, raw [
 	}
 
 	if req.DryRun {
-		res.msg("info", "Dry run of promotion %s#%s to %s completed with zero side effects",
-			c.Name, c.Number, targetLabel(req.TargetRepo))
 		res.finalizeStatus(req)
 		return res, nil
 	}
@@ -424,15 +430,48 @@ func (s *Service) migrateArtifacts(ctx context.Context, p *Principal, b *metadat
 		return fmt.Errorf("promote %s#%s modules read: %w", b.Name, b.Number, err)
 	}
 	failFast := req.wantFailFast()
-	// missing names one abort: the E12 aborting sentence (no list)...
+	// The E12 aborting refusal (no names list): diff D1 — the abort-class
+	// failure is a THROWN bad-request, the wire renders the errors[]
+	// envelope (never the messages body; the flow-completion faces — the
+	// collected warnings, the invalid timestamp — keep the messages 400).
 	refuse := func() error {
-		res.msg("error", "Unable to find artifacts of build '%s' #%s from %s repo: aborting promotion.",
+		return abortf(http.StatusBadRequest,
+			"Unable to find artifacts of build '%s' #%s from %s repo: aborting promotion.",
 			b.Name, b.Number, b.Repo)
-		return errAbortPromotion
 	}
 	// ...and the lenient arm's collector (ONE warning row after the walk).
 	var missing []string
 	repoRows := map[string]*metadata.Repo{}
+
+	// The build-property channel (diff D3's fallback): nodes tagged with
+	// the run's build.name/build.number properties — the artifacts a
+	// client uploaded with build tagging (jf rt upload --build-name). The
+	// manifest channel's rows resolve directly; the rows WITHOUT a
+	// manifest address (a bare path, no originalDeploymentRepo) draw from
+	// this set — matched by path suffix (the document's path is
+	// repo-relative). Resolved lazily, once.
+	var tagged []*metadata.Node
+	taggedLoaded := false
+	taggedFor := func(art *metadata.BuildArtifact) *metadata.Node {
+		if !taggedLoaded {
+			taggedLoaded = true
+			if s.props != nil && s.nodes != nil {
+				// The metadata-plane equivalent of the reference's AQL
+				// property query (aql.md's face stays out of scope).
+				if finder, ok := s.props.(PropertyFinder); ok {
+					tagged, _ = finder.FindByProps(ctx, map[string]string{
+						"build.name": b.Name, "build.number": b.Number,
+					}, 1000)
+				}
+			}
+		}
+		for _, n := range tagged {
+			if n.Path == art.WirePath || strings.HasSuffix(n.Path, "/"+art.WirePath) {
+				return n
+			}
+		}
+		return nil
+	}
 	srcRow := func(key string) (*metadata.Repo, error) {
 		if row, ok := repoRows[key]; ok {
 			return row, nil
@@ -448,20 +487,45 @@ func (s *Service) migrateArtifacts(ctx context.Context, p *Principal, b *metadat
 	var propTargets []string
 	for _, m := range modules {
 		for _, a := range m.Artifacts {
-			if a.RepoKey == "" || a.Path == "" {
-				// Record-only row: no live association to migrate — §11.5-5's
-				// unresolvable artifact (E12 pair).
+			// The manifest channel reads the DOCUMENT's pair LIVE (diff D3:
+			// a direct file query — the stored association is only the
+			// upload-time snapshot, a document published before its file
+			// still addresses it).
+			srcRepoKey, srcPath := a.RepoKey, a.Path
+			if srcRepoKey == "" && a.OriginalRepo != "" && a.WirePath != "" && s.nodes != nil {
+				if _, err := s.nodes.Get(ctx, a.OriginalRepo, a.WirePath); err == nil {
+					srcRepoKey, srcPath = a.OriginalRepo, a.WirePath
+				}
+			}
+			if srcRepoKey == "" || srcPath == "" {
+				// No manifest association on either read — the
+				// build-property channel's turn (diff D3): a tagged node
+				// backing this row migrates through its own address; one
+				// already in the target stays.
+				if n := taggedFor(a); n != nil {
+					if n.RepoKey != req.TargetRepo {
+						migrated, err := s.migrateTagged(ctx, p, req, tgtRow, n, res)
+						if err != nil {
+							return err
+						}
+						if migrated {
+							res.Artifacts++
+							propTargets = append(propTargets, n.Path)
+						}
+					}
+					continue
+				}
+				// Both channels missed: §11.5-5's unresolvable artifact.
 				if failFast {
 					return refuse()
 				}
 				missing = append(missing, a.Name)
 				continue
 			}
-			if a.RepoKey == req.TargetRepo {
-				res.msg("info", "module %q artifact %s/%s is already in the target repository", m.ID, a.RepoKey, a.Path)
-				continue
+			if srcRepoKey == req.TargetRepo {
+				continue // already in the target repository
 			}
-			if req.SourceRepo != "" && a.RepoKey != req.SourceRepo {
+			if req.SourceRepo != "" && srcRepoKey != req.SourceRepo {
 				continue // the sourceRepo filter excludes this artifact's repository
 			}
 
@@ -483,7 +547,7 @@ func (s *Service) migrateArtifacts(ctx context.Context, p *Principal, b *metadat
 				}
 			}
 
-			row, err := srcRow(a.RepoKey)
+			row, err := srcRow(srcRepoKey)
 			if err != nil {
 				if errors.Is(err, repo.ErrRepoNotFound) {
 					if failFast {
@@ -492,10 +556,10 @@ func (s *Service) migrateArtifacts(ctx context.Context, p *Principal, b *metadat
 					missing = append(missing, a.Name)
 					continue
 				}
-				return fmt.Errorf("promote %s#%s source lookup %s: %w", b.Name, b.Number, a.RepoKey, err)
+				return fmt.Errorf("promote %s#%s source lookup %s: %w", b.Name, b.Number, srcRepoKey, err)
 			}
 
-			migrated, err := s.migrateOne(ctx, p, req, row, tgtRow, a, res)
+			migrated, err := s.migrateOne(ctx, p, req, row, tgtRow, srcRepoKey, srcPath, res)
 			if err != nil {
 				return err
 			}
@@ -534,38 +598,68 @@ func (s *Service) migrateArtifacts(ctx context.Context, p *Principal, b *metadat
 			}
 		}
 	}
-	res.msg("info", "Promotion of %s#%s to %s completed, %d artifact(s) migrated (%s)",
-		b.Name, b.Number, req.TargetRepo, res.Artifacts, moveVerb(req.Copy))
 	return nil
+}
+
+// migrateTagged migrates one build-property-channel node through the
+// generic carrier arm (the tagged collection is the generic path; docker
+// closures arrive through the manifest channel). A source repo that no
+// longer exists is a warning, not a refusal — the tag outlived the repo.
+func (s *Service) migrateTagged(ctx context.Context, p *Principal,
+	req *PromotionRequest, tgtRow *metadata.Repo, n *metadata.Node, res *PromotionResult) (bool, error) {
+	srcRow, err := s.carrier.GetRepo(ctx, p, n.RepoKey)
+	if err != nil {
+		if errors.Is(err, repo.ErrRepoNotFound) {
+			res.msg("warning", "artifact %s/%s skipped: the source repository no longer exists", n.RepoKey, n.Path)
+			return false, nil
+		}
+		return false, fmt.Errorf("promote tagged source lookup %s: %w", n.RepoKey, err)
+	}
+	if req.SourceRepo != "" && n.RepoKey != req.SourceRepo {
+		return false, nil // the sourceRepo filter excludes this node
+	}
+	if tgtRow.PackageType == "docker" || srcRow.PackageType == "docker" {
+		return false, nil // the docker closure rides the manifest channel only
+	}
+	cm, err := s.carrier.CopyOrMove(ctx, p, repo.CopyMoveRequest{
+		Op: carrierOp(req.Copy), SrcRepo: n.RepoKey, SrcPath: n.Path,
+		TargetRepo: req.TargetRepo, TargetPath: n.Path,
+		DryRun: req.DryRun,
+	})
+	if err != nil {
+		return false, s.carrierFailure(req, err, res)
+	}
+	return foldCarrierCall(res, cm, req, "artifact "+n.RepoKey+"/"+n.Path)
 }
 
 // migrateOne migrates one associated artifact: the docker arm (a manifest
 // path inside a docker repository — the closure replay) or the generic arm
 // (the CopyOrMove carrier). Reports whether the artifact migrated.
 func (s *Service) migrateOne(ctx context.Context, p *Principal,
-	req *PromotionRequest, srcRow, tgtRow *metadata.Repo, a *metadata.BuildArtifact, res *PromotionResult) (bool, error) {
-	if image, digest, ok := splitDockerManifestPath(a.Path); ok && srcRow.PackageType == "docker" {
+	req *PromotionRequest, row, tgtRow *metadata.Repo,
+	srcRepoKey, srcPath string, res *PromotionResult) (bool, error) {
+	if image, digest, ok := splitDockerManifestPath(srcPath); ok && row.PackageType == "docker" {
 		if tgtRow.PackageType != "docker" {
 			return false, abortf(http.StatusBadRequest,
 				"docker image %s/%s cannot be promoted to %s: the target repository's package type is %s, not docker",
-				a.RepoKey, image, req.TargetRepo, tgtRow.PackageType)
+				srcRepoKey, image, req.TargetRepo, tgtRow.PackageType)
 		}
-		return s.replayDocker(ctx, p, req, a.RepoKey, image, digest, res)
+		return s.replayDocker(ctx, p, req, srcRepoKey, image, digest, res)
 	}
 	if tgtRow.PackageType == "docker" {
 		return false, abortf(http.StatusBadRequest,
 			"artifact %s/%s is not a docker manifest and cannot be promoted into the docker repository %s",
-			a.RepoKey, a.Path, req.TargetRepo)
+			srcRepoKey, srcPath, req.TargetRepo)
 	}
 	cm, err := s.carrier.CopyOrMove(ctx, p, repo.CopyMoveRequest{
-		Op: carrierOp(req.Copy), SrcRepo: a.RepoKey, SrcPath: a.Path,
-		TargetRepo: req.TargetRepo, TargetPath: a.Path,
+		Op: carrierOp(req.Copy), SrcRepo: srcRepoKey, SrcPath: srcPath,
+		TargetRepo: req.TargetRepo, TargetPath: srcPath,
 		DryRun: req.DryRun,
 	})
 	if err != nil {
 		return false, s.carrierFailure(req, err, res)
 	}
-	return foldCarrierCall(res, cm, req, "artifact "+a.RepoKey+"/"+a.Path)
+	return foldCarrierCall(res, cm, req, "artifact "+srcRepoKey+"/"+srcPath)
 }
 
 // carrierOp renders the carrier verb of the promotion's copy flag (copy
@@ -682,10 +776,6 @@ func (s *Service) replayDocker(ctx context.Context, p *Principal, req *Promotion
 				return false, err
 			}
 		}
-	}
-	if !req.DryRun {
-		res.msg("info", "docker image %s/%s@sha256:%s promoted to %s (%d manifest(s), %d blob(s), %d tag(s))",
-			srcRepo, cl.image, cl.root[:12], req.TargetRepo, len(cl.manifest), len(cl.blobs), len(cl.tags))
 	}
 	return !req.DryRun, nil
 }
@@ -1123,22 +1213,6 @@ func promotionAuditRepo(target, buildRepo string) string {
 		return target
 	}
 	return buildRepo
-}
-
-// moveVerb renders the migration verb for the summary line.
-func moveVerb(isCopy bool) string {
-	if isCopy {
-		return "copied"
-	}
-	return "moved"
-}
-
-// targetLabel renders the target for the dry-run summary.
-func targetLabel(target string) string {
-	if target == "" {
-		return "(status only)"
-	}
-	return target
 }
 
 // splitDockerManifestPath splits a docker layout manifest path

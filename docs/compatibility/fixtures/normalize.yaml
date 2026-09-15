@@ -141,3 +141,33 @@ domains:
         - X-Artifactory-Id
         - X-Artifactory-Node-Id
         - X-Jfrog-Version
+  buildinfo:                              # L023-3 转正登记（contracts/buildinfo.yaml normalize 锚）——源：L023-buildinfo-diff.md §1 N1-N6 提案（differential-qa-engineer 两轮已按此执行），登记权 compatibility-engineer
+    headers:
+      drop:                               # N1
+        - Date
+        - Server
+        - X-Powered-By
+        - Set-Cookie
+        - X-Request-Id
+        - X-Artifactory-Id
+        - X-Artifactory-Node-Id
+        - Via
+        - X-Jfrog-Version
+        - Content-Length
+        - Connection
+        - Transfer-Encoding
+        - X-Content-Type-Options
+      content_type:                       # N2（PN1）：json-family 等价——A 回 vendor 型（application/vnd.org.jfrog.[artifactory.]build.*+json）/B 回裸 application/json，值差不参与判定（差异本体=known-divergence buildinfo/media-type-label-family 候 R-23a）；charset 后缀剥离；text 面同理不判（A 错标 application/json vs B text/plain）
+        json_family_equivalence: true
+        text_label: not_asserted
+      x_checksum_sha256:                  # N3：值=存储 manifest sha256（principal 覆写+序列化器使双端字节面必然不同）——占位 + hex64 shape 断言（语义「对存储文档取 sha256」同构，L023-2A 登记漂移维持）
+        placeholder: <sha256-hex64>
+        shape_assert: hex64
+    body:
+      absolute_url_prefix: <BASE>         # N4：列表/号单/详情顶级 uri 的 host 段占位
+      statuses_server_clock:              # N5：仅 status+timestampDate 成对条目——服务端时钟戳 shape 化；客户端显式提供的 started/timestamp 字面比对
+        timestamp: <ts-sssz>
+        timestamp_date: <epoch-ms>
+      assertion_domain: l023d-prefix      # N6：名清单断言域=请求前缀子集（双端实例携带第三方 build 存量，票外不碰）
+    auth:
+      basic_credentials: redact

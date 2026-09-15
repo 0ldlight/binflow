@@ -30,6 +30,19 @@
 #   实现+差分批跑翻绿；行 scope 另含版本 CRUD 子集未契约化）。known-divergence 新增 npm 域 6 条（LOOP 012
 #   conductor 六项裁定 D2-D7 全对齐收落账：5 BUG + D5 400-不复刻-500 为 INTENTIONAL〔conductor_ruling〕）；
 #   normalize.yaml 新增 npm 域（wire_format=normalize_indent + ok_space + 信封措辞组 auth401）。
+# L023-3（LOOP 023，2026-09-15）D07 build-info 批次 1 落账：① D07-R01/R02/R03 翻 compatible（L023-2D 全环
+#   差分 + L023-2F 八 BUG 修复 + L023-2G 复验〔dev.c6f6c71a〕——commits c42fb255/9716d500/dbc52c66/c6f6c71a；
+#   两轮判定集逐 case 一致，§9.4 终版翻态建议）；② D07-R04..R08/R10 六行落 contract_ref/last_difftest 指针
+#   ——行态维持 absent（R04/R08/R10 候裁态=唯 D8 label 差〔候 R-23a〕；R05/R06/R07=D4-R3 空集合物化残留在途
+#   微返工）；R09/R11 面外维持不锚；③ summary 同步（compatible 74→77/absent 78→75——票面预期 absent 83 系
+#   陈值，逐行 ruby 对账实值 78；contract_ref 13→22/last_difftest 24→33 两计数器一并勘正〔前置轮漏记〕）；
+#   ④ known-divergence 新增 buildinfo 域 3 条（D8 label 族/D9 projects 门=UNKNOWN 候 INTENTIONAL——
+#   pending-rulings v2.5 R-23a/R-23b 呈批；D11 AQL property=UNSUPPORTED 挂 T-511 提权面）；⑤ normalize.yaml
+#   新增 buildinfo 域（L023-2D §1 N1-N6 提案转正登记）。195 冻结行集不增删（本批零新行）。
+# L023-3 尾单（同日收口）：D07-R05/R06/R07 翻 compatible（L023-2K 末验 §10.5 四臂终确全 SAME——dev.1afec0af，
+#   重放门两轮一致 SAME 40/DIVERGENT 8，残余仅 D8/D9 两候裁族零 BUG 类；差分链 c6f6c71a/5077f50b/1afec0af，
+#   契约 get-detail/append/promote 现值 VERIFIED）——D07 终态 6 ✅ + R04/R08/R10 候裁 + R09/R11 面外；
+#   summary 同步 compatible 77→80/absent 75→72。
 
 ---
 schema: 1
@@ -72,9 +85,9 @@ priority_policy:
 summary:
   total_rows: 200
   state_counts:
-    compatible: 74
+    compatible: 80
     partial: 17
-    absent: 78
+    absent: 72
     not_applicable: 19
     superset: 12
   confidence_counts:
@@ -88,14 +101,14 @@ summary:
   by_state_x_priority:
     compatible:
       P0: 56
-      P1: 17
+      P1: 23
       P2: 1
     partial:
       P0: 2
       P1: 10
       P2: 5
     absent:
-      P1: 35
+      P1: 29
       P2: 43
     superset:
       P2: 12
@@ -141,7 +154,8 @@ summary:
       superset: 7
     D07:
       rows: 11
-      absent: 11
+      compatible: 6
+      absent: 5
     D08:
       rows: 7
       absent: 6
@@ -170,9 +184,9 @@ summary:
     D14:
       rows: 1
       not_applicable: 1
-  contract_ref_non_null: 10  # L005-3：D12-R01 + D01-R26/R27/R30（L004-3 加链 3 行原计数漏记，一并勘正）+ 新增 D01-R38..R43 六行
-  golden_ref_non_null: 1     # D12-R01（empty-blob-synthetic / pull-sequence）——storage-admin 十端点无金样，形态断言锚 L003 差分报告
-  last_difftest_non_null: 16 # L005-3：D12-R01 + D01-R26/R27/R30 + 新增六行（=10）；L007-4 勘正：LOOP 006 收官五行（D02-R03/R04、D04-R17/R18、D06-R17）L006-1/L006-2 回填 last_difftest 未同步计数（10→15 漏记）+ 本程 D06-R30 → 实计 16（逐行 ruby 对账通过）
+  contract_ref_non_null: 22  # L023-3 勘正+同步：D12-R05（L012）+ goproxy/maven/pypi 系契约行（L014-L020 各轮回填未同步计数，前置值 10 漏记至实值 13）+ 本批 D07-R01..R08/R10 九行 → 实计 22（逐行 ruby 对账通过）
+  golden_ref_non_null: 1     # D12-R01（empty-blob-synthetic / pull-sequence）——storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 提金候选（l023d-wire/a/）在册待采，本批零金样变更
+  last_difftest_non_null: 33 # L023-3 勘正+同步：前置值 16 系 L007-4 时点，L008-L022 各轮回填未同步（实值 24）+ 本批 D07-R01..R08/R10 九行 → 实计 33（逐行 ruby 对账通过）
 rows:
 - row_id: D01-R01
   domain: D01
@@ -1961,99 +1975,139 @@ rows:
 - row_id: D07-R01
   domain: D07
   capability: GET /api/build（名清单+lastStarted）
-  state: absent
+  state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/buildinfo.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L023-buildinfo-diff.md §2.1 03/08 行 + §2.5 27 行 + §9.4（两轮判定一致——03/08/27 全 SAME）
   priority_class: P1
   layer: A
   source_row: "§8 行 1"
-  note: build-info.md 指针行（T-511/FR-152 链）
+  note: >-
+    L023-3 翻绿（2026-09-15）：absent→compatible——L023-2D 全环差分（curl 族 44 单元 + jf 真腿）+
+    L023-2G 复验（dev.c6f6c71a）两轮一致。对齐面：顶级 uri 绝对 + ?buildRepo= 串、条目 uri 相对、
+    lastStarted UTC 归一（+0530 入 +0000 出）、名序=各名最新 run 日期升序（§9 #5 收口——双活体一致）、
+    空态/未知 buildRepo 读路径 404 `No builds were found` 逐字（读路径无仓校验）。实现链 commits
+    c42fb255（L023-2A CRUD）+ c6f6c71a（L023-2F 八 BUG 修复）。契约条目 buildinfo/get-list（VERIFIED）。
+    面外注记：jf 配置面 `/artifactory/api/security/encryptedPassword` 前缀不仿真是既定决策（repo.md §1），不在本行 scope。
 - row_id: D07-R02
   domain: D07
   capability: PUT /api/build（全量上传）
-  state: absent
+  state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/buildinfo.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L023-buildinfo-diff.md §2.1 01/04/05/26/26b 行 + §9.4（PUT 响应面两轮全 SAME）
   priority_class: P1
   layer: A
   source_row: "§8 行 2"
-  note: build-info.md 指针行（T-511/FR-152 链）
+  note: >-
+    L023-3 翻绿（2026-09-15）：absent→compatible——PUT 响应面（204 空体 + X-Checksum-Sha256 hex64 头、
+    hidden 双文案 400 逐字、同坐标覆盖、同号多 run 并存、buildRetention 发布尾部触发 E7）两轮全 SAME。
+    行外登记两笔：① echo 残差 R3（空集合物化——02/26c 等 6 单元）挂 D07-R05 回显面，不在本行响应面；
+    ② 自定义 buildRepo 写门（A=projects 门 400/B=204 无门）=结构性差异，known-divergence
+    buildinfo/custom-buildrepo-projects-gate（候裁 R-23b），读路径无门双端一致（27 单元）。实现链
+    c42fb255 + c6f6c71a。契约条目 buildinfo/put-upload（VERIFIED）。
 - row_id: D07-R03
   domain: D07
   capability: GET /api/build/{buildName}（号清单）
-  state: absent
+  state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/buildinfo.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L023-buildinfo-diff.md §2.1 06/07/10c/13b-d 行 + §9.4（两轮一致全 SAME）
   priority_class: P1
   layer: A
   source_row: "§8 行 3"
-  note: build-info.md 指针行（T-511/FR-152 链）
+  note: >-
+    L023-3 翻绿（2026-09-15）：absent→compatible——started 严格倒序（最新在前）、同号多 run 同号多行并列、
+    started UTC 归一、空/名不存在 404 `No build was found for build name: <name>` 逐字——两轮全 SAME。
+    实现链 c42fb255 + c6f6c71a。契约条目 buildinfo/get-numbers（VERIFIED）。
 - row_id: D07-R04
   domain: D07
   capability: DELETE /api/build/{buildName}（buildNumbers/artifacts/deleteAll）
   state: absent
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/buildinfo.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L023-buildinfo-diff.md §2.1 11/12a-b/13a-d 行 + §9.1/§9.4（body 全 SAME 两轮；唯 D8 label 维持）
   priority_class: P1
   layer: A
   source_row: "§8 行 4"
-  note: build-info.md 指针行（T-511/FR-152 链）
+  note: >-
+    L023-3 候裁态（行态维持 absent）：body 语义面两轮全绿——E6 双段文案逐字、404 两分支逐字、同号怪癖
+    （每调至多删最新 started 一 run/二次删清→号单 404）、deleteAll 无尾点文案、D10 repo 内插复验修复
+    （B 回显解析仓）。唯一残差=D8 media-type label（A 对 text body 错标 application/json vs B
+    text/plain——7 单元族候裁维持）。翻绿条件：R-23a 裁定后（INTENTIONAL 登记 → label 差异出判定面；
+    或裁对齐 → label 修复+差分复验）。known-divergence buildinfo/media-type-label-family；实现链
+    c42fb255/c6f6c71a。契约条目 buildinfo/delete-path（DIVERGENT——divergence_ref=D8）。
 - row_id: D07-R05
   domain: D07
   capability: GET /api/build/{buildName}/{buildNumber}（详情）
-  state: absent
+  state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/buildinfo.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L023-buildinfo-diff.md §2.1 02/09/10a-d 行 + §10.5（末验四臂终确全 SAME——L023-2K，dev.1afec0af）
   priority_class: P1
   layer: A
   source_row: "§8 行 5"
-  note: build-info.md 指针行（T-511/FR-152 链）
+  note: >-
+    L023-3 尾单翻绿（2026-09-15）：absent→compatible——残差链 D4/D5/D6/D7 → R3 空集合物化 → D7 边缘臂
+    经 L023-2F（c6f6c71a）+ L023-2J（1afec0af，joda copy 文案族+空 properties 省键）逐轮清偿，§10.5
+    末验四臂终确全 SAME（R3 五单元 15b/16b/19b/22b/26c 键集逐字同 + D7 PUT/GET started 位 0 与值域臂
+    joda 族逐字节同）；重放门两轮一致（SAME 40/DIVERGENT 8——残余仅 D8/D9 两候裁族，零 BUG 类）。
+    契约条目 buildinfo/get-detail（VERIFIED）。差分链 c6f6c71a/5077f50b/1afec0af。
 - row_id: D07-R06
   domain: D07
   capability: POST /api/build/append/{name}/{number}
-  state: absent
+  state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/buildinfo.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L023-buildinfo-diff.md §2.2 14/15a/15b 行 + §10.5（15b R3 翻绿终确）
   priority_class: P1
   layer: A
   source_row: "§8 行 6"
-  note: build-info.md 指针行（T-511/FR-152 链）
+  note: >-
+    L023-3 尾单翻绿（2026-09-15）：absent→compatible——语义面（父 run 404 逐字、同 id 模块 append ×2
+    → mod-a×3 各持己物〔E5 尾接不合并钉死〕、204 空体）自首轮全绿；15b 回显臂 R3 残差经 L023-2J
+    （1afec0af）清偿，§10.5 终确 SAME。契约条目 buildinfo/append-modules（VERIFIED）。实现链
+    9716d500/1afec0af。
 - row_id: D07-R07
   domain: D07
   capability: POST /api/build/promote/{name}/{number}
-  state: absent
+  state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/buildinfo.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L023-buildinfo-diff.md §2.3 16a-22c 行 + §4 jf promote 腿 + §9.1 + §10.5（statuses 回显 16b/19b/22b R3 终确 SAME）
   priority_class: P1
   layer: A
   source_row: "§8 行 7"
-  note: build-info.md 指针行（T-511/FR-152 链）
+  note: >-
+    L023-3 尾单翻绿（2026-09-15）：absent→compatible——最重残差族 D1/D2/D3（E12 abort errors[] 信封/
+    成功空 messages/制品收集双通道）经 L023-2F（c6f6c71a）修复复验全绿（REST 八单元 + jf promote 真腿
+    exit=0、搬迁、promoted 豁免幸存集 ['/9','/7'] 逐位一致）；statuses 回显臂 R3 残差经 L023-2J（1afec0af）
+    清偿，§10.5 终确 SAME。dryRun/copy/scopes 臂未差分（契约 unobserved 注记）。契约条目
+    buildinfo/promote（VERIFIED）。实现链 9716d500/dbc52c66/c6f6c71a/1afec0af。
 - row_id: D07-R08
   domain: D07
   capability: POST /api/build/delete（批删）
   state: absent
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/buildinfo.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L023-buildinfo-diff.md §2.4 23a-c 行 + §3 D10 + §9.1（D10→SAME；唯 D8 label 维持）
   priority_class: P1
   layer: A
   source_row: "§8 行 8"
-  note: build-info.md 指针行（T-511/FR-152 链）
+  note: >-
+    L023-3 候裁态（行态维持 absent）：body 面/文案面两轮全绿——六字段 body（特殊字符号 1.0.0-rc+1）E6
+    逐字、blank-name 400 逐字、deleteAll 无尾点文案、D10 repo 内插复验修复（B 侧探针回显解析仓）。唯一
+    残差=D8 media-type label（23a/23c 单元）——候 R-23a 裁定，翻绿条件同 D07-R04。
+    known-divergence buildinfo/media-type-label-family。实现链 dbc52c66（L023-2C）+ c6f6c71a。
+    契约条目 buildinfo/batch-delete（DIVERGENT——divergence_ref=D8）。
 - row_id: D07-R09
   domain: D07
   capability: POST /api/build/rename/{buildName}（M17 面外）
@@ -2071,13 +2125,18 @@ rows:
   capability: POST /api/build/retention/{buildName}
   state: absent
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/buildinfo.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L023-buildinfo-diff.md §2.4 24a-26b 行 + §4 jf discard 腿 + §9.4（语义全绿两轮；唯 D8 label 维持）
   priority_class: P1
   layer: A
   source_row: "§8 行 10"
-  note: build-info.md 指针行（T-511/FR-152 链）
+  note: >-
+    L023-3 候裁态（行态维持 absent）：语义面全绿——count 门 400 文案逐字（count=0 与 body 缺失同句）、
+    两遍删序、promoted 豁免不占名额（jf build-discard 真腿侧证 §11.6-5）、发布尾部即删（E7）、204。唯一
+    残差=D8 media-type label（24a/24b——spec §11.6「text/plain」字面活体复伪：A 实标 application/json）
+    ——候 R-23a 裁定，翻绿条件同 D07-R04。known-divergence buildinfo/media-type-label-family。
+    实现链 dbc52c66 + c6f6c71a。契约条目 buildinfo/retention（DIVERGENT——divergence_ref=D8）。
 - row_id: D07-R11
   domain: D07
   capability: POST /api/docker/{repoKey}/v2/promote（M17 面外）

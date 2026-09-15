@@ -142,8 +142,11 @@ func TestBuildRESTUploadAndEchoRoundTrip(t *testing.T) {
 			Modules    []struct {
 				ID        string `json:"id"`
 				Artifacts []struct {
-					Name string `json:"name"`
-					Path string `json:"path"`
+					Name   string `json:"name"`
+					Path   string `json:"path"`
+					Sha1   string `json:"sha1"`
+					Sha256 string `json:"sha256"`
+					Md5    string `json:"md5"`
 				} `json:"artifacts"`
 				Dependencies []struct {
 					ID     string   `json:"id"`
@@ -183,14 +186,22 @@ func TestBuildRESTUploadAndEchoRoundTrip(t *testing.T) {
 		len(api.Dependencies[0].Scopes) != 1 || api.Dependencies[0].Scopes[0] != "test" {
 		t.Fatalf("dependencies echo = %+v", api.Dependencies)
 	}
-	// The artifact's path names no live node: record-only, the echo carries
-	// no association form.
-	if api.Artifacts[0].Path != "" {
-		t.Fatalf("unresolvable artifact echoed a path: %q", api.Artifacts[0].Path)
+	// Diff D4: the artifact echo keeps the document's own path verbatim —
+	// an unresolvable path is echo data, never dropped.
+	if api.Artifacts[0].Path != "libs/pub-app/api-1.0.jar" {
+		t.Fatalf("artifact path echo = %q, want the wire literal", api.Artifacts[0].Path)
 	}
-	// A module without segments still echoes empty ARRAYS, never null.
-	if bi.Modules[1].Artifacts == nil || bi.Modules[1].Dependencies == nil {
-		t.Fatalf("empty module segments must echo [], got null: %+v", bi.Modules[1])
+	if api.Artifacts[0].Sha1 != "aa" || api.Artifacts[0].Sha256 != "bb" || api.Artifacts[0].Md5 != "cc" {
+		t.Fatalf("artifact digest echo = %+v (empty strings must survive too)", api.Artifacts[0])
+	}
+	// Diff §9.2-R3: a module without dependencies OMITS the key (decodes
+	// as nil); the artifacts array is not part of R3 and keeps its []
+	// materialization.
+	if bi.Modules[1].Artifacts == nil {
+		t.Fatalf("module artifacts must echo []: %+v", bi.Modules[1])
+	}
+	if bi.Modules[1].Dependencies != nil {
+		t.Fatalf("module without dependencies must OMIT the key (R3): %+v", bi.Modules[1])
 	}
 }
 
@@ -358,7 +369,7 @@ func TestBuildRESTErrorSurface(t *testing.T) {
 		{"missing name", http.MethodPut, "/binflow/api/build",
 			`{"number": "1", "started": "2026-09-07T10:00:00Z"}`, 400, "build name is empty"},
 		{"bad started", http.MethodPut, "/binflow/api/build",
-			`{"name": "pub-app", "number": "1", "started": "soon"}`, 400, "must be an ISO8601 timestamp"},
+			`{"name": "pub-app", "number": "1", "started": "soon"}`, 400, `Invalid format: \"soon\"`},
 		{"append non-array body", http.MethodPost, "/binflow/api/build/append/pub-app/51",
 			`{"id": "m"}`, 400, "not a JSON array of modules"},
 		{"append missing parent", http.MethodPost, "/binflow/api/build/append/pub-app/77",

@@ -112,3 +112,60 @@ func (s *nodePropStore) Delete(ctx context.Context, repoKey, path string, keys [
 	}
 	return nil
 }
+
+// FindByProps returns the nodes carrying EVERY given key=value property
+// (L023-2F: the build-property channel of the promote artifact collection
+// — the aql.md property face's metadata-plane equivalent, riding
+// idx_node_props_name). The limit caps the fan (the collection's callers
+// are build-scoped, not report queries).
+func (s *nodePropStore) FindByProps(ctx context.Context, props map[string]string, limit int) ([]*Node, error) {
+	if len(props) == 0 {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 1000
+	}
+	stmt := `SELECT n.repo_key, n.path, n.sha256, n.size, n.mime, n.created_by, n.created_at, n.updated_at
+		FROM nodes n WHERE true`
+	var args []any
+	for _, kv := range sortedPropPairs(props) {
+		stmt += ` AND EXISTS (SELECT 1 FROM node_props p
+			WHERE p.repo_key = n.repo_key AND p.path = n.path AND p.name = ? AND p.value = ?)`
+		args = append(args, kv[0], kv[1])
+	}
+	stmt += ` LIMIT ?`
+	args = append(args, limit)
+	rows, err := s.db.QueryContext(ctx, stmt, args...)
+	if err != nil {
+		return nil, wrapExec("node props find", "by-props", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []*Node
+	for rows.Next() {
+		n := &Node{}
+		if err := rows.Scan(&n.RepoKey, &n.Path, &n.Sha256, &n.Size, &n.Mime,
+			&n.CreatedBy, &n.CreatedAt, &n.UpdatedAt); err != nil {
+			return nil, wrapExec("node props find scan", "by-props", err)
+		}
+		out = append(out, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, wrapExec("node props find rows", "by-props", err)
+	}
+	return out, nil
+}
+
+// sortedPropPairs renders the prop map in deterministic key order (the
+// statement builder needs stable arm order; tests need stable SQL).
+func sortedPropPairs(props map[string]string) [][2]string {
+	keys := make([]string, 0, len(props))
+	for k := range props {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([][2]string, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, [2]string{k, props[k]})
+	}
+	return out
+}

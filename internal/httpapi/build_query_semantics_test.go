@@ -53,6 +53,103 @@ func TestBuildQueryAbsoluteURIsEchoBuildRepo(t *testing.T) {
 	}
 }
 
+// TestBuildQueryEmptySetKeysOmitted: diff §9.2-R3 — a build with no
+// modules and a module with no dependencies OMIT the keys in the FULL
+// echo (never materialize []; slim keeps its own [] shape).
+func TestBuildQueryEmptySetKeysOmitted(t *testing.T) {
+	h := newBuildHarness(t)
+	doc := `{"name":"r3-app","number":"1","started":"2026-09-15T10:00:00.000+0000","modules":[]}`
+	if code, _, _ := putBuildJSON(t, h, doc); code != http.StatusNoContent {
+		t.Fatalf("seed = %d, want 204", code)
+	}
+	_, detail := getBuild(t, h, "/binflow/api/build/r3-app/1", adminUser, adminPass)
+	if strings.Contains(detail, `"modules"`) {
+		t.Fatalf("empty modules must be OMITTED (R3): %s", detail)
+	}
+
+	doc2 := `{"name":"r3-app","number":"2","started":"2026-09-15T11:00:00.000+0000","modules":[{"id":"m-no-deps"}]}`
+	if code, _, _ := putBuildJSON(t, h, doc2); code != http.StatusNoContent {
+		t.Fatalf("seed 2 = %d, want 204", code)
+	}
+	_, detail2 := getBuild(t, h, "/binflow/api/build/r3-app/2", adminUser, adminPass)
+	if strings.Contains(detail2, `"dependencies"`) {
+		t.Fatalf("module without dependencies must OMIT the key (R3): %s", detail2)
+	}
+	if !strings.Contains(detail2, `"artifacts": []`) {
+		t.Fatalf("artifacts keep their [] materialization (outside R3): %s", detail2)
+	}
+	// Slim keeps its own shape: modules [] present.
+	_, slim := getBuild(t, h, "/binflow/api/build/r3-app/1?slim=true", adminUser, adminPass)
+	if !strings.Contains(slim, `"modules": []`) {
+		t.Fatalf("slim must keep the [] shape: %s", slim)
+	}
+}
+
+// TestStartedJodaFamilyAndPropertiesOmission (ticket L023-2J, diff
+// §10.1/§10.2): the PUT body started gate rides the shared joda-family
+// wording (format + range families), the GET range arm matches, and a
+// build without properties OMITS the key.
+func TestStartedJodaFamilyAndPropertiesOmission(t *testing.T) {
+	h := newBuildHarness(t)
+
+	// PUT p2: a position-0 unparseable literal — the clause-less form,
+	// clean of every wrap suffix.
+	code, body, _ := putBuildJSON(t, h,
+		`{"name":"j-app","number":"1","started":"xyz"}`)
+	var put1 struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if code != http.StatusBadRequest || json.Unmarshal([]byte(body), &put1) != nil ||
+		len(put1.Errors) != 1 || put1.Errors[0].Message != `Invalid format: "xyz"` {
+		t.Fatalf("PUT xyz = %d %s, want the clean clause-less sentence", code, body)
+	}
+
+	// PUT p5: a range violation — the Cannot-parse family, joda literals.
+	code, body, _ = putBuildJSON(t, h,
+		`{"name":"j-app","number":"1","started":"2026-13-45T99:99:99.999+0000"}`)
+	var put2 struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if code != http.StatusBadRequest || json.Unmarshal([]byte(body), &put2) != nil ||
+		len(put2.Errors) != 1 || put2.Errors[0].Message !=
+		`Cannot parse "2026-13-45T99:99:99.999+0000": Value 13 for monthOfYear must be in the range [1,12]` {
+		t.Fatalf("PUT range = %d %s, want the Cannot-parse family verbatim", code, body)
+	}
+
+	// GET p4a: the same family on the query face (B's `is malformed at
+	// ""` drift is voided).
+	if code, _, _ := putBuildJSON(t, h, buildRESTDoc); code != http.StatusNoContent {
+		t.Fatalf("seed = %d", code)
+	}
+	resp, doc := getBuild(t, h, "/binflow/api/build/pub-app/51?started=2026-13-45T99:99:99.999%2B0000", adminUser, adminPass)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("GET range = %d %s, want 400", resp.StatusCode, doc)
+	}
+	var got struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if json.Unmarshal([]byte(doc), &got) != nil || len(got.Errors) != 1 || got.Errors[0].Message !=
+		`Cannot parse "2026-13-45T99:99:99.999+0000": Value 13 for monthOfYear must be in the range [1,12]` {
+		t.Fatalf("GET range body = %s, want the Cannot-parse family verbatim", doc)
+	}
+
+	// §10.1: a build without properties OMITS the key (never {}).
+	if code, _, _ := putBuildJSON(t, h,
+		`{"name":"j-app","number":"2","started":"2026-09-15T10:00:00.000+0000"}`); code != http.StatusNoContent {
+		t.Fatalf("no-props seed = %d", code)
+	}
+	_, detail := getBuild(t, h, "/binflow/api/build/j-app/2", adminUser, adminPass)
+	if strings.Contains(detail, `"properties"`) {
+		t.Fatalf("no-props build must OMIT the properties key: %s", detail)
+	}
+}
+
 // TestBuildQueryDetailEchoesOriginalTimezone: §11.3's split — the list
 // faces echo the UTC-normalized literal while the DETAIL face echoes the
 // payload's original timezone verbatim (a +0800 upload echoes +0800).
@@ -105,8 +202,8 @@ func TestBuildQueryDetailDefaultsAndSlim(t *testing.T) {
 	}
 
 	_, slim := getBuild(t, h, "/binflow/api/build/pub-app/51?slim=true", adminUser, adminPass)
-	if !strings.Contains(slim, `"modules": []`) || !strings.Contains(slim, `"properties": null`) {
-		t.Fatalf("slim shape wrong: %s", slim)
+	if !strings.Contains(slim, `"modules": []`) || strings.Contains(slim, `"properties"`) {
+		t.Fatalf("slim shape wrong (diff D5: the properties key is OMITTED, never null): %s", slim)
 	}
 }
 
@@ -171,9 +268,11 @@ func TestBuildQueryDetail404WithStartedClause(t *testing.T) {
 		t.Fatalf("seed = %d, want 204", code)
 	}
 
+	// Diff D6's live literals: a TRAILING space without the started
+	// clause, a space BEFORE the comma with it.
 	resp, doc := getBuild(t, h, "/binflow/api/build/pub-app/99", adminUser, adminPass)
 	if resp.StatusCode != http.StatusNotFound ||
-		!strings.Contains(doc, "No build was found for build name: pub-app, build number: 99") ||
+		!strings.Contains(doc, "No build was found for build name: pub-app, build number: 99 ") ||
 		strings.Contains(doc, "build started") {
 		t.Fatalf("plain detail 404 = %d %s", resp.StatusCode, doc)
 	}
@@ -181,7 +280,39 @@ func TestBuildQueryDetail404WithStartedClause(t *testing.T) {
 	resp, doc = getBuild(t, h,
 		"/binflow/api/build/pub-app/51?started=2026-09-07T09:00:00.000%2B0000", adminUser, adminPass)
 	if resp.StatusCode != http.StatusNotFound ||
-		!strings.Contains(doc, "No build was found for build name: pub-app, build number: 51, build started: 2026-09-07T09:00:00.000+0000") {
+		!strings.Contains(doc, "No build was found for build name: pub-app, build number: 51 , build started: 2026-09-07T09:00:00.000+0000") {
 		t.Fatalf("started-clause detail 404 = %d %s", resp.StatusCode, doc)
+	}
+
+	// Diff §9.3-D7 tail: a position-0 failure carries NO malformed-at
+	// clause (the live probe's `Invalid format: "xyz"` shape).
+	resp, doc = getBuild(t, h, "/binflow/api/build/pub-app/51?started=xyz", adminUser, adminPass)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("position-0 malformed = %d, want 400", resp.StatusCode)
+	}
+	var d0 struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if json.Unmarshal([]byte(doc), &d0) != nil || len(d0.Errors) != 1 || d0.Errors[0].Message != `Invalid format: "xyz"` {
+		t.Fatalf("position-0 body = %s, want the clause-less verbatim 400", doc)
+	}
+
+	// Diff D7: a malformed started literal answers the reference's
+	// DateTimeFormatter shape (the sample: '+' decoded to a space — the
+	// space rides the query string percent-encoded).
+	resp, doc = getBuild(t, h, "/binflow/api/build/pub-app/51?started=2026-09-07T09:00:00.000%200000", adminUser, adminPass)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("malformed started = %d %s, want 400", resp.StatusCode, doc)
+	}
+	var d7 struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if json.Unmarshal([]byte(doc), &d7) != nil || len(d7.Errors) != 1 || d7.Errors[0].Message !=
+		`Invalid format: "2026-09-07T09:00:00.000 0000" is malformed at " 0000"` {
+		t.Fatalf("malformed started body = %s, want diff D7's verbatim 400", doc)
 	}
 }

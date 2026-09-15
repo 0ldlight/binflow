@@ -121,8 +121,9 @@ func TestBuildRESTPromoteStatusFlipAndGenericMigration(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &promoted); err != nil {
 		t.Fatalf("promote JSON: %v (%s)", err, body)
 	}
-	if len(promoted.Messages) == 0 || promoted.Messages[len(promoted.Messages)-1].Level != "INFO" {
-		t.Fatalf("promote messages = %+v, want a trailing INFO summary (E3 uppercase)", promoted.Messages)
+	// Diff D2: success carries NO summary row — messages renders empty.
+	if len(promoted.Messages) != 0 {
+		t.Fatalf("promote messages = %+v, want the empty success body (diff D2)", promoted.Messages)
 	}
 
 	// The status flip: statuses[] on the detail face, newest first, the

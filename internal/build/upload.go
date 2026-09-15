@@ -71,6 +71,108 @@ func NormalizeStarted(s string) (string, error) {
 		s, ErrInvalidBuildInfo)
 }
 
+// StartedFormatMessage renders the reference's joda-family timestamp
+// parse failure for one `started` literal (diff §10.2, both the GET query
+// and PUT body faces): a FORMAT break answers `Invalid format: "<text>"`
+// — with ` is malformed at "<tail>"` when a prefix parsed, clause-less at
+// a position-0 break — and a RANGE violation (the layout matched, the
+// calendar values did not) switches families to `Cannot parse "<text>":
+// Value <n> for <field> must be in the range [<min>,<max>]` with the joda
+// field literals (monthOfYear, dayOfMonth — month-aware —, hourOfDay,
+// minuteOfHour, secondOfMinute, evaluated chronologically).
+func StartedFormatMessage(input string) string {
+	if rest, broke := startedLayoutBreak(input); broke {
+		if len(rest) == len(input) {
+			return fmt.Sprintf("Invalid format: %q", input)
+		}
+		return fmt.Sprintf("Invalid format: %q is malformed at %q", input, rest)
+	}
+	if field, val, lo, hi := startedRangeBreak(input); field != "" {
+		return fmt.Sprintf("Cannot parse %q: Value %d for %s must be in the range [%d,%d]",
+			input, val, field, lo, hi)
+	}
+	// Neither family fired on a value the strict parser rejects (an
+	// exotic offset spelling, say): the clause-less form is the fallback.
+	return fmt.Sprintf("Invalid format: %q", input)
+}
+
+// startedLayoutBreak walks the canonical yyyy-MM-dd'T'HH:mm:ss[.fff…]<offset>
+// skeleton. broke reports a character-class mismatch; rest is the input
+// from the break position (== the whole input at a position-0 break).
+func startedLayoutBreak(input string) (rest string, broke bool) {
+	const skeleton = "0000-00-00T00:00:00"
+	i := 0
+	for ; i < len(skeleton) && i < len(input); i++ {
+		wantDigit := skeleton[i] == '0'
+		isDigit := input[i] >= '0' && input[i] <= '9'
+		if wantDigit {
+			if !isDigit {
+				return input[i:], true
+			}
+			continue
+		}
+		if input[i] != skeleton[i] {
+			return input[i:], true
+		}
+	}
+	if i >= len(input) {
+		return "", true // ran out mid-skeleton
+	}
+	if input[i] == '.' {
+		i++
+		for i < len(input) && input[i] >= '0' && input[i] <= '9' {
+			i++
+		}
+		if i >= len(input) {
+			return "", true
+		}
+	}
+	switch input[i] {
+	case 'Z', 'z', '+', '-':
+		return "", false
+	}
+	return input[i:], true
+}
+
+// startedRangeBreak evaluates the calendar ranges once the layout walked
+// clean, chronologically, with joda's field literals and month-aware day
+// bound. Empty field = no violation found.
+func startedRangeBreak(input string) (field string, val, lo, hi int) {
+	digits := func(at, n int) int {
+		v := 0
+		for _, c := range input[at : at+n] {
+			v = v*10 + int(c-'0')
+		}
+		return v
+	}
+	year := digits(0, 4)
+	month := digits(5, 2)
+	day := digits(8, 2)
+	hour := digits(11, 2)
+	minute := digits(14, 2)
+	second := digits(17, 2)
+	if month < 1 || month > 12 {
+		return "monthOfYear", month, 1, 12 //nolint:gochecknoglobals // literal bounds
+	}
+	days := []int{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+	if year%4 == 0 && (year%100 != 0 || year%400 == 0) {
+		days[1] = 29
+	}
+	if day < 1 || day > days[month-1] {
+		return "dayOfMonth", day, 1, days[month-1]
+	}
+	if hour > 23 {
+		return "hourOfDay", hour, 0, 23
+	}
+	if minute > 59 {
+		return "minuteOfHour", minute, 0, 59
+	}
+	if second > 59 {
+		return "secondOfMinute", second, 0, 59
+	}
+	return "", 0, 0, 0
+}
+
 // Info is the INTERPRETED subset of a build info document: the fields the
 // service reads, validates and normalizes into the 024 tables. Every other
 // wire field (buildAgent, agent, vcs, licenseControl, issues, url,
@@ -104,12 +206,12 @@ type Module struct {
 	Dependencies []*Dependency     `json:"dependencies"`
 }
 
-// Artifact is one wire artifacts[] entry. Path is the association: the
-// "<repoKey>/<node path>" whole form whose repo segment splits into the
-// build_artifacts nodes FK — the 024 design ("the wire path IS the
-// association"). A path that does not resolve to a live node (or whose
-// sha256 disagrees with the node's) lands record-only: the row is kept, no
-// association is claimed.
+// Artifact is one wire artifacts[] entry. The manifest channel's address
+// pair is originalDeploymentRepo + path (L023-2F, diff D3: the pair a
+// build-info document carries resolves the node DIRECTLY); the legacy
+// "<repoKey>/<node path>" split of a bare path remains as the compat arm.
+// A path that resolves to no live node (or whose sha256 disagrees with the
+// node's) lands record-only: the row is kept, no association is claimed.
 type Artifact struct {
 	Type   string `json:"type"`
 	Sha1   string `json:"sha1"`
@@ -117,6 +219,9 @@ type Artifact struct {
 	Md5    string `json:"md5"`
 	Name   string `json:"name"`
 	Path   string `json:"path"`
+	// OriginalDeploymentRepo is the wire sixth key (diff D4: the echo keeps
+	// it; D3: the manifest channel's repo half).
+	OriginalDeploymentRepo string `json:"originalDeploymentRepo"`
 }
 
 // Dependency is one wire dependencies[] entry: what the build CONSUMED.
@@ -326,7 +431,9 @@ func (s *Service) Upload(ctx context.Context, p *Principal, raw []byte, buildRep
 	}
 	started, err := NormalizeStarted(info.Started)
 	if err != nil {
-		return nil, err
+		// Diff §10.2 p2/p5: the PUT face rides the SAME joda-family
+		// wording as the GET face — clean sentence, no wrap suffix.
+		return nil, &WireError{msg: StartedFormatMessage(info.Started), sentinel: ErrInvalidBuildInfo}
 	}
 	c.Started = started
 
@@ -578,6 +685,7 @@ func (s *Service) toStoreModules(ctx context.Context, wire []*Module) ([]*metada
 				Seq: int64(i), Name: a.Name, Type: a.Type,
 				Sha1: digests.sha1, Sha256: digests.sha256, Md5: digests.md5,
 				RepoKey: repoKey, Path: nodePath,
+				WirePath: a.Path, OriginalRepo: a.OriginalDeploymentRepo,
 			})
 		}
 		for i, d := range m.Dependencies {
@@ -597,35 +705,44 @@ func (s *Service) toStoreModules(ctx context.Context, wire []*Module) ([]*metada
 	return out, nil
 }
 
-// resolveArtifactNode splits the wire path "<repoKey>/<node path>" and
-// resolves the association against the live nodes table: an existing node
-// carries the FK pair, everything else (no seam wired, no '/' in the path,
-// missing node, or a sha256 disagreement) lands record-only ("", ""). A
-// store failure short of not-found propagates — a flaky lookup must not
-// silently degrade the association.
+// resolveArtifactNode resolves the association against the live nodes
+// table — the manifest channel first (originalDeploymentRepo + path, the
+// pair the document itself addresses the node by, diff D3), the legacy
+// "<repoKey>/<node path>" split of a bare path as the compat arm. An
+// existing node carries the FK pair; everything else (no seam wired, no
+// address, missing node, or a sha256 disagreement) lands record-only
+// ("", ""). A store failure short of not-found propagates — a flaky
+// lookup must not silently degrade the association.
 func (s *Service) resolveArtifactNode(ctx context.Context, a *Artifact) (repoKey, path string, err error) {
-	if a.Path == "" || s.nodes == nil {
+	if s.nodes == nil {
 		return "", "", nil
 	}
-	repoKey, path, ok := strings.Cut(a.Path, "/")
-	if !ok || repoKey == "" || path == "" {
-		// No repo segment to hang the FK on: record-only.
-		return "", "", nil
+	candidates := [][2]string{}
+	if a.OriginalDeploymentRepo != "" && a.Path != "" {
+		candidates = append(candidates, [2]string{a.OriginalDeploymentRepo, a.Path})
 	}
-	node, err := s.nodes.Get(ctx, repoKey, path)
-	if err != nil {
-		if errors.Is(err, metadata.ErrNodeNotFound) {
-			return "", "", nil
+	if a.Path != "" {
+		if rk, p, ok := strings.Cut(a.Path, "/"); ok && rk != "" && p != "" {
+			candidates = append(candidates, [2]string{rk, p})
 		}
-		return "", "", err
 	}
-	if a.Sha256 != "" && node.Sha256 != "" &&
-		!strings.EqualFold(a.Sha256, node.Sha256) {
-		// The document and the node disagree: keeping the association would
-		// forge a link the checksums refute — record-only.
-		return "", "", nil
+	for _, c := range candidates {
+		node, err := s.nodes.Get(ctx, c[0], c[1])
+		if err != nil {
+			if errors.Is(err, metadata.ErrNodeNotFound) {
+				continue
+			}
+			return "", "", err
+		}
+		if a.Sha256 != "" && node.Sha256 != "" &&
+			!strings.EqualFold(a.Sha256, node.Sha256) {
+			// The document and the node disagree: keeping the association
+			// would forge a link the checksums refute — record-only.
+			continue
+		}
+		return c[0], c[1], nil
 	}
-	return repoKey, path, nil
+	return "", "", nil
 }
 
 // toStoreProperties converts the wire properties map into the sorted row

@@ -137,18 +137,22 @@ func TestPromoteE12FailFastAndLenientArms(t *testing.T) {
 		t.Fatalf("seed = %d, want 204", code)
 	}
 
+	// Diff D1: the abort-class refusal rides the errors[] envelope — the
+	// aborting sentence verbatim, no messages body.
 	resp, body := promoteViaREST(t, h, adminUser, adminPass, "pub-app", "51",
 		`{"status":"released","targetRepo":"rel-libs"}`)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("failFast promote = %d %s, want 400", resp.StatusCode, body)
 	}
-	if !strings.Contains(body, `"level": "ERROR"`) || !strings.Contains(body,
-		"Unable to find artifacts of build 'pub-app' #51 from artifactory-build-info repo: aborting promotion.") {
-		t.Fatalf("failFast messages = %s, want the E12 aborting sentence", body)
+	var env struct {
+		Errors []struct {
+			Status  int    `json:"status"`
+			Message string `json:"message"`
+		} `json:"errors"`
 	}
-	if !strings.Contains(body,
-		"Skipping promotion status update: item promotion was completed with errors and warnings.") {
-		t.Fatalf("failFast messages = %s, want the §11.5-8 skip notice", body)
+	if json.Unmarshal([]byte(body), &env) != nil || len(env.Errors) != 1 || env.Errors[0].Status != 400 ||
+		env.Errors[0].Message != "Unable to find artifacts of build 'pub-app' #51 from artifactory-build-info repo: aborting promotion." {
+		t.Fatalf("failFast body = %s, want the errors[] envelope with the verbatim sentence", body)
 	}
 
 	resp, body = promoteViaREST(t, h, adminUser, adminPass, "pub-app", "51",
@@ -156,9 +160,16 @@ func TestPromoteE12FailFastAndLenientArms(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("lenient promote = %d %s, want 200", resp.StatusCode, body)
 	}
-	if !strings.Contains(body, `"level": "WARNING"`) || !strings.Contains(body,
-		"Unable to find the following artifacts of build 'pub-app' #51: api-1.0.jar") {
-		t.Fatalf("lenient messages = %s, want the E12 names warning", body)
+	var lenient struct {
+		Messages []struct {
+			Level   string `json:"level"`
+			Message string `json:"message"`
+		} `json:"messages"`
+	}
+	if json.Unmarshal([]byte(body), &lenient) != nil || len(lenient.Messages) != 1 ||
+		lenient.Messages[0].Level != "WARNING" ||
+		lenient.Messages[0].Message != "Unable to find the following artifacts of build 'pub-app' #51: api-1.0.jar" {
+		t.Fatalf("lenient messages = %s, want exactly the one E12 names warning (diff D2: no summary row)", body)
 	}
 
 	// The lenient promotion's history row landed (E12: warning 后继续).
