@@ -144,8 +144,8 @@ func TestChainDefaultFileSemanticsAndDerivations(t *testing.T) {
 	for _, r := range rows {
 		byPath[r.Path] = r
 	}
-	if r := byPath["root.bin"]; r.ParentPath != "" || r.Name != "root.bin" || r.Depth != 1 || r.Type != "file" {
-		t.Fatalf("root row derived columns: %+v", r)
+	if r := byPath["root.bin"]; r.ParentPath != "." || r.Name != "root.bin" || r.Depth != 1 || r.Type != "file" {
+		t.Fatalf("root row derived columns: %+v", r) // root parent = the literal '.' (aql.md §16.1-1)
 	}
 	if r := byPath["org/sub/lib-2.0.jar"]; r.ParentPath != "org/sub" || r.Name != "lib-2.0.jar" || r.Depth != 3 {
 		t.Fatalf("nested row derived columns: %+v", r)

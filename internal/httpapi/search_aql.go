@@ -260,6 +260,17 @@ func aqlOutputHasVirtual(fields []search.OutputField) bool {
 	return false
 }
 
+// aqlBarePropInclude reports whether the projection carries the bare
+// include("property") operand whose omit-when-empty rule §16.1-4 pins.
+func aqlBarePropInclude(fields []search.OutputField) bool {
+	for _, f := range fields {
+		if f.Kind == search.OutputProp && f.PropBare {
+			return true
+		}
+	}
+	return false
+}
+
 // renderAQLRow renders one result row through the projection echo list:
 // pretty form is one field per line at two spaces (the v01/v05 shape),
 // compact form is a single line. Property projections aggregate into the
@@ -294,6 +305,12 @@ func (s *Server) renderAQLRow(b *strings.Builder, row *metadata.NodeQueryRow, fi
 				continue
 			}
 			propsEmitted = true
+			// The bare include("property") operand omits the whole key for
+			// property-less rows (aql.md §16.1-4, live-verbatim: neither an
+			// empty array nor null) — the jf build-publish projection.
+			if aqlBarePropInclude(fields) && len(row.Props) == 0 {
+				continue
+			}
 			emit("properties", renderAQLProps(row, fields, compact))
 		case search.OutputStat:
 			// The statistics domain nests once, at the first stat entry's

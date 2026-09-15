@@ -67,6 +67,10 @@ type OutputField struct {
 	Kind    OutputKind
 	Field   FieldID
 	PropKey string
+	// PropBare marks the bare include("property") operand (§16.1): the row
+	// renderer omits the whole "properties" key for property-less rows
+	// instead of echoing an empty array.
+	PropBare bool
 }
 
 // PlanOptions carries the planner's runtime dependencies. Now is the clock
@@ -746,9 +750,9 @@ func buildProjection(q *Query) (fields []metadata.QueryField, props []string, ou
 		fields = append(fields, e.field)
 		out = append(out, OutputField{Key: e.key, Kind: OutputItem, Field: e.id})
 	}
-	addProp := func(key, raw string) {
+	addProp := func(key, raw string, bare bool) {
 		props = append(props, key)
-		out = append(out, OutputField{Key: raw, Kind: OutputProp, PropKey: key})
+		out = append(out, OutputField{Key: raw, Kind: OutputProp, PropKey: key, PropBare: bare})
 	}
 	addStat := func(inc IncludeField) {
 		// The column-backed stat members pull their counting columns into
@@ -774,13 +778,13 @@ func buildProjection(q *Query) (fields []metadata.QueryField, props []string, ou
 			}
 			out = append(out, OutputField{Key: inc.Raw, Kind: OutputVirtualRepos, Field: FieldVirtualRepos})
 		case inc.PropKey != "":
-			addProp(inc.PropKey, inc.Raw)
+			addProp(inc.PropKey, inc.Raw, inc.BareProperty)
 		case inc.Field.ID == FieldVirtualRepos:
 			out = append(out, OutputField{Key: inc.Raw, Kind: OutputVirtualRepos, Field: FieldVirtualRepos})
 		case inc.Field.ID == FieldPropertyKey || inc.Field.ID == FieldPropertyValue:
 			// The long forms project the whole property pair of every
 			// property the node carries.
-			addProp("*", inc.Raw)
+			addProp("*", inc.Raw, false)
 		case inc.Field.Domain == DomainStatistics:
 			addStat(inc)
 		default:

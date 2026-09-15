@@ -1156,6 +1156,34 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		// M17 T-511: the checksum reverse lookup (which builds depend on
 		// this artifact) — same handler-gated posture.
 		s.enforce(w, r, routeAuth{}, s.handleSearchDependency)
+	case rest == "search/versions" && r.Method == http.MethodGet:
+		// L024-3A (D03-R10 / aql.md §16.2): the version list — the gavc
+		// family's own door posture (route gate open, the use case owns the
+		// anonymous channel).
+		s.enforce(w, r, routeAuth{}, s.handleSearchVersions)
+	case rest == "search/latestVersion" && r.Method == http.MethodGet:
+		// L024-3A (D03-R11 / aql.md §16.3): text/plain latest-version face.
+		s.enforce(w, r, routeAuth{}, s.handleSearchLatestVersion)
+	case rest == "search/badChecksum" && r.Method == http.MethodGet:
+		// L024-3A (D03-R13 / aql.md §16.5): admin-only corruption report —
+		// the handler owns the 401/403 arms (RolesAllowed admin).
+		s.enforce(w, r, routeAuth{}, s.handleSearchBadChecksum)
+	case strings.HasPrefix(rest, "versions/"):
+		// L024-3A (D03-R12 / aql.md §16.4): latest version by properties at
+		// its REAL mount /api/versions/{repoKey}/{path} (either segment may
+		// be _any) — a non-anonymous face whose 401 arm is the handler's.
+		if r.Method != http.MethodGet {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		repoKey, tail, found := strings.Cut(strings.TrimPrefix(rest, "versions/"), "/")
+		if !found || repoKey == "" || tail == "" {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleVersionsByProps(w, r, repoKey, tail)
+		})
 
 	// ---- /api/build* (M17 T-508/T-509, FR-152.2 / ADR-0045 decision 6 +
 	// Errata ①) ----

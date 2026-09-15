@@ -200,7 +200,7 @@ type NodeQuery struct {
 type NodeQueryRow struct {
 	RepoKey    string
 	Path       string // storage path, repo-relative
-	ParentPath string // the AQL path field: storage path minus the last segment ('' at root)
+	ParentPath string // the AQL path field: storage path minus the last segment ('.' at root — aql.md §16.1-1, live-verbatim)
 	Name       string // last path segment ('' for folder marker rows, ADR-0043 pt 3)
 	Type       string // "file" | "folder"
 	Depth      int64  // segment count, root children = 1 (aql.md §2.2 "根 folder 起")
@@ -229,7 +229,12 @@ type NodeQueryRow struct {
 // last segment and leaves the prefix through the final slash (folder rows
 // keep their trailing slash, so their name arm is the empty string).
 const (
-	aqlParentExpr = "substr(nodes.path, 1, length(rtrim(nodes.path, replace(nodes.path, '/', ''))) - 1)"
+	// aqlParentExpr normalizes the root parent to the literal '.' Artifactory
+	// echoes (aql.md §16.1-1, live-verbatim: a root-level file's path value is
+	// "."), so criteria like {"path":{"$ne":"."}} — the jf build-publish query
+	// shape — exclude root-level rows on both the criteria and the projection
+	// side of this one expression.
+	aqlParentExpr = "CASE WHEN nodes.path LIKE '%/%' THEN substr(nodes.path, 1, length(rtrim(nodes.path, replace(nodes.path, '/', ''))) - 1) ELSE '.' END"
 	aqlNameExpr   = "substr(nodes.path, length(rtrim(nodes.path, replace(nodes.path, '/', ''))) + 1)"
 	aqlTypeExpr   = "CASE WHEN nodes.path LIKE '%/' THEN 'folder' ELSE 'file' END"
 	aqlDepthExpr  = "length(nodes.path) - length(replace(nodes.path, '/', '')) + (CASE WHEN nodes.path LIKE '%/' THEN 0 ELSE 1 END)"
