@@ -128,9 +128,9 @@ contracts:
       status: 400
       literal_body: 'A=`Invalid format: "<v>" is malformed at "<tail>"`（B 现值自有文案——D7）'
   binflow_state:
-    verdict: 'DIVERGENT（echo 保真族）'
-    detail: 'statuses wire/SSSZ/timestampDate/UTC-vs-原样分野/principal/durationMillis 双绿；B 差四处——artifact echo 丢空串字段+path+originalDeploymentRepo（D4）、slim 发 properties:null 而非省键（D5）、statuses comment 空回 ""（D5）、404 空格口径（D6）+ malformed started 文案（D7）'
-    divergence_ref: 'L023-buildinfo-diff.md D4/D5/D6/D7'
+    verdict: 'DIVERGENT（复验后残差收窄：R3 空集合物化 + D7 边缘臂）'
+    detail: '首轮 D4/D5/D6/D7 七处 → L023-2F 后主体 SAME（path/originalDeploymentRepo/空串 checksum 回显、slim 省键、comment 省键、buildRetention 默认三字段、404 空格口径、malformed started 3/4 臂）。复验残差：① B 物化空集合——module 无 dependencies 回 "dependencies":[]、build 无 modules 回 "modules":[]（A 省略键，6 单元）；② started=xyz 位 0 失败臂 A 无 malformed-at 子句/B 恒发（malformed-started-variants.log）'
+    divergence_ref: 'L023-buildinfo-diff.md §9.2-R3 + §9.3 观察一'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
   evidence:
     - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.1 02/09/10a-d 行', date: '2026-09-15' }
@@ -163,9 +163,9 @@ contracts:
     - { when: '名不存在', status: 404, literal_body: 'errors[] 信封 Unable to find build ''<name>''' }
     - { when: '号全不存在', status: 404, literal_body: 'errors[] 信封 Unable to find the given build numbers' }
   binflow_state:
-    verdict: 'SAME（body 逐字）/DIVERGENT（Content-Type label）'
-    detail: 'E6 双段/404 两分支/同号怪癖（每调删最新 started 一 run，二次删清→号单 404）全逐字双绿——L023-2A 中置信「至多删一」实现活体复验通过；唯 media-type label 异（D8）'
-    divergence_ref: 'L023-buildinfo-diff.md D8'
+    verdict: 'DIVERGENT（仅 Content-Type label，候裁维持）'
+    detail: 'E6 双段/404 两分支/同号怪癖（每调删最新 started 一 run，二次删清→号单 404）全逐字双绿——L023-2A 中置信「至多删一」实现活体复验通过；复验维持唯 media-type label 异（D8）'
+    divergence_ref: 'L023-buildinfo-diff.md D8（复验 §9.1 维持）'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
   evidence:
     - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.1 11/12a-b/13a-d 行', date: '2026-09-15' }
@@ -189,9 +189,8 @@ contracts:
   error_behavior:
     - { when: '父 run 不存在', status: 404, literal_body: 'errors[] 信封 The build <name>:<number> is not found' }
   binflow_state:
-    verdict: 'SAME（语义）/DIVERGENT（回显侧）'
-    detail: '同 id append ×2 → mod-a×3 各持己 artifacts 双端一致（E5 钉死）；回显差在 artifact echo（D4，归 get-detail 条目）'
-    divergence_ref: 'L023-buildinfo-diff.md D4（回显面）/本条目语义面无差异'
+    verdict: 'SAME（语义；复验后回显残差仅 R3 空集合物化，归 get-detail 条目）'
+    detail: '同 id append ×2 → mod-a×3 各持己 artifacts 双端一致（E5 钉死）；首轮 D4（artifact echo 丢字段）经 L023-2F 修复，复验 path/originalDeploymentRepo/空串 checksum 全回显'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
   evidence:
     - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.2 14/15a/15b 行', date: '2026-09-15' }
@@ -226,15 +225,14 @@ contracts:
       status: 400
       literal_body: 'messages[] body 同形（PromotionResult.HTTPStatus）——与 E12 异常面并存的双面结构'
   binflow_state:
-    verdict: 'DIVERGENT（三 BUG——本域最重残差）'
-    detail: '绿面：status-only INFO 逐字/targetRepo 404 逐字/lenient 单名 warning 逐字/invalid timestamp 400+messages 逐字/statuses 六元组（repository/ciUser 省略、显式 timestamp 逐字回显）/user=admin。红面：E12 abort 回 messages body 而非 errors[] 信封（D1）；干净成功 A={"messages":[]} 而 B 追加自造 INFO 汇总行（D2）；制品收集双通道缺——manifest（originalDeploymentRepo+path）与 AQL build 属性均不走 → 可解析制品被误判 abort、搬迁不发生（D3；jf promote 真腿 exit=1 复证）'
-    divergence_ref: 'L023-buildinfo-diff.md D1/D2/D3'
+    verdict: 'VERIFIED（复验 L023-2G：promote 响应面全绿——D1/D2/D3 修复确认）'
+    detail: '复验（dev.c6f6c71a）：E12 abort 回 errors[] 信封逐字（D1 修复）；干净成功 {"messages":[]} 无自造汇总行（D2 修复）；制品收集双通道成立——manifest 腿 22a/22c 搬迁双绿 + jf 属性通道真腿 exit=0、搬迁、promoted 豁免幸存集 [''/9'',''/7''] 双端逐位一致（D3 修复）。statuses 回显残差归 get-detail 条目（R3）'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
   evidence:
-    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.3 16a-22c 行 + §3 D1/D2/D3 + §4 jf 腿', date: '2026-09-15' }
+    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.3 16a-22c 行 + §3 D1/D2/D3 + §4 jf 腿 + §9 复验段（D1/D2/D3→SAME）', date: '2026-09-15' }
     - { kind: decompile, report: '~/Downloads/jfrog-artifactory-7.161.16/build-handler/build-handler-service/src/main/java/com/jfrog/build/service/{BuildPromotionService,BuildArtifactService}.java', anchor: 'L206-210（E12 throw→信封）/ L101/L363-379（manifest 收集分支）', date: '2026-09-15' }
   confidence: high
-  status: DIVERGENT
+  status: VERIFIED
 # ── 批删：POST /api/build/delete ────────────────────────────────────────────
 - id: buildinfo/batch-delete
   feature: 'body 面批删（六字段含 buildRepo；支持特殊字符号；与 DELETE 路径面同 command 同文案族）'
@@ -253,9 +251,9 @@ contracts:
     - { when: 'buildName blank', status: 400, literal_body: 'errors[] 信封 Please state the name of the build to be removed' }
     - { when: '非 deleteAll 无号', status: 400, literal_body: '同路径面 Please provide at least one build number to delete' }
   binflow_state:
-    verdict: 'SAME（body）/DIVERGENT（label + repo 内插）'
-    detail: '特殊字符号 1.0.0-rc+1 走数组删除 E6 逐字双绿；差=D8 label + deleteAll 文案 <repo> 位 B 回显缺省仓而非解析 buildRepo（D10——源码 BuildDeleteCommand L78 取解析仓；双端活体不可证因 A 写路径 projects 门）'
-    divergence_ref: 'L023-buildinfo-diff.md D8/D10'
+    verdict: 'DIVERGENT（仅 Content-Type label 候裁维持；D10 复验修复确认）'
+    detail: '特殊字符号 1.0.0-rc+1 走数组删除 E6 逐字双绿；复验（dev.c6f6c71a）：deleteAll 文案 <repo> 位已回显解析仓（D10 修复，B 侧探针 wire）；唯 media-type label 异（D8）'
+    divergence_ref: 'L023-buildinfo-diff.md D8（复验 §9.1 D10→SAME）'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
   evidence:
     - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.4 23a-c 行 + §3 D10', date: '2026-09-15' }
@@ -285,9 +283,9 @@ contracts:
       status: 400
       literal_body: 'Max count retention needs to be a positive number（纯文本 body；A 的 Content-Type 标 application/json——label 差 D8）'
   binflow_state:
-    verdict: 'SAME（语义全绿）/DIVERGENT（label）'
-    detail: 'count=0 与 body 缺失同句逐字；count=1 五 run 夹具幸存 [''/3''(count 槽)+''/2''(promoted 豁免)] 双端一致；发布尾部触发（PUT 带 {count:1} → 立即余 [''/6'']）双端一致；jf build-discard --max-builds=1 真腿 discard 语义同；唯 media-type label 异（D8）'
-    divergence_ref: 'L023-buildinfo-diff.md D8'
+    verdict: 'DIVERGENT（仅 Content-Type label 候裁维持；语义面复验全绿）'
+    detail: 'count=0 与 body 缺失同句逐字；count=1 幸存 [''/3''+''/2''(promoted 豁免)]、发布尾部触发余 [''/6'']、jf build-discard 真腿 discard 语义——两轮均双绿；唯 media-type label 异（D8）'
+    divergence_ref: 'L023-buildinfo-diff.md D8（复验 §9.1 维持）'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
   evidence:
     - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.4 24a-26b 行 + §4 jf discard 腿', date: '2026-09-15' }
@@ -327,9 +325,9 @@ contracts:
   error_behavior:
     - { when: 'B build-publish 后置 AQL property 查询', status: 400, literal_body: 'Unknown AQL field: property——aql.md §15 build.properties 面（T-511 翻转点）在 build-publish 主链路被真实客户端踩中' }
   binflow_state:
-    verdict: 'DIVERGENT（publish/promote 两腿）'
-    detail: 'upload/discard 双绿；publish 红根因=AQL property 面（D11 UNSUPPORTED）+version=dev 既有债；promote 红根因=D1/D3'
-    divergence_ref: 'L023-buildinfo-diff.md D11 + §4'
+    verdict: 'DIVERGENT（仅 publish 腿；promote 腿复验翻绿）'
+    detail: 'upload/discard/promote 三腿复验双绿（promote exit=0 + 搬迁 + promoted 豁免幸存集 [''/9'',''/7''] 双端一致——D3 属性通道成立）；publish 腿仍 exit=1：AQL property 面 400 后置步（D11 UNSUPPORTED，T-511 范围）+ /api/system/version=dev 既有债（PUT 本身已落库）'
+    divergence_ref: 'L023-buildinfo-diff.md D11 + §9.1（promote→SAME）'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
   evidence:
     - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§4 jf 真腿表', date: '2026-09-15' }

@@ -196,3 +196,58 @@ jf 配置注记：B 无法走 `jf c add`（预检调 `/artifactory/api/security/
 - **清场复核**：A `GET /api/build` → 404（空态）；B 名单零 `l023d-` 残留（t512app-* 票外存量未触碰）；双端 `l023d-*` 四仓全删（B dev-local 含 promote-abort 残留制品，`?deleteContent=true` 删净）；jf config l023da 已移除；/tmp 临时文件清除。
 - **风险**：① 10b malformed-started 是 URL `+` 未编码的意外产物（双端同请求同触发，判定有效，但「正确 started 语义」由 10d 补位）；② B dev 实例 `started` 回显依赖客户端时区（jf 腿 +0800 入 +0800 出，与 02 的 +0530 口径一致，无 flake 面）；③ D10 无双端活体（projects 门结构性阻挡），源码级判 BUG 置信中高；④ docker/helm 等腿本票面外。
 - **下步**：① D1/D2/D3 转修复票（promote 双面响应形 + 汇总行删除 + manifest/属性收集通道）；② D4-D7 echo/文案小票合并修；③ D8/D9 交 compatibility-engineer 裁定（INTENTIONAL 与否）；④ D11 提请 T-511 提权或拆票；⑤ 契约蓝本入册评审（contracts/buildinfo.yaml）。
+
+---
+
+# §9 复验段（L023-2G，2026-09-15 晚——L023-2F 返工后差分重跑）
+
+- **B 被测**：dev.**c6f6c71a**（L023-2F 含 8 BUG 修复重部署；A 参照 7.161.15 不变）
+- **重放门**：`tools/difftest/l0232d/` 原样全量重跑（45 REST 单元 + 2 shape + 1 搬迁聚合 + jf 四真腿）；pass2/pass3 判定集逐 case 一致（复跑门过；pass1 中 22c 为 harness 聚合串匹配 bug 的假阴性，已修——wire 实证双端均搬迁成功）
+- **结果**：**SAME 34 / DIVERGENT 14**（首轮 24/24）
+
+## 9.1 D-item 翻态对账（首轮 → 复验）
+
+| D-item | 首轮 | 复验 | 证据 |
+|---|---|---|---|
+| D1 promote E12 abort 响应形 | DIVERGENT | **SAME** | 18 单元：双端 400 + **errors[] 信封逐字同**（含 status:400 内嵌） |
+| D2 成功空 messages | DIVERGENT | **SAME** | 19/20 无自造汇总行；22a 双端 `{"messages":[]}` |
+| D3 制品收集双通道 | DIVERGENT | **SAME** | 22a 双端 200；22c 搬迁双绿（双端 dev→404/rel→200 内容匹配）；**jf promote 真腿 exit=0 双端 + 搬迁 + promoted 豁免幸存集 `['/9','/7']` 逐位一致** |
+| D4 artifact echo 丢字段 | DIVERGENT | **主体 SAME + 新残差 R3** | `path`/`originalDeploymentRepo`/空串三 checksum 全部回显（22b/02）；残差见 9.2-R3 |
+| D5 键省略 vs 空值 | DIVERGENT | **SAME** | 09 slim 省键；16b comment 空省键；26c buildRetention 默认三字段（`buildNumbersNotToBeDiscarded:[]`/`deleteBuildArtifacts:false`）回显 |
+| D6 详情 404 空格口径 | DIVERGENT | **SAME** | 10a/10c 尾空格、10d 逗号前空格逐字同 |
+| D7 malformed started 文案 | DIVERGENT | **3/4 臂 SAME + 1 边缘臂差** | 见 9.3 观察一 |
+| D8 media-type label 族 | DIVERGENT | **维持（预期内）** | 11/13a/13c/23a/23c/24a/24b 七单元仍仅 Content-Type 差 |
+| D9 自定义 buildRepo projects 门 | DIVERGENT | **维持（预期内）** | 28 单元不变（A=400 信封/B=204） |
+| D10 批删 deleteAll repo 内插 | DIVERGENT | **SAME** | B 侧探针：`All builds 'l023d-gate' under 'l023d-void-build-info' …`——回显**解析仓**（源码 L78 口径；双端活体仍不可达，A 侧 projects 门结构性阻挡） |
+| D11 AQL property 面 | UNSUPPORTED | **维持（2F 范围外）** | jf build-publish 后置步仍 400 `Unknown AQL field: property` → exit=1（PUT 已落库）；T-511 翻转点在案 |
+
+## 9.2 复验残余清单（14 DIVERGENT 单元 = 3 族）
+
+- **R1=D8 label 族（7 单元，候裁维持）**：A 对 text body 标 application/json / B 标 text/plain——待 compatibility-engineer 裁 INTENTIONAL 与否。
+- **R2=D9 projects 门（1 单元，候裁维持）**：自定义 buildRepo 写门——同上候裁。
+- **R3=新残差：空集合物化（6 单元：02/15b/16b/19b/22b/26c）**：2F 修复 D4 时带出——module 无 dependencies 时 B 回显 `"dependencies": []`、build 无 modules 时回显 `"modules": []`；A 两处均**省略键**。与 D5（键省略 vs 空值）同族但方向相反（多发而非少发）。**分类建议 BUG-minor**（echo 保真；jf client-blind）。
+
+## 9.3 记录级观察（coordinator 点名的两处近似，如实呈现）
+
+- **观察一（D7 rest 计算）**：2F 的 `is malformed at` 尾段计算在 3/4 探针臂与 A 逐字同（`2026-13-45T99:99:99.999+0000`→`" 0000"`、`+000` 短时区→`" 000"`、`+`成空格→`" 0000"`）；**边缘臂差**：值在位 0 即不可解析（`started=xyz`）时 A 回 `Invalid format: "xyz"`（**无** malformed-at 子句——Java 解析器在零前缀失败时不产生尾段），B 恒发 `Invalid format: "xyz" is malformed at "xyz"`。wire：`l023d-wire/malformed-started-variants.log`。分类 BUG-minor 残余（单臂文案差，400/信封/前缀均同）。
+- **观察二（D3 属性通道匹配规则）**：2F 的 build 属性（`build.name`/`build.number`/`build.timestamp` 三键）收集通道经 jf 真腿验证成立——jf `upload --build-name/--build-number` 打标 → `build-promote` 收集/搬迁/豁免全链双端一致（幸存集逐位同）。本轮未构造**属性键部分缺失/多仓同 checksum 冲突**等对抗臂——匹配规则在这些对抗面上的行为未差分，登记为后续探针（低风险：jf 主链路已绿）。
+
+## 9.4 D07 翻态建议终版（落账归 conductor/compatibility-engineer）
+
+| 行 | 首轮建议 | **终版建议** | 依据 |
+|---|---|---|---|
+| D07-R01 GET /api/build | 翻 ✅ | **翻 ✅（VERIFIED）** | 03/08/27 全 SAME（两轮稳定） |
+| D07-R02 PUT /api/build | 不翻 | **翻 ✅（VERIFIED）**——R3 echo 残差挂 D07-R05（回显面），PUT 响应面（204+头/hidden/覆盖/同号多 run）全 SAME；buildRepo 门归 D9 行外登记 | 01/04/05 SAME + 26（尾部触发）SAME |
+| D07-R03 GET /{name} | 翻 ✅ | **翻 ✅（VERIFIED）** | 06/07/10c SAME |
+| D07-R04 DELETE /{name} | 不翻 | **候裁态（label 待裁）**——body 语义/文案逐字绿 | 11/13a-d 仅 D8 label |
+| D07-R05 GET /{name}/{number} | 不翻 | **不翻（R3 空集合物化 + D7 边缘臂）** | 02/26c 等 6 单元 R3 |
+| D07-R06 append | 不翻 | **不翻（R3——15b）**；语义面（E4/E5）绿 | 14/15a SAME |
+| D07-R07 promote | 不翻 | **不翻（D7 边缘臂挂在 R05 文案族；本行 REST/jf 全绿但 statuses 回显 16b/19b/22b 载 R3）** | 16a/17/18/19/20/21/22a/22c + jf promote 全 SAME |
+| D07-R08 POST /build/delete | 不翻 | **候裁态（label 待裁）**——blank-name/E6/deleteAll 文案 + D10 全绿 | 23a/b/c 仅 D8 label |
+| D07-R09 rename | 面外 | 面外维持 | 未测 |
+| D07-R10 retention | 不翻 | **候裁态（label 待裁）**——count 门/豁免/删序/尾部触发全绿 | 24-26b 仅 D8 label |
+| D07-R11 docker promote | 面外 | 面外维持 | 未测 |
+
+## 9.5 复验环境处置
+
+资产删净复核：A `GET /api/build` → 404 空态；B 名单零 `l023d-` 残留（t512app-* 票外存量未触碰）；双端 `l023d-*` 四仓删净（`?deleteContent=true`）；B void 命名空间 404；jf config l023da 已移除；/tmp 日志清除。
