@@ -8,6 +8,8 @@ package build_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"path/filepath"
@@ -171,11 +173,13 @@ func TestNormalizeStartedCanonicalizesEveryAcceptedSpelling(t *testing.T) {
 	}
 }
 
-// TestUploadCreatesRunWithCanonicalStartedAndArchivedPayload: the first
+// TestUploadCreatesRunWithCanonicalStartedAndRewrittenPayload: the first
 // publication lands the run with the CANONICAL started literal (an
 // offset-carried input still stores UTC), the interpreted segments
-// normalized and the document archived byte-for-byte.
-func TestUploadCreatesRunWithCanonicalStartedAndArchivedPayload(t *testing.T) {
+// normalized and the document archived with the server's rewrites —
+// artifactoryPrincipal overwritten with the actor (§11.3 rewrite 1),
+// every rider field surviving the re-serialization.
+func TestUploadCreatesRunWithCanonicalStartedAndRewrittenPayload(t *testing.T) {
 	w := newUploadWorld(t)
 	doc := strings.Replace(minimalDoc,
 		`"started": "2026-09-07T10:00:00.000+0000"`,
@@ -193,12 +197,33 @@ func TestUploadCreatesRunWithCanonicalStartedAndArchivedPayload(t *testing.T) {
 	if res.Repo != metadata.DefaultBuildRepo {
 		t.Fatalf("resolved repo = %q, want %q", res.Repo, metadata.DefaultBuildRepo)
 	}
+	if len(res.Checksum) != 64 {
+		t.Fatalf("checksum = %q, want the sha256 hex form", res.Checksum)
+	}
 	b, err := w.store.Builds().GetBuild(context.Background(), "pub-app", "51", res.Started, "")
 	if err != nil {
 		t.Fatalf("GetBuild: %v", err)
 	}
-	if b.Payload != doc {
-		t.Fatalf("payload not archived byte-for-byte:\n got %s\nwant %s", b.Payload, doc)
+	if sum := sha256.Sum256([]byte(b.Payload)); hex.EncodeToString(sum[:]) != res.Checksum {
+		t.Fatalf("checksum %q is not the sha256 of the stored manifest", res.Checksum)
+	}
+	var archived map[string]any
+	if err := json.Unmarshal([]byte(b.Payload), &archived); err != nil {
+		t.Fatalf("archived payload is not JSON: %v\n%s", err, b.Payload)
+	}
+	if archived["artifactoryPrincipal"] != dean.Name {
+		t.Fatalf("artifactoryPrincipal = %v, want the acting principal %q (§11.3 rewrite 1)",
+			archived["artifactoryPrincipal"], dean.Name)
+	}
+	// The rider fields survive the re-serialization verbatim.
+	for _, want := range []string{"version", "buildAgent", "url", "properties"} {
+		if _, ok := archived[want]; !ok {
+			t.Fatalf("archived payload lost the %q rider: %s", want, b.Payload)
+		}
+	}
+	if archived["started"] != "2026-09-07T18:00:00.000+0800" {
+		t.Fatalf("archived started = %v, want the ORIGINAL offset literal (the detail echo's source)",
+			archived["started"])
 	}
 	mods := w.getModules(t, "pub-app", "51", res.Started, "")
 	if len(mods) != 1 || mods[0].ID != "com.example:api:1.0" {
@@ -331,7 +356,6 @@ func TestUploadRejectsMalformedDocuments(t *testing.T) {
 		{"bad started", `{"name": "pub-app", "number": "1", "started": "yesterday"}`, "must be an ISO8601 timestamp"},
 		{"name with slash", `{"name": "pub/app", "number": "1", "started": "2026-09-07T10:00:00.000+0000"}`, "contains '/'"},
 		{"module without id", `{"name": "pub-app", "number": "1", "started": "2026-09-07T10:00:00.000+0000", "modules": [{"type": "maven"}]}`, "module id is empty"},
-		{"duplicate module id", `{"name": "pub-app", "number": "1", "started": "2026-09-07T10:00:00.000+0000", "modules": [{"id": "m"}, {"id": "m"}]}`, `duplicate module id "m"`},
 		{"dependency without id", `{"name": "pub-app", "number": "1", "started": "2026-09-07T10:00:00.000+0000", "modules": [{"id": "m", "dependencies": [{"type": "jar"}]}]}`, "dependency with an empty id"},
 		{"property without name", `{"name": "pub-app", "number": "1", "started": "2026-09-07T10:00:00.000+0000", "properties": {"": "v"}}`, "build property name is empty"},
 	}
@@ -380,14 +404,35 @@ func appendDoc(t *testing.T, modules ...string) []byte {
 // second publish carrying a dependencies section MERGES into the same
 // module (key = module id), the module's earlier rows survive, sibling
 // modules are untouched, new ids land as new modules.
-func TestAppendMergesByModuleIDWithoutOverwriting(t *testing.T) {
+func TestAppendConcatenatesWithoutMerging(t *testing.T) {
 	w := newUploadWorld(t)
-	res, err := w.upload(t, dean, minimalDoc, "")
+
+	// Same-id duplicates inside ONE upload document are legal too (E5 +
+	// the reference's build.block.duplicate.entries default false): two
+	// rows land, nothing is deduplicated.
+	dup := strings.Replace(minimalDoc, `"modules": [`, `"modules": [
+		{"id": "dup:mod:1"},`, 1)
+	res, err := w.upload(t, dean, dup, "")
+	if err != nil {
+		t.Fatalf("duplicate-id upload: %v", err)
+	}
+	if mods := w.getModules(t, "pub-app", "51", res.Started, ""); len(mods) != 2 ||
+		mods[0].ID != "dup:mod:1" || mods[1].ID != "com.example:api:1.0" {
+		t.Fatalf("duplicate-id document = %+v, want both rows in order", mods)
+	}
+
+	// The append body re-uses the SEEDED module id (com.example:api:1.0)
+	// — E5's live-probe shape: the second publish of the same id is a
+	// DUPLICATE ENTRY, never a merge.
+	res, err = w.upload(t, dean, minimalDoc, "")
 	if err != nil {
 		t.Fatalf("seed upload: %v", err)
 	}
 	started := res.Started
 
+	// The append body re-uses the SEEDED module id (com.example:api:1.0)
+	// — E5's live-probe shape: the second publish of the same id is a
+	// DUPLICATE ENTRY, never a merge.
 	body := appendDoc(t,
 		`{"id": "com.example:api:1.0", "type": "maven",
 		  "artifacts": [{"type": "pom", "sha1": "11", "name": "api-1.0.pom", "path": "libs/pub-app/api-1.0.pom"}],
@@ -400,34 +445,23 @@ func TestAppendMergesByModuleIDWithoutOverwriting(t *testing.T) {
 	}
 
 	mods := w.getModules(t, "pub-app", "51", started, "")
-	if len(mods) != 2 {
-		t.Fatalf("modules after append = %d (%+v), want 2 (merged + new)", len(mods), mods)
+	if len(mods) != 3 {
+		t.Fatalf("modules after append = %d (%+v), want 3 (1 seeded + 2 appended — concat, no merge)", len(mods), mods)
 	}
-	var api, web *metadata.BuildModule
-	for _, m := range mods {
-		switch m.ID {
-		case "com.example:api:1.0":
-			api = m
-		case "com.example:web:1.0":
-			web = m
-		}
+	// Order: the seeded segment first, the incoming array at the tail —
+	// each same-id row keeps its OWN artifacts verbatim.
+	if mods[0].ID != "com.example:api:1.0" || len(mods[0].Artifacts) != 1 ||
+		mods[0].Artifacts[0].Name != "api-1.0.jar" {
+		t.Fatalf("seeded api module must survive untouched: %+v", mods[0])
 	}
-	if api == nil || web == nil {
-		t.Fatalf("module ids after append: %+v", mods)
+	if mods[1].ID != "com.example:api:1.0" || len(mods[1].Artifacts) != 1 ||
+		mods[1].Artifacts[0].Name != "api-1.0.pom" || len(mods[1].Dependencies) != 1 ||
+		mods[1].Dependencies[0].ID != "org:lib:2.0" {
+		t.Fatalf("duplicate api module must hold exactly its own rows: %+v", mods[1])
 	}
-	// The merge law's core: the original rows SURVIVE the second publish.
-	if len(api.Artifacts) != 2 || len(api.Dependencies) != 2 {
-		t.Fatalf("api module after append: %d artifacts, %d dependencies — want 2/2 (appended, not overwritten)",
-			len(api.Artifacts), len(api.Dependencies))
-	}
-	if api.Artifacts[0].Name != "api-1.0.jar" || api.Artifacts[1].Name != "api-1.0.pom" {
-		t.Fatalf("artifact order after append: %+v", api.Artifacts)
-	}
-	if api.Dependencies[0].ID != "junit:junit:4.13" || api.Dependencies[1].ID != "org:lib:2.0" {
-		t.Fatalf("dependency order after append: %+v", api.Dependencies)
-	}
-	if len(web.Dependencies) != 1 || web.Dependencies[0].ID != "org:web-dep:1.0" {
-		t.Fatalf("new module's dependencies: %+v", web.Dependencies)
+	if mods[2].ID != "com.example:web:1.0" || len(mods[2].Dependencies) != 1 ||
+		mods[2].Dependencies[0].ID != "org:web-dep:1.0" {
+		t.Fatalf("new web module: %+v", mods[2])
 	}
 }
 

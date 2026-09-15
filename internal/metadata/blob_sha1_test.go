@@ -49,6 +49,41 @@ func TestBlobGetBySha1(t *testing.T) {
 	}
 }
 
+// TestBlobGetByMd5 (L023-2A): the md5-keyed ledger twin the build domain's
+// partial-checksum backfill consumes — hit resolves the full digest triple,
+// miss and the empty string answer ErrNotFound.
+func TestBlobGetByMd5(t *testing.T) {
+	ctx := context.Background()
+	md, err := Open(ctx, Options{Driver: "sqlite", Path: filepath.Join(t.TempDir(), "binflow.db")})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = md.Close() })
+
+	b := &Blob{
+		Sha256: "aa00000000000000000000000000000000000000000000000000000000000000",
+		Sha1:   "bb00000000000000000000000000000000000000",
+		Md5:    "c0000000000000000000000000000000", Size: 3, CreatedAt: "2026-08-20T00:00:00Z",
+	}
+	if err := md.Blobs().Put(ctx, b); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+
+	got, err := md.Blobs().GetByMd5(ctx, b.Md5)
+	if err != nil {
+		t.Fatalf("GetByMd5(hit): %v", err)
+	}
+	if got.Sha256 != b.Sha256 || got.Sha1 != b.Sha1 || got.Md5 != b.Md5 || got.Size != 3 {
+		t.Fatalf("resolved row = %+v, want %+v", got, b)
+	}
+	if _, err := md.Blobs().GetByMd5(ctx, "ff0000000000000000000000000000000"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GetByMd5(miss) error = %v, want ErrNotFound", err)
+	}
+	if _, err := md.Blobs().GetByMd5(ctx, ""); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GetByMd5(empty) error = %v, want ErrNotFound", err)
+	}
+}
+
 // emptyFolderMarkerSHAForTest is the shared folder-marker sentinel's digest
 // spelling (the repo layer owns the constant; here only uniqueness of a row
 // with an EMPTY sha1 matters).

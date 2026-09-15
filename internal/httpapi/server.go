@@ -444,6 +444,7 @@ func New(deps Deps, log *slog.Logger) *Server {
 	if deps.Metadata != nil {
 		opts := []build.Option{
 			build.WithNodes(deps.Metadata.Nodes()),
+			build.WithBlobs(deps.Metadata.Blobs()),
 			build.WithDocker(deps.Metadata.Docker()),
 			build.WithProps(deps.Metadata.NodeProps()),
 		}

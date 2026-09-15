@@ -202,15 +202,15 @@ func TestBuildACLListZeroLeakArm(t *testing.T) {
 	// The numbers face: an invisible name answers EMPTY for bob (zero
 	// leak), the visible name answers only the default repo's run — the
 	// team-build-info run of the SAME name is filtered by its own repo.
-	secretNumbers, err := w.svc.ListBuildNumbers(ctx, bobPrincipal, "secret")
+	secretNumbers, err := w.svc.ListBuildNumbers(ctx, bobPrincipal, "secret", "")
 	if err != nil || len(secretNumbers) != 0 {
 		t.Fatalf("bob numbers(secret) = %+v (%v), want empty (zero leak)", secretNumbers, err)
 	}
-	pubNumbers, err := w.svc.ListBuildNumbers(ctx, bobPrincipal, "pub-1")
+	pubNumbers, err := w.svc.ListBuildNumbers(ctx, bobPrincipal, "pub-1", "")
 	if err != nil || len(pubNumbers) != 1 || pubNumbers[0].Repo != metadata.DefaultBuildRepo || pubNumbers[0].Number != "5" {
 		t.Fatalf("bob numbers(pub-1) = %+v (%v), want only run 5 of the default repo", pubNumbers, err)
 	}
-	allNumbers, err := w.svc.ListBuildNumbers(ctx, adminPrincipal, "pub-1")
+	allNumbers, err := w.svc.ListBuildNumbers(ctx, adminPrincipal, "pub-1", "")
 	if err != nil || len(allNumbers) != 2 {
 		t.Fatalf("admin numbers(pub-1) = %+v (%v), want both repos' runs", allNumbers, err)
 	}
@@ -334,7 +334,7 @@ func TestBuildServiceCoordinateValidation(t *testing.T) {
 	}
 
 	// The list face validates its bare name the same way.
-	if _, err := w.svc.ListBuildNumbers(ctx, adminPrincipal, "bad/name"); !errors.Is(err, build.ErrInvalidCoordinate) {
+	if _, err := w.svc.ListBuildNumbers(ctx, adminPrincipal, "bad/name", ""); !errors.Is(err, build.ErrInvalidCoordinate) {
 		t.Errorf("numbers(bad name) = %v, want ErrInvalidCoordinate", err)
 	}
 }

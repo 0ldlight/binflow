@@ -285,6 +285,28 @@ func (s *blobStore) GetBySha1(ctx context.Context, sha1 string) (*Blob, error) {
 	return b, nil
 }
 
+// GetByMd5 is the md5-keyed twin of GetBySha1 (the build domain's partial
+// checksum backfill consumes it — build-info.md §11.3's rewrite rule needs
+// all three digest columns reachable from any one present digest). No md5
+// index exists, so this rides the same plain ledger scan posture as
+// SearchByChecksum's md5 arm (one row per unique content bounds it).
+func (s *blobStore) GetByMd5(ctx context.Context, md5 string) (*Blob, error) {
+	if md5 == "" {
+		return nil, fmt.Errorf("blobs get by md5: %w", ErrNotFound)
+	}
+	const stmt = `SELECT sha256, sha1, md5, size, created_at FROM blobs WHERE md5 = ? LIMIT 1`
+	row := s.db.QueryRowContext(ctx, stmt, md5)
+	b := &Blob{}
+	err := row.Scan(&b.Sha256, &b.Sha1, &b.Md5, &b.Size, &b.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("blobs get by md5 %s: %w", md5, ErrNotFound)
+	}
+	if err != nil {
+		return nil, wrapExec("blobs get by md5", md5, err)
+	}
+	return b, nil
+}
+
 func (s *blobStore) Delete(ctx context.Context, sha256 string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM blobs WHERE sha256 = ?`, sha256)
 	if err != nil {

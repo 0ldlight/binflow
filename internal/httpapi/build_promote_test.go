@@ -103,7 +103,7 @@ func TestBuildRESTPromoteStatusFlipAndGenericMigration(t *testing.T) {
 	    {"type": "bin", "sha256": %q, "name": "1.bin", "path": "dev-libs/wire-app/1.bin"}
 	  ]}]
 	}`, sha)
-	if resp := putBuildDoc(t, h, adminUser, adminPass, doc); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, doc); resp.StatusCode != 204 {
 		t.Fatalf("seed upload = %d", resp.StatusCode)
 	}
 
@@ -121,8 +121,8 @@ func TestBuildRESTPromoteStatusFlipAndGenericMigration(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &promoted); err != nil {
 		t.Fatalf("promote JSON: %v (%s)", err, body)
 	}
-	if len(promoted.Messages) == 0 || promoted.Messages[len(promoted.Messages)-1].Level != "info" {
-		t.Fatalf("promote messages = %+v, want a trailing info summary", promoted.Messages)
+	if len(promoted.Messages) == 0 || promoted.Messages[len(promoted.Messages)-1].Level != "INFO" {
+		t.Fatalf("promote messages = %+v, want a trailing INFO summary (E3 uppercase)", promoted.Messages)
 	}
 
 	// The status flip: statuses[] on the detail face, newest first, the
@@ -162,7 +162,7 @@ func TestBuildRESTPromoteACLAndErrorSurface(t *testing.T) {
 	h := newPromoteHarness(t)
 	seedLocalGenericRepo(t, h, "dev-libs")
 	seedLocalGenericRepo(t, h, "rel-libs")
-	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 204 {
 		t.Fatalf("seed upload = %d", resp.StatusCode)
 	}
 
@@ -182,18 +182,17 @@ func TestBuildRESTPromoteACLAndErrorSurface(t *testing.T) {
 	}
 	// The missing run: the family's verbatim 404 (past the gate).
 	resp, body := promoteViaREST(t, h, adminUser, adminPass, "pub-app", "77", `{"status":"x"}`)
-	if resp.StatusCode != http.StatusNotFound || !strings.Contains(body, "Build-Info not found") {
+	if resp.StatusCode != http.StatusNotFound ||
+		!strings.Contains(body, "Cannot find a build by the name: pub-app, number: 77, repo: artifactory-build-info") {
 		t.Fatalf("missing run promote = %d %s", resp.StatusCode, body)
 	}
-	// The malformed body and the unparseable timestamp: the 400 family.
+	// The malformed body and the bad properties: the 400 family.
 	cases := []struct {
 		name   string
 		body   string
 		wantIn string
 	}{
 		{"not json", `{"status":`, "promotion body is not valid JSON"},
-		{"bad timestamp", `{"timestamp":"soon"}`, "must be an ISO8601 timestamp"},
-		{"virtual target", `{"targetRepo":"no-such"}`, "not found"},
 		{"bad properties", `{"targetRepo":"rel-libs","properties":{"":"v"}}`, "promotion properties"},
 	}
 	for _, tc := range cases {
@@ -206,6 +205,36 @@ func TestBuildRESTPromoteACLAndErrorSurface(t *testing.T) {
 				t.Fatalf("body %q missing %q", body, tc.wantIn)
 			}
 		})
+	}
+	// §11.5-8: an unparsable timestamp skips the status update with the
+	// verbatim ERROR row — failFast (default) answers the messages body
+	// at 400.
+	// (§11.5-8's literal carries ONE backslash: `invalid\unparsable` —
+	// asserted on the DECODED message, not the raw escape form.)
+	resp, body = promoteViaREST(t, h, adminUser, adminPass, "pub-app", "51", `{"status":"x","timestamp":"soon"}`)
+	var tsRes struct {
+		Messages []struct {
+			Level   string `json:"level"`
+			Message string `json:"message"`
+		} `json:"messages"`
+	}
+	if resp.StatusCode != http.StatusBadRequest || json.Unmarshal([]byte(body), &tsRes) != nil {
+		t.Fatalf("bad timestamp promote = %d %s", resp.StatusCode, body)
+	}
+	tsSkip := false
+	for _, m := range tsRes.Messages {
+		if m.Level == "ERROR" && m.Message == "Skipping promotion status update: invalid\\unparsable timestamp soon." {
+			tsSkip = true
+		}
+	}
+	if !tsSkip {
+		t.Fatalf("messages = %+v, want the verbatim invalid-backslash-unparsable row", tsRes.Messages)
+	}
+	// §11.5-4: a missing target repository answers the verbatim 404.
+	resp, body = promoteViaREST(t, h, adminUser, adminPass, "pub-app", "51", `{"status":"x","targetRepo":"no-such"}`)
+	if resp.StatusCode != http.StatusNotFound ||
+		!strings.Contains(body, "Cannot find target repository by the key 'no-such'") {
+		t.Fatalf("missing target promote = %d %s", resp.StatusCode, body)
 	}
 	// Anonymous meets the 401 challenge at the route door.
 	resp = h.do(http.MethodPost, "/binflow/api/build/promote/pub-app/51", "", "", []byte(`{}`), nil)
@@ -285,7 +314,7 @@ func TestBuildRESTPromoteDockerLegOverV2(t *testing.T) {
 	    {"type": "docker", "sha256": %q, "name": "myapp:1", "path": "dev-docker/%s/manifests/%s"}
 	  ]}]
 	}`, root, image, root)
-	if resp := putBuildDoc(t, h, adminUser, adminPass, doc); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, doc); resp.StatusCode != 204 {
 		t.Fatalf("build upload = %d", resp.StatusCode)
 	}
 	presp, pbody := promoteViaREST(t, h, "frank", "pw", "img-wire", "2",
@@ -347,7 +376,7 @@ func TestBuildRESTRetentionWindowOnTheWire(t *testing.T) {
 		  "name": "rwire-app", "number": %q, "type": "GENERIC", "started": %q,
 		  "modules": [{"id": "m"}]
 		}`, number, started)
-		if resp := putBuildDoc(t, h, adminUser, adminPass, doc); resp.StatusCode != 200 {
+		if resp := putBuildDoc(t, h, adminUser, adminPass, doc); resp.StatusCode != 204 {
 			t.Fatalf("seed %s = %d", number, resp.StatusCode)
 		}
 	}
@@ -373,11 +402,11 @@ func TestBuildRESTRetentionWindowOnTheWire(t *testing.T) {
 	if resp.StatusCode != http.StatusNotFound || !strings.Contains(body, "Build-Info not found") {
 		t.Fatalf("unknown retention = %d %s", resp.StatusCode, body)
 	}
-	// The sync arm: number 1 (outside the floor, beyond count=2 is nobody —
-	// only 3 runs) is deleted inline.
+	// The sync arm (the DEFAULT since E9): number 1 (outside the floor,
+	// beyond count=2 is nobody — only 3 runs) is deleted before the 204.
 	resp, body = post(adminUser, adminPass, "rwire-app", "?async=false")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("sync retention = %d %s", resp.StatusCode, body)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("sync retention = %d %s, want 204 (E7/E9: the sync arm answers after the deletions)", resp.StatusCode, body)
 	}
 	if strings.TrimSpace(body) != "" {
 		t.Fatalf("retention body = %q, want the empty official form", body)
@@ -397,12 +426,13 @@ func TestBuildRESTRetentionWindowOnTheWire(t *testing.T) {
 		t.Fatal("retention audit rows missing (build.retention / build.delete)")
 	}
 
-	// The async default: seed two more runs and let the detached window
-	// complete (polled — the official async=true posture).
+	// The async=true arm: seed one more outside-floor run and let the
+	// detached window complete (polled; E9 made sync the DEFAULT, so the
+	// arm is now explicit).
 	seed("4", "2026-08-20T10:00:00.000+0000")
-	resp, _ = post(adminUser, adminPass, "rwire-app", "")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("async retention = %d, want 200", resp.StatusCode)
+	resp, _ = post(adminUser, adminPass, "rwire-app", "?async=true")
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("async retention = %d, want 204", resp.StatusCode)
 	}
 	deadline := time.Now().Add(10 * time.Second)
 	for {
@@ -424,7 +454,7 @@ func TestBuildRESTPromoteMetricFamily(t *testing.T) {
 	h := newHarnessFull(t, nil, nil, nil, func(d *httpapi.Deps) {
 		d.Metrics = metrics.NewRegistry()
 	}, nil)
-	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 204 {
 		t.Fatalf("seed upload = %d", resp.StatusCode)
 	}
 	// A status-only promotion and a dry run.

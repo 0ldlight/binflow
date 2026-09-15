@@ -11,9 +11,12 @@ package build
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -81,6 +84,10 @@ type Info struct {
 	Started    string            `json:"started"`
 	Modules    []*Module         `json:"modules"`
 	Properties map[string]string `json:"properties"`
+	// BuildRetention is the optional §2.5 block: its presence triggers the
+	// window's execution at the tail of THIS publication (§11.6-8 —
+	// publishing is the other trigger besides POST /retention).
+	BuildRetention *RetentionRequest `json:"buildRetention"`
 }
 
 // Module is one wire modules[] entry. ID is the append merge key (same id =
@@ -133,6 +140,62 @@ type NodeChecker interface {
 	Get(ctx context.Context, repoKey, path string) (*metadata.Node, error)
 }
 
+// DigestSource resolves the blob digest triple behind any one present
+// digest — the partial-checksum backfill's seam (build-info.md §11.3
+// rewrite 2: a row carrying one or two of sha1/sha256/md5 is completed
+// from the binary ledger; all-or-nothing rows are skipped). metadata's
+// BlobStore satisfies it structurally.
+type DigestSource interface {
+	Get(ctx context.Context, sha256 string) (*metadata.Blob, error)
+	GetBySha1(ctx context.Context, sha1 string) (*metadata.Blob, error)
+	GetByMd5(ctx context.Context, md5 string) (*metadata.Blob, error)
+}
+
+// checksumTriple is the backfill's mutable digest view of one
+// artifact/dependency row.
+type checksumTriple struct{ sha1, sha256, md5 string }
+
+// backfillChecksums completes a row's missing digests from the ledger
+// when exactly one or two are present (the reference's rewrite rule — a
+// fully-populated or fully-empty row is left untouched; a ledger miss
+// leaves the row as the client sent it, never an error: the backfill is
+// a best-effort completion, the row's own validity does not hang on it).
+func (s *Service) backfillChecksums(ctx context.Context, t *checksumTriple) {
+	present := 0
+	for _, v := range []string{t.sha1, t.sha256, t.md5} {
+		if v != "" {
+			present++
+		}
+	}
+	if present == 0 || present == 3 || s.digests == nil {
+		return
+	}
+	var (
+		b   *metadata.Blob
+		err error
+	)
+	switch {
+	case t.sha256 != "":
+		b, err = s.digests.Get(ctx, t.sha256)
+	case t.sha1 != "":
+		b, err = s.digests.GetBySha1(ctx, t.sha1)
+	default:
+		b, err = s.digests.GetByMd5(ctx, t.md5)
+	}
+	if err != nil || b == nil {
+		return // no ledger match: the row rides as-sent
+	}
+	if t.sha1 == "" && b.Sha1 != "" {
+		t.sha1 = b.Sha1
+	}
+	if t.sha256 == "" && b.Sha256 != "" {
+		t.sha256 = b.Sha256
+	}
+	if t.md5 == "" && b.Md5 != "" {
+		t.md5 = b.Md5
+	}
+}
+
 // Option configures the optional seams of New (the WithXxx convention).
 type Option func(*Service)
 
@@ -141,6 +204,13 @@ type Option func(*Service)
 // metadata-less unit-stack posture — honest, never an error).
 func WithNodes(n NodeChecker) Option {
 	return func(s *Service) { s.nodes = n }
+}
+
+// WithBlobs wires the digest-resolution seam the partial-checksum
+// backfill completes through (upload.go's DigestSource; nil = rows ride
+// with exactly the digests the client declared).
+func WithBlobs(d DigestSource) Option {
+	return func(s *Service) { s.digests = d }
 }
 
 // UploadResult reports what one full upload did.
@@ -153,6 +223,76 @@ type UploadResult struct {
 	Started string
 	// Repo is the resolved build_repo logical key.
 	Repo string
+	// Checksum is the sha256 of the stored build JSON document (the X-
+	// Checksum-Sha256 response header's payload, build-info.md §11.1-E1:
+	// the reference computes it over the manifest it persists, not the
+	// bytes that arrived — BinFlow re-serializes with its own rewrites,
+	// so the checksum follows the STORED document the same way).
+	Checksum string
+}
+
+// trimLE20 cuts leading code points <= U+0020 — the exact set Java's
+// String.trim() removes, which is what the reference's coordinate guard
+// strips before its dot-prefix check.
+func trimLE20(s string) string {
+	return strings.TrimLeftFunc(s, func(r rune) bool { return r <= 0x20 })
+}
+
+// WireError carries a spec-verbatim wire message under a domain sentinel
+// identity: errors.Is matches the sentinel while Error() stays the exact
+// spec sentence (a plain %w wrap would leak the sentinel's own text onto
+// the wire after the message — build-info.md's pinned wordings are whole
+// messages, not prefixes). Exported since the retention count gate rides
+// text/plain — the wire layer needs the type to see it.
+type WireError struct {
+	msg      string
+	sentinel error
+}
+
+func (e *WireError) Error() string { return e.msg }
+
+// Is matches the carried sentinel by identity — errors.Is(err, sentinel)
+// keeps working through the clean-message carrier.
+func (e *WireError) Is(target error) bool {
+	return target == e.sentinel
+}
+
+// validateHiddenCoords refuses the hidden-coordinate spellings the
+// buildinfo layout would bury under a dot-directory (build-info.md §11.3
+// rewrite 4, the RTDEV-94003 posture): a name or number whose leading
+// whitespace is stripped and then starts with '.' answers the spec's
+// verbatim 400 wording.
+func validateHiddenCoords(name, number string) error {
+	if strings.HasPrefix(trimLE20(name), ".") {
+		return &WireError{msg: "Build name must not start with '.'", sentinel: ErrInvalidBuildInfo} //nolint:staticcheck // ST1005: build-info.md §11.3's verbatim wire wording
+	}
+	if strings.HasPrefix(trimLE20(number), ".") {
+		return &WireError{msg: "Build number must not start with '.'", sentinel: ErrInvalidBuildInfo} //nolint:staticcheck // ST1005: build-info.md §11.3's verbatim wire wording
+	}
+	return nil
+}
+
+// rewritePayload applies the server's own document rewrites to the raw
+// upload body and returns the stored manifest: artifactoryPrincipal is
+// overwritten with the authenticated actor (§11.3 rewrite 1 — the
+// reference stores the server-side identity, never the client's claim).
+// An actor-less (anonymous) call keeps the field the document carried.
+// The re-serialization is the reference's own posture — its stored JSON
+// is the re-rendered document, and the X-Checksum-Sha256 header is taken
+// over exactly these bytes.
+func rewritePayload(raw []byte, actor string, hasActor bool) (string, error) {
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return "", fmt.Errorf("build info is not valid JSON: %w: %s", ErrInvalidBuildInfo, err.Error())
+	}
+	if hasActor {
+		doc["artifactoryPrincipal"] = actor
+	}
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return "", fmt.Errorf("build info could not be re-serialized: %w: %s", ErrInvalidBuildInfo, err.Error())
+	}
+	return string(out), nil
 }
 
 // Upload is PUT /api/build (the BODY-carried form — ADR-0045 Errata ①: the
@@ -181,6 +321,9 @@ func (s *Service) Upload(ctx context.Context, p *Principal, raw []byte, buildRep
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
+	if err := validateHiddenCoords(c.Name, c.Number); err != nil {
+		return nil, err
+	}
 	started, err := NormalizeStarted(info.Started)
 	if err != nil {
 		return nil, err
@@ -188,13 +331,13 @@ func (s *Service) Upload(ctx context.Context, p *Principal, raw []byte, buildRep
 	c.Started = started
 
 	if !s.allow(ctx, p, c.Repo, c.Name, auth.ActionWrite) {
-		return nil, fmt.Errorf("build %s#%s: %w", c.Name, c.Number, ErrForbidden)
+		return nil, fmt.Errorf("upload build %s#%s: %w", c.Name, c.Number, forbiddenf(p, "upload", "Upload"))
 	}
 	created := true
 	if _, err := s.store.GetBuild(ctx, c.Name, c.Number, c.Started, c.Repo); err == nil {
 		// Overwrite arm: the official delete-permission note (Errata ①).
 		if !s.allow(ctx, p, c.Repo, c.Name, auth.ActionDelete) {
-			return nil, fmt.Errorf("build %s#%s overwrite: %w", c.Name, c.Number, ErrForbidden)
+			return nil, fmt.Errorf("overwrite build %s#%s: %w", c.Name, c.Number, forbiddenf(p, "delete", "Delete"))
 		}
 		created = false
 	} else if !errors.Is(err, metadata.ErrBuildNotFound) {
@@ -215,12 +358,19 @@ func (s *Service) Upload(ctx context.Context, p *Principal, raw []byte, buildRep
 	if p != nil {
 		actor = p.Name
 	}
+	// The stored manifest: the client document with the server's own
+	// rewrites applied (artifactoryPrincipal, §11.3 rewrite 1). The
+	// response's X-Checksum-Sha256 is taken over exactly these bytes.
+	payload, err := rewritePayload(raw, actor, p != nil)
+	if err != nil {
+		return nil, err
+	}
 	// PutBuild first (the parent row the segment FKs hang from), then the
 	// two child segments — each replace-whole write is one transaction in
 	// the store; the run header is the anchor.
 	header := &metadata.Build{
 		Name: c.Name, Number: c.Number, Started: c.Started, Repo: c.Repo,
-		Type: info.Type, Payload: string(raw),
+		Type: info.Type, Payload: payload,
 		CreatedBy: actor, CreatedAt: now, UpdatedBy: actor, UpdatedAt: now,
 	}
 	if err := s.store.PutBuild(ctx, header); err != nil {
@@ -247,22 +397,51 @@ func (s *Service) Upload(ctx context.Context, p *Principal, raw []byte, buildRep
 		Type: EventUploaded, Name: c.Name, Number: c.Number,
 		Started: c.Started, Repo: c.Repo, Principal: p,
 	})
-	return &UploadResult{Created: created, Started: c.Started, Repo: c.Repo}, nil
+	// §11.6-8's publish-tail trigger: a document carrying a buildRetention
+	// block runs its own window synchronously at the tail of this
+	// publication. Best-effort by design — the publication already stood;
+	// a window fault is logged, never a failed PUT over landed data.
+	if info.BuildRetention != nil {
+		s.runRetentionTail(ctx, p, c.Name, c.Repo, *info.BuildRetention)
+	}
+	sum := sha256.Sum256([]byte(payload))
+	return &UploadResult{
+		Created: created, Started: c.Started, Repo: c.Repo,
+		Checksum: hex.EncodeToString(sum[:]),
+	}, nil
+}
+
+// runRetentionTail executes one publish-carried retention window
+// (§11.6-8): same Prepare/Execute pair the REST retention face runs, the
+// ladder's rejections (an invalid count gate, an unknown name) logged
+// rather than answered — the upload's own response is already decided.
+func (s *Service) runRetentionTail(ctx context.Context, p *Principal, name, repo string, req RetentionRequest) {
+	plan, err := s.PrepareRetention(ctx, p, name, repo, req)
+	if err != nil {
+		slog.WarnContext(ctx, "build: publish-tail retention window refused",
+			"build", name, "error", err.Error())
+		return
+	}
+	if _, err := plan.Execute(ctx, s, p); err != nil {
+		slog.WarnContext(ctx, "build: publish-tail retention window failed",
+			"build", name, "error", err.Error())
+	}
 }
 
 // Append is POST /api/build/append/{name}/{number} (Errata ①: POST, the
-// module-ARRAY body, 204 on success): the incremental merge face.
+// module-ARRAY body, 204 on success): the incremental segment face.
 //
-// Gate: Deploy ∧ Delete per the official permission note — BinFlow
-// w(buildRepo, name) ∧ d(buildRepo, name), evaluated BEFORE the parent
+// Gate (§11.4-2): Delete asserted first, then Upload — BinFlow
+// d(buildRepo, name) ∧ w(buildRepo, name), evaluated BEFORE the parent
 // lookup (a denied caller gets 403 with no existence oracle). The parent
 // must already exist: a missing run answers metadata.ErrBuildNotFound (the
-// caller renders the spec's verbatim "Build-Info not found"; T-507 leftover
-// 3 — the FK's generic error is never the mapper's input).
+// caller renders E4's verbatim "The build <name>:<number> is not found").
 //
-// Merge law (Errata ④): modules merge BY ID — an incoming module whose id
-// already exists APPENDS its artifacts and dependencies to that module
-// (never overwrites); a new id lands as a new module. Nothing is dropped.
+// Concatenation law (§11.4-3 / E5 — the merge-by-id reading is VOIDED):
+// the incoming array is APPENDED to the existing modules as-is — same-id
+// modules are never merged, never overwritten, never deduplicated;
+// duplicates coexist as separate rows each holding its own artifacts and
+// dependencies (the live probe's two mod-a entries). Nothing is dropped.
 func (s *Service) Append(ctx context.Context, p *Principal, c Coordinate, raw []byte) (*metadata.Build, error) {
 	c = c.Resolve()
 	if err := c.Validate(); err != nil {
@@ -276,9 +455,13 @@ func (s *Service) Append(ctx context.Context, p *Principal, c Coordinate, raw []
 		c.Started = started
 	}
 
-	if !s.allow(ctx, p, c.Repo, c.Name, auth.ActionWrite) ||
-		!s.allow(ctx, p, c.Repo, c.Name, auth.ActionDelete) {
-		return nil, fmt.Errorf("build %s#%s append: %w", c.Name, c.Number, ErrForbidden)
+	// §11.4-2: the delete right is asserted FIRST, then the upload right —
+	// the failure order decides which §7 sentence answers.
+	if !s.allow(ctx, p, c.Repo, c.Name, auth.ActionDelete) {
+		return nil, fmt.Errorf("append build %s#%s: %w", c.Name, c.Number, forbiddenf(p, "delete", "Delete"))
+	}
+	if !s.allow(ctx, p, c.Repo, c.Name, auth.ActionWrite) {
+		return nil, fmt.Errorf("append build %s#%s: %w", c.Name, c.Number, forbiddenf(p, "upload", "Upload"))
 	}
 
 	// Parent first: the 404 verdict on a missing run precedes any body
@@ -301,7 +484,8 @@ func (s *Service) Append(ctx context.Context, p *Principal, c Coordinate, raw []
 
 	// Read-modify-write under one lock: two concurrent appends to the same
 	// run must both land (last-writer-wins on a stale base would silently
-	// drop a whole merge — CI-frequency traffic makes the global lock free).
+	// drop a whole segment — CI-frequency traffic makes the global lock
+	// free).
 	s.mergeMu.Lock()
 	defer s.mergeMu.Unlock()
 
@@ -309,20 +493,24 @@ func (s *Service) Append(ctx context.Context, p *Principal, c Coordinate, raw []
 	if err != nil {
 		return nil, fmt.Errorf("build %s#%s append read: %w", c.Name, c.Number, err)
 	}
-	merged := mergeModules(existing, incoming)
-	if err := s.store.PutModules(ctx, c.Name, c.Number, parent.Started, c.Repo, merged); err != nil {
+	// LIST CONCATENATION (E5): existing rows first, the incoming array
+	// appended at the tail — no id matching, no dedup, order preserved.
+	concat := make([]*metadata.BuildModule, 0, len(existing)+len(incoming))
+	concat = append(concat, existing...)
+	concat = append(concat, incoming...)
+	if err := s.store.PutModules(ctx, c.Name, c.Number, parent.Started, c.Repo, concat); err != nil {
 		return nil, fmt.Errorf("build %s#%s append write: %w", c.Name, c.Number, err)
 	}
 	// The append's audit row (decision 10's build.append — one row per
-	// successful merge, the modules merged as the detail), then the
-	// webhook uploaded event on the SAME tail (T-510: an append is a
-	// publication of the run it merged into — the resolved parent's
+	// successful concatenation, the modules appended as the detail), then
+	// the webhook uploaded event on the SAME tail (T-510: an append is a
+	// publication of the run it landed on — the resolved parent's
 	// coordinates, not the caller's looser addressing).
 	s.recordAudit(ctx, audit.Event{
 		Actor: actorOf(p), Action: audit.ActionBuildAppend,
 		Repo: c.Repo, Path: c.Name,
 		Detail: fmt.Sprintf(`{"number":%q,"modules_in":%d,"modules_total":%d}`,
-			c.Number, len(incoming), len(merged)),
+			c.Number, len(incoming), len(concat)),
 	})
 	s.emitWebhook(ctx, WebhookEvent{
 		Type: EventUploaded, Name: parent.Name, Number: parent.Number,
@@ -340,37 +528,6 @@ func actorOf(p *Principal) string {
 	return p.Name
 }
 
-// mergeModules folds incoming into existing by module id: same id appends
-// artifacts and dependencies (seq reassigned after the module's current
-// tail), a new id appends a whole module. existing is reused in place —
-// callers hand over a private slice.
-func mergeModules(existing, incoming []*metadata.BuildModule) []*metadata.BuildModule {
-	out := append([]*metadata.BuildModule(nil), existing...)
-	byID := make(map[string]*metadata.BuildModule, len(out))
-	for _, m := range out {
-		byID[m.ID] = m
-	}
-	for _, m := range incoming {
-		dst, ok := byID[m.ID]
-		if !ok {
-			byID[m.ID] = m
-			out = append(out, m)
-			continue
-		}
-		base := int64(len(dst.Artifacts))
-		for i, a := range m.Artifacts {
-			a.Seq = base + int64(i)
-			dst.Artifacts = append(dst.Artifacts, a)
-		}
-		base = int64(len(dst.Dependencies))
-		for i, d := range m.Dependencies {
-			d.Seq = base + int64(i)
-			dst.Dependencies = append(dst.Dependencies, d)
-		}
-	}
-	return out
-}
-
 // decodeModuleArray parses the append body: a JSON ARRAY of modules (the
 // official + first-party-OpenAPI form; the historic single-object shape is
 // superseded — build-info.md §5's divergence note). An empty array is a
@@ -385,14 +542,12 @@ func decodeModuleArray(raw []byte) ([]*Module, error) {
 }
 
 // toStoreModules converts the wire modules into store rows: validation
-// (non-empty ids, no duplicate ids inside one document, segment caps) and
-// the per-artifact node association.
+// (non-empty ids, segment caps) and the per-artifact node association.
 func (s *Service) toStoreModules(ctx context.Context, wire []*Module) ([]*metadata.BuildModule, error) {
 	if len(wire) > maxInfoModules {
 		return nil, fmt.Errorf("build info carries %d modules (max %d): %w", len(wire), maxInfoModules, ErrInvalidBuildInfo)
 	}
 	out := make([]*metadata.BuildModule, 0, len(wire))
-	seen := make(map[string]bool, len(wire))
 	for _, m := range wire {
 		if m == nil {
 			continue
@@ -400,10 +555,9 @@ func (s *Service) toStoreModules(ctx context.Context, wire []*Module) ([]*metada
 		if m.ID == "" {
 			return nil, fmt.Errorf("module id is empty: %w", ErrInvalidBuildInfo)
 		}
-		if seen[m.ID] {
-			return nil, fmt.Errorf("duplicate module id %q: %w", m.ID, ErrInvalidBuildInfo)
-		}
-		seen[m.ID] = true
+		// Duplicate module ids are LEGAL (E5's concat law; the reference's
+		// build.block.duplicate.entries switch defaults false) — each row
+		// lands at its own ordinal.
 		if len(m.Artifacts) > maxModuleArtifacts {
 			return nil, fmt.Errorf("module %q carries %d artifacts (max %d): %w",
 				m.ID, len(m.Artifacts), maxModuleArtifacts, ErrInvalidBuildInfo)
@@ -418,9 +572,11 @@ func (s *Service) toStoreModules(ctx context.Context, wire []*Module) ([]*metada
 			if err != nil {
 				return nil, fmt.Errorf("module %q artifact association: %w", m.ID, err)
 			}
+			digests := checksumTriple{sha1: a.Sha1, sha256: a.Sha256, md5: a.Md5}
+			s.backfillChecksums(ctx, &digests)
 			row.Artifacts = append(row.Artifacts, &metadata.BuildArtifact{
 				Seq: int64(i), Name: a.Name, Type: a.Type,
-				Sha1: a.Sha1, Sha256: a.Sha256, Md5: a.Md5,
+				Sha1: digests.sha1, Sha256: digests.sha256, Md5: digests.md5,
 				RepoKey: repoKey, Path: nodePath,
 			})
 		}
@@ -428,10 +584,12 @@ func (s *Service) toStoreModules(ctx context.Context, wire []*Module) ([]*metada
 			if d.ID == "" {
 				return nil, fmt.Errorf("module %q has a dependency with an empty id: %w", m.ID, ErrInvalidBuildInfo)
 			}
+			digests := checksumTriple{sha1: d.Sha1, sha256: d.Sha256, md5: d.Md5}
+			s.backfillChecksums(ctx, &digests)
 			row.Dependencies = append(row.Dependencies, &metadata.BuildDependency{
 				Seq: int64(i), ID: d.ID, Type: d.Type,
 				Scopes: strings.Join(d.Scopes, ","),
-				Sha1:   d.Sha1, Sha256: d.Sha256, Md5: d.Md5,
+				Sha1:   digests.sha1, Sha256: digests.sha256, Md5: digests.md5,
 			})
 		}
 		out = append(out, row)
