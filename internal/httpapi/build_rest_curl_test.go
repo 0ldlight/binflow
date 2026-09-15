@@ -38,7 +38,7 @@ func TestCurlCompatBuildFamily(t *testing.T) {
 			t.Fatalf("curl exit %d: %s", code, out)
 		}
 		for _, want := range []string{
-			`"uri": "/api/build/pub-app/51"`,
+			`"uri": "` + base + `/api/build/pub-app/51?buildRepo=artifactory-build-info"`,
 			`"id": "com.example:api:1.0"`,
 			`"name": "api-1.0.jar"`,
 			`"id": "junit:junit:4.13"`,
@@ -95,7 +95,7 @@ func TestCurlCompatBuildFamily(t *testing.T) {
 			"-u", admin, "-X", "POST", "-H", "Content-Type: application/json",
 			"-d", `[]`)
 		if code != 0 || !strings.Contains(out, `"status": 404`) ||
-			!strings.Contains(out, "Build-Info not found") {
+			!strings.Contains(out, "The build pub-app:77 is not found") {
 			t.Fatalf("missing-parent append = %q (exit %d), want the verbatim 404", out, code)
 		}
 		// Ungranted write: 403 (denial precedes existence).

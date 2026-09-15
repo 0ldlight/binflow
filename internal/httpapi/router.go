@@ -1228,6 +1228,25 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			s.handleBuildRetention(w, r, name)
 		})
 	case strings.HasPrefix(rest, "build/"):
+		if r.Method == http.MethodDelete {
+			// L023-2A (FR-152.2 / build-info.md §11.7): the run deletion
+			// face — one path segment (the name), the numbers/artifacts/
+			// deleteAll family rides the query string. Deeper DELETE
+			// targets (append/promote/retention paths) keep the E-26 404.
+			name, number, routed, derr := splitBuildCoords(rest, "build/")
+			if derr != nil {
+				writeError(w, http.StatusBadRequest, "build path segment could not be decoded: "+derr.Error())
+				return
+			}
+			if !routed || number != "" {
+				notImplemented(w, "/binflow/api/"+rest)
+				return
+			}
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleBuildDelete(w, r, name)
+			})
+			return
+		}
 		if r.Method != http.MethodGet {
 			notImplemented(w, "/binflow/api/"+rest)
 			return

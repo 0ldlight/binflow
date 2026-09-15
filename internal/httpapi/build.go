@@ -1,12 +1,15 @@
-// The build-info REST family (M17 T-508, FR-152.2 / ADR-0045 decision 6 +
-// Errata ①②④, wire frozen by docs/reverse/build-info.md §1/§2): the
-// BODY-carried upload PUT /api/build (the pre-errata path-segment skeleton
-// is VOIDED — PUT /api/build/{name}/{number} has no route and keeps the
-// E-26 404), the names/numbers/detail query ladder whose URIs echo the
-// relative form ("/<name>", "/<number>" — official examples), and the
-// append face POST /api/build/append/{name}/{number} whose success is 204
-// EMPTY and whose missing-parent answer is the spec's verbatim
-// "Build-Info not found".
+// The build-info REST family (M17 T-508 → L023-2A realignment, FR-152.2 /
+// ADR-0045 decision 6 + Errata ①②④, wire frozen by docs/reverse/
+// build-info.md §1/§2/§11): the BODY-carried upload PUT /api/build (the
+// pre-errata path-segment skeleton is VOIDED — PUT /api/build/{name}/
+// {number} has no route and keeps the E-26 404) whose success is 204 with
+// the X-Checksum-Sha256 header (§11.1-E1), the names/numbers/detail query
+// ladder whose top-level URIs echo the ABSOLUTE form with the ?buildRepo=
+// query string (§11.3) and whose empty answers are the spec's verbatim
+// 404s (E2), the append face POST /api/build/append/{name}/{number} whose
+// success is 204 EMPTY and whose missing-parent answer is E4's verbatim
+// "The build <name>:<number> is not found", and the run deletion face
+// DELETE /api/build/{name} with §11.7's E6 wording.
 //
 // Route gates demand authentication only (the official RolesAllowed
 // admin,user posture): every face's real decision is the build-domain
@@ -18,7 +21,8 @@
 // alternative), ?buildRepo= addresses a custom logical key on every face
 // (the officially-sanctioned parameter name, extended to the faces the
 // reference serves through ?project=), and ?diff= is refused (Builds Diff
-// is out of the M17 face).
+// is out of the M17 face — its response shape stays an open item,
+// build-info.md §9 #5).
 
 package httpapi
 
@@ -26,6 +30,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -78,10 +83,6 @@ func buildHookActorOf(p *build.Principal) webhook.Actor {
 		Realm:   webhook.RealmFor(string(p.Source)),
 	}
 }
-
-// buildDetailURI is the family's self-addressing prefix (relative URIs, the
-// official echo form).
-const buildDetailURI = "/api/build/"
 
 // refuseBuildProjects answers the honest 400 for the project family the
 // platform does not carry (report bool: true = answered, stop).
@@ -138,8 +139,10 @@ func (s *Server) writeBuildError(w http.ResponseWriter, err error) {
 	}
 }
 
-// handleBuildUpload serves PUT /api/build: the full-document save. 200 with
-// an EMPTY body on success (the frozen success shape).
+// handleBuildUpload serves PUT /api/build: the full-document save. 204
+// No Content with the X-Checksum-Sha256 response header on success (§11.1
+// -E1 — the checksum of the stored build JSON manifest, not the request
+// bytes: the server re-serializes with its own rewrites first).
 func (s *Server) handleBuildUpload(w http.ResponseWriter, r *http.Request) {
 	if s.buildsUnavailable(w) {
 		return
@@ -162,7 +165,8 @@ func (s *Server) handleBuildUpload(w http.ResponseWriter, r *http.Request) {
 		outcome = "replaced"
 	}
 	s.observeBuildsPut("upload", outcome, time.Since(start))
-	w.WriteHeader(http.StatusOK) // empty body, the official success form
+	w.Header().Set("X-Checksum-Sha256", res.Checksum)
+	w.WriteHeader(http.StatusNoContent) // empty body, the frozen success form (E1)
 }
 
 // buildNameEntry and buildNumberEntry are the list faces' row shapes
@@ -177,10 +181,29 @@ type buildNumberEntry struct {
 	Started string `json:"started"`
 }
 
+// buildRepoQuery resolves the family's ?buildRepo= parameter: absent or
+// empty lands on the default logical key (the reference's build_repo
+// default, §0 soft-seam ②), a custom key passes through.
+func buildRepoQuery(r *http.Request) string {
+	if v := r.URL.Query().Get("buildRepo"); v != "" {
+		return v
+	}
+	return metadata.DefaultBuildRepo
+}
+
+// buildFamilyURI renders the family's top-level self-address: the ABSOLUTE
+// URL plus the ?buildRepo= query string (§11.3's live shape —
+// http://<host>/binflow/api/build[...]?buildRepo=<repo>).
+func buildFamilyURI(r *http.Request, repo, tail string) string {
+	return contextURL(r) + "/api/build" + tail + "?buildRepo=" + url.QueryEscape(repo)
+}
+
 // handleBuildList serves GET /api/build: every build NAME the caller may
-// read, one row per (name, build_repo), uri "/<name>" relative — the
-// server-side visible-set filter already ran (zero leakage, NFR-S80's
-// third arm). Builds is never null: a fresh or fully-filtered view is [].
+// read under the addressed build_repo, one row per name, uri "/<name>"
+// relative — the server-side visible-set filter already ran (zero
+// leakage, NFR-S80's third arm). A fresh or fully-filtered view is the
+// family's empty state: the spec's verbatim 404 "No builds were found"
+// (§11.1-E2 — the reference answers 404, not 200-with-[]).
 func (s *Server) handleBuildList(w http.ResponseWriter, r *http.Request) {
 	if s.buildsUnavailable(w) {
 		return
@@ -188,15 +211,20 @@ func (s *Server) handleBuildList(w http.ResponseWriter, r *http.Request) {
 	if refuseBuildProjects(w, r) {
 		return
 	}
-	rows, err := s.builds.ListBuildNames(r.Context(), principalFrom(r.Context()))
+	repo := buildRepoQuery(r)
+	rows, err := s.builds.ListBuildNamesRepo(r.Context(), principalFrom(r.Context()), repo)
 	if err != nil {
 		s.writeBuildError(w, err)
+		return
+	}
+	if len(rows) == 0 {
+		writeError(w, http.StatusNotFound, "No builds were found")
 		return
 	}
 	body := struct {
 		URI    string           `json:"uri"`
 		Builds []buildNameEntry `json:"builds"`
-	}{URI: "/api/build", Builds: make([]buildNameEntry, 0, len(rows))}
+	}{URI: buildFamilyURI(r, repo, ""), Builds: make([]buildNameEntry, 0, len(rows))}
 	for _, row := range rows {
 		body.Builds = append(body.Builds, buildNameEntry{
 			URI: "/" + row.Name, LastStarted: row.LastStarted})
@@ -206,10 +234,13 @@ func (s *Server) handleBuildList(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleBuildNumbers serves GET /api/build/{buildName}: every run of one
-// name the caller may read, newest first, uri "/<number>". An empty visible
-// set answers the family's 404 — a name the caller cannot read anywhere is
-// indistinguishable from a name that does not exist (the zero-leak law; a
-// 200-with-empty-list would confirm the name).
+// name the caller may read, started DESC (strict newest-first — §11.8),
+// uri "/<number>" relative. An empty visible set answers the spec's
+// verbatim 404 "No build was found for build name: <name>" — a name the
+// caller cannot read is indistinguishable from a name that does not
+// exist (the zero-leak law; a 200-with-empty-list would confirm the
+// name). A same-number multi-run stack answers that number once per run
+// (§11.3's live shape).
 func (s *Server) handleBuildNumbers(w http.ResponseWriter, r *http.Request, name string) {
 	if s.buildsUnavailable(w) {
 		return
@@ -217,19 +248,20 @@ func (s *Server) handleBuildNumbers(w http.ResponseWriter, r *http.Request, name
 	if refuseBuildProjects(w, r) {
 		return
 	}
-	rows, err := s.builds.ListBuildNumbers(r.Context(), principalFrom(r.Context()), name)
+	repo := buildRepoQuery(r)
+	rows, err := s.builds.ListBuildNumbers(r.Context(), principalFrom(r.Context()), name, repo)
 	if err != nil {
 		s.writeBuildError(w, err)
 		return
 	}
 	if len(rows) == 0 {
-		writeError(w, http.StatusNotFound, "Build-Info not found")
+		writeError(w, http.StatusNotFound, "No build was found for build name: "+name)
 		return
 	}
 	body := struct {
 		URI           string             `json:"uri"`
 		BuildsNumbers []buildNumberEntry `json:"buildsNumbers"`
-	}{URI: buildDetailURI + url.PathEscape(name), BuildsNumbers: make([]buildNumberEntry, 0, len(rows))}
+	}{URI: buildFamilyURI(r, repo, "/"+url.PathEscape(name)), BuildsNumbers: make([]buildNumberEntry, 0, len(rows))}
 	for _, row := range rows {
 		body.BuildsNumbers = append(body.BuildsNumbers, buildNumberEntry{
 			URI: "/" + row.Number, Started: row.Started})
@@ -242,10 +274,13 @@ func (s *Server) handleBuildNumbers(w http.ResponseWriter, r *http.Request, name
 // detail. ?started= disambiguates same-name-same-number runs (normalized
 // through the same gate the upload ran, so the caller may re-use its
 // original literal; absent = the latest run). The body echoes the archived
-// payload document with the normalized truth overlaid — name, number,
-// started, type, modules, properties and, once promotions exist, statuses[]
-// (the actual echo field the reference schema omits, §1's medium-confidence
-// note).
+// payload document with the interpreted truth overlaid — name, number,
+// type, modules, properties and, once promotions exist, statuses[] — while
+// the payload's own `started` literal stands VERBATIM (§11.3: the detail
+// face echoes the original timezone, unlike the list faces' UTC
+// normalization). ?slim=true strips the heavy segments (modules [],
+// properties null — the jf CLI consumption shape). A miss answers the
+// spec's verbatim 404 with the addressed coordinates.
 func (s *Server) handleBuildGet(w http.ResponseWriter, r *http.Request, name, number string) {
 	if s.buildsUnavailable(w) {
 		return
@@ -259,26 +294,48 @@ func (s *Server) handleBuildGet(w http.ResponseWriter, r *http.Request, name, nu
 			"the diff parameter is not supported in BinFlow (Builds Diff is outside the M17 scope)")
 		return
 	}
+	startedLit := q.Get("started")
 	c := build.Coordinate{
 		Name: name, Number: number,
-		Started: q.Get("started"), Repo: q.Get("buildRepo"),
+		Started: startedLit, Repo: q.Get("buildRepo"),
 	}
 	detail, err := s.builds.GetBuildDetail(r.Context(), principalFrom(r.Context()), c)
 	if err != nil {
+		if errors.Is(err, metadata.ErrBuildNotFound) {
+			msg := "No build was found for build name: " + name + ", build number: " + number
+			if startedLit != "" {
+				msg += ", build started: " + startedLit
+			}
+			writeError(w, http.StatusNotFound, msg)
+			return
+		}
 		s.writeBuildError(w, err)
 		return
 	}
 	s.countBuildsGet("detail")
 	writeJSONBody(w, http.StatusOK, map[string]any{
-		"uri":       buildDetailURI + url.PathEscape(name) + "/" + url.PathEscape(number),
-		"buildInfo": s.renderBuildInfo(detail),
+		"uri":       buildFamilyURI(r, detail.Build.Repo, "/"+url.PathEscape(name)+"/"+url.PathEscape(number)),
+		"buildInfo": s.renderBuildInfo(detail, slimBuildQuery(q)),
 	})
+}
+
+// slimBuildQuery parses the ?slim= flag (true/1 — anything else or absent
+// is the full document; the reference pins only slim=true).
+func slimBuildQuery(q url.Values) bool {
+	v := q.Get("slim")
+	if v == "" {
+		return false
+	}
+	b, err := strconv.ParseBool(v)
+	return err == nil && b
 }
 
 // handleBuildAppend serves POST /api/build/append/{buildName}/
 // {buildNumber}: the module-array merge. 204 EMPTY on success; the parent's
-// absence is the spec's verbatim 404 "Build-Info not found"; a denied
-// caller meets 403 before the parent is even looked up (no oracle).
+// absence is the spec's verbatim 404 "The build <name>:<number> is not
+// found" (§11.1-E4 — the openapi's "Build-Info not found" wording is
+// voided); a denied caller meets 403 before the parent is even looked up
+// (no oracle).
 func (s *Server) handleBuildAppend(w http.ResponseWriter, r *http.Request, name, number string) {
 	if s.buildsUnavailable(w) {
 		return
@@ -297,6 +354,11 @@ func (s *Server) handleBuildAppend(w http.ResponseWriter, r *http.Request, name,
 		Started: q.Get("started"), Repo: q.Get("buildRepo"),
 	}, raw)
 	if err != nil {
+		if errors.Is(err, metadata.ErrBuildNotFound) {
+			writeError(w, http.StatusNotFound,
+				"The build "+name+":"+number+" is not found") // E4 verbatim
+			return
+		}
 		s.writeBuildError(w, err)
 		return
 	}
@@ -423,6 +485,96 @@ func (s *Server) handleBuildRetention(w http.ResponseWriter, r *http.Request, na
 	w.WriteHeader(http.StatusOK) // empty body, the undocumented official success form
 }
 
+// handleBuildDelete serves DELETE /api/build/{buildName}: the run
+// deletion face (§11.7 — L023-2A's D07-R04 arm). ?buildNumbers= carries
+// the CSV of numbers, ?artifacts=1 additionally deletes the associated
+// artifact nodes, ?deleteAll=1 drops every run of the name. The 200
+// wording is E6's verbatim text/plain: "have" (not the official page's
+// stale "has"), the Warning segment for numbers no run answered, the
+// trailing newline; deleteAll has its own no-period sentence. The 404s
+// are two-branch: a missing name and an all-missing numbers list are
+// different answers.
+func (s *Server) handleBuildDelete(w http.ResponseWriter, r *http.Request, name string) {
+	if s.buildsUnavailable(w) {
+		return
+	}
+	if refuseBuildProjects(w, r) {
+		return
+	}
+	q := r.URL.Query()
+	deleteAll, err := buildFlagQuery(q, "deleteAll")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	artifacts, err := buildFlagQuery(q, "artifacts")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	var numbers []string
+	for _, n := range strings.Split(q.Get("buildNumbers"), ",") {
+		if n != "" {
+			numbers = append(numbers, n)
+		}
+	}
+	if !deleteAll && len(numbers) == 0 {
+		writeError(w, http.StatusBadRequest, "Please provide at least one build number to delete")
+		return
+	}
+	res, err := s.builds.DeleteRuns(r.Context(), principalFrom(r.Context()),
+		name, q.Get("buildRepo"), numbers, deleteAll, artifacts)
+	if err != nil {
+		switch {
+		case errors.Is(err, build.ErrBuildNumbersNotFound):
+			writeError(w, http.StatusNotFound, "Unable to find the given build numbers")
+		case errors.Is(err, metadata.ErrBuildNotFound):
+			writeError(w, http.StatusNotFound, "Unable to find build '"+name+"'")
+		default:
+			s.writeBuildError(w, err)
+		}
+		return
+	}
+	if deleteAll {
+		writeText(w, http.StatusOK,
+			"All builds '"+name+"' under '"+res.Repo+"' have been deleted successfully") // E6: no trailing period
+		return
+	}
+	var sb strings.Builder
+	sb.WriteString("The following builds have been deleted successfully: ")
+	sb.WriteString(quoteJoin(res.Deleted))
+	sb.WriteString(".\n")
+	if len(res.Missing) > 0 {
+		sb.WriteString("Warning - the following builds could not be removed: ")
+		sb.WriteString(quoteJoin(res.Missing))
+		sb.WriteString(".\n")
+	}
+	writeText(w, http.StatusOK, sb.String())
+}
+
+// buildFlagQuery parses one 0|1 query flag (true/false also parse — the
+// boolean spellings collapse; anything else is the honest 400).
+func buildFlagQuery(q url.Values, name string) (bool, error) {
+	v := q.Get(name)
+	if v == "" {
+		return false, nil
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return false, fmt.Errorf("the %s parameter must be a boolean (0/1), got %s", name, strconv.Quote(v))
+	}
+	return b, nil
+}
+
+// quoteJoin renders the E6 deletion wording's entry list: 'a', 'b'.
+func quoteJoin(entries []string) string {
+	quoted := make([]string, 0, len(entries))
+	for _, e := range entries {
+		quoted = append(quoted, "'"+e+"'")
+	}
+	return strings.Join(quoted, ", ")
+}
+
 // splitBuildCoords splits the /api/build family's tail after prefix into
 // the DECODED (name, number) pair: exactly one segment addresses the
 // numbers face, exactly two the detail/append face; anything else (empty
@@ -448,12 +600,15 @@ func splitBuildCoords(rest, prefix string) (name, number string, routed bool, er
 
 // renderBuildInfo assembles the GET face's buildInfo document: the archived
 // payload parsed as the base (every uninterpreted wire field — buildAgent,
-// vcs, issues, ... — survives from it), then the normalized truth overlaid
-// (modules and properties from the store, so appends are visible; the
-// canonical started; statuses[] when promotions exist). An unparsable
-// archive degrades to the minimal envelope — the read never fails over the
-// echo's decoration.
-func (s *Server) renderBuildInfo(d *build.Detail) map[string]any {
+// vcs, issues, ... — survives from it, INCLUDING its original `started`
+// literal: §11.3's detail face echoes the uploaded timezone verbatim, so
+// the canonical store literal is only the fallback), then the interpreted
+// truth overlaid (name, number, type, modules and properties from the
+// store, so appends are visible; statuses[] when promotions exist).
+// durationMillis defaults to 0 when the document carried none (§3.1), and
+// slim strips the heavy segments. An unparsable archive degrades to the
+// minimal envelope — the read never fails over the echo's decoration.
+func (s *Server) renderBuildInfo(d *build.Detail, slim bool) map[string]any {
 	doc := map[string]any{}
 	if d.Build.Payload != "" {
 		var base map[string]any
@@ -466,29 +621,53 @@ func (s *Server) renderBuildInfo(d *build.Detail) map[string]any {
 	}
 	doc["name"] = d.Build.Name
 	doc["number"] = d.Build.Number
-	doc["started"] = d.Build.Started
+	if _, ok := doc["started"]; !ok {
+		doc["started"] = d.Build.Started
+	}
 	if d.Build.Type != "" {
 		doc["type"] = d.Build.Type
 	} else {
 		delete(doc, "type")
 	}
-	doc["modules"] = renderBuildModules(d.Modules)
-	props := make(map[string]any, len(d.Properties))
-	for _, p := range d.Properties {
-		props[p.Name] = p.Value
+	if slim {
+		// §1 detail row: modules [] and properties null — the jf CLI's
+		// lightweight consumption shape.
+		doc["modules"] = []buildModuleEcho{}
+		doc["properties"] = nil
+	} else {
+		doc["modules"] = renderBuildModules(d.Modules)
+		props := make(map[string]any, len(d.Properties))
+		for _, p := range d.Properties {
+			props[p.Name] = p.Value
+		}
+		doc["properties"] = props
 	}
-	doc["properties"] = props
+	if _, ok := doc["durationMillis"]; !ok {
+		doc["durationMillis"] = 0 // §3.1's default echo
+	}
 	if len(d.Promotions) > 0 {
 		statuses := make([]map[string]any, 0, len(d.Promotions))
 		for _, p := range d.Promotions {
-			statuses = append(statuses, map[string]any{
-				"status":     p.Status,
-				"timestamp":  p.PromotedAt,
-				"comment":    p.Comment,
-				"repository": p.TargetRepo,
-				"ciUser":     p.CiUser,
-				"user":       p.PromotedBy,
-			})
+			entry := map[string]any{
+				"status":    p.Status,
+				"timestamp": p.PromotedAt,
+				"comment":   p.Comment,
+				"user":      p.PromotedBy,
+			}
+			// §3.1's wire shape: timestampDate is the epoch-milliseconds
+			// twin of timestamp (the schema-undocumented field the live
+			// probe pinned); repository/ciUser are omitted whole when the
+			// promotion carried none — nullable fields never ride as "".
+			if t, err := time.Parse(time.RFC3339, p.PromotedAt); err == nil {
+				entry["timestampDate"] = t.UnixMilli()
+			}
+			if p.TargetRepo != "" {
+				entry["repository"] = p.TargetRepo
+			}
+			if p.CiUser != "" {
+				entry["ciUser"] = p.CiUser
+			}
+			statuses = append(statuses, entry)
 		}
 		doc["statuses"] = statuses
 	} else {

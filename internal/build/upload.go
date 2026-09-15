@@ -11,6 +11,8 @@ package build
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -133,6 +135,62 @@ type NodeChecker interface {
 	Get(ctx context.Context, repoKey, path string) (*metadata.Node, error)
 }
 
+// DigestSource resolves the blob digest triple behind any one present
+// digest — the partial-checksum backfill's seam (build-info.md §11.3
+// rewrite 2: a row carrying one or two of sha1/sha256/md5 is completed
+// from the binary ledger; all-or-nothing rows are skipped). metadata's
+// BlobStore satisfies it structurally.
+type DigestSource interface {
+	Get(ctx context.Context, sha256 string) (*metadata.Blob, error)
+	GetBySha1(ctx context.Context, sha1 string) (*metadata.Blob, error)
+	GetByMd5(ctx context.Context, md5 string) (*metadata.Blob, error)
+}
+
+// checksumTriple is the backfill's mutable digest view of one
+// artifact/dependency row.
+type checksumTriple struct{ sha1, sha256, md5 string }
+
+// backfillChecksums completes a row's missing digests from the ledger
+// when exactly one or two are present (the reference's rewrite rule — a
+// fully-populated or fully-empty row is left untouched; a ledger miss
+// leaves the row as the client sent it, never an error: the backfill is
+// a best-effort completion, the row's own validity does not hang on it).
+func (s *Service) backfillChecksums(ctx context.Context, t *checksumTriple) {
+	present := 0
+	for _, v := range []string{t.sha1, t.sha256, t.md5} {
+		if v != "" {
+			present++
+		}
+	}
+	if present == 0 || present == 3 || s.digests == nil {
+		return
+	}
+	var (
+		b   *metadata.Blob
+		err error
+	)
+	switch {
+	case t.sha256 != "":
+		b, err = s.digests.Get(ctx, t.sha256)
+	case t.sha1 != "":
+		b, err = s.digests.GetBySha1(ctx, t.sha1)
+	default:
+		b, err = s.digests.GetByMd5(ctx, t.md5)
+	}
+	if err != nil || b == nil {
+		return // no ledger match: the row rides as-sent
+	}
+	if t.sha1 == "" && b.Sha1 != "" {
+		t.sha1 = b.Sha1
+	}
+	if t.sha256 == "" && b.Sha256 != "" {
+		t.sha256 = b.Sha256
+	}
+	if t.md5 == "" && b.Md5 != "" {
+		t.md5 = b.Md5
+	}
+}
+
 // Option configures the optional seams of New (the WithXxx convention).
 type Option func(*Service)
 
@@ -141,6 +199,13 @@ type Option func(*Service)
 // metadata-less unit-stack posture — honest, never an error).
 func WithNodes(n NodeChecker) Option {
 	return func(s *Service) { s.nodes = n }
+}
+
+// WithBlobs wires the digest-resolution seam the partial-checksum
+// backfill completes through (upload.go's DigestSource; nil = rows ride
+// with exactly the digests the client declared).
+func WithBlobs(d DigestSource) Option {
+	return func(s *Service) { s.digests = d }
 }
 
 // UploadResult reports what one full upload did.
@@ -153,6 +218,72 @@ type UploadResult struct {
 	Started string
 	// Repo is the resolved build_repo logical key.
 	Repo string
+	// Checksum is the sha256 of the stored build JSON document (the X-
+	// Checksum-Sha256 response header's payload, build-info.md §11.1-E1:
+	// the reference computes it over the manifest it persists, not the
+	// bytes that arrived — BinFlow re-serializes with its own rewrites,
+	// so the checksum follows the STORED document the same way).
+	Checksum string
+}
+
+// trimLE20 cuts leading code points <= U+0020 — the exact set Java's
+// String.trim() removes, which is what the reference's coordinate guard
+// strips before its dot-prefix check.
+func trimLE20(s string) string {
+	return strings.TrimLeftFunc(s, func(r rune) bool { return r <= 0x20 })
+}
+
+// wireError carries a spec-verbatim wire message under a domain sentinel
+// identity: errors.Is matches the sentinel while Error() stays the exact
+// spec sentence (a plain %w wrap would leak the sentinel's own text onto
+// the wire after the message — build-info.md's pinned wordings are whole
+// messages, not prefixes).
+type wireError struct {
+	msg      string
+	sentinel error
+}
+
+func (e *wireError) Error() string { return e.msg }
+func (e *wireError) Is(target error) bool {
+	return target == e.sentinel // errors.Is compares by identity here
+}
+
+// validateHiddenCoords refuses the hidden-coordinate spellings the
+// buildinfo layout would bury under a dot-directory (build-info.md §11.3
+// rewrite 4, the RTDEV-94003 posture): a name or number whose leading
+// whitespace is stripped and then starts with '.' answers the spec's
+// verbatim 400 wording.
+func validateHiddenCoords(name, number string) error {
+	if strings.HasPrefix(trimLE20(name), ".") {
+		return &wireError{msg: "Build name must not start with '.'", sentinel: ErrInvalidBuildInfo} //nolint:staticcheck // ST1005: build-info.md §11.3's verbatim wire wording
+	}
+	if strings.HasPrefix(trimLE20(number), ".") {
+		return &wireError{msg: "Build number must not start with '.'", sentinel: ErrInvalidBuildInfo} //nolint:staticcheck // ST1005: build-info.md §11.3's verbatim wire wording
+	}
+	return nil
+}
+
+// rewritePayload applies the server's own document rewrites to the raw
+// upload body and returns the stored manifest: artifactoryPrincipal is
+// overwritten with the authenticated actor (§11.3 rewrite 1 — the
+// reference stores the server-side identity, never the client's claim).
+// An actor-less (anonymous) call keeps the field the document carried.
+// The re-serialization is the reference's own posture — its stored JSON
+// is the re-rendered document, and the X-Checksum-Sha256 header is taken
+// over exactly these bytes.
+func rewritePayload(raw []byte, actor string, hasActor bool) (string, error) {
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return "", fmt.Errorf("build info is not valid JSON: %w: %s", ErrInvalidBuildInfo, err.Error())
+	}
+	if hasActor {
+		doc["artifactoryPrincipal"] = actor
+	}
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return "", fmt.Errorf("build info could not be re-serialized: %w: %s", ErrInvalidBuildInfo, err.Error())
+	}
+	return string(out), nil
 }
 
 // Upload is PUT /api/build (the BODY-carried form — ADR-0045 Errata ①: the
@@ -179,6 +310,9 @@ func (s *Service) Upload(ctx context.Context, p *Principal, raw []byte, buildRep
 	c := Coordinate{Name: info.Name, Number: info.Number, Started: info.Started, Repo: buildRepo}
 	c = c.Resolve()
 	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	if err := validateHiddenCoords(c.Name, c.Number); err != nil {
 		return nil, err
 	}
 	started, err := NormalizeStarted(info.Started)
@@ -215,12 +349,19 @@ func (s *Service) Upload(ctx context.Context, p *Principal, raw []byte, buildRep
 	if p != nil {
 		actor = p.Name
 	}
+	// The stored manifest: the client document with the server's own
+	// rewrites applied (artifactoryPrincipal, §11.3 rewrite 1). The
+	// response's X-Checksum-Sha256 is taken over exactly these bytes.
+	payload, err := rewritePayload(raw, actor, p != nil)
+	if err != nil {
+		return nil, err
+	}
 	// PutBuild first (the parent row the segment FKs hang from), then the
 	// two child segments — each replace-whole write is one transaction in
 	// the store; the run header is the anchor.
 	header := &metadata.Build{
 		Name: c.Name, Number: c.Number, Started: c.Started, Repo: c.Repo,
-		Type: info.Type, Payload: string(raw),
+		Type: info.Type, Payload: payload,
 		CreatedBy: actor, CreatedAt: now, UpdatedBy: actor, UpdatedAt: now,
 	}
 	if err := s.store.PutBuild(ctx, header); err != nil {
@@ -247,7 +388,11 @@ func (s *Service) Upload(ctx context.Context, p *Principal, raw []byte, buildRep
 		Type: EventUploaded, Name: c.Name, Number: c.Number,
 		Started: c.Started, Repo: c.Repo, Principal: p,
 	})
-	return &UploadResult{Created: created, Started: c.Started, Repo: c.Repo}, nil
+	sum := sha256.Sum256([]byte(payload))
+	return &UploadResult{
+		Created: created, Started: c.Started, Repo: c.Repo,
+		Checksum: hex.EncodeToString(sum[:]),
+	}, nil
 }
 
 // Append is POST /api/build/append/{name}/{number} (Errata ①: POST, the
@@ -418,9 +563,11 @@ func (s *Service) toStoreModules(ctx context.Context, wire []*Module) ([]*metada
 			if err != nil {
 				return nil, fmt.Errorf("module %q artifact association: %w", m.ID, err)
 			}
+			digests := checksumTriple{sha1: a.Sha1, sha256: a.Sha256, md5: a.Md5}
+			s.backfillChecksums(ctx, &digests)
 			row.Artifacts = append(row.Artifacts, &metadata.BuildArtifact{
 				Seq: int64(i), Name: a.Name, Type: a.Type,
-				Sha1: a.Sha1, Sha256: a.Sha256, Md5: a.Md5,
+				Sha1: digests.sha1, Sha256: digests.sha256, Md5: digests.md5,
 				RepoKey: repoKey, Path: nodePath,
 			})
 		}
@@ -428,10 +575,12 @@ func (s *Service) toStoreModules(ctx context.Context, wire []*Module) ([]*metada
 			if d.ID == "" {
 				return nil, fmt.Errorf("module %q has a dependency with an empty id: %w", m.ID, ErrInvalidBuildInfo)
 			}
+			digests := checksumTriple{sha1: d.Sha1, sha256: d.Sha256, md5: d.Md5}
+			s.backfillChecksums(ctx, &digests)
 			row.Dependencies = append(row.Dependencies, &metadata.BuildDependency{
 				Seq: int64(i), ID: d.ID, Type: d.Type,
 				Scopes: strings.Join(d.Scopes, ","),
-				Sha1:   d.Sha1, Sha256: d.Sha256, Md5: d.Md5,
+				Sha1:   digests.sha1, Sha256: digests.sha256, Md5: digests.md5,
 			})
 		}
 		out = append(out, row)

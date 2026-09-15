@@ -155,7 +155,7 @@ func TestBuildWebhookUploadPromoteRetentionWeaving(t *testing.T) {
 	st.subscribe(t, "build-promo", "promoted", `{"anyBuild": true}`)
 	st.subscribe(t, "build-del", "deleted", `{"anyBuild": true}`)
 
-	if code, body := st.do(http.MethodPut, "/binflow/api/build", hookUploadDoc); code != http.StatusOK && code != http.StatusCreated {
+	if code, body := st.do(http.MethodPut, "/binflow/api/build", hookUploadDoc); code != http.StatusNoContent {
 		t.Fatalf("upload = %d %s", code, body)
 	}
 	rows := st.deliveriesOf(t, "build-up")
@@ -209,7 +209,7 @@ func TestBuildWebhookUploadPromoteRetentionWeaving(t *testing.T) {
 	// discards it and fires deleted for exactly that run.
 	newer := strings.Replace(hookUploadDoc, `"number": "51"`, `"number": "52"`, 1)
 	newer = strings.Replace(newer, "2026-09-07T10:00:00.000+0000", "2026-09-07T12:00:00.000+0000", 1)
-	if code, body := st.do(http.MethodPut, "/binflow/api/build", newer); code != http.StatusOK && code != http.StatusCreated {
+	if code, body := st.do(http.MethodPut, "/binflow/api/build", newer); code != http.StatusNoContent {
 		t.Fatalf("second upload = %d %s", code, body)
 	}
 	if code, body := st.do(http.MethodPost, "/binflow/api/build/retention/pub-app?async=false",
@@ -240,7 +240,7 @@ func TestBuildWebhookCriteriaAndGate(t *testing.T) {
 	st.subscribe(t, "selected", "uploaded", `{"selectedBuilds": ["other-app"]}`)
 	st.subscribe(t, "patterned", "uploaded", `{"anyBuild": true, "includePatterns": ["rel-*"]}`)
 	st.subscribe(t, "broad", "uploaded", `{"anyBuild": true}`)
-	if code, body := st.do(http.MethodPut, "/binflow/api/build", hookUploadDoc); code != http.StatusOK && code != http.StatusCreated {
+	if code, body := st.do(http.MethodPut, "/binflow/api/build", hookUploadDoc); code != http.StatusNoContent {
 		t.Fatalf("upload = %d %s", code, body)
 	}
 	for _, key := range []string{"selected", "patterned"} {
@@ -257,7 +257,7 @@ func TestBuildWebhookCriteriaAndGate(t *testing.T) {
 	// routing decision, not a loss).
 	denied := newBuildHookStack(t, false)
 	denied.subscribe(denied.t, "broad", "uploaded", `{"anyBuild": true}`)
-	if code, body := denied.do(http.MethodPut, "/binflow/api/build", hookUploadDoc); code != http.StatusOK && code != http.StatusCreated {
+	if code, body := denied.do(http.MethodPut, "/binflow/api/build", hookUploadDoc); code != http.StatusNoContent {
 		denied.t.Fatalf("upload under denied gate = %d %s (main path must stay green)", code, body)
 	}
 	if n := len(denied.deliveriesOf(denied.t, "broad")); n != 0 {

@@ -8,6 +8,8 @@ package build_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"path/filepath"
@@ -171,11 +173,13 @@ func TestNormalizeStartedCanonicalizesEveryAcceptedSpelling(t *testing.T) {
 	}
 }
 
-// TestUploadCreatesRunWithCanonicalStartedAndArchivedPayload: the first
+// TestUploadCreatesRunWithCanonicalStartedAndRewrittenPayload: the first
 // publication lands the run with the CANONICAL started literal (an
 // offset-carried input still stores UTC), the interpreted segments
-// normalized and the document archived byte-for-byte.
-func TestUploadCreatesRunWithCanonicalStartedAndArchivedPayload(t *testing.T) {
+// normalized and the document archived with the server's rewrites —
+// artifactoryPrincipal overwritten with the actor (§11.3 rewrite 1),
+// every rider field surviving the re-serialization.
+func TestUploadCreatesRunWithCanonicalStartedAndRewrittenPayload(t *testing.T) {
 	w := newUploadWorld(t)
 	doc := strings.Replace(minimalDoc,
 		`"started": "2026-09-07T10:00:00.000+0000"`,
@@ -193,12 +197,33 @@ func TestUploadCreatesRunWithCanonicalStartedAndArchivedPayload(t *testing.T) {
 	if res.Repo != metadata.DefaultBuildRepo {
 		t.Fatalf("resolved repo = %q, want %q", res.Repo, metadata.DefaultBuildRepo)
 	}
+	if len(res.Checksum) != 64 {
+		t.Fatalf("checksum = %q, want the sha256 hex form", res.Checksum)
+	}
 	b, err := w.store.Builds().GetBuild(context.Background(), "pub-app", "51", res.Started, "")
 	if err != nil {
 		t.Fatalf("GetBuild: %v", err)
 	}
-	if b.Payload != doc {
-		t.Fatalf("payload not archived byte-for-byte:\n got %s\nwant %s", b.Payload, doc)
+	if sum := sha256.Sum256([]byte(b.Payload)); hex.EncodeToString(sum[:]) != res.Checksum {
+		t.Fatalf("checksum %q is not the sha256 of the stored manifest", res.Checksum)
+	}
+	var archived map[string]any
+	if err := json.Unmarshal([]byte(b.Payload), &archived); err != nil {
+		t.Fatalf("archived payload is not JSON: %v\n%s", err, b.Payload)
+	}
+	if archived["artifactoryPrincipal"] != dean.Name {
+		t.Fatalf("artifactoryPrincipal = %v, want the acting principal %q (§11.3 rewrite 1)",
+			archived["artifactoryPrincipal"], dean.Name)
+	}
+	// The rider fields survive the re-serialization verbatim.
+	for _, want := range []string{"version", "buildAgent", "url", "properties"} {
+		if _, ok := archived[want]; !ok {
+			t.Fatalf("archived payload lost the %q rider: %s", want, b.Payload)
+		}
+	}
+	if archived["started"] != "2026-09-07T18:00:00.000+0800" {
+		t.Fatalf("archived started = %v, want the ORIGINAL offset literal (the detail echo's source)",
+			archived["started"])
 	}
 	mods := w.getModules(t, "pub-app", "51", res.Started, "")
 	if len(mods) != 1 || mods[0].ID != "com.example:api:1.0" {

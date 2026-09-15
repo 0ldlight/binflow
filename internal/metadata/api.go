@@ -586,6 +586,11 @@ type BlobStore interface {
 	// bytes are one row keyed by their common sha256. ErrNotFound when no
 	// row carries the sha1 (the caller's miss, not a shape error).
 	GetBySha1(ctx context.Context, sha1 string) (*Blob, error)
+	// GetByMd5 resolves a blob row through its md5 (the plain ledger scan
+	// twin of GetBySha1 — no md5 index, the SearchByChecksum posture). The
+	// build domain's partial-checksum backfill (build-info.md §11.3) is the
+	// caller. ErrNotFound when no row carries the md5.
+	GetByMd5(ctx context.Context, md5 string) (*Blob, error)
 	// Delete removes the row; only the GC calls this after sweep.
 	Delete(ctx context.Context, sha256 string) error
 	// Count returns the total number of blob rows.
@@ -1130,8 +1135,10 @@ type Build struct {
 	Started string // wire literal yyyy-MM-dd'T'HH:mm:ss.SSSZ; run identity element 3
 	Repo    string // build_repo logical ACL key; '' normalizes to DefaultBuildRepo on write
 	Type    string // wire `type` (MAVEN|GRADLE|ANT|IVY|GENERIC); '' allowed
-	// Payload is the archived original build info JSON ('' = none). It is
-	// the GET face's echo source and stays byte-for-byte what arrived.
+	// Payload is the archived build info JSON ('' = none). It is the GET
+	// face's echo source; the upload face re-serializes it with the
+	// server's own rewrites (artifactoryPrincipal, build-info.md §11.3)
+	// before storing.
 	Payload   string
 	CreatedBy string
 	CreatedAt string
@@ -1260,8 +1267,10 @@ type BuildStore interface {
 	// delete. Wraps ErrBuildNotFound when absent.
 	DeleteBuild(ctx context.Context, name, number, started, repo string) error
 	// ListBuildNames returns one row per (build_name, build_repo) with the
-	// group's MAX(started), ordered by (name, repo). repo = '' spans every
-	// build_repo; otherwise only that key's builds.
+	// group's MAX(started), ordered by that latest-run date (then name,
+	// repo — the reference's ORDER BY max(build_date) projection,
+	// build-info.md §11.8). repo = '' spans every build_repo; otherwise
+	// only that key's builds.
 	ListBuildNames(ctx context.Context, repo string) ([]*BuildName, error)
 	// ListBuildNumbers returns every run of one build name ordered by
 	// started DESC (newest first — the "latest = take first" ruling), then

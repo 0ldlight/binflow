@@ -187,17 +187,20 @@ func TestBuildsStoreNamesProjection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list names: %v", err)
 	}
+	// Ordered by the group's latest-run date (the reference's ORDER BY
+	// max(build_date) projection, build-info.md §11.8 — ascending per the
+	// DAO's SQL literal), name then repo breaking the ties.
 	want := []metadata.BuildName{
-		{Name: "alpha", Repo: metadata.DefaultBuildRepo, LastStarted: stampB},
 		{Name: "alpha", Repo: "team-build-info", LastStarted: stampA},
 		{Name: "beta", Repo: metadata.DefaultBuildRepo, LastStarted: stampA},
+		{Name: "alpha", Repo: metadata.DefaultBuildRepo, LastStarted: stampB},
 	}
 	if len(names) != len(want) {
 		t.Fatalf("names = %+v, want %+v", names, want)
 	}
 	for i, n := range names {
 		if *n != want[i] {
-			t.Errorf("names[%d] = %+v, want %+v (grouped by name+repo, MAX(started), ordered)", i, *n, want[i])
+			t.Errorf("names[%d] = %+v, want %+v (grouped by name+repo, MAX(started), ordered by latest-run date)", i, *n, want[i])
 		}
 	}
 
@@ -205,8 +208,11 @@ func TestBuildsStoreNamesProjection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list names (repo): %v", err)
 	}
-	if len(only) != 2 || only[0].Name != "alpha" || only[0].LastStarted != stampB {
-		t.Fatalf("repo-filtered names = %+v, want alpha(stampB)+beta of the default repo", only)
+	// Date-ordered: beta(stampA) before alpha(stampB), the group's latest
+	// run still MAX'd per name.
+	if len(only) != 2 || only[0].Name != "beta" || only[1].Name != "alpha" ||
+		only[1].LastStarted != stampB {
+		t.Fatalf("repo-filtered names = %+v, want beta(stampA)+alpha(stampB) of the default repo", only)
 	}
 }
 

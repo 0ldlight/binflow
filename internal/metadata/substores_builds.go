@@ -113,8 +113,10 @@ func (s *buildStore) DeleteBuild(ctx context.Context, name, number, started, rep
 
 // ListBuildNames implements BuildStore.ListBuildNames: one row per
 // (build_name, build_repo) with the group's MAX(started) — the names
-// face's source. repo = ” spans every build_repo (the ACL visible-set
-// walk reads that shape).
+// face's source, ordered by that latest-run date (the reference's GROUP
+// BY ... ORDER BY max(build_date) projection, build-info.md §11.8). repo
+// = ” spans every build_repo (the ACL visible-set walk reads that
+// shape).
 func (s *buildStore) ListBuildNames(ctx context.Context, repo string) ([]*BuildName, error) {
 	stmt := `SELECT build_name, build_repo, MAX(started) FROM builds`
 	var args []any
@@ -122,7 +124,7 @@ func (s *buildStore) ListBuildNames(ctx context.Context, repo string) ([]*BuildN
 		stmt += ` WHERE build_repo = ?`
 		args = append(args, repo)
 	}
-	stmt += ` GROUP BY build_name, build_repo ORDER BY build_name, build_repo`
+	stmt += ` GROUP BY build_name, build_repo ORDER BY MAX(started), build_name, build_repo`
 	rows, err := s.db.QueryContext(ctx, stmt, args...)
 	if err != nil {
 		return nil, wrapExec("builds list names", repo, err)

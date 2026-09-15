@@ -46,6 +46,10 @@ type Service struct {
 	// nodes resolves the artifact association against the live nodes table
 	// (upload.go's NodeChecker; nil = every artifact lands record-only).
 	nodes NodeChecker
+	// digests completes partially-declared checksums from the blob ledger
+	// (upload.go's DigestSource, the §11.3 rewrite-2 backfill; nil = rows
+	// ride with exactly the digests the client declared).
+	digests DigestSource
 	// carrier is the repository-domain migration face promote/retention
 	// consume (T-509's Carrier; nil keeps those faces at the honest
 	// ErrPromoteUnavailable).
@@ -128,9 +132,26 @@ func (s *Service) GetBuild(ctx context.Context, p *Principal, c Coordinate) (*me
 // VISIBLE SET on the server side: every row is evaluated against
 // allow(r) over its own (build_repo, build_name) before it joins the
 // answer — the zero-leak listing law (NFR-S80's third arm; not a client
-// filter, the reference's row-level build filtering posture).
+// filter, the reference's row-level build filtering posture). repo = ”
+// spans every build_repo (the ACL walk's shape); the REST names face
+// addresses exactly one (ListBuildNamesRepo).
 func (s *Service) ListBuildNames(ctx context.Context, p *Principal) ([]*metadata.BuildName, error) {
-	rows, err := s.store.ListBuildNames(ctx, "")
+	return s.listBuildNames(ctx, p, "")
+}
+
+// ListBuildNamesRepo is the REST names face's repo-scoped read: the
+// projection of ONE build_repo (the ?buildRepo= default when absent —
+// the reference's build_repo default law, §0 soft-seam ②), same
+// visible-set filter.
+func (s *Service) ListBuildNamesRepo(ctx context.Context, p *Principal, repo string) ([]*metadata.BuildName, error) {
+	if repo == "" {
+		repo = metadata.DefaultBuildRepo
+	}
+	return s.listBuildNames(ctx, p, repo)
+}
+
+func (s *Service) listBuildNames(ctx context.Context, p *Principal, repo string) ([]*metadata.BuildName, error) {
+	rows, err := s.store.ListBuildNames(ctx, repo)
 	if err != nil {
 		return nil, fmt.Errorf("list build names: %w", err)
 	}
@@ -147,11 +168,14 @@ func (s *Service) ListBuildNames(ctx context.Context, p *Principal) ([]*metadata
 // behind the same per-row visible-set filter — a name the principal
 // cannot read under one build_repo answers that repo's rows only, and a
 // name invisible everywhere answers empty (zero leakage across repos).
-func (s *Service) ListBuildNumbers(ctx context.Context, p *Principal, name string) ([]*metadata.BuildNumber, error) {
+// repo = ” spans every build_repo (the ACL walk's shape); the REST
+// numbers face always addresses exactly one (the handler resolves the
+// ?buildRepo= default first).
+func (s *Service) ListBuildNumbers(ctx context.Context, p *Principal, name, repo string) ([]*metadata.BuildNumber, error) {
 	if err := ValidateBuildName(name); err != nil {
 		return nil, fmt.Errorf("list build numbers: %w", err)
 	}
-	rows, err := s.store.ListBuildNumbers(ctx, name, "")
+	rows, err := s.store.ListBuildNumbers(ctx, name, repo)
 	if err != nil {
 		return nil, fmt.Errorf("list build numbers %s: %w", name, err)
 	}

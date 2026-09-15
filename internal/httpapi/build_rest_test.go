@@ -111,8 +111,11 @@ func TestBuildRESTUploadAndEchoRoundTrip(t *testing.T) {
 	h := newBuildHarness(t)
 
 	resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("upload = %d, want 200", resp.StatusCode)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("upload = %d, want 204", resp.StatusCode)
+	}
+	if cs := resp.Header.Get("X-Checksum-Sha256"); len(cs) != 64 {
+		t.Fatalf("X-Checksum-Sha256 = %q, want the manifest sha256 hex", cs)
 	}
 	body, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
@@ -152,7 +155,7 @@ func TestBuildRESTUploadAndEchoRoundTrip(t *testing.T) {
 	if err := json.Unmarshal([]byte(doc), &detail); err != nil {
 		t.Fatalf("detail JSON: %v (%s)", err, doc)
 	}
-	if want := "/api/build/pub-app/51"; detail.URI != want {
+	if want := h.srv.URL + "/binflow/api/build/pub-app/51?buildRepo=artifactory-build-info"; detail.URI != want {
 		t.Fatalf("uri = %q, want %q", detail.URI, want)
 	}
 	bi := detail.BuildInfo
@@ -160,7 +163,7 @@ func TestBuildRESTUploadAndEchoRoundTrip(t *testing.T) {
 		t.Fatalf("header echo = %s#%s type %s", bi.Name, bi.Number, bi.Type)
 	}
 	if bi.Started != "2026-09-07T10:00:00.000+0000" {
-		t.Fatalf("started echo = %q, want the canonical literal", bi.Started)
+		t.Fatalf("started echo = %q, want the payload's original literal (§11.3 detail face)", bi.Started)
 	}
 	if bi.BuildAgent.Name != "jenkins" || !strings.HasPrefix(bi.URL, "https://ci.example.org") {
 		t.Fatalf("payload riders lost: %+v / %q", bi.BuildAgent, bi.URL)
@@ -197,7 +200,7 @@ func TestBuildRESTUploadAndEchoRoundTrip(t *testing.T) {
 // original rows intact.
 func TestBuildRESTAppendMergesByIDOnTheWire(t *testing.T) {
 	h := newBuildHarness(t)
-	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != http.StatusOK {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("seed upload = %d", resp.StatusCode)
 	}
 
@@ -263,27 +266,29 @@ func TestBuildRESTAppendMergesByIDOnTheWire(t *testing.T) {
 // = latest run and ?started= disambiguation through a foreign-zone literal.
 func TestBuildRESTQueryLadder(t *testing.T) {
 	h := newBuildHarness(t)
-	// A fresh instance's names list is 200 with [] — never null, never 404.
-	_, doc := getBuild(t, h, "/binflow/api/build", adminUser, adminPass)
-	if !strings.Contains(doc, `"builds": []`) {
-		t.Fatalf("fresh names list = %s, want builds []", doc)
+	// A fresh instance's names list is the spec's empty-state 404 (E2 —
+	// never 200-with-[]).
+	resp0, doc0 := getBuild(t, h, "/binflow/api/build", adminUser, adminPass)
+	if resp0.StatusCode != http.StatusNotFound || !strings.Contains(doc0, "No builds were found") {
+		t.Fatalf("fresh names list = %d %s, want 404 No builds were found", resp0.StatusCode, doc0)
 	}
 
-	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 204 {
 		t.Fatalf("upload A = %d", resp.StatusCode)
 	}
 	older := strings.Replace(buildRESTDoc,
 		`"started": "2026-09-07T10:00:00.000+0000"`,
 		`"started": "2026-09-07T08:00:00Z"`, 1)
-	if resp := putBuildDoc(t, h, adminUser, adminPass, older); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, older); resp.StatusCode != 204 {
 		t.Fatalf("upload B = %d", resp.StatusCode)
 	}
 	secret := strings.Replace(buildRESTDoc, `"name": "pub-app"`, `"name": "sec-app"`, 1)
-	if resp := putBuildDoc(t, h, adminUser, adminPass, secret); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, secret); resp.StatusCode != 204 {
 		t.Fatalf("upload secret = %d", resp.StatusCode)
 	}
 
 	// Names: uri "/<name>" relative, lastStarted = the group's latest run.
+	var doc string
 	_, doc = getBuild(t, h, "/binflow/api/build", adminUser, adminPass)
 	for _, want := range []string{
 		`"uri": "/pub-app"`, `"uri": "/sec-app"`,
@@ -315,17 +320,19 @@ func TestBuildRESTQueryLadder(t *testing.T) {
 	_, doc = getBuild(t, h,
 		"/binflow/api/build/pub-app/51?started=2026-09-07T16:00:00.000%2B0800",
 		adminUser, adminPass)
-	if !strings.Contains(doc, `"started": "2026-09-07T08:00:00.000+0000"`) {
-		t.Fatalf("?started= foreign-zone literal missed the 08:00 run: %s", doc)
+	if !strings.Contains(doc, `"started": "2026-09-07T08:00:00Z"`) {
+		t.Fatalf("?started= foreign-zone run must echo its ORIGINAL Z literal: %s", doc)
 	}
 
 	// Missing faces: the family's uniform 404 (zero-leak on numbers).
 	resp, doc := getBuild(t, h, "/binflow/api/build/pub-app/99", adminUser, adminPass)
-	if resp.StatusCode != http.StatusNotFound || !strings.Contains(doc, "Build-Info not found") {
+	if resp.StatusCode != http.StatusNotFound ||
+		!strings.Contains(doc, "No build was found for build name: pub-app, build number: 99") {
 		t.Fatalf("missing detail = %d %s", resp.StatusCode, doc)
 	}
 	resp, doc = getBuild(t, h, "/binflow/api/build/ghost-app", adminUser, adminPass)
-	if resp.StatusCode != http.StatusNotFound || !strings.Contains(doc, "Build-Info not found") {
+	if resp.StatusCode != http.StatusNotFound ||
+		!strings.Contains(doc, "No build was found for build name: ghost-app") {
 		t.Fatalf("missing numbers = %d %s", resp.StatusCode, doc)
 	}
 }
@@ -337,7 +344,7 @@ func TestBuildRESTErrorSurface(t *testing.T) {
 	h := newBuildHarness(t)
 	// The parent pub-app#51 exists: the body-shape 400s below must be
 	// reached past the family's 404-before-body ladder.
-	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 204 {
 		t.Fatalf("seed upload = %d", resp.StatusCode)
 	}
 
@@ -358,7 +365,7 @@ func TestBuildRESTErrorSurface(t *testing.T) {
 		{"append non-array body", http.MethodPost, "/binflow/api/build/append/pub-app/51",
 			`{"id": "m"}`, 400, "not a JSON array of modules"},
 		{"append missing parent", http.MethodPost, "/binflow/api/build/append/pub-app/77",
-			`[]`, 404, "Build-Info not found"},
+			`[]`, 404, "The build pub-app:77 is not found"},
 		{"project param refused", http.MethodPut, "/binflow/api/build?project=team",
 			buildRESTDoc, 400, "projects are not supported in BinFlow"},
 		{"diff param refused", http.MethodGet,
@@ -399,11 +406,11 @@ func TestBuildRESTErrorSurface(t *testing.T) {
 // the family's 404, never an empty 200).
 func TestBuildRESTACLArms(t *testing.T) {
 	h := newBuildHarness(t)
-	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 204 {
 		t.Fatalf("seed upload = %d", resp.StatusCode)
 	}
 	secret := strings.Replace(buildRESTDoc, `"name": "pub-app"`, `"name": "sec-app"`, 1)
-	if resp := putBuildDoc(t, h, adminUser, adminPass, secret); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, secret); resp.StatusCode != 204 {
 		t.Fatalf("seed secret = %d", resp.StatusCode)
 	}
 
@@ -458,8 +465,8 @@ func TestBuildRESTACLArms(t *testing.T) {
 	}
 
 	// bob (r+w+d) publishes and re-publishes — the overwrite arm passes.
-	if resp := putBuildDoc(t, h, "bob", "pw", buildRESTDoc); resp.StatusCode != 200 {
-		t.Fatalf("bob re-publish = %d, want 200 (w+d overwrite arm)", resp.StatusCode)
+	if resp := putBuildDoc(t, h, "bob", "pw", buildRESTDoc); resp.StatusCode != 204 {
+		t.Fatalf("bob re-publish = %d, want 204 (w+d overwrite arm)", resp.StatusCode)
 	}
 }
 
@@ -471,10 +478,10 @@ func TestBuildRESTMetricFamily(t *testing.T) {
 	h := newHarnessFull(t, nil, nil, nil, func(d *httpapi.Deps) {
 		d.Metrics = metrics.NewRegistry()
 	}, nil)
-	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 204 {
 		t.Fatalf("upload = %d", resp.StatusCode)
 	}
-	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 204 {
 		t.Fatalf("re-upload = %d", resp.StatusCode)
 	}
 	resp := h.do(http.MethodPost, "/binflow/api/build/append/pub-app/51",

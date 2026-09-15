@@ -76,7 +76,7 @@ func seedBuildSearchWorld(t *testing.T, h *harness) (junitSha1, junitSha256 stri
 		resp := putBuildDoc(t, h, adminUser, adminPass, doc)
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode != http.StatusNoContent {
 			t.Fatalf("build upload = %d: %s", resp.StatusCode, body)
 		}
 	}

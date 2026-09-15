@@ -103,7 +103,7 @@ func TestBuildRESTPromoteStatusFlipAndGenericMigration(t *testing.T) {
 	    {"type": "bin", "sha256": %q, "name": "1.bin", "path": "dev-libs/wire-app/1.bin"}
 	  ]}]
 	}`, sha)
-	if resp := putBuildDoc(t, h, adminUser, adminPass, doc); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, doc); resp.StatusCode != 204 {
 		t.Fatalf("seed upload = %d", resp.StatusCode)
 	}
 
@@ -162,7 +162,7 @@ func TestBuildRESTPromoteACLAndErrorSurface(t *testing.T) {
 	h := newPromoteHarness(t)
 	seedLocalGenericRepo(t, h, "dev-libs")
 	seedLocalGenericRepo(t, h, "rel-libs")
-	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 204 {
 		t.Fatalf("seed upload = %d", resp.StatusCode)
 	}
 
@@ -285,7 +285,7 @@ func TestBuildRESTPromoteDockerLegOverV2(t *testing.T) {
 	    {"type": "docker", "sha256": %q, "name": "myapp:1", "path": "dev-docker/%s/manifests/%s"}
 	  ]}]
 	}`, root, image, root)
-	if resp := putBuildDoc(t, h, adminUser, adminPass, doc); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, doc); resp.StatusCode != 204 {
 		t.Fatalf("build upload = %d", resp.StatusCode)
 	}
 	presp, pbody := promoteViaREST(t, h, "frank", "pw", "img-wire", "2",
@@ -347,7 +347,7 @@ func TestBuildRESTRetentionWindowOnTheWire(t *testing.T) {
 		  "name": "rwire-app", "number": %q, "type": "GENERIC", "started": %q,
 		  "modules": [{"id": "m"}]
 		}`, number, started)
-		if resp := putBuildDoc(t, h, adminUser, adminPass, doc); resp.StatusCode != 200 {
+		if resp := putBuildDoc(t, h, adminUser, adminPass, doc); resp.StatusCode != 204 {
 			t.Fatalf("seed %s = %d", number, resp.StatusCode)
 		}
 	}
@@ -424,7 +424,7 @@ func TestBuildRESTPromoteMetricFamily(t *testing.T) {
 	h := newHarnessFull(t, nil, nil, nil, func(d *httpapi.Deps) {
 		d.Metrics = metrics.NewRegistry()
 	}, nil)
-	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 200 {
+	if resp := putBuildDoc(t, h, adminUser, adminPass, buildRESTDoc); resp.StatusCode != 204 {
 		t.Fatalf("seed upload = %d", resp.StatusCode)
 	}
 	// A status-only promotion and a dry run.
