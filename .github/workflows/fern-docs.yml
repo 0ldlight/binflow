@@ -1,0 +1,36 @@
+# Fern docs auto-publish — user directive 2026-09-15 (push promptly).
+# Fires when docs content reaches main (merge PRs, direct pushes);
+# token lives in the FERN_TOKEN repo secret; failures surface on the run,
+# they never block merges (docs lag is visible, code flow is not gated).
+name: fern-docs
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'fern/**'
+      - '.github/workflows/fern-docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fern-docs-prod
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install fern CLI
+        run: npm install -g fern-api@5.112.0
+      - name: Publish docs to production
+        env:
+          FERN_TOKEN: ${{ secrets.FERN_TOKEN }}
+        working-directory: fern
+        run: fern generate --docs --no-prompt
