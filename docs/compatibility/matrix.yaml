@@ -43,6 +43,14 @@
 #   重放门两轮一致 SAME 40/DIVERGENT 8，残余仅 D8/D9 两候裁族零 BUG 类；差分链 c6f6c71a/5077f50b/1afec0af，
 #   契约 get-detail/append/promote 现值 VERIFIED）——D07 终态 6 ✅ + R04/R08/R10 候裁 + R09/R11 面外；
 #   summary 同步 compatible 77→80/absent 75→72。
+# L024-1 收编勘误（2026-09-16，conductor 转交本账执行；spec 票 commit 985fe171）：四行 capability 描述勘正——
+#   ① D01-R08=PATCH /api/metadata 增量属性面（POST /api/storage 405 定案，rest-api.md §3/§3.1）；② D01-R16=
+#   内容面 archive!/ 抽取（非 /api/archive/download，repo-operations.md §3.3）；③ D03-R12=真实挂载
+#   /api/versions/{repoKey}/{path}（aql.md §16.4）；④ D03-R14 旧挂载活体 404+反编译双证已撤 → 重分类
+#   absent→not_applicable（ghost-row 勘误款，conductor 勘误裁定；aql.md §16.5-R14）；D03-R18 旧挂载 404
+#   措辞勘正、行态 absent 维持（现行面归 Docker 域中置信，⛔ 候选随 absent-roadmap 复核）。置信三行
+#   medium→high（R12/R14/R16——活体+反编译/官方页双源）。summary 同步 absent 72→71/not_applicable 19→20/
+#   high 134→137/medium 66→63。195 冻结行集不增删（本批零新行、一重分类系勘误款）。
 
 ---
 schema: 1
@@ -87,12 +95,12 @@ summary:
   state_counts:
     compatible: 80
     partial: 17
-    absent: 72
-    not_applicable: 19
+    absent: 71
+    not_applicable: 20
     superset: 12
   confidence_counts:
-    high: 134
-    medium: 66
+    high: 137
+    medium: 63
     low: 0
   priority_counts:
     P0: 58
@@ -109,11 +117,11 @@ summary:
       P2: 5
     absent:
       P1: 29
-      P2: 43
+      P2: 42
     superset:
       P2: 12
     not_applicable:
-      P2: 19
+      P2: 20
   by_domain:
     D01:
       rows: 43
@@ -131,8 +139,8 @@ summary:
     D03:
       rows: 19
       compatible: 9
-      absent: 8
-      not_applicable: 2
+      absent: 7
+      not_applicable: 3
     D04:
       rows: 35
       compatible: 19
@@ -276,15 +284,20 @@ rows:
   source_row: "§2 行 7"
 - row_id: D01-R08
   domain: D01
-  capability: POST /api/storage/{repoKey}/{path}?recursive&atomic（Update Item Properties，6.1.0 增量改属性）
+  capability: PATCH /api/metadata/{repoKey}/{path}?recursiveProperties=（增量属性三动词——Update Item Properties 现行形态；旧 POST /api/storage 形态 7.161.x 已 405）
   state: absent
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref:
+  golden_ref:
+  last_difftest:
   priority_class: P1
   layer: A
   source_row: "§2 行 8"
+  note: >-
+    L024-1 勘误（2026-09-16，conductor 转交）：原行「POST /api/storage…（6.1.0 增量）」形态已撤——活体+
+    反编译双证 POST /api/storage 405 定案；现行=PATCH /api/metadata 全语义 13 条（增改删三动词/非串值 400
+    逐字/virtual 仓双态文案——docs/reverse/rest-api.md §3/§3.1，置信高）；DELETE /api/metadata 同面三动词
+    之一。reports/agents/L024-1.md §1 表（勘误①）。
 - row_id: D01-R09
   domain: D01
   capability: PUT /{repoKey}/{path}（Deploy/尾斜杠建目录/matrix 属性/checksum 三头/X-Checksum-Deploy）
@@ -365,15 +378,20 @@ rows:
   source_row: "§2 行 15"
 - row_id: D01-R16
   domain: D01
-  capability: GET /api/archive/download entry 抽取（! 归档内单文件语法）
+  capability: GET /{repoKey}/{archivePath}!/{entryPath}（内容面 archive!/ 归档内单文件抽取——非 /api/archive/download 目录打包面）
   state: absent
-  confidence: medium
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  confidence: high
+  contract_ref:
+  golden_ref:
+  last_difftest:
   priority_class: P1
   layer: A
   source_row: "§2 行 16"
+  note: >-
+    L024-1 勘误（2026-09-16）：原行「GET /api/archive/download entry 抽取」路径描述错——官方
+    archiveEntryDownload = 内容面 !/ 语法（与 /api/archive/download 目录打包是两个面）；spec=
+    repo-operations.md §3+§3.3（活体逐字复核 4 条：成员/嵌套/缺失 404/无斜杠 404 + 成员 sha1；官方
+    专页锚）；置信 medium→high（活体+官方页双源）。reports/agents/L024-1.md §1 表（勘误②）。
 - row_id: D01-R17
   domain: D01
   capability: POST /api/archive/buildArtifacts（build-info 域指针行）
@@ -993,15 +1011,20 @@ rows:
   source_row: "§4 行 11"
 - row_id: D03-R12
   domain: D03
-  capability: GET /api/search/latestVersionByProperties
+  capability: GET /api/versions/{repoKey}/{path}（最新版本按属性——latestVersionByProperties 真实挂载，非 /api/search/*）
   state: absent
-  confidence: medium
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  confidence: high
+  contract_ref:
+  golden_ref:
+  last_difftest:
   priority_class: P2
   layer: A
   source_row: "§4 行 12"
+  note: >-
+    L024-1 勘误（2026-09-16）：原行挂载 /api/search/latestVersionByProperties 系旧规格「外挂」误记——
+    真实挂载 GET /api/versions/{repoKey}/{path}（全 wire：命中/空集/_any 通配四臂/listFiles 尾逗号怪癖/
+    双 404 逐字——aql.md §16.4，置信高=活体+反编译双源）；置信 medium→high。reports/agents/L024-1.md
+    §1 表（勘误③）。
 - row_id: D03-R13
   domain: D03
   capability: GET /api/search/badChecksum?type=&repos=（响应上限 10,000）
@@ -1015,16 +1038,21 @@ rows:
   source_row: "§4 行 13"
 - row_id: D03-R14
   domain: D03
-  capability: GET /api/search/archive（官方 deprecated）
-  state: absent
-  confidence: medium
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  capability: GET /api/search/archive（deprecated——7.161.x 已撤挂载，活体 404）
+  state: not_applicable
+  confidence: high
+  contract_ref:
+  golden_ref:
+  last_difftest:
   priority_class: P2
   layer: A
   source_row: "§4 行 14"
-  note: 源 P3→P2
+  note: >-
+    L024-1 重分类（2026-09-16，conductor 勘误转交——ghost-row 同款先例 D06-R17/D01-R30）：参照 7.161.15
+    活体 404「Not Found」+ 反编译 SearchResource 无此子资源双证——deprecated 端点现行版已撤挂载，
+    BinFlow 不实现即对齐现行（非缺口）→ absent→not_applicable；capability 措辞按「现行已撤」口径勘正。
+    aql.md §16.5-R14 + reports/agents/L024-1.md §1 表（勘误④）。若未来版本复活该挂载则重开。
+    行史留痕：源 P3→P2。
 - row_id: D03-R15
   domain: D03
   capability: GET /api/search/license（Q9 定案：xray_tied 缺位登记不伪造）
@@ -1060,15 +1088,21 @@ rows:
   source_row: "§4 行 17"
 - row_id: D03-R18
   domain: D03
-  capability: GET /api/search/docker/manifests/... + List Docker Repositories / List Docker Tags
+  capability: GET /api/search/docker/manifests/* + List Docker Repositories/Tags（旧挂载 7.161.15 活体 404——现行面归 /api/docker/* Docker 域）
   state: absent
   confidence: medium
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref:
+  golden_ref:
+  last_difftest:
   priority_class: P2
   layer: A
   source_row: "§4 行 18"
+  note: >-
+    L024-1 勘误（2026-09-16）：旧挂载 /api/search/docker/manifests 族活体 404×2；docs 迁移后现行面归
+    Docker 域（List Docker Tags /api/docker/{repoKey}/v2/{image}/tags/list 族 + Find Parent Manifest
+    Lists〔7.119.0+〕）——归类系检索推断（中置信，未逐页核，aql.md §16.5-R18）。行态 absent 维持
+    （spec「P2 维持 absent 可辩护」）；⛔ 重分类/并入 D11 docker 域行候选随 absent-roadmap 批次复核
+    （现行面定谳后走新行提案报 conductor）。reports/agents/L024-1.md §1 表（勘误④）。
 - row_id: D03-R19
   domain: D03
   capability: UI 搜索族（artifactsearch/stashResults/packagesSearch/syntax-search/searchResults——/ui/api 面）
