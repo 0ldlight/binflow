@@ -13,9 +13,18 @@
 //   属性页签 = PropertiesTab 同款嵌挂。
 // - 页根锚 tree-page。
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { Button, ButtonAsChild } from '@/components/ui/button'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
 import { useAuth } from '@/app/AuthContext'
 import { useConfirm } from '@/app/providers'
 import { toast } from '@/lib/toast'
@@ -565,22 +574,41 @@ export default function ExplorerPage() {
           <div className="tree-breadcrumb flex flex-wrap items-center gap-1" data-testid="tree-breadcrumb">
             {repoKey ? (
               <>
-                <button type="button" className="crumb rounded-sm px-1.5 py-0.5 font-mono hover:bg-accent" onClick={() => goTo(repoKey, '')}>
-                  {repoKey}
-                </button>
-                {dir !== '' &&
-                  ancestorDirs(dir).map((d) => (
-                    <span key={d} className="crumb-seg flex items-center gap-1">
-                      <span className="sep text-muted-foreground" aria-hidden="true">/</span>
-                      <button
-                        type="button"
-                        className={`crumb rounded-sm px-1.5 py-0.5 font-mono hover:bg-accent ${d === dir ? 'cur font-semibold' : ''}`}
-                        onClick={() => goTo(repoKey, d)}
-                      >
-                        {d.split('/').pop()}
-                      </button>
-                    </span>
-                  ))}
+                {/* 批 6 重皮（§4.2 PathBreadcrumb★）：批 4 Breadcrumb 件接入
+                    （nav/ol 语义面）+ 路径分隔形态（「/」分隔——路径语义，
+                    区别通用件的 chevron）；段 mono、末段实色、中间段 hover
+                    accent 文字；.crumb/.cur 类 = e2e 锚（artifacts-tree 等
+                    4 spec 的 button.crumb:first-child 选择器）原样保留 */}
+                <Breadcrumb className="min-w-0">
+                  <BreadcrumbList>
+                    <BreadcrumbItem>
+                      <BreadcrumbLink asChild>
+                        <button type="button" className="crumb cursor-pointer font-mono text-dense" onClick={() => goTo(repoKey, '')} lang="en">
+                          {repoKey}
+                        </button>
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    {dir !== '' &&
+                      ancestorDirs(dir).map((d) => (
+                        <Fragment key={d}>
+                          <BreadcrumbSeparator className="font-mono">/</BreadcrumbSeparator>
+                          <BreadcrumbItem>
+                            {d === dir ? (
+                              <BreadcrumbPage className="cur font-mono" lang="en">
+                                {d.split('/').pop()}
+                              </BreadcrumbPage>
+                            ) : (
+                              <BreadcrumbLink asChild>
+                                <button type="button" className="crumb cursor-pointer font-mono text-dense" onClick={() => goTo(repoKey, d)} lang="en">
+                                  {d.split('/').pop()}
+                                </button>
+                              </BreadcrumbLink>
+                            )}
+                          </BreadcrumbItem>
+                        </Fragment>
+                      ))}
+                  </BreadcrumbList>
+                </Breadcrumb>
                 <CopyButton value={dir === '' ? `${repoKey}/` : `${repoKey}/${dir}/`} label={tt('当前路径')} />
               </>
             ) : (

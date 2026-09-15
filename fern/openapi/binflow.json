@@ -750,7 +750,7 @@
           "artifacts"
         ],
         "summary": "流式文件清单（仅认证用户）",
-        "description": "官方拼写：`GET /binflow/api/storage/{repoKey}?list`（带路径前缀亦可：`/api/storage/{repoKey}/{path}?list`）。",
+        "description": "官方拼写：`GET /binflow/api/storage/{repoKey}?list`（带路径前缀亦可：`/api/storage/{repoKey}/{path}?list`）。七参族全量：`deep`/`depth`/`listFolders`/`includeRootPath` 控制枚举形态，`mdTimestamps`/`statsTimestamps`/`includePropertiesMd5` 为条目附加元数据。开关臂按值 ==1 取（其它整数不开启）；`depth` 仅作 `deep=1` 的限深，自身不触发递归。响应 Content-Type 为 vendor 形 `application/vnd.org.jfrog.artifactory.storage.FileList+json`——`files[]` 按字母序混排、`uri` 带前导斜杠且相对被查目录；目录行（`listFolders=1`）`uri` 无尾斜杠、`size` -1、`folder` true。七个整数参数任一**出现**且解析失败（非整数或越 int32 界）→ 400 `For input string: \"<v>\"`；空值/空白视为缺席（同未传）。匿名 403（handler 自答，非 401 挑战）。",
         "operationId": "storageList",
         "parameters": [
           {
@@ -770,11 +770,167 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "deep",
+            "in": "query",
+            "required": false,
+            "description": "1 = 递归列出子目录内容（缺省 0 平铺；其它整数值不开启——开关臂按 ==1 取）",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "example": 1
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "description": "deep=1 的递归限深（缺省 0 不限；1 = 只列直接子级）；仅修饰符——自身不触发递归",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "example": 1
+          },
+          {
+            "name": "listFolders",
+            "in": "query",
+            "required": false,
+            "description": "1 = 目录行并入 files[]（size -1、folder true，与文件行同一字母序）",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "example": 1
+          },
+          {
+            "name": "includeRootPath",
+            "in": "query",
+            "required": false,
+            "description": "1 = 被查询目录自身以 `/` 行领首 files[]（size -1）",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "example": 1
+          },
+          {
+            "name": "mdTimestamps",
+            "in": "query",
+            "required": false,
+            "description": "1 = 携带属性的条目（文件与目录）附加 mdTimestamps.properties（属性最近变更时刻）",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "example": 1
+          },
+          {
+            "name": "statsTimestamps",
+            "in": "query",
+            "required": false,
+            "description": "1 = 有下载史的文件条目附加 mdTimestamps.artifactory.stats（最近下载时刻；从未下载与目录行不附）",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "example": 1
+          },
+          {
+            "name": "includePropertiesMd5",
+            "in": "query",
+            "required": false,
+            "description": "1 = 携带属性的条目附加 propertiesMd5（属性集 canonical 序列化的 md5）",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "example": 1
           }
         ],
         "responses": {
           "200": {
-            "description": "文件清单（流式）"
+            "description": "文件清单（FileList 形：uri / created / files[]；条目字段 uri·size·lastModified·folder·sha1·sha2 + 可选 mdTimestamps{}·propertiesMd5）",
+            "content": {
+              "application/vnd.org.jfrog.artifactory.storage.FileList+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uri": {
+                      "type": "string"
+                    },
+                    "created": {
+                      "type": "string"
+                    },
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "uri": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "type": "integer"
+                          },
+                          "lastModified": {
+                            "type": "string"
+                          },
+                          "folder": {
+                            "type": "boolean"
+                          },
+                          "sha1": {
+                            "type": "string"
+                          },
+                          "sha2": {
+                            "type": "string"
+                          },
+                          "mdTimestamps": {
+                            "type": "object",
+                            "properties": {
+                              "properties": {
+                                "type": "string"
+                              },
+                              "artifactory.stats": {
+                                "type": "string"
+                              }
+                            },
+                            "description": "mdTimestamps=1 / statsTimestamps=1 各自附加的键（仅有底层事实时）",
+                            "additionalProperties": true
+                          },
+                          "propertiesMd5": {
+                            "type": "string"
+                          }
+                        },
+                        "description": "清单条目（字母序混排；目录行 size -1 无摘要）",
+                        "additionalProperties": true
+                      }
+                    }
+                  },
+                  "description": "FileList 响应（流式）",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "七个整数参数任一**出现**且解析失败（非整数或越 int32 界）→ 400 `For input string: \"<v>\"`；空值/空白视为缺席（同未传）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorsEnvelope"
+                },
+                "example": {
+                  "errors": [
+                    {
+                      "status": 400,
+                      "message": "For input string: \"abc\""
+                    }
+                  ]
+                }
+              }
+            }
           },
           "403": {
             "description": "无权限",
@@ -5919,8 +6075,8 @@
         "tags": [
           "repositories"
         ],
-        "summary": "建仓 / 替换既有仓",
-        "description": "官方拼写：`PUT /binflow/api/repositories/{key}`。建仓（创建）/ 替换既有仓（替换臂与配额字段对覆盖仓的 manage 持有者开放；**建仓臂仍 admin only**）。建仓形态：`rclass=remote + packageType=docker`（community 档——不新增 license 槽）；`rclass=virtual + packageType=docker` 亦已开闸（聚合读面按成员仓并集服务）——**rclass × packageType 组合门已全量退役**，建仓面唯一剩余门是 license 档位（进阶包型在低档位 400 `package type not available on this instance: ...`）。",
+        "summary": "建仓（create-only）",
+        "description": "官方拼写：`PUT /binflow/api/repositories/{key}`。**只建仓**——对已存在的 key 一律 **400**（errors 信封逐字 `error when validating repository name: <key> : Repository key already exists`），**零副作用**（存量配置原样不动）；body 与路径 key 不一致同样 400。更新拼写只有 POST（merge 语义，见下一端点）。admin only（manage 持有者不可建仓）。body 缺 `rclass` 时先撞创建路径的类型校验 400（packageType 空槽拒绝——先于 key-exists 判定）。建仓形态：`rclass=remote + packageType=docker`（community 档——不新增 license 槽）；`rclass=virtual + packageType=docker` 亦已开闸（聚合读面按成员仓并集服务）——**rclass × packageType 组合门已全量退役**，建仓面唯一剩余门是 license 档位（进阶包型在低档位 400 `package type not available on this instance: ...`）。",
         "operationId": "repoPut",
         "parameters": [
           {
@@ -5934,7 +6090,7 @@
           }
         ],
         "requestBody": {
-          "description": "仓库配置",
+          "description": "仓库配置（全量创建体）",
           "content": {
             "application/json": {
               "schema": {
@@ -5950,13 +6106,10 @@
         },
         "responses": {
           "200": {
-            "description": "已替换"
-          },
-          "201": {
-            "description": "已创建"
+            "description": "已创建（纯文本 `Successfully created repository '<key>'`）"
           },
           "400": {
-            "description": "参数非法",
+            "description": "已存在 key（create-only 400，零副作用）/ 参数非法 / body 键与路径 key 不一致",
             "content": {
               "application/json": {
                 "schema": {
@@ -5966,7 +6119,7 @@
                   "errors": [
                     {
                       "status": 400,
-                      "message": "Repository key must be at least 2 characters: 'x'"
+                      "message": "error when validating repository name: libs-release : Repository key already exists"
                     }
                   ]
                 }
@@ -5979,8 +6132,8 @@
         "tags": [
           "repositories"
         ],
-        "summary": "改仓（更新配置）",
-        "description": "官方拼写：`POST /binflow/api/repositories/{key}`（含 quotaBytes 配额写；manage 持有者同上）。",
+        "summary": "改仓（merge 合并更新）",
+        "description": "官方拼写：`POST /binflow/api/repositories/{key}`。**唯一的更新拼写**，合并语义三列——body 里**省略**的字段=保留存量；**`null` / 空串**=清空该字段（数组空值保留、对象 `{}` 整族复位）；**显式值**=覆盖（`0` 也是显式值，不作缺省回落）。description 层：body 无 `description` 键 = 保留存量；显式 `null`（解码为空串）或值 = 覆写。rclass / packageType 省略时沿用存量。未知 key 404。含 quotaBytes 配额写；admin 或该仓 manage 持有者（配额写臂对覆盖仓开放）。",
         "operationId": "repoPost",
         "parameters": [
           {
@@ -5994,18 +6147,57 @@
           }
         ],
         "requestBody": {
-          "description": "仓库配置（增量字段）",
+          "description": "仓库配置（增量字段——省略即保留）",
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RepoConfig"
+              },
+              "example": {
+                "description": "new text"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "已更新"
+            "description": "已更新（纯文本 `Repository <key> update successfully.`）"
+          },
+          "400": {
+            "description": "body 非法 JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorsEnvelope"
+                },
+                "example": {
+                  "errors": [
+                    {
+                      "status": 400,
+                      "message": "request body is not valid repository configuration JSON: ..."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "仓库不存在（`Repository does not exist: ...`）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorsEnvelope"
+                },
+                "example": {
+                  "errors": [
+                    {
+                      "status": 404,
+                      "message": "Repository does not exist: repo \"libs-release\": repository not found"
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       },

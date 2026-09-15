@@ -19,7 +19,8 @@ import { Link } from 'react-router-dom'
 
 import { useAuth } from '@/app/AuthContext'
 import { Button } from '@/components/ui/button'
-import { AlertBox, Badge } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
+import { AlertBox } from '@/components/layout/bits'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { useConfirm } from '@/app/providers'
@@ -53,7 +54,7 @@ function tupleRows(props: Record<string, string[]>): { k: string; label: string;
       v: (
         <>
           <span className="font-mono">{formatTrashTime(first('trash.time'))}</span>
-          <span className="ml-2 text-2">
+          <span className="ml-2 text-muted-foreground">
             <span className="font-mono" lang="en">{first('trash.time') || '—'}</span>{t('（epoch 毫秒）')}
           </span>
         </>
@@ -250,7 +251,7 @@ export default function TrashPage() {
     <div data-testid="trash-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">{t('回收站')}</h2>
-        <span className="text-aux text-2">
+        <span className="text-aux text-muted-foreground">
           {t('local 仓删除先捕获进内置仓')} <span className="font-mono" lang="en">{TRASH_REPO}</span>{t('（保留期默认 14 天，小时级 cron 自动清）')}
         </span>
       </div>
@@ -379,7 +380,7 @@ export default function TrashPage() {
                         <CopyButton value={`${TRASH_REPO}/${node.path}`} label={t('路径 {v1}', { v1: node.name })} />
                       </td>
                       <td className="px-3 py-1.5">
-                        <Badge>{node.folder ? t('目录') : t('文件')}</Badge>
+                        <Badge variant="tint-neutral">{node.folder ? t('目录') : t('文件')}</Badge>
                       </td>
                       <td className="px-3 py-1.5 font-mono">{node.size === null ? '—' : formatBytes(node.size)}</td>
                       <td className="px-3 py-1.5 font-mono">{node.lastModified || '—'}</td>
@@ -493,7 +494,7 @@ export default function TrashPage() {
                 <span className="k">{t('字节')}</span>
                 <span className="font-mono">{formatBytes(summary.bytes)}</span>
               </div>
-              <div className="mt-1 text-2">{t('对应 blob 离开 GC 引用集，由常态 GC（宽限期后）回收——清剿本身不物理删 blob。')}</div>
+              <div className="mt-1 text-muted-foreground">{t('对应 blob 离开 GC 引用集，由常态 GC（宽限期后）回收——清剿本身不物理删 blob。')}</div>
             </AlertBox>
           )}
 

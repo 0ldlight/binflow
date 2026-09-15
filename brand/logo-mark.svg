@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <title>Binflow mark — 校验和点阵（Digest Lattice）</title>
+  <desc>Binflow 品牌标记。4x4 砖砌错位点阵 = 存于仓中的二进制制品（Bin）；奇数行右移半格暗示数据在流（Flow）；三枚放大的 accent 点连成右下对角 = 校验路径流经数据（Checksum/Flow）。自适应亮暗主题：默认亮色（ink #1d232c / accent #3d63f2），prefers-color-scheme: dark 时换暗色值（#e9edf3 / #7b9eff）。取值见 docs/brand/palette.md；改动需与该文件同步。几何：48 网格，点距 10，ink 点 r=3.5，accent 点 r=3.9，行列中心 9/19/29/39，奇数行 x 偏移 +5（14/24/34）。</desc>
+  <style>
+    .ink { fill: #1d232c; }
+    .acc { fill: #3d63f2; }
+    @media (prefers-color-scheme: dark) {
+      .ink { fill: #e9edf3; }
+      .acc { fill: #7b9eff; }
+    }
+  </style>
+  <g class="ink">
+    <circle cx="9" cy="9" r="3.5"/><circle cx="19" cy="9" r="3.5"/><circle cx="29" cy="9" r="3.5"/><circle cx="39" cy="9" r="3.5"/>
+    <circle cx="14" cy="19" r="3.5"/><circle cx="39" cy="19" r="3.5"/>
+    <circle cx="9" cy="29" r="3.5"/><circle cx="19" cy="29" r="3.5"/><circle cx="39" cy="29" r="3.5"/>
+    <circle cx="9" cy="39" r="3.5"/><circle cx="19" cy="39" r="3.5"/><circle cx="29" cy="39" r="3.5"/>
+  </g>
+  <g class="acc">
+    <circle cx="24" cy="19" r="3.9"/>
+    <circle cx="29" cy="29" r="3.9"/>
+    <circle cx="34" cy="39" r="3.9"/>
+  </g>
+</svg>

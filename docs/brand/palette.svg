@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700" font-family="ui-monospace, 'SF Mono', Menlo, monospace">
+  <title>Binflow 品牌色板提案（B-1）</title>
+  <desc>品牌双色（Flow Indigo / Vault Violet）+ 渐变 + 中性阶亮暗两谱 swatch。取值明细与 token 映射见 docs/brand/palette.md。</desc>
+  <rect width="960" height="700" fill="#f3f5f7"/>
+  <text x="40" y="52" font-size="20" fill="#1d232c" font-weight="700">Binflow 品牌色板提案 — 亮色主题</text>
+  <text x="40" y="74" font-size="11" fill="#55606e">B-1 视觉规范起始 · 蓝紫向（宪章 §10）· 避 JFrog 橙（品牌色相域 220°–260°）</text>
+
+  <!-- 品牌色亮谱 -->
+  <g>
+    <rect x="40" y="96" width="200" height="92" rx="8" fill="#3d63f2"/>
+    <text x="52" y="122" font-size="13" fill="#ffffff" font-weight="700">Flow Indigo</text>
+    <text x="52" y="138" font-size="11" fill="#ffffff">primary · #3D63F2</text>
+    <text x="52" y="153" font-size="10" fill="#dfe7ff">white-on 4.92:1 AA</text>
+    <text x="52" y="167" font-size="10" fill="#dfe7ff">on bg 4.50:1 AA</text>
+
+    <rect x="256" y="96" width="200" height="92" rx="8" fill="#7c5cff"/>
+    <text x="268" y="122" font-size="13" fill="#ffffff" font-weight="700">Vault Violet</text>
+    <text x="268" y="138" font-size="11" fill="#ffffff">secondary · #7C5CFF</text>
+    <text x="268" y="153" font-size="10" fill="#efeaff">装饰/渐变，不作正文</text>
+    <text x="268" y="167" font-size="10" fill="#efeaff">on white 4.35:1</text>
+
+    <rect x="472" y="96" width="200" height="92" rx="8" fill="url(#gradBrand)"/>
+    <text x="484" y="122" font-size="13" fill="#ffffff" font-weight="700">Flow Gradient</text>
+    <text x="484" y="138" font-size="11" fill="#ffffff">135° · #3D63F2 → #7C5CFF</text>
+    <text x="484" y="153" font-size="10" fill="#e6ecff">hero/插画/品牌时刻</text>
+
+    <rect x="688" y="96" width="232" height="92" rx="8" fill="none" stroke="#9aa6b4"/>
+    <text x="700" y="122" font-size="12" fill="#1d232c" font-weight="700">Ink（结构色）</text>
+    <text x="700" y="138" font-size="11" fill="#55606e">#1D232C（亮）/ #E9EDF3（暗）</text>
+    <text x="700" y="153" font-size="10" fill="#646f7b">wordmark「Bin」与 mark 点阵</text>
+    <text x="700" y="167" font-size="10" fill="#646f7b">= 现役 --bf-text，不另起炉灶</text>
+  </g>
+
+  <!-- 中性阶（亮谱，收编现役 token） -->
+  <text x="40" y="236" font-size="13" fill="#1d232c" font-weight="700">中性阶（亮谱 · 全部收编自现役 --bf-* token，零新值）</text>
+  <g font-size="9" fill="#55606e">
+    <rect x="40"  y="248" width="105" height="64" rx="6" fill="#ffffff" stroke="#d3dae2"/><text x="48" y="304">#FFFFFF surface-1</text>
+    <rect x="153" y="248" width="105" height="64" rx="6" fill="#f3f5f7"/><text x="161" y="304">#F3F5F7 bg</text>
+    <rect x="266" y="248" width="105" height="64" rx="6" fill="#e9edf1"/><text x="274" y="304">#E9EDF1 surface-2</text>
+    <rect x="379" y="248" width="105" height="64" rx="6" fill="#dfe5ec"/><text x="387" y="304">#DFE5EC surface-3</text>
+    <rect x="492" y="248" width="105" height="64" rx="6" fill="#d3dae2"/><text x="500" y="304">#D3DAE2 border</text>
+    <rect x="605" y="248" width="105" height="64" rx="6" fill="#9aa6b4"/><text x="613" y="304" fill="#ffffff">#9AA6B4 border-strong</text>
+    <rect x="718" y="248" width="105" height="64" rx="6" fill="#646f7b"/><text x="726" y="304" fill="#ffffff">#646F7B text-muted</text>
+    <rect x="831" y="248" width="89" height="64" rx="6" fill="#1d232c"/><text x="839" y="304" fill="#ffffff">#1D232C text</text>
+  </g>
+  <text x="40" y="340" font-size="10" fill="#646f7b">侧栏深阶层（亮暗主题同为深底）：#1B2430 / #242F3E（hover）/ #2C3949（active）· 侧栏文字 #EEF2F7 / #A3B1C2</text>
+
+  <!-- 暗色主题 -->
+  <rect x="0" y="368" width="960" height="332" fill="#12161d"/>
+  <text x="40" y="404" font-size="20" fill="#e9edf3" font-weight="700">暗色主题</text>
+  <text x="40" y="426" font-size="11" fill="#9aa4b2">accent 提亮策略与现役暗色 token 同构（--bf-accent 暗色本就浅于亮色档）</text>
+  <g>
+    <rect x="40" y="448" width="200" height="92" rx="8" fill="#7b9eff"/>
+    <text x="52" y="474" font-size="13" fill="#0b0e13" font-weight="700">Flow Indigo · Dark</text>
+    <text x="52" y="490" font-size="11" fill="#0b0e13">primary · #7B9EFF</text>
+    <text x="52" y="505" font-size="10" fill="#1d2532">on bg 7.06:1 · ink-on 7.53:1</text>
+    <text x="52" y="519" font-size="10" fill="#1d2532">accent-fg 建议 #0B0E13</text>
+
+    <rect x="256" y="448" width="200" height="92" rx="8" fill="#a78bff"/>
+    <text x="268" y="474" font-size="13" fill="#0b0e13" font-weight="700">Vault Violet · Dark</text>
+    <text x="268" y="490" font-size="11" fill="#0b0e13">secondary · #A78BFF</text>
+    <text x="268" y="505" font-size="10" fill="#1d2532">on bg 6.72:1 · 装饰档</text>
+
+    <rect x="472" y="448" width="200" height="92" rx="8" fill="url(#gradBrandDark)"/>
+    <text x="484" y="474" font-size="13" fill="#0b0e13" font-weight="700">Flow Gradient · Dark</text>
+    <text x="484" y="490" font-size="11" fill="#0b0e13">135° · #7B9EFF → #A78BFF</text>
+
+    <rect x="688" y="448" width="232" height="92" rx="8" fill="#1a202a" stroke="#2b3442"/>
+    <text x="700" y="474" font-size="12" fill="#e9edf3" font-weight="700">Ink · Dark</text>
+    <text x="700" y="490" font-size="11" fill="#9aa4b2">#E9EDF3（= --bf-text 暗色）</text>
+    <text x="700" y="505" font-size="10" fill="#9aa4b2">favicon 底 #10161F · 侧栏 #0B0E13</text>
+  </g>
+  <text x="40" y="572" font-size="13" fill="#e9edf3" font-weight="700">中性阶（暗谱 · 收编现役暗色 token）</text>
+  <g font-size="9" fill="#9aa4b2">
+    <rect x="40"  y="584" width="116" height="56" rx="6" fill="#12161d" stroke="#2b3442"/><text x="48" y="632">#12161D bg</text>
+    <rect x="164" y="584" width="116" height="56" rx="6" fill="#1a202a"/><text x="172" y="632">#1A202A surface-1</text>
+    <rect x="288" y="584" width="116" height="56" rx="6" fill="#202834"/><text x="296" y="632">#202834 surface-2</text>
+    <rect x="412" y="584" width="116" height="56" rx="6" fill="#262f3d"/><text x="420" y="632">#262F3D surface-3</text>
+    <rect x="536" y="584" width="116" height="56" rx="6" fill="#2b3442"/><text x="544" y="632">#2B3442 border</text>
+    <rect x="660" y="584" width="116" height="56" rx="6" fill="#7f8a99"/><text x="668" y="632" fill="#12161d">#7F8A99 muted</text>
+    <rect x="784" y="584" width="136" height="56" rx="6" fill="#e9edf3"/><text x="792" y="632" fill="#12161d">#E9EDF3 text</text>
+  </g>
+  <text x="40" y="668" font-size="10" fill="#7f8a99">状态色四族（success/warning/danger/info）维持现役语义值不动——品牌提案只动 primary/secondary 两席。</text>
+
+  <defs>
+    <linearGradient id="gradBrand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3d63f2"/><stop offset="1" stop-color="#7c5cff"/>
+    </linearGradient>
+    <linearGradient id="gradBrandDark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7b9eff"/><stop offset="1" stop-color="#a78bff"/>
+    </linearGradient>
+  </defs>
+</svg>

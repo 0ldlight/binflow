@@ -18,7 +18,7 @@ import { defineConfig } from 'vite'
 // /binflow/assets/ mount (see the script header for the why-and-upgrade).
 //
 // Frontend rewrite P1 additions (docs/design/frontend-rewrite-architecture):
-// - @tailwindcss/vite: compiles the new styles layer (src/styles/tw/) when
+// - @tailwindcss/vite: compiles the new styles layer (src/design-system/) when
 //   it enters the module graph. The old MUI app's CSS is untouched — the
 //   plugin only processes CSS that imports tailwindcss, so the legacy build
 //   output is byte-identical until P2 wires the new entry.

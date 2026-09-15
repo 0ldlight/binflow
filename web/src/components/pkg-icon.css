@@ -1,25 +1,14 @@
 /* 包型图标（FR-127 / T-390，components 域自持样式）。
- * .pkg-svg = 尺寸槽（inline-flex span，宽高由 PkgIcon 的 size 定）+ 内联
- * svg 100% 充满。mono 版全 currentColor——颜色由消费点的 color 继承链
- * 决定，本文件零色值（tokens 纪律）；brand 版色值在资产文件内。 */
-
-.pkg-svg {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-}
-
-.pkg-svg svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
+ * 批 5（T-UIB5）：.pkg-svg 的布局规则已迁 PkgIcon.tsx 工具类
+ * （inline-flex/shrink-0/[&_svg] 满充）——类名保留在 DOM，作为下方
+ * 暗底提亮选择器与 spec 锚的挂点。mono 版全 currentColor——颜色由
+ * 消费点的 color 继承链决定，本文件零色值（tokens 纪律）；brand 版
+ * 色值在资产文件内。 */
 
 /* ---------- 暗底提亮（K61，package-icons/README §4 登记） ----------
  * 11 个官方深色在暗色宿主面（磁贴/药丸 surface-2、矩阵表格 surface-1）
  * 对比度 <3:1（T-390 全枚实测，报告 reports/agents/T-390.md）：保色相抬
- * 明度，提亮档定义在 tokens.css 的 --bf-pkgicon-*（token 定义层），最差
+ * 明度，提亮档定义在 token 层（design-system）的 --bf-pkgicon-*，最差
  * 宿主 surface-3（悬停态）实测 ≥3.4。亮色主题零覆盖——原官方色在亮底
  * 全部 ≥3:1。仅挂 brand：mono 的 currentColor 天然随文字色，不在提亮面。
  *

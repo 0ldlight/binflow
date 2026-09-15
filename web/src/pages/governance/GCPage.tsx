@@ -17,7 +17,8 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/app/AuthContext'
 import { Button } from '@/components/ui/button'
-import { AlertBox, Badge } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
+import { AlertBox } from '@/components/layout/bits'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { TextInput } from '@/components/layout/fields'
 import { useConfirm } from '@/app/providers'
@@ -171,7 +172,7 @@ function MaintenanceCronCard({
   return (
     <section className="card section" data-testid="gc-cron">
       <h3 className="mb-0.5 text-dense font-semibold">{tt('定时维护（cron）')}</h3>
-      <p className="mb-2 text-dense text-2">
+      <p className="mb-2 text-dense text-muted-foreground">
         {tt('三类维护作业的定时表达式（Quartz 六/七域，如')} <span className="font-mono" lang="en">0 0 /4 * * ?</span>{tt('）。 到点由服务端调度器执行全量 pass；手动执行与定时并存（下方危险区 / 各行「立即清理」）。')}
       </p>
 
@@ -225,7 +226,7 @@ function MaintenanceCronCard({
                           {fmtUTC(slot.nextRun)}
                         </span>
                       ) : (
-                        <Badge>{tt('已停用')}</Badge>
+                        <Badge variant="tint-neutral">{tt('已停用')}</Badge>
                       )
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -402,7 +403,7 @@ export default function GCPage() {
     <div data-testid="gc-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">{tt('维护')}</h2>
-        <span className="text-aux text-2">{tt('垃圾回收（GC）定时与手动维护、存储迁移（FR-145.7 / console-m8 §6.14）')}</span>
+        <span className="text-aux text-muted-foreground">{tt('垃圾回收（GC）定时与手动维护、存储迁移（FR-145.7 / console-m8 §6.14）')}</span>
       </div>
 
       <section className="card section" data-testid="gc-stats">
@@ -464,9 +465,9 @@ export default function GCPage() {
             <p className="admin-note" data-testid="gc-readonly-note">{tt('只读管理员（readonly_admin）：GC 全部路由（含 dry-run）均为管理面写操作 （system:write），入口已禁用——直接提交会被服务端 403 拒绝。')}</p>
           )}
 
-          <details className="grace-details">
-            <summary>{tt('高级：graceHours（')}{grace === 'invalid' ? tt('输入非法') : graceLabel(grace)}{tt('）')}</summary>
-            <div className="field" style={{ marginTop: 8 }}>
+          <details>
+            <summary className="cursor-pointer text-[length:var(--bf-fs-xs)] text-primary">{tt('高级：graceHours（')}{grace === 'invalid' ? tt('输入非法') : graceLabel(grace)}{tt('）')}</summary>
+            <div className="field max-w-[320px]" style={{ marginTop: 8 }}>
               <label htmlFor="gc-grace">{tt('graceHours（小时，0 = 无宽限窗口；留空 = 实例配置缺省）')}</label>
               <TextInput
                 id="gc-grace"
@@ -486,7 +487,7 @@ export default function GCPage() {
             </div>
           </details>
 
-          <div className="gc-actions">
+          <div className="flex flex-wrap items-center gap-3 my-3">
             <Button
               variant="outline"
               size="sm"
@@ -514,7 +515,7 @@ export default function GCPage() {
           </div>
 
           {runError && (
-            <AlertBox severity="error" className="gc-error">
+            <AlertBox severity="error">
               <div className="font-medium">
                 <span aria-hidden="true">✗</span>
                 {runError.status === 409
@@ -522,21 +523,21 @@ export default function GCPage() {
                   : tt('GC 请求失败（HTTP {v1}）', { v1: runError.status })}
               </div>
               {runError.status === 409 && (
-                <div className="text-2">{tt('data 目录锁正被其它维护操作持有（export / gc）。等待其完成后再试； 队列化会绑架连接，服务端按 PRD 语义直接拒绝。')}</div>
+                <div className="text-muted-foreground">{tt('data 目录锁正被其它维护操作持有（export / gc）。等待其完成后再试； 队列化会绑架连接，服务端按 PRD 语义直接拒绝。')}</div>
               )}
-              <pre lang="en" className="font-mono text-aux">{runError.raw || runError.message}</pre>
+              <pre lang="en" className="m-0 mt-2 rounded-sm bg-background p-2 font-mono text-[length:var(--bf-fs-xs)] whitespace-pre-wrap break-all">{runError.raw || runError.message}</pre>
             </AlertBox>
           )}
 
           {latest && (
-            <div className="gc-result" data-testid="gc-result">
+            <div className="rounded-md border bg-surface-1 px-4 py-3" data-testid="gc-result">
               {latest.candidateCount === 0 ? (
-                <div className="gc-empty-ok" data-testid="gc-empty-ok">
+                <div className="flex items-center gap-2 text-success" data-testid="gc-empty-ok">
                   <span className="status-dot ok" aria-hidden="true" /> {tt('没有可回收的 blob（在当前 grace 窗口下）')}
                 </div>
               ) : applied ? (
                 <>
-                  <h4>{tt('执行结果（apply）')}</h4>
+                  <h4 className="m-0 mb-2 text-[length:var(--bf-fs-base)]">{tt('执行结果（apply）')}</h4>
                   <div className="kv">
                     <span className="k">{tt('实际回收')}</span>
                     <span className="font-mono">{formatCount(applied.deletedCount)} {tt('项')}</span>
@@ -555,7 +556,7 @@ export default function GCPage() {
                 </>
               ) : (
                 <>
-                  <h4>{tt('试运行结果（未删除任何数据）')}</h4>
+                  <h4 className="m-0 mb-2 text-[length:var(--bf-fs-base)]">{tt('试运行结果（未删除任何数据）')}</h4>
                   <div className="kv">
                     <span className="k">{tt('候选 blob')}</span>
                     <span className="font-mono">{formatCount(latest.candidateCount)} {tt('项')}</span>

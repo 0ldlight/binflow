@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- D12 字节流（Byte Stream）：三行错落字节条向右流动，末行 accent 且带箭头 = 数据流穿仓而过 -->
+  <title>D12 字节流</title>
+  <rect x="6" y="10" width="20" height="7" rx="3.5" fill="var(--mark-ink,#1d232c)"/>
+  <rect x="14" y="20.5" width="22" height="7" rx="3.5" fill="var(--mark-ink,#1d232c)"/>
+  <path d="M6 31H33L42 34.5 33 38H6Z" fill="var(--mark-accent,#3d63f2)"/>
+</svg>

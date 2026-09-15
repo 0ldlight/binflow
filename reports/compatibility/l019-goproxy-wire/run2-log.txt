@@ -1,0 +1,39 @@
+== setup
+repo-create A: 200
+repo-create B: 200
+== s1 播种 PUT 三件套
+A  s1-put-zip     -> 201 application/vnd.org.jfrog.artifactory.storage.ItemCreated+json;charset=UTF-8 | 
+B  s1-put-zip     -> 201  | 
+A  s1-put-mod     -> 201 application/vnd.org.jfrog.artifactory.storage.ItemCreated+json;charset=UTF-8 | 
+B  s1-put-mod     -> 201  | 
+A  s1-put-info    -> 201 application/vnd.org.jfrog.artifactory.storage.ItemCreated+json;charset=UTF-8 | 
+B  s1-put-info    -> 201  | 
+== g1-g6
+A  g1-list        -> 200 text/plain | v1.0.0 2026-09-13T16:42:44Z
+B  g1-list        -> 200 text/plain; charset=utf-8 | v1.0.0 
+A  g2-info        -> 200 application/json+info | {"Version": "v1.0.0", "Time": "2026-09-13T00:00:00Z"}
+B  g2-info        -> 200 application/json | {"Version": "v1.0.0", "Time": "2026-09-13T00:00:00Z"}
+A  g3-latest      -> 200 application/json+info | {"Version": "v1.0.0", "Time": "2026-09-13T00:00:00Z"}
+B  g3-latest      -> 200 application/json | {"Version": "v1.0.0", "Time": "2026-09-13T00:00:00Z"}
+tr: Illegal byte sequence
+A  g4-zip         -> 200 application/zip | PKV.]s
+tr: Illegal byte sequence
+B  g4-zip         -> 200 application/zip | PKV.]s
+A  g5-sumdb       -> 404 application/json | {   "errors" : [ {     "status" : 404,     "message" : "Not Found"   } ] }
+B  g5-sumdb       -> 404 text/plain; charset=utf-8 | not found 
+A  g6-mod         -> 200 text/plain+mod | module example.com/l018mod  go 1.21 
+B  g6-mod         -> 200 text/plain; charset=utf-8 | module example.com/l018mod  go 1.21 
+== checksum headers (g4)
+A Content-Type: application/zip
+A X-Checksum-Md5: cc229929da07bf59e877e3b252c9ff68
+A X-Checksum-Sha1: 3f708c78a403337f87720a6902fd59d730144cf7
+A X-Checksum-Sha256: 174d80859df2d4893e95b72844712f21b1555dbfbc47e2e1f0e38a6685cc2e90
+B Content-Type: application/zip
+B X-Checksum-Md5: cc229929da07bf59e877e3b252c9ff68
+B X-Checksum-Sha1: 3f708c78a403337f87720a6902fd59d730144cf7
+B X-Checksum-Sha256: 174d80859df2d4893e95b72844712f21b1555dbfbc47e2e1f0e38a6685cc2e90
+== cleanup
+repo-delete A: 200
+repo-delete B: 200
+residue A: 0
+residue B: 0

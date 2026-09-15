@@ -179,6 +179,10 @@ func mergeMetadataDocs(docs []memberMetadataDoc, l Layout) metadataXML {
 		return out
 	}
 	out.Versioning = mergeModuleVersioning(docs)
+	// The A-form tail on the merged module document too (L014-2 a3 wire):
+	// `<version>` = the recomputed latest, snapshots included — not some
+	// member's stale tail element.
+	out.Version = out.Versioning.Latest
 	return out
 }
 

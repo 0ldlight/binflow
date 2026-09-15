@@ -153,10 +153,10 @@ test('repo list chip and tree node type marks are mono currentColor', async ({ p
   await page.goto('/binflow/ui/admin/repositories/local')
   const row = page.locator(`[data-testid="repos-row-${key}"]`)
   await expect(row).toBeVisible()
-  await expect(row.locator('.badge.neutral .pkg-svg')).toHaveCount(1)
-  await expect(row.locator('.badge.neutral .pkg-svg')).toHaveAttribute('data-variant', 'mono')
-  await expect(row.locator('.badge.neutral .pkg-svg')).toHaveAttribute('data-icon', 'npm')
-  await expectStrokeFollowsColor(page, `[data-testid="repos-row-${key}"] .badge.neutral .pkg-svg`)
+  await expect(row.locator('[data-variant="tint-neutral"] .pkg-svg')).toHaveCount(1)
+  await expect(row.locator('[data-variant="tint-neutral"] .pkg-svg')).toHaveAttribute('data-variant', 'mono')
+  await expect(row.locator('[data-variant="tint-neutral"] .pkg-svg')).toHaveAttribute('data-icon', 'npm')
+  await expectStrokeFollowsColor(page, `[data-testid="repos-row-${key}"] [data-variant="tint-neutral"] .pkg-svg`)
 
   // 制品树：仓库节点 .ico 的包型角标 mono（currentColor 随 .ico 的 text-2）
   await page.goto('/binflow/ui/artifacts')

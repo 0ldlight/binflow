@@ -1,0 +1,11 @@
+HTTP/1.1 200 OK
+Transfer-Encoding: chunked
+Connection: keep-alive
+Content-Type: text/plain
+Date: Mon, 14 Sep 2026 04:25:27 GMT
+Keep-Alive: timeout=4
+Proxy-Connection: keep-alive
+X-Artifactory-Id: 0e5d4a9dd6c98d39:-617cfc2f:1a09e25f859:-8000
+X-Artifactory-Node-Id: 90f95f994e80
+X-Jfrog-Version: Artifactory/7.161.20 86120900
+

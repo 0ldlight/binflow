@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- D7 分流器（Split Junction）：单干入、多支出 = 一个制品分发到多条消费链（remote/virtual 的拓扑本质） -->
+  <title>D7 分流器</title>
+  <path d="M4 24H20" stroke="var(--mark-ink,#1d232c)" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M20 24C28 24 28 12 36 12" stroke="var(--mark-ink,#1d232c)" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M20 24C28 24 28 36 36 36" stroke="var(--mark-ink,#1d232c)" stroke-width="5.5" stroke-linecap="round"/>
+  <circle cx="43" cy="12" r="4.5" fill="var(--mark-ink,#1d232c)"/>
+  <circle cx="43" cy="36" r="4.5" fill="var(--mark-accent,#3d63f2)"/>
+</svg>

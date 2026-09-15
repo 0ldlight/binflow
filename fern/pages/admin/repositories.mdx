@@ -8,7 +8,16 @@
 | **remote 仓** | `remote` | 上游代理缓存（pull-through）：首次回源、此后命中本地缓存，上游故障不传染 | 否（405，只读代理） |
 | **virtual 仓** | `virtual` | 把 local 与 remote 成员缝成单一访问入口 | 默认否（405）；显式配置写路由后可写 |
 
-建仓统一走管理面 API：`PUT /binflow/api/repositories/{key}`（admin 凭据，重复 PUT 为更新、成员变更即时生效）。建仓/删仓仅全量 admin；编辑仓配置与配额对覆盖仓的 manage 持有者开放（见[权限](/admin/permissions)）。
+建仓与改配置走管理面 API，**两个动词各管一段**（与 Artifactory 语义对齐）：
+
+| 动词 | 语义 | 已存在 key 时 |
+|---|---|---|
+| `PUT /binflow/api/repositories/{key}` | **只建仓**（create-only） | **400** `error when validating repository name: <key> : Repository key already exists`（更新请换 POST） |
+| `POST /binflow/api/repositories/{key}` | **只更新**，合并语义（merge） | 200 `Repository <key> update successfully.` |
+
+POST 合并三列（脚本改造存量仓不丢配置的关键）：**省略字段=保留存量**、**`null`=清空该字段**、**显式值=覆盖**。成员变更（virtual 的 `repositories` 等）经 POST 即时生效。建仓/删仓仅全量 admin；编辑仓配置与配额对覆盖仓的 manage 持有者开放（见[权限](/admin/permissions)）。
+
+列表 `GET /binflow/api/repositories` 支持 `?type=`、`?packageType=`、`?project=` 过滤；BinFlow 无 projects 域，`?project=<任何值>` 恒返回**空集**（诚实空集，不是全量——project 域脚本可安全探测）。
 
 ## remote 仓字段表
 

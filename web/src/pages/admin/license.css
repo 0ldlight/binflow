@@ -4,7 +4,7 @@
  * 懒加载分片不跨页依赖） */
 .license-note {
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   margin: var(--bf-sp-2) 0;
 }
 
@@ -21,7 +21,3 @@
   color: var(--bf-text-2);
 }
 
-.addons-table tr.is-locked .mono,
-.addons-table tr.is-disabled .mono {
-  color: inherit;
-}

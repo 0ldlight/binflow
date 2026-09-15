@@ -357,7 +357,7 @@ export default function UserDetailPage() {
         {admin && (
           <div className="mt-4 rounded-md border border-destructive/50 px-4 py-3" data-testid="user-danger-zone">
             <div className="mb-0.5 text-dense font-semibold text-destructive">{t('危险区')}</div>
-            <p className="mb-2 max-w-[72ch] text-dense text-2">
+            <p className="mb-2 max-w-[72ch] text-dense text-muted-foreground">
               {t('删除不可恢复（组员/授权/token/会话同事务级联；审计保留）。人员离场的可逆路径是')}<b>{t('禁用')}</b>{t('（选项区）——删除仅用于账号彻底清退。')}
             </p>
             <Button

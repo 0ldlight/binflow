@@ -8,7 +8,7 @@
  * 本域自持：页面 css 随路由分片懒加载，不跨页依赖） */
 .page-note {
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   margin: var(--bf-sp-2) 0;
 }
 
@@ -37,7 +37,7 @@
 }
 
 .authcfg-field > label {
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-2);
 }
 
@@ -46,7 +46,7 @@
 }
 
 .authcfg-field .authcfg-hint {
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-muted);
   margin: 0;
 }
@@ -56,7 +56,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-2);
   margin: 0;
 }
@@ -74,7 +74,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-2);
   margin: 0 0 var(--bf-sp-1);
 }
@@ -83,14 +83,9 @@
   display: flex;
   align-items: center;
   gap: var(--bf-sp-2);
-  font-size: var(--bf-fs-form);
+  font-size: var(--bf-fs-base);
   margin: 0 0 var(--bf-sp-3);
   min-width: 0;
-}
-
-/* 95 字符冒号指纹：mono + 任意断行（窄屏不溢出卡片） */
-.authcfg-cert-fp > .mono {
-  overflow-wrap: anywhere;
 }
 
 .authcfg-cert-actions {
@@ -103,7 +98,7 @@
 .authcfg-report-meta {
   display: flex;
   gap: var(--bf-sp-2);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-2);
   margin-top: 2px;
 }

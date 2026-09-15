@@ -1,5 +1,8 @@
 // 侧滑面板 primitive：Radix Dialog 语义的 side 面板（right 默认——
 // 详情/配置面 480px 档；top/bottom/left 四向可变）。
+// 批 6（§4.2 Drawer★/§6）：滑入滑出走 slide motion token（dur-slow ×
+// §3.6「modal/抽屉」档）——方向经 --bf-slide-from（translate 二元组）
+// 随 side 变体注入，keyframes 不碰 transform（Radix 定位类零互踩）。
 import * as SheetPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import type { ComponentProps } from 'react'
@@ -13,22 +16,31 @@ const SheetClose = SheetPrimitive.Close
 const SheetPortal = SheetPrimitive.Portal
 
 function SheetOverlay({ className, ...props }: ComponentProps<typeof SheetPrimitive.Overlay>) {
-  return <SheetPrimitive.Overlay data-slot="sheet-overlay" className={cn('fixed inset-0 z-[90] bg-scrim', className)} {...props} />
+  return (
+    <SheetPrimitive.Overlay
+      data-slot="sheet-overlay"
+      className={cn('fixed inset-0 z-[90] bg-scrim data-[state=open]:anim-fade-in data-[state=closed]:anim-fade-out', className)}
+      {...props}
+    />
+  )
 }
 
-const sheetVariants = cva('fixed z-[90] flex flex-col gap-4 bg-surface-1 shadow-modal', {
-  variants: {
-    side: {
-      top: 'inset-x-0 top-0 h-auto border-b border-border',
-      bottom: 'inset-x-0 bottom-0 h-auto border-t border-border',
-      left: 'inset-y-0 left-0 h-full w-3/4 max-w-[480px] border-r border-border',
-      right: 'inset-y-0 right-0 h-full w-3/4 max-w-[480px] border-l border-border',
+const sheetVariants = cva(
+  'fixed z-[90] flex flex-col gap-4 bg-surface-1 shadow-modal data-[state=open]:anim-slide-in data-[state=closed]:anim-slide-out',
+  {
+    variants: {
+      side: {
+        top: 'inset-x-0 top-0 h-auto border-b border-border [--bf-slide-from:0_-100%]',
+        bottom: 'inset-x-0 bottom-0 h-auto border-t border-border [--bf-slide-from:0_100%]',
+        left: 'inset-y-0 left-0 h-full w-3/4 max-w-[480px] border-r border-border [--bf-slide-from:-100%_0]',
+        right: 'inset-y-0 right-0 h-full w-3/4 max-w-[480px] border-l border-border [--bf-slide-from:100%_0]',
+      },
+    },
+    defaultVariants: {
+      side: 'right',
     },
   },
-  defaultVariants: {
-    side: 'right',
-  },
-})
+)
 
 function SheetContent({
   className,

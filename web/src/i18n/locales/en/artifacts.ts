@@ -100,6 +100,7 @@ registerEn('artifacts', {
   "紧凑行高（Compacted）": "Compact row height (Compacted)",
   "客户端接入向导（按包类型生成接入命令与令牌）": "Client onboarding wizard (generates integration commands and tokens by package type)",
   "客户端上传时提供的 checksum 与服务端实际值比对": "The checksum provided by the client at upload is compared against the server's actual value",
+  "点击展开/收起完整校验值": "Click to expand or collapse the full checksum value",
   "跨仓制品树": "Cross-repository artifact tree",
   "里给该路径加 delete 动作。": "delete action for this path.",
   "浏览器上传（local Generic / Maven 仓）": "Browser upload (local Generic / Maven repositories)",

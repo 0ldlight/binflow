@@ -2,46 +2,9 @@
  * 仓库页面组样式（T-99；area: pages/repositories）。只消费 --bf-* token
  * （console-ux §7），不回头改 base.css（T-98 面）。后续页面组票按同模式
  * 追加自己的段落或文件，避免互改公共面。
+ * 批 5（T-UIB5）：过滤栏族（.filter-bar/.count/.filter-tail-actions/
+ * .filter-tail-end/.col-check）已退役——消费面迁 Tailwind 工具类。
  */
-
-/* ---------- 过滤栏（§4.3） ---------- */
-
-.filter-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--bf-sp-3);
-  flex-wrap: wrap;
-  padding: var(--bf-sp-3) 0;
-}
-
-.filter-bar .count {
-  margin-left: auto;
-  color: var(--bf-text-2);
-  font-size: var(--bf-fs-aux);
-  white-space: nowrap;
-}
-
-/* T-387（FR-125.2 L1）：工具栏尾动作组（列选器 + 刷新）——仓库/审计两页
- * 共用（.filter-bar 是共享基元，本类同域追加）。审计页的 .count 已吃掉
- * margin-left:auto 让位，本组缀其后即在栏尾；仓库页过滤栏无 count，尾组
- * 自己挂 .filter-tail-end 推到右端（parity L1「列选/刷新在工具栏尾」）。 */
-.filter-tail-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--bf-sp-2);
-}
-
-.filter-tail-end {
-  margin-left: auto;
-}
-
-/* 列选菜单项的勾选字形（menuitemcheckbox 的可见态——aria-checked 承载
- * 语义，字形 aria-hidden 装饰；等宽对齐让勾/未勾标签同列） */
-.col-check {
-  display: inline-block;
-  width: 1.25em;
-  color: var(--bf-accent);
-}
 
 /* T-300 批次二：过滤栏输入全部迁 MUI TextField（T-299 仓库页 + 本批
  * 树/搜索/审计页）——原生 input/select 的皮肤规则退役（外框由
@@ -156,7 +119,7 @@
 }
 
 .water-line .label {
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-2);
   white-space: nowrap;
 }
@@ -177,7 +140,7 @@
   gap: var(--bf-sp-2);
   padding: var(--bf-sp-2) var(--bf-sp-3);
   border-bottom: 1px solid var(--bf-border);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-2);
 }
 
@@ -186,7 +149,7 @@
   padding: var(--bf-sp-3);
   overflow-x: auto;
   font-family: var(--bf-mono);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   line-height: 1.6;
   color: var(--bf-text);
 }
@@ -195,7 +158,7 @@
   padding: var(--bf-sp-2) var(--bf-sp-3);
   border-top: 1px solid var(--bf-border);
   color: var(--bf-text-2);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
 }
 
 /* ---------- 危险区（P5，§4.5[7]） ----------
@@ -274,7 +237,7 @@
   align-items: center;
   gap: var(--bf-sp-2);
   min-height: 32px;
-  font-size: var(--bf-fs-form);
+  font-size: var(--bf-fs-base);
   cursor: pointer;
 }
 
@@ -307,7 +270,7 @@
 
 .form-error .raw {
   font-family: var(--bf-mono);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text);
   white-space: pre-wrap;
 }
@@ -322,7 +285,7 @@
      对齐 base.css 徽章族的配方（token 78% + text，同 token 对同比例，
      亮 ≈6.1:1 / 暗 ≈7.4:1） */
   color: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
 }
 
 .summary-box {
@@ -355,7 +318,7 @@
   align-items: center;
   gap: var(--bf-sp-2);
   min-height: 28px;
-  font-size: var(--bf-fs-body);
+  font-size: var(--bf-fs-sm);
   cursor: pointer;
 }
 
@@ -377,7 +340,7 @@
 
 .chip-item .idx {
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   min-width: 18px;
 }
 
@@ -410,7 +373,7 @@
 /* 表单里的说明性小字 */
 .field-note {
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   margin-top: calc(var(--bf-sp-1) * -1);
 }
 
@@ -418,7 +381,7 @@
 .field input.mono-input,
 .field textarea.mono-input {
   font-family: var(--bf-mono);
-  font-size: var(--bf-fs-body);
+  font-size: var(--bf-fs-sm);
 }
 
 /* 分步表单内的分区标题与 fieldset 复位 */
@@ -432,13 +395,13 @@ fieldset {
 legend.field-label {
   padding: 0;
   margin-bottom: var(--bf-sp-2);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-2);
 }
 
 .section-title {
   margin: var(--bf-sp-3) 0 var(--bf-sp-2);
-  font-size: var(--bf-fs-form);
+  font-size: var(--bf-fs-base);
   font-weight: 600;
 }
 
@@ -453,7 +416,7 @@ legend.field-label {
   border: 1px solid var(--bf-border);
   border-radius: var(--bf-r-sm);
   color: var(--bf-text);
-  font-size: var(--bf-fs-form);
+  font-size: var(--bf-fs-base);
   resize: vertical;
 }
 
@@ -480,7 +443,7 @@ legend.field-label {
   border-radius: var(--bf-r-sm);
   background: color-mix(in srgb, var(--bf-danger) 7%, transparent);
   font-family: var(--bf-mono);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   overflow-wrap: anywhere;
 }
 
@@ -492,10 +455,6 @@ legend.field-label {
   align-items: center;
   gap: var(--bf-sp-3);
   margin-bottom: var(--bf-sp-4);
-}
-
-.storage-refresh-row .mono {
-  margin-left: var(--bf-sp-1);
 }
 
 /* TOTAL 汇总首行（表内强调；不随主题换色——密度表达而非状态色） */

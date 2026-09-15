@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- D6 层积塔（Strata Stack）：三层存储地层（下宽上窄）+ 塔尖 accent 制品 = 沉积在仓库里的版本层 -->
+  <title>D6 层积塔</title>
+  <rect x="6" y="34" width="36" height="8" rx="3" fill="var(--mark-ink,#1d232c)"/>
+  <rect x="11" y="23" width="26" height="8" rx="3" fill="var(--mark-ink,#1d232c)"/>
+  <rect x="16" y="12" width="16" height="8" rx="3" fill="var(--mark-ink,#1d232c)"/>
+  <circle cx="24" cy="4.5" r="3.5" fill="var(--mark-accent,#3d63f2)"/>
+</svg>

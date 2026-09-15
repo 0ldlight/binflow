@@ -1,0 +1,12 @@
+/*
+ * 设计 token 聚合入口（design-system-plan §3.0）——六族分文件的唯一
+ * @import 汇聚点。消费缝唯一：../tailwind.css（@theme inline 桥接），
+ * 经 main.tsx / app/foundation.ts 引入；组件层禁止直读本目录文件。
+ */
+
+@import './color.css';
+@import './typography.css';
+@import './spacing.css';
+@import './radius.css';
+@import './shadow.css';
+@import './motion.css';

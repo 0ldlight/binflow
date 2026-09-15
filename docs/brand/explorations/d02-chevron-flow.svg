@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- D2 双箭流（»）：描边箭 + 实心箭的加速对，终端提示符肌肉记忆；无容器纯流。旧候选 1 血统的去壳现代化 -->
+  <title>D2 双箭流</title>
+  <path d="M10 15 21 24 10 33" stroke="var(--mark-ink,#1d232c)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M23 13 36 24 23 35Z" fill="var(--mark-accent,#3d63f2)"/>
+</svg>

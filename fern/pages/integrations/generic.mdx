@@ -76,6 +76,30 @@ curl -s "$BASE/binflow/generic-local/$SHA256"
 
 任意路径层级可用（如 `releases/v1.0.0/binflow-server-linux-amd64`）；BinFlow 为每个中间目录生成文件夹节点，控制台可浏览。
 
+### 7. 目录清单（`?list` 参数族）
+
+`GET /binflow/api/storage/{repoKey}[/{path}]?list` 返回目录清单（需认证，匿名 403；对文件路径发起 → 400 `Expected a folder but found a file, at: <repo>:<path>`）。七个参数全部支持，取值必须是整数（非整数 → 400 `For input string: "<v>"`；`=1` 才开启布尔臂）：
+
+| 参数 | `=1` 时行为 |
+|---|---|
+| `deep` | 递归列出全部子目录文件 |
+| `depth` | 修饰符：钳制 `deep=1` 的递归层数（`depth=0`=不限；**单独给 `depth` 不触发递归**） |
+| `listFolders` | 目录行混入 `files[]`（`uri` 无尾斜杠、`size` -1、`folder` true，与文件行同序混排） |
+| `includeRootPath` | 被查询目录自身以 `/` 行领头 |
+| `mdTimestamps` | 带属性条目附 `mdTimestamps.properties`＝属性末次变更时刻（**递归属性写会同步移动全部子项的该值**；值不变的重复写不移动） |
+| `statsTimestamps` | 有下载史的文件条目附 `mdTimestamps.artifactory.stats`＝末次下载时刻（从未下载的文件与目录行不带该键） |
+| `includePropertiesMd5` | 带属性条目附 `propertiesMd5`（属性集规范序 md5） |
+
+```bash
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/storage/generic-local?list&deep=1&listFolders=1&mdTimestamps=1"
+# {"uri":".../generic-local","created":"<请求时刻>","files":[
+#   {"uri":"/d1","size":-1,"lastModified":"...","folder":true},
+#   {"uri":"/d1/f1.txt","size":6,...,"sha1":"...","sha2":"...",
+#    "mdTimestamps":{"properties":"..."},"propertiesMd5":"..."}]}
+```
+
+条目按字母序；`created` 是请求时刻；响应 Content-Type 为 Artifactory 同款 vendor 类型（`application/vnd.org.jfrog.artifactory.storage.FileList+json`）。另注意**下载计数只认内容 GET**——`?list`、`?properties`、item-info 等元数据面读取不计入 `downloadCount`。
+
 ## 匿名与凭据
 
 | 场景 | 行为 |

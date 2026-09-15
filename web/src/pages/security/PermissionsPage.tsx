@@ -10,7 +10,7 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/app/AuthContext'
 import { ButtonAsChild } from '@/components/ui/button'
-import { Badge } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { Pager, useClientPager } from '@/components/layout/pager'
@@ -162,9 +162,10 @@ export default function PermissionsPage() {
                         </Link>
                         {holdsManage(t) && (
                           <Badge
+                            variant="tint-neutral"
                             mono
                             lang="en"
-                            testid={`perm-manage-badge-${t.name}`}
+                            data-testid={`perm-manage-badge-${t.name}`}
                             title={tt('该 target 的某主体行携带 manage（仓库配置派生权；不隐含读写删）')}
                           >
                             manage
@@ -176,7 +177,7 @@ export default function PermissionsPage() {
                       </span>
                     </td>
                     <td className="px-3 py-1.5">
-                      <span className="text-2" title={t.repos.join(', ')}>{t.repos.length}</span>
+                      <span className="text-muted-foreground" title={t.repos.join(', ')}>{t.repos.length}</span>
                     </td>
                     <td className="px-3 py-1.5">
                       <span
@@ -186,8 +187,8 @@ export default function PermissionsPage() {
                         +{t.includePatterns.length} / −{t.excludePatterns.length}
                       </span>
                     </td>
-                    <td className="px-3 py-1.5"><span className="text-2">{Object.keys(t.principals.users).length}</span></td>
-                    <td className="px-3 py-1.5"><span className="text-2">{Object.keys(t.principals.groups).length}</span></td>
+                    <td className="px-3 py-1.5"><span className="text-muted-foreground">{Object.keys(t.principals.users).length}</span></td>
+                    <td className="px-3 py-1.5"><span className="text-muted-foreground">{Object.keys(t.principals.groups).length}</span></td>
                   </tr>
                 ))}
               </tbody>

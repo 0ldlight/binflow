@@ -353,9 +353,9 @@ export default function ReplicationsSection({
     const holder = { typed: '' }
     const body: ReactNode = (
       <>
-        <p>{tt('将删除复制配置')} <b className="mono" lang="en">{c.name}</b>{tt('（')}<span className="mono" lang="en">{c.source_repo} → {c.target_url}/{c.target_repo}</span>{tt('）。 其')}<b>{tt('未决推送任务随之级联清空')}</b>{tt('，已推送制品不受影响；此操作没有撤销。')}</p>
+        <p>{tt('将删除复制配置')} <b className="font-mono text-[0.95em]" lang="en">{c.name}</b>{tt('（')}<span className="font-mono text-[0.95em]" lang="en">{c.source_repo} → {c.target_url}/{c.target_repo}</span>{tt('）。 其')}<b>{tt('未决推送任务随之级联清空')}</b>{tt('，已推送制品不受影响；此操作没有撤销。')}</p>
         <div className="field" style={{ maxWidth: 'none', marginBottom: 0 }}>
-          <label htmlFor={`repl-del-confirm-${c.name}`}>{tt('输入配置名')} <b className="mono" lang="en">{c.name}</b> {tt('以确认：')}</label>
+          <label htmlFor={`repl-del-confirm-${c.name}`}>{tt('输入配置名')} <b className="font-mono text-[0.95em]" lang="en">{c.name}</b> {tt('以确认：')}</label>
           <input
             id={`repl-del-confirm-${c.name}`}
             className="confirm-input"
@@ -477,7 +477,7 @@ export default function ReplicationsSection({
                       <>
                         <span className="font-mono" lang="en">{c.cron_exp}</span>
                         <br />
-                        <span className="text-2" title={c.next_schedule_sync}>
+                        <span className="text-muted-foreground" title={c.next_schedule_sync}>
                           {c.enabled && c.next_schedule_sync
                             ? tt('下次 {v1}', { v1: c.next_schedule_sync.replace('T', ' ').replace(/(\.\d+)?Z$/, ' UTC') })
                             : c.enabled
@@ -556,7 +556,7 @@ export default function ReplicationsSection({
           {editor.base && (
             <div className="kv">
               <span className="k">{tt('配置名')}</span>
-              <span className="mono" lang="en">
+              <span className="font-mono text-[0.95em]" lang="en">
                 {editor.base.name}
               </span>
             </div>
@@ -564,7 +564,7 @@ export default function ReplicationsSection({
 
           <div className="kv" style={{ marginBottom: 8 }}>
             <span className="k">{tt('源仓库')}</span>
-            <span className="mono" lang="en">
+            <span className="font-mono text-[0.95em]" lang="en">
               {repoKey}
             </span>
           </div>
@@ -699,7 +699,7 @@ export default function ReplicationsSection({
             {editor.base && editor.base.cron_exp && (
               <div className="kv" style={{ marginBottom: 0 }}>
                 <span className="k">{tt('下次定时同步')}</span>
-                <span className="mono" lang="en">
+                <span className="font-mono text-[0.95em]" lang="en">
                   {editor.base.next_schedule_sync || tt('—（停用或不可达）')}
                 </span>
               </div>

@@ -19,7 +19,6 @@ import { mavenTarget } from '../lib/maven'
 import type { GavForm } from '../lib/maven'
 import { Link } from 'react-router-dom'
 
-import './dialogs.css'
 import { tr } from '../i18n'
 
 const t = tr('console')
@@ -339,7 +338,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
               />
             ) : (
               <>
-                <div className="deploy-field-grid">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
                   <div className="field">
                     <label htmlFor="deploy-repo">{t('目标仓库')}</label>
                     <select
@@ -362,7 +361,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                     <label>{t('包类型（只读）')}</label>
                     <div>
                       <Badge variant="outline">{packageType === 'maven' ? 'Maven' : 'Generic'}</Badge>{' '}
-                      <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{t('local 仓 · PUT 直传')}</span>
+                      <span className="text-muted-foreground" style={{ fontSize: 'var(--bf-fs-xs)' }}>{t('local 仓 · PUT 直传')}</span>
                     </div>
                   </div>
                   <div className="field">
@@ -403,12 +402,12 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                       />
                       <CopyButton value={normalizeDir(target)} label={t('目标路径')} />
                     </div>
-                    <div className="field-hint deploy-echo" lang="en">{t('请求编码回显：')}{repoKey}/{encodedPath(normalizeDir(target), rows[0]?.fileName ?? t('<文件名>'))}
+                    <div className="field-hint font-mono text-muted-foreground break-all" lang="en">{t('请求编码回显：')}{repoKey}/{encodedPath(normalizeDir(target), rows[0]?.fileName ?? t('<文件名>'))}
                     </div>
                   </div>
                 ) : (
                   <div style={{ marginTop: 12 }}>
-                    <div className="deploy-field-grid">
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
                       {(
                         [
                           ['groupId', 'groupId', 'com.acme'],
@@ -432,14 +431,14 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                         </div>
                       ))}
                     </div>
-                    <div className="field-hint deploy-echo" data-testid="deploy-maven-preview" lang="en">
+                    <div className="field-hint font-mono text-muted-foreground break-all" data-testid="deploy-maven-preview" lang="en">
                       {maven.error ? `✗ ${maven.error}` : gav.groupId === '' ? t('填写坐标后生成 layout 路径') : `${maven.dir}/${maven.file}`}
                     </div>
                   </div>
                 )}
 
                 <div
-                  className={`deploy-drop${dragOver ? ' over' : ''}`}
+                  className={`my-3 cursor-pointer rounded-lg border border-dashed bg-surface-3 p-6 text-center focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring${dragOver ? ' border-ring text-foreground' : ' border-border-strong text-muted-foreground hover:border-ring hover:text-foreground'}`}
                   data-testid="deploy-drop"
                   role="button"
                   tabIndex={0}
@@ -490,23 +489,23 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                         <tr key={r.id} data-testid={`deploy-row-${r.fileName}`} className="border-b border-border/60 align-top">
                           <td className="px-2 py-1.5">{i + 1}</td>
                           <td className="px-2 py-1.5">
-                            <div className="mono" lang="en">
+                            <div className="font-mono text-[0.95em]" lang="en">
                               {r.fileName}
                             </div>
-                            <div className="deploy-echo" data-testid={`deploy-echo-${r.fileName}`} lang="en">
+                            <div className="font-mono text-[length:var(--bf-fs-xs)] text-muted-foreground break-all" data-testid={`deploy-echo-${r.fileName}`} lang="en">
                               {repoKey}/{encodedPath(r.targetDir, r.fileName)}
                             </div>
                           </td>
                           <td className="px-2 py-1.5 font-mono">{formatBytes(r.file.size)}</td>
                           <td className="px-2 py-1.5 min-w-[180px]">
                             {r.phase === 'hashing' ? (
-                              <span className="text-2">{t('正在计算本地 sha256…')}</span>
+                              <span className="text-muted-foreground">{t('正在计算本地 sha256…')}</span>
                             ) : r.localSha ? (
-                              <span className="mono" lang="en" title={r.localSha}>
+                              <span className="font-mono text-[0.95em]" lang="en" title={r.localSha}>
                                 {r.localSha.slice(0, 12)}…
                               </span>
                             ) : (
-                              <span className="text-2">—</span>
+                              <span className="text-muted-foreground">—</span>
                             )}
                             {r.phase === 'uploading' && (
                               <div className="flex items-center gap-1.5">
@@ -523,7 +522,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                                     style={{ width: `${r.total > 0 ? Math.min(100, (r.loaded / r.total) * 100) : 0}%` }}
                                   />
                                 </div>
-                                <span className="text-aux text-2">
+                                <span className="text-aux text-muted-foreground">
                                   {Math.round(r.total > 0 ? (r.loaded / r.total) * 100 : 0)}%
                                 </span>
                               </div>
@@ -545,7 +544,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                             ) : r.phase === 'error' && r.error ? (
                               <DeployError err={r.error} admin={admin} />
                             ) : (
-                              <span className="text-2">
+                              <span className="text-muted-foreground">
                                 {r.phase === 'hashing' ? t('哈希中') : r.phase === 'queued' ? t('待部署') : t('上传中')}
                               </span>
                             )}
@@ -587,13 +586,13 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
 /** E-11 错误语义原样呈现（409 双值 / 403 权限指引 / 413 quota——UploadDialog 同款） */
 function DeployError({ err, admin }: { err: ApiError; admin: boolean }) {
   return (
-    <div className="deploy-error">
+    <div className="flex flex-col gap-1">
       <span>
         <Badge variant={err.status === 403 || err.status === 413 || err.status === 409 ? 'destructive' : 'outline'}>
           {`HTTP ${err.status}`}
         </Badge>
       </span>
-      <span className="raw" lang="en">
+      <span className="font-mono text-[length:var(--bf-fs-xs)] break-all text-muted-foreground" lang="en">
         {errText(err)}
       </span>
       {err.status === 403 && (

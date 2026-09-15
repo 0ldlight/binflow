@@ -140,7 +140,7 @@ contracts:
   side_effects: []
   error_behavior: []
   binflow_state:
-    verdict: 'DIVERGENT-D1（A 400 replication / B 200+能力头——client-blind 超集；**L019 裁不实现=INTENTIONAL 候裁**，分类登记待 compatibility-engineer）'
+    verdict: 'DIVERGENT-D1（A 400 replication / B 200+能力头——client-blind 超集；L019 裁不实现 → **L022-1 终裁 INTENTIONAL 定谳**（conductor_ruling——client-blind 超集维持，台账 #conan/v2-ping-superset））'
     detail: 'v2-01a/b：A 400（anon/authed 同）；v2-01c 四值版本检查 A 不可达/B 四值齐；v1-21b：A virtual 400 / B 200+only_v2。L019 后 B 维持不变（裁定不裁撤超集）'
   version: { artifactory_ref: 7.161.20, binflow_tested: uat-l0181-74656514 }
   evidence:
@@ -148,8 +148,8 @@ contracts:
     - { kind: difftest, report: reports/compatibility/l018-wire/a/conan/v2-01b-ping-authed.body, anchor: '400 replication 文案', capture: 'b/ 同名（200 空+能力头）+ b v2-01c-vcv-0.20.0.hdr（current）', date: '2026-09-13' }
     - { kind: decompile, report: reverse-src/artifactory-7.161.20-partial/src/batch2-protocol/org/artifactory/addon/conan/rest/ConanResource.java, anchor: 'L105（仅 v1/ping 路由）+ L199-208（catch-all）', date: '2026-09-13' }
   confidence: high
-  status: DIVERGENT
-  divergence_ref: known-divergence.yaml#conan/v2ping-superset（登记建议——L018 回报 conductor）
+  status: INTENTIONAL
+  divergence_ref: known-divergence.yaml#conan/v2-ping-superset
 # ── v2 上传（文件 PUT + checksum-deploy 舞步） ───────────────────────────────
 - id: conan/v2-upload
   feature: 'v2 文件上传：revisions 探测 404→PUT files/{path} 201；每文件 checksum-deploy 探测舞步（X-Checksum-Deploy:true 零体 PUT→404→实体 PUT 201）'

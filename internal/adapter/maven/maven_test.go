@@ -52,7 +52,7 @@ func newHarness(t *testing.T) *harness {
 
 	authz := auth.NewFromStore(md, true) // anonymous reads on
 	svc := repo.New(st, md, authz, nil)
-	h := New(svc, md.Repos(), md.Blobs(), md.Nodes())
+	h := New(svc, md.Repos(), md.Blobs(), md.Nodes()).WithAuthorizer(authz)
 	return &harness{t: t, h: h, md: md, svc: svc}
 }
 
@@ -209,7 +209,9 @@ func TestDeployResolveRoundtrip(t *testing.T) {
 		}
 	}
 
-	// client metadata PUT is accepted (ME-06; the calculator is T-68's)
+	// client metadata PUT at MODULE level is the store chain (A replays
+	// group documents verbatim — the R-21 pending face; BinFlow stores and
+	// recomputes, v1.1).
 	metaXML := []byte("<metadata><groupId>com.acme</groupId><artifactId>demo-app</artifactId></metadata>")
 	if resp := hs.serve(http.MethodPut, "/maven-local/com/acme/demo-app/maven-metadata.xml", metaXML, nil, true); resp.StatusCode != http.StatusCreated {
 		t.Fatalf("metadata PUT = %d (%s)", resp.StatusCode, drain(t, resp))

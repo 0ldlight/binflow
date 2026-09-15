@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <title>Binflow favicon</title>
+  <desc>Binflow favicon：mark 的 3x3 浓缩派生（完整 4x4 点阵在 16px 下会糊阵）。深墨蓝圆角底 + 浅色点自含对比度，亮暗标签栏均成立；主对角线三枚 accent 点延续完整 mark 的校验路径隐喻。几何：48 网格，点心 9.5/24/38.5，r=5，底 rx=10。取值见 docs/brand/palette.md。</desc>
+  <rect width="48" height="48" rx="10" fill="#10161f"/>
+  <g fill="#e9edf3">
+    <circle cx="24" cy="9.5" r="5"/><circle cx="38.5" cy="9.5" r="5"/><circle cx="9.5" cy="9.5" r="5"/>
+    <circle cx="38.5" cy="24" r="5"/><circle cx="9.5" cy="24" r="5"/>
+    <circle cx="24" cy="38.5" r="5"/><circle cx="38.5" cy="38.5" r="5"/><circle cx="9.5" cy="38.5" r="5"/>
+  </g>
+  <g fill="#7b9eff">
+    <circle cx="9.5" cy="9.5" r="5"/>
+    <circle cx="24" cy="24" r="5"/>
+    <circle cx="38.5" cy="38.5" r="5"/>
+  </g>
+</svg>

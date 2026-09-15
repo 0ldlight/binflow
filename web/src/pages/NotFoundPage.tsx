@@ -17,9 +17,9 @@ export default function NotFoundPage() {
         <h2 className="text-lg font-semibold">{t('页面不存在')}</h2>
       </div>
       <section className="card max-w-[560px] rounded-md border border-border bg-surface-1 p-4">
-        <p className="text-2">{t('地址不存在或已变更。控制台路由见左侧导航。')}</p>
+        <p className="text-muted-foreground">{t('地址不存在或已变更。控制台路由见左侧导航。')}</p>
         <p>
-          <span className="text-2">{t('请求的地址：')}</span>
+          <span className="text-muted-foreground">{t('请求的地址：')}</span>
           <span className="font-mono" data-testid="not-found-path" lang="en">
             {pathname}
           </span>

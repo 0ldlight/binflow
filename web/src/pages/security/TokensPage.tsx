@@ -22,7 +22,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/app/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Badge, AlertBox } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
+import { AlertBox } from '@/components/layout/bits'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState } from '@/components/layout/states'
 import { Pager, useClientPager } from '@/components/layout/pager'
@@ -214,7 +215,7 @@ export default function TokensPage() {
     <div data-testid="tokens-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">Access Tokens</h2>
-        <span className="text-aux text-2">{t('自铸 / 吊销 API 令牌（E-17 / E-18；scope 恒 api:*——携带主体全部权限）')}</span>
+        <span className="text-aux text-muted-foreground">{t('自铸 / 吊销 API 令牌（E-17 / E-18；scope 恒 api:*——携带主体全部权限）')}</span>
         <Button size="sm" className="ml-auto" data-testid="token-create" onClick={() => setDialogOpen(true)}>
           {t('生成令牌')}
         </Button>
@@ -273,7 +274,7 @@ export default function TokensPage() {
                     {row.revoked ? (
                       <span data-testid={`token-status-${row.tokenId}`}>{t('已吊销')}</span>
                     ) : (
-                      <Badge variant="success" testid={`token-status-${row.tokenId}`}>{t('有效')}</Badge>
+                      <Badge variant="tint-success" data-testid={`token-status-${row.tokenId}`}>{t('有效')}</Badge>
                     )}
                   </td>
                   <td className="whitespace-nowrap px-3 py-1.5 text-right">
@@ -568,7 +569,7 @@ function CreateTokenDialog({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Badge mono lang="en">api:*</Badge>
+                <Badge variant="tint-neutral" mono lang="en">api:*</Badge>
                 <span className="text-aux text-muted-foreground">
                   {t('scope 固定（只读说明）：令牌携带主体全部权限——scope 参数仅经校验、不收窄权限域，故不设选项（端点亦无描述字段，token_id 即标识）')}
                 </span>

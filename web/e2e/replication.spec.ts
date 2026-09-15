@@ -195,7 +195,7 @@ test('renders target list and event list with counts, badges and copy anchors', 
   const events = page.locator('[data-testid="repl-events"]')
   await expect(events).toBeVisible()
   const ev0 = events.locator('[data-testid="repl-event-0"]')
-  await expect(ev0.locator('.badge')).toHaveText('failed')
+  await expect(ev0.locator('[data-slot="badge"]')).toHaveText('failed')
   await expect(ev0).toContainText('docker-local/org/app/1.0/app-1.0.bin')
   // sha256 展示截断（7 位头 + 4 位尾），拷贝仍为完整值（§7.3）
   await expect(ev0).toContainText('9f86d08…0a08')
@@ -204,12 +204,12 @@ test('renders target list and event list with counts, badges and copy anchors', 
   await expect(ev0.locator(`button[aria-label^="复制 sha256 ${SHA_TEST.slice(0, 7)}"]`)).toBeVisible()
 
   const ev1 = events.locator('[data-testid="repl-event-1"]')
-  await expect(ev1.locator('.badge')).toHaveText('success')
+  await expect(ev1.locator('[data-slot="badge"]')).toHaveText('success')
   await expect(ev1).toContainText('libs-release/com/acme/core/2.1/core-2.1.jar')
   // 成功行无错误 → em dash
   await expect(ev1.locator('td').nth(5)).toHaveText('—')
 
-  await expect(events.locator('[data-testid="repl-event-2"] .badge')).toHaveText('pending')
+  await expect(events.locator('[data-testid="repl-event-2"] [data-slot="badge"]')).toHaveText('pending')
 })
 
 // ---------------------------------------------------------------------------

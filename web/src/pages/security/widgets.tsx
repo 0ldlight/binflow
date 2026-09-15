@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom'
 import { toast } from '@/lib/toast'
 
 import { useConfirm } from '@/app/providers'
-import { Badge } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
 import { ApiError, errText } from '@/lib/api'
 import { deleteUser } from './api'
 import { PERM_ACTIONS } from './api'
@@ -74,9 +74,9 @@ export function PermSummaryTable({
               <span className="sec-chips">
                 {r.sources.map((s) =>
                   s === 'direct' ? (
-                    <Badge key="direct">{t('直接')}</Badge>
+                    <Badge variant="tint-neutral" key="direct">{t('直接')}</Badge>
                   ) : (
-                    <Badge key={s} mono lang="en">{s}</Badge>
+                    <Badge variant="tint-neutral" key={s} mono lang="en">{s}</Badge>
                   ),
                 )}
               </span>

@@ -40,7 +40,7 @@ BinFlow 的 API 分为两个面：
 | GET | `/binflow/api/storage/{repoKey}/{path}?stats` | 取下载统计：`{uri, downloadCount, lastDownloaded, lastDownloadedBy, remoteDownloadCount}`——计数对全档可见（item-info 读门）；`lastDownloadedBy` 仅 admin / readonly_admin 回带（低档位 omitempty，从不伪造）；`?stats` 探针自身不计入计数（内容面 GET 与存储面节点读取计入） | M1 |
 | GET | `/binflow/api/storage/{repoKey}/{path}?lastModified` | 取目录最新修改时间 | M1 |
 | GET | `/binflow/api/storage/{repoKey}/{path}?permissions` | 取有效权限视图（admin only，仅 local 仓） | M4 |
-| GET | `/binflow/api/storage/{repoKey}?list` | 流式文件清单（仅认证用户） | M1 |
+| GET | `/binflow/api/storage/{repoKey}?list` | 流式文件清单（七参族 `deep`/`depth`/`listFolders`/`includeRootPath`/`mdTimestamps`/`statsTimestamps`/`includePropertiesMd5`——出现值须为整数否则 400 `For input string: "<v>"`；仅认证用户） | M1 |
 
 ### DE: Docker 域（独立 /v2 路由）
 
@@ -136,8 +136,8 @@ BinFlow 的 API 分为两个面：
 | GET | `/binflow/api/repositories` | 仓库列表（admin / readonly_admin） | M1 |
 | GET | `/binflow/api/repositories?type=&packageType=` | 过滤列表 | M1 |
 | GET | `/binflow/api/repositories/{key}` | 单仓配置（M7 起 manage 持有者对覆盖仓亦可读） | M1 |
-| PUT | `/binflow/api/repositories/{key}` | 建仓（创建）/ 替换既有仓（M7 起替换臂与配额字段对覆盖仓的 manage 持有者开放；**建仓臂仍 admin only**） | M1 |
-| POST | `/binflow/api/repositories/{key}` | 改仓（更新配置，含 quotaBytes 配额写；M7 起 manage 持有者同上） | M1 |
+| PUT | `/binflow/api/repositories/{key}` | **只建仓（create-only）**——已存在 key 一律 400（`error when validating repository name: <key> : Repository key already exists`，零副作用）；更新拼写只有 POST。admin only | M1 |
+| POST | `/binflow/api/repositories/{key}` | 改仓，**合并语义**：省略字段=保留存量、`null`/空串=清空（数组空值保留、对象 `{}` 整族复位）、显式值=覆盖（含 `0`）；未知 key 404。含 quotaBytes 配额写；manage 持有者同上 | M1 |
 | DELETE | `/binflow/api/repositories/{key}` | 删仓（含可选 `?deleteContent`；admin only，不下放） | M1 |
 
 > **建仓形态变化**：`PUT` 接受 `rclass=remote + packageType=docker`（community 档——不新增 license 槽），协议面语义见 [remote/virtual 管理指南 · docker remote 仓](admin/remote-virtual.md#docker-remote-仓m14fr-129)；`rclass=virtual + packageType=docker` 亦已开闸（聚合读面按成员仓并集服务，实测建仓 200）——**rclass × packageType 组合门已全量退役**，建仓面剩余门是 license 档位（进阶包型在低档位 400 `package type not available on this instance: ...`，实测文案）与**远端浏览批 1 型门**（remote 仓 body 的 `listRemoteFolderItems: true` 仅 helm/debian/rpm 接受，其它包型 400 点名批 1 集——见[远端浏览可选档](admin/remote-virtual.md#远端浏览可选档listremotefolderitems)）。

@@ -102,8 +102,8 @@ test('N01: users page — single E2 request, zero per-user fanout, Status truth 
   // Status all from the single list payload (seed: u1 -> m9-g01).
   const row = page.locator('[data-testid="user-row-u1"]')
   await expect(row).toContainText('u1@m9-seed.invalid')
-  await expect(row.locator('.badge', { hasText: 'm9-g01' })).toBeVisible()
-  await expect(row.locator('.badge', { hasText: 'user' })).toBeVisible()
+  await expect(row.locator('[data-slot="badge"]', { hasText: 'm9-g01' })).toBeVisible()
+  await expect(row.locator('[data-slot="badge"]', { hasText: 'user' })).toBeVisible()
   await expect(page.locator('[data-testid="user-status-u1"]')).toHaveText('启用')
 
   // Status column sorts (asc = disabled first under the numeric projection)

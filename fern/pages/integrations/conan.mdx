@@ -41,7 +41,9 @@ conan list 'hello/1.0#*' -r binflow --format=json    # 修订史
 conan remove 'hello/1.0' -r binflow             # 整树删：全部修订 + 全部包修订
 ```
 
-删除语义（v1 DELETE 与 v2 无修订 DELETE 一面一真）：删的是**坐标根**（`<user>/<name>/<version>/<channel>/`）——`index.json`、全部 recipe 修订、全部包修订一并消失；再删同一坐标 → 404（幂等基线 = 「已删即终态」）。写权限门照走（无 delete 权限 → 403）；trash can 开启时删除照常先捕获。
+删除语义（v1 DELETE 与 v2 无修订 DELETE 一面一真）：删的是**坐标根**（`<user>/<name>/<version>/<channel>/`）——`index.json`、全部 recipe 修订、全部包修订一并消失。再删同一坐标（ghost）：**v1 面 200 空体幂等**（重复 `conan remove` / 双操作者竞态静默成功）；**v2 面 404** `Couldn't find path '<user>/<name>/<version>/<channel>'`——errors JSON 信封、引号内路径无尾斜杠。写权限门照走（无 delete 权限 → 403）；trash can 开启时删除照常先捕获。
+
+错误面统一 errors JSON 信封：conan 数据面的 ghost GET 族（latest/revisions/snapshot/文件）回 404 `{"errors":[{"status":404,"message":"Not Found"}]}`——与 npm 的幽灵包 404 同构（信封族对齐 Artifactory 真身，conan 原生裸文本形态不回）。
 
 ## conan 1.x 客户端（仅 local 仓）
 
@@ -104,6 +106,7 @@ curl -su admin:$ADMIN_PW -X POST "$BASE/binflow/api/conan/reindex?repoKey=conan-
 
 | 项 | 行为 |
 |---|---|
+| `search?q=`（pkgmeta 面 `<ref>/search?q=`）三态 | 空 q / `*` / `<name>/<ver>@<user>/<ch>` wire-ref 三种拼写 → **400** `Unexpected query syntax: <回显>`（CT 挂 application/json 但体为纯文本——参照同款 quirk）。非三态拼写维持 200 返回全 pid map（合法 q 语法=complex_search 属性查询式，未实现不猜）。conan 2 CLI 不触该面（走 `v2/conans/search`），仅手工 curl 可达 |
 | remote search 代理 | 不做——404 诚实文案；`install --requires` 按精确 ref 可用 |
 | `forceConanAuthentication` 仓配置 | 已实现（默认 false 维持普通 ACL；true 时匿名全端点 401 + Basic 挑战） |
 | 缓存落点 | remote 缓存落在仓自身命名空间（无 `-cache` 独立缓存仓） |

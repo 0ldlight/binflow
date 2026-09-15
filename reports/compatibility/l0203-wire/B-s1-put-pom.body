@@ -1,0 +1,16 @@
+{
+  "uri": "http://127.0.0.1:8083/l0203-mvn-local/l0203/test/artver/1.0-SNAPSHOT/artver-1.0-20260913.220232-1.pom",
+  "downloadUri": "http://127.0.0.1:8083/l0203-mvn-local/l0203/test/artver/1.0-SNAPSHOT/artver-1.0-20260913.220232-1.pom",
+  "repo": "l0203-mvn-local",
+  "path": "/l0203/test/artver/1.0-SNAPSHOT/artver-1.0-20260913.220232-1.pom",
+  "created": "2026-09-13T22:02:32Z",
+  "createdBy": "admin",
+  "size": "239",
+  "mimeType": "application/xml",
+  "checksums": {
+    "sha1": "5b2f6d3fccca855ed7d8326a43eea113998f062f",
+    "md5": "3932b38921a27d47c16a9c4591888db2",
+    "sha256": "68112b2a72f60971dff4500d0d491aadb873c3858ac7c55b6bdbd8be2df917ef"
+  },
+  "originalChecksums": {}
+}

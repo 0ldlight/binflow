@@ -398,9 +398,14 @@ func checksumMismatchMessage(err error, repoKey, relPath string) string {
 		repoKey, relPath, received, actual)
 }
 
-// notFoundMessage is the download-side 404 wording (rest-api.md 1.4).
+// notFoundMessage is the download-side 404 wording (L020 wire f3a-c, the
+// A-form spelling verbatim): "File not found.; " with the reference's own
+// double punctuation, and the repository and path colon-separated inside
+// ONE quoted segment. Breadth is the wire's finding — the same shape for
+// a ghost file in an existing directory, a ghost directory tree and a
+// ghost metadata document.
 func notFoundMessage(repoKey, relPath string) string {
-	return fmt.Sprintf("Failed to find the requested resource '%s/%s'.", repoKey, relPath)
+	return fmt.Sprintf("File not found.; Path: '%s:%s'", repoKey, relPath)
 }
 
 // applyReaderHints copies a body stream's structural response hints onto the

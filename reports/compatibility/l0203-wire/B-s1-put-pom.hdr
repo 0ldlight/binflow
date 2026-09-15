@@ -1,0 +1,8 @@
+HTTP/1.1 201 Created
+Content-Type: application/vnd.org.jfrog.artifactory.storage.ItemCreated+json; charset=UTF-8
+Location: http://127.0.0.1:8083/l0203-mvn-local/l0203/test/artver/1.0-SNAPSHOT/artver-1.0-20260913.220232-1.pom
+X-Checksum-Sha256: 68112b2a72f60971dff4500d0d491aadb873c3858ac7c55b6bdbd8be2df917ef
+X-Request-Id: c0e8b839cd91614fe1cb22e8a847e518
+Date: Sun, 13 Sep 2026 22:02:32 GMT
+Content-Length: 690
+

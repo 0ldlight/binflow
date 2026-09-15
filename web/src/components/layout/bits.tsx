@@ -1,43 +1,14 @@
-// 新栈通用小件（P3 管理面域共用——Badge/状态徽章/Alert 盒/复选行）：
+// 新栈通用小件（P3 管理面域共用——状态徽章/Alert 盒/复选行）：
 // 旧 MUI Chip/Alert/FormControlLabel 的语义等价件，样式走既有语义类
-// （base.css .badge 家族 / pages.css .form-error/.warn-box——assert-tokens
-// 硬门下的既有 token 消费面），e2e 的类断言（badge neutral 等）零迁移。
+// （pages.css .form-error/.warn-box——assert-tokens 硬门下的既有 token
+// 消费面）。Badge 已随批 5（T-UIB5）升格进 components/ui/badge.tsx
+// （tint-* 变体承载旧 .badge 配方），本文件不再导出。
 import type { ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
 import { tr } from '@/i18n'
 
 const t = tr('common')
-
-/** 徽章（语义色四态 + mono 变体——旧 MUI Chip 语义等价件） */
-export function Badge({
-  variant = 'neutral',
-  mono,
-  lang,
-  className,
-  title,
-  testid,
-  children,
-}: {
-  variant?: 'neutral' | 'success' | 'warning' | 'danger'
-  mono?: boolean
-  lang?: string
-  className?: string
-  title?: string
-  testid?: string
-  children: ReactNode
-}) {
-  return (
-    <span
-      className={cn('badge', variant, mono && 'mono', className)}
-      lang={lang}
-      title={title}
-      data-testid={testid}
-    >
-      {children}
-    </span>
-  )
-}
 
 /** 启用/禁用徽章（E2/E3 enabled 真值——users 列与详情 facts 行共用）。
  *  不挂 .badge 基类（行级 .badge 唯一性——ADR-0029 决策 3 沿袭）。 */
@@ -77,7 +48,7 @@ export function AlertBox({
         severity === 'error' && 'border-destructive/40 bg-surface-1 text-destructive',
         severity === 'warning' && 'border-warning/40 bg-surface-1 text-warning',
         severity === 'success' && 'border-success/40 bg-surface-1 text-success',
-        severity === 'info' && 'border-border bg-surface-2 text-2',
+        severity === 'info' && 'border-border bg-surface-2 text-muted-foreground',
         className,
       )}
     >

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- D3 管线拓扑（Pipeline Topology）：源节点 → 正交管线 → 制品节点，CI/CD 拓扑的最小形 -->
+  <title>D3 管线拓扑</title>
+  <rect x="5" y="19" width="10" height="10" rx="3" fill="var(--mark-ink,#1d232c)"/>
+  <path d="M15 24H29M29 24V11H36" stroke="var(--mark-ink,#1d232c)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M29 24V37H36" stroke="var(--mark-ink,#1d232c)" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="41" cy="11" r="4" fill="var(--mark-ink,#1d232c)"/>
+  <circle cx="41" cy="37" r="4" fill="var(--mark-accent,#3d63f2)"/>
+</svg>

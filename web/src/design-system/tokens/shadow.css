@@ -1,0 +1,15 @@
+/*
+ * 族 5 — Shadow（design-system-plan §3.5；浮层三档 + 焦点环宽度）。
+ *
+ * §5.2 暗色弱影 + 边框补偿规则维持（暗谱不另设影值——边框扛分层）。
+ * --bf-ring-width 为批 1 新槽位（焦点环宽度统一，配族 1 --bf-ring 色）
+ * ——只定义不消费，批 2+ 接管 focus-visible outline。
+ */
+
+:root {
+  --bf-shadow-1: 0 1px 2px rgb(0 0 0 / 35%); /* 卡片/下拉锚定 */
+  --bf-shadow-2: 0 4px 12px rgb(0 0 0 / 45%); /* 下拉/浮层/右键菜单 */
+  --bf-shadow-3: 0 12px 32px rgb(0 0 0 / 55%); /* modal/向导 */
+
+  --bf-ring-width: 2px; /* 批 1 新槽位（只定义不消费） */
+}

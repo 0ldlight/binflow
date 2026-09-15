@@ -1,0 +1,56 @@
+{
+ "request": "GET /artifactory/api/helm/l021-helm/index.yaml",
+ "req_headers": {
+  "User-Agent": "Helm/4.2.4",
+  "Authorization": "REDACTED"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Accept-Ranges": "bytes",
+  "Cache-Control": "no-store",
+  "Content-Disposition": "attachment; filename=\"index.yaml\"",
+  "Content-Type": "text/plain",
+  "Date": "Mon, 14 Sep 2026 04:26:22 GMT",
+  "Etag": "5b54fb0fb30bafca742f24d32107aca018c948d2",
+  "Last-Modified": "Mon, 14 Sep 2026 04:25:55 GMT",
+  "X-Artifactory-Filename": "index.yaml",
+  "X-Artifactory-Id": "0e5d4a9dd6c98d39:-617cfc2f:1a09e25f859:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Artifactory-Origin-Remote-Path": "local",
+  "X-Checksum-Md5": "8fd92aea00edf9f3d9b75838fddad33a",
+  "X-Checksum-Sha1": "5b54fb0fb30bafca742f24d32107aca018c948d2",
+  "X-Checksum-Sha256": "5c2cc309e50ff94177a77689b045eff2247b8d9e3b03dae1511a1b1dd8171bac",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "1032B sha256=5c2cc309e50ff941\napiVersion: v1\nentries:\n  l021chart:\n  - apiVersion: v2\n    created: 2026-09-14T04:25:55.133818240Z\n    description: A Helm chart for Kubernetes\n    digest: 3fc51d3f208cd50fe845db65a03984bc3600a1fc5878ce06c5134ac07e9c9732\n    name: l021chart\n    urls:\n    - local://l021chart-0.10.0.tgz\n    type: application\n    appVersion: \"1.16.0\"\n    version: \"0.10.0\"\n  - apiVersion: v2\n    created: 2026-09-14T04:25:54.374843135Z\n    description: A Helm chart for Kubernetes\n    digest: 1f586b7a90f6231d07ea41376d918d630711ea824a4ef8e3952a13b9575d3dd4\n    name: l021chart\n    urls:\n    - local://l021chart-0.2.0.tgz\n    type: application\n    appVersion: \"1.16.0\"\n    version: \"0.2.0\"\n  - apiVersion: v2\n    created: 2026-09-14T04:25:29.694555524Z\n    description: A Helm chart for Kubernetes\n    digest: b6ecbe48331b216b39c751851d3eae5425f4134cc2c6fa29ba39dbe00fd55bfc\n    name: l021chart\n    urls:\n    - local://l021chart-0.1.0.tgz\n    type: application\n    appVersion: \"1.16.0\"\n    version: \"0.1.0\"\ngenerated: 2026-09-14T04:25:55.145053615Z\n"
+}
+----
+{
+ "request": "GET /artifactory/api/helm/l021-helm/index.yaml",
+ "req_headers": {
+  "User-Agent": "Helm/4.2.4",
+  "Authorization": "REDACTED"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Accept-Ranges": "bytes",
+  "Cache-Control": "no-store",
+  "Content-Disposition": "attachment; filename=\"index.yaml\"",
+  "Content-Type": "text/plain",
+  "Date": "Mon, 14 Sep 2026 04:26:22 GMT",
+  "Etag": "5b54fb0fb30bafca742f24d32107aca018c948d2",
+  "Last-Modified": "Mon, 14 Sep 2026 04:25:55 GMT",
+  "X-Artifactory-Filename": "index.yaml",
+  "X-Artifactory-Id": "0e5d4a9dd6c98d39:-617cfc2f:1a09e25f859:-8000",
+  "X-Artifactory-Node-Id": "90f95f994e80",
+  "X-Artifactory-Origin-Remote-Path": "local",
+  "X-Checksum-Md5": "8fd92aea00edf9f3d9b75838fddad33a",
+  "X-Checksum-Sha1": "5b54fb0fb30bafca742f24d32107aca018c948d2",
+  "X-Checksum-Sha256": "5c2cc309e50ff94177a77689b045eff2247b8d9e3b03dae1511a1b1dd8171bac",
+  "X-Jfrog-Version": "Artifactory/7.161.20 86120900"
+ },
+ "resp_body": "1032B sha256=5c2cc309e50ff941\napiVersion: v1\nentries:\n  l021chart:\n  - apiVersion: v2\n    created: 2026-09-14T04:25:55.133818240Z\n    description: A Helm chart for Kubernetes\n    digest: 3fc51d3f208cd50fe845db65a03984bc3600a1fc5878ce06c5134ac07e9c9732\n    name: l021chart\n    urls:\n    - local://l021chart-0.10.0.tgz\n    type: application\n    appVersion: \"1.16.0\"\n    version: \"0.10.0\"\n  - apiVersion: v2\n    created: 2026-09-14T04:25:54.374843135Z\n    description: A Helm chart for Kubernetes\n    digest: 1f586b7a90f6231d07ea41376d918d630711ea824a4ef8e3952a13b9575d3dd4\n    name: l021chart\n    urls:\n    - local://l021chart-0.2.0.tgz\n    type: application\n    appVersion: \"1.16.0\"\n    version: \"0.2.0\"\n  - apiVersion: v2\n    created: 2026-09-14T04:25:29.694555524Z\n    description: A Helm chart for Kubernetes\n    digest: b6ecbe48331b216b39c751851d3eae5425f4134cc2c6fa29ba39dbe00fd55bfc\n    name: l021chart\n    urls:\n    - local://l021chart-0.1.0.tgz\n    type: application\n    appVersion: \"1.16.0\"\n    version: \"0.1.0\"\ngenerated: 2026-09-14T04:25:55.145053615Z\n"
+}
+----

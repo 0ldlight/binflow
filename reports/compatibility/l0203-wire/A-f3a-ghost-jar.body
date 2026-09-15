@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 404,
+    "message" : "File not found.; Path: 'l0203-mvn-local:l0203/test/artver/1.0-SNAPSHOT/artver-1.0-SNAPSHOT.jar'"
+  } ]
+}

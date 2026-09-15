@@ -24,7 +24,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '@/app/AuthContext'
 import { Button, ButtonAsChild } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Badge, AlertBox } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
+import { AlertBox } from '@/components/layout/bits'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { TextInput, NativeSelect } from '@/components/layout/fields'
 import { TransferBox } from '@/components/layout/transfer-box'
@@ -549,7 +550,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
         ))}
       </div>
     ) : (
-      <p className="text-2">{tt('没有字段级变更（仅顺序或重复调整）。')}</p>
+      <p className="text-muted-foreground">{tt('没有字段级变更（仅顺序或重复调整）。')}</p>
     )
     const ok = await confirm.confirm({
       title: mode === 'create' ? tt('创建 target {v1}', { v1: f.name.trim() }) : tt('保存 {v1} 的变更', { v1: f.name.trim() }),
@@ -643,7 +644,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                       <span aria-hidden="true" title={tt('组（组成员并集授权）')}>👥</span>
                     )}
                     <span className="font-mono" lang="en">{name}</span>
-                    <Badge>{cellKind === 'group' ? tt('组') : tt('用户')}</Badge>
+                    <Badge variant="tint-neutral">{cellKind === 'group' ? tt('组') : tt('用户')}</Badge>
                     <button
                       type="button"
                       className="principal-remove"
@@ -771,24 +772,24 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
           {tt('路径模式（repo 相对路径；')}<span className="font-mono" lang="en">**</span> {tt('跨段 /')} <span className="font-mono" lang="en">*</span> {tt('段内）')}
         </h3>
         <div className="perm-pattern-summary" data-testid="perm-patterns-summary">
-          <span className="text-2">{tt('include：')}</span>
+          <span className="text-muted-foreground">{tt('include：')}</span>
           {f.includes.length === 0 ? (
             <span className="text-muted-foreground">{tt('（空 = 匹配全部路径）')}</span>
           ) : (
-            f.includes.map((p) => <Badge key={p} mono lang="en">{p}</Badge>)
+            f.includes.map((p) => <Badge variant="tint-neutral" key={p} mono lang="en">{p}</Badge>)
           )}
-          <span className="ml-3 text-2">{tt('exclude：')}</span>
+          <span className="ml-3 text-muted-foreground">{tt('exclude：')}</span>
           {f.excludes.length === 0 ? (
             <span className="text-muted-foreground">{tt('（无）')}</span>
           ) : (
-            f.excludes.map((p) => <Badge key={p} mono lang="en">{p}</Badge>)
+            f.excludes.map((p) => <Badge variant="tint-neutral" key={p} mono lang="en">{p}</Badge>)
           )}
           <span className="text-aux text-muted-foreground">{tt('（在「')}{mode === 'create' ? tt('添加') : tt('编辑')}{tt('仓库」对话框第 2 步修改）')}</span>
         </div>
 
         <div className="tester">
           <div className="row">
-            <span className="whitespace-nowrap text-aux text-2">{tt('模式测试器')}</span>
+            <span className="whitespace-nowrap text-aux text-muted-foreground">{tt('模式测试器')}</span>
             <TextInput
               mono
               lang="en"
@@ -825,10 +826,10 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                 </div>
               ))}
               <div className="verdict">
-                <span className={`badge ${evaluation.match ? 'success' : 'danger'}`} data-testid="perm-pattern-verdict">
+                <Badge variant={evaluation.match ? 'tint-success' : 'tint-danger'} data-testid="perm-pattern-verdict">
                   {evaluation.match ? tt('✓ 匹配') : tt('✗ 不匹配')}
-                </span>
-                <span className="text-aux font-normal text-2">
+                </Badge>
+                <span className="text-aux font-normal text-muted-foreground">
                   {evaluation.excludedBy !== null
                     ? tt('被 exclude `{v1}` 排除（exclude 优先）', { v1: evaluation.excludedBy })
                     : evaluation.match
@@ -989,7 +990,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
       {mode === 'edit' && !readOnly && (
         <div className="danger-zone mt-6 rounded-md border border-destructive/50 p-4" data-testid="perm-danger-zone">
           <h3 className="mb-1 text-dense font-semibold text-destructive">{tt('危险区')}</h3>
-          <p className="mb-1.5 text-dense text-2">{tt('删除 target 会连带删除其全部授权行（单事务，无撤销）。')}</p>
+          <p className="mb-1.5 text-dense text-muted-foreground">{tt('删除 target 会连带删除其全部授权行（单事务，无撤销）。')}</p>
           <Button
             variant="outline"
             size="sm"

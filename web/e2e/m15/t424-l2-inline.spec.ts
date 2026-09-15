@@ -87,7 +87,7 @@ test('admin: row copy-key — aria-label, Space activates, clipboard gets full k
 
   // 回显断言：CopyButton done 态——字形 ⧉ → ✓（1.5s TTL 内采样；.mono 是
   // 字形 span 的专属类，不与 MUI ripple span 相撞）
-  await expect(copyBtn.locator('span.mono')).toHaveText('✓')
+  await expect(copyBtn.locator('span.font-mono')).toHaveText('✓')
 
   // 隔离层回归：激活不触发行导航（review B1——点击/键盘两路径都不换页）
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local$/)

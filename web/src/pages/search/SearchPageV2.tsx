@@ -161,7 +161,7 @@ function ColumnsMenu({ cols }: { cols: ColumnPrefs }) {
                   if (!last) cols.toggle(c.id)
                 }}
               >
-                <span aria-hidden="true" className="col-check">{visible ? '☑' : '☐'}</span>
+                <span aria-hidden="true" className="inline-block w-[1.25em] text-primary">{visible ? '☑' : '☐'}</span>
                 {c.label}
               </button>
             )
@@ -316,7 +316,7 @@ export default function SearchPageV2() {
             </p>
           )}
           {q === '' && (
-            <p className="text-2 search-sub text-dense text-muted-foreground">
+            <p className="search-sub text-dense text-muted-foreground">
               {t('查询在顶栏驻留：上方搜索框输入名称/路径子串并 Enter（⌘K 或 / 可从任意页跳入），结果在此呈现并按你的路径 ACL 过滤。checksum 反查（sha256/sha1/md5）暂未接入 UI——见 CLI 文档。')}
             </p>
           )}
@@ -556,13 +556,13 @@ function ResultsGrid({
           aria-label={t('快滤当前结果')}
         />
         {needle !== '' && !noMatch && (
-          <span className="text-2 search-filter-count text-aux text-muted-foreground" data-testid="search-quick-count">
+          <span className="search-filter-count text-aux text-muted-foreground" data-testid="search-quick-count">
             {t('快滤命中')} {filtered.length} / {rows.length}
           </span>
         )}
         {selectedRows.length > 0 && (
           <span className="search-selection flex items-center gap-2">
-            <span className="text-2 text-aux text-muted-foreground">{t('已选')} {selectedRows.length} {t('项')}</span>
+            <span className="text-aux text-muted-foreground">{t('已选')} {selectedRows.length} {t('项')}</span>
             <Button
               variant="outline"
               size="sm"
@@ -578,7 +578,7 @@ function ResultsGrid({
       </div>
 
       {noMatch ? (
-        <p className="text-2 search-nomatch text-dense text-muted-foreground" data-testid="search-quick-filter-empty">
+        <p className="search-nomatch text-dense text-muted-foreground" data-testid="search-quick-filter-empty">
           {t('快滤「')}{filter.trim()}{t('」无匹配行——清空快滤恢复')} {rows.length} {t('项结果。')}
         </p>
       ) : (
@@ -754,7 +754,7 @@ function AqlPanel({ columns, cols, toolbar }: { columns: PrefColumnDef[]; cols: 
           }}
           data-testid="search-aql-input"
           aria-label={t('AQL 查询')}
-          className="mono form-field min-h-[72px] flex-1 rounded-md border border-input bg-surface-1 p-2 font-mono text-dense outline-none focus-visible:border-ring"
+          className="form-field min-h-[72px] flex-1 rounded-md border border-input bg-surface-1 p-2 font-mono text-dense outline-none focus-visible:border-ring"
           spellCheck={false}
           lang="en"
           rows={3}
@@ -764,7 +764,7 @@ function AqlPanel({ columns, cols, toolbar }: { columns: PrefColumnDef[]; cols: 
         </Button>
       </div>
       <div className="aql-tail">
-        <p className="text-2 search-sub text-dense text-muted-foreground">
+        <p className="search-sub text-dense text-muted-foreground">
           {t('BinFlow AQL 子集：items 域 + property 域（')}{'{'}
           <span className="font-mono" lang="en">&quot;@key&quot;:&quot;value&quot;</span>
           {'}'}{t('）+ build 族三入口 builds/modules/dependencies（T-511 起）；操作符 $eq/$ne/$gt/$gte/$lt/$lte/$match/$nmatch/$and/$or/$msp/$last/$before。 未支持域（statistics/build.promotions/releasebundle…）与语法错 → 400 逐字文案。分页/排序由查询的')}{' '}
@@ -865,7 +865,7 @@ function BuildsScopePanel({
         </p>
       )}
       {q === '' && (
-        <p className="text-2 search-sub text-dense text-muted-foreground">
+        <p className="search-sub text-dense text-muted-foreground">
           {t('Builds 范围：顶栏输入构建名或 run 号子串并 Enter——结果为 build run 行（按你的 build 读权限过滤），点击行进 run 详情。')}
         </p>
       )}

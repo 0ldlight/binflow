@@ -4,10 +4,13 @@
 // serious（radix-* 按钮、t512 ⑥ 双主题腿实证）；P4 恢复 preflight 后冗余。
 // ghost / destructive / link）× 四尺寸；dense 形态（默认档 32px 高，
 // text-dense）——控制台按钮从不大写（对齐 Artifactory 观感）。
+// 批 4（§4.2 Button★）：loading 态=左 spinner+文字保留+真禁用
+// （aria-busy + disabled——防双击提交竞态）；link 变体无 loading。
 import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
 import type { ComponentProps } from 'react'
 
+import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
@@ -40,18 +43,28 @@ function Button({
   className,
   variant,
   size,
+  loading = false,
+  disabled,
+  children,
   ...props
-}: ComponentProps<'button'> & VariantProps<typeof buttonVariants>) {
+}: ComponentProps<'button'> & VariantProps<typeof buttonVariants> & { loading?: boolean }) {
   return (
     <button
       data-slot="button"
+      aria-busy={loading || undefined}
+      // loading = 真禁用（§4.2：防双击提交——不止视觉灰态）
+      disabled={disabled || loading}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
-    />
+    >
+      {loading && <Spinner data-slot="button-spinner" className="border-current/40 border-t-current" />}
+      {children}
+    </button>
   )
 }
 
-// asChild 槽位形态（Radix Slot 合成到子元素——链接化按钮等场景）
+// asChild 槽位形态（Radix Slot 合成到子元素——链接化按钮等场景；不含
+// loading 态：合成目标自带禁用语义时由调用方处理）
 function ButtonAsChild({ className, variant, size, ...props }: ComponentProps<typeof Slot> & VariantProps<typeof buttonVariants>) {
   return <Slot data-slot="button" className={cn(buttonVariants({ variant, size, className }))} {...props} />
 }

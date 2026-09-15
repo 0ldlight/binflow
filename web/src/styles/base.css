@@ -3,10 +3,12 @@
  * body/box-sizing 基线交 MUI CssBaseline + typography（14px 主档）；
  * 应用壳（侧栏/顶栏/内容区）交 AppShell 的 Drawer/AppBar/Toolbar/Container
  * 与组件 sx（--bf-sidebar 系侧栏身份 token）；密度按 MUI small 档（§2.3）。
- * 本文件只保留：全局链接/焦点环、utility（mono/text）、菜单分组标签、
- * 顶栏最近词下拉（combobox 红线）、搜索 kbd 提示与窄屏布局、卡片/表格/
- * 表单/四态基元（批 B/C 退役对象，暂留）——全部只消费 --bf-* 语义 token
- * （console-ux §7）。
+ * 批 5（T-UIB5，design-system-plan §6）：utility 族（.mono/.text-2/
+ * .text-muted）与 .badge 族已退役——消费面迁 Tailwind 语义类 /
+ * components/ui/badge.tsx tint-* 变体。本文件存留：全局链接/焦点环、
+ * 菜单分组标签、顶栏最近词下拉（combobox 红线）、搜索 kbd 提示与窄屏
+ * 布局、卡片/表格/表单/四态基元（后续批次退役对象）——全部只消费
+ * --bf-* 语义 token（console-ux §7）。
  */
 
 #root {
@@ -29,32 +31,19 @@ a:hover {
   outline-offset: 2px;
 }
 
-.mono {
-  font-family: var(--bf-mono);
-  font-size: 0.95em;
-}
-
-.text-2 {
-  color: var(--bf-text-2);
-}
-
-.text-muted {
-  color: var(--bf-text-muted);
-}
-
 /* ---------- 用户菜单分组标签（§3.2 留：Menu 内非交互行） ---------- */
 
 .menu-label {
   padding: var(--bf-sp-2) var(--bf-sp-3) var(--bf-sp-1);
   color: var(--bf-text-2);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
 }
 
 /* ---------- 顶栏搜索（§3.2 改薄：容器皮肤交 Paper sx，只剩 kbd 与布局） ---------- */
 
 .search-entry kbd {
   font-family: var(--bf-mono);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   padding: 1px 5px;
   border: 1px solid var(--bf-border);
   border-bottom-width: 2px;
@@ -97,7 +86,7 @@ a:hover {
   justify-content: space-between;
   padding: 0 var(--bf-sp-1) var(--bf-sp-1);
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   border-bottom: 1px solid var(--bf-border);
 }
 
@@ -118,7 +107,7 @@ a:hover {
   min-height: 28px;
   color: var(--bf-text);
   font-family: var(--bf-mono);
-  font-size: var(--bf-fs-body);
+  font-size: var(--bf-fs-sm);
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -142,17 +131,14 @@ a:hover {
   padding: var(--bf-sp-1) var(--bf-sp-2);
   min-height: 28px;
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
 }
 
 /* ---------- 卡片与网格 ---------- */
 
 /* 卡片 = 三阶最亮层；shadow-1 锚定（§5.2：暗色下弱影 + 边框补偿）。
- * T-344 批 D：6 残面页（login/NotFound/Placeholder/Profile/Dashboard/
- * SystemInfo）已换 MUI Paper——类名留 DOM（§3.8 .card.section 钩子 + 45
- * 落点渐进迁移），`:not(.MuiPaper-root)` 把 Paper 根从旧配方排除（皮肤
- * 即刻交还 Paper，批 C .badge shim 同款迁移期形态）；其余页面 div 消费
- * 者视觉零变化，末位换装后整块删除。 */
+ * MUI 终验后 :not(.MuiPaper-root) 守卫已无命中面（inert），类名留 DOM
+ * 作 spec 钩子；末位消费者换装后整块删除（后续批次）。 */
 .card:not(.MuiPaper-root) {
   background: var(--bf-surface-1);
   border: 1px solid var(--bf-border);
@@ -163,7 +149,7 @@ a:hover {
 
 .card h3 {
   margin: 0 0 var(--bf-sp-3);
-  font-size: var(--bf-fs-h3);
+  font-size: var(--bf-fs-md);
   font-weight: 600;
 }
 
@@ -187,7 +173,7 @@ a:hover {
   justify-content: space-between;
   gap: var(--bf-sp-3);
   padding: var(--bf-sp-1) 0;
-  font-size: var(--bf-fs-body);
+  font-size: var(--bf-fs-sm);
 }
 
 .kv .k {
@@ -209,60 +195,7 @@ a:hover {
 
 .stat-row .u {
   color: var(--bf-text-2);
-  font-size: var(--bf-fs-aux);
-}
-
-/* 语义 badge（§7.1：语义色 15% 透明底 + 语义色文字）——T-344 批 C 起仅
- * 服务**非 MUI 残余消费者**（components/DeployDialog 等批 D 换装对象）：
- * 换装为 MUI Chip 的徽章类名组合原样续挂 DOM（spec §3.8 钩子：toHaveClass
- * / hasText 定位），`:not(.MuiChip-root)` 把 Chip 根从本配方排除——皮肤
- * 交还 Chip（语义色 outlined + 中性 filled default，mui-native-visual
- * §3.2「保名去规」的迁移期形态；批 D 末位 span 消费者退役后整块删除）。
- * 文字色 = 语义色向正文色收敛 22%（T-244 对比度家族收口，双主题 ≥4.59:1）。 */
-.badge:not(.MuiChip-root) {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 7px;
-  border-radius: var(--bf-r-sm);
-  font-size: var(--bf-fs-aux);
-  line-height: 1.4;
-  background: color-mix(in srgb, var(--bf-info) 15%, transparent);
-  color: color-mix(in srgb, var(--bf-info) 78%, var(--bf-text));
-}
-
-.badge.neutral:not(.MuiChip-root) {
-  background: var(--bf-surface-2);
-  color: var(--bf-text-2);
-}
-
-.badge.success:not(.MuiChip-root) {
-  background: color-mix(in srgb, var(--bf-success) 15%, transparent);
-  color: color-mix(in srgb, var(--bf-success) 78%, var(--bf-text));
-}
-
-.badge.warning:not(.MuiChip-root) {
-  background: color-mix(in srgb, var(--bf-warning) 18%, transparent);
-  color: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
-}
-
-.badge.danger:not(.MuiChip-root) {
-  background: color-mix(in srgb, var(--bf-danger) 15%, transparent);
-  color: color-mix(in srgb, var(--bf-danger) 78%, var(--bf-text));
-}
-
-/* 档位徽章三色（M10 T-288，license 档位闭集）：community = .badge.neutral
- * （中性灰，地板）；pro = 蓝（info 语义底）；enterprise = 金（warning 语义底，
- * 18% 底与 warning 同配比——金读作「更高档」而非「告警」，文字色沿语义色
- * 收敛 22% 家族，双主题 ≥4.5:1）。 */
-.badge.tier-pro:not(.MuiChip-root) {
-  background: color-mix(in srgb, var(--bf-info) 15%, transparent);
-  color: color-mix(in srgb, var(--bf-info) 78%, var(--bf-text));
-}
-
-.badge.tier-enterprise:not(.MuiChip-root) {
-  background: color-mix(in srgb, var(--bf-warning) 18%, transparent);
-  color: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
+  font-size: var(--bf-fs-xs);
 }
 
 /* 状态点（不以颜色为唯一信号：配文字，§8） */
@@ -292,14 +225,14 @@ a:hover {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--bf-fs-body);
+  font-size: var(--bf-fs-sm);
 }
 
 .table th {
   text-align: left;
   font-weight: 600;
   color: var(--bf-text-2);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   padding: var(--bf-sp-2) var(--bf-sp-3);
   border-bottom: 1px solid var(--bf-border);
 }
@@ -330,7 +263,7 @@ a:hover {
 }
 
 .field label {
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-2);
 }
 
@@ -345,25 +278,21 @@ a:hover {
   border: 1px solid var(--bf-border);
   border-radius: var(--bf-r-sm);
   color: var(--bf-text);
-  font-size: var(--bf-fs-form);
+  font-size: var(--bf-fs-base);
 }
 
 .field > input:focus {
   border-color: var(--bf-accent);
 }
 
-.field input.mono {
-  font-family: var(--bf-mono);
-}
-
 .field-error {
   color: var(--bf-danger);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
 }
 
 .field-hint {
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
 }
 
 /* hint 内的正文链接（如 GC 页「审计日志」/ 详情「权限 target」）：恒下划线
@@ -420,7 +349,7 @@ a:hover {
 
 .page-header h2 {
   margin: 0;
-  font-size: var(--bf-fs-h2);
+  font-size: var(--bf-fs-xl);
 }
 
 .section {
@@ -436,7 +365,7 @@ a:hover {
   border: none;
   color: var(--bf-text-2);
   cursor: pointer;
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   padding: 2px 4px;
   border-radius: var(--bf-r-sm);
 }
@@ -449,7 +378,7 @@ a:hover {
 .water-mark {
   padding: var(--bf-sp-2) 0;
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
 }
 
 /* ---------- P3 增补：裸 button 最小重置（Tailwind preflight 关闭期） ----------
@@ -462,4 +391,12 @@ a:hover {
 button {
   background-color: transparent;
   color: inherit;
+}
+
+/* 操作列里的错误行独占一行，不撑坏行高（governance.css 批 5 退役迁入） */
+td .field-error {
+  display: block;
+  margin-top: var(--bf-sp-1);
+  max-width: 280px;
+  white-space: normal;
 }

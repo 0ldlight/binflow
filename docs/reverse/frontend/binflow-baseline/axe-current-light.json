@@ -1,0 +1,200 @@
+{
+  "capturedAt": "2026-09-15T01:12:28.950Z",
+  "theme": "light",
+  "pages": [
+    {
+      "route": "dashboard",
+      "url": "http://172.16.58.130:8083/binflow/ui/dashboard",
+      "violations": [],
+      "passes": 44,
+      "incomplete": 1
+    },
+    {
+      "route": "explorer",
+      "url": "http://172.16.58.130:8083/binflow/ui/artifacts/a11y-mu1m8zgzfyo7",
+      "violations": [
+        {
+          "id": "empty-table-header",
+          "impact": "minor",
+          "help": "Table header text should not be empty",
+          "nodes": 1
+        },
+        {
+          "id": "heading-order",
+          "impact": "moderate",
+          "help": "Heading levels should only increase by one",
+          "nodes": 1
+        }
+      ],
+      "passes": 46,
+      "incomplete": 1
+    },
+    {
+      "route": "search",
+      "url": "http://172.16.58.130:8083/binflow/ui/search",
+      "violations": [],
+      "passes": 39,
+      "incomplete": 1
+    },
+    {
+      "route": "builds",
+      "url": "http://172.16.58.130:8083/binflow/ui/builds",
+      "violations": [],
+      "passes": 44,
+      "incomplete": 1
+    },
+    {
+      "route": "repos-local",
+      "url": "http://172.16.58.130:8083/binflow/ui/admin/repositories/local",
+      "violations": [
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "help": "Page should contain a level-one heading",
+          "nodes": 1
+        }
+      ],
+      "passes": 44,
+      "incomplete": 1
+    },
+    {
+      "route": "repos-remote",
+      "url": "http://172.16.58.130:8083/binflow/ui/admin/repositories/remote",
+      "violations": [
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "help": "Page should contain a level-one heading",
+          "nodes": 1
+        }
+      ],
+      "passes": 44,
+      "incomplete": 1
+    },
+    {
+      "route": "repos-virtual",
+      "url": "http://172.16.58.130:8083/binflow/ui/admin/repositories/virtual",
+      "violations": [
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "help": "Page should contain a level-one heading",
+          "nodes": 1
+        }
+      ],
+      "passes": 45,
+      "incomplete": 1
+    },
+    {
+      "route": "repo-new-local",
+      "url": "http://172.16.58.130:8083/binflow/ui/admin/repositories/local/new",
+      "violations": [],
+      "passes": 31,
+      "incomplete": 2
+    },
+    {
+      "route": "repo-detail",
+      "url": "http://172.16.58.130:8083/binflow/ui/admin/repositories/demo-local",
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+          "nodes": 1
+        },
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "help": "Page should contain a level-one heading",
+          "nodes": 1
+        }
+      ],
+      "passes": 40,
+      "incomplete": 1
+    },
+    {
+      "route": "users",
+      "url": "http://172.16.58.130:8083/binflow/ui/admin/security/users",
+      "violations": [
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "help": "Page should contain a level-one heading",
+          "nodes": 1
+        }
+      ],
+      "passes": 44,
+      "incomplete": 1
+    },
+    {
+      "route": "groups",
+      "url": "http://172.16.58.130:8083/binflow/ui/admin/security/groups",
+      "violations": [
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "help": "Page should contain a level-one heading",
+          "nodes": 1
+        }
+      ],
+      "passes": 44,
+      "incomplete": 1
+    },
+    {
+      "route": "permissions",
+      "url": "http://172.16.58.130:8083/binflow/ui/admin/security/permissions",
+      "violations": [
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "help": "Page should contain a level-one heading",
+          "nodes": 1
+        }
+      ],
+      "passes": 44,
+      "incomplete": 1
+    },
+    {
+      "route": "audit",
+      "url": "http://172.16.58.130:8083/binflow/ui/admin/governance/audit",
+      "violations": [
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "help": "Page should contain a level-one heading",
+          "nodes": 1
+        }
+      ],
+      "passes": 45,
+      "incomplete": 1
+    },
+    {
+      "route": "storage",
+      "url": "http://172.16.58.130:8083/binflow/ui/admin/monitoring/storage",
+      "violations": [
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "help": "Page should contain a level-one heading",
+          "nodes": 1
+        }
+      ],
+      "passes": 43,
+      "incomplete": 1
+    },
+    {
+      "route": "status",
+      "url": "http://172.16.58.130:8083/binflow/ui/admin/monitoring/status",
+      "violations": [
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "help": "Page should contain a level-one heading",
+          "nodes": 1
+        }
+      ],
+      "passes": 43,
+      "incomplete": 1
+    }
+  ]
+}

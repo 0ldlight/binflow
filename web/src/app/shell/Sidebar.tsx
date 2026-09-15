@@ -3,6 +3,10 @@
 //   .app-nav-footer 类钩原样保留（spec 类钩纪律 §3.8；e2e 以
 //   `a.nav-item:text-is(…)` 导航——NavLink 字符串形态自动追加 active）。
 // - 侧栏身份 = 恒深底（--bf-sidebar 系 token 的 Tailwind 桥接语义类）。
+// - T-UIB2（design-system-plan §6 批 2）：宽度/品牌行高走布局 token 桥接
+//   语义类（w-sidebar 由 AppShell aside 消费、h-topbar 对齐顶栏 64 线）；
+//   分组标题 fs-2xs 位 + semibold；active 指示 = 左缘 primary 指示条 +
+//   sidebar-3 软底 + 文字提亮（Penpot 式，全既有 token 族——零新色值）。
 // - 脚注：语言切换器（nav-locale 族锚）+ About 版本行（nav-about /
 //   nav-version——点击开 About 弹窗，Topbar 承载）。
 // - admin-filter（顶栏管理资源过滤）的空匹配注记 admin-filter-empty
@@ -41,7 +45,7 @@ export function Sidebar({
       data-testid="app-nav"
       style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}
     >
-      <div className="app-nav-brand border-b border-sidebar-border flex items-center gap-2 px-4 py-4">
+      <div className="app-nav-brand border-b border-sidebar-border flex h-topbar items-center gap-2 px-4">
         <BrandMark size={24} testid="brand-sidebar-mark" />
         <span className="name text-[15px] font-semibold text-sidebar-foreground">BinFlow</span>
       </div>
@@ -50,8 +54,8 @@ export function Sidebar({
           <div key={group.id}>
             <div
               className={cn(
-                'nav-group-label pt-3 pb-1 px-3 text-[11px] font-medium uppercase tracking-wider text-sidebar-muted-foreground',
-                gi === 0 && 'first pt-1',
+                'nav-group-label pt-4 pb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted-foreground',
+                gi === 0 && 'first pt-2',
               )}
             >
               {group.label}
@@ -61,7 +65,7 @@ export function Sidebar({
                 key={entry.to}
                 to={entry.to}
                 end={entry.end}
-                className="nav-item flex items-center gap-2 rounded-sm border-l-2 border-transparent px-3 py-1.5 text-dense text-sidebar-foreground hover:bg-sidebar-hover [&.active]:border-l-primary [&.active]:bg-sidebar-active"
+                className="nav-item flex items-center gap-3 rounded-sm border-l-2 border-transparent py-2 pl-2.5 pr-3 text-dense text-sidebar-foreground/80 hover:bg-sidebar-hover hover:text-sidebar-foreground [&.active]:border-l-primary [&.active]:bg-sidebar-active [&.active]:font-medium [&.active]:text-sidebar-foreground"
                 title={entry.label}
               >
                 <entry.icon className="nav-icon size-4 shrink-0" aria-hidden="true" data-testid="nav-icon" data-icon={entry.id} />

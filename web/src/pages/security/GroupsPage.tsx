@@ -14,7 +14,8 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/app/AuthContext'
 import { Button, ButtonAsChild } from '@/components/ui/button'
-import { Badge, AlertBox } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
+import { AlertBox } from '@/components/layout/bits'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { Pager, useClientPager } from '@/components/layout/pager'
@@ -191,7 +192,7 @@ export default function GroupsPage() {
           <div>{tt('无法删除组')} <span className="font-mono" lang="en">{conflict.group}</span>{tt('——它正被 permission target 引用')}</div>
           <div className="mt-1 font-mono text-aux [overflow-wrap:anywhere]" lang="en">{conflict.message}</div>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            {conflict.targets.length > 0 && <span className="text-2">{tt('解除引用（编辑后移除该组主体）：')}</span>}
+            {conflict.targets.length > 0 && <span className="text-muted-foreground">{tt('解除引用（编辑后移除该组主体）：')}</span>}
             {conflict.targets.map((tgt) => (
               <ButtonAsChild key={tgt} variant="outline" size="sm" className="h-7">
                 <Link to={`/admin/security/permissions/${encodeURIComponent(tgt)}`}>
@@ -204,8 +205,8 @@ export default function GroupsPage() {
         </AlertBox>
       )}
 
-      <div className="filter-bar">
-        <span className="filter-tail-actions filter-tail-end ml-auto">
+      <div className="flex flex-wrap items-center gap-3 py-3">
+        <span className="ml-auto inline-flex items-center gap-2">
       {/* 列选器（T-387 L1 / T-414——内联形态：锚字面量对 anchor-audit 可见，
           P2 RepositoriesPage 同款） */}
       <Popover open={colsOpen} onOpenChange={setColsOpen}>
@@ -239,7 +240,7 @@ export default function GroupsPage() {
                   if (!last) cols.toggle(c.id)
                 }}
               >
-                <span aria-hidden="true" className="col-check">{visible ? '☑' : '☐'}</span>
+                <span aria-hidden="true" className="inline-block w-[1.25em] text-primary">{visible ? '☑' : '☐'}</span>
                 {c.label}
               </button>
             )
@@ -310,12 +311,13 @@ role="menuitem"
                           <span className="text-muted-foreground">—</span>
                         ) : (
                           <span className="cell-inline">
-                            <span className="text-2">{r.grants.length}</span>
+                            <span className="text-muted-foreground">{r.grants.length}</span>
                             {r.grants.some((g) => g.actions.includes('manage')) && (
                               <Badge
+                                variant="tint-neutral"
                                 mono
                                 lang="en"
-                                testid={`group-manage-badge-${r.group.name}`}
+                                data-testid={`group-manage-badge-${r.group.name}`}
                                 title={tt('组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）')}
                               >
                                 manage
@@ -331,7 +333,7 @@ role="menuitem"
                           <span className="text-muted-foreground">—</span>
                         ) : (
                           <span
-                            className="text-2"
+                            className="text-muted-foreground"
                             title={(membership?.groupMembers[r.group.name] ?? []).join(', ') || undefined}
                             data-testid={`group-members-${r.group.name}`}
                           >

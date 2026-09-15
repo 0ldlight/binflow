@@ -8,7 +8,11 @@ import { cn } from '@/lib/utils'
 function ScrollArea({ className, children, ...props }: ComponentProps<typeof ScrollAreaPrimitive.Root>) {
   return (
     <ScrollAreaPrimitive.Root data-slot="scroll-area" className={cn('relative overflow-hidden', className)} {...props}>
-      <ScrollAreaPrimitive.Viewport className="size-full rounded-[inherit] outline-none">{children}</ScrollAreaPrimitive.Viewport>
+      {/* tabIndex：可滚动区键盘可达（axe scrollable-region-focusable——
+          与 TransferBox 列同款纪律；批 6 首消费面（styleguide）引入） */}
+      <ScrollAreaPrimitive.Viewport tabIndex={0} className="size-full rounded-[inherit] outline-none">
+        {children}
+      </ScrollAreaPrimitive.Viewport>
       <ScrollBar />
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>

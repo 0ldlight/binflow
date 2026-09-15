@@ -96,12 +96,12 @@ test('L27a: admin — nav entry, community floor card, live addons matrix', asyn
     await expect(page.locator(`[data-testid="addons-state-${id}"]`)).toContainText('需要 pro')
   }
   // Kind 徽章 = wire 值（package-type | feature）
-  await expect(page.locator('[data-testid="addons-row-go"] .badge', { hasText: 'package-type' })).toBeVisible()
-  await expect(page.locator('[data-testid="addons-row-properties"] .badge', { hasText: 'feature' })).toBeVisible()
+  await expect(page.locator('[data-testid="addons-row-go"] [data-slot="badge"]', { hasText: 'package-type' })).toBeVisible()
+  await expect(page.locator('[data-testid="addons-row-properties"] [data-slot="badge"]', { hasText: 'feature' })).toBeVisible()
   // T-327F：M11 新四包型行逐行补——kind 徽章 = package-type（minTier=pro
   // 由上方 PRO_PKG 循环的 addons-tier/addons-state 断言覆盖）
   for (const id of NEW_PRO_PKG) {
-    await expect(page.locator(`[data-testid="addons-row-${id}"] .badge`, { hasText: 'package-type' })).toBeVisible()
+    await expect(page.locator(`[data-testid="addons-row-${id}"] [data-slot="badge"]`, { hasText: 'package-type' })).toBeVisible()
   }
 })
 

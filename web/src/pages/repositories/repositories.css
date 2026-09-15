@@ -18,7 +18,7 @@
 }
 
 .repos-head-count {
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -36,7 +36,7 @@
 /* 表格底部计数行（§6.6[3]「显示 a – b / 共 c 项」） */
 .table-foot {
   margin: var(--bf-sp-2) 0 0;
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -103,11 +103,11 @@
 
 .pkg-grid-item .pkg-name {
   font-weight: 600;
-  font-size: var(--bf-fs-h3);
+  font-size: var(--bf-fs-md);
 }
 
 .pkg-grid-item .pkg-desc {
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   color: var(--bf-text-2);
   line-height: 1.4;
 }
@@ -120,7 +120,7 @@
 /* 页级只读注记（M7 §7.3 推广形态；security.css 同款语义，本域自持） */
 .page-note {
   color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   margin: var(--bf-sp-2) 0;
 }
 

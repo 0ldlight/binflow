@@ -19,6 +19,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { useAuth } from '@/app/AuthContext'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { AlertBox } from '@/components/layout/bits'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
@@ -182,7 +183,7 @@ export default function WebhooksPage() {
     <div data-testid="wh-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">Webhooks</h2>
-        <span className="text-aux text-2">{tt('统一事件订阅（/binflow/event/api/v1——13 域 66 事件型；outbox 投递，失败重试固定 10s×4）')}</span>
+        <span className="text-aux text-muted-foreground">{tt('统一事件订阅（/binflow/event/api/v1——13 域 66 事件型；outbox 投递，失败重试固定 10s×4）')}</span>
       </div>
 
       {/* Tab 条（订阅 / 死信 outbox——P3 解锁面） */}
@@ -310,15 +311,15 @@ export default function WebhooksPage() {
                       <td className="px-3 py-1.5 font-mono" lang="en">{sub.key}</td>
                       <td className="px-3 py-1.5">
                         <span className="flex max-w-[320px] flex-wrap items-center gap-1">
-                          <span className="badge neutral" lang="en">{sub.event_filter.domain}</span>
+                          <Badge variant="tint-neutral" lang="en">{sub.event_filter.domain}</Badge>
                           {sub.event_filter.event_types.slice(0, 3).map((t) => (
-                            <span
+                            <Badge
                               key={t}
-                              className={`badge ${isWired(sub.event_filter.domain, t) ? 'success' : 'neutral'}`}
+                              variant={isWired(sub.event_filter.domain, t) ? 'tint-success' : 'tint-neutral'}
                               lang="en"
                             >
                               {t}
-                            </span>
+                            </Badge>
                           ))}
                           {sub.event_filter.event_types.length > 3 && (
                             <span className="text-aux text-muted-foreground">+{sub.event_filter.event_types.length - 3}</span>

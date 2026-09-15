@@ -183,7 +183,7 @@ export default function CreateBundleDialog({
                   <div className="font-medium">{t('创建被拒（HTTP')} {error.status || t('网络')}{t('）')}</div>
                   <div className="mt-1 break-all font-mono text-aux opacity-90" lang="en">{error.message}</div>
                   {error.status === 409 && (
-                    <div className="mt-1 text-2">{t('同名同版本已存在且清单不同（或已完成）——改版本号或核对清单。')}</div>
+                    <div className="mt-1 text-muted-foreground">{t('同名同版本已存在且清单不同（或已完成）——改版本号或核对清单。')}</div>
                   )}
                 </AlertBox>
               )}

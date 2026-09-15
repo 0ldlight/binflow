@@ -20,6 +20,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { useAuth } from '@/app/AuthContext'
+import { Badge } from '@/components/ui/badge'
 import { Button, ButtonAsChild } from '@/components/ui/button'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
@@ -48,9 +49,9 @@ function fmtUTC(v: string): string {
 function StateBadge({ state }: { state: string }) {
   const variant = state === 'COMPLETE' ? 'success' : state === 'INPROGRESS' ? 'warning' : 'neutral'
   return (
-    <span className="badge" data-testid="bundle-state" data-variant={variant}>
+    <Badge variant="tint-info" data-testid="bundle-state" data-variant={variant}>
       {state}
-    </span>
+    </Badge>
   )
 }
 
@@ -98,7 +99,7 @@ function BundleNamesView() {
     <div data-testid="bundles-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">Release Bundles</h2>
-        <span className="text-aux text-2">{t('版本化发布记录（名 → 版本 → 描述符 + 创建面）')}</span>
+        <span className="text-aux text-muted-foreground">{t('版本化发布记录（名 → 版本 → 描述符 + 创建面）')}</span>
         {adminWrite && (
           <Button size="sm" className="ml-auto" data-testid="bundle-create" onClick={() => setCreateOpen(true)}>
             {t('＋ 创建 Bundle')}

@@ -1,0 +1,41 @@
+/*
+ * 字体接入（design-system-plan §5——批 3 落地，本文件是字体唯一事实源）。
+ *
+ * 抉择复盘：@fontsource-variable/inter@5.3.0 本地打包（CDN 否决——离线/
+ * 气隙部署一等场景 + go:embed 单二进制承诺，§5 全文）。包内 CSS 引全量子集
+ * （wght.css = 7 个 @font-face，含 latin-ext 85,068B），且家族名注册为
+ * 'Inter Variable'——与 §3.2 栈头 'Inter' 不符。故此处自持 latin 单轴
+ * @font-face（声明参数逐字取自包内 index.css 的 inter-latin-wght-normal
+ * 块，家族名改 'Inter' 对齐 token 栈），只引 48,256B 那一个 woff2：
+ * latin-ext 不引（§8 R6——en 文案字符集实测后另裁）。
+ *
+ * 管道：woff2 经 vite url() 解析落 dist/assets/<hash>.woff2（指纹资产
+ * +immutable 缓存），归 relink-assets.mjs face 2（CSS url() 重写）既有
+ * 覆盖面，脚本零改动。font-display: swap——首帧 system 栈，字体到位即换。
+ *
+ * body 基线（本批补的洞）：FE-P4 MUI 清场把 CssBaseline 一并带走后，
+ * 全 src 再无任何非 mono 的 font-family 声明（grep 实证）——body 字体
+ * 一直悬空在 UA 默认（衬线）。批 3 在此补上 --bf-font-sans 文档基线，
+ * 'Inter' 前置后全站经继承吃到真身；mono 面（.mono/font-mono 系）各自
+ * 声明 --bf-mono，不受影响。
+ */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2')
+    format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+    U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* 文档基线：旧栈 styles/*.css 与 tailwind.css 均不设 body 字体（mono 各自
+ * 声明、更特异/更晚，本规则不与它们竞争）——fonts.css 在 main.tsx 首位
+ * 引入，处于级联最弱位，共存期旧全局层如有字体规则仍可覆盖（与
+ * tailwind.css 最后引入的纪律同构：新栈让位旧栈）。 */
+body {
+  font-family: var(--bf-font-sans);
+}

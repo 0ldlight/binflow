@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { Pager } from '@/components/layout/pager'
@@ -31,11 +31,11 @@ const STATUS_OPTIONS = ['pending', 'delivering', 'delivered', 'dead']
 const PAGE_SIZE = 20
 
 /** 状态 → badge 语义色（值原样呈现不翻译——排障要比对 API） */
-function statusBadge(s: string): 'success' | 'warning' | 'danger' | 'neutral' {
-  if (s === 'delivered') return 'success'
-  if (s === 'dead') return 'danger'
-  if (s === 'pending' || s === 'delivering') return 'warning'
-  return 'neutral'
+function statusBadge(s: string): 'tint-success' | 'tint-warning' | 'tint-danger' | 'tint-neutral' {
+  if (s === 'delivered') return 'tint-success'
+  if (s === 'dead') return 'tint-danger'
+  if (s === 'pending' || s === 'delivering') return 'tint-warning'
+  return 'tint-neutral'
 }
 
 function fmtTime(v: string | null): string {
@@ -141,7 +141,7 @@ export default function OutboxPanel({ readOnly }: { readOnly: boolean }) {
 
   return (
     <section data-testid="outbox-panel">
-      <div className="filter-bar">
+      <div className="flex flex-wrap items-center gap-3 py-3">
         <TextInput
           mono
           lang="en"
@@ -186,7 +186,7 @@ export default function OutboxPanel({ readOnly }: { readOnly: boolean }) {
             {tt('清除过滤')}
           </Button>
         )}
-        <span className="filter-tail-actions filter-tail-end ml-auto">
+        <span className="ml-auto inline-flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={outbox.refresh} data-testid="outbox-refresh">
             {tt('刷新')}
           </Button>

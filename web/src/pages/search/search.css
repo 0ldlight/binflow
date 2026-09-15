@@ -10,7 +10,7 @@
 
 .search-headline {
   margin: 0 0 var(--bf-sp-2);
-  font-size: var(--bf-fs-h2);
+  font-size: var(--bf-fs-xl);
 }
 
 .search-sub {
@@ -20,7 +20,7 @@
 .search-count {
   margin: 0 0 var(--bf-sp-2);
   color: var(--bf-text-2);
-  font-size: var(--bf-fs-form);
+  font-size: var(--bf-fs-base);
 }
 
 /* ---------- AQL 模式（T-419，FR-135.1） ---------- */
@@ -61,7 +61,7 @@
 }
 
 .search-filter-count {
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
   white-space: nowrap;
 }
 
@@ -76,18 +76,14 @@
   padding: var(--bf-sp-3);
   border: 1px dashed var(--bf-border);
   border-radius: var(--bf-r-md);
-  font-size: var(--bf-fs-form);
+  font-size: var(--bf-fs-base);
 }
 
 /* ---------- 结果表 ---------- */
 
 .search-result-sub {
   color: var(--bf-text-2);
-  font-size: var(--bf-fs-aux);
-}
-
-.search-result-sub .mono {
-  color: var(--bf-text-2);
+  font-size: var(--bf-fs-xs);
 }
 
 .search-footer {
@@ -97,5 +93,5 @@
   gap: var(--bf-sp-3);
   padding: var(--bf-sp-3) 0;
   color: var(--bf-text-2);
-  font-size: var(--bf-fs-aux);
+  font-size: var(--bf-fs-xs);
 }

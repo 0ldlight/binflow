@@ -740,7 +740,15 @@ entries:
     元素缺省容忍；[MVN-MD] schema 两者在册）。对齐方向待裁：补齐三形态（低危渲染对齐票）vs 维持
     （客户端已容忍——INTENTIONAL 需 authority）。
   authority: { type: pending, ref: "产品/conductor 裁（XML 形态：补齐对齐 vs 维持容忍缺省）" }
-  review_gate: 已入 pending-rulings v2.3（R-20 席位，L016-3 升格入包——零取证前置）；裁对齐则 maven 计算器渲染面三处补齐+差分复跑
+  review_gate: 已入 pending-rulings v2.3（R-20 席位）——**L022-1 终裁收口（conductor）**：对齐实现落地，mvn 全容忍背景不再需要裁定
+  resolved:
+    date: '2026-09-14'
+    evidence: >-
+      T-L021-3 ②（uat-l0213-b906e7cd × :8082 重放）：三形态全补齐——metadataXML 加 modelVersion="1.1.0"
+      属性 + Version 移 versioning 之后（置尾）+ versioning 内 lastUpdated 前置（两文档族字段互斥按族
+      坍缩 A 形序）。f2a/f2b 双端 589B A 形、f2b 同秒 byte-identical（同 sha256）、scratch 渲染与 A-f2a
+      wire 逐字节相同；mvn 3.9.16 真腿 deploy×2（buildNumber 1→2 服务端算术）+ resolve（fresh m2）
+      三绿。R-20 撤席（v2.4 行同步收注）。
   evidence: reports/compatibility/L013-maven-evidence.md §0-A4/§1-3 + T-L014-2.md（26 臂表——三 UNKNOWN 之一，Risks⑦-A4 mvn 容忍新证）
 - id: maven/manual-put-metadata-visibility
   surface: 客户端手 PUT maven-metadata.xml 后的可见性窗口
@@ -751,8 +759,15 @@ entries:
     （真实 mvn 腿 E1 等价）；差异仅非 mvn 手 PUT 路径可见（运维/迁移工具面）。对齐方向待裁：BinFlow
     改事件驱动重算（保留客户端字节至触发）vs 维持同步重算（INTENTIONAL 需 authority——终态等价论）。
   authority: { type: pending, ref: "产品/conductor 裁（手 PUT 可见性：事件驱动回放 vs 同步重算）" }
-  review_gate: 已入 pending-rulings v2.3（R-21 席位，L016-3 升格入包——零取证前置）
-  evidence: reports/compatibility/L013-maven-evidence.md §0-C1/§1-4 + T-L014-2.md（26 臂表——三 UNKNOWN 之二）
+  review_gate: 已入 pending-rulings v2.3（R-21 席位）——**L022-1 终裁收口（conductor）**：snapshot 半面对齐+组目录终态等价论成立
+  resolved:
+    date: '2026-09-14'
+    evidence: >-
+      T-L021-3 ① + conductor 终裁：snapshot 半面已对齐（f1 双端 202+0B 丢弃式受理——B 原 201+840B
+      信封消灭；授权角 seam 复刻）；组目录半面维持 B 201+同步重算——终态双端同=服务端计算形
+      （L020-3 B lastUpdated 220123→220126 重算活证 + L021-3 mvn deploy×2/resolve 三绿）。
+    note: '范围收窄存证：受理窗口差（A 组目录逐字回放至下次触发 vs B 即时服务端形）client-blind——mvn 不读受理体；裁定=终态等价论成立，窗口差不立账。'
+  evidence: reports/compatibility/L013-maven-evidence.md §0-C1/§1-4 + T-L014-2.md（26 臂表）+ T-L021-3.md（①面+双端重放）
   note: >-
     L018-3 分列注记（L017-2 规格票 §1.4 新发现）：「逐字回放」观测面**仅适用版本组目录**（C1 活体臂
     即组目录）；snapshot 版本目录手 PUT metadata 在参照系**202 丢弃式受理**（字节不落盘、不触发重算，
@@ -763,6 +778,11 @@ entries:
     ②XML 渲染形态（R-20 在册）③文件 GET 404 措辞（A "File not found.; Path:" vs B "Failed to
     find the requested resource"——M1/M3 新面）——详见 #maven/version-metadata-pom-prerequisite
     resolved.note 遗留段。
+    L022-1 收口（2026-09-14，T-L021-3 ①+conductor 终裁）：**snapshot 半面已对齐**——PUT snapshot 版本目录
+    metadata 双端 202+0B 丢弃式受理（acceptDiscardedMetadata；无 CT/Location/信封、不落盘不触发重算；
+    授权角 WithAuthorizer seam 逐字节复刻——cmd 接线一行票在案）；**组目录半面维持 B 201+同步重算**——
+    终态双端同=服务端计算形（B lastUpdated=PUT 时刻重算活证；受理窗口差 client-blind：mvn deploy 不读
+    受理体、resolve 走服务端形），按终态等价论收口不立账。R-21 撤席（v2.4 行同步收注）。
 - id: maven/reference-race-metadata-loss
   surface: 并行同版本 unique snapshot 竞态的 metadata 丢失（原判「参照自丢」——L017-2 重判为参照确定性行为）
   classification: UNKNOWN
@@ -879,3 +899,14 @@ entries:
   authority: { type: pending, ref: "产品/conductor 裁（security 票：补 recurrent-failure block 自有形态 vs 维持缺位登记）" }
   review_gate: 已入 pending-rulings v2.4（R-22c 席位）——security 立票评估
   evidence: reports/compatibility/L020-auth401-maven-faces.md V5（c3 第二轮 403 瞬态+冷却复核——限流行为本身即证据）
+- id: conan/v2-ping-superset
+  surface: conan v2/ping 超集姿态（B 200+能力头 vs A 400）
+  classification: INTENTIONAL_DIFFERENCE
+  rationale: >-
+    L022-1 终裁落账（conductor_ruling）：D1 面（L018 wire v2-01a-c+v1-21b）——A 对 v2/ping 答 400
+    （replication 相关 catch-all，反编译可见），B 答 200+能力响应头（conan 2 客户端探测面直接可用）；
+    client-blind 超集（B 行为对客户端严格更优：A 400 时 conan 2 探测降级、B 恒可用）。L019 裁「不实现
+    =不裁撤超集」→ L022 终裁 INTENTIONAL 定谳。
+  authority: { type: conductor_ruling, ref: "LOOP 022 / L022-1 ③ 终裁（client-blind 超集+反编译 catch-all——B 恒优不撤）" }
+  review_gate: resolved-by-decision（维持 200+能力头；若参照后续版本改观则重开）
+  evidence: reports/compatibility/L018-conan-evidence.md（D1 臂）+ contracts/conan.yaml#conan/v2ping-posture

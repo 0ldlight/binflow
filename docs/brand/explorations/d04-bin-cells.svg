@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- D4 仓格流（Bin Cells）：圆角仓内 2x2 格位，末格化为向外的箭 = 制品离仓分发。Storage+Distribution 同框 -->
+  <title>D4 仓格流</title>
+  <rect x="5" y="5" width="38" height="38" rx="10" stroke="var(--mark-ink,#1d232c)" stroke-width="3.5"/>
+  <rect x="12" y="12" width="9.5" height="9.5" rx="2.5" fill="var(--mark-ink,#1d232c)"/>
+  <rect x="26.5" y="12" width="9.5" height="9.5" rx="2.5" fill="var(--mark-ink,#1d232c)"/>
+  <rect x="12" y="26.5" width="9.5" height="9.5" rx="2.5" fill="var(--mark-ink,#1d232c)"/>
+  <path d="M25.5 27.5 35 33 25.5 38.5Z" fill="var(--mark-accent,#3d63f2)"/>
+  <rect x="24" y="30.75" width="5" height="4.5" fill="var(--mark-accent,#3d63f2)"/>
+</svg>

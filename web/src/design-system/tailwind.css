@@ -1,0 +1,208 @@
+/*
+ * 新栈 Tailwind 入口（design-system-plan §3.0——唯一 Tailwind 入口）。
+ * 批 1 自旧 tw 两文件层迁入，@theme 桥接逐条原样（值零改动，shadcn 原语
+ * 消费面零改动——截图差分≈0 的批 1 验收前提）。
+ *
+ * - 色值唯一事实源 = ./tokens/（六族分文件，index.css 聚合）；本文件只做
+ *   @theme 桥接（--color 与 --font 与 --radius 三族 → var(--bf-*)），零
+ *   色值字面量——assert-tokens.mjs 把 tokens/ 视为 token 定义层豁免，
+ *   本文件不含字面量故无需豁免，闸对层外 CSS 的语义不降。
+ * - dark 变体绑 [data-theme="dark"]（selector 策略，非 .dark class）——
+ *   与现 ThemeProvider / localStorage 'binflow-console-theme' 的
+ *   <html data-theme> 机制零迁移成本。
+ * - @theme inline：工具类直取 var(--bf-*)，不落 --color-* 中间变量，
+ *   data-theme 整组覆盖对每个工具类即时生效。
+ * - preflight 关闭 + utilities 去层化：与旧栈 styles/{base,pages,
+ *   governance}.css 同页共存的级联纪律（旧 CSS 是未分层规则，
+ *   layer(utilities) 在级联里恒输给未分层规则——去层后按导入序取胜，
+ *   本文件在 main.tsx 最后引入）。批 5 旧 CSS 退役后评估恢复分层形态。
+ * - 批 1 新槽位（ring/状态软底/ctl/布局尺寸/motion）原只定义不消费；
+ *   批 2（布局尺寸）/批 4（状态软底、动效、radius xs/full）按消费面
+ *   逐步进桥（design-system-plan §6 分批行）；ctl 高度档仍未消费。
+ */
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css';
+@import './tokens/index.css';
+
+/* 暗色变体：跟随 <html data-theme="dark">（ADR-0029 Q2：亮色为默认主题） */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme inline {
+  /* ---- shadcn 语义色板（消费面 = components/ui primitives）---- */
+  --color-background: var(--bf-bg);
+  --color-foreground: var(--bf-text);
+  --color-card: var(--bf-surface-1);
+  --color-card-foreground: var(--bf-text);
+  --color-popover: var(--bf-surface-1);
+  --color-popover-foreground: var(--bf-text);
+  --color-primary: var(--bf-accent);
+  --color-primary-foreground: var(--bf-accent-fg);
+  --color-secondary: var(--bf-surface-2);
+  --color-secondary-foreground: var(--bf-text);
+  --color-muted: var(--bf-surface-2);
+  --color-muted-foreground: var(--bf-text-2);
+  /* shadcn 的 accent = 悬停底色语义（非品牌主色）——映射 surface-2 */
+  --color-accent: var(--bf-surface-2);
+  --color-accent-foreground: var(--bf-text);
+  --color-destructive: var(--bf-danger);
+  --color-destructive-foreground: var(--bf-danger-fg);
+  --color-border: var(--bf-border);
+  --color-input: var(--bf-border);
+  --color-ring: var(--bf-accent);
+  /* border-strong（悬停边/虚线拖拽区——批 5 deploy-drop 等价替换消费缝） */
+  --color-border-strong: var(--bf-border-strong);
+
+  /* ---- 状态色（BinFlow 自有：徽章/状态灯消费面）---- */
+  --color-success: var(--bf-success);
+  --color-success-foreground: var(--bf-surface-1);
+  --color-warning: var(--bf-warning);
+  --color-warning-foreground: var(--bf-surface-1);
+  --color-info: var(--bf-info);
+  --color-info-foreground: var(--bf-surface-1);
+
+  /* ---- 状态软底（批 4 状态矩阵消费缝：软底徽章/alert/toast 底——
+   * §3.1 只定义不消费的槽位自此进桥；danger 经 shadcn 语义名 destructive）---- */
+  --color-success-surface: var(--bf-success-surface);
+  --color-warning-surface: var(--bf-warning-surface);
+  --color-destructive-surface: var(--bf-danger-surface);
+  --color-info-surface: var(--bf-info-surface);
+
+  /* ---- 徽章 tint 配方（批 5 等价替换承载面）：旧 base.css .badge 族的
+   * color-mix 配方逐值迁入（语义色 15%/18% 透明底 + 78% 向正文色收敛的
+   * 文字——T-244 对比度家族收口值）；与批 4 软底（*-surface）并存，
+   * 收敛裁决留给批 6（design-system-plan §6）。tier 档复用 info/warning。 ---- */
+  --color-badge-info: color-mix(in srgb, var(--bf-info) 78%, var(--bf-text));
+  --color-badge-info-soft: color-mix(in srgb, var(--bf-info) 15%, transparent);
+  --color-badge-success: color-mix(in srgb, var(--bf-success) 78%, var(--bf-text));
+  --color-badge-success-soft: color-mix(in srgb, var(--bf-success) 15%, transparent);
+  --color-badge-warning: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
+  --color-badge-warning-soft: color-mix(in srgb, var(--bf-warning) 18%, transparent);
+  --color-badge-danger: color-mix(in srgb, var(--bf-danger) 78%, var(--bf-text));
+  --color-badge-danger-soft: color-mix(in srgb, var(--bf-danger) 15%, transparent);
+  /* admin 徽章 outlined 描边（security.css 批 5 退役迁入——warning 62%） */
+  --color-badge-warning-outline: color-mix(in srgb, var(--bf-warning) 62%, transparent);
+
+  /* ---- 三阶纵深 + 弱化文字（§5.1 灰阶节奏）---- */
+  --color-surface-1: var(--bf-surface-1);
+  --color-surface-2: var(--bf-surface-2);
+  --color-surface-3: var(--bf-surface-3);
+  --color-subtle: var(--bf-text-muted);
+  --color-scrim: var(--bf-scrim);
+
+  /* ---- 侧栏身份（亮色主题下同为深底，§4.1 例外语义）---- */
+  --color-sidebar: var(--bf-sidebar);
+  --color-sidebar-hover: var(--bf-sidebar-2);
+  --color-sidebar-active: var(--bf-sidebar-3);
+  --color-sidebar-border: var(--bf-sidebar-border);
+  --color-sidebar-foreground: var(--bf-sidebar-text);
+  --color-sidebar-muted-foreground: var(--bf-sidebar-text-2);
+
+  /* ---- 字体（sans 栈与 token 层同源；批 3 前置 Inter）---- */
+  --font-sans: var(--bf-font-sans);
+  --font-mono: var(--bf-mono);
+
+  /* ---- 密度字号（总令 §二十四 dense：13px 表格主档 / 12px 辅助；
+   * 经旧字号名别名解析到九级新阶，值不变）---- */
+  --text-dense: var(--bf-fs-sm);
+  --text-dense--line-height: 1.45;
+  --text-aux: var(--bf-fs-xs);
+  --text-aux--line-height: 1.4;
+  --text-form: var(--bf-fs-base);
+  --text-form--line-height: 1.5;
+  --text-h3: var(--bf-fs-md);
+  --text-h3--line-height: 1.4;
+  --text-h2: var(--bf-fs-xl);
+  --text-h2--line-height: 1.3;
+
+  /* ---- 圆角（覆盖 Tailwind 默认档为本仓 token；xs/full 批 4 进桥：
+   * tag/kbd 微圆角与 pill/开关全圆——值与 Tailwind 默认同值零漂移）---- */
+  --radius-xs: var(--bf-r-xs);
+  --radius-sm: var(--bf-r-sm);
+  --radius-md: var(--bf-r-md);
+  --radius-lg: var(--bf-r-lg);
+  --radius-full: var(--bf-r-full);
+
+  /* ---- 阴影（浮层三档）---- */
+  --shadow-flat: var(--bf-shadow-1);
+  --shadow-overlay: var(--bf-shadow-2);
+  --shadow-modal: var(--bf-shadow-3);
+
+  /* ---- 动效（批 4 消费缝：Tabs 指示/开关滑块等微交互；
+   * prefers-reduced-motion 时 tokens 层已整组降 1ms）---- */
+  --transition-duration-fast: var(--bf-dur-fast);
+  --transition-duration-base: var(--bf-dur-base);
+  --transition-duration-slow: var(--bf-dur-slow);
+  --transition-timing-function-standard: var(--bf-ease);
+
+  /* ---- 布局尺寸（§3.3 批 2 壳收编：批 1 只定义不消费的新槽位自此进
+   * 消费缝——语义类 w-sidebar / h-topbar / max-w-content 直取 token，
+   * 壳层不再出现 w-56 / h-12 / max-w-[1440px] 字面量（G4 清偿））---- */
+  --spacing-sidebar: var(--bf-sidebar-w);
+  --spacing-topbar: var(--bf-topbar-h);
+  --container-content: var(--bf-content-max);
+}
+
+/* ---- 批 6 motion 消费层（design-system-plan §3.6 / §4.2 / §6 批 6 行）：
+ * 浮层/抽屉/toast 过渡自 Tailwind 隐式 150ms 接管为 token 档。三档映射
+ * （§3.6 语义）：fade=modal 开合（dur-fast，§4.2 Dialog「dur-fast+fade」）/
+ * pop=锚定浮层（dur-base，§3.6「下拉/浮层」）/ slide=抽屉（dur-slow）。
+ * keyframes 只动 opacity / 独立 scale / 独立 translate——不碰 transform，
+ * 不与 Radix 定位类（-translate-x-1/2 等）互踩；slide 的方向经消费点的
+ * --bf-slide-from（translate 二元组）注入。prefers-reduced-motion 时
+ * tokens 层已把三档整组降 1ms——本层零特判即随之降级。 ---- */
+@keyframes bf-fade-in {
+  from { opacity: 0; }
+}
+@keyframes bf-fade-out {
+  to { opacity: 0; }
+}
+@keyframes bf-pop-in {
+  from { opacity: 0; scale: 0.97; }
+}
+@keyframes bf-pop-out {
+  to { opacity: 0; scale: 0.97; }
+}
+@keyframes bf-slide-in {
+  from { translate: var(--bf-slide-from); }
+}
+@keyframes bf-slide-out {
+  to { translate: var(--bf-slide-from); }
+}
+
+@utility anim-fade-in {
+  animation: bf-fade-in var(--bf-dur-fast) var(--bf-ease);
+}
+@utility anim-fade-out {
+  animation: bf-fade-out var(--bf-dur-fast) var(--bf-ease);
+}
+@utility anim-pop-in {
+  animation: bf-pop-in var(--bf-dur-base) var(--bf-ease);
+}
+@utility anim-pop-out {
+  animation: bf-pop-out var(--bf-dur-base) var(--bf-ease);
+}
+@utility anim-slide-in {
+  animation: bf-slide-in var(--bf-dur-slow) var(--bf-ease);
+}
+@utility anim-slide-out {
+  animation: bf-slide-out var(--bf-dur-slow) var(--bf-ease);
+}
+
+/* Toast（sonner）运动接管：sonner 运行时注入的 [data-sonner-toast] 规则
+ * 带 .4s 隐式 transition（注入点在 head 尾部——同特异度恒胜工具类），
+ * 以 attr+class 双选器抬特异度压回 token 档；transform 机制仍是 sonner
+ * 自有（--y 变量），此处只接管时长/缓动（§4.2 Toast 自动消隐 dur-slow）。 */
+[data-sonner-toast].bf-toast {
+  transition-duration: var(--bf-dur-slow);
+  transition-timing-function: var(--bf-ease);
+}
+
+/* 抽屉（vaul）运动接管：vaul 注入 [data-vaul-drawer]/[data-vaul-overlay]
+ * 规则带 .5s 隐式时长 + 自有 slide/fade keyframes（开合双态按高特异度
+ * data-state 选择器定名——animation-name 不夺，只压 duration/timing 回
+ * token 档；ui/drawer 挂的 anim-* 类即本规则的匹配钩）。 */
+[data-vaul-drawer].anim-slide-in,
+[data-vaul-overlay].anim-fade-in {
+  animation-duration: var(--bf-dur-slow);
+  animation-timing-function: var(--bf-ease);
+}

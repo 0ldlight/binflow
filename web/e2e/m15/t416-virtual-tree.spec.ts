@@ -147,7 +147,7 @@ test('virtual tree: dynamic expansion renders the member union by name (deep rec
   // 文件详情（pull 解析面经内容面元数据）：focus 选中 → 详情面板在场
   await page.click('[data-testid="tree-row-from-m1.txt"]')
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
-  await expect(page.locator('[data-testid="node-detail"] h3 .mono')).toHaveText(
+  await expect(page.locator('[data-testid="node-detail"] h3 .font-mono')).toHaveText(
     'com/acme/shared/from-m1.txt',
   )
 

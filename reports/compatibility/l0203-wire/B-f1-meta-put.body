@@ -1,0 +1,21 @@
+{
+  "uri": "http://127.0.0.1:8083/l0203-mvn-local/l0203/test/artver/1.0-SNAPSHOT/maven-metadata.xml",
+  "downloadUri": "http://127.0.0.1:8083/l0203-mvn-local/l0203/test/artver/1.0-SNAPSHOT/maven-metadata.xml",
+  "repo": "l0203-mvn-local",
+  "path": "/l0203/test/artver/1.0-SNAPSHOT/maven-metadata.xml",
+  "created": "2026-09-13T22:02:32Z",
+  "createdBy": "admin",
+  "lastModified": "2026-09-13T22:02:35Z",
+  "modifiedBy": "admin",
+  "lastUpdated": "2026-09-13T22:02:35Z",
+  "size": "589",
+  "mimeType": "application/xml",
+  "checksums": {
+    "sha1": "fb142cc2b9910086acabb9b90b70137f0f50b56c",
+    "md5": "8c9bbaa15c317c8e41411d7d47b48084",
+    "sha256": "cf46d4b90d9a15a90b5053d185a3c6405ffdcd22219a8953ff8bb26fb76429db"
+  },
+  "originalChecksums": {
+    "sha256": "cf46d4b90d9a15a90b5053d185a3c6405ffdcd22219a8953ff8bb26fb76429db"
+  }
+}

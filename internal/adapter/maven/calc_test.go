@@ -437,10 +437,12 @@ func TestCalcSyncTriggerTiming(t *testing.T) {
 	}
 }
 
-// TestCalcMetadataPutAuthoritative is v1.1's client-PUT rule: the PUT is
-// accepted (201) and the served content is recomputed from server facts —
-// a bogus version never becomes the list, a bogus buildNumber never
-// survives, and a document PUT into a pomless directory is cleaned up.
+// TestCalcMetadataPutAuthoritative pins the two client-PUT forms: the
+// MODULE document's PUT is stored and recomputed (v1.1 — a bogus version
+// never becomes the list, a document PUT into a pomless directory is
+// cleaned up), while the SNAPSHOT version document's PUT is the A-form
+// 202 discard (L020 wire f1/f2b — nothing lands, nothing recalculates,
+// the readback stays byte-identical to the pre-PUT baseline).
 func TestCalcMetadataPutAuthoritative(t *testing.T) {
 	hs := newHarness(t)
 	defer hs.waitCalc()
@@ -448,6 +450,7 @@ func TestCalcMetadataPutAuthoritative(t *testing.T) {
 	hs.seedNode("maven-local", "com/acme/demo-app/1.0.0/demo-app-1.0.0.pom", []byte("p"))
 	hs.seedNode("maven-local",
 		"com/acme/demo-app/1.2.0-SNAPSHOT/demo-app-1.2.0-20260819.162439-1.pom", []byte("p"))
+	hs.recalc("maven-local", "com.acme", "demo-app", "1.2.0-SNAPSHOT")
 
 	// module level: bogus 9.9.9 rejected by recomputation, real 1.0.0 kept.
 	bogus := []byte("<metadata><versioning><latest>9.9.9</latest><versions><version>9.9.9</version></versions></versioning></metadata>")
@@ -459,15 +462,21 @@ func TestCalcMetadataPutAuthoritative(t *testing.T) {
 		t.Fatalf("module metadata not authoritative (status %d, %s)", status, body)
 	}
 
-	// version level: bogus buildNumber 99 dropped for the file facts' 1.
+	// version level (SNAPSHOT): the A-form discard — bogus buildNumber 99
+	// never had a store path; the readback is byte-identical to the
+	// baseline the pom deploy computed (wire f2a==f2b).
 	bogusSnap := []byte("<metadata><versioning><snapshot><buildNumber>99</buildNumber></snapshot></versioning></metadata>")
+	_, snapBaseline := hs.getMeta("maven-local", "com.acme", "demo-app", "1.2.0-SNAPSHOT")
 	if resp := hs.serve(http.MethodPut,
-		"/maven-local/com/acme/demo-app/1.2.0-SNAPSHOT/maven-metadata.xml", bogusSnap, nil, true); resp.StatusCode != http.StatusCreated {
+		"/maven-local/com/acme/demo-app/1.2.0-SNAPSHOT/maven-metadata.xml", bogusSnap, nil, true); resp.StatusCode != http.StatusAccepted {
 		t.Fatalf("version metadata PUT = %d", resp.StatusCode)
 	}
-	if status, body := hs.getMeta("maven-local", "com.acme", "demo-app", "1.2.0-SNAPSHOT"); status != http.StatusOK ||
-		!strings.Contains(body, "<buildNumber>1</buildNumber>") || strings.Contains(body, "99") {
-		t.Fatalf("version metadata not authoritative (status %d, %s)", status, body)
+	status, snapAfter := hs.getMeta("maven-local", "com.acme", "demo-app", "1.2.0-SNAPSHOT")
+	if status != http.StatusOK || !strings.Contains(snapAfter, "<buildNumber>1</buildNumber>") || strings.Contains(snapAfter, "99") {
+		t.Fatalf("version metadata not authoritative (status %d, %s)", status, snapAfter)
+	}
+	if snapAfter != snapBaseline {
+		t.Fatalf("version readback drifted across the discarded PUT:\nbefore: %s\nafter:  %s", snapBaseline, snapAfter)
 	}
 
 	// pomless module: accepted, then cleaned by the same recalculation.
@@ -522,7 +531,8 @@ func TestCalcDeleteCascade(t *testing.T) {
 	}
 	hs.waitCalc()
 	_, body := hs.getMeta("maven-local", "com.acme", "demo-app", "")
-	if strings.Contains(body, "1.1.0") || !strings.Contains(body, "<version>1.0.0</version>") {
+	if strings.Contains(body, "<version>1.1.0</version>") || strings.Contains(body, "<latest>1.1.0</latest>") ||
+		!strings.Contains(body, "<version>1.0.0</version>") {
 		t.Fatalf("1.1.0 not dropped after delete: %s", body)
 	}
 

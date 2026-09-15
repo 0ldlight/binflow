@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 404,
+      "message": "Failed to find the requested resource 'l0203-mvn-local/l0203/test/nosuch/1.0-SNAPSHOT/nosuch-1.0-SNAPSHOT.jar'."
+    }
+  ]
+}

@@ -9,6 +9,8 @@
 //   能力 + checksum/mimeType 的家）。
 // - 属性页签 = PropertiesTab 懒分片（FE-P4 新栈）
 //   项（P4 重写）。
+// - 批 6 重皮（design-system-plan §4.2 ChecksumBlock★）：checksum 行走
+//   mono+tnum 档、截断+reveal、缺失「—」占位。
 // - 锚族原样：node-detail / node-tab-* / node-file-url / node-repo-*
 //   / node-downloads / node-last-downloaded(-by) / node-remote-downloads
 //   / node-perms / node-download(-menu|-panel|-verify|-checksums)
@@ -293,21 +295,28 @@ function FileDownloadActions({
                   </div>
                   {(['sha256', 'sha1', 'md5'] as const).map((algo) => {
                     const v = item.checksums?.[algo]
-                    if (!v) return null
                     const orig = item.originalChecksums?.[algo]
                     return (
                       <div className="kv mb-1 flex gap-2 text-dense" key={algo}>
                         <span className="k w-24 shrink-0 text-muted-foreground">{algo}</span>
-                        <span className="min-w-0 break-all font-mono" lang="en">
-                          {v.length > 24 ? `${v.slice(0, 20)}…${v.slice(-8)}` : v}
-                          <CopyButton value={v} label={algo} />
-                          {orig && (
-                            <span
-                              className={`checksum-badge ml-1 rounded-sm px-1 text-[11px] ${orig === v ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}
-                              title={tt('客户端上传时提供的 checksum 与服务端实际值比对')}
-                            >
-                              {tt('上传时提供：')}{orig === v ? tt('一致 ✓') : tt('不一致')}
-                            </span>
+                        {/* 缺失 checksum = 「—」占位（§4.2 ChecksumBlock★——
+                            不伪造；长哈希截断 + 点击 reveal 全值） */}
+                        <span className="min-w-0 break-all font-mono tabular-nums" lang="en">
+                          {v ? (
+                            <>
+                              <ChecksumValue value={v} />
+                              <CopyButton value={v} label={algo} />
+                              {orig && (
+                                <span
+                                  className={`checksum-badge ml-1 rounded-sm px-1 text-[11px] ${orig === v ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}
+                                  title={tt('客户端上传时提供的 checksum 与服务端实际值比对')}
+                                >
+                                  {tt('上传时提供：')}{orig === v ? tt('一致 ✓') : tt('不一致')}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            EMPTY_VALUE
                           )}
                         </span>
                       </div>
@@ -321,6 +330,30 @@ function FileDownloadActions({
         </PopoverContent>
       </Popover>
     </>
+  )
+}
+
+// ---- ChecksumBlock（§4.2 ChecksumBlock★ 批 6 重皮）：mono+tnum 档；
+// 长哈希截断呈现 + 点击 reveal 全值（显示截断、复制恒全值——CopyButton
+// 的剪贴板纪律不变）；≤24 字符原样无交互。 ----
+
+function ChecksumValue({ value }: { value: string }) {
+  const [full, setFull] = useState(false)
+  if (value.length <= 24) return <>{value}</>
+  return (
+    <button
+      type="button"
+      data-testid="checksum-reveal"
+      aria-expanded={full}
+      title={tt('点击展开/收起完整校验值')}
+      onClick={(e) => {
+        e.stopPropagation()
+        setFull((f) => !f)
+      }}
+      className="rounded-xs underline decoration-border-strong decoration-dotted underline-offset-2 hover:decoration-primary"
+    >
+      {full ? value : `${value.slice(0, 20)}…${value.slice(-8)}`}
+    </button>
   )
 }
 
@@ -356,8 +389,8 @@ function RepoGeneral({ repoKey }: { repoKey: string }) {
         <div className="kv mb-1 flex gap-2 text-dense">
           <span className="k w-36 shrink-0 text-muted-foreground">{tt('包类型')}</span>
           <span className="flex gap-1">
-            <span className="badge neutral rounded-sm bg-secondary px-1.5 py-px text-[11px]">{m.packageType}</span>
-            <span className="badge neutral rounded-sm bg-secondary px-1.5 py-px text-[11px]">{m.rclass}</span>
+            <span className="inline-flex items-center gap-1 rounded-sm bg-secondary px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-muted-foreground">{m.packageType}</span>
+            <span className="inline-flex items-center gap-1 rounded-sm bg-secondary px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-muted-foreground">{m.rclass}</span>
           </span>
         </div>
         <div className="kv mb-1 flex gap-2 text-dense">
@@ -526,7 +559,7 @@ function NodeGeneral({
               {node.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="badge neutral rounded-sm bg-secondary px-1.5 py-px text-[11px]"
+                  className="inline-flex items-center gap-1 rounded-sm bg-secondary px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-muted-foreground"
                   data-testid={`tag-badge-${tag}`}
                   title={`tag: ${tag}`}
                 >

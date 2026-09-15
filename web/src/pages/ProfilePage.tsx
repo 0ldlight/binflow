@@ -17,7 +17,8 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@/app/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { AlertBox, Badge } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
+import { AlertBox } from '@/components/layout/bits'
 import { CopyButton } from '@/components/layout/copy-button'
 import { TextInput, NativeSelect } from '@/components/layout/fields'
 import { toast } from '@/lib/toast'
@@ -359,7 +360,7 @@ function GenerateTokenDialog({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Badge mono lang="en">api:*</Badge>
+                <Badge variant="tint-neutral" mono lang="en">api:*</Badge>
                 <span className="text-aux text-muted-foreground">{t('scope 固定（只读说明）：令牌携带本人全部权限——scope 参数仅经校验、不收窄权限域')}</span>
               </div>
               <div className="border-t border-border" />
@@ -391,7 +392,7 @@ function IdentityTokenSection() {
   return (
     <section className="card section" data-testid="profile-token">
       <h3 className="mb-2 text-dense font-semibold">{t('Identity Token · 自助签发')}</h3>
-      <p className="text-2">
+      <p className="text-muted-foreground">
         {t('CI 与脚本请使用 Identity Token——本页直接为自己签发（B-1.8：不再指到管理面）。 明文仅生成时展示一次，关闭后不可再取（服务端只存指纹）；实例开启 step-up 时非 admin 需二次口令。吊销与代人签发属管理面（')}
         <Link to="/admin/security/tokens" data-testid="profile-token-goto" className="text-primary underline underline-offset-2">
           {t('Access Tokens 页')}

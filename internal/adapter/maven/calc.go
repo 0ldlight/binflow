@@ -10,11 +10,13 @@ package maven
 //     asynchronously; a pom additionally recalculates the grandparent
 //     (module) directory asynchronously and non-recursively; deletes
 //     recalculate the affected directory trees of both sides
-//     asynchronously; a client maven-metadata.xml PUT is accepted on the
-//     generic upload chain and triggers the affected directory's
-//     recalculation (v1.1: the authoritative content is always recomputed
-//     from server storage facts, which is what makes concurrent deploys
-//     merge-equivalent instead of last-writer-wins).
+//     asynchronously. A client PUT of the SNAPSHOT version document never
+//     reaches a trigger: the acceptance is the reference's 202-discard
+//     (L020 wire f1/f2b, put.go's acceptDiscardedMetadata — nothing
+//     lands, nothing recomputes); the MODULE document's PUT keeps its
+//     synchronous recalculation trigger (v1.1: the authoritative content
+//     is always recomputed from server storage facts, which is what makes
+//     concurrent deploys merge-equivalent instead of last-writer-wins).
 //
 //   - two generators with spec-fixed content: the version-GROUP (module)
 //     document (versions = pom-bearing subdirectories, Maven order,
@@ -67,6 +69,11 @@ const metadataFileName = "maven-metadata.xml"
 // metadataMime is the stored Content-Type of a computed metadata document
 // (the .xml entry of the adapter's deterministic table).
 const metadataMime = "application/xml"
+
+// metadataModelVersion is the modelVersion attribute every rendered
+// document carries (the A-form XML shape, L020 wire f2a/f2b and the
+// L014-2 group-metadata wires: `<metadata modelVersion="1.1.0">`).
+const metadataModelVersion = "1.1.0"
 
 // metadataReadLimit bounds the RTFACT-6242 content probe (a metadata
 // document is a few KB; a hand-migrated node beyond this is treated as
@@ -217,16 +224,18 @@ func (c *calculator) afterArtifactDeploy(ctx context.Context, p *repo.Principal,
 	}
 }
 
-// afterMetadataDeploy fires the client-metadata PUT trigger (v1.1): the
-// stored client document is never the version list's source — the affected
-// directory is recomputed from storage facts, synchronously, so the 201
-// the client reads back already reflects the authoritative content (the
-// equivalent-merge semantics FR-17-AC5 asserts).
+// afterMetadataDeploy fires the client-metadata PUT trigger for the
+// MODULE (version-group) document: the stored client document is never
+// the version list's source — the affected directory is recomputed from
+// storage facts, synchronously, so the 201 the client reads back already
+// reflects the authoritative content (the equivalent-merge semantics
+// FR-17-AC5 asserts). The SNAPSHOT version document's PUT never lands
+// here (put.go's 202-discard acceptance owns that face, L020 wire f1).
 //
-// The affected directory of `X/maven-metadata.xml` is X. A -SNAPSHOT
-// spelling addresses the version document; anything else is recalculated
-// as a module (version-group) directory — a release version directory has
-// no generator, and the group recalculation's no-pom cleanup governs a
+// The affected directory of `X/maven-metadata.xml` is X. Anything that is
+// not a -SNAPSHOT-spelled last segment is recalculated as a module
+// (version-group) directory — a release version directory has no
+// generator, and the group recalculation's no-pom cleanup governs a
 // manually placed document there (ruling: the spec defines content rules
 // for version-group and SNAPSHOT directories only).
 func (c *calculator) afterMetadataDeploy(ctx context.Context, p *repo.Principal, repoKey string, l Layout) {
@@ -234,9 +243,7 @@ func (c *calculator) afterMetadataDeploy(ctx context.Context, p *repo.Principal,
 		return
 	}
 	if strings.HasSuffix(l.Module, snapshotSuffix) {
-		org, module := splitDottedLast(l.OrgPath)
-		c.recalcSync(ctx, p, trigger{repoKey: repoKey, orgPath: org, module: module, version: l.Module})
-		return
+		return // the snapshot document's PUT was discarded upstream
 	}
 	c.recalcSync(ctx, p, trigger{repoKey: repoKey, orgPath: l.OrgPath, module: l.Module})
 }
@@ -316,6 +323,9 @@ func (c *calculator) recalcModule(ctx context.Context, p *repo.Principal, t trig
 	doc := metadataXML{
 		GroupID:    t.orgPath,
 		ArtifactID: t.module,
+		// The A-form tail (L014-2 a3 wire): the module document closes with
+		// `<version>` = latest, snapshots included.
+		Version: vs[len(vs)-1],
 		Versioning: versioningXML{
 			Latest:      vs[len(vs)-1],
 			Release:     lastRelease(vs),
@@ -655,21 +665,32 @@ func splitDottedLast(dotted string) (head, last string) {
 }
 
 // ---- XML shapes ([MVN-MD] metadata model; encoding/xml owns escaping) ----
+//
+// Field order is wire-visible: encoding/xml emits elements in declaration
+// order. The A-form renderings (L020 f2a/f2b snapshot documents, the
+// L014-2 a1/a3 group documents) place `<version>` LAST at the document
+// level and split the versioning block's order per family — latest,
+// release, versions, lastUpdated for the module document; lastUpdated,
+// snapshot, snapshotVersions for the SNAPSHOT version document. One struct
+// serves both because the two families' fields never coexist: with the
+// module fields first and the snapshot fields last, each family's
+// omitempty set collapses to exactly its own A-form order.
 
 type metadataXML struct {
-	XMLName    xml.Name      `xml:"metadata"`
-	GroupID    string        `xml:"groupId"`
-	ArtifactID string        `xml:"artifactId"`
-	Version    string        `xml:"version,omitempty"` // version-level documents only
-	Versioning versioningXML `xml:"versioning"`
+	XMLName      xml.Name      `xml:"metadata"`
+	ModelVersion string        `xml:"modelVersion,attr"`
+	GroupID      string        `xml:"groupId"`
+	ArtifactID   string        `xml:"artifactId"`
+	Versioning   versioningXML `xml:"versioning"`
+	Version      string        `xml:"version,omitempty"` // the A-form tail element (module: latest; version-dir: the directory spelling)
 }
 
 type versioningXML struct {
 	Latest           string               `xml:"latest,omitempty"`
 	Release          string               `xml:"release,omitempty"`
 	Versions         *versionsXML         `xml:"versions,omitempty"`
-	Snapshot         *snapshotXML         `xml:"snapshot,omitempty"`
 	LastUpdated      string               `xml:"lastUpdated,omitempty"`
+	Snapshot         *snapshotXML         `xml:"snapshot,omitempty"`
 	SnapshotVersions *snapshotVersionsXML `xml:"snapshotVersions,omitempty"`
 }
 
@@ -694,8 +715,14 @@ type snapshotVersionXML struct {
 }
 
 // renderMetadata serializes with the declaration and indentation Maven
-// clients' tooling is used to, plus a trailing newline.
+// clients' tooling is used to, plus a trailing newline. The modelVersion
+// attribute defaults to the A-form constant (a parsed member document that
+// carried none — or a foreign spelling — still renders the reference's
+// model shape).
 func renderMetadata(doc metadataXML) []byte {
+	if doc.ModelVersion == "" {
+		doc.ModelVersion = metadataModelVersion
+	}
 	var buf bytes.Buffer
 	buf.WriteString("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
 	enc := xml.NewEncoder(&buf)

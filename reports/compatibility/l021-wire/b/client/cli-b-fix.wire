@@ -1,0 +1,19 @@
+{
+ "request": "GET /binflow/l021-helm/l021chart-0.1.0.tgz.prov",
+ "req_headers": {
+  "User-Agent": "Helm/4.2.4",
+  "Authorization": "REDACTED"
+ },
+ "req_body": "0B sha256=e3b0c44298fc1c14\n",
+ "response": 200,
+ "resp_headers": {
+  "Content-Type": "text/plain; charset=utf-8",
+  "X-Checksum-Md5": "ec2fd7516558283b5abc71cdaad7c240",
+  "X-Checksum-Sha1": "deff7d2b1e3e2ddbc43d58836588750c1250d3a1",
+  "X-Checksum-Sha256": "5328fcf221d1f5b3b48a135b6c67214d3d9cd548e2a36b0df35818fbf719741b",
+  "X-Request-Id": "50acd0ddfd2fd2fbdc0264bd87f80c84",
+  "Date": "Mon, 14 Sep 2026 04:27:36 GMT"
+ },
+ "resp_body": "595B sha256=5328fcf221d1f5b3\n-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA512\n\napiVersion: v2\nappVersion: 1.16.0\ndescription: A Helm chart for Kubernetes\nname: l021chart\ntype: application\nversion: 0.1.0\n\n...\nfiles:\n  l021chart-0.1.0.tgz: sha256:b6ecbe48331b216b39c751851d3eae5425f4134cc2c6fa29ba39dbe00fd55bfc\n\n-----BEGIN PGP SIGNATURE-----\n\nwrsEARYKAG0FgmqnYewJEKjeL8ZcalKSRRQAAAAAABwAIHNhbHRAbm90YXRpb25z\nLm9wZW5wZ3Bqcy5vcmfFwhd4Zriwtg8Z5HMkj4+IxINl4Gl2Et93fzzrBJuSqhYh\nBO72XJlsvYarTCBQzKjeL8ZcalKSAAAxNQD/aSNSmRS/DRjbULmq9RESj2KRzrJK\n0uz68CydetCunnIA/ReLSNtPp1hmYeyOOTnKiNakOigMmFYhous9VlOJA7EG\n-----END PGP SIGNATURE-----"
+}
+----

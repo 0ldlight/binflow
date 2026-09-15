@@ -10,7 +10,7 @@
 // 锚族原样：status-page/status-overall/status-badge/status-version/
 // status-url/status-nodes/status-uptime-gap/status-sys(-<name>)?/
 // status-schedules/status-sched-<i>/status-refresh。
-import { Badge } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { getHealth, getSchedules } from '@/lib/api'
@@ -66,7 +66,7 @@ export default function ServiceStatusPage() {
     <div data-testid="status-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">{t('服务状态')}</h2>
-        <span className="text-aux text-2">{t('实例健康、子系统与调度服务运行面（只读）')}</span>
+        <span className="text-aux text-muted-foreground">{t('实例健康、子系统与调度服务运行面（只读）')}</span>
       </div>
 
       {health.status === 'loading' && <StateSkeleton lines={6} />}
@@ -110,7 +110,7 @@ export default function ServiceStatusPage() {
             </div>
             <div className="kv">
               <span className="k">{t('运行时长')}</span>
-              <span className="text-2" data-testid="status-uptime-gap">{t('无查询端点，不呈现')}</span>
+              <span className="text-muted-foreground" data-testid="status-uptime-gap">{t('无查询端点，不呈现')}</span>
             </div>
             <p className="field-hint mb-0">
               {t('运行时长（Uptime）无 REST 端点（health / version 均不含进程启动时间）——如实缺位不伪造； 指标抓取走根级')} <span className="font-mono" lang="en">/metrics</span>{t('（Prometheus 面，控制台不消费）。')}
@@ -172,7 +172,7 @@ export default function ServiceStatusPage() {
                             {fmtRFC3339(s.nextRun)}
                           </span>
                         ) : (
-                          <Badge>{t('已停用')}</Badge>
+                          <Badge variant="tint-neutral">{t('已停用')}</Badge>
                         )}
                       </td>
                       <td className="px-3 py-1.5">
@@ -180,7 +180,7 @@ export default function ServiceStatusPage() {
                           <>
                             <span className="font-mono" lang="en">{fmtRFC3339(s.lastRun)}</span>{' '}
                             {s.lastStatus && (
-                              <span className="text-2" lang="en" title={s.lastError || undefined}>
+                              <span className="text-muted-foreground" lang="en" title={s.lastError || undefined}>
                                 {t('（')}{s.lastStatus}{s.lastError ? t('：{v1}', { v1: s.lastError }) : ''}{t('）')}
                               </span>
                             )}

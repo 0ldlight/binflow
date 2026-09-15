@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { Button, ButtonAsChild } from '@/components/ui/button'
-import { Badge } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { getRepositories, getStorageStats } from '@/lib/api'
@@ -108,12 +108,12 @@ export default function StorageSummaryPage() {
     <div data-testid="storage-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">{tt('存储')}</h2>
-        <span className="text-aux text-2">{tt('实例存储汇总与仓库维度用量')}</span>
+        <span className="text-aux text-muted-foreground">{tt('实例存储汇总与仓库维度用量')}</span>
       </div>
 
       {/* 刷新行（reverse §3.11：last refreshed on + Refresh） */}
       <div className="storage-refresh-row flex flex-wrap items-center justify-between gap-2">
-        <span className="text-2" data-testid="storage-refreshed-at">
+        <span className="text-muted-foreground" data-testid="storage-refreshed-at">
           {tt('数据最近刷新于：')}
           <span className="font-mono" lang="en">
             {fetchedAt ? fetchedAt.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC') : '—'}
@@ -228,7 +228,7 @@ export default function StorageSummaryPage() {
                           <CopyButton value={r.key} label={tt('仓库 key {v1}', { v1: r.key })} />
                         </td>
                         <td className="px-3 py-1.5">
-                          <Badge mono lang="en">{r.type}</Badge>
+                          <Badge variant="tint-neutral" mono lang="en">{r.type}</Badge>
                         </td>
                         <td className="px-3 py-1.5" lang="en">{r.packageType}</td>
                         <td className="px-3 py-1.5 font-mono" lang="en">

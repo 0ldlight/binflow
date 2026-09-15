@@ -10,6 +10,10 @@
 //   Sort-by / Compacted·Non-Compacted / My Favorites（localStorage 键
 //   bf-tree-favorites / bf-tree-compacted 原样迁移——PREF_KEYS 契约）；
 // - 树尾常驻回收站入口（canSeeAdmin 门）。
+// - 批 6 重皮（design-system-plan §4.2 ArtifactTree★）：行态走语义类——
+//   hover=surface-2 / on-chain=surface-2 / selected=accent 左缘 2px 条 +
+//   bg-primary/10 软底 + semibold；缩进线=每祖先层级一枚 border 竖线；
+//   行内过渡 duration-fast/ease-standard（motion token 接管）。
 // - 锚族原样：tree-repo-* / tree-node-* / tree-leaf-* / tree-toolband /
 //   tree-repo-filter(-clear) / tree-favorites / tree-facet-* / tree-sort-by
 //   / tree-view-* / tree-trash-node / tree-context-menu 族。
@@ -383,7 +387,7 @@ export function TreePanel({
                 >
                   {row.kind === 'trash' ? (
                     <div
-                      className="tree-node repo-node trash-node flex cursor-pointer items-center gap-1 rounded-sm px-1.5 py-1 hover:bg-surface-2"
+                      className="tree-node repo-node trash-node flex cursor-pointer items-center gap-1 rounded-sm px-1.5 py-1 hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-ring"
                       data-testid={row.testid}
                       data-tree-row=""
                       role="treeitem"
@@ -399,9 +403,9 @@ export function TreePanel({
                     </div>
                   ) : (
                     <div
-                      className={`tree-node flex cursor-pointer items-center gap-1 rounded-sm px-1.5 py-1 ${
-                        row.onChain ? 'on-chain bg-accent' : ''
-                      }${row.selected ? ' selected bg-accent font-semibold' : ''} hover:bg-surface-2`}
+                      className={`tree-node relative flex cursor-pointer items-center gap-1 rounded-sm px-1.5 py-1 transition-colors duration-fast ease-standard ${
+                        row.selected ? 'selected bg-primary/10 font-semibold' : row.onChain ? 'on-chain bg-surface-2' : ''
+                      } hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-ring`}
                       data-testid={row.testid}
                       data-tree-row=""
                       role="treeitem"
@@ -417,6 +421,15 @@ export function TreePanel({
                       }}
                       onKeyDown={(e) => onRowKeys(e, row)}
                     >
+                      {/* 缩进线（§4.2 ArtifactTree 行态）：每个祖先层级一枚
+                          竖线（行堆叠后连成贯穿导轨）；选中左缘条 = accent
+                          2px（selected 软底 bg-primary/10 派生） */}
+                      {Array.from({ length: row.depth }, (_, i) => (
+                        <span key={i} aria-hidden="true" className="absolute inset-y-0 w-px bg-border" style={{ left: i * 14 + 6 }} />
+                      ))}
+                      {row.selected && (
+                        <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 rounded-full bg-primary" />
+                      )}
                       {row.kind === 'file' ? (
                         <span aria-hidden="true" className="twisty w-3.5" />
                       ) : (

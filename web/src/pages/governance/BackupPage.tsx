@@ -17,7 +17,8 @@ import { useState } from 'react'
 
 import { useAuth } from '@/app/AuthContext'
 import { Button } from '@/components/ui/button'
-import { AlertBox, Badge, CheckRow } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
+import { AlertBox, CheckRow } from '@/components/layout/bits'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { TextInput } from '@/components/layout/fields'
@@ -197,7 +198,7 @@ function BackupCrudCard() {
   return (
     <section className="card section" data-testid="backup-crud">
       <h3 className="mb-0.5 text-dense font-semibold">{t('定时备份')}</h3>
-      <p className="mb-2 text-dense text-2">
+      <p className="mb-2 text-dense text-muted-foreground">
         {t('cron 到点由服务端执行全实例导出（与 CLI export 同载体，产物落')}{' '}
         <span className="font-mono" lang="en">{t('&lt;server path&gt;/&lt;key&gt;-&lt;时间戳&gt;')}</span>{t('）； 与 GC / 手动 export 共用 data 目录维护锁。')}
       </p>
@@ -250,7 +251,7 @@ function BackupCrudCard() {
                           {fmtUTC(b.nextScheduleBackup)}
                         </span>
                       ) : (
-                        <Badge>{t('已停用')}</Badge>
+                        <Badge variant="tint-neutral">{t('已停用')}</Badge>
                       )}
                     </td>
                     <td className="px-3 py-1.5">
@@ -456,7 +457,7 @@ function ImportExportCard() {
   return (
     <section className="card section" data-testid="backup-cli">
       <h3>{t('导入 / 导出（CLI）')}</h3>
-      <p className="text-2">
+      <p className="text-muted-foreground">
         {t('浏览器面不提供交互式 export / import（')}<span className="font-mono" lang="en">/api/export/**</span> {t('维持 404—— ADR-0015 勘误②；import 停机高危，CLI-only）。上面的定时备份是服务端自动导出的配置面； 一次性导出与恢复走 CLI：')}
       </p>
       {BLOCKS.map((b) => (

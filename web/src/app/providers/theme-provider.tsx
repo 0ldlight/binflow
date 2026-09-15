@@ -1,7 +1,7 @@
 // ThemeProvider（新栈）：机制与旧 app/ThemeContext.tsx 同构平移——
 // <html data-theme> + localStorage 'binflow-console-theme'，首访随
 // prefers-color-scheme，默认亮色（ADR-0029 Q2 终裁）；Tailwind dark
-// 变体绑 [data-theme="dark"]（styles/tw/tailwind.css @custom-variant）
+// 变体绑 [data-theme="dark"]（design-system/tailwind.css @custom-variant）
 // ——存储约定零迁移成本。P1 仅模块就位，不接线。
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'

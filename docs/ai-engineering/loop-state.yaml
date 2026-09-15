@@ -1,9 +1,25 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-updated: 2026-09-14T06:05:00Z
-current_iteration: 021
-current_goal: "helmoci 扩章首票（六域收官）/ auth401+匿名+限流三裁定包 / maven 三小面对齐票 / 批复驱动"
+reference_environment: { relocated: 2026-09-15, http: "http://172.16.58.130:8082", version: "7.161.15", auth: "admin (凭据 env 注入)", ssh: "lzw@172.16.58.130 key-auth installed — docker ops run there", note: "旧本地容器已停；差分/probe 全指新参照；版本偏斜新记 B=7.161.15——结论标注源版本纪律不变" }
+environment_topology: {
+  corrected: "2026-09-15 用户术语纠正：UAT=uat.binflow.org；本地/dev=172.16.58.130:8083（自 Mac 迁来）",
+  uat: "https://uat.binflow.org（52.79.109.153——真 UAT，HTTPS 308 跳转，version uat.72ae611）",
+  dev: "http://172.16.58.130:8083（容器 binflow-dev〔原 binflow-uat 更名〕，镜像 uat-l0213-b906e7cd-alpine，卷 binflow-uat-data；Mac docker 工作负载已全数迁离）",
+  reference: "http://172.16.58.130:8082（Artifactory pro 7.161.15 + postgres）",
+  mac: "仅 penpot 栈 :9001 留本地 docker（用户设计工具——UI 程序依赖，Docker Desktop 因此保留运行）",
+  discipline: "docker 一律远程执行（ssh lzw@172.16.58.130）；差分/probe 指 reference+dev；UAT 环境结论以 uat.binflow.org 为准"
+}
+updated: 2026-09-15T11:2x:00Z
+current_iteration: 023
+current_goal: "程序回兼容主线：LOOP 023 批次 1 build-info 主战线（absent-roadmap 六批次之首——规格核对→实现→契约→差分全环）"
+ui_phase1_seal: "UI Phase 1 七批收官（2026-09-15）：批 0-6 全毕（基线 31 golden/token 收敛 -425 行/壳 240/64+Penpot 侧栏/Inter +48.5KB/P0 原语+styleguide 生产负证/旧 CSS 退役 grep 归零/域件+AG Grid 双谱+motion reduce 护栏）；徽章两族终裁=并存语义分工（tint 层级/soft 中性）；axe 62 面双主题 0 serious/critical；dev=dev.647a93ec；**流程资产**：design-baseline 金标门+重部署重刷纪律+双端对拍排障法（批 1 三证/批 5 返工拦截两战入册）；UI 侧余债=twMerge 字号修票+e2e 基建四项"
+ui_batch5_seal: "批 5 闭卷（2026-09-15）：旧 CSS 退役（74 改+3 删，grep 旧类名全 0，别名删）；**收编拦截 tier 徽章返工**（tint=cva 变体被裸拼 class——背景丢/T-441 对比度债复发/字号缩；返工后六属性逐字相等+0px+axe 0）；status 活体指标入动态面预算清单；候裁=tint×软底两族徽章收敛（批 6）+twMerge 吞字号类修票；dev=dev.96b20cbe 两轮稳；commits 1d553c90/96b20cbe"
+ui_batch4_seal: "批 4 闭卷（2026-09-15）：四缺件 shadcn 再生+七态补全+styleguide 构建态门控（生产负证）；空态重皮致 search 5.4kpx 合法翻新（bbox=EmptyState 区）两轮稳；console 1,017,692B；dev=dev.a22a4aa4；commits 70c0ffad/a22a4aa4"
+ui_batch3_seal: "批 3 闭卷（2026-09-15）：Inter latin 48,288B gzip 上线（console-size +48.5KB ≤50KB 预算腿）；body font-family 悬空洞顺手补（FE-P4 遗留）；tabular-nums 两范式；zh/en 像素证据+R6 关闭（零 latin-ext 字符）；e2e 字体责任零（失败集对照仅 1 并行 flake——54 共同失败=pro 租约毒化存量债留证）；dev=dev.a0db311e golden 29 张翻新两轮稳+Inter 活体验证；commits a0db311e"
+ui_batch2_seal: "批 2+seed 债双票闭卷（2026-09-15）：壳布局 token 消费（240/64/1440 桥接语义类）+侧栏 Penpot 重皮+sp 节奏；shell-layout.spec 三腿新腿；dev=dev.2534b634 golden 翻新两轮稳（sidebar 240 实测）；seed-m{8,9,10} ensureRepo GET-first（ADR-0050）+listFolders=1 第二债顺手清；spec 内 ~20 处 PUT-as-replace 遗留候小票；commits 39f72ccf/2534b634"
+ui_batch1_seal: "批 1 闭卷（2026-09-15）：token 六族迁 src/design-system + 旧双层删（-425 行 grep 零断链）+ 消费面零改动（别名）+ 新槽位只定义不消费；四门+两断言绿；explorer 漂移三证排解（值映射/计算样式/同刻渲染——旧 bundle 同败=golden 随实例重启陈化，非代码）；基线重刷纪律入 README（镜像重部署→必重刷）；dev 升 dev.2f70018a（交叉编译+远程换二进制——remote docker.io DNS 污染零拉取路径）；新债=seed-m8 ADR-0050 漂移修票；commits 2f70018a"
+ui_batch0_seal: "批 0 闭卷（2026-09-15）：31 golden（15 页×亮暗+登录）落 web/e2e/design-baseline.spec.ts-snapshots（embed 只吞 dist 不进二进制）；axe 双主题现值 4 ids 全 moderate/minor（page-has-heading-one ×10 页=批 4 候选）；动态面三处 mask/预算（审计卡/字节计数/lastLogin）；连续两轮差分绿；dev 实例种子（demo-local/remote/virtual+dev-baseline 用户+qa-baseline 组——勿清卷）；commit 1335868d"
 loop_016_tracks:
   - { id: L016-2, domain: npm-deep, owner: dev-registry-adapter, what: "✅ ghost 守卫改 tarball 路径冲突语义（403 逐字+不入索引+latest 不劫持——G1 三臂双端复验）；attachmentTarballPath 段安全；T-261 face-4 翻面；契约第三批 publish-ghost-guard VERIFIED；commit 8bf07b61；Next=crafted 文档门槛二分票（G4 素材备）", status: done }
   - { id: L016-1, domain: pypi-protocol, owner: differential-qa-engineer, what: "pypi simple 扩章首票前段：probe 补真实 pip/twine 腿+无效 wheel 三态矩阵+302 形态/legacy API 决策取证 → pypi.yaml 契约首文件（simple 面：锚点属性集/链接模板/索引即时性裁定）" }
@@ -29,6 +45,13 @@ loop_021_tracks:
   - { id: L021-1, domain: helmoci-protocol, owner: differential-qa-engineer, what: "helmoci 扩章首票（六域收官）：index.yaml 计算面 probe（helm CLI 真腿——chart 上传/index 生成/provenance）→ helmoci.yaml 契约（预估 3-5 条目闭环）" }
   - { id: L021-2, domain: rulings-pack, owner: product-manager, what: "三裁定包：auth401 措辞族+匿名读策略（ADR-0009 复核）+登录限流（security 面并入 R-18 或独立）——pending-rulings v2.4 增席" }
   - { id: L021-3, domain: maven-faces, owner: dev-registry-adapter, what: "maven 三小面对齐票：受理码 202 丢弃式/XML 渲染形态/文件 404 措辞——client-blind 收尾（裁定素材已备——若无裁定则按参照对齐实现）" }
+loop_022_tracks:
+  - { id: L022-1, domain: ledger-close, owner: compatibility-engineer, what: "翻绿落账：R-20 XML 形态 resolved+R-21 收窄至组目录半面（L021-3 复验证据）+ helmoci D2/D3 裁定素材补 + conan D1 ping INTENTIONAL 终裁落账" }
+  - { id: L022-2, domain: absent-assess, owner: compatibility-engineer, what: "matrix absent 面攻坚评估：78 行 ❌ 按 D 域分组+证据厚薄+实现缺口三轴排优先序（P1 35/P2 43——产攻坚路线图一页可裁）" }
+  - { id: L022-3, domain: docs-followup, owner: tech-writer, what: "whats-new 破坏性公告（PUT create-only 对 repeat-PUT 脚本）+ openapi 生成器 storageList 七参条目+repositories 语义更新" }
+  - { id: L022-4, domain: wiring-fix, owner: conductor, what: "WithAuthorizer 接线一行（cmd/binflow-server/main.go:410——写 ACL 到 maven metadata 面）+ helmoci 三规格勘误转 reverse-engineer" }
+iteration_022_seal: "四轨全收；R-20/R-21 resolved（v2.4 余 21 席）+conan v2ping 终裁+absent-roadmap 六批次+WithAuthorizer 接线+whats-new/openapi；commits 37204895/5acac562/7b94fd33"
+iteration_021_seal: "四轨全收（Docker 第八僵死自愈）；helmoci 六域收官（七契约 87 条目）；v2.4 整包 23 席位；maven 三小面+文档追平（用户指令）；commits b906e7cd/d1a15995/97032706/d99f356a"
 iteration_020_seal: "双轨全收（Docker 第七僵死自愈）；goproxy 终态 3V+1I+pom resolved+helmoci 六域确认；auth401 族两新面（匿名读/登录限流）；commits 532e4260/1bd93d70"
 iteration_019_seal: "双轨全收（Docker 第六僵死自愈）；conan 三面+maven pom 前置实现（复验全 SAME）+goproxy 首活体+conan PUT 首证；conan 契约 14V；commits 47f37739/1915dbe7"
 iteration_018_seal: "三轨全收（Docker 第五僵死+Push Protection 双事件善后）；conan 11V 开局+goproxy 4+C3 闭环；契约六域 77 条目；台账 47 resolved 28；commits 598ce6ec/2151390d/31143ff8"
@@ -58,6 +81,7 @@ loop_013_tracks:
   - { id: L013-3, domain: penpot-pro-screens, owner: dev-frontend, what: "21 Pro 屏补拍：造数（builds/lifecycle/release-bundles/scim/vault——audit-probe 前缀用后删净）→ capture 块链 → spec 重建 → 重注入（全管线自动化 6 分钟）" }
   - { id: L013-4, domain: maven-protocol, owner: differential-qa-engineer, what: "maven 元数据计算票（扩章次票——评估案：纯 REST 无客户端腿负担、错误文案已逐字——D12-R08 ◐ 锚）" }
   - { id: L013-5, domain: rulings, owner: conductor, what: "R-15 预授权探针（§4-4 c/d 臂——出证即选案）；Penpot 残留清理候用户授权（红线）" }
+user_directate_uiux: { at: 2026-09-14T20:3x, what: "用户新宪章：UI/UX 现代化阶段（20 节）——Artifactory UX 心智+Penpot 设计哲学+Linear 打磨+Binflow 品牌识别。对账=Phase 0 discovery 大部已备（22 轮兼容程序）；真新增=品牌系统（B-1 dev-frontend 10+ 方向→brand/*.svg）/Discovery 归档整合（B-2 reverse-engineer 三目录+ui-parity-matrix 六列格式）/设计系统方案（B-3 architect design-system-plan）。Phase 1 Core UI Foundation 三线回报后开工。视觉方向：禁 JFrog 橙/Inter 字阶/240px+64px/token 六族/亮暗双谱" }
 user_directive_penpot: { at: 2026-09-13T00:1x, sealed: 2026-09-12T19:47Z, what: "✅ Penpot 工程首批交付（A→D 全管线）：爬取器（68+截图/token 六面/nav 树）→ spec 73 板/70 图 → 插件注入（uploadMediaData 正道）52s → MCP a11y 终验十页全在册（file-id=2109e8e8-…-a10cd4b6d37d）。commits 680bc134/f3bb1a61/8936f258。**遗留**：21 屏未捕（Pro 深页需造数）+11 弹窗 gap（人工走查票）+Penpot 账号残留清理待用户定夺（2 空项目+4 重试画布）+ref 内存天花板（与 Penpot 栈共存时 OOM 风险——错峰纪律）" }
 loop_012_tracks:
   - { id: L012-2b, domain: npm-protocol, owner: dev-registry-adapter, what: "✅ 实现落地：D2 读时重算（absent 才补/present 永不覆盖/纯读投影）/D6 bulk 405/D7 Cache-Control/D5 400 中性/D3-D4 文案；**20 格零未裁定 drift**（基线 8 实差）；CLI 15 用例同退出码向量；**参照自证 quirk**：add 后立即 rm 报 not-a-dist-tag=参照自身陈旧窗行为；遗留=packument 面 latest 重算未裁定（测试钉住现状）；**跨包回归发现**：L008-1b ADR-0050 扫荡漏 adapter/helm+t329de 与 rpm 两测试（第四例跨包半径）→返工中；D12-R05 可翻✅+K60 群零补证转写建议在案；**跨包尾巴已修+全树 14 包绿→commit 17ed328b（含 npm 实现+测试修）**", status: done }
@@ -176,6 +200,6 @@ p1_gaps: 50
 p2_gaps: 65
 unknown_count: 118        # docs/compatibility/unknown.yaml（110+L000-A 8 条）
 divergence_count: "known-divergence.yaml 四分类台账（Phase 0 未动）"
-uat_status: "up（:8083 = uat-59f33ab5，healthy；L000-D 出证 + conductor 亲验）"
+uat_status: "UAT=https://uat.binflow.org（uat.72ae611 活体验讫 healthz/version 200）；dev=172.16.58.130:8083 binflow-dev healthy（原 Mac :8083 迁来——Mac docker 工作负载清零，唯 penpot 留守）"
 ci_status: "unknown（59f33ab5 推送后未验）"
 next_gap: "LOOP 001 由 L000-B 差分 DIVERGENT + 主账 partial 11 行 P0 面驱动"

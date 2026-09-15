@@ -14,7 +14,8 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { useAuth } from '@/app/AuthContext'
-import { Badge, CheckRow } from '@/components/layout/bits'
+import { Badge } from '@/components/ui/badge'
+import { CheckRow } from '@/components/layout/bits'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { toast } from '@/lib/toast'
@@ -82,11 +83,11 @@ function targetState(t: ReplicationTargetStatus): { label: string; dot: string }
 
 /** 任务状态 → badge 色（值原样呈现不翻译——排障要比对 API） */
 const TASK_BADGE: Record<string, string> = {
-  pending: 'warning',
-  in_progress: 'warning',
-  success: 'success',
-  failed: 'danger',
-  skipped: 'neutral',
+  pending: 'tint-warning',
+  in_progress: 'tint-warning',
+  success: 'tint-success',
+  failed: 'tint-danger',
+  skipped: 'tint-neutral',
 }
 
 /** digest 展示可截断，拷贝复制完整值（§7.3） */
@@ -216,7 +217,7 @@ function ReplicationBody({
                           <>
                             <span className="font-mono" lang="en">{cron.cron_exp}</span>
                             <br />
-                            <span className="text-2" title={cron.next_schedule_sync}>
+                            <span className="text-muted-foreground" title={cron.next_schedule_sync}>
                               {cron.enabled && cron.next_schedule_sync
                                 ? tt('下次 {v1}', { v1: cron.next_schedule_sync.replace('T', ' ').replace(/(\.\d+)?Z$/, ' UTC') })
                                 : cron.enabled
@@ -281,11 +282,11 @@ function ReplicationBody({
                   const artifact = repo ? `${repo}/${ev.node_path}` : ev.node_path
                   return (
                     <tr key={ev.id} data-testid={`repl-event-${i}`} className="border-b border-border/60 hover:bg-accent">
-                      <td className="px-3 py-1.5 font-mono audit-time" title={ev.created_at}>
+                      <td className="px-3 py-1.5 font-mono whitespace-nowrap" title={ev.created_at}>
                         {formatAuditTime(ev.created_at)}
                       </td>
                       <td className="px-3 py-1.5">
-                        <Badge variant={(TASK_BADGE[ev.status] ?? 'neutral') as 'success' | 'warning' | 'danger' | 'neutral'} mono lang="en">
+                        <Badge variant={(TASK_BADGE[ev.status] ?? 'tint-neutral') as 'tint-success' | 'tint-warning' | 'tint-danger' | 'tint-neutral'} mono lang="en">
                           {ev.status}
                         </Badge>
                       </td>
@@ -344,7 +345,7 @@ export default function ReplicationPage() {
     <div data-testid="repl-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">{tt('复制')}</h2>
-        <span className="text-aux text-2">{tt('单向 push：源仓库 → 目标实例（ADR-0021）——事件轨 + 可选定时全量双轨')}</span>
+        <span className="text-aux text-muted-foreground">{tt('单向 push：源仓库 → 目标实例（ADR-0021）——事件轨 + 可选定时全量双轨')}</span>
       </div>
 
       {loading && <StateSkeleton lines={8} />}
