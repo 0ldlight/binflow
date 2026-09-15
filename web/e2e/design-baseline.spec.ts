@@ -55,7 +55,8 @@ const ROUTES: Array<{
   { name: 'audit', path: '/binflow/ui/admin/governance/audit', maxDiffPixels: 4000 },
   // 存储页字节计数器随测试活动滚动（~40px 数字位）
   { name: 'storage', path: '/binflow/ui/admin/monitoring/storage', maxDiffPixels: 2_000 },
-  { name: 'status', path: '/binflow/ui/admin/monitoring/status' },
+  // 服务状态页活体指标（uptime/内存）随实例重启与时间滚动
+  { name: 'status', path: '/binflow/ui/admin/monitoring/status', maxDiffPixels: 1_500 },
 ]
 
 const THEMES = ['light', 'dark'] as const
