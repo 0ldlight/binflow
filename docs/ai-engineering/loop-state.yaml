@@ -7,8 +7,8 @@ environment_topology: {
   uat: "https://uat.binflow.org（52.79.109.153——真 UAT，HTTPS 308 跳转，version uat.72ae611）",
   dev: "http://172.16.58.130:8083（容器 binflow-dev〔原 binflow-uat 更名〕，镜像 uat-l0213-b906e7cd-alpine，卷 binflow-uat-data；Mac docker 工作负载已全数迁离）",
   reference: "http://172.16.58.130:8082（Artifactory pro 7.161.15 + postgres）",
-  mac: "仅 penpot 栈 :9001 留本地 docker（用户设计工具——UI 程序依赖，Docker Desktop 因此保留运行）",
-  discipline: "docker 一律远程执行（ssh lzw@172.16.58.130）；差分/probe 指 reference+dev；UAT 环境结论以 uat.binflow.org 为准"
+  mac: "仅 penpot 栈 :9001 留本地 docker（用户设计工具——**不碰不动；本地 Docker Desktop 不允许擅自启动〔2026-09-15 加硬指令〕**）",
+  discipline: "docker 一律远程执行（ssh lzw@172.16.58.130）——本地 docker 禁用；构建走本机交叉编译+远程换二进制（零拉取）；差分/probe 指 reference+dev；UAT 环境结论以 uat.binflow.org 为准"
 }
 updated: 2026-09-15T22:0x:00Z
 current_iteration: 024
