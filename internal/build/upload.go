@@ -71,6 +71,108 @@ func NormalizeStarted(s string) (string, error) {
 		s, ErrInvalidBuildInfo)
 }
 
+// StartedFormatMessage renders the reference's joda-family timestamp
+// parse failure for one `started` literal (diff §10.2, both the GET query
+// and PUT body faces): a FORMAT break answers `Invalid format: "<text>"`
+// — with ` is malformed at "<tail>"` when a prefix parsed, clause-less at
+// a position-0 break — and a RANGE violation (the layout matched, the
+// calendar values did not) switches families to `Cannot parse "<text>":
+// Value <n> for <field> must be in the range [<min>,<max>]` with the joda
+// field literals (monthOfYear, dayOfMonth — month-aware —, hourOfDay,
+// minuteOfHour, secondOfMinute, evaluated chronologically).
+func StartedFormatMessage(input string) string {
+	if rest, broke := startedLayoutBreak(input); broke {
+		if len(rest) == len(input) {
+			return fmt.Sprintf("Invalid format: %q", input)
+		}
+		return fmt.Sprintf("Invalid format: %q is malformed at %q", input, rest)
+	}
+	if field, val, lo, hi := startedRangeBreak(input); field != "" {
+		return fmt.Sprintf("Cannot parse %q: Value %d for %s must be in the range [%d,%d]",
+			input, val, field, lo, hi)
+	}
+	// Neither family fired on a value the strict parser rejects (an
+	// exotic offset spelling, say): the clause-less form is the fallback.
+	return fmt.Sprintf("Invalid format: %q", input)
+}
+
+// startedLayoutBreak walks the canonical yyyy-MM-dd'T'HH:mm:ss[.fff…]<offset>
+// skeleton. broke reports a character-class mismatch; rest is the input
+// from the break position (== the whole input at a position-0 break).
+func startedLayoutBreak(input string) (rest string, broke bool) {
+	const skeleton = "0000-00-00T00:00:00"
+	i := 0
+	for ; i < len(skeleton) && i < len(input); i++ {
+		wantDigit := skeleton[i] == '0'
+		isDigit := input[i] >= '0' && input[i] <= '9'
+		if wantDigit {
+			if !isDigit {
+				return input[i:], true
+			}
+			continue
+		}
+		if input[i] != skeleton[i] {
+			return input[i:], true
+		}
+	}
+	if i >= len(input) {
+		return "", true // ran out mid-skeleton
+	}
+	if input[i] == '.' {
+		i++
+		for i < len(input) && input[i] >= '0' && input[i] <= '9' {
+			i++
+		}
+		if i >= len(input) {
+			return "", true
+		}
+	}
+	switch input[i] {
+	case 'Z', 'z', '+', '-':
+		return "", false
+	}
+	return input[i:], true
+}
+
+// startedRangeBreak evaluates the calendar ranges once the layout walked
+// clean, chronologically, with joda's field literals and month-aware day
+// bound. Empty field = no violation found.
+func startedRangeBreak(input string) (field string, val, lo, hi int) {
+	digits := func(at, n int) int {
+		v := 0
+		for _, c := range input[at : at+n] {
+			v = v*10 + int(c-'0')
+		}
+		return v
+	}
+	year := digits(0, 4)
+	month := digits(5, 2)
+	day := digits(8, 2)
+	hour := digits(11, 2)
+	minute := digits(14, 2)
+	second := digits(17, 2)
+	if month < 1 || month > 12 {
+		return "monthOfYear", month, 1, 12 //nolint:gochecknoglobals // literal bounds
+	}
+	days := []int{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+	if year%4 == 0 && (year%100 != 0 || year%400 == 0) {
+		days[1] = 29
+	}
+	if day < 1 || day > days[month-1] {
+		return "dayOfMonth", day, 1, days[month-1]
+	}
+	if hour > 23 {
+		return "hourOfDay", hour, 0, 23
+	}
+	if minute > 59 {
+		return "minuteOfHour", minute, 0, 59
+	}
+	if second > 59 {
+		return "secondOfMinute", second, 0, 59
+	}
+	return "", 0, 0, 0
+}
+
 // Info is the INTERPRETED subset of a build info document: the fields the
 // service reads, validates and normalizes into the 024 tables. Every other
 // wire field (buildAgent, agent, vcs, licenseControl, issues, url,
@@ -329,7 +431,9 @@ func (s *Service) Upload(ctx context.Context, p *Principal, raw []byte, buildRep
 	}
 	started, err := NormalizeStarted(info.Started)
 	if err != nil {
-		return nil, err
+		// Diff §10.2 p2/p5: the PUT face rides the SAME joda-family
+		// wording as the GET face — clean sentence, no wrap suffix.
+		return nil, &WireError{msg: StartedFormatMessage(info.Started), sentinel: ErrInvalidBuildInfo}
 	}
 	c.Started = started
 

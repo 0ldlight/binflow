@@ -85,6 +85,71 @@ func TestBuildQueryEmptySetKeysOmitted(t *testing.T) {
 	}
 }
 
+// TestStartedJodaFamilyAndPropertiesOmission (ticket L023-2J, diff
+// §10.1/§10.2): the PUT body started gate rides the shared joda-family
+// wording (format + range families), the GET range arm matches, and a
+// build without properties OMITS the key.
+func TestStartedJodaFamilyAndPropertiesOmission(t *testing.T) {
+	h := newBuildHarness(t)
+
+	// PUT p2: a position-0 unparseable literal — the clause-less form,
+	// clean of every wrap suffix.
+	code, body, _ := putBuildJSON(t, h,
+		`{"name":"j-app","number":"1","started":"xyz"}`)
+	var put1 struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if code != http.StatusBadRequest || json.Unmarshal([]byte(body), &put1) != nil ||
+		len(put1.Errors) != 1 || put1.Errors[0].Message != `Invalid format: "xyz"` {
+		t.Fatalf("PUT xyz = %d %s, want the clean clause-less sentence", code, body)
+	}
+
+	// PUT p5: a range violation — the Cannot-parse family, joda literals.
+	code, body, _ = putBuildJSON(t, h,
+		`{"name":"j-app","number":"1","started":"2026-13-45T99:99:99.999+0000"}`)
+	var put2 struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if code != http.StatusBadRequest || json.Unmarshal([]byte(body), &put2) != nil ||
+		len(put2.Errors) != 1 || put2.Errors[0].Message !=
+		`Cannot parse "2026-13-45T99:99:99.999+0000": Value 13 for monthOfYear must be in the range [1,12]` {
+		t.Fatalf("PUT range = %d %s, want the Cannot-parse family verbatim", code, body)
+	}
+
+	// GET p4a: the same family on the query face (B's `is malformed at
+	// ""` drift is voided).
+	if code, _, _ := putBuildJSON(t, h, buildRESTDoc); code != http.StatusNoContent {
+		t.Fatalf("seed = %d", code)
+	}
+	resp, doc := getBuild(t, h, "/binflow/api/build/pub-app/51?started=2026-13-45T99:99:99.999%2B0000", adminUser, adminPass)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("GET range = %d %s, want 400", resp.StatusCode, doc)
+	}
+	var got struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if json.Unmarshal([]byte(doc), &got) != nil || len(got.Errors) != 1 || got.Errors[0].Message !=
+		`Cannot parse "2026-13-45T99:99:99.999+0000": Value 13 for monthOfYear must be in the range [1,12]` {
+		t.Fatalf("GET range body = %s, want the Cannot-parse family verbatim", doc)
+	}
+
+	// §10.1: a build without properties OMITS the key (never {}).
+	if code, _, _ := putBuildJSON(t, h,
+		`{"name":"j-app","number":"2","started":"2026-09-15T10:00:00.000+0000"}`); code != http.StatusNoContent {
+		t.Fatalf("no-props seed = %d", code)
+	}
+	_, detail := getBuild(t, h, "/binflow/api/build/j-app/2", adminUser, adminPass)
+	if strings.Contains(detail, `"properties"`) {
+		t.Fatalf("no-props build must OMIT the properties key: %s", detail)
+	}
+}
+
 // TestBuildQueryDetailEchoesOriginalTimezone: §11.3's split — the list
 // faces echo the UTC-normalized literal while the DETAIL face echoes the
 // payload's original timezone verbatim (a +0800 upload echoes +0800).

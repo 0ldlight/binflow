@@ -303,10 +303,10 @@ func (s *Server) handleBuildGet(w http.ResponseWriter, r *http.Request, name, nu
 	}
 	startedLit := q.Get("started")
 	if startedLit != "" {
-		// The read-side gate first (a malformed literal answers diff D7's
-		// verbatim 400 before any lookup).
+		// The read-side gate first (a malformed literal answers the shared
+		// joda-family 400 before any lookup — diff §10.2's GET arms).
 		if _, err := build.NormalizeStarted(startedLit); err != nil {
-			writeError(w, http.StatusBadRequest, invalidFormatMessage(startedLit))
+			writeError(w, http.StatusBadRequest, build.StartedFormatMessage(startedLit))
 			return
 		}
 	}
@@ -335,64 +335,6 @@ func (s *Server) handleBuildGet(w http.ResponseWriter, r *http.Request, name, nu
 		"uri":       buildFamilyURI(r, detail.Build.Repo, "/"+url.PathEscape(name)+"/"+url.PathEscape(number)),
 		"buildInfo": s.renderBuildInfo(detail, slimBuildQuery(q)),
 	})
-}
-
-// invalidFormatMessage renders diff D7's verbatim 400 — the reference's
-// DateTimeFormatter failure shape: `Invalid format: "<input>" is malformed
-// at "<rest>"`, where <rest> is the input from the first position the
-// canonical layout stops matching. The longest matching prefix is found by
-// a simple layout walk (the anchor sample: "…​.000 0000" → rest " 0000").
-func invalidFormatMessage(input string) string {
-	rest := malformedAt(input)
-	if len(rest) == len(input) {
-		// A position-0 failure carries NO malformed-at clause (the Java
-		// parser emits none when zero prefix parsed — the live probe's
-		// `Invalid format: "xyz"` shape, diff §9.3 观察一).
-		return fmt.Sprintf("Invalid format: %q", input)
-	}
-	return fmt.Sprintf("Invalid format: %q is malformed at %q", input, rest)
-}
-
-// malformedAt returns the input from the first position the canonical
-// yyyy-MM-dd'T'HH:mm:ss[.SSS…]<offset> prefix walk breaks ("" when the
-// whole input plausibly continues — the caller's message then names the
-// empty remainder, same as the reference's positional read).
-func malformedAt(input string) string {
-	// Fixed skeleton: digits and separators the canonical layout pins.
-	const skeleton = "0000-00-00T00:00:00"
-	i := 0
-	for ; i < len(skeleton) && i < len(input); i++ {
-		wantDigit := skeleton[i] == '0'
-		isDigit := input[i] >= '0' && input[i] <= '9'
-		if wantDigit {
-			if !isDigit {
-				return input[i:]
-			}
-			continue
-		}
-		if input[i] != skeleton[i] {
-			return input[i:]
-		}
-	}
-	if i >= len(input) {
-		return "" // ran out mid-skeleton — malformed at the (empty) end
-	}
-	// The fraction: '.' followed by digits.
-	if input[i] == '.' {
-		i++
-		for i < len(input) && input[i] >= '0' && input[i] <= '9' {
-			i++
-		}
-		if i >= len(input) {
-			return ""
-		}
-	}
-	// The offset: Z/z or ±hh[:]mm — anything else is the break point.
-	switch input[i] {
-	case 'Z', 'z', '+', '-':
-		return ""
-	}
-	return input[i:]
 }
 
 // slimBuildQuery parses the ?slim= flag (true/1 — anything else or absent
@@ -817,11 +759,17 @@ func (s *Server) renderBuildInfo(d *build.Detail, slim bool) map[string]any {
 		} else {
 			doc["modules"] = renderBuildModules(d.Modules)
 		}
-		props := make(map[string]any, len(d.Properties))
-		for _, p := range d.Properties {
-			props[p.Name] = p.Value
+		if len(d.Properties) == 0 {
+			// Diff §10.1 (the R3 single face): a build without properties
+			// OMITS the key — the empty map never materializes.
+			delete(doc, "properties")
+		} else {
+			props := make(map[string]any, len(d.Properties))
+			for _, p := range d.Properties {
+				props[p.Name] = p.Value
+			}
+			doc["properties"] = props
 		}
-		doc["properties"] = props
 	}
 	if _, ok := doc["durationMillis"]; !ok {
 		doc["durationMillis"] = 0 // §3.1's default echo

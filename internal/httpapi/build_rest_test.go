@@ -369,7 +369,7 @@ func TestBuildRESTErrorSurface(t *testing.T) {
 		{"missing name", http.MethodPut, "/binflow/api/build",
 			`{"number": "1", "started": "2026-09-07T10:00:00Z"}`, 400, "build name is empty"},
 		{"bad started", http.MethodPut, "/binflow/api/build",
-			`{"name": "pub-app", "number": "1", "started": "soon"}`, 400, "must be an ISO8601 timestamp"},
+			`{"name": "pub-app", "number": "1", "started": "soon"}`, 400, `Invalid format: \"soon\"`},
 		{"append non-array body", http.MethodPost, "/binflow/api/build/append/pub-app/51",
 			`{"id": "m"}`, 400, "not a JSON array of modules"},
 		{"append missing parent", http.MethodPost, "/binflow/api/build/append/pub-app/77",
