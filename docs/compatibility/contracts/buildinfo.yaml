@@ -44,6 +44,12 @@ contracts:
     - 'webhook uploaded 事件（T-510 面）'
   error_behavior:
     - { when: 'name/number 去前导空白后以 . 开头', status: 400, literal_body: 'errors[] 信封 Build name must not start with ''.''/Build number must not start with ''.''' }
+    - when: 'body started 不可解析（PUT 面）'
+      status: 400
+      literal_body: >-
+        A=与 GET 查询面同族（joda 异常文案直上）：位 0 不可解析 `Invalid format: "xyz"`；值域越界
+        `Cannot parse "<v>": Value 13 for monthOfYear must be in the range [1,12]`。B 现值自有文案
+        `build started "<v>" must be an ISO8601 timestamp (…): build: invalid build info`——D7 残臂（L023-2I §10.2）
     - { when: '?buildRepo=<X>-build-info 而 project X 不存在（A）', status: 400, ref: buildinfo/custom-buildrepo-gate }
     - { when: '畸形 body', status: 400 }
   binflow_state:
@@ -124,9 +130,13 @@ contracts:
       literal_body: >-
         errors[] 信封 `No build was found for build name: <n>, build number: <n> `（**尾空格**）；
         携 ?started= 时 `, build started: <ts>` 子句（**逗号前空格**：<n> , build started:）
-    - when: '?started= 畸形'
+    - when: '?started= 畸形（GET 面）'
       status: 400
-      literal_body: 'A=`Invalid format: "<v>" is malformed at "<tail>"`（B 现值自有文案——D7）'
+      literal_body: >-
+        A（joda 异常文案直上）：位 0 不可解析 `Invalid format: "xyz"`（无子句）；有已解析前缀
+        `Invalid format: "<v>" is malformed at "<尾段>"`；值域越界换族 `Cannot parse "<v>": Value <n> for
+        <field> must be in the range [<min>,<max>]`。B 现值（L023-2I 终验）：前两臂 SAME，值域臂仍回
+        `is malformed at ""`——D7 残臂（§10.2 p4a）
   binflow_state:
     verdict: 'DIVERGENT（复验后残差收窄：R3 空集合物化 + D7 边缘臂）'
     detail: '首轮 D4/D5/D6/D7 七处 → L023-2F 后主体 SAME（path/originalDeploymentRepo/空串 checksum 回显、slim 省键、comment 省键、buildRetention 默认三字段、404 空格口径、malformed started 3/4 臂）。复验残差：① B 物化空集合——module 无 dependencies 回 "dependencies":[]、build 无 modules 回 "modules":[]（A 省略键，6 单元）；② started=xyz 位 0 失败臂 A 无 malformed-at 子句/B 恒发（malformed-started-variants.log）'

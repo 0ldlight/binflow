@@ -251,3 +251,49 @@ jf 配置注记：B 无法走 `jf c add`（预检调 `/artifactory/api/security/
 ## 9.5 复验环境处置
 
 资产删净复核：A `GET /api/build` → 404 空态；B 名单零 `l023d-` 残留（t512app-* 票外存量未触碰）；双端 `l023d-*` 四仓删净（`?deleteContent=true`）；B void 命名空间 404；jf config l023da 已移除；/tmp 日志清除。
+
+---
+
+# §10 终验段（L023-2I，2026-09-15 深夜——2H 微返工后两臂定谳）
+
+- **B 被测**：dev.**5077f50b**（L023-2H 微返工重部署；A 参照 7.161.15 不变）
+- **重放**：全量重放门两轮（pass1==pass2 判定集一致，SAME 35 / DIVERGENT 13）+ D7 六臂定向三角探针（`l023d-wire/d7-triangulation.log`）+ R3 全路径 JSON diff（去 12 行截断遮蔽）
+- **13 残余单元构成**：D8 label 族 7（11/13a/13c/23a/23c/24a/24b，候裁维持）+ D9 门 1（28，候裁维持）+ R3 残留 5（15b/16b/19b/22b/26c）
+
+## 10.1 D4-R3 臂定谳：**仍 DIVERGENT——但收敛为单面**
+
+- 2H 已修两子面：`modules: []`（26c 复验轮差）与 `dependencies: []`（02/15b 等前轮差）——02 本轮全 SAME。
+- **唯一残留面（5 单元）**：build PUT 未带 properties 时，B 详情回显顶层 `"properties": {}`，A **省略键**（全路径 diff 证：除 host/statuses 服务端时钟外唯一差异 = `.buildInfo.properties: A=<absent> B={}`）。带 properties 的 build（02）回显正常。
+- **2J 修法**：无 properties 时键省略（与 2H 对 modules/dependencies 的修法同理——空集合不物化）。
+
+## 10.2 D7 臂定谳：**仍 DIVERGENT——GET 面 2H 修对，PUT 面与值域臂残留**
+
+六臂探针矩阵（A/B 逐字）：
+
+| 臂 | A | B | 判定 |
+|---|---|---|---|
+| p1 GET `?started=xyz`（**差分原臂**） | `Invalid format: "xyz"` | `Invalid format: "xyz"` | **SAME（2H 修对）** |
+| p3 GET 存在号 `?started=xyz` | 同上 | 同上 | SAME |
+| p4b GET `?started=xyz2026` | `Invalid format: "xyz2026"` | 同 | SAME |
+| 10b（首轮）GET `+`成空格 | `… is malformed at " 0000"` | 同 | SAME（§2.1 已录） |
+| **p4a GET 值域越界** `%2B0000` 正确编码 | `Cannot parse "2026-13-45T99:99:99.999+0000": Value 13 for monthOfYear must be in the range [1,12]` | `Invalid format: "2026-13-45T99:99:99.999+0000" is malformed at ""` | **DIVERGENT（新臂）** |
+| **p2 PUT body started=xyz**（**conductor 探针臂**） | `Invalid format: "xyz"` | `build started "xyz" must be an ISO8601 timestamp (yyyy-MM-dd'T'HH:mm:ss.SSSZ): build: invalid build info` | **DIVERGENT** |
+| **p5 PUT body 值域越界** | `Cannot parse "…+0000": Value 13 for monthOfYear must be in the range [1,12]` | `build started "…" must be an ISO8601 timestamp …` | **DIVERGENT** |
+| p6 GET 号单 `?started=`（对照） | 参数被忽略，200 | 同 | SAME |
+
+**定谳回答（conductor 两问）**：① **差分原臂（GET 查询面）不是 conductor 见到的形态**——原臂在 5077f50b 已逐字对齐（p1/p3/p4b/10b 全 SAME）；conductor 引用的 `build started "xyz" must be an ISO8601…` 是 **PUT 上传面（body 内 started 校验）**——该面从未进过差分 case 集（首轮至今未测），B 仍持首轮自有文案，A 与其 GET 面同族（joda-time 原始异常文案直上 wire）。② GET 面的位 0 臂确已对齐；**D7 整体仍 DIVERGENT**，残留三臂 = PUT 两臂（p2/p5）+ GET 值域越界臂（p4a）。
+
+**参照机制（供 2J）**：A 的该族文案 = joda-time `IllegalArgumentException.getMessage()` 原样入 errors[] 信封——格式错=`Invalid format: "<text>"`（有已解析前缀时追加 ` is malformed at "<未解析尾段>"`）；**值域错=换族** `Cannot parse "<text>": Value <n> for <field> must be in the range [<min>,<max>]`（field 名如 monthOfYear/hourOfDay 等 joda 字面）。
+
+**2J 精确文案**（三臂）：
+1. PUT body `started=xyz`（位 0 不可解析）→ `Invalid format: "xyz"`（无 malformed-at 子句）。
+2. PUT body `started=2026-13-45T99:99:99.999+0000` → `Cannot parse "2026-13-45T99:99:99.999+0000": Value 13 for monthOfYear must be in the range [1,12]`。
+3. GET `?started=2026-13-45T99:99:99.999%2B0000` → 同第 2 条（B 现回 `is malformed at ""` 应改为 Cannot parse 族）。
+
+## 10.3 D07 终版翻态（沿 §9.4，本段确认）
+
+R01/R02/R03 翻 ✅ 维持；R04/R08/R10 候裁态维持（仅 D8）；R05 仍不翻（R3 properties:{} + D7 残臂）；R06 不翻（15b 载 R3）；R07 不翻（16b/19b/22b 载 R3——promote 响应面本身绿）；R09/R11 面外维持。
+
+## 10.4 终验环境处置
+
+资产删净复核：A `GET /api/build` 404 空态；B 零 `l023d-` 残留；双端 `l023d-dev/rel-local` 删净（含 l023d-malf 探针名）；void 命名空间已清；/tmp 日志清除。
