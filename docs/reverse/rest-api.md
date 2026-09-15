@@ -165,6 +165,8 @@ FileInfo JSON 字段（`o.a.a.api.rest.artifact.RestFileInfo` + `RestBaseStorage
 12. **virtual/remote 仓上的属性写**（活体逐字，2026-09-16）：PUT `/api/storage` 属性 → **404 envelope `"Not Found"`**（资源层裸 404 状态经全局 mapper 包 envelope——非空体）；PATCH `/api/metadata` → **400 envelope `"Failed to set properties on <repo>:<path>: Repository '<repo>' is not a local repository"`**（与「item 不存在」文案不同）。**高**
 13. **怪癖**：PATCH 的 400 文案在资源层以纯文本构造，但对外包装进标准 errors envelope（`message` 内为纯文案）——活体定案（反编译 entity 与活体 envelope 双证）。**高**
 
+> **L024-4 差分回填注记（2026-09-16）**：§3 表 `PUT /api/storage/{repoKey}/{path}?properties=` 行为 jf build-publish 主链的**剩余断链点**——jf「Setting properties…」步实发 `PUT /api/storage/<path>`（props 经 URL、bytes_in=0），BinFlow 未实现（404 `"…is not implemented in BinFlow"`）；参照侧审计 `PROPERTY_UPDATED` 实证。该行规格本体（204 / `Properties value cannot be empty.` / 非法字符 400）不变，证据锚补 `reports/compatibility/l024d-wire/{a,b}`（L024-search-aql-diff §2.6 / §3-L8）。同链余项 = `/api/system/version` 版本串（jf `strconv.Atoi` 尾错，version 债登记）。
+
 ---
 
 ## 4. 搜索（M1 仅 checksum 搜索）
