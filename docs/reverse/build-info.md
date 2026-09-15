@@ -194,7 +194,7 @@ build_release_bundles( build_rb_id PK, build_id FK ON DELETE CASCADE, bundle_rep
 5. builds diff（`?diff=` 参数）的响应形态（官方未展开；L023-1 已补方向约束 400 与 `diff=null` 400——§1 表；**diff 响应 body 形态仍待活体**）。
 6. ~~上传/promotion/retention 的逐字错误文案~~ **大半已解**（L023-1：REST 实现层 7.161.16 源码 + 活体逐字落定 §11；残余 = promote timestamp 非法路径的 body 形态、`build.patternArtifacts` 端点响应）。
 7. ~~`statuses[]` 在 GET 单详情回显中的完整字段形态~~ **已解**（L023-1 活体：`{status, comment, timestamp, timestampDate, user[, repository][, ciUser]}`，nullable 省略——§3.1）。
-8. **`_START_`/`_EXT_` 环境变量透传格式（L023-1 新登记——UNKNOWN）**：票面点名的该语义面在**三源检索零命中**（反编译 7.161.24 全树 / OSS 7.161.16 源码树含 build-handler/ / JFrog 公开文档+官方 CLI 文档检索）。最接近的真实语义 = build info 的 `properties` map（客户端采集环境变量注入：CLI `--collect-env` + `--env-include/--env-exclude`，Jenkins 插件 `buildInfo.env.capture`——客户端约定，服务端零特殊处理）。**若派发方掌握该 token 的具体出处（某 CLI 版本/某文档页），请回执补充；否则按「不存在此服务端语义」处理，禁猜**。
+8. **`_START_`/`_EXT_` 环境变量透传格式——定案：四源零命中，按「不存在此语义」处理**（L023-1 登记 + 同日回执复核）：反编译 7.161.24 全树 / OSS 7.161.16 源码树含 build-handler/ / jfrog build-info 官方库 README / **JFrog 现役官方文档 Build-Info Integration 页（docs.jfrog.com/artifactory/docs/build-integration——旧 URL jfrog.com/help/...the-build-info-json 已 301→404，内容并入此页）均无 `_START_`/`_EXT_` 字样**。官方口径的邻接真值（升格记录）：环境变量入 build info `properties` = **纯客户端采集语义**（CLI `jf rt bp --collect-env` + `--env-include`（缺省 `*`）+ `--env-exclude`（缺省 `*password*;*psw*;*secret*;*key*;*token*;*auth*`，大小写不敏感分号分隔模式；`jf rt bce` 独立采集命令已废弃保留兼容）；`jf rt ba`（append）同携 env-include/exclude；唯一变量替换约定 = 文件 spec 的 `${key}`（客户端展开）；**服务端对 properties 零展开零过滤，只存储**（官方页 server-side 行为清单：publish/promote/discard）。置信度：高（官方文档锚 + 双源码零命中反证）。
 9. `POST /build/patternArtifacts` 的响应 body 形态（L023-1 新登记端点，仅源码面——中置信，待活体）。
 10. retention `async` 缺省口径已按源码定案为**同步**（E9）；残余 = 7.161.15 与 7.161.16 之间该默认值是否存在版本漂移（低风险时序差异，契约可忽略——功能面零差异）。
 
@@ -330,7 +330,7 @@ build_release_bundles( build_rb_id PK, build_id FK ON DELETE CASCADE, bundle_rep
 - 服务端实现源（OSS 7.161.16 树，绝对路径只读，非 reverse-src）：`build-handler/build-handler-service/src/main/java/com/jfrog/build/` 下——`resource/BuildPublicResource.java`（REST 面：204+checksum 头/retention 400/slim 参数/patternArtifacts 端点）、`command/{BuildCreateCommand, BuildAddModulesCommand, BuildPromoteCommand, BuildRetainCommand, BuildDeleteCommand, BuildGetAllCommand, BuildGetByNameCommand, BuildGetInfoCommand}.java`、`service/{BuildCreationService, BuildPromotionService, BuildRetentionService, BuildDeletionService, BuildReadService, BuildDatabaseService, BuildPermissionService}.java`、`dao/BuildsDao.java`（排序 SQL）、`model/{BuildRunComparators, api/PromotionResult, api/BuildsDeletionModel}.java`、`util/BuildServiceUtils.java`（hidden 坐标/参数解码）。
 - 活体（172.16.58.130:8082，pro 7.161.15，2026-09-15）：PUT×5（含重复/同号多 run/hidden 坐标）、GET 列表/号单/详情×8、append×1、promote×3（status-only/no-target 404/failFast 400）、retention×2（count=0 400/count=1）、DELETE 部分命中/deleteAll×3、404 族×3——探针后全量清理（deleteAll 复验空态 404），零残留。
 - 源码-活体版本差（7.161.16 vs 7.161.15）：本轮全部抽查点零分歧。
-- `_START_`/`_EXT_` 三源检索记录：`grep -rn "_START_\|_EXT_"` 于 reverse-src 7.161.24 全树（命中仅前端 locale 噪声）、OSS 7.161.16 树 build-handler（零命中）、docs/ 与 PRD（零命中）；WebSearch JFrog 文档（零命中）——结论登记待验证 #8。
+- `_START_`/`_EXT_` 检索记录（含同日回执复核增补）：`grep -rn "_START_\|_EXT_"` 于 reverse-src 7.161.24 全树（命中仅前端 locale 噪声）、OSS 7.161.16 树 build-handler（零命中）、docs/ 与 PRD（零命中）；WebSearch JFrog 文档（零命中）；WebFetch 现役官方页 docs.jfrog.com/artifactory/docs/build-integration（**逐字零命中**，env 采集=纯客户端语义——详见 §9 #8 升格定案）与 jfrog/build-info README（零命中，其 env vars 均为测试配置）。
 
 ### 11.10 实现票拆分建议（CRUD / append+promote / 批删+retention 三票的边界与依赖序）
 
