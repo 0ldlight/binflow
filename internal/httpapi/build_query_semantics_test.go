@@ -53,6 +53,38 @@ func TestBuildQueryAbsoluteURIsEchoBuildRepo(t *testing.T) {
 	}
 }
 
+// TestBuildQueryEmptySetKeysOmitted: diff §9.2-R3 — a build with no
+// modules and a module with no dependencies OMIT the keys in the FULL
+// echo (never materialize []; slim keeps its own [] shape).
+func TestBuildQueryEmptySetKeysOmitted(t *testing.T) {
+	h := newBuildHarness(t)
+	doc := `{"name":"r3-app","number":"1","started":"2026-09-15T10:00:00.000+0000","modules":[]}`
+	if code, _, _ := putBuildJSON(t, h, doc); code != http.StatusNoContent {
+		t.Fatalf("seed = %d, want 204", code)
+	}
+	_, detail := getBuild(t, h, "/binflow/api/build/r3-app/1", adminUser, adminPass)
+	if strings.Contains(detail, `"modules"`) {
+		t.Fatalf("empty modules must be OMITTED (R3): %s", detail)
+	}
+
+	doc2 := `{"name":"r3-app","number":"2","started":"2026-09-15T11:00:00.000+0000","modules":[{"id":"m-no-deps"}]}`
+	if code, _, _ := putBuildJSON(t, h, doc2); code != http.StatusNoContent {
+		t.Fatalf("seed 2 = %d, want 204", code)
+	}
+	_, detail2 := getBuild(t, h, "/binflow/api/build/r3-app/2", adminUser, adminPass)
+	if strings.Contains(detail2, `"dependencies"`) {
+		t.Fatalf("module without dependencies must OMIT the key (R3): %s", detail2)
+	}
+	if !strings.Contains(detail2, `"artifacts": []`) {
+		t.Fatalf("artifacts keep their [] materialization (outside R3): %s", detail2)
+	}
+	// Slim keeps its own shape: modules [] present.
+	_, slim := getBuild(t, h, "/binflow/api/build/r3-app/1?slim=true", adminUser, adminPass)
+	if !strings.Contains(slim, `"modules": []`) {
+		t.Fatalf("slim must keep the [] shape: %s", slim)
+	}
+}
+
 // TestBuildQueryDetailEchoesOriginalTimezone: §11.3's split — the list
 // faces echo the UTC-normalized literal while the DETAIL face echoes the
 // payload's original timezone verbatim (a +0800 upload echoes +0800).
@@ -185,6 +217,21 @@ func TestBuildQueryDetail404WithStartedClause(t *testing.T) {
 	if resp.StatusCode != http.StatusNotFound ||
 		!strings.Contains(doc, "No build was found for build name: pub-app, build number: 51 , build started: 2026-09-07T09:00:00.000+0000") {
 		t.Fatalf("started-clause detail 404 = %d %s", resp.StatusCode, doc)
+	}
+
+	// Diff §9.3-D7 tail: a position-0 failure carries NO malformed-at
+	// clause (the live probe's `Invalid format: "xyz"` shape).
+	resp, doc = getBuild(t, h, "/binflow/api/build/pub-app/51?started=xyz", adminUser, adminPass)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("position-0 malformed = %d, want 400", resp.StatusCode)
+	}
+	var d0 struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if json.Unmarshal([]byte(doc), &d0) != nil || len(d0.Errors) != 1 || d0.Errors[0].Message != `Invalid format: "xyz"` {
+		t.Fatalf("position-0 body = %s, want the clause-less verbatim 400", doc)
 	}
 
 	// Diff D7: a malformed started literal answers the reference's

@@ -344,6 +344,12 @@ func (s *Server) handleBuildGet(w http.ResponseWriter, r *http.Request, name, nu
 // a simple layout walk (the anchor sample: "…​.000 0000" → rest " 0000").
 func invalidFormatMessage(input string) string {
 	rest := malformedAt(input)
+	if len(rest) == len(input) {
+		// A position-0 failure carries NO malformed-at clause (the Java
+		// parser emits none when zero prefix parsed — the live probe's
+		// `Invalid format: "xyz"` shape, diff §9.3 观察一).
+		return fmt.Sprintf("Invalid format: %q", input)
+	}
 	return fmt.Sprintf("Invalid format: %q is malformed at %q", input, rest)
 }
 
@@ -798,11 +804,19 @@ func (s *Server) renderBuildInfo(d *build.Detail, slim bool) map[string]any {
 	}
 	if slim {
 		// §1 detail row as the live wire reads it (diff D5): modules [] and
-		// the properties key OMITTED entirely — never null.
+		// the properties key OMITTED entirely — never null. (Slim keeps the
+		// empty ARRAY — the 09 unit's SAME shape; only the FULL echo omits
+		// the key, diff §9.2-R3.)
 		doc["modules"] = []buildModuleEcho{}
 		delete(doc, "properties")
 	} else {
-		doc["modules"] = renderBuildModules(d.Modules)
+		// §9.2-R3: a build with no modules OMITS the key (never
+		// materializes []).
+		if len(d.Modules) == 0 {
+			delete(doc, "modules")
+		} else {
+			doc["modules"] = renderBuildModules(d.Modules)
+		}
 		props := make(map[string]any, len(d.Properties))
 		for _, p := range d.Properties {
 			props[p.Name] = p.Value
@@ -868,10 +882,12 @@ func (s *Server) renderBuildInfo(d *build.Detail, slim bool) map[string]any {
 // The module echo rows (the wire shapes of build-info.md §3.1: modules,
 // artifacts with the association-form path, dependencies with scopes[]).
 type buildModuleEcho struct {
-	ID           string                `json:"id"`
-	Type         string                `json:"type,omitempty"`
-	Artifacts    []buildArtifactEcho   `json:"artifacts"`
-	Dependencies []buildDependencyEcho `json:"dependencies"`
+	ID        string              `json:"id"`
+	Type      string              `json:"type,omitempty"`
+	Artifacts []buildArtifactEcho `json:"artifacts"`
+	// Dependencies rides omitempty — a module with none OMITS the key
+	// (diff §9.2-R3; the empty-array materialization was the drift).
+	Dependencies []buildDependencyEcho `json:"dependencies,omitempty"`
 }
 
 // buildArtifactEcho is diff D4's fidelity shape: the six wire keys with

@@ -194,9 +194,14 @@ func TestBuildRESTUploadAndEchoRoundTrip(t *testing.T) {
 	if api.Artifacts[0].Sha1 != "aa" || api.Artifacts[0].Sha256 != "bb" || api.Artifacts[0].Md5 != "cc" {
 		t.Fatalf("artifact digest echo = %+v (empty strings must survive too)", api.Artifacts[0])
 	}
-	// A module without segments still echoes empty ARRAYS, never null.
-	if bi.Modules[1].Artifacts == nil || bi.Modules[1].Dependencies == nil {
-		t.Fatalf("empty module segments must echo [], got null: %+v", bi.Modules[1])
+	// Diff §9.2-R3: a module without dependencies OMITS the key (decodes
+	// as nil); the artifacts array is not part of R3 and keeps its []
+	// materialization.
+	if bi.Modules[1].Artifacts == nil {
+		t.Fatalf("module artifacts must echo []: %+v", bi.Modules[1])
+	}
+	if bi.Modules[1].Dependencies != nil {
+		t.Fatalf("module without dependencies must OMIT the key (R3): %+v", bi.Modules[1])
 	}
 }
 
