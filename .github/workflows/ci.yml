@@ -53,9 +53,6 @@ jobs:
       - name: Build console into internal/console/dist
         run: make console
 
-      - name: Build docs site into internal/docs/dist
-        run: make docs
-
       - name: Show toolchain
         run: |
           go version
@@ -146,13 +143,11 @@ jobs:
 
       # Same embed strategy as the ci job: the placeholder shell would test
       # a console that never ships. make console runs web's npm ci itself.
-      # The docs site rides along for the same reason — t146-docs.spec
-      # asserts the real /binflow/docs/ mount, not the placeholder.
+      # The docs face rides the committed internal/docs/dist embed (the
+      # docs-site rebuild was retired 2026-09-16, L024-2 — fern is the docs
+      # surface now); t146-docs.spec still asserts the real mount.
       - name: Build console into internal/console/dist
         run: make console
-
-      - name: Build docs site into internal/docs/dist
-        run: make docs
 
       - name: Build server
         run: make build
@@ -242,9 +237,8 @@ jobs:
       - name: Build console into internal/console/dist
         run: make console
 
-      - name: Build docs site (T-129, ADR-0011)
-        run: make docs
-
+      # L024-2 (2026-09-16): docs-site rebuild retired — the release embeds
+      # the committed internal/docs/dist face (fern is the docs surface).
       - name: Release snapshot (six platforms, zero CGo)
         run: make release-snapshot
 
