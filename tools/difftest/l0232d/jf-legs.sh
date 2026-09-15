@@ -5,8 +5,8 @@ set -u
 WIRE=/Users/lzw/dev-center/reports/compatibility/l023d-wire
 export JFROG_CLI_LOG_LEVEL=ERROR
 
-jf c add l023da --url=http://172.16.58.130:8082/artifactory --user=admin --password='JFrog@2026' --interactive=false >/dev/null 2>&1
-jf c add l023db --url=http://172.16.58.130:8083/binflow --user=admin --password='password' --interactive=false >/dev/null 2>&1
+jf c add l023da --url=http://172.16.58.130:8082 --user=admin --password='JFrog@2026' --interactive=false >/dev/null 2>&1
+jf c add l023db --url=http://172.16.58.130:8083 --user=admin --password='password' --interactive=false >/dev/null 2>&1
 
 echo "l0232d-jf-wheel-content-v1" > /tmp/l023d-jf-wheel.bin
 

@@ -357,8 +357,8 @@ def main():
                 with open(f"{WIRE}/{s['name']}/{cid_prefix}-reloc-{repo}.body", "w") as f:
                     f.write(f"GET {repo}/app/5/wheel.bin -> {st} content-match={got}")
     reloc_check("22")
-    dev_gone = all("l023d-dev-local -> 404" in open(f"{WIRE}/{s['name']}/22-reloc-l023d-dev-local.body").read() for s in (A, B))
-    rel_here = all("l023d-rel-local -> 200 content-match=True" in open(f"{WIRE}/{s['name']}/22-reloc-l023d-rel-local.body").read() for s in (A, B))
+    dev_gone = all("-> 404" in open(f"{WIRE}/{s['name']}/22-reloc-l023d-dev-local.body").read() for s in (A, B))
+    rel_here = all("-> 200 content-match=True" in open(f"{WIRE}/{s['name']}/22-reloc-l023d-rel-local.body").read() for s in (A, B))
     v = "SAME" if (dev_gone and rel_here) else "DIVERGENT"
     results.append(("22c-promote-relocation-side-effect", v,
                     [] if v == "SAME" else [f"dev_gone={dev_gone} rel_here={rel_here}"], "move 语义副作用"))
