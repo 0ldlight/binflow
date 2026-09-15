@@ -10,9 +10,10 @@ environment_topology: {
   mac: "仅 penpot 栈 :9001 留本地 docker（用户设计工具——UI 程序依赖，Docker Desktop 因此保留运行）",
   discipline: "docker 一律远程执行（ssh lzw@172.16.58.130）；差分/probe 指 reference+dev；UAT 环境结论以 uat.binflow.org 为准"
 }
-updated: 2026-09-15T11:2x:00Z
-current_iteration: 023
-current_goal: "程序回兼容主线：LOOP 023 批次 1 build-info 主战线（absent-roadmap 六批次之首——规格核对→实现→契约→差分全环）"
+updated: 2026-09-15T22:0x:00Z
+current_iteration: 024
+current_goal: "LOOP 024：批次 2 快赢并行（D03 versions/latestVersion + D01 R08/R16）+ D11 AQL 提权评估（jf 主链路真断）+ UI 余债两票（twMerge 字号/e2e 基建四项）"
+iteration_023_seal: "闭卷（2026-09-15）：UI Phase 1 七批收官（详见 ui_*_seal）+ 环境拓扑纠正（UAT=uat.binflow.org）+ build-info 批次 1 全环（规格 13 勘误→实现五票+返工链→差分四轮 SAME 40/8〔纯候裁族〕→D07 六行✅）+ ADR-0045 Errata 二 + 工作流三升级（自动 PR #115/#116、fern 自动发布链、SSH-443 旁路）；台账 25 席候批；commits 1335868d..42b0f1d1（16+）"
 ui_phase1_seal: "UI Phase 1 七批收官（2026-09-15）：批 0-6 全毕（基线 31 golden/token 收敛 -425 行/壳 240/64+Penpot 侧栏/Inter +48.5KB/P0 原语+styleguide 生产负证/旧 CSS 退役 grep 归零/域件+AG Grid 双谱+motion reduce 护栏）；徽章两族终裁=并存语义分工（tint 层级/soft 中性）；axe 62 面双主题 0 serious/critical；dev=dev.647a93ec；**流程资产**：design-baseline 金标门+重部署重刷纪律+双端对拍排障法（批 1 三证/批 5 返工拦截两战入册）；UI 侧余债=twMerge 字号修票+e2e 基建四项"
 ui_batch5_seal: "批 5 闭卷（2026-09-15）：旧 CSS 退役（74 改+3 删，grep 旧类名全 0，别名删）；**收编拦截 tier 徽章返工**（tint=cva 变体被裸拼 class——背景丢/T-441 对比度债复发/字号缩；返工后六属性逐字相等+0px+axe 0）；status 活体指标入动态面预算清单；候裁=tint×软底两族徽章收敛（批 6）+twMerge 吞字号类修票；dev=dev.96b20cbe 两轮稳；commits 1d553c90/96b20cbe"
 ui_batch4_seal: "批 4 闭卷（2026-09-15）：四缺件 shadcn 再生+七态补全+styleguide 构建态门控（生产负证）；空态重皮致 search 5.4kpx 合法翻新（bbox=EmptyState 区）两轮稳；console 1,017,692B；dev=dev.a22a4aa4；commits 70c0ffad/a22a4aa4"
