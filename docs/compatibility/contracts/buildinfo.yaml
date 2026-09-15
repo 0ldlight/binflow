@@ -17,7 +17,7 @@ scope: build REST 面 M17 七族（上传/append/查询单/列表族/单删/批�
   （ADR-0045 载体轴 A——BinFlow REST 面为唯一入口）、LATEST 哨兵 body 族、webhook 联动（T-510 面）。
 normalize: fixtures/normalize.yaml#buildinfo（提案——L023-buildinfo-diff.md §1）
 reference_instance: 'Artifactory pro 7.161.15（http://172.16.58.130:8082，admin；buildinfo 域 pro 档全开）'
-binflow_tested_instance: 'BinFlow dev dev.77033399（http://172.16.58.130:8083，admin；含 L023-2A/B/C 对位）'
+binflow_tested_instance: 'BinFlow dev dev.77033399（http://172.16.58.130:8083，admin；含 L023-2A/B/C 对位）；修复轨迹经 2F→dev.c6f6c71a→2H→dev.5077f50b→2J→dev.1afec0af 逐轮重放，末验态=dev.1afec0af（SAME 40/DIVERGENT 8——余 8 全为 D8 label/D9 projects 门候裁族；条目级 tested 字段=该条目终态判定时版本）'
 client_anchor: 'jf 2.122.0（build-publish/build-promote/build-discard 真腿）+ curl 差分族'
 contracts:
 # ── 上传：PUT /api/build（全量） ─────────────────────────────────────────────
@@ -138,14 +138,13 @@ contracts:
         <field> must be in the range [<min>,<max>]`。B 现值（L023-2I 终验）：前两臂 SAME，值域臂仍回
         `is malformed at ""`——D7 残臂（§10.2 p4a）
   binflow_state:
-    verdict: 'DIVERGENT（复验后残差收窄：R3 空集合物化 + D7 边缘臂）'
-    detail: '首轮 D4/D5/D6/D7 七处 → L023-2F 后主体 SAME（path/originalDeploymentRepo/空串 checksum 回显、slim 省键、comment 省键、buildRetention 默认三字段、404 空格口径、malformed started 3/4 臂）。复验残差：① B 物化空集合——module 无 dependencies 回 "dependencies":[]、build 无 modules 回 "modules":[]（A 省略键，6 单元）；② started=xyz 位 0 失败臂 A 无 malformed-at 子句/B 恒发（malformed-started-variants.log）'
-    divergence_ref: 'L023-buildinfo-diff.md §9.2-R3 + §9.3 观察一'
-  version: { artifactory_ref: 7.161.15, binflow_tested: dev.77033399 }
+    verdict: 'VERIFIED（末验 L023-2K dev.1afec0af：D4-R3 省键臂 + D7 三臂全 SAME）'
+    detail: '修复轨迹：首轮 D4/D5/D6/D7 七处 → 2F 主体修 → 2H 修空集合物化两子面+GET 位 0 臂 → 2J 修顶层 properties:{} 省键 + PUT/GET started 值域臂（Cannot parse 族逐字节同）。全部 detail 单元（02/09/10a-d/15b/16b/19b/22b/26c）SAME'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.1afec0af }
   evidence:
-    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.1 02/09/10a-d 行', date: '2026-09-15' }
+    - { kind: difftest, report: reports/compatibility/L023-buildinfo-diff.md, anchor: '§2.1 02/09/10a-d 行 + §10.5 末验收口（四臂终确全 SAME）', date: '2026-09-15' }
   confidence: high
-  status: DIVERGENT
+  status: VERIFIED
 # ── 单删：DELETE /api/build/{name} ──────────────────────────────────────────
 - id: buildinfo/delete-path
   feature: '按号 CSV 删（E6 双段文案 have+Warning+尾换行；404 两分支；同号多 run 每调至多删一；deleteAll 独立文案；?artifacts= 连删制品）'

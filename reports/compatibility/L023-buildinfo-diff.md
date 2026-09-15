@@ -297,3 +297,18 @@ R01/R02/R03 翻 ✅ 维持；R04/R08/R10 候裁态维持（仅 D8）；R05 仍�
 ## 10.4 终验环境处置
 
 资产删净复核：A `GET /api/build` 404 空态；B 零 `l023d-` 残留；双端 `l023d-dev/rel-local` 删净（含 l023d-malf 探针名）；void 命名空间已清；/tmp 日志清除。
+
+---
+
+## §10.5 末验收口段（L023-2K，2026-09-15 夜末——2J 后四臂终确）
+
+- **B 被测**：dev.**1afec0af**（L023-2J 微票后重部署；A 参照不变）
+- **重放**：全量重放门两轮一致（pass1==pass2：**SAME 40 / DIVERGENT 8**）+ D7 三臂定向探针（`l023d-wire/d7-final.log`）+ R3 键集全量比对
+- **四臂终确（预期全 SAME——实得全 SAME）**：
+  1. **D4-R3 properties 省键臂 → SAME**：R3 五单元（15b/16b/19b/22b/26c）全翻绿；26c 键集 A/B 逐字同（`properties` 键双端省略；modules/dependencies 子面维持 §10.1 修复态）。
+  2. **D7 PUT started 位 0（xyz）→ SAME**：双端 `Invalid format: "xyz"`。
+  3. **D7 PUT started 值域 → SAME**：双端 `Cannot parse "2026-13-45T99:99:99.999+0000": Value 13 for monthOfYear must be in the range [1,12]`（joda 族逐字节同）。
+  4. **D7 GET started 值域 → SAME**：同上逐字。
+- **残余全景（8 单元 = 仅两候裁族）**：D8 media-type label 族 7（11/13a/13c/23a/23c/24a/24b）+ D9 自定义 buildRepo projects 门 1（28）——**零 BUG 类残差**；D11（AQL property→jf publish 腿）面外维持（T-511）。
+- **D07 翻绿终版（收口）**：**R05/R06/R07 翻 ✅（VERIFIED）**——R05 的 R3+D7 残臂、R06 的 15b、R07 的 statuses 回显残差全部清零；连同 §9.4 的 R01/R02/R03，**D07 共 6 行翻 ✅**；R04/R08/R10 候裁态（纯 D8 label 挂账，裁 INTENTIONAL 即可整族翻绿）；R09/R11 面外维持。
+- **环境处置**：资产删净复核（A 404 空态 / B 零 l023d / 双端仓净 / void 已清 / jf config 无残留）。
