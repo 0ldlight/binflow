@@ -6,6 +6,8 @@
 >
 > **L023-1 增补（2026-09-15）**：§11 起为本轮核对补强——**服务端实现源首次可达**（用户提供的 jfrog-artifactory 7.161.16 OSS 发行源码树内 `build-handler/` 模块 = build REST 的服务端 command/service/DAO/资源层全套，T-488 期误判「实现疑在未开源模块」，§10 末条勘误）+ **活体基线首次可用**（172.16.58.130:8082，pro 7.161.15，admin）。凡 §11 条目均以「源码（7.161.16）+ 活体（7.161.15）」双源印证评「高」；仅源码单源评「中」；与 §1–§8 旧稿冲突处以 §11 勘误表为准（冲突已显式登记，见 §11.1）。
 >
+> **L023-2D 回写（2026-09-15）**：差分收官报告（`reports/compatibility/L023-buildinfo-diff.md` §7）以**活体双端证据推翻 L023-1 的七处源码单读**——勘误 E14-E20 已并入 §11.1 与正文（promote 400 两面性/收集双通道/slim 键省略/count 门 label/404 空格字面/名清单升序/buildRepo 读写门分野），证据锚 `l023d-wire`。
+>
 > **效力序**（ADR-0045 条款）：用户裁决（BOARD）> 本规格（含 as-built 段）> ADR-0045 > PRD 暂行值。
 
 ## 0. 与 ADR-0045 的软缝对拍（十项逐答，Accepted 期复核输入）
@@ -35,12 +37,12 @@ Base：`/artifactory/api`。认证：Basic / Bearer JWT 双收。产品媒体类
 | PUT | `/build` | `?buildRepo=&project=` | **204 空体 + `X-Checksum-Sha256` 响应头**（build JSON manifest 的 sha256——L023-1；openapi/官方「200」字面有误，§11.1-E1） | 400 畸形 body / 401 / 403 / **400 hidden 坐标** | **全量上传**：body = build info JSON（name/number 在 body）；重复上传同坐标（name+number+started 同）= **覆盖**（先删后建，活体 204）；**同号不同 started = 新 run 并存**（L023-1）；覆盖需 delete 权；modules 须带正确 sha1/md5 才与制品关联 | 高 |
 | GET | `/build/{buildName}` | `?buildRepo=&project=` | 200 `{uri, buildsNumbers:[{uri, started}]}`（uri = `/<number>`；**started 严格倒序——最新在前**，L023-1 落定原待验证 #4） | 401/403/404 `No build was found for build name: <name>` | 某 build 名下的全部 run 号清单；同名同号多 run = 同号多行并列 | 高 |
 | DELETE | `/build/{buildName}` | `?buildNumbers=<csv>&artifacts=0\|1&deleteAll=0\|1` | 200 text/plain（部分删除：`The following builds have been deleted successfully: 'name#51'.\nWarning - the following builds could not be removed: '99'.\n`——**have**（官方例文 has 过时）+ Warning 段 + 尾随换行；deleteAll：`All builds '<name>' under '<repo>' have been deleted successfully`（无尾句点）） | 400（无名/无号非 deleteAll）/ 401 / 403 / 404 `Unable to find build '<name>'`（名不存在）`/ Unable to find the given build numbers`（号全不存在） | `deleteAll=1` 全删；`artifacts=1` 连制品删；**Requires Artifactory Pro**（官方） | 高 |
-| GET | `/build/{buildName}/{buildNumber}` | `?started=&diff=&buildRepo=&project=&slim=`（**`slim` 为 L023-1 新发现参数**：true 时 modules 置 `[]`、properties 置 null——jf CLI 消费面） | 200 `{uri, buildInfo:{…}}`（uri = 绝对 URL + buildRepo 查询串） | 401/403/404 `No build was found for build name: <n>, build number: <n>[, build started: <ts>]` | 单 build 详情；`started`（`yyyy-MM-dd'T'HH:mm:ss.SSSZ`）用于同名同号多 run 消歧（**回显原样时区，不归一**——与列表端点相反，§11.3）；`diff` = 旧号对比（Builds Diff；**方向约束**：新号必须 ≥ 对比号否则 400，§11.5）；`diff=null` 字面量 → 400 `Parameter 'diff' must contain a value, if specified`；回显 buildInfo 含 `statuses`（promotion 历史）数组；`durationMillis` 缺省回显 0 | 高 |
+| GET | `/build/{buildName}/{buildNumber}` | `?started=&diff=&buildRepo=&project=&slim=`（**`slim` 为 L023-1 新发现参数**：true 时 modules 置 `[]`、**`properties` 键整体省略**（非置 null——L023-2D E16）——jf CLI 消费面） | 200 `{uri, buildInfo:{…}}`（uri = 绝对 URL + buildRepo 查询串） | 401/403/404 `No build was found for build name: <n>, build number: <m> `（**无 started 子句时句尾带一空格**；有子句 = `…build number: <m> , build started: <ts>`——**逗号前带空格**，L023-2D E18 精确字面） | 单 build 详情；`started`（`yyyy-MM-dd'T'HH:mm:ss.SSSZ`）用于同名同号多 run 消歧（**回显原样时区，不归一**——与列表端点相反，§11.3）；`diff` = 旧号对比（Builds Diff；**方向约束**：新号必须 ≥ 对比号否则 400，§11.5）；`diff=null` 字面量 → 400 `Parameter 'diff' must contain a value, if specified`；回显 buildInfo 含 `statuses`（promotion 历史）数组；`durationMillis` 缺省回显 0 | 高 |
 | POST | `/build/append/{buildName}/{buildNumber}` | `?started=&buildRepo=&project=` | **204** 空体 | 400 / 401 / 403 / **404 `The build <name>:<number> is not found`**（L023-1 逐字；openapi 的 `Build-Info not found` 字面有误，§11.1-E4） | **段拼接**：body = BuildModule **数组**；**模块列表直接拼接，同 id 不合并**（重复 id 产生重复模块条目——L023-1 双证，勘误 §2.2/软缝④）；权限 = Deploy ∧ Delete（官方） | 高 |
-| POST | `/build/promote/{buildName}/{buildNumber}` | `?buildRepo=&project=` | 200 `{messages:[{level, message}]}`，**level ∈ `INFO`/`WARNING`/`ERROR`（大写——openapi 小写枚举有误，L023-1）**；**failFast=true 且出现 error/warning 时 400**（body 同形，L023-1） | 400（blank 坐标/failFast 失败）/ 401 / 403 / 404 `Cannot find a build by the name: <n>, number: <n>, repo: <r>` / **404 `Cannot find target repository by the key '<key>'`** | promotion，body 见 §2.4/§11.5；**目标 = 同号多 run 中 started 最新者**（无 started 参数） | 高 |
+| POST | `/build/promote/{buildName}/{buildNumber}` | `?buildRepo=&project=` | 200 `{messages:[{level, message}]}`，**level ∈ `INFO`/`WARNING`/`ERROR`（大写——openapi 小写枚举有误，L023-1）**；**failFast 400 两面**（L023-2D E14）：异常路径（E12 abort 等）= 400 **errors[] 信封**；流程完成路径（timestamp 非法等）= 400 + messages body | 400（blank 坐标/failFast 失败）/ 401 / 403 / 404 `Cannot find a build by the name: <n>, number: <n>, repo: <r>` / **404 `Cannot find target repository by the key '<key>'`** | promotion，body 见 §2.4/§11.5；**目标 = 同号多 run 中 started 最新者**（无 started 参数） | 高 |
 | POST | `/build/delete` | —（body 承载） | 200 text/plain（同 DELETE 族文案） | 400/401/403 | 批删（6.13+）：body `{buildRepo, project, buildName, buildNumbers[], deleteArtifacts, deleteAll}`（**6 字段，含 buildRepo——L023-1**）；**支持 build 号含特殊字符**（官方明示——这是该端点独立存在的理由）；语义与 DELETE 族同源（§11.7） | 高 |
 | POST | `/build/rename/{buildName}` | `?to=<new>`（必填）`&buildRepo=&project=` | 200 text/plain：`Build renaming of 'x' to 'y' was successfully started`（**无尾句点——openapi 例文有句点，L023-1**） | 400/401/403/404 | **Requires Artifactory Pro**；异步语义（文案「was successfully started」）；**immutable build 改名 → 403 `The build <n>:<n> is immutable and cannot be renamed`**（L023-1） | 高 |
-| POST | `/build/retention/{buildName}` | `?async=`（**缺省 false=同步——源码 JAX-RS 原语直读；openapi/官方「缺省 true」失真**，§11.1-E9）`&buildRepo=&project=` | **204** 空体 | 400 `Max count retention needs to be a positive number`（count=0/缺 body——L023-1 活体逐字）/ 401 / 403 / 404 | **设定保留并立即执行删除**（缺省同步删完再回 204；`async=true` 后台跑——官方「不立即删」表述过时，L023-1 勘误 §11.6）；body 见 §2.5/§11.6 | 高 |
+| POST | `/build/retention/{buildName}` | `?async=`（**缺省 false=同步——源码 JAX-RS 原语直读；openapi/官方「缺省 true」失真**，§11.1-E9）`&buildRepo=&project=` | **204** 空体 | 400 `Max count retention needs to be a positive number`（count=0/缺 body；**Content-Type 标 `application/json` 但 body 是该句纯文本——产品错标为参照真值，L023-2D E17**）/ 401 / 403 / 404 | **设定保留并立即执行删除**（缺省同步删完再回 204；`async=true` 后台跑——官方「不立即删」表述过时，L023-1 勘误 §11.6）；body 见 §2.5/§11.6 | 高 |
 | POST | `/build/patternArtifacts` | —（body：BuildPatternArtifactsRequestWithRepo 数组） | 200 `[{repository, uri…}]`（模式制品解析） | 400/401/403 | **L023-1 新登记端点**（openapi 未载）：CI 依赖解析面（jf CLI `--build` 消费）；M17 面外登记（归 aql.md §15.4 同族的依赖解析族） | 中（仅源码，待活体） |
 | POST | `/archive/buildArtifacts` | body（见 §2.7） | 200 二进制档（zip→`application/zip`、tar→`application/x-tar`、tar.gz/tgz→`application/x-gzip`） | 400/401/403 | build 制品打包归档（2.6.5+）；**Requires Artifactory Pro**（官方）；M17 面外登记 | 高 |
 | POST | `/docker/{repoKey}/v2/promote` | —（body 承载） | 200 text/plain `Promotion ended successfully` / 部分 206 | 400/401/403/404 | Docker 镜像晋升，语义见 §2.6；另有 legacy `POST /docker/{repoKey}/v1/promote` 与 `DELETE /docker/{repoKey}/v2/delete` 同族 | 高 |
@@ -85,7 +87,7 @@ PUT 进 build-info 类型仓（含缺省 `artifactory-build-info`）的 `.json` 
   - 每次 promote **追加**一条 promotion 记录（六元组：status/timestamp/comment/repository/ciUser/user）——append-only 历史，不可改。**实现机制 = 全量删除重建 build JSON**（L023-1 源码；evidence 启用时 immutable build 走 DB 直插旁路）。
   - 现势状态 = **按 timestamp 取最新一条**（产品模型明示 max-by-timestamp）。
   - `started` 字段不随 promotion/replication 变化（官方明示 immutable）。
-- 成功响应 `{messages:[{level: INFO|WARNING|ERROR（大写）, message}]}`——**failFast=true 且出现 error/warning → HTTP 400（body 同形）**；failFast=false 时 warning/error 行与 200 并存（L023-1 源码+活体）。
+- 成功响应 `{messages:[{level: INFO|WARNING|ERROR（大写）, message}]}`——**400 有两个面（L023-2D E14）**：异常中止路径（缺制品 failFast abort）= 400 `errors[]` 信封；流程完成路径（timestamp 非法、failFast 警告集齐）= 400 + messages body；failFast=false 时 warning/error 行与 200 并存（活体）。
 - 权限（官方）：promote 需 build 的 Deploy 权；BinFlow 门 = ADR-0045 点 5（w(targetRepo) ∧ r(buildRepo)）。
 - 缺制品语义（ADR-0045 待答项→已实证）：**failFast=true 且有 artifact 无法解析 → 400 `Unable to find artifacts of build '<name>' #<number> from <buildRepo> repo: aborting promotion.`**；failFast=false → warning `Unable to find the following artifacts of build '<name>' #<number>: <names>` 后继续（L023-1 活体+源码——原「C 层自有细则」升级为参照真值）。
 
@@ -124,7 +126,7 @@ body = `BuildArtifactsRequest` 全字段（官方 schema，高）：`buildName`*
 
 module：`properties` / `id` / `type` / `artifacts[]` / `dependencies[]`。
 
-artifact：`type` / `sha1` / `sha256` / `md5` / `name` / `path` / `originalDeploymentRepo`。
+artifact：`type` / `sha1` / `sha256` / `md5` / `name` / `path` / `originalDeploymentRepo`（**`path`+`originalDeploymentRepo` = promote manifest 收集通道的消费键——L023-2D E15；echo 保真要求空串字段也回显**）。
 
 dependency：`type` / `sha1` / `sha256` / `md5` / `id` / `scopes[]` / `requestedBy[][]`。
 
@@ -197,6 +199,7 @@ build_release_bundles( build_rb_id PK, build_id FK ON DELETE CASCADE, bundle_rep
 8. **`_START_`/`_EXT_` 环境变量透传格式——定案：四源零命中，按「不存在此语义」处理**（L023-1 登记 + 同日回执复核）：反编译 7.161.24 全树 / OSS 7.161.16 源码树含 build-handler/ / jfrog build-info 官方库 README / **JFrog 现役官方文档 Build-Info Integration 页（docs.jfrog.com/artifactory/docs/build-integration——旧 URL jfrog.com/help/...the-build-info-json 已 301→404，内容并入此页）均无 `_START_`/`_EXT_` 字样**。官方口径的邻接真值（升格记录）：环境变量入 build info `properties` = **纯客户端采集语义**（CLI `jf rt bp --collect-env` + `--env-include`（缺省 `*`）+ `--env-exclude`（缺省 `*password*;*psw*;*secret*;*key*;*token*;*auth*`，大小写不敏感分号分隔模式；`jf rt bce` 独立采集命令已废弃保留兼容）；`jf rt ba`（append）同携 env-include/exclude；唯一变量替换约定 = 文件 spec 的 `${key}`（客户端展开）；**服务端对 properties 零展开零过滤，只存储**（官方页 server-side 行为清单：publish/promote/discard）。置信度：高（官方文档锚 + 双源码零命中反证）。
 9. `POST /build/patternArtifacts` 的响应 body 形态（L023-1 新登记端点，仅源码面——中置信，待活体）。
 10. retention `async` 缺省口径已按源码定案为**同步**（E9）；残余 = 7.161.15 与 7.161.16 之间该默认值是否存在版本漂移（低风险时序差异，契约可忽略——功能面零差异）。
+11. ~~名清单（GET /build）序向~~ **已解**（L023-2D 双活体收口：**升序**（各名最新 run 日期最早在前）——§11.8 中→高）。
 
 ## 10. 取证锚点（2026-09-06 会话）
 
@@ -231,6 +234,13 @@ build_release_bundles( build_rb_id PK, build_id FK ON DELETE CASCADE, bundle_rep
 | E11 | rename 成功文案带尾句点（openapi 例文） | **无尾句点**：`Build renaming of 'x' to 'y' was successfully started` | §1 已改 |
 | E12 | promote 缺制品语义「官方未文档化，BinFlow C 层自定」（旧稿 §2.4） | **实证**：failFast=true → 400 `Unable to find artifacts of build '<name>' #<number> from <buildRepo> repo: aborting promotion.`；否则 warning 后继续 | ADR-0045 点 5 参照真值升级 |
 | E13 | T-488「build REST 实现类不在反编译/OSS 集合内」（§10 末条） | **实现 = OSS 树 `build-handler/build-handler-service`（`BuildPublicResource` @Path("build")）** | §10 已勘误 |
+| E14 | L023-1 §11.5-9「failFast 400 body 同形」 | **promote 400 两面**：异常中止路径（E12 abort）= 400 **errors[] 信封**（REST 异常映射器产物）；流程完成路径（timestamp 非法/failFast 警告集齐）= 400 + messages body | §1/§2.4/§11.5-9 已改（L023-2D 活体双端） |
+| E15 | L023-1 §11.5-5 收集机制隐含「checksum 搜索」 | **双通道**：manifest（`originalDeploymentRepo`+`path` 全集直查）→ 否则 AQL build 属性三键反查；checksum 仅 verify；`originalDeploymentRepo`+`path` = wire 回显保真键（空串也回） | §11.5-5/§3.1 已改（源码 BuildArtifactService） |
+| E16 | L023-1 §1 slim 行「properties 置 null」 | **`properties` 键整体省略**（模块 `[]` 保留） | §1 已改 |
+| E17 | L023-1 §11.6-1「count 门 400 text/plain」 | **Content-Type 实标 `application/json`**（body 仍为纯文本句——产品错标为参照真值） | §1/§11.6-1 已改 |
+| E18 | L023-1 §1 详情 404 文案无空格口径 | 精确字面：无 started 子句**句尾一空格**；有子句**逗号前一空格** | §1 已改 |
+| E19 | 名清单序向未判（L023-1 §11.8 中置信） | **升序**（按各名最新 run 日期，最早活跃在前——双活体一致） | §11.8 升高、待验证收口 |
+| E20 | L023-1 §11.3 buildRepo 门文案「三因」未定读/写路径 | **写路径 = projects 门**（project 须存在；三因共用 `does not exist` 文案）；**读路径无门**（不存在仓读 = 404 No builds were found） | §11.3 已改；BinFlow 承接面属裁定（D9） |
 
 ### 11.2 端点面核对（D07 11 行 × 覆盖度）
 
@@ -254,7 +264,7 @@ build_release_bundles( build_rb_id PK, build_id FK ON DELETE CASCADE, bundle_rep
 
 **服务端改写行为**（当客户端 PUT build，服务端在存储前做）：① `artifactoryPrincipal` ← 当前认证用户（活体：请求未带，回显 `admin`）；② 部分缺失 checksum 补全——artifact/dependency 三 checksum（sha1/sha256/md5）**有一个或两个**时，按已有 checksum 反查二进制库补齐其余（**全有或全无的行跳过**）；③ `issues.aggregateBuildIssues=true` 时——取该名最新 run（LATEST 语义），若其 promotion 历史无 `aggregationBuildStatus` 状态，则其 affectedIssues 以 `aggregated:true` 并入新 build 的 issues；④ 坐标校验——name/number 去前导空白后以 `.` 开头 → 400 `Build name must not start with '.'` / `Build number must not start with '.'`（活体证实 name 分支）。置信度：高（①④活体；②③源码）。
 
-**buildRepo 解析**：显式 `buildRepo` > `project` 推导（`<key>-build-info`）> 缺省 `artifactory-build-info`；当客户端显式指定 buildRepo 时——仓不存在或名不含 `-build-info` 后缀 → 400 类错误 `Build info repository '<repo>' does not exist`；项目不存在同文案。REST PUT 走内部文件上传通道（build JSON 落 `<name>/<number>-<startedMillis>.json`），响应 checksum 头 = 该 JSON 的 sha256。置信度：高（源码）+中（后缀校验文案映射）。
+**buildRepo 解析**：显式 `buildRepo` > `project` 推导（`<key>-build-info`）> 缺省 `artifactory-build-info`；当客户端显式指定 buildRepo 时——**写路径（PUT/append）存在 projects 门**（L023-2D E20）：`<projectKey>-build-info` 推导自仓名，project 须真实存在；「仓不存在 / project 不存在 / 名缺 `-build-info` 后缀」**三因共用同一文案** 400 `Build info repository '<repo>' does not exist`（误导性文案 = 参照真值）；**读路径（GET 族/删除/retention）无此门**——不存在的 buildRepo 读 = 正常 404 `No builds were found`（双活体）。REST PUT 走内部文件上传通道（build JSON 落 `<name>/<number>-<startedMillis>.json`），响应 checksum 头 = 该 JSON 的 sha256。置信度：高（源码 + L023-2D 双活体）。BinFlow 对位注记：无 projects 域——该门的承接面（超集放行 vs 仿真门）属产品语义裁定，登记不立票（差分报告 D9）。
 
 **查询族响应细节**（活体）：列表/号单顶级 `uri` = `http://<host>/artifactory/api/build[...][?buildRepo=artifactory-build-info]`；`lastStarted`/`started` 在**列表端点回显 UTC 归一**（`+0200` 入 → `+0000` 出），**详情端点回显原样时区**（`+0200` 入 → `+0200` 出）——两端点不一致是实现真值（详情直读 JSON 文件）。名清单排序 = 按各名最新 run 日期（SQL GROUP BY max(build_date)）；号单排序 = started 严格倒序。无 read 权的 build 静默过滤。置信度：高。
 
@@ -274,7 +284,7 @@ build_release_bundles( build_rb_id PK, build_id FK ON DELETE CASCADE, bundle_rep
 2. **目标 run = 同号全部 run 中 started 最新者**（无 started 查询参数——多 run 同号时不可指定旧 run）。找不到 → 404 `Cannot find a build by the name: <name>, number: <number>, repo: <repo>`（活体）。
 3. **虚拟仓解析**：targetRepo 为 virtual 时替换为其 default deployment local 仓再继续。
 4. targetRepo blank → 不搬迁，记 INFO `Skipping build item relocation: no target repository selected.`（活体逐字）；非 blank → 仓存在性+类型校验：不存在或**非 local/federated/cache** → 404 `Cannot find target repository by the key '<key>'`（活体）。
-5. 制品收集：`artifacts=true`（缺省）收全部模块制品；`sourceRepo` 给定时仅收该仓；有制品解析不到（checksum 不匹配库内）→ warning `Unable to find the following artifacts of build '<name>' #<number>: <names>`；**failFast=true 时此况直接 400** `Unable to find artifacts of build '<name>' #<number> from <buildRepo> repo: aborting promotion.`（活体逐字）。`dependencies=true` 时收依赖，`scopes[]` 给定时按交集过滤；依赖缺失同 warning 逻辑。
+5. 制品收集（**双通道，L023-2D E15**）：**通道一 manifest**——module artifact 携 `originalDeploymentRepo`+`path` 全集时直查该仓该路径文件（jf/CI 常规发布链即如此，无需属性关联）；**通道二 AQL build 属性**——manifest 键缺失时按 `build.name`/`build.number` 属性三键反查仓内制品集合；checksum **只用于 verify 不用于收集**。`sourceRepo` 给定时仅收该仓；两通道皆解析不到制品 → warning `Unable to find the following artifacts of build '<name>' #<number>: <names>`；**failFast=true 时此况直接 400（errors[] 信封，步 9-E14）** `Unable to find artifacts of build '<name>' #<number> from <buildRepo> repo: aborting promotion.`（活体逐字）。`dependencies=true` 时收依赖，`scopes[]` 给定时按交集过滤；依赖缺失同 warning 逻辑。
 6. 搬迁：`copy=true` 走复制，false（缺省）走**移动**；搬迁失败 → error `Error occurred while copying/moving: <cause>`。
 7. properties 标注：body `properties` 非空时对（目标仓或源仓的）收集项逐个加属性；无 annotate 权 → warning `User doesn't have permissions to annotate '<path>'` + failFast 时中止标注。
 8. **状态更新**（promotion 记录落库）：
@@ -283,13 +293,13 @@ build_release_bundles( build_rb_id PK, build_id FK ON DELETE CASCADE, bundle_rep
    - timestamp 给定且非法（ISO8601 解析失败）→ **跳过状态更新**，记 error `Skipping promotion status update: invalid\unparsable timestamp <ts>.`（注意字面含反斜杠）；timestamp 缺省 → 服务端当前时间。
    - dryRun=true → 全链零落库（校验到步 8 为止）。
    - 落库路径：默认 = **删除旧 build JSON + 携新 statuses 重建**（status 字段自由串、user=当前认证用户、repository=解析后 targetRepo（无则省略）、comment、ciUser 原样、timestamp；活体 wire：`{status, comment, timestamp, timestampDate, user}`，repository/ciUser 缺省时整体省略）；storage 配额不足 → 413 `Promotion status update for build <name>:<number>:<started> failed due to storage quota exceeded; build info size: <n>`。
-9. 响应：200 `{messages:[{level: 大写, message}]}`；**failFast=true 且任一 message 为 ERROR/WARNING → HTTP 400**（body 同形）。promotion 记录 append-only（多次 promote 累积，现势=最新 timestamp）。
+9. 响应：200 `{messages:[{level: 大写, message}]}`（成功且零消息 = `{"messages":[]}` 空数组——**无汇总行**，L023-2D）。**400 的两个面（E14，L023-2D 勘误——L023-1「body 同形」系误读）**：步 5 的 failFast abort 是**异常抛出路径** → REST 异常映射器 → 400 `errors[]` 信封 `{errors:[{status:400, message:"Unable to find artifacts…aborting promotion."}]}`；**流程完成路径**（步 8 timestamp 非法、failFast 且 messages 集齐 ERROR/WARNING）= 400 + **messages body**（`{"messages":[{level:"ERROR",…}]}`）。promotion 记录 append-only（多次 promote 累积，现势=最新 timestamp）。
 置信度：高（源码 + 活体抽验 2/4/5/8 wire）。
 
 ### 11.6 retention 深规格（D07-R10）
 
 当客户端 POST /api/build/retention/{name}（body = BuildRetention）——
-1. 入参门：body 缺失或 `count == 0` → **400 `Max count retention needs to be a positive number`**（text/plain，活体逐字）。count 缺省 -1 = 不启用 count 维度；正数 = 启用。`minimumBuildDate` 缺省 null = 不启用日期维度。
+1. 入参门：body 缺失或 `count == 0` → **400 `Max count retention needs to be a positive number`**（文案纯文本，但 **Content-Type 标 `application/json`**——L023-2D E17 勘误：L023-1 的「text/plain」为想定非实测）。count 缺省 -1 = 不启用 count 维度；正数 = 启用。`minimumBuildDate` 缺省 null = 不启用日期维度。
 2. `async` 缺省 **false = 同步**（删完再回 204；出错 → 400 类 `Errors have occurred while maintaining build retention. Please review the logs for further information.`，warning 同构文案）；`async=true` → 立即 204，删除后台执行；系统属性 `build.retention.always.async=true` 强制全异步。
 3. `build.retention.enabled=false` → 零删除，记 warning（不报错）。
 4. **删序（两遍执行，日期维度先行）**：
@@ -320,16 +330,17 @@ build_release_bundles( build_rb_id PK, build_id FK ON DELETE CASCADE, bundle_rep
 ### 11.8 排序与「最新」语义（支撑 §2.1）
 
 - 号清单（GET /{name}）：**started 倒序**（最新在前）——活体 3 run 3→2→1 顺序复验；空集 404。
-- 名清单（GET /build）：按各名**最新 run 日期**排序（SQL `GROUP BY name, repo … ORDER BY max(build_date)`，升序字面——活体单名未判向，**序向待多活体验证**，中）。
+- 名清单（GET /build）：按各名**最新 run 日期升序**（SQL `GROUP BY name, repo … ORDER BY max(build_date)`——L023-2D 双活体判向收口：升序（最早活跃在前），中→高）。
 - 比较器族：全部号数字 → 数值比较；**任一号非数字 → 全体按字典序**；同号 tie → started → name。「最新 run」解析（promote/append 缺 started 时）= 同号中 started 最大。
 - 列表端点 started 回显 UTC 归一；详情端点原样（§11.3）。
-置信度：高（倒序+比较器源码+活体）／名清单序向中。
+置信度：高（倒序+比较器源码+活体；名清单序向=升序经 L023-2D 双活体收口）。
 
 ### 11.9 L023-1 取证锚点
 
 - 服务端实现源（OSS 7.161.16 树，绝对路径只读，非 reverse-src）：`build-handler/build-handler-service/src/main/java/com/jfrog/build/` 下——`resource/BuildPublicResource.java`（REST 面：204+checksum 头/retention 400/slim 参数/patternArtifacts 端点）、`command/{BuildCreateCommand, BuildAddModulesCommand, BuildPromoteCommand, BuildRetainCommand, BuildDeleteCommand, BuildGetAllCommand, BuildGetByNameCommand, BuildGetInfoCommand}.java`、`service/{BuildCreationService, BuildPromotionService, BuildRetentionService, BuildDeletionService, BuildReadService, BuildDatabaseService, BuildPermissionService}.java`、`dao/BuildsDao.java`（排序 SQL）、`model/{BuildRunComparators, api/PromotionResult, api/BuildsDeletionModel}.java`、`util/BuildServiceUtils.java`（hidden 坐标/参数解码）。
 - 活体（172.16.58.130:8082，pro 7.161.15，2026-09-15）：PUT×5（含重复/同号多 run/hidden 坐标）、GET 列表/号单/详情×8、append×1、promote×3（status-only/no-target 404/failFast 400）、retention×2（count=0 400/count=1）、DELETE 部分命中/deleteAll×3、404 族×3——探针后全量清理（deleteAll 复验空态 404），零残留。
 - 源码-活体版本差（7.161.16 vs 7.161.15）：本轮全部抽查点零分歧。
+- L023-2D 差分收官回写（2026-09-15）：E14-E20 的活体证据 = `reports/compatibility/l023d-wire/{a,b}/`（A=172.16.58.130:8082 pro 7.161.15 / B=BinFlow dev 双发 wire 全量；重点：a/18 errors[] 信封、a/21 messages 面、a/22a `{"messages":[]}`、a/08 名清单升序、a/09 slim 键省略、a/24a count 门 label）+ 差分报告 `reports/compatibility/L023-buildinfo-diff.md` §3/§7。
 - `_START_`/`_EXT_` 检索记录（含同日回执复核增补）：`grep -rn "_START_\|_EXT_"` 于 reverse-src 7.161.24 全树（命中仅前端 locale 噪声）、OSS 7.161.16 树 build-handler（零命中）、docs/ 与 PRD（零命中）；WebSearch JFrog 文档（零命中）；WebFetch 现役官方页 docs.jfrog.com/artifactory/docs/build-integration（**逐字零命中**，env 采集=纯客户端语义——详见 §9 #8 升格定案）与 jfrog/build-info README（零命中，其 env vars 均为测试配置）。
 
 ### 11.10 实现票拆分建议（CRUD / append+promote / 批删+retention 三票的边界与依赖序）
