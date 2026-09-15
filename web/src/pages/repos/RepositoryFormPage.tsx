@@ -46,6 +46,7 @@ import { PkgIcon } from '@/components/PkgIcon'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { ApiError, canAdminWrite, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole } from '@/lib/api'
 import type { RepoListItem } from '@/lib/api'
+import { Badge } from '@/components/ui/badge'
 import { getAddons, packageTypeOptions, tierBadgeClass } from '@/lib/addons'
 import type { PkgTypeOption } from '@/lib/addons'
 import {
@@ -457,13 +458,18 @@ function PackageTypeGrid({ rclass, choices, onPick, onCancel }: { rclass: RClass
                 <span className="pkg-name flex items-center gap-1 text-dense font-medium">
                   {c.label}
                   {badgeTier && (
-                    <span
-                      className={`rounded-sm border px-1 text-[11px] ${tierBadgeClass(badgeTier)} ${badgeTier === 'enterprise' ? 'border-warning text-warning' : 'border-info text-info'}`}
+                    /* 批 5 等价承载：磁贴档位徽章走 ui/Badge tint-*（旧 .badge.tier-*
+                     * 的 (0,3,0) 配方——15% 软底/78% 收敛文字/12px）；1px
+                     * info/warning 描边与继承的 font-medium（旧配方不设字重，
+                     * 磁贴标签位继承 500）经 className 复原。 */
+                    <Badge
+                      variant={tierBadgeClass(badgeTier)}
+                      className={badgeTier === 'enterprise' ? 'border border-warning font-semibold' : 'border border-info font-semibold'}
                       data-testid={`pkg-tier-${c.id}`}
                       lang="en"
                     >
                       {badgeTier}
-                    </span>
+                    </Badge>
                   )}
                 </span>
                 <span className="pkg-desc text-aux text-muted-foreground">{c.desc}</span>
