@@ -25,14 +25,23 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { CopyButton } from '@/components/layout/copy-button'
+import { TransferBox } from '@/components/layout/transfer-box'
 import { ErrorCard, EmptyState, StateSkeleton } from '@/components/layout/states'
 import { toast } from '@/lib/toast'
 
@@ -57,12 +66,102 @@ function Section({ id, title, desc, children }: { id: string; title: string; des
   )
 }
 
+/** ArtifactTree 行配方复刻（§4.2 行态——真实件在 TreePanel.tsx，此处为
+ * styleguide 陈列面：无虚拟化/懒加载语义，皮肤类逐字同源） */
+function TreeDemoRow({
+  depth,
+  selected = false,
+  onChain = false,
+  onSelect,
+  icon,
+  testid,
+  children,
+}: {
+  depth: number
+  selected?: boolean
+  onChain?: boolean
+  onSelect?: () => void
+  icon: string
+  testid: string
+  children: ReactNode
+}) {
+  return (
+    <div
+      data-testid={testid}
+      role="treeitem"
+      aria-selected={selected || undefined}
+      aria-level={depth + 1}
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (onSelect && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault()
+          onSelect()
+        }
+      }}
+      className={`relative flex cursor-pointer items-center gap-1 rounded-sm px-1.5 py-1 transition-colors duration-fast ease-standard ${
+        selected ? 'bg-primary/10 font-semibold' : onChain ? 'bg-surface-2' : ''
+      } hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-ring`}
+      style={{ paddingLeft: depth * 14 + 6 }}
+    >
+      {Array.from({ length: depth }, (_, i) => (
+        <span key={i} aria-hidden="true" className="absolute inset-y-0 w-px bg-border" style={{ left: i * 14 + 6 }} />
+      ))}
+      {selected && <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 rounded-full bg-primary" />}
+      <span aria-hidden="true" className="w-6 shrink-0 text-muted-foreground">
+        {icon}
+      </span>
+      <span className="truncate font-mono" lang="en">
+        {children}
+      </span>
+    </div>
+  )
+}
+
+/** ChecksumBlock 行配方复刻（截断+reveal+缺失「—」；copy 走真 CopyButton） */
+function ChecksumDemoRow({ algo, value }: { algo: string; value: string | null }) {
+  const [full, setFull] = useState(false)
+  return (
+    <div className="kv mb-1 flex gap-2 text-dense">
+      <span className="k w-16 shrink-0 text-muted-foreground" lang="en">
+        {algo}
+      </span>
+      <span className="min-w-0 break-all font-mono tabular-nums" lang="en">
+        {value ? (
+          <>
+            {value.length > 24 ? (
+              <button
+                type="button"
+                data-testid={`sg-checksum-reveal-${algo}`}
+                aria-expanded={full}
+                title="Click to expand or collapse the full checksum value"
+                onClick={() => setFull((f) => !f)}
+                className="rounded-xs underline decoration-border-strong decoration-dotted underline-offset-2 hover:decoration-primary"
+              >
+                {full ? value : `${value.slice(0, 20)}…${value.slice(-8)}`}
+              </button>
+            ) : (
+              value
+            )}
+            <CopyButton value={value} label={algo} />
+          </>
+        ) : (
+          '—'
+        )}
+      </span>
+    </div>
+  )
+}
+
 export default function StyleguidePage() {
   const { theme, toggle } = useTheme()
   const [checked, setChecked] = useState(true)
   const [switchOn, setSwitchOn] = useState(true)
   const [radio, setRadio] = useState('a')
   const [retryCount, setRetryCount] = useState(0)
+  // 批 6 域件/P2 demo 态（tree 选中迁移 / transfer 勾选）
+  const [treeSel, setTreeSel] = useState(2)
+  const [transferSel, setTransferSel] = useState<Set<string>>(new Set(['release']))
 
   return (
     // min-h-screen + bg-background：壳外页面自带画布（AppShell 同款纪律
@@ -264,6 +363,53 @@ export default function StyleguidePage() {
         </Cell>
       </Section>
 
+      {/* 批 6 徽章两族收敛呈裁（T-UIB6 任务 5）：tint 族（批 5 旧配方等值
+          复刻——color-mix 15%/18% 软底 + 78% 文字收敛，28 消费面在役）与
+          soft 族（批 4 *-surface 语义槽）同屏并列，各带语义标签供 conductor
+          封票终裁——本批不删任何一族（golden 翻新归 conductor）。 */}
+      <Section
+        id="badge-convergence"
+        title="Badge — two-family convergence (ruling pending)"
+        desc="RESOLVED (conductor, batch-6 seal): both families stay with a semantic split — tint = tier/semantic tag recipes (legacy replica, color-mix 15%/18% bg + 78% text convergence; 28 consumer files in service); soft = new neutral/status semantics on *-surface slots (batch 4). New badges pick by meaning, not by habit."
+      >
+        <Cell label="tint — legacy recipe (batch 5)">
+          <Badge variant="tint-neutral" data-testid="sg-badge-tint-neutral">
+            neutral
+          </Badge>
+          <Badge variant="tint-info" data-testid="sg-badge-tint-info">
+            info
+          </Badge>
+          <Badge variant="tint-success" data-testid="sg-badge-tint-success">
+            success
+          </Badge>
+          <Badge variant="tint-warning" data-testid="sg-badge-tint-warning">
+            warning
+          </Badge>
+          <Badge variant="tint-danger" data-testid="sg-badge-tint-danger">
+            danger
+          </Badge>
+          <Badge variant="tint-pro">pro</Badge>
+          <Badge variant="tint-enterprise">enterprise</Badge>
+        </Cell>
+        <Cell label="soft — new semantic surface (batch 4)">
+          <Badge variant="secondary">neutral</Badge>
+          <Badge variant="info">info</Badge>
+          <Badge variant="success">success</Badge>
+          <Badge variant="warning">warning</Badge>
+          <Badge variant="destructive-soft">danger</Badge>
+        </Cell>
+        <Cell label="same status, both families">
+          <span className="flex items-center gap-1.5">
+            <Badge variant="tint-success">healthy</Badge>
+            <Badge variant="success">healthy</Badge>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Badge variant="tint-warning">degraded</Badge>
+            <Badge variant="warning">degraded</Badge>
+          </span>
+        </Cell>
+      </Section>
+
       <Section id="toast" title="Toast" desc="Soft *-surface backgrounds + status text + left edge bar; theme follows the app theme">
         <Cell label="four severities">
           <Button variant="outline" size="sm" data-testid="sg-toast-success" onClick={() => toast.success('Artifact deployed')}>
@@ -356,6 +502,233 @@ export default function StyleguidePage() {
         </Cell>
         <Cell label="Skeleton">
           <StateSkeleton lines={4} className="w-56" />
+        </Cell>
+      </Section>
+
+      {/* ---- 批 6 域件行（T-UIB6 任务 1/任务 6）：ArtifactTree / ChecksumBlock
+          / PathBreadcrumb / PropertiesTable 的皮肤配方陈列——demo 为配方
+          等价复刻（真实件在 Explorer 页，虚拟化/懒加载语义不在本面）。 ---- */}
+      <Section
+        id="domain-tree"
+        title="ArtifactTree rows"
+        desc="hover=surface-2 / on-chain=surface-2 / selected=accent 2px left bar + bg-primary/10 + semibold; per-depth indent guides (border ticks); motion token row transition. Click a row to move selection."
+      >
+        <div
+          data-testid="sg-tree-demo"
+          role="tree"
+          aria-label="ArtifactTree demo"
+          className="w-72 rounded-md border border-border bg-surface-1 py-1"
+        >
+          <TreeDemoRow depth={0} selected={treeSel === 0} onSelect={() => setTreeSel(0)} icon="▣" testid="sg-tree-row-repo">
+            libs-release
+          </TreeDemoRow>
+          <TreeDemoRow depth={1} onChain={treeSel >= 1} selected={treeSel === 1} onSelect={() => setTreeSel(1)} icon="▾◻" testid="sg-tree-row-dir">
+            acme
+          </TreeDemoRow>
+          <TreeDemoRow depth={2} onChain={treeSel >= 2} selected={treeSel === 2} onSelect={() => setTreeSel(2)} icon="▾◻" testid="sg-tree-row-sub">
+            platform
+          </TreeDemoRow>
+          <TreeDemoRow depth={2} selected={treeSel === 3} onSelect={() => setTreeSel(3)} icon="◾" testid="sg-tree-row-file">
+            app-1.0.0.tgz
+          </TreeDemoRow>
+        </div>
+      </Section>
+
+      <Section
+        id="checksum"
+        title="ChecksumBlock"
+        desc="mono + tabular-nums; long hashes truncated with click-to-reveal (copy stays full-value); missing algorithm renders an em-dash placeholder, never a forged value"
+      >
+        <div className="w-full max-w-md rounded-md border border-border bg-surface-1 p-3" data-testid="sg-checksum-demo">
+          <ChecksumDemoRow algo="sha256" value="3f9a1c8e5b2d74f06a1c9e8b7d6f5a4e3c2b1a0987654321fedcba9876543210" />
+          <ChecksumDemoRow algo="sha1" value="a94a8fe5ccb19ba61c4c0873d391e987982fbbd3" />
+          <ChecksumDemoRow algo="md5" value={null} />
+        </div>
+      </Section>
+
+      <Section
+        id="path-breadcrumb"
+        title="PathBreadcrumb"
+        desc="Batch-4 Breadcrumb primitives + path separators ('/'); mono segments, last segment solid, middle hover accent; whole-path copy button"
+      >
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <a href="#path-breadcrumb" className="font-mono" lang="en">
+                  libs-release
+                </a>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="font-mono">/</BreadcrumbSeparator>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <a href="#path-breadcrumb" className="font-mono" lang="en">
+                  acme
+                </a>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="font-mono">/</BreadcrumbSeparator>
+            <BreadcrumbItem>
+              <BreadcrumbPage className="font-mono" lang="en">
+                app-1.0.0.tgz
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+        <CopyButton value="libs-release/acme/app-1.0.0.tgz" label="path" />
+      </Section>
+
+      <Section id="properties" title="PropertiesTable" desc="Key mono / values mono; row hover surface-2; empty state via the unified EmptyState carrier">
+        <table aria-label="Properties demo" className="w-full max-w-md border-collapse text-dense">
+          <thead>
+            <tr className="border-b border-border text-left text-aux text-muted-foreground">
+              <th className="w-[34%] px-2 py-1.5 font-medium">Key</th>
+              <th className="px-2 py-1.5 font-medium">Values</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-border/60 transition-colors duration-fast ease-standard hover:bg-surface-2">
+              <th scope="row" className="px-2 py-1.5 text-left font-mono font-normal">
+                license
+              </th>
+              <td className="px-2 py-1.5 font-mono">apache-2.0</td>
+            </tr>
+            <tr className="border-b border-border/60 transition-colors duration-fast ease-standard hover:bg-surface-2">
+              <th scope="row" className="px-2 py-1.5 text-left font-mono font-normal">
+                build.name
+              </th>
+              <td className="px-2 py-1.5 font-mono">ci-release</td>
+            </tr>
+          </tbody>
+        </table>
+        <EmptyState testid="sg-props-empty" className="w-64" message="No properties yet" hint="Add via the form above, or matrix params on deploy." illustration />
+      </Section>
+
+      {/* ---- 批 6 motion 消费面（T-UIB6 任务 3）：fade=fast(120ms) modal /
+          pop=base(160ms) anchored / slide=slow(240ms) drawer+toast——时长
+          直取 --bf-dur-*（prefers-reduced-motion 时 token 层整组降 1ms，
+          e2e 以 computed animation/transition duration 断言）。 ---- */}
+      <Section
+        id="motion"
+        title="Motion tokens"
+        desc="fade (--bf-dur-fast, 120ms) modal; pop (--bf-dur-base, 160ms) anchored overlays; slide (--bf-dur-slow, 240ms) drawer + toast. Emulating prefers-reduced-motion collapses all three to 1ms."
+      >
+        <Cell label="dialog — fade fast">
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" data-testid="sg-motion-dialog-open">
+                Open dialog
+              </Button>
+            </DialogTrigger>
+            <DialogContent data-testid="sg-motion-dialog" className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Delete artifact?</DialogTitle>
+                <DialogDescription>Overlay and content fade with the fast motion token (120ms).</DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline" size="sm">
+                    Close
+                  </Button>
+                </DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </Cell>
+        <Cell label="sheet right — slide slow">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="sm" data-testid="sg-motion-sheet-open">
+                Open sheet
+              </Button>
+            </SheetTrigger>
+            <SheetContent data-testid="sg-motion-sheet">
+              <SheetHeader>
+                <SheetTitle>Detail panel</SheetTitle>
+                <SheetDescription>Slides in over 240ms; the overlay fades fast.</SheetDescription>
+              </SheetHeader>
+            </SheetContent>
+          </Sheet>
+        </Cell>
+        <Cell label="drawer bottom (vaul) — slide slow">
+          <Drawer>
+            <DrawerTrigger asChild>
+              <Button variant="outline" size="sm" data-testid="sg-motion-drawer-open">
+                Open drawer
+              </Button>
+            </DrawerTrigger>
+            <DrawerContent data-testid="sg-motion-drawer">
+              <DrawerHeader>
+                <DrawerTitle>Bottom drawer</DrawerTitle>
+                <DrawerDescription>vaul slide keyframes re-timed to the token (240ms).</DrawerDescription>
+              </DrawerHeader>
+            </DrawerContent>
+          </Drawer>
+        </Cell>
+        <Cell label="popover — pop base">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" data-testid="sg-motion-popover-open">
+                Open popover
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent data-testid="sg-motion-popover" className="w-56" align="start">
+              <p className="text-dense text-muted-foreground">Anchored overlay, 160ms scale+fade.</p>
+            </PopoverContent>
+          </Popover>
+        </Cell>
+        <Cell label="toast — transition slow">
+          <Button variant="outline" size="sm" data-testid="sg-motion-toast" onClick={() => toast.info('Motion token leg')}>
+            Fire toast
+          </Button>
+        </Cell>
+      </Section>
+
+      {/* ---- 批 6 P2 件最小陈列（T-UIB6 任务 4）：Card/Separator/ScrollArea
+          原语（token 基座已是成品，此面为矩阵登记）+ TransferBox 重皮后
+          形态；AG Grid 主题是嵌入面皮肤（非交互原语），矩阵归 Explorer/
+          Search e2e——不在 styleguide 拉起 grid 实例。 ---- */}
+      <Section id="p2" title="P2 pieces" desc="Card / Separator / ScrollArea primitives (token base); TransferBox after the batch-6 reskin (legacy .transfer-* CSS retired into semantic classes)">
+        <Cell label="card">
+          <Card className="w-56">
+            <CardHeader>
+              <CardTitle>Storage</CardTitle>
+              <CardDescription>Card primitive on token base</CardDescription>
+            </CardHeader>
+            <CardContent className="text-dense text-muted-foreground">Body slot</CardContent>
+          </Card>
+        </Cell>
+        <Cell label="separator + scroll area">
+          <div className="flex h-24 w-56 items-stretch gap-3">
+            <ScrollArea className="w-40 rounded-md border border-border p-2">
+              {Array.from({ length: 12 }, (_, i) => (
+                <p key={i} className="text-dense text-muted-foreground">
+                  line {i + 1}
+                </p>
+              ))}
+            </ScrollArea>
+            <Separator orientation="vertical" />
+          </div>
+        </Cell>
+        <Cell label="transfer box (reskinned)">
+          <TransferBox
+            items={[
+              { name: 'devs', label: 'devs', note: 'read' },
+              { name: 'release', label: 'release' },
+              { name: 'qa', label: 'qa' },
+              { name: 'admins', label: 'admins' },
+            ]}
+            selected={[...transferSel]}
+            onToggle={(name, next) =>
+              setTransferSel((prev) => {
+                const s = new Set(prev)
+                if (next) s.add(name)
+                else s.delete(name)
+                return s
+              })
+            }
+          />
         </Cell>
       </Section>
 

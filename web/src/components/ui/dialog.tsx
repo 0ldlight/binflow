@@ -1,5 +1,8 @@
 // 对话框 primitive：Radix Dialog 居中模态（overlay 遮罩 + 焦点圈进/Esc
 // 关闭 + aria 语义）；消费面 = 确认层/表单模态/向导。
+// 批 6（§4.2 Modal★）：开合动画接管 motion token——overlay/content 均
+// dur-fast fade（§3.6「微交互/hover」档 × §4.2「dur-fast+fade」）；Radix
+// Presence 等 animationend 再卸载，关闭态同样走降级值。
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
@@ -16,7 +19,10 @@ function DialogOverlay({ className, ...props }: ComponentProps<typeof DialogPrim
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
-      className={cn('fixed inset-0 z-[90] bg-scrim', className)}
+      className={cn(
+        'fixed inset-0 z-[90] bg-scrim data-[state=open]:anim-fade-in data-[state=closed]:anim-fade-out',
+        className,
+      )}
       {...props}
     />
   )
@@ -45,7 +51,7 @@ function DialogContent({ className, children, ...props }: ComponentProps<typeof 
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          'fixed top-1/2 left-1/2 z-[90] grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-surface-1 p-4 shadow-modal',
+          'fixed top-1/2 left-1/2 z-[90] grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-surface-1 p-4 shadow-modal data-[state=open]:anim-fade-in data-[state=closed]:anim-fade-out',
           className,
         )}
         {...props}

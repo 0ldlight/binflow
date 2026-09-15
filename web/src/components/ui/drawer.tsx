@@ -1,5 +1,11 @@
 // 抽屉 primitive：vaul 底部/四向滑出面板（拖拽把手可关）；消费面 =
 // SetMe Up 式右向详情抽屉（parity 册 D 系形态）。
+// 批 6（§4.2 Drawer★）：vaul 自带 slide keyframes（slideFrom/ToBottom，
+// 开合双态都按自身高特异度 data-state 选择器定名）与 .5s 隐式时长——
+// 本件不重造动画，只挂 anim-slide-in/anim-fade-in 类作桥接层覆盖钩
+// （tailwind.css 的 [data-vaul-*] 抬特异度规则把 duration/timing 压回
+// token 档 dur-slow/ease，prefers-reduced-motion 随 token 降 1ms）；
+// 拖拽关闭的即时位移仍是 vaul 自有机制。
 import { Drawer as DrawerPrimitive } from 'vaul'
 import type { ComponentProps } from 'react'
 
@@ -11,7 +17,13 @@ const DrawerPortal = DrawerPrimitive.Portal
 const DrawerClose = DrawerPrimitive.Close
 
 function DrawerOverlay({ className, ...props }: ComponentProps<typeof DrawerPrimitive.Overlay>) {
-  return <DrawerPrimitive.Overlay data-slot="drawer-overlay" className={cn('fixed inset-0 z-[90] bg-scrim', className)} {...props} />
+  return (
+    <DrawerPrimitive.Overlay
+      data-slot="drawer-overlay"
+      className={cn('fixed inset-0 z-[90] bg-scrim anim-fade-in', className)}
+      {...props}
+    />
+  )
 }
 
 function DrawerContent({ className, children, ...props }: ComponentProps<typeof DrawerPrimitive.Content>) {
@@ -21,7 +33,7 @@ function DrawerContent({ className, children, ...props }: ComponentProps<typeof 
       <DrawerPrimitive.Content
         data-slot="drawer-content"
         className={cn(
-          'fixed inset-x-0 bottom-0 z-[90] flex h-auto flex-col rounded-t-lg border border-border bg-surface-1 shadow-modal',
+          'fixed inset-x-0 bottom-0 z-[90] flex h-auto flex-col rounded-t-lg border border-border bg-surface-1 shadow-modal anim-slide-in',
           className,
         )}
         {...props}

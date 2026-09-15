@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
+import { DialogContent, DialogTitle } from '@/components/ui/dialog'
 
 import { tr } from '../i18n'
 
@@ -97,45 +98,30 @@ function ConfirmDialog({
     cancelRef.current = node
   }, [])
 
-  // 卸载回焦：捕获场外启动元素，settle 后归位（quick-set-me-up 等菜单链
-  // 路的回焦契约——与 ui/dialog 的 DialogContent 同款微任务让位策略）
-  const returnFocusRef = useRef<HTMLElement | null>(null)
-  useEffect(() => {
-    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    return () => {
-      queueMicrotask(() => {
-        if (document.activeElement === document.body || document.activeElement === null) {
-          const el = returnFocusRef.current
-          if (el && el.isConnected) el.focus({ preventScroll: true })
-        }
-      })
-    }
-  }, [])
-
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onSettle(false) }}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay
-          data-slot="dialog-overlay"
-          className="fixed inset-0 z-[90] bg-scrim"
-        />
-        <DialogPrimitive.Content
-          // §3.8 钩子：.modal 类名留 DOM（artifacts-tree 等 spec 的 fallback
-          // 选择器）；pages.css 的 .modal .server-reason 规则续生效。
-          className="modal fixed top-1/2 left-1/2 z-[90] grid w-[min(440px,calc(100vw-48px))] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-surface-1 p-4 shadow-modal data-[state=danger]:border-destructive/50"
-          data-testid="confirm-dialog"
-          data-state={opts.danger ? 'danger' : undefined}
-          aria-labelledby="confirm-dialog-title"
-          onOpenAutoFocus={(e) => {
-            e.preventDefault()
-            queueMicrotask(() => cancelRef.current?.focus())
-          }}
-          onInput={() => bump((t) => t + 1)}
-          onClick={() => bump((t) => t + 1)}
-        >
-          <DialogPrimitive.Title id="confirm-dialog-title" className="text-h3 font-semibold">
-            {opts.title}
-          </DialogPrimitive.Title>
+      {/* 批 6 升格（design-system-plan §4 P2「ConfirmDialog 升格」）：直挂
+          primitive 的 Overlay/Content 换 ui/dialog 统一件——dur-fast fade
+          开合动画与卸载回焦（DialogContent 自带微任务让位策略）随批 6
+          motion 接管继承。§3.8 钩子原样：.modal 类名留 DOM（artifacts-tree
+          等 spec 的 fallback 选择器）；danger 标记自 data-state 迁
+          data-variant（data-state 归 Radix 开合态——批 6 起动画变体依赖
+          open/closed 双值，不再借位）。 */}
+      <DialogContent
+        className="modal w-[min(440px,calc(100vw-48px))] data-[variant=danger]:border-destructive/50"
+        data-testid="confirm-dialog"
+        data-variant={opts.danger ? 'danger' : undefined}
+        aria-labelledby="confirm-dialog-title"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault()
+          queueMicrotask(() => cancelRef.current?.focus())
+        }}
+        onInput={() => bump((t) => t + 1)}
+        onClick={() => bump((t) => t + 1)}
+      >
+        <DialogTitle id="confirm-dialog-title" className="text-left">
+          {opts.title}
+        </DialogTitle>
           {opts.body && <div className="text-dense">{opts.body}</div>}
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button
@@ -155,8 +141,7 @@ function ConfirmDialog({
               {opts.confirmLabel ?? tt('确认')}
             </Button>
           </div>
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
+        </DialogContent>
     </DialogPrimitive.Root>
   )
 }

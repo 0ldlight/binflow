@@ -35,72 +35,9 @@
   letter-spacing: 0.02em;
 }
 
-/* ---------- 双列穿梭（§3.3 C5：Available N / Selected N + 空侧「未选择项」） ---------- */
-
-.transfer {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--bf-sp-3);
-  max-width: 720px;
-}
-
-.transfer-col {
-  display: flex;
-  flex-direction: column;
-  min-height: 148px;
-  max-height: 300px;
-  border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-md);
-  background: var(--bf-surface-1);
-}
-
-.transfer-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: var(--bf-sp-2) var(--bf-sp-3);
-  border-bottom: 1px solid var(--bf-border);
-  font-size: var(--bf-fs-xs);
-  color: var(--bf-text-2);
-  font-weight: 600;
-}
-
-.transfer-count {
-  font-variant-numeric: tabular-nums;
-  color: var(--bf-text-muted);
-}
-
-.transfer-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--bf-sp-1) var(--bf-sp-2);
-}
-
-.transfer-item {
-  display: flex;
-  align-items: center;
-  gap: var(--bf-sp-2);
-  min-height: 28px;
-  font-size: var(--bf-fs-sm);
-  cursor: pointer;
-}
-
-.transfer-item:has(input:disabled) {
-  cursor: default;
-  opacity: 0.7;
-}
-
-.transfer-empty {
-  color: var(--bf-text-muted);
-  font-size: var(--bf-fs-xs);
-  margin: var(--bf-sp-2);
-}
-
-@media (max-width: 720px) {
-  .transfer {
-    grid-template-columns: 1fr;
-  }
-}
+/* ---------- 双列穿梭（§3.3 C5）：.transfer-* 十规则已随批 6 重皮迁
+ * components/layout/transfer-box.tsx 的 Tailwind 语义类（design-system-plan
+ * §4 P2）——.transfer-item 类名留 DOM 作 e2e 钩。 ---------- */
 
 /* ---------- 列头排序（§3.3 C1 / §4.7：asc → desc → none 循环） ----------
  * .th-sort/.th-sort-arrow 族已随 T-344 批 C 退役（mui-native-visual §3.5）：

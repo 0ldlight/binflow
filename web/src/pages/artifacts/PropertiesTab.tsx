@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '../../components/ConfirmDialog'
 import { useToast } from '../../app/ToastContext'
-import { StateSkeleton } from '@/components/layout/states'
+import { EmptyState, StateSkeleton } from '@/components/layout/states'
 import { ApiError, deleteNodeProperties, errText, getNodeProperties, putNodeProperties } from '../../lib/api'
 import { PROPS_COPY } from './detailCopy'
 import { useAsync } from '../../lib/useAsync'
@@ -291,10 +291,12 @@ export default function PropertiesTab({
       </div>
 
       {rows.length === 0 ? (
-        <div data-testid="node-props-empty" className="py-6 text-center">
-          <p className="text-dense text-muted-foreground">{t('此节点尚无属性')}</p>
-          <p className="mt-1 text-aux text-muted-foreground">{t('部署时以矩阵参数（PUT …;key=value）附带，或用上方表单添加；属性用于检索与治理。')}</p>
-        </div>
+        <EmptyState
+          testid="node-props-empty"
+          message={t('此节点尚无属性')}
+          hint={t('部署时以矩阵参数（PUT …;key=value）附带，或用上方表单添加；属性用于检索与治理。')}
+          illustration
+        />
       ) : searchEmpty ? (
         <div className="py-6 text-center">
           <p className="text-dense text-muted-foreground" data-testid="node-props-search-empty">{t('没有匹配「')}{search.trim()}{t('」的属性')}</p>
@@ -310,7 +312,11 @@ export default function PropertiesTab({
           </thead>
           <tbody>
             {filtered.map(([key, values]) => (
-              <tr key={key} data-testid={`node-props-row-${key}`} className="border-b border-border/60">
+              <tr
+                key={key}
+                data-testid={`node-props-row-${key}`}
+                className="border-b border-border/60 transition-colors duration-fast ease-standard hover:bg-surface-2"
+              >
                 <th scope="row" className="px-2 py-1.5 text-left font-mono font-normal">
                   {key}
                 </th>

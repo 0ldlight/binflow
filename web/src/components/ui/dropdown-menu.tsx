@@ -20,7 +20,7 @@ function DropdownMenuContent({ className, sideOffset = 4, ...props }: ComponentP
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         className={cn(
-          'z-[80] min-w-[8rem] overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-overlay',
+          'z-[80] min-w-[8rem] overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-overlay data-[state=open]:anim-pop-in data-[state=closed]:anim-pop-out',
           className,
         )}
         {...props}

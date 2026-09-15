@@ -18,7 +18,7 @@ function ContextMenuContent({ className, ...props }: ComponentProps<typeof Conte
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content
         data-slot="context-menu-content"
-        className={cn('z-[80] min-w-[8rem] overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-overlay', className)}
+        className={cn('z-[80] min-w-[8rem] overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-overlay data-[state=open]:anim-pop-in data-[state=closed]:anim-pop-out', className)}
         {...props}
       />
     </ContextMenuPrimitive.Portal>

@@ -58,7 +58,28 @@ test('state matrix: every §4.2 section renders', async ({ page }) => {
   test.skip(!(await openStyleguide(page)), 'styleguide route not registered in this build (production)')
   await expect(page.locator('h1')).toContainText('BinFlow Design System')
 
-  for (const id of ['button', 'spinner', 'input', 'textarea', 'checkbox', 'switch', 'radio-group', 'badge', 'toast', 'tabs', 'breadcrumb', 'states']) {
+  for (const id of [
+    'button',
+    'spinner',
+    'input',
+    'textarea',
+    'checkbox',
+    'switch',
+    'radio-group',
+    'badge',
+    'badge-convergence',
+    'toast',
+    'tabs',
+    'breadcrumb',
+    'states',
+    // 批 6（T-UIB6）：域件 / motion / P2 矩阵行
+    'domain-tree',
+    'checksum',
+    'path-breadcrumb',
+    'properties',
+    'motion',
+    'p2',
+  ]) {
     await expect(page.locator(`section#${id}`)).toBeVisible()
   }
   // 抽样锚：四缺件本体 + 批 4 态载体
@@ -118,7 +139,7 @@ test('tabs: keyboard arrow moves activation (Radix roving)', async ({ page }) =>
 
 test('breadcrumb + states + toast carriers', async ({ page }) => {
   test.skip(!(await openStyleguide(page)), 'styleguide route not registered in this build (production)')
-  await expect(page.locator('nav[aria-label="breadcrumb"] [aria-current="page"]')).toContainText('artifact-1.0.0.tgz')
+  await expect(page.locator('section#breadcrumb nav[aria-label="breadcrumb"] [aria-current="page"]')).toContainText('artifact-1.0.0.tgz')
 
   await expect(page.getByTestId('sg-empty')).toBeVisible()
   const card = page.getByTestId('error-card')
@@ -152,4 +173,96 @@ test('axe: light + dark, 0 serious/critical', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await expectA11yClean(page, info, { include: ROOT })
   await evidence(page, 'styleguide-dark')
+})
+
+// ---- T-UIB6（design-system-plan §6 批 6）扩腿：徽章两族收敛呈裁 +
+// 域件交互 + motion token 时长（正常档）+ prefers-reduced-motion 降级档 ----
+
+test('badge convergence: tint (legacy recipe) and soft (semantic surface) families side by side', async ({ page }) => {
+  test.skip(!(await openStyleguide(page)), 'styleguide route not registered in this build (production)')
+  // 两族并存呈裁（任务 5）——conductor 终裁前任何一族不可缺席
+  for (const v of ['tint-neutral', 'tint-info', 'tint-success', 'tint-warning', 'tint-danger']) {
+    await expect(page.getByTestId(`sg-badge-${v}`)).toBeVisible()
+  }
+  await expect(page.getByTestId('sg-badge-tint-success')).toHaveAttribute('data-variant', 'tint-success')
+  // soft 族同屏（同状态并排格）
+  const cell = page.locator('section#badge-convergence').getByText('healthy').first()
+  await expect(cell).toBeVisible()
+})
+
+test('domain pieces: tree selection moves, checksum reveal toggles, missing algo keeps em-dash', async ({ page }) => {
+  test.skip(!(await openStyleguide(page)), 'styleguide route not registered in this build (production)')
+  // 树选中迁移（click 移动 selected 语义 + 左缘条）
+  const file = page.getByTestId('sg-tree-row-file')
+  await expect(file).not.toHaveAttribute('aria-selected', 'true')
+  await file.click()
+  await expect(file).toHaveAttribute('aria-selected', 'true')
+  await expect(file.locator('span.bg-primary')).toHaveCount(1)
+
+  // checksum reveal：截断 → 全值 → 再收截断
+  const reveal = page.getByTestId('sg-checksum-reveal-sha256')
+  await expect(reveal).toContainText('…')
+  await reveal.click()
+  await expect(reveal).toContainText('3f9a1c8e5b2d74f06a1c9e8b7d6f5a4e3c2b1a0987654321fedcba9876543210')
+  await reveal.click()
+  await expect(reveal).toContainText('…')
+  // 缺失 md5 = 「—」占位（不伪造）
+  await expect(page.getByTestId('sg-checksum-demo')).toContainText('md5')
+})
+
+/** computed 动效时长（秒串）：animation-duration 优先，none 则取 transition-duration */
+async function motionDurations(page: Page, selectors: string[]): Promise<Record<string, string>> {
+  return page.evaluate((sels) => {
+    const out: Record<string, string> = {}
+    for (const sel of sels) {
+      const el = document.querySelector(sel)
+      if (!el) {
+        out[sel] = 'MISSING'
+        continue
+      }
+      const cs = getComputedStyle(el)
+      out[sel] = cs.animationName !== 'none' ? cs.animationDuration : cs.transitionDuration
+    }
+    return out
+  }, selectors)
+}
+
+/** 开一个浮层面 → 量 computed 时长 → Esc 关掉（模态层拦点击，不叠开） */
+async function openAndMeasure(page: Page, openTestId: string, contentTestId: string): Promise<string> {
+  await page.getByTestId(openTestId).click()
+  const content = page.getByTestId(contentTestId)
+  await expect(content).toBeVisible()
+  const [dur] = Object.values(await motionDurations(page, [`[data-testid="${contentTestId}"]`]))
+  await page.keyboard.press('Escape')
+  await expect(content).toBeHidden()
+  return dur
+}
+
+test('motion tokens: fade=fast / pop=base / slide=slow on computed durations', async ({ page }) => {
+  test.skip(!(await openStyleguide(page)), 'styleguide route not registered in this build (production)')
+  // 逐面开→量→关（模态层会拦后续点击——不叠开）
+  await expect(await openAndMeasure(page, 'sg-motion-dialog-open', 'sg-motion-dialog')).toBe('0.12s') // modal fade = dur-fast
+  await expect(await openAndMeasure(page, 'sg-motion-popover-open', 'sg-motion-popover')).toBe('0.16s') // anchored pop = dur-base
+  await expect(await openAndMeasure(page, 'sg-motion-sheet-open', 'sg-motion-sheet')).toBe('0.24s') // sheet slide = dur-slow
+  await expect(await openAndMeasure(page, 'sg-motion-drawer-open', 'sg-motion-drawer')).toBe('0.24s') // vaul drawer re-timed
+  // toast（sonner transition 接管档）
+  await page.getByTestId('sg-motion-toast').click()
+  await expect(page.locator('[data-sonner-toast]').last()).toBeVisible()
+  expect(await motionDurations(page, ['[data-sonner-toast]'])).toEqual({ '[data-sonner-toast]': '0.24s' })
+})
+
+test('prefers-reduced-motion: overlay/drawer/toast durations collapse to the 1ms degrade value', async ({ page }) => {
+  test.skip(!(await openStyleguide(page)), 'styleguide route not registered in this build (production)')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+
+  await expect(await openAndMeasure(page, 'sg-motion-dialog-open', 'sg-motion-dialog')).toBe('0.001s')
+  await expect(await openAndMeasure(page, 'sg-motion-popover-open', 'sg-motion-popover')).toBe('0.001s')
+  await expect(await openAndMeasure(page, 'sg-motion-sheet-open', 'sg-motion-sheet')).toBe('0.001s')
+  await expect(await openAndMeasure(page, 'sg-motion-drawer-open', 'sg-motion-drawer')).toBe('0.001s')
+  await page.getByTestId('sg-motion-toast').click()
+  await expect(page.locator('[data-sonner-toast]').last()).toBeVisible()
+  // toast：token 档降 1ms；sonner 自身对 reduce 还会整关 transition
+  //（prop=none / 0s）——两种都是降级值，数值断言 ≤1ms 收口
+  const toastDur = (await motionDurations(page, ['[data-sonner-toast]']))['[data-sonner-toast]']
+  expect(parseFloat(toastDur), `toast degrade ≤1ms (got ${toastDur})`).toBeLessThanOrEqual(0.001)
 })

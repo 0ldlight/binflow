@@ -141,3 +141,68 @@
   --spacing-topbar: var(--bf-topbar-h);
   --container-content: var(--bf-content-max);
 }
+
+/* ---- 批 6 motion 消费层（design-system-plan §3.6 / §4.2 / §6 批 6 行）：
+ * 浮层/抽屉/toast 过渡自 Tailwind 隐式 150ms 接管为 token 档。三档映射
+ * （§3.6 语义）：fade=modal 开合（dur-fast，§4.2 Dialog「dur-fast+fade」）/
+ * pop=锚定浮层（dur-base，§3.6「下拉/浮层」）/ slide=抽屉（dur-slow）。
+ * keyframes 只动 opacity / 独立 scale / 独立 translate——不碰 transform，
+ * 不与 Radix 定位类（-translate-x-1/2 等）互踩；slide 的方向经消费点的
+ * --bf-slide-from（translate 二元组）注入。prefers-reduced-motion 时
+ * tokens 层已把三档整组降 1ms——本层零特判即随之降级。 ---- */
+@keyframes bf-fade-in {
+  from { opacity: 0; }
+}
+@keyframes bf-fade-out {
+  to { opacity: 0; }
+}
+@keyframes bf-pop-in {
+  from { opacity: 0; scale: 0.97; }
+}
+@keyframes bf-pop-out {
+  to { opacity: 0; scale: 0.97; }
+}
+@keyframes bf-slide-in {
+  from { translate: var(--bf-slide-from); }
+}
+@keyframes bf-slide-out {
+  to { translate: var(--bf-slide-from); }
+}
+
+@utility anim-fade-in {
+  animation: bf-fade-in var(--bf-dur-fast) var(--bf-ease);
+}
+@utility anim-fade-out {
+  animation: bf-fade-out var(--bf-dur-fast) var(--bf-ease);
+}
+@utility anim-pop-in {
+  animation: bf-pop-in var(--bf-dur-base) var(--bf-ease);
+}
+@utility anim-pop-out {
+  animation: bf-pop-out var(--bf-dur-base) var(--bf-ease);
+}
+@utility anim-slide-in {
+  animation: bf-slide-in var(--bf-dur-slow) var(--bf-ease);
+}
+@utility anim-slide-out {
+  animation: bf-slide-out var(--bf-dur-slow) var(--bf-ease);
+}
+
+/* Toast（sonner）运动接管：sonner 运行时注入的 [data-sonner-toast] 规则
+ * 带 .4s 隐式 transition（注入点在 head 尾部——同特异度恒胜工具类），
+ * 以 attr+class 双选器抬特异度压回 token 档；transform 机制仍是 sonner
+ * 自有（--y 变量），此处只接管时长/缓动（§4.2 Toast 自动消隐 dur-slow）。 */
+[data-sonner-toast].bf-toast {
+  transition-duration: var(--bf-dur-slow);
+  transition-timing-function: var(--bf-ease);
+}
+
+/* 抽屉（vaul）运动接管：vaul 注入 [data-vaul-drawer]/[data-vaul-overlay]
+ * 规则带 .5s 隐式时长 + 自有 slide/fade keyframes（开合双态按高特异度
+ * data-state 选择器定名——animation-name 不夺，只压 duration/timing 回
+ * token 档；ui/drawer 挂的 anim-* 类即本规则的匹配钩）。 */
+[data-vaul-drawer].anim-slide-in,
+[data-vaul-overlay].anim-fade-in {
+  animation-duration: var(--bf-dur-slow);
+  animation-timing-function: var(--bf-ease);
+}

@@ -20,7 +20,9 @@ function Toaster({ theme = 'light', ...props }: ToasterProps) {
       className="toaster group"
       toastOptions={{
         classNames: {
-          toast: 'group toast rounded-md border border-border bg-surface-1 text-foreground shadow-overlay',
+          // bf-toast = 运动接管钩（桥接层 [data-sonner-toast].bf-toast 规则
+          // 压回 token 档 dur-slow/ease——见 tailwind.css 批 6 段注）
+          toast: 'group toast bf-toast rounded-md border border-border bg-surface-1 text-foreground shadow-overlay',
           description: 'text-muted-foreground',
           actionButton: 'bg-primary text-primary-foreground',
           cancelButton: 'bg-surface-2 text-foreground',
