@@ -46,8 +46,8 @@ test.beforeEach(async ({ request }) => {
 
 test.beforeAll(async () => {
   // Full seed-m9 slice: the four coverage targets ride the 50-repo fixture
-  // (idempotent PUTs + create-if-absent targets — convergent on a shared
-  // instance).
+  // (repos GET-first ensure + create-if-absent targets — convergent on a
+  // shared instance).
   await seedM9(m9Client())
 })
 

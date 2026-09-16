@@ -6,8 +6,8 @@
 // 批 5（T-UIB5，design-system-plan §6）：bits.tsx Badge 升格并入——旧
 // base.css .badge 配方以 tint-* 变体等值承载（color-mix 走桥接层
 // badge-* 槽；px-[7px]/border-0/font-normal 覆盖基线，字号 12px/1.4
-// 以任意值 token 形自持——twMerge 对 text-* 自定义字号名按色彩组消解，
-// 基线 text-aux 与变体色类同串会被吞，故变体自携带）。tier 档复用
+// 直接继承基线 text-aux——L024-9 起 cn() 的 twMerge 已把自定义字号类
+// 注册进 font-size 组，与变体色类同串不再互吞）。tier 档复用
 // info/warning 配方（M10 T-288 闭集）。与软底族的收敛裁决归批 6。
 import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
@@ -29,14 +29,15 @@ const badgeVariants = cva(
         info: 'border-transparent bg-info-surface text-info',
         destructive: 'border-transparent bg-destructive text-destructive-foreground',
         'destructive-soft': 'border-transparent bg-destructive-surface text-destructive',
-        // tint 族=旧 .badge 配方等值承载（批 5；自持字号/行高/无边框/常规字重）
-        'tint-neutral': 'border-0 bg-secondary px-[7px] font-normal [line-height:var(--bf-lh-xs)] text-[length:var(--bf-fs-xs)] text-muted-foreground',
-        'tint-info': 'border-0 bg-badge-info-soft px-[7px] font-normal [line-height:var(--bf-lh-xs)] text-[length:var(--bf-fs-xs)] text-badge-info',
-        'tint-success': 'border-0 bg-badge-success-soft px-[7px] font-normal [line-height:var(--bf-lh-xs)] text-[length:var(--bf-fs-xs)] text-badge-success',
-        'tint-warning': 'border-0 bg-badge-warning-soft px-[7px] font-normal [line-height:var(--bf-lh-xs)] text-[length:var(--bf-fs-xs)] text-badge-warning',
-        'tint-danger': 'border-0 bg-badge-danger-soft px-[7px] font-normal [line-height:var(--bf-lh-xs)] text-[length:var(--bf-fs-xs)] text-badge-danger',
-        'tint-pro': 'border-0 bg-badge-info-soft px-[7px] font-normal [line-height:var(--bf-lh-xs)] text-[length:var(--bf-fs-xs)] text-badge-info',
-        'tint-enterprise': 'border-0 bg-badge-warning-soft px-[7px] font-normal [line-height:var(--bf-lh-xs)] text-[length:var(--bf-fs-xs)] text-badge-warning',
+        // tint 族=旧 .badge 配方等值承载（批 5；无边框/常规字重，字号与
+        // 行高继承基线 text-aux 及其 line-height 伴生档——1.4 = --bf-lh-xs）
+        'tint-neutral': 'border-0 bg-secondary px-[7px] font-normal text-muted-foreground',
+        'tint-info': 'border-0 bg-badge-info-soft px-[7px] font-normal text-badge-info',
+        'tint-success': 'border-0 bg-badge-success-soft px-[7px] font-normal text-badge-success',
+        'tint-warning': 'border-0 bg-badge-warning-soft px-[7px] font-normal text-badge-warning',
+        'tint-danger': 'border-0 bg-badge-danger-soft px-[7px] font-normal text-badge-danger',
+        'tint-pro': 'border-0 bg-badge-info-soft px-[7px] font-normal text-badge-info',
+        'tint-enterprise': 'border-0 bg-badge-warning-soft px-[7px] font-normal text-badge-warning',
       },
     },
     defaultVariants: {
