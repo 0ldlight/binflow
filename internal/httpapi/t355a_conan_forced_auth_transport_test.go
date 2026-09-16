@@ -28,11 +28,7 @@ func TestConanForceAuthRoundTripREST(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("create status = %d; body=%s", status, body)
 	}
-	_, cfg := getRepoJSON(t, h, "conan-forced")
-	conf, ok := cfg["configuration"].(map[string]any)
-	if !ok {
-		t.Fatalf("configuration missing: %v", cfg)
-	}
+	conf := listConfigurationOf(t, h, "conan-forced")
 	if !reflect.DeepEqual(conf["forceConanAuthentication"], true) {
 		t.Errorf("configuration[forceConanAuthentication] = %v, want true", conf["forceConanAuthentication"])
 	}
@@ -44,8 +40,7 @@ func TestConanForceAuthRoundTripREST(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("create (off arm) status = %d; body=%s", status, body)
 	}
-	_, cfg = getRepoJSON(t, h, "conan-open")
-	conf = cfg["configuration"].(map[string]any)
+	conf = listConfigurationOf(t, h, "conan-open")
 	if !reflect.DeepEqual(conf["forceConanAuthentication"], false) {
 		t.Errorf("off-arm configuration[forceConanAuthentication] = %v, want false", conf["forceConanAuthentication"])
 	}

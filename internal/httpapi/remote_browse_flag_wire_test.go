@@ -48,7 +48,7 @@ func newBrowseFlagHarness(t *testing.T) *harness {
 }
 
 // TestRemoteBrowseFlagRoundTripREST: create carrying the optional档 on a
-// batch-1 type saves it and GET echoes it under "configuration" exactly as
+// batch-1 type saves it and GET echoes it at the top level (L025-6 key face) exactly as
 // sent (D-T456-1's failing assertion: PUT 200, GET keyless). The explicit
 // false arm is deliberate — a POINTER keeps it distinct from absent, which
 // is what lets an operator flip the switch back off.
@@ -79,13 +79,11 @@ func TestRemoteBrowseFlagRoundTripREST(t *testing.T) {
 			if code != http.StatusOK {
 				t.Fatalf("GET status = %d", code)
 			}
-			conf, ok := cfg["configuration"].(map[string]any)
-			if !ok {
-				t.Fatalf("configuration missing: %v", cfg)
-			}
-			if conf["listRemoteFolderItems"] != tt.want {
-				t.Fatalf("configuration.listRemoteFolderItems = %v, want %v",
-					conf["listRemoteFolderItems"], tt.want)
+			// L025-6: the flag rides the v1 full render's top level (the
+			// configuration echo is gone with the A-true key face).
+			if cfg["listRemoteFolderItems"] != tt.want {
+				t.Fatalf("listRemoteFolderItems = %v, want %v",
+					cfg["listRemoteFolderItems"], tt.want)
 			}
 		})
 	}
@@ -101,10 +99,9 @@ func TestRemoteBrowseFlagRoundTripREST(t *testing.T) {
 			t.Fatalf("create status = %d; body=%s", status, body)
 		}
 		_, cfg := getRepoJSON(t, h, "browse-absent")
-		conf := cfg["configuration"].(map[string]any)
-		if conf["listRemoteFolderItems"] != false {
-			t.Fatalf("configuration.listRemoteFolderItems = %v, want the false default",
-				conf["listRemoteFolderItems"])
+		if cfg["listRemoteFolderItems"] != false {
+			t.Fatalf("listRemoteFolderItems = %v, want the false default",
+				cfg["listRemoteFolderItems"])
 		}
 	})
 }
@@ -129,9 +126,8 @@ func TestRemoteBrowseFlagUpdateFlipsAndKeepsREST(t *testing.T) {
 		t.Fatalf("flip-off status = %d; body=%s", status, body)
 	}
 	_, cfg := getRepoJSON(t, h, "browse-up")
-	conf := cfg["configuration"].(map[string]any)
-	if conf["listRemoteFolderItems"] != false {
-		t.Fatalf("after flip-off = %v, want false", conf["listRemoteFolderItems"])
+	if cfg["listRemoteFolderItems"] != false {
+		t.Fatalf("after flip-off = %v, want false", cfg["listRemoteFolderItems"])
 	}
 
 	// Description-only update: no type-relevant field, the stored config
@@ -140,9 +136,8 @@ func TestRemoteBrowseFlagUpdateFlipsAndKeepsREST(t *testing.T) {
 		t.Fatalf("description-only status = %d; body=%s", status, body)
 	}
 	_, cfg = getRepoJSON(t, h, "browse-up")
-	conf = cfg["configuration"].(map[string]any)
-	if conf["listRemoteFolderItems"] != false {
-		t.Fatalf("after description-only update = %v, want the kept false", conf["listRemoteFolderItems"])
+	if cfg["listRemoteFolderItems"] != false {
+		t.Fatalf("after description-only update = %v, want the kept false", cfg["listRemoteFolderItems"])
 	}
 
 	// The same POST spelling flips back on.
@@ -151,12 +146,11 @@ func TestRemoteBrowseFlagUpdateFlipsAndKeepsREST(t *testing.T) {
 		t.Fatalf("POST flip-on status = %d; body=%s", status, body)
 	}
 	_, cfg = getRepoJSON(t, h, "browse-up")
-	conf = cfg["configuration"].(map[string]any)
-	if conf["listRemoteFolderItems"] != true {
-		t.Fatalf("after POST flip-on = %v, want true", conf["listRemoteFolderItems"])
+	if cfg["listRemoteFolderItems"] != true {
+		t.Fatalf("after POST flip-on = %v, want true", cfg["listRemoteFolderItems"])
 	}
-	if conf["url"] != "http://127.0.0.1:9099" {
-		t.Fatalf("after flag-only updates = %v, want the kept url", conf["url"])
+	if cfg["url"] != "http://127.0.0.1:9099" {
+		t.Fatalf("after flag-only updates = %v, want the kept url", cfg["url"])
 	}
 }
 
@@ -196,10 +190,9 @@ func TestRemoteBrowseFlagTypeRefusalREST(t *testing.T) {
 			t.Fatalf("status = %d; body=%s", status, body)
 		}
 		_, cfg := getRepoJSON(t, h, "browse-null")
-		conf := cfg["configuration"].(map[string]any)
-		if conf["listRemoteFolderItems"] != false {
-			t.Fatalf("configuration.listRemoteFolderItems = %v, want the false default",
-				conf["listRemoteFolderItems"])
+		if cfg["listRemoteFolderItems"] != false {
+			t.Fatalf("listRemoteFolderItems = %v, want the false default",
+				cfg["listRemoteFolderItems"])
 		}
 	})
 }

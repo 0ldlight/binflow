@@ -249,9 +249,10 @@ type repoConfig struct {
 	// the pre-fix shape: PUT 200, GET keyless, anonymous ping 200.
 	ForceConanAuthentication *bool `json:"forceConanAuthentication,omitempty"` // conan: anonymous plane demands credentials (default false)
 
-	// Configuration is the GET-only echo of the stored canonical config (the
-	// service hands it back already masked, NFR-S14); it is never an input.
-	Configuration any `json:"configuration,omitempty"`
+	// L025-6: the GET face no longer renders this struct — the read plane
+	// is the measured key-face renderer (repo_config_render.go) and the old
+	// "configuration" GET echo is gone with it (a body carrying one decodes
+	// as an ignored unknown field).
 }
 
 // setStr/setI64/setBool collect one set transport field into the config map.
@@ -614,12 +615,21 @@ func contextURL(r *http.Request) string {
 }
 
 // handleRepoGet serves GET /api/repositories/{key} (E-05): the full config
-// body. The unknown-key answer is the reference's own quirk (L025-5 /
-// diff G5, live): a 400 errors envelope carrying the BARE "Bad Request" —
-// not a 404, and not the plane's usual miss wording (the v2 read face
-// keeps its own 404 envelope, live-verified green).
+// body — L025-6's measured per-class key face (local 61 / remote 102 /
+// virtual 50, no top-level url on local, no "configuration" echo; the
+// stored blob's fields ride the top level, the rest render the reference's
+// measured defaults, repo_config_render.go). Non-admin callers that pass
+// the route's manage gate get the partial projection instead (the rclass
+// dialect of the v2 non-admin view, L025-6 probe); the plain-user arm
+// stays behind the route gate (architecture family 7 — the reference
+// itself serves every authenticated user, registered for ruling). The
+// unknown-key answer is the reference's own quirk (L025-5 / diff G5,
+// live): a 400 errors envelope carrying the BARE "Bad Request" — not a
+// 404, and not the plane's usual miss wording (the v2 read face keeps its
+// own 404 envelope, live-verified green).
 func (s *Server) handleRepoGet(w http.ResponseWriter, r *http.Request, key string) {
-	row, err := s.deps.ReposSvc.GetRepo(r.Context(), principalFrom(r.Context()), key)
+	p := principalFrom(r.Context())
+	row, err := s.deps.ReposSvc.GetRepo(r.Context(), p, key)
 	if err != nil {
 		if errors.Is(err, repo.ErrRepoNotFound) {
 			writeError(w, http.StatusBadRequest, "Bad Request")
@@ -628,34 +638,12 @@ func (s *Server) handleRepoGet(w http.ResponseWriter, r *http.Request, key strin
 		s.writeRepoSvcError(w, err)
 		return
 	}
-	writeJSONBody(w, http.StatusOK, s.repoConfigOf(r, row))
-}
-
-// repoConfigOf projects one row onto the configuration body. M3 (T-80):
-// remote/virtual rows echo their canonical config under "configuration" —
-// the service already handed back the masked form (NFR-S14: no password
-// ever crosses this boundary); local rows keep the M1 shape ({} is omitted).
-// The url field rides contextURL like the list entry's (T-493, FR-157① —
-// the baseUrl family aligns on the prefixed context URL) except a REMOTE
-// row, whose top-level url is the upstream (remoteUpstreamURL, D21/L001-5).
-func (s *Server) repoConfigOf(r *http.Request, row *metadata.Repo) repoConfig {
-	cfg := repoConfig{
-		Key:         row.RepoKey,
-		RClass:      row.Type,
-		PackageType: row.PackageType,
-		Description: row.Description,
-		URL:         contextURL(r) + "/" + row.RepoKey,
+	blob := repoRowBlob(row)
+	if !s.canManage(r.Context(), p, auth.CapRepoWrite) {
+		writeJSONBody(w, http.StatusOK, partialConfigMap(row, blob, "rclass"))
+		return
 	}
-	if row.Config != "" && row.Config != "{}" {
-		var m map[string]any
-		if err := json.Unmarshal([]byte(row.Config), &m); err == nil && len(m) > 0 {
-			cfg.Configuration = m
-		}
-	}
-	if u, ok := remoteUpstreamURL(row, cfg.Configuration); ok {
-		cfg.URL = u
-	}
-	return cfg
+	writeJSONBody(w, http.StatusOK, renderConfigSeats(row, blob, configFaceSeats("v1", row.Type), "rclass"))
 }
 
 // canManage asks one management-plane capability of the injected authorizer

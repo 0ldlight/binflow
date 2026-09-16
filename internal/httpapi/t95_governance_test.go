@@ -70,20 +70,16 @@ func TestT95PatternsW12a(t *testing.T) {
 		t.Fatalf("allowed jar download: status %d", resp.StatusCode)
 	}
 
-	// Configuration round-trip: the stored blob echoes both patterns (and
-	// quotaBytes rides the same passthrough for the FE).
+	// Configuration round-trip: both patterns ride the v1 full render's
+	// top level (L025-6's A-true key face; the old "configuration" echo
+	// is gone).
 	resp = h.do(http.MethodGet, "/binflow/api/repositories/pattern-local", adminUser, adminPass, nil, nil)
-	var cfg struct {
-		Configuration map[string]any `json:"configuration"`
+	cfg := decodeJSONMap(t, mustGet(t, resp))
+	if got := cfg["includesPattern"]; got != "**/*.jar" {
+		t.Errorf("includesPattern = %v, want **/*.jar", got)
 	}
-	if err := json.Unmarshal([]byte(mustGet(t, resp)), &cfg); err != nil {
-		t.Fatalf("repo config body is not JSON: %v", err)
-	}
-	if got := cfg.Configuration["includesPattern"]; got != "**/*.jar" {
-		t.Errorf("configuration.includesPattern = %v, want **/*.jar", got)
-	}
-	if got := cfg.Configuration["excludesPattern"]; got != "secret/**" {
-		t.Errorf("configuration.excludesPattern = %v, want secret/**", got)
+	if got := cfg["excludesPattern"]; got != "secret/**" {
+		t.Errorf("excludesPattern = %v, want secret/**", got)
 	}
 
 	// The regression leg: an unconfigured repository answers the same
@@ -106,16 +102,25 @@ func TestT95QuotaW26W26bW27(t *testing.T) {
 	body800 := strings.Repeat("a", 800)
 
 	// FR-24-AC6/W26 precondition: quotaBytes round-trips through the stored
-	// configuration (the FE form and the curl 单查 read this echo).
-	resp := h.do(http.MethodGet, "/binflow/api/repositories/tiny", adminUser, adminPass, nil, nil)
-	var cfgQ struct {
+	// configuration. L025-6: the v1 detail face is now the A-true 61-key
+	// projection (no BinFlow-only quotaBytes key), so the round-trip reads
+	// the LIST face's configuration echo -- the FE's remaining read seat.
+	resp := h.do(http.MethodGet, "/binflow/api/repositories?type=local", adminUser, adminPass, nil, nil)
+	var items []struct {
+		Key           string         `json:"key"`
 		Configuration map[string]any `json:"configuration"`
 	}
-	if err := json.Unmarshal([]byte(mustGet(t, resp)), &cfgQ); err != nil {
-		t.Fatalf("repo config body is not JSON: %v", err)
+	if err := json.Unmarshal([]byte(mustGet(t, resp)), &items); err != nil {
+		t.Fatalf("repo list body is not JSON: %v", err)
 	}
-	if got := cfgQ.Configuration["quotaBytes"]; got != float64(1024) {
-		t.Errorf("configuration.quotaBytes = %v (%T), want 1024", got, got)
+	var quota any
+	for _, it := range items {
+		if it.Key == "tiny" {
+			quota = it.Configuration["quotaBytes"]
+		}
+	}
+	if quota != float64(1024) {
+		t.Errorf("list configuration.quotaBytes = %v (%T), want 1024", quota, quota)
 	}
 
 	if resp := t95Upload(h, "tiny", "a.bin", body800); resp.StatusCode != http.StatusCreated {

@@ -1,14 +1,13 @@
 package httpapi_test
 
-// L001-5 (D21, LOOP 001 tail): the repository GET planes' top-level url
-// echo. A REMOTE row's top-level url is the real UPSTREAM (the canonical
-// configuration's url — Artifactory's RepoDetails shape, E4 in
-// reports/compatibility/L000-docker-remote-diff.md), while local/virtual
-// rows keep the self-derived <contextUrl>/<key> (T-493, FR-157①). Both
-// faces — the list (GET /api/repositories) and the detail
-// (GET /api/repositories/{key}) — and the credential posture: only the
-// "url" key lifts out of the configuration; username/password never ride
-// the top level.
+// L001-5 (D21, LOOP 001 tail) + L025-6: the repository GET planes'
+// top-level url echo. On the LIST face a REMOTE row's top-level url is the
+// real UPSTREAM while local/virtual rows keep the self-derived
+// <contextUrl>/<key> (T-493, FR-157①). The DETAIL face is the A-true
+// key face since L025-6: a remote row still carries the upstream url (and
+// its username — the reference's own top-level seat), but local/virtual
+// rows carry NO url key at all (the measured 61/50-key faces), and the
+// password seat renders "" on every row (NFR-S14).
 
 import (
 	"encoding/json"
@@ -111,34 +110,41 @@ func TestRepoURLEchoListDetailBothFaces(t *testing.T) {
 		t.Errorf("list body leaks the upstream password marker: %s", listBody)
 	}
 
-	// Face 2: the single-repo body — same ruling, plus the credential
-	// posture: username/password never ride the top level.
+	// Face 2: the single-repo body — L025-6's A-true key face: only a
+	// remote row carries url (the stored upstream; "" for the urlless
+	// raw-seeded arm), local/virtual carry no url key, username rides the
+	// top level like the reference renders it, and the password seat is
+	// always "".
 	for _, key := range cases {
 		resp := h.do(http.MethodGet, "/binflow/api/repositories/"+key, adminUser, adminPass, nil, nil)
 		body := mustGet(t, resp)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("GET %s: status %d body=%s", key, resp.StatusCode, body)
 		}
-		var top struct {
-			URL      string `json:"url"`
-			Username string `json:"username"`
-			Password string `json:"password"`
-			Config   struct {
-				URL string `json:"url"`
-			} `json:"configuration"`
+		top := decodeJSONMap(t, body)
+		isRemote := strings.HasPrefix(key, "echo-remote")
+		if isRemote {
+			want := blobStringOf(t, h, key, "url")
+			if top["url"] != want {
+				t.Errorf("detail url[%s] = %v, want the stored upstream %q", key, top["url"], want)
+			}
+		} else if _, has := top["url"]; has {
+			t.Errorf("detail[%s]: non-remote row carries a url key (%v)", key, top["url"])
 		}
-		if err := json.Unmarshal([]byte(body), &top); err != nil {
-			t.Fatalf("GET %s body %q: %v", key, body, err)
+		if pw, _ := top["password"].(string); pw != "" {
+			t.Errorf("detail[%s]: password seat = %q, want \"\"", key, pw)
 		}
-		if want := wantURLOf(h, key, upstream, fallbackURL); top.URL != want {
-			t.Errorf("detail url[%s] = %q, want %q", key, top.URL, want)
-		}
-		if top.Username != "" || top.Password != "" {
-			t.Errorf("detail[%s]: top-level username/password echoed (%q/%q) — credentials must stay inside configuration",
-				key, top.Username, top.Password)
-		}
-		if top.Config.URL != "" && top.Config.URL != top.URL {
-			t.Errorf("detail[%s]: top-level url %q disagrees with configuration.url %q", key, top.URL, top.Config.URL)
+		if strings.Contains(body, "s3cret") {
+			t.Errorf("detail[%s]: body leaks the upstream password marker: %s", key, body)
 		}
 	}
+}
+
+// blobStringOf reads one string field off the row's stored config blob
+// (the raw-seeded rows bypass repo.Service's canonicalizer).
+func blobStringOf(t *testing.T, h *harness, key, field string) string {
+	t.Helper()
+	conf := listConfigurationOf(t, h, key)
+	v, _ := conf[field].(string)
+	return v
 }

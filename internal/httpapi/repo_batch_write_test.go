@@ -298,12 +298,13 @@ func TestRepoBatchPostMergeDialect(t *testing.T) {
 	if row["description"] != "orig-desc" {
 		t.Errorf("omitted description must keep the stored value: %v", row["description"])
 	}
-	cfg, _ := row["configuration"].(map[string]any)
-	if cfg["url"] != "https://example.com/up" {
-		t.Errorf("remote merge must keep the baseline url: %v", cfg["url"])
+	// L025-6: url/hardFail ride the v1 full render's top level now (the
+	// configuration echo is gone with the A-true 102-key remote face).
+	if row["url"] != "https://example.com/up" {
+		t.Errorf("remote merge must keep the baseline url: %v", row["url"])
 	}
-	if cfg["hardFail"] != true {
-		t.Errorf("explicit knob must land: %v", cfg["hardFail"])
+	if row["hardFail"] != true {
+		t.Errorf("explicit knob must land: %v", row["hardFail"])
 	}
 }
 

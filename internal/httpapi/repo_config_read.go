@@ -7,11 +7,10 @@ package httpapi
 // quirk, non-admin partial view) and the v2 batch read. The batch WRITE
 // family (PUT/POST/DELETE /api/v2/repositories/batch) is ticket B.
 //
-// Field presence follows the spec's null-omission posture: BinFlow emits
-// the keys it actually stores and omits the ones it does not model
-// (notes/signedUrlTtl/propertySets/downloadRedirect/cdnRedirect/xrayIndex/
-// xrayDataTtl/projectKey) — the reference's full 17/18-key sets ride on
-// fields BinFlow's data model will grow later.
+// L025-6: the three render faces now carry the reference's MEASURED
+// per-class key sets (repo_config_render.go — the four-layer key-face
+// anchor of rest-api.md // 2.1.9); stored blob fields ride the top level,
+// unmodeled keys render the wire-measured default shapes.
 
 import (
 	"encoding/json"
@@ -32,33 +31,17 @@ import (
 // observable).
 const repoBatchItemsLimit = 100
 
-// repoConfigurationEntry is one GET /api/repositories/configurations row:
-// the COMMON field set (spec 2.1.1) — every rclass renders the same keys,
-// no url, rclass lowercase. Modeled subset only; null fields are omitted.
-type repoConfigurationEntry struct {
-	Key                    string `json:"key"`
-	PackageType            string `json:"packageType"`
-	Description            string `json:"description"`
-	IncludesPattern        string `json:"includesPattern,omitempty"`
-	ExcludesPattern        string `json:"excludesPattern,omitempty"`
-	RepoLayoutRef          string `json:"repoLayoutRef,omitempty"`
-	PriorityResolution     *bool  `json:"priorityResolution,omitempty"`
-	Environments           []any  `json:"environments,omitempty"`
-	BlackedOut             *bool  `json:"blackedOut,omitempty"`
-	ArchiveBrowsingEnabled *bool  `json:"archiveBrowsingEnabled,omitempty"`
-	RClass                 string `json:"rclass"`
-}
-
 // repoConfigurationsBody is the grouped top level: uppercase class keys in
 // the spec's fixed order, each present only when a repository of that class
-// exists (omitempty), so the no-match filter arm renders {}. The Go field
-// names stay CamelCase (revive) — the WIRE keys are the uppercase tags.
+// exists (omitempty), so the no-match filter arm renders {}. The rows are
+// L025-6's measured common projections (repo_config_render.go): local 18 /
+// remote 46 / virtual 12 keys, rclass lowercase, local/virtual without url.
 type repoConfigurationsBody struct {
-	Local         []repoConfigurationEntry `json:"LOCAL,omitempty"`
-	Remote        []repoConfigurationEntry `json:"REMOTE,omitempty"`
-	Virtual       []repoConfigurationEntry `json:"VIRTUAL,omitempty"`
-	Federated     []repoConfigurationEntry `json:"FEDERATED,omitempty"`
-	ReleaseBundle []repoConfigurationEntry `json:"RELEASE_BUNDLE,omitempty"`
+	Local         []map[string]any `json:"LOCAL,omitempty"`
+	Remote        []map[string]any `json:"REMOTE,omitempty"`
+	Virtual       []map[string]any `json:"VIRTUAL,omitempty"`
+	Federated     []map[string]any `json:"FEDERATED,omitempty"`
+	ReleaseBundle []map[string]any `json:"RELEASE_BUNDLE,omitempty"`
 }
 
 // repoClassUpper maps a stored rclass onto the response's uppercase class
@@ -112,14 +95,6 @@ func blobString(m map[string]any, key string) string {
 	return v
 }
 
-func blobBool(m map[string]any, key string) *bool {
-	v, ok := m[key].(bool)
-	if !ok {
-		return nil
-	}
-	return &v
-}
-
 // handleRepoConfigurations serves GET /api/repositories/configurations
 // (spec 2.1.1): admin-only grouped inventory, comma-OR filters on both
 // axes (stackable), no-match filters answering 200 {} rather than an
@@ -152,21 +127,7 @@ func (s *Server) handleRepoConfigurations(w http.ResponseWriter, r *http.Request
 			continue
 		}
 		blob := repoRowBlob(row)
-		entry := repoConfigurationEntry{
-			Key:                    row.RepoKey,
-			PackageType:            row.PackageType,
-			Description:            row.Description,
-			IncludesPattern:        blobString(blob, "includesPattern"),
-			ExcludesPattern:        blobString(blob, "excludesPattern"),
-			RepoLayoutRef:          blobString(blob, "repoLayoutRef"),
-			PriorityResolution:     blobBool(blob, "priorityResolution"),
-			BlackedOut:             blobBool(blob, "blackedOut"),
-			ArchiveBrowsingEnabled: blobBool(blob, "archiveBrowsingEnabled"),
-			RClass:                 row.Type,
-		}
-		if env, ok := blob["environments"].([]any); ok {
-			entry.Environments = env
-		}
+		entry := renderConfigSeats(row, blob, configFaceSeats("configurations", row.Type), "rclass")
 		switch repoClassUpper(row.Type) {
 		case "LOCAL":
 			body.Local = append(body.Local, entry)
@@ -180,8 +141,8 @@ func (s *Server) handleRepoConfigurations(w http.ResponseWriter, r *http.Request
 			body.ReleaseBundle = append(body.ReleaseBundle, entry)
 		}
 	}
-	byKey := func(g []repoConfigurationEntry) {
-		sort.Slice(g, func(i, j int) bool { return g[i].Key < g[j].Key })
+	byKey := func(g []map[string]any) {
+		sort.Slice(g, func(i, j int) bool { return g[i]["key"].(string) < g[j]["key"].(string) })
 	}
 	byKey(body.Local)
 	byKey(body.Remote)
@@ -311,62 +272,14 @@ func v2ResponseCT(rclass string) string {
 	}
 }
 
-// v2ConfigMap renders the admin-full v2 body: type replaces rclass, the
-// common modeled subset rides every class, and the remote/virtual arms add
-// their class fields off the canonical blob (already credential-masked by
-// repo.Service, NFR-S14). Map rendering: the reference's per-class Jackson
-// declaration order is not spec-pinned and the differential normalizes key
-// order, so encoding/json's sorted-map output is the stable choice.
+// v2ConfigMap renders the admin-full v2 body (L025-6, // 2.1.9): type
+// replaces rclass and the package-type-specific fields are stripped — the
+// measured per-class key sets local 18 / remote 46 / virtual 12
+// (repo_config_render.go). Map rendering: the reference's per-class
+// Jackson declaration order is not spec-pinned and the differential
+// normalizes key order, so encoding/json's sorted-map output stays.
 func v2ConfigMap(row *metadata.Repo, blob map[string]any) map[string]any {
-	m := map[string]any{
-		"key":         row.RepoKey,
-		"type":        row.Type,
-		"packageType": row.PackageType,
-		"description": row.Description,
-	}
-	for _, k := range []string{
-		"includesPattern", "excludesPattern", "repoLayoutRef", "priorityResolution",
-		"environments", "blackedOut", "archiveBrowsingEnabled",
-	} {
-		if v, ok := blob[k]; ok {
-			m[k] = v
-		}
-	}
-	switch row.Type {
-	case repo.TypeRemote:
-		for _, k := range []string{
-			"url", "username",
-			"retrievalCachePeriodSecs", "missedRetrievalCachePeriodSecs",
-			"socketTimeoutMillis", "metadataRetrievalTimeoutSecs",
-			"unusedArtifactsCleanupPeriodHours", "assumedOfflinePeriodSecs",
-			"hardFail", "contentSynchronisation", "listRemoteFolderItems",
-		} {
-			if v, ok := blob[k]; ok {
-				m[k] = v
-			}
-		}
-	case repo.TypeVirtual:
-		if v, ok := blob["repositories"]; ok {
-			m["repositories"] = v
-		}
-	}
-	return m
-}
-
-// v2PartialConfigMap is the non-admin view (spec 2.1.3): the five-key
-// projection measured on a remote repository {key,type,packageType,
-// description,url}. The local/virtual arms of the projection were not
-// probed — the same five-key set with the context URL is implemented here
-// and registered as spec-pending in the L025-3A report.
-func v2PartialConfigMap(r *http.Request, row *metadata.Repo, blob map[string]any) map[string]any {
-	url := contextURL(r) + "/" + row.RepoKey
-	if u, ok := remoteUpstreamURL(row, blob); ok {
-		url = u
-	}
-	return map[string]any{
-		"key": row.RepoKey, "type": row.Type, "packageType": row.PackageType,
-		"description": row.Description, "url": url,
-	}
+	return renderConfigSeats(row, blob, configFaceSeats("v2", row.Type), "type")
 }
 
 // handleRepoGetV2 serves GET /api/v2/repositories/{key} (spec 2.1.3).
@@ -396,7 +309,7 @@ func (s *Server) handleRepoGetV2(w http.ResponseWriter, r *http.Request, key str
 	blob := repoRowBlob(row)
 	w.Header().Set("Cache-Control", "no-store")
 	if !s.canManage(r.Context(), p, auth.CapRepoWrite) {
-		writeJSONBodyCT(w, http.StatusOK, v2ResponseCT(row.Type), v2PartialConfigMap(r, row, blob))
+		writeJSONBodyCT(w, http.StatusOK, v2ResponseCT(row.Type), partialConfigMap(row, blob, "type"))
 		return
 	}
 	writeJSONBodyCT(w, http.StatusOK, v2ResponseCT(row.Type), v2ConfigMap(row, blob))
@@ -407,7 +320,9 @@ func (s *Server) handleRepoGetV2(w http.ResponseWriter, r *http.Request, key str
 // (byte-for-byte the same projection GET /api/repositories/{key} serves,
 // which is the invariant the spec pins). Unknown names are silently
 // omitted; a comma inside one value is a single (usually nonexistent) key,
-// not a list; no names answers the verbatim 400.
+// not a list; no names answers the verbatim 400. Non-admin callers get the
+// same partial projection the v1 face serves them (L025-6 probe: the
+// rclass dialect {key,packageType,description,rclass[+url|repositories]}).
 func (s *Server) handleRepoBatchGet(w http.ResponseWriter, r *http.Request) {
 	var names []string
 	for _, v := range r.URL.Query()["names"] {
@@ -425,7 +340,8 @@ func (s *Server) handleRepoBatchGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := principalFrom(r.Context())
-	out := make(map[string]repoConfig, len(names))
+	admin := s.canManage(r.Context(), p, auth.CapRepoWrite)
+	out := make(map[string]any, len(names))
 	for _, name := range names {
 		row, err := s.deps.ReposSvc.GetRepo(r.Context(), p, name)
 		if err != nil {
@@ -435,7 +351,11 @@ func (s *Server) handleRepoBatchGet(w http.ResponseWriter, r *http.Request) {
 			s.writeRepoSvcError(w, err)
 			return
 		}
-		out[name] = s.repoConfigOf(r, row)
+		if admin {
+			out[name] = renderConfigSeats(row, repoRowBlob(row), configFaceSeats("v1", row.Type), "rclass")
+		} else {
+			out[name] = partialConfigMap(row, repoRowBlob(row), "rclass")
+		}
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSONBody(w, http.StatusOK, out)
