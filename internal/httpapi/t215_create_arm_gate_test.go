@@ -121,9 +121,11 @@ func TestT215ManageHolderCreateArmStaysAdminOnly(t *testing.T) {
 			"renders the gate wording; the service backstop would say %q",
 			msg, "admin privileges required: permission denied")
 	}
-	// The repository must not exist: a denied create leaves nothing behind.
-	if got := t215Code(t, h, http.MethodGet, "api/repositories/m7ghost", adminUser, adminPass, ""); got != http.StatusNotFound {
-		t.Errorf("GET m7ghost after denied create = %d, want 404", got)
+	// The repository must not exist: a denied create leaves nothing
+	// behind. The unknown-key GET answers the bare-400 quirk (L025-5 /
+	// diff G5, live) — its presence proves the miss the same way.
+	if got := t215Code(t, h, http.MethodGet, "api/repositories/m7ghost", adminUser, adminPass, ""); got != http.StatusBadRequest {
+		t.Errorf("GET m7ghost after denied create = %d, want the 400 unknown-key quirk", got)
 	}
 
 	// Leg 3: the effective-permission view — fetched BY the manage holder

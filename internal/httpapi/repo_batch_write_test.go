@@ -230,7 +230,8 @@ func TestRepoBatchPutAllOrNothing(t *testing.T) {
 }
 
 // TestRepoBatchPutLimitsAndGates: the >100 limit message verbatim, the
-// malformed-body 400, the admin gate (403 non-admin BinFlow wording — the
+// malformed-body 400, the admin gate (403 non-admin: the BARE Forbidden
+// envelope —
 // reference's own was never captured) and the anonymous 401 challenge.
 func TestRepoBatchPutLimitsAndGates(t *testing.T) {
 	h := newHarness(t)
@@ -256,6 +257,11 @@ func TestRepoBatchPutLimitsAndGates(t *testing.T) {
 	resp = putBatch(t, h2, `[{"key":"wbu","rclass":"local","packageType":"generic"}]`, "u1", "p1")
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("non-admin status %d body=%s", resp.StatusCode, mustGet(t, resp))
+	}
+	// L025-5 / diff G4: the envelope carries the BARE "Forbidden" (the
+	// configurations face's own wording, live).
+	if eb := decodeError(t, resp); eb.Errors[0].Message != "Forbidden" {
+		t.Fatalf("non-admin message = %q, want the bare Forbidden", eb.Errors[0].Message)
 	}
 
 	resp = putBatch(t, h, `[{"key":"wba","rclass":"local","packageType":"generic"}]`, "", "")
@@ -523,13 +529,26 @@ func TestRepoBatchDeletePreValidation(t *testing.T) {
 		t.Fatalf("anonymous status %d", resp.StatusCode)
 	}
 
+	// L025-5 / diff G2: a blank key rides the per-repo ghost arm — the
+	// batch answers 200 with the '' row's success:true "repository config
+	// does not exist" report (spec §2.1.7-2's whole-batch abort is voided
+	// by the live probe).
 	resp = deleteBatch(t, h, `[""]`, adminUser, adminPass)
 	body = mustGet(t, resp)
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("blank key status %d body=%s", resp.StatusCode, body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("blank-key batch status %d body=%s", resp.StatusCode, body)
 	}
-	if m := decodeJSONMap(t, body); m["statusMessage"] != "Cannot delete repository: '', Reason: repository key is blank" {
-		t.Errorf("blank key statusMessage = %v (spec-pending arm, pinned as implemented)", m["statusMessage"])
+	var blankBatch struct {
+		Reports []struct {
+			RepoKey   string `json:"repoKey"`
+			Success   bool   `json:"success"`
+			StatusMsg string `json:"statusMsg"`
+		} `json:"reports"`
+	}
+	if json.Unmarshal([]byte(body), &blankBatch) != nil || len(blankBatch.Reports) != 1 ||
+		blankBatch.Reports[0].RepoKey != "" || !blankBatch.Reports[0].Success ||
+		blankBatch.Reports[0].StatusMsg != "Cannot delete repository: '', repository config does not exist" {
+		t.Fatalf("blank-key batch reports = %s", body)
 	}
 
 	resp = deleteBatch(t, h, `["auto-trashcan"]`, adminUser, adminPass)

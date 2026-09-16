@@ -814,7 +814,11 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v2/repositories/batch" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true}, s.handleRepoBatchGet)
 	case rest == "v2/repositories/batch" && r.Method == http.MethodPut:
-		s.enforce(w, r, routeAuth{required: true, manage: auth.CapRepoWrite}, s.handleRepoBatchPut)
+		// L025-5 / diff G4: the non-admin 403 is the handler's BARE
+		// "Forbidden" envelope (the configurations face's own wording, live)
+		// — the route-level manage gate would answer the BinFlow standard
+		// rendering instead, so the route stays required-only.
+		s.enforce(w, r, routeAuth{required: true}, s.handleRepoBatchPut)
 	case rest == "v2/repositories/batch" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true}, s.handleRepoBatchPost)
 	case rest == "v2/repositories/batch" && r.Method == http.MethodDelete:

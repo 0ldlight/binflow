@@ -614,11 +614,17 @@ func contextURL(r *http.Request) string {
 }
 
 // handleRepoGet serves GET /api/repositories/{key} (E-05): the full config
-// body; unknown key -> 404 with the spec's plain wording wrapped in the
-// envelope (BinFlow keeps the envelope for the repository plane, E-01).
+// body. The unknown-key answer is the reference's own quirk (L025-5 /
+// diff G5, live): a 400 errors envelope carrying the BARE "Bad Request" —
+// not a 404, and not the plane's usual miss wording (the v2 read face
+// keeps its own 404 envelope, live-verified green).
 func (s *Server) handleRepoGet(w http.ResponseWriter, r *http.Request, key string) {
 	row, err := s.deps.ReposSvc.GetRepo(r.Context(), principalFrom(r.Context()), key)
 	if err != nil {
+		if errors.Is(err, repo.ErrRepoNotFound) {
+			writeError(w, http.StatusBadRequest, "Bad Request")
+			return
+		}
 		s.writeRepoSvcError(w, err)
 		return
 	}

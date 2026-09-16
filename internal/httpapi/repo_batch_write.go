@@ -67,11 +67,15 @@ func (s *Server) addonPackageTypeMessage(packageType string) string {
 // repository '<key>' \n\n" each (trailing space, blank line between and
 // after — the two-repo live capture, joined per block).
 //
-// The route gate is the global repo:write capability (the family-6 create
-// arm BinFlow always applies); the reference's own non-admin 403 wording
-// for THIS verb was never captured, so the BinFlow standard rendering
-// stands (registered in the L025-3B report).
+// The route gate is required-only so the face's own NON-ADMIN 403 — the
+// BARE "Forbidden" errors envelope (L025-5 / diff G4, live: the same
+// wording the configurations read face answers) — is what reaches the
+// wire, never the BinFlow standard manage-gate rendering.
 func (s *Server) handleRepoBatchPut(w http.ResponseWriter, r *http.Request) {
+	if !s.canManage(r.Context(), principalFrom(r.Context()), auth.CapRepoWrite) {
+		writeError(w, http.StatusForbidden, "Forbidden")
+		return
+	}
 	var items []repoConfig
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20))
 	if err := dec.Decode(&items); err != nil {
@@ -487,10 +491,10 @@ func repoBatchDeleteAggregate(reports []repoBatchDeleteReport) (int, string) {
 // handleRepoBatchDelete serves DELETE /api/v2/repositories/batch (spec
 // 2.1.7): body = a JSON string array (duplicates collapse, order kept).
 // The pre-validation segment aborts the WHOLE batch with a single-report
-// body for its refusal arms; the per-repository segment then deletes each
-// key independently — ghost keys and keys whose deletion is already in
-// progress report success:true — and the aggregate lands on 200 / 207 /
-// the first failure's status.
+// body for its refusal arms (permission; the trash system key); every
+// OTHER spelling — ghost keys, blank keys, keys whose deletion is already
+// in progress — rides the per-repository segment with success:true, and
+// the aggregate lands on 200 / 207 / the first failure's status.
 func (s *Server) handleRepoBatchDelete(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	var keys []string
@@ -521,15 +525,11 @@ func (s *Server) handleRepoBatchDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, key := range keys {
-		if key == "" {
-			// Spec pins the arm (blank key aborts the batch) but never its
-			// message; the shape follows the pinned "Cannot delete
-			// repository: '<key>', …" family with BinFlow's own reason —
-			// registered as spec-pending in the L025-3B report.
-			writeJSONBody(w, http.StatusBadRequest, repoBatchDeleteStatusOnly{StatusMessage: fmt.Sprintf(
-				"Cannot delete repository: '%s', Reason: repository key is blank", key)})
-			return
-		}
+		// L025-5 / diff G2: a BLANK key rides the per-repository ghost arm
+		// (spec §2.1.7-2's whole-batch abort is voided by the live probe:
+		// ["k",""] answers 200 with the '' row's
+		// "repository config does not exist" success report) — no
+		// pre-validation refusal here.
 		if key == repo.TrashRepoKey {
 			// Abort-class system key. The refusal text is harvested by
 			// invoking the service, which refuses at its FIRST guard —

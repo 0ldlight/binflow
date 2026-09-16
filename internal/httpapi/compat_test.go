@@ -217,12 +217,15 @@ func TestRepositoriesCRUD(t *testing.T) {
 		}
 	})
 
-	t.Run("unknown repo get is 404 envelope", func(t *testing.T) {
+	t.Run("unknown repo get is the bare 400 quirk (L025-5 / diff G5)", func(t *testing.T) {
 		resp := h.do(http.MethodGet, "/binflow/api/repositories/no-such", adminUser, adminPass, nil, nil)
-		if resp.StatusCode != http.StatusNotFound {
+		if resp.StatusCode != http.StatusBadRequest {
 			t.Fatalf("status = %d", resp.StatusCode)
 		}
-		decodeError(t, resp)
+		eb := decodeError(t, resp)
+		if eb.Errors[0].Message != "Bad Request" {
+			t.Fatalf("message = %q, want the bare Bad Request", eb.Errors[0].Message)
+		}
 	})
 
 	t.Run("C19 delete semantics", func(t *testing.T) {
