@@ -799,15 +799,26 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/admin/security/keypair/generate" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite}, s.handleKeypairGenerate)
 
-	// ---- /api/v2/repositories/{key} + /batch read face (L025-3A, D02
-	// // 2.1.3/2.1.4): the v2 configuration read — type-for-rclass dialect,
-	// vendor content types, the Content-Type negotiation quirk and the
-	// non-admin five-key partial view inside the handler. The literal
-	// "batch" read wins over the {key} family (the reference's own
-	// @Path precedence); the batch WRITE verbs (PUT/POST/DELETE) are
-	// ticket B and keep falling through to the E-26 404 below. ----
+	// ---- /api/v2/repositories/{key} + /batch (L025-3A read face, D02
+	// // 2.1.3/2.1.4; L025-3B write family, // 2.1.5-2.1.7): the v2
+	// configuration read — type-for-rclass dialect, vendor content types,
+	// the Content-Type negotiation quirk and the non-admin five-key partial
+	// view inside the handler — plus the batch verbs: PUT batch-create
+	// (family-6 create arm, global repo:write), POST batch-modify (the
+	// per-key update gate aggregates INSIDE the handler into the spec's
+	// unauthorized-list 403) and DELETE batch-delete (the pre-validation
+	// permission arm renders the spec's statusMessage form, also inside
+	// the handler — hence the required-only route). The literal "batch"
+	// wins over the {key}/keyPairs prefix families (the reference's own
+	// @Path precedence). ----
 	case rest == "v2/repositories/batch" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true}, s.handleRepoBatchGet)
+	case rest == "v2/repositories/batch" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapRepoWrite}, s.handleRepoBatchPut)
+	case rest == "v2/repositories/batch" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleRepoBatchPost)
+	case rest == "v2/repositories/batch" && r.Method == http.MethodDelete:
+		s.enforce(w, r, routeAuth{required: true}, s.handleRepoBatchDelete)
 	case strings.HasPrefix(rest, "v2/repositories/") && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true},
 			s.withName(rest, "v2/repositories/", s.handleRepoGetV2))
