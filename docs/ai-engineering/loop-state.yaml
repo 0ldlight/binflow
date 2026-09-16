@@ -194,7 +194,7 @@ completed_tasks:
 compatibility_score:
   source: "docs/compatibility/matrix.yaml（L000-C 后唯一事实源；rest-compat-matrix.md 降级历史快照）"
   before: { compatible: 57, partial: 28, absent: 80, not_applicable: 17, superset: 11, total: 193, note: "迁移后权威基线（含 D06-R13 冻结后翻态）" }
-  after: { compatible: 81, partial: 17, absent: 70, not_applicable: 20, superset: 12, total: 200, note: "L023 批次 1 build-info + L024 搜索族落账：D07 六行（R01-R03=L023-2D/2G，R05-R07=L023-2K §10.5）+ D03-R11（L024-4/5/6 §7——52c9ba42/2f434814）absent→compatible；L024-1 勘误 D03-R14→not_applicable（旧挂载活体 404 已撤）；total 193→200 系 before 快照后冻结行集外新行提案 +7（D01-R38..43、D06-R30），以 matrix summary 逐行对账为准" }
+  after: { compatible: 83, partial: 17, absent: 68, not_applicable: 20, superset: 12, total: 200, note: "L023 批次 1 build-info + L024 搜索/D01 尾面落账：D07 六行（R01-R03=L023-2D/2G，R05-R07=L023-2K §10.5）+ D03-R11（L024-4/5/6 §7）+ D01-R16（L024-12 §6）+ D01-R08（L024-12 §6+conductor 微修 c35843f8——Allow 头双端逐字）absent→compatible；L024-1 勘误 D03-R14→not_applicable；total 193→200 系 before 快照后冻结行集外新行提案 +7（D01-R38..43、D06-R30），以 matrix summary 逐行对账为准" }
 
 p0_gaps: ["U-STG-01 BinaryProvider 存储链（已 partial——残余 U-STG-12~19）", "U-PROTO-01 docker remote 代理 v2（L000-B 在途）", "U-ENT-05 entitlement 同源"]
 p1_gaps: 50

@@ -1007,6 +1007,31 @@ entries:
   authority: { type: pending, ref: "产品/conductor 裁（两形采谁——pending-rulings v2.6 R-24a；或第二参照窗取证定谳）" }
   review_gate: LOOP 025 限期升级（R-24a 批复/第二参照窗 od 取证；ADR-0001 取证前不预设两案）
   evidence: reports/compatibility/L024-search-aql-diff.md §2.3 p02 + §7.1-L3 + docs/reverse/aql.md §16.4 V-aa
+- id: d01/context-path-interpolation
+  surface: 'D01 尾面文案/uri 的 contextPath 内插（/artifactory ↔ /binflow——L024-12 §6 残余 PN-ctx：m09b stats uri + a03 miss 文案 full URI，2 单元）'
+  classification: UNKNOWN
+  rationale: >-
+    L024-10 提案 + L024-12 终确维持（2026-09-16，dev.0c5d2ce3 × A 7.161.15）：PATCH stats 腿 m09b 的
+    uri 与 archive!/ miss a03 文案的 full URI 段内插各自实例的根前缀（A /artifactory / B /binflow），
+    除 context token 外逐字同——BinFlow 根前缀系实例 URL 空间既定设计（repo.md §1——L023 buildinfo
+    jf 配置面同源决策），**非行为差**。归一提案 PN-ctx（normalize#d01-tail：文案内插 contextPath
+    占位化）候裁——入册后该两单元出判定面。
+  authority: { type: pending, ref: "normalize#d01-tail 入册裁定（compatibility-engineer 域——PN-ctx contextPath 占位化；既定设计锚=repo.md §1）" }
+  review_gate: LOOP 025 normalize#d01-tail 入册裁定（占位化采纳即 resolved-normalize；若裁定不归一则升产品裁）
+  evidence: reports/compatibility/L024-d01-tail-diff.md §1（a03 除 context 外逐字同）+ §6（残余清单）+ reports/compatibility/l024e-wire/{a,b}/
+- id: d01/header-face-drop-proposal
+  surface: 'D01 尾面无语义裁决头族（L024-12 §6 残余 PN-hdr：?properties GET 的 Cache-Control 3 单元 + 405 响应 Allow 头聚合——T7 族）'
+  classification: UNKNOWN
+  rationale: >-
+    L024-10 提案 T7 + L024-12 终确维持（2026-09-16）：A 带 B 缺的头（Cache-Control on ?properties
+    GET——m01b/m02b/m08b 三单元唯差；Allow on 405——/api/metadata 动词面 L024-11 已对齐、POST
+    /api/storage 405 经 conductor 微修 c35843f8 双端逐字 `Allow: DELETE,GET,OPTIONS,PUT`+测试 pin
+    关闭）——无客户端语义面（jf/真实客户端 blind）。归一提案 PN-hdr（normalize#d01-tail：
+    Cache-Control/Allow 头 drop 或值断言冻结）候裁。注：Allow 头本体已对齐（c35843f8），本条余面
+    =Cache-Control 三单元 + 归一族聚合登记（T7+T8 中 T8=401 措辞族另有 R-22a 席）。
+  authority: { type: pending, ref: "normalize#d01-tail 入册裁定（compatibility-engineer 域——PN-hdr 头 drop；语义面=jf client-blind 双证）" }
+  review_gate: LOOP 025 normalize#d01-tail 入册裁定（drop 采纳即 resolved-normalize；Cache-Control 若裁定值断言对齐则开微票）
+  evidence: reports/compatibility/L024-d01-tail-diff.md §2-T7 + §6（残余清单+Allow 微残关闭）+ reports/compatibility/l024e-wire/{a,b}/
 - id: maven/non-gav-upload-acceptance
   surface: maven 仓非 GAV 路径上传容忍（PUT <repo>/f9/mz.bin——A 201 自由 vs B 400 布局强制）
   classification: UNKNOWN

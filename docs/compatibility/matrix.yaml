@@ -62,6 +62,13 @@
 #   pending-rulings v2.6 +R-24a/R-24b/R-24c（整包 25→28）；⑥ normalize.yaml 新增 search 域（S1-S4 提案
 #   转正——contracts/search.yaml normalize 锚闭引用）。summary 同步 compatible 80→81/absent 71→70/
 #   contract_ref 22→26/last_difftest 33→37。195 冻结行集不增删（本批零新行）。
+# L024 收官尾单（2026-09-16，D01 批次 2 落账）：① D01-R16 翻 compatible（L024-12 §6 终确——archive!/
+#   五单元全绿：字节/miss 文案/!-无斜杠/sha1 后缀 CT/六头族；唯余 PN-ctx contextPath 归一面=既定设计
+#   非行为差）；② D01-R08 翻 compatible（PATCH 九臂/DELETE 全语义/动词 405+Allow/stats merge 腿全绿；
+#   终确差一口=POST /api/storage 405 缺 Allow——conductor 微修 c35843f8 双端逐字验证+测试 pin）；
+#   ③ known-divergence 增记归一提案两族（d01/context-path-interpolation〔PN-ctx〕、d01/header-face-
+#   drop-proposal〔PN-hdr——Allow/Cache-Control 聚合〕——候 normalize#d01-tail 入册裁定）+ 四条开放项
+#   维持不判；④ summary 同步 compatible 81→83/absent 70→68/last_difftest 37→39。195 冻结行集不增删。
 
 ---
 schema: 1
@@ -104,9 +111,9 @@ priority_policy:
 summary:
   total_rows: 200
   state_counts:
-    compatible: 81
+    compatible: 83
     partial: 17
-    absent: 70
+    absent: 68
     not_applicable: 20
     superset: 12
   confidence_counts:
@@ -120,14 +127,14 @@ summary:
   by_state_x_priority:
     compatible:
       P0: 56
-      P1: 24
+      P1: 26
       P2: 1
     partial:
       P0: 2
       P1: 10
       P2: 5
     absent:
-      P1: 28
+      P1: 26
       P2: 42
     superset:
       P2: 12
@@ -136,9 +143,9 @@ summary:
   by_domain:
     D01:
       rows: 43
-      compatible: 22
+      compatible: 24
       partial: 5
-      absent: 10
+      absent: 8
       superset: 2
       not_applicable: 4
     D02:
@@ -205,7 +212,7 @@ summary:
       not_applicable: 1
   contract_ref_non_null: 26  # L024-7 同步：前置 22（L023-3 勘正后）+ 本批 D03-R10..R13 四行 → 实计 26（逐行 ruby 对账通过）
   golden_ref_non_null: 1     # D12-R01（empty-blob-synthetic / pull-sequence）——storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 / L024-4 §5 提金候选（l023d-wire/a/、l024d-wire/a/）在册待采，本批零金样变更
-  last_difftest_non_null: 37 # L024-7 同步：前置 33（L023-3 勘正后）+ 本批 D03-R10..R13 四行 → 实计 37（逐行 ruby 对账通过）
+  last_difftest_non_null: 39 # L024 收官尾单同步：前置 37（L024-7）+ D01-R08/R16 两行 → 实计 39（逐行 ruby 对账通过）
 rows:
 - row_id: D01-R01
   domain: D01
@@ -296,11 +303,11 @@ rows:
 - row_id: D01-R08
   domain: D01
   capability: PATCH /api/metadata/{repoKey}/{path}?recursiveProperties=（增量属性三动词——Update Item Properties 现行形态；旧 POST /api/storage 形态 7.161.x 已 405）
-  state: absent
+  state: compatible
   confidence: high
   contract_ref:
   golden_ref:
-  last_difftest:
+  last_difftest: reports/compatibility/L024-d01-tail-diff.md §1/§2 + §6 终确段（T1-T6 全翻 SAME；唯余归一面）
   priority_class: P1
   layer: A
   source_row: "§2 行 8"
@@ -309,6 +316,15 @@ rows:
     反编译双证 POST /api/storage 405 定案；现行=PATCH /api/metadata 全语义 13 条（增改删三动词/非串值 400
     逐字/virtual 仓双态文案——docs/reverse/rest-api.md §3/§3.1，置信高）；DELETE /api/metadata 同面三动词
     之一。reports/agents/L024-1.md §1 表（勘误①）。
+    L024 收官翻绿（2026-09-16）：absent→compatible——L024-10 全环（31 单元）+ L024-11 返工 + L024-12
+    终确 §6（dev.0c5d2ce3，两轮判定集一致 SAME 23/DIVERGENT 8）：PATCH 九臂逐字全绿（数组/null 删键/
+    {} 400/非串值 400 含句号/missing item 400 非 404/virtual 400/非文本元素静默跳过）、DELETE 全语义
+    （含失败臂 204 无守卫 no-op=T1）、其它动词 405 envelope+Allow（T2）、POST /api/storage 405 envelope、
+    stats 腿 JSON-merge 落库六字段回显（T4）。终确差一口=POST /api/storage 405 缺 Allow 头——conductor
+    微修 c35843f8（双端逐字 `Allow: DELETE,GET,OPTIONS,PUT` + 测试 pin）。残余三面均非行为差：PN-ctx
+    contextPath 归一面 ×2 + PN-hdr Cache-Control ×3（known-divergence 两归一提案候 normalize 裁）+ T8
+    401 措辞族（L020-3 既有裁定 R-22a 席）。四条开放项维持不判（403 文案未测/lastDownloadedBy="import"
+    单点/maven 同形推论/归一族聚合）。
 - row_id: D01-R09
   domain: D01
   capability: PUT /{repoKey}/{path}（Deploy/尾斜杠建目录/matrix 属性/checksum 三头/X-Checksum-Deploy）
@@ -390,11 +406,11 @@ rows:
 - row_id: D01-R16
   domain: D01
   capability: GET /{repoKey}/{archivePath}!/{entryPath}（内容面 archive!/ 归档内单文件抽取——非 /api/archive/download 目录打包面）
-  state: absent
+  state: compatible
   confidence: high
   contract_ref:
   golden_ref:
-  last_difftest:
+  last_difftest: reports/compatibility/L024-d01-tail-diff.md §1/§2 + §6 终确段（a01-a05 全 SAME；唯余 PN-ctx 归一面）
   priority_class: P1
   layer: A
   source_row: "§2 行 16"
@@ -403,6 +419,14 @@ rows:
     archiveEntryDownload = 内容面 !/ 语法（与 /api/archive/download 目录打包是两个面）；spec=
     repo-operations.md §3+§3.3（活体逐字复核 4 条：成员/嵌套/缺失 404/无斜杠 404 + 成员 sha1；官方
     专页锚）；置信 medium→high（活体+官方页双源）。reports/agents/L024-1.md §1 表（勘误②）。
+    L024 收官翻绿（2026-09-16）：absent→compatible——L024-10 全环 + L024-12 终确 §6 五单元全绿：
+    成员/嵌套成员 200+成员 CT+**字节同**（a01/a02）、miss 404 全文（a03——full URI+`; Path:` 尾段
+    逐字同，唯 context token 差=PN-ctx 归一面）、`!`-无斜杠 generic 仓文案（a04——T3 对齐
+    `File not found.; Path: '<repo>:<arch>!<entry>'`）、成员 sha1 后缀 200 内容同+CT
+    application/x-checksum（a05——T6）；命中响应六头族齐（T5：Accept-Ranges/Content-Disposition/
+    X-Artifactory-Filename/X-Checksum-Md5/Sha1/Sha256）。唯余 PN-ctx contextPath 归一面（实例 URL
+    空间既定设计，非行为差——known-divergence 归一提案候 normalize 裁）。实现链 L024-8 丙交付
+    + L024-11 返工。
 - row_id: D01-R17
   domain: D01
   capability: POST /api/archive/buildArtifacts（build-info 域指针行）
