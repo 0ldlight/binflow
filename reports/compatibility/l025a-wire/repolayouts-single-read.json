@@ -1,0 +1,421 @@
+{
+ "bower-default": {
+  "name": "bower-default",
+  "artifactPathPattern": "[orgPath]/[module]/[module]-[baseRev](-[fileItegRev]).[ext]",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "cabal-default": {
+  "errors": [
+   {
+    "status": 500,
+    "message": "No value present"
+   }
+  ]
+ },
+ "composer-default": {
+  "name": "composer-default",
+  "artifactPathPattern": "[orgPath]/[module]/[module]-[baseRev](-[fileItegRev]).[ext]",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "conan-defaultChef": {
+  "errors": [
+   {
+    "status": 500,
+    "message": "No value present"
+   }
+  ]
+ },
+ "cran-default": {
+  "errors": [
+   {
+    "status": 500,
+    "message": "No value present"
+   }
+  ]
+ },
+ "current-chef-default": {
+  "errors": [
+   {
+    "status": 500,
+    "message": "No value present"
+   }
+  ]
+ },
+ "fs-default": {
+  "errors": [
+   {
+    "status": 500,
+    "message": "No value present"
+   }
+  ]
+ },
+ "gems-default": {
+  "errors": [
+   {
+    "status": 500,
+    "message": "No value present"
+   }
+  ]
+ },
+ "go-default": {
+  "name": "go-default",
+  "artifactPathPattern": "[orgPath]/[module]/@v/v[baseRev](-[fileItegRev]).[ext]",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "gradle-default": {
+  "errors": [
+   {
+    "status": 500,
+    "message": "No value present"
+   }
+  ]
+ },
+ "helm-default": {
+  "errors": [
+   {
+    "status": 500,
+    "message": "No value present"
+   }
+  ]
+ },
+ "ivy-default": {
+  "name": "ivy-default",
+  "artifactPathPattern": "[org]/[module]/[baseRev](-[folderItegRev])/[type]s/[module](-[classifier])-[baseRev](-[fileItegRev]).[ext]",
+  "distinctiveDescriptorPathPattern": true,
+  "descriptorPathPattern": "[org]/[module]/[baseRev](-[folderItegRev])/[type]s/ivy-[baseRev](-[fileItegRev]).xml",
+  "folderIntegrationRevisionRegExp": "\\d{14}",
+  "fileIntegrationRevisionRegExp": "\\d{14}",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "maven-2-default": {
+  "name": "maven-2-default",
+  "artifactPathPattern": "[orgPath]/[module]/[baseRev](-[folderItegRev])/[module]-[baseRev](-[fileItegRev])(-[classifier]).[ext]",
+  "distinctiveDescriptorPathPattern": true,
+  "descriptorPathPattern": "[orgPath]/[module]/[baseRev](-[folderItegRev])/[module]-[baseRev](-[fileItegRev])(-[classifier]).pom",
+  "folderIntegrationRevisionRegExp": "SNAPSHOT",
+  "fileIntegrationRevisionRegExp": "SNAPSHOT|(?:(?:[0-9]{8}.[0-9]{6})-(?:[0-9]+))",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "npm-default": {
+  "name": "npm-default",
+  "artifactPathPattern": "[orgPath]/-/[module]-[baseRev](-[fileItegRev]).tgz",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "nuget-default": {
+  "name": "nuget-default",
+  "artifactPathPattern": "[orgPath]/[module]/[module].[baseRev](-[fileItegRev]).nupkg",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "puppet-default": {
+  "name": "puppet-default",
+  "artifactPathPattern": "[orgPath]/[module]/[orgPath]-[module]-[baseRev].tar.gz",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "pypi-default": {
+  "errors": [
+   {
+    "status": 500,
+    "message": "No value present"
+   }
+  ]
+ },
+ "release-bundles-default": {
+  "errors": [
+   {
+    "status": 500,
+    "message": "No value present"
+   }
+  ]
+ },
+ "repocache-default": {
+  "errors": [
+   {
+    "status": 500,
+    "message": "No value present"
+   }
+  ]
+ },
+ "sbt-default": {
+  "name": "sbt-default",
+  "artifactPathPattern": "[org]/[module]/(scala_[scalaVersion<.+>])/(sbt_[sbtVersion<.+>])/[baseRev]/[type]s/[module](-[classifier]).[ext]",
+  "distinctiveDescriptorPathPattern": true,
+  "descriptorPathPattern": "[org]/[module]/(scala_[scalaVersion<.+>])/(sbt_[sbtVersion<.+>])/[baseRev]/[type]s/ivy.xml",
+  "folderIntegrationRevisionRegExp": "\\d{14}",
+  "fileIntegrationRevisionRegExp": "\\d{14}",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "simple-default": {
+  "name": "simple-default",
+  "artifactPathPattern": "[orgPath]/[module]/[module]-[baseRev].[ext]",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [
+    "example-repo-local"
+   ],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "terraform-provider-legacy": {
+  "errors": [
+   {
+    "status": 500,
+    "message": "No value present"
+   }
+  ]
+ },
+ "terraform-provider": {
+  "errors": [
+   {
+    "status": 500,
+    "message": "No value present"
+   }
+  ]
+ },
+ "vcs-tag-rev-branch": {
+  "errors": [
+   {
+    "status": 500,
+    "message": "No value present"
+   }
+  ]
+ },
+ "maven-1-default": {
+  "name": "maven-1-default",
+  "artifactPathPattern": "[org]/[type]s/[module]-[baseRev](-[fileItegRev])(-[classifier]).[ext]",
+  "distinctiveDescriptorPathPattern": true,
+  "descriptorPathPattern": "[org]/[type]s/[module]-[baseRev](-[fileItegRev]).pom",
+  "folderIntegrationRevisionRegExp": ".+",
+  "fileIntegrationRevisionRegExp": ".+",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "vcs-default": {
+  "name": "vcs-default",
+  "artifactPathPattern": "[orgPath]/[module]/[refs<tags|branches>]/[baseRev]/[module]-[baseRev](-[fileItegRev])(-[classifier]).[ext]",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": "[a-zA-Z0-9]{40}",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "cargo-default": {
+  "name": "cargo-default",
+  "artifactPathPattern": "crates/[module]/[module]-[baseRev].[ext]",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "conan-default": {
+  "name": "conan-default",
+  "artifactPathPattern": "[org]/[module]/[baseRev]/[channel<[^/]+>]/[folderItegRev]/(package/[package_id<[^/]+>]/[fileItegRev]/)[remainder<(?:.+)>]",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": "[^/]+",
+  "fileIntegrationRevisionRegExp": "[^/]+",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "build-default": {
+  "name": "build-default",
+  "artifactPathPattern": "[orgPath]/[module](-[fileItegRev]).[ext]",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "terraform-module-default": {
+  "name": "terraform-module-default",
+  "artifactPathPattern": "[namespace]/[module-name]/[provider]/[version].[ext]",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "terraform-provider-default": {
+  "name": "terraform-provider-default",
+  "artifactPathPattern": "\n                [namespace]/[provider-name]/[version]/terraform-provider-[provider-name]_[version]_[os]_[arch].[ext]\n            ",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "swift-default": {
+  "name": "swift-default",
+  "artifactPathPattern": "[scope]/[name]/[name]-[version].zip",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "ansible-default": {
+  "name": "ansible-default",
+  "artifactPathPattern": "collections/[namespace]/[name]/[version]/[namespace]-[name]-[version].tar.gz",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "sbt-ivy-default": {
+  "name": "sbt-ivy-default",
+  "artifactPathPattern": "[orgPath]/[module]/[baseRev](-[folderItegRev])/[module]-[baseRev](-[fileItegRev])(-[classifier]).[ext]",
+  "distinctiveDescriptorPathPattern": true,
+  "descriptorPathPattern": "[orgPath]/[module]/[baseRev](-[folderItegRev])/ivy-[baseRev](-[fileItegRev])(-[classifier]).xml",
+  "folderIntegrationRevisionRegExp": "\\d{14}",
+  "fileIntegrationRevisionRegExp": "\\d{14}",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "nix-default": {
+  "name": "nix-default",
+  "artifactPathPattern": "binary-cache/[narinfoHash]/[narinfoHash].narinfo",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "skills-default": {
+  "name": "skills-default",
+  "artifactPathPattern": "[module]/[version]/[module]-[version].[ext]",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "agent-plugins-default": {
+  "name": "agent-plugins-default",
+  "artifactPathPattern": "[module]/[version]/[module]-[version].[ext]",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "agent-packages-default": {
+  "name": "agent-packages-default",
+  "artifactPathPattern": "[scope]/[package-name]/[package-name]-[version].zip",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ },
+ "luarocks-default": {
+  "name": "luarocks-default",
+  "artifactPathPattern": "[module]/[module]-[baseRev](-[fileItegRev]).[ext]",
+  "distinctiveDescriptorPathPattern": false,
+  "folderIntegrationRevisionRegExp": ".*",
+  "fileIntegrationRevisionRegExp": ".*",
+  "repositoryAssociations": {
+   "localRepositories": [],
+   "remoteRepositories": [],
+   "virtualRepositories": []
+  }
+ }
+}
