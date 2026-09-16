@@ -220,7 +220,8 @@ test('admin: row-level delete strong-confirm (typed key, deleteContent two-stage
   await expect(page.locator('[data-testid="toast"]')).toContainText('deleted successfully')
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local$/)
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toHaveCount(0)
-  expect((await sessionApi(page, 'GET', `/api/repositories/${key}`)).status).toBe(404)
+  // L025-6 后 v1 详读面对未知 key 答参照 quirk：400 "Bad Request"（非 404）
+  expect((await sessionApi(page, 'GET', `/api/repositories/${key}`)).status).toBe(400)
 })
 
 // ---- 4. readonly_admin 腿（读面全量 + 写面禁用 + T-218 文案收口） ------------
@@ -261,13 +262,13 @@ test('readonly_admin: full list visible, write entries gone; detail/config read-
   await expect(detailDeploy).toHaveAttribute('title', '只读管理员不可写（服务端 403 兜底）')
   await detailDeploy.evaluate((el) => (el as HTMLButtonElement).click())
   await expect(page.locator('[data-testid="deploy-dialog"]')).toHaveCount(0)
-  await page.click('[data-testid="repo-tab-config"]')
+  await page.click('[data-testid="repo-tab-configuration"]')
   await expect(page.locator('[data-testid="repo-governance-card"]')).toContainText('10240')
   await expect(page.locator('[data-testid="repo-quota-input"]')).toBeDisabled()
   await expect(page.locator('[data-testid="repo-quota-save"]')).toBeDisabled()
   // Replications Tab（T-404 指针升级）：本仓配置摘要卡 + 全局复制页链接；
   // readonly 无编辑深链（复制写面 = system:write 仅全量 admin，L4 预收敛）
-  await page.click('[data-testid="repo-tab-replications"]')
+  await page.click('[data-testid="repo-tab-replication"]')
   await expect(page.locator('[data-testid="repo-repl-card"]')).toBeVisible()
   await expect(page.locator('[data-testid="repo-repl-edit-link"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="repo-repl-goto"]')).toHaveAttribute('href', '/binflow/ui/admin/governance/replication')
@@ -346,7 +347,7 @@ test('m-holder: covered repo editable (quota inline + editor), uncovered converg
   await expect(page.locator('[data-testid="repos-empty-filtered"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="repos-table"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="repos-create"]')).toHaveCount(0)
-  await expect(page.locator('.empty-state').first()).toContainText('无权限')
+  await expect(page.locator('[data-testid="empty-state"]').first()).toContainText('无权限')
 
   // 覆盖集内详情：可达（GET 走 CanManageRepo 读臂）+ 身份注记 + quota 可编辑
   await page.goto(`/binflow/ui/admin/repositories/${covered}`)
@@ -354,14 +355,19 @@ test('m-holder: covered repo editable (quota inline + editor), uncovered converg
   await expect(page.locator('[data-testid="repo-manage-note"]')).toBeVisible()
   await expect(page.locator('[data-testid="repo-danger-zone"]')).toHaveCount(0) // 删除 = CapRepoWrite
   await expect(page.locator('[data-testid="repo-edit-link"]')).toBeVisible()
-  await page.click('[data-testid="repo-tab-config"]')
+  await page.click('[data-testid="repo-tab-configuration"]')
   await expect(page.locator('[data-testid="repo-quota-input"]')).toBeEnabled()
   await page.fill('[data-testid="repo-quota-input"]', '40960')
   await page.click('[data-testid="repo-quota-save"]')
   await expect(page.locator('[data-testid="toast"]')).toContainText('update successfully')
-  // API 对账：quota 落库且其它字段保全（全量替换语义）
-  const got = await sessionApi(page, 'GET', `/api/repositories/${covered}`)
-  expect((got.json as { configuration: { quotaBytes: number } }).configuration.quotaBytes).toBe(40960)
+  // API 对账：quota 落库且其它字段保全（全量替换语义）。L025-6 后
+  // quotaBytes 离开 v1 详读面——对账读位列表面 configuration blob；清单面
+  // 是 CapRepoRead 门（m-holder 403），走 admin 客户端读。
+  const listRes = await m8Client().request('GET', '/binflow/api/repositories')
+  const listRow = (JSON.parse(listRes.text) as { key: string; configuration?: { quotaBytes?: number } }[]).find(
+    (r) => r.key === covered,
+  )
+  expect(listRow?.configuration?.quotaBytes).toBe(40960)
 
   // 覆盖集内编辑器：单页表单可用（服务端 CanManageRepo 写臂放行）。
   // T-443 dirty-gating：进入编辑 Save disabled（零变更），落变更后启用
@@ -377,8 +383,8 @@ test('m-holder: covered repo editable (quota inline + editor), uncovered converg
   await page.goto(`/binflow/ui/admin/repositories/${other}`)
   await expect(page.locator('[data-testid="repo-detail-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="repo-detail-page"] .key')).toHaveCount(0)
-  await expect(page.locator('[data-testid="repo-detail-page"] .empty-state')).toContainText('无权限')
-  await expect(page.locator('[data-testid="repo-detail-page"] .empty-state')).toContainText('manage')
+  await expect(page.locator('[data-testid="repo-detail-page"] [data-testid="empty-state"]')).toContainText('无权限')
+  await expect(page.locator('[data-testid="repo-detail-page"] [data-testid="empty-state"]')).toContainText('manage')
 
   // 服务端兜底：覆盖集外写重放 403、创建臂 403（FR-65 V08 边界）
   const wOut = await sessionApi(page, 'POST', `/api/repositories/${other}`, {

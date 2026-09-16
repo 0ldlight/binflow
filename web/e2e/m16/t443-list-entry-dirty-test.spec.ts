@@ -304,7 +304,8 @@ test('remote test: three arms inline (ok / creds-refused / unreachable), draft o
   expect(configWrites).toHaveLength(0)
   const got = await sessionApi(page, 'GET', `/api/repositories/${okKey}`)
   expect(got.status).toBe(200)
-  expect((got.json as { configuration?: { url?: string } }).configuration?.url).toBe(`${BASE}/healthz`)
+  // L025-6 后详读面键平铺：url 顶层
+  expect((got.json as { url?: string }).url).toBe(`${BASE}/healthz`)
 
   // 建仓态无 Test（端点按已存 key 寻址——仓不存在则 404）：按钮不呈现，
   // 以 hint 如实说明（不造死按钮）

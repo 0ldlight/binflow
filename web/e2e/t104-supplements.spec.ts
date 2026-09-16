@@ -217,7 +217,8 @@ test('W10b: UI edits remote url; REST round-trips new value; password never echo
   let got = await api(page, 'GET', `/api/repositories/${key}`)
   expect(got.status).toBe(200)
   expect(got.text).not.toContain(secret)
-  expect(JSON.parse(got.text).configuration.url).toBe(url1)
+  // L025-6 后详读面键平铺：url 顶层
+  expect(JSON.parse(got.text).url).toBe(url1)
 
   // W10b：UI 改 url → 保存 → REST 单查回显新值（单页直达，无步骤钮）
   await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
@@ -227,7 +228,7 @@ test('W10b: UI edits remote url; REST round-trips new value; password never echo
   await expect(page.locator('[data-testid="toast"]')).toContainText('update successfully')
 
   got = await api(page, 'GET', `/api/repositories/${key}`)
-  expect(JSON.parse(got.text).configuration.url).toBe(url2)
+  expect(JSON.parse(got.text).url).toBe(url2)
   expect(got.text).not.toContain(secret) // 改前后 password 均不回显
 
   await api(page, 'DELETE', `/api/repositories/${key}`)

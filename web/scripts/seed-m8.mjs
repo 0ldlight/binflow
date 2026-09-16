@@ -222,7 +222,12 @@ export async function ensureRepo(client, def) {
   }
   const seen = await client.probeGet(path)
   if (seen.status === 200) return (await client.request('POST', path, { body })).status
-  if (seen.status !== 404) {
+  // L025-6 (989ad5ed): the v1 detail face answers an unknown key with the
+  // reference's own quirk — a bare 400 "Bad Request" instead of a 404
+  // (handleRepoGet, the L025-5/G5 live-probe ruling). That 400 miss reads
+  // as absent here.
+  const miss = seen.status === 404 || (seen.status === 400 && seen.text.includes('Bad Request'))
+  if (!miss) {
     const err = new Error(`seed: GET ${path} -> ${seen.status}: ${seen.text.slice(0, 300)}`)
     err.status = seen.status
     throw err
