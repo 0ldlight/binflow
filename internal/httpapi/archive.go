@@ -204,6 +204,10 @@ func (s *Server) handleArchiveMember(w http.ResponseWriter, r *http.Request, tai
 
 	res, err := svc.ArchiveMember(r.Context(), principalFrom(r.Context()), repo.ArchiveMemberRequest{
 		RepoKey: repoKey, ArchivePath: archivePath, Entry: entry,
+		// §3.3 arm 2: the miss message's full URI is the path as addressed,
+		// context prefix included — rebuilt from the decoded tail the split
+		// ran on.
+		RequestURI: prefix + "/" + tail,
 	})
 	if err != nil {
 		s.writeArchiveError(w, r, err)

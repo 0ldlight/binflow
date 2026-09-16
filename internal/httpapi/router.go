@@ -971,6 +971,15 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			writeError(w, http.StatusNotFound, "Not Found")
 			return
 		}
+		if r.Method == http.MethodPost {
+			// The old "Update Item Properties" POST form is gone from the
+			// reference (7.161.x, rest-api.md section 3: the resource carries
+			// no @POST — the current form is PATCH /api/metadata, the case
+			// below): the verb answers the bare 405 envelope, verbatim,
+			// whatever query arms ride along.
+			writeError(w, http.StatusMethodNotAllowed, http.StatusText(http.StatusMethodNotAllowed))
+			return
+		}
 		if _, ok := r.URL.Query()["list"]; ok && r.Method == http.MethodGet {
 			s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {
 				s.handleStorageList(w, r, repoKey, rel)
@@ -1043,6 +1052,34 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			return
 		}
 		notImplemented(w, "/binflow/api/"+rest)
+
+	// ---- /api/metadata (L024-8 / D01-R08, rest-api.md section 3.1 — the
+	// CURRENT incremental property face; the POST /api/storage spelling it
+	// replaced is the bare 405 inside the storage case above) ----
+	// PATCH carries the JSON body ({"props":…}/{"stats":…}); DELETE drops
+	// every property. The route demands a credential (the properties
+	// family's write posture) and the handler owns the annotate gate with
+	// the face's own wordings; every other verb keeps the E-26 404.
+	case rest == "metadata" || strings.HasPrefix(rest, "metadata/"):
+		repoKey, rel := splitAPIPath(rest, "metadata")
+		if repoKey == "" {
+			// The resource's own grammar demands a path segment: the bare
+			// spelling is no route (the storage family's no-segment 404).
+			writeError(w, http.StatusNotFound, "Not Found")
+			return
+		}
+		switch r.Method {
+		case http.MethodPatch:
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleMetadataPatch(w, r, repoKey, rel)
+			})
+		case http.MethodDelete:
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleMetadataDelete(w, r, repoKey, rel)
+			})
+		default:
+			notImplemented(w, "/binflow/api/"+rest)
+		}
 
 	// ---- /api/copy, /api/move (M12 T-339, FR-105.1 / repo-operations.md
 	// sections 0/1) ----
@@ -1891,7 +1928,14 @@ func splitAPIName(rest, prefix string) (name, tail string) {
 // on); a dot-segment or empty repo key yields "" so the caller answers the
 // generic 404.
 func splitStoragePath(rest string) (repoKey, relPath string) {
-	seg := strings.TrimPrefix(strings.TrimPrefix(rest, "storage"), "/")
+	return splitAPIPath(rest, "storage")
+}
+
+// splitAPIPath is splitStoragePath generalized over the /api family prefix
+// (storage, metadata): the {repo}/{path} grammar is the family's own, so
+// the segment validation and the decoding live in ONE place.
+func splitAPIPath(rest, family string) (repoKey, relPath string) {
+	seg := strings.TrimPrefix(strings.TrimPrefix(rest, family), "/")
 	if seg == "" {
 		return "", ""
 	}

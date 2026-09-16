@@ -440,15 +440,19 @@ func TestStoragePropertiesRoutePosture(t *testing.T) {
 	seedRepo(t, h, "generic-local")
 	putContent(t, h, "/binflow/generic-local/route/app.bin", "app")
 
-	// Other verbs on the arm fall to the E-26 404 (the family defines
-	// exactly GET/PUT/DELETE); propertiesXml stays an E-26 resident.
-	if s := doProps(t, h, http.MethodPost, "/binflow/api/storage/generic-local/route/app.bin?properties=k=v", adminUser, adminPass); s != http.StatusNotFound {
-		t.Fatalf("POST status = %d", s)
-	}
-	resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local/route/app.bin?propertiesXml", adminUser, adminPass, nil, nil)
+	// The old POST form is gone from the reference (rest-api.md section 3,
+	// 7.161.x): whatever arms ride along, the verb is the bare 405 envelope,
+	// verbatim (L024-8 / D01-R08 — the current write face is PATCH
+	// /api/metadata).
+	resp := h.do(http.MethodPost, "/binflow/api/storage/generic-local/route/app.bin?properties=k=v", adminUser, adminPass, nil, nil)
 	defer drain(resp)
-	if resp.StatusCode != http.StatusNotFound || !strings.Contains(mustGet(t, resp), "not implemented") {
-		t.Fatalf("propertiesXml status = %d body = %s", resp.StatusCode, mustGet(t, resp))
+	if resp.StatusCode != http.StatusMethodNotAllowed || !strings.Contains(mustGet(t, resp), `"message": "Method Not Allowed"`) {
+		t.Fatalf("POST status = %d body = %s, want the verbatim 405 envelope", resp.StatusCode, mustGet(t, resp))
+	}
+	xml := h.do(http.MethodGet, "/binflow/api/storage/generic-local/route/app.bin?propertiesXml", adminUser, adminPass, nil, nil)
+	defer drain(xml)
+	if xml.StatusCode != http.StatusNotFound || !strings.Contains(mustGet(t, xml), "not implemented") {
+		t.Fatalf("propertiesXml status = %d body = %s", xml.StatusCode, mustGet(t, xml))
 	}
 
 	// The plain item GET (no parameter) is untouched: full FileInfo body.

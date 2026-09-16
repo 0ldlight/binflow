@@ -551,8 +551,21 @@ func TestArchiveMemberZip(t *testing.T) {
 			return err
 		})
 		if code != http.StatusNotFound || !strings.Contains(msg,
-			"Unable to find zip resource: 'nope.txt' using full URI 'lib/pkg/a.zip!/nope.txt'") {
+			"Unable to find zip resource: 'nope.txt' using full URI 'lib/pkg/a.zip!/nope.txt'; Path: 'lib:pkg/a.zip'") {
 			t.Fatalf("miss = %d %q", code, msg)
+		}
+		// §3.3 arm 2 (L024-8): a caller-provided RequestURI is the miss's
+		// full URI verbatim — the context-carrying spelling the wire face
+		// hands down.
+		code, msg = archErr(t, e, func(svc repo.ArchiveFamilyService) error {
+			_, err := svc.ArchiveMember(context.Background(), admin(),
+				repo.ArchiveMemberRequest{RepoKey: "lib", ArchivePath: "pkg/a.zip", Entry: "nope.txt",
+					RequestURI: "/binflow/lib/pkg/a.zip!/nope.txt"})
+			return err
+		})
+		if code != http.StatusNotFound || !strings.Contains(msg,
+			"using full URI '/binflow/lib/pkg/a.zip!/nope.txt'; Path: 'lib:pkg/a.zip'") {
+			t.Fatalf("addressed miss = %d %q", code, msg)
 		}
 	})
 
