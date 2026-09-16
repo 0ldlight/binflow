@@ -51,3 +51,30 @@
 ## 5. 环境处置
 
 双端 l024e-local/l024e-virt 删净（deleteContent）；零 build 产生；/tmp 夹具清除；本轮零 ssh 操作、零 jf config。
+
+---
+
+# §6 终确段（L024-12，2026-09-16——L024-11 后六臂重放，批次 2 末验）
+
+- **B 被测**：dev.**0c5d2ce3**（L024-11 返工重部署；A 参照不变）
+- **重放**：原驱动全量两轮（pass1==pass2 判定集一致：**SAME 23 / DIVERGENT 8**）
+- **六臂对账**：**T1-T6 全部翻 SAME**——
+  - T1 DELETE 失败臂：m10c/m10d 翻绿（B 去守卫，missing item/virtual 均 204 no-op 对齐 A）；
+  - T2 其它动词：m14a/b/c 翻绿（PUT/GET/POST=405 envelope **含 Allow 头**对齐）；
+  - T3 !-无斜杠：a04 翻绿（`File not found.; Path: '<repo>:<arch>!<entry>'` 逐字）；
+  - T4 stats 腿三面：m09b **body 六字段逐字同**（merge 落库 downloadCount=1 + lastDownloadedBy="import" + 全字段回显 + uri=repo-root 形）；
+  - T5 六头族：a01/a02 翻绿（Accept-Ranges/Content-Disposition/X-Artifactory-Filename/X-Checksum-Md5/Sha1/Sha256 齐）；
+  - T6 x-checksum CT：a05 翻绿。
+- **残余 8 单元 = 三归一面 + 一既有 + 一新微残**：PN-ctx（m09b uri 与 a03 文案内的 `/artifactory`↔`/binflow` contextPath——BinFlow 根前缀既定设计，非行为差）×2；PN-hdr Cache-Control（m01b/m02b/m08b）×3；T8 401 措辞族（m13）×1；**新微残：POST /api/storage 405 仍缺 `Allow` 头**（m12/m12b ×2）——L024-11 给 /api/metadata 动词 405 补了 Allow，**storage POST 面漏补**（BUG-minor，一字头部）。
+- **四条开放项**维持不判（403 文案未测/lastDownloadedBy="import" 单点/maven 同形推论/T7+T8 归一族）。
+
+## 6.1 D01 翻态终版建议
+
+| 行 | 终版 | 依据 |
+|---|---|---|
+| D01-R08 增量属性面 | **候裁态→差一口**：PATCH 九臂/POST 405 envelope/DELETE 全语义绿；唯 `Allow` on POST /api/storage 405 微残（一字头部修后即翻 ✅）；PN-ctx/PN-hdr/T8 归归一面与既有裁定 | §6 |
+| D01-R16 archive!/ 抽取 | **翻 ✅（VERIFIED）**：命中/嵌套/miss/checksum 后缀语义+字节+文案全绿；唯余 PN-ctx contextPath 归一面（实例 URL 空间既定设计，非行为差） | §6 |
+
+## 6.2 终确环境处置
+
+双端 l024e 两仓删净复核（A/B repos []）；零 build；/tmp 夹具清除。
