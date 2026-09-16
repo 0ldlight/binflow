@@ -218,6 +218,22 @@ func (s *Server) handleArchiveMember(w http.ResponseWriter, r *http.Request, tai
 	h := w.Header()
 	h.Set("Content-Type", res.ContentType)
 	h.Set("X-Content-Type-Options", "nosniff")
+	// Diff T5's member-hit header family (live): range support, the
+	// attachment disposition (both filename spellings), the filename echo
+	// and the three member digests.
+	if !res.ChecksumText {
+		h.Set("Accept-Ranges", "bytes")
+		h.Set("Content-Disposition",
+			`attachment; filename="`+res.Filename+`"; filename*=UTF-8''`+res.Filename)
+		if res.Filename != "" {
+			h.Set("X-Artifactory-Filename", res.Filename)
+		}
+		if res.Md5 != "" {
+			h.Set("X-Checksum-Md5", res.Md5)
+			h.Set("X-Checksum-Sha1", res.Sha1)
+			h.Set("X-Checksum-Sha256", res.Sha256)
+		}
+	}
 	if res.Size >= 0 {
 		h.Set("Content-Length", strconv.FormatInt(res.Size, 10))
 	}

@@ -119,6 +119,14 @@ type Node struct {
 	ClientSha256 string
 }
 
+// StatsMerge is MergeStats' per-field patch set: nil fields keep their
+// stored values (JSON-merge), By lands on last_downloaded_by.
+type StatsMerge struct {
+	DownloadCount       *int64
+	RemoteDownloadCount *int64
+	By                  string
+}
+
 // NodeStats is the per-node download statistics projection of the nodes
 // table's four counting columns (M16 T-438, ADR-0044 K69 — the download
 // plane's SINGLE counting channel: the ?stats wire face and the usage
@@ -560,6 +568,11 @@ type NodeStore interface {
 	// ListByPrefix returns nodes under repoKey whose path starts with prefix,
 	// ordered by path.
 	ListByPrefix(ctx context.Context, repoKey, prefix string) ([]*Node, error)
+	// MergeStats SETS the given counting fields absolutely on one node row
+	// (L024-11 / diff T4: the PATCH stats leg's merge — downloadCount set,
+	// the "import" marker on last_downloaded_by). Unnamed fields keep
+	// their values; a missing row is a silent no-op.
+	MergeStats(ctx context.Context, repoKey, path string, st StatsMerge) error
 	// CountDownload atomically records one download against a node row (the
 	// SQL-side self-increment is exact under SQLite's single writer and
 	// Postgres row locks alike). by is the downloader's principal spelling

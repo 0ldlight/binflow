@@ -380,8 +380,14 @@ func (h *Handler) handleDelete(ctx context.Context, w http.ResponseWriter, p *re
 
 // notFoundMessage is the download-side 404 wording (rest-api.md section
 // 1.4, high confidence) shared by the missing-file and folder-GET branches
-// so every GET/HEAD 404 reads the same.
+// so every GET/HEAD 404 reads the same. A path carrying the archive
+// member marker '!' (the no-slash browsing spelling) answers the archive
+// family's miss instead (L024-11 / diff T3: File-not-found + the colon
+// Path tail, live on generic and maven alike).
 func notFoundMessage(repoKey, relPath string) string {
+	if strings.Contains(relPath, "!") {
+		return fmt.Sprintf("File not found.; Path: '%s:%s'", repoKey, relPath)
+	}
 	return fmt.Sprintf("Failed to find the requested resource '%s/%s'.", repoKey, relPath)
 }
 

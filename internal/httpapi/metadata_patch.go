@@ -14,11 +14,10 @@ package httpapi
 //	DELETE /api/metadata/{repoKey}/{path}?recursive=             drop
 //	       EVERY property of the target (204 even when none were there).
 //
-// The stats leg ({"stats":{…}}) is the spec's low-confidence arm (section
-// 3.1 item 10: "普通客户端不应触达", never live-verified): this face
-// accepts a well-formed stats object and answers the family's 204 WITHOUT
-// an observable mutation — the merge shape stays unimplemented until a
-// live probe pins it (规格待验证, the ticket's Risks register).
+// The stats leg ({"stats":{…}}) MERGES (L024-11 / diff T4, live-pinned):
+// numeric fields set absolutely, the "import" marker lands on
+// last_downloaded_by — the import/migration channel the reference's own
+// wire showed (downloadCount:1 → count 1, by "import", the rest 0).
 //
 // The write gate is the properties family's own `a` (annotate) action —
 // the same Authorizer split the /api/storage verbs ride (T-444/K68) —
@@ -95,20 +94,54 @@ func (s *Server) handleMetadataPatch(w http.ResponseWriter, r *http.Request, rep
 			return
 		}
 	}
+	var statsMerge metadata.StatsMerge
 	if statsThere {
-		// The low-confidence leg: a well-formed stats OBJECT passes the gate
-		// and changes nothing (the registered no-op — see the file comment).
+		// L024-11 / diff T4: the leg MERGES (the low-confidence no-op is
+		// voided by the differential): numeric fields set absolutely, and
+		// the "import" marker lands on last_downloaded_by when the body did
+		// not name one (the wire's downloadCount:1 → lastDownloadedBy:
+		// "import").
 		var statsObj map[string]json.RawMessage
 		if err := json.Unmarshal(statsRaw, &statsObj); err != nil {
 			writeError(w, http.StatusBadRequest, patchPropsParseMsg)
 			return
 		}
+		num := func(key string) *int64 {
+			raw, ok := statsObj[key]
+			if !ok {
+				return nil
+			}
+			var n int64
+			if json.Unmarshal(raw, &n) != nil {
+				return nil // non-numeric spellings skip silently (item 7's law)
+			}
+			return &n
+		}
+		statsMerge = metadata.StatsMerge{
+			DownloadCount:       num("downloadCount"),
+			RemoteDownloadCount: num("remoteDownloadCount"),
+		}
+		if raw, ok := statsObj["lastDownloadedBy"]; ok {
+			var by string
+			if json.Unmarshal(raw, &by) == nil && by != "" {
+				statsMerge.By = by
+			}
+		}
+		if statsMerge.By == "" && (statsMerge.DownloadCount != nil || statsMerge.RemoteDownloadCount != nil) {
+			statsMerge.By = "import"
+		}
 	}
 
-	if set != nil || drop != nil {
+	if set != nil || drop != nil || statsMerge != (metadata.StatsMerge{}) {
 		node, ok := s.metadataPatchTarget(w, r, repoKey, relPath)
 		if !ok {
 			return
+		}
+		if (statsMerge != metadata.StatsMerge{}) {
+			if err := s.deps.Metadata.Nodes().MergeStats(r.Context(), node.RepoKey, node.Path, statsMerge); err != nil {
+				s.writePropsStoreError(w, err)
+				return
+			}
 		}
 		recursive := metadataRecursiveFlag(r, node, "recursiveProperties")
 		targets, err := s.propsTargets(r, node, recursive)
@@ -178,16 +211,18 @@ func (s *Server) handleMetadataPatch(w http.ResponseWriter, r *http.Request, rep
 }
 
 // handleMetadataDelete serves DELETE /api/metadata/{repo}/{path}: drop
-// EVERY property of the target (204 whether or not any were there — the
-// spec's idempotent no-op). The 403 is the family's bare wording (item 11
-// reserves the verbose one for PATCH).
+// EVERY property of the target. The face is GUARD-LESS on the target
+// (L024-11 / diff T1: a missing item and a non-local repository alike
+// answer the silent 204 — the reference has no failure arm on this verb,
+// the PATCH family's 400 wordings never ride DELETE). The 403 is the
+// family's bare wording (item 11 reserves the verbose one for PATCH).
 func (s *Server) handleMetadataDelete(w http.ResponseWriter, r *http.Request, repoKey, relPath string) {
 	p := principalFrom(r.Context())
 	if !s.allowPropsWrite(r, p, repoKey, relPath) {
 		writePropsForbidden(w)
 		return
 	}
-	node, ok := s.metadataPatchTarget(w, r, repoKey, relPath)
+	node, ok := s.metadataDeleteTarget(w, r, repoKey, relPath)
 	if !ok {
 		return
 	}
@@ -212,6 +247,34 @@ func (s *Server) handleMetadataDelete(w http.ResponseWriter, r *http.Request, re
 		}
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// metadataDeleteTarget resolves the DELETE face's target WITHOUT the
+// PATCH guards: every unresolvable spelling (unknown repository,
+// non-local repository, missing item) is the silent 204 — ok=false with
+// the response already written.
+func (s *Server) metadataDeleteTarget(w http.ResponseWriter, r *http.Request, repoKey, relPath string) (*metadata.Node, bool) {
+	row, err := s.deps.Repos.Get(r.Context(), repoKey)
+	if err != nil && !errors.Is(err, repo.ErrRepoNotFound) && !errors.Is(err, metadata.ErrRepoNotFound) {
+		s.log.ErrorContext(r.Context(), "httpapi: metadata delete repository lookup failed",
+			"repo", repoKey, "error", err.Error())
+		writeError(w, http.StatusInternalServerError, "metadata operation failed")
+		return nil, false
+	}
+	if row == nil || row.Type != repo.TypeLocal {
+		w.WriteHeader(http.StatusNoContent) // diff T1: no guard, no-op
+		return nil, false
+	}
+	node, err := s.storageNode(r, principalFrom(r.Context()), repoKey, relPath)
+	if err != nil {
+		if errors.Is(err, repo.ErrNodeNotFound) {
+			w.WriteHeader(http.StatusNoContent) // diff T1: missing item is the idempotent no-op
+			return nil, false
+		}
+		s.writeStorageError(w, err)
+		return nil, false
+	}
+	return node, true
 }
 
 // metadataPatchTarget resolves the shared target guards of both verbs: the

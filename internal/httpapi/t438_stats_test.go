@@ -15,11 +15,12 @@ import (
 // statsBody is the StatsInfo decode target (remoteLastDownloaded /
 // remoteLastDownloadedBy are unsourced and never present — pinned below).
 type statsBody struct {
-	URI                 string `json:"uri"`
-	DownloadCount       int64  `json:"downloadCount"`
-	LastDownloaded      string `json:"lastDownloaded"`
-	LastDownloadedBy    string `json:"lastDownloadedBy"`
-	RemoteDownloadCount int64  `json:"remoteDownloadCount"`
+	URI                  string `json:"uri"`
+	DownloadCount        int64  `json:"downloadCount"`
+	LastDownloaded       int64  `json:"lastDownloaded"`
+	LastDownloadedBy     string `json:"lastDownloadedBy"`
+	RemoteDownloadCount  int64  `json:"remoteDownloadCount"`
+	RemoteLastDownloaded int64  `json:"remoteLastDownloaded"`
 }
 
 // seedStatsArtifact seeds one downloaded artifact and returns its content
@@ -70,17 +71,25 @@ func TestT438StatsFaceShape(t *testing.T) {
 		if got.LastDownloadedBy != "downloader" {
 			t.Fatalf("lastDownloadedBy = %q, want downloader (admin sees the gate)", got.LastDownloadedBy)
 		}
-		if got.LastDownloaded == "" {
+		if got.LastDownloaded == 0 {
 			t.Fatal("lastDownloaded must carry the landing instant")
 		}
-		if !strings.HasSuffix(got.URI, "/api/storage/generic-local/acme/artifact.bin") {
+		// L024-11 / diff T4: the uri is the DOWNLOAD form (the content
+		// address), never the api/storage spelling.
+		if !strings.HasSuffix(got.URI, "/binflow/generic-local/acme/artifact.bin") ||
+			strings.Contains(got.URI, "/api/storage/") {
 			t.Fatalf("uri = %q", got.URI)
 		}
-		// The unsourced remote pair is never fabricated (11.49).
-		for _, absent := range []string{"remoteLastDownloaded", "remoteLastDownloadedBy"} {
-			if strings.Contains(body, absent) {
-				t.Fatalf("body must omit %s: %s", absent, body)
-			}
+		// The remote pair (L024-11 / diff T4): remoteLastDownloaded renders
+		// its structural 0 (the wire's every-field echo; no storage column
+		// exists behind it — registered), and remoteLastDownloadedBy — the
+		// one field BinFlow has neither a column nor a wire sample for —
+		// stays omitted.
+		if got.RemoteLastDownloaded != 0 {
+			t.Fatalf("remoteLastDownloaded = %d, want the structural 0", got.RemoteLastDownloaded)
+		}
+		if strings.Contains(body, "remoteLastDownloadedBy") {
+			t.Fatalf("body must omit remoteLastDownloadedBy: %s", body)
 		}
 		// A second download moves the wire count — single source, no cache,
 		// and the LATEST downloader's identity takes the row.
@@ -113,7 +122,7 @@ func TestT438StatsFaceShape(t *testing.T) {
 		if err := json.Unmarshal([]byte(body), &got); err != nil {
 			t.Fatalf("body %q: %v", body, err)
 		}
-		if got.DownloadCount != 0 || got.RemoteDownloadCount != 0 || got.LastDownloaded != "" || got.LastDownloadedBy != "" {
+		if got.DownloadCount != 0 || got.RemoteDownloadCount != 0 || got.LastDownloaded != 0 || got.LastDownloadedBy != "" {
 			t.Fatalf("folder stats = %+v, want the structural zeros", got)
 		}
 	})

@@ -1078,7 +1078,11 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 				s.handleMetadataDelete(w, r, repoKey, rel)
 			})
 		default:
-			notImplemented(w, "/binflow/api/"+rest)
+			// L024-11 / diff T2: the other verbs are the 405 envelope with
+			// the Allow header (the POST /api/storage family's own shape),
+			// never the E-26 404.
+			w.Header().Set("Allow", "DELETE,OPTIONS,PATCH")
+			writeError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
 		}
 
 	// ---- /api/copy, /api/move (M12 T-339, FR-105.1 / repo-operations.md
