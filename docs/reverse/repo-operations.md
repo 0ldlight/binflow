@@ -142,14 +142,16 @@
 - 权限：只需归档路径的读权限（成员无独立 ACL）；无 Filtered Resources 能力（OSS 档）→ 403 `Direct resource download from zip requires the Filtered resources add-on.`（官方文档页未标 Pro——文档遗漏，代码为凭，见 §6）。
 - 下载流量按 DOWNLOAD 计（成员 size）。
 
-### 3.3 L024-1 活体复核（2026-09-16，参照 Pro 7.161.15；官方页锚：reference/archiveentrydownload）
+### 3.3 L024-1 活体复核（2026-09-16，参照 Pro 7.161.15；官方页锚：reference/archiveentrydownload；**L024-10 差分回填**——证据锚 `reports/compatibility/l024e-wire/{a,b}`）
 
 官方 reference 已为该能力立专页（operationId `archiveEntryDownload`，路径 `/{repoKey}/{archivePath}!/{entryPath}`，Tag Artifact Retrieval）——**确认属内容面路由，非 `/api/archive/download`**（主矩阵 D01-R16 行的「GET /api/archive/download entry 抽取」路径描述有误，上报 conductor 修行；`/api/archive/download` 仅承担目录/整仓打包，见 §1 行 5/6）。活体逐字复核（scratch 仓用毕全删）：
 
 1. 成员命中（`/l024.zip!/entry.txt`、`…!/nested/deep.txt`）→ 200，body=成员字节，CT 按成员名 mime（`entry.txt` → `text/plain`）。**高**
 2. 成员不存在 → 404 envelope **`Unable to find zip resource: '<entry>' using full URI '<context>/<repoKey>/<archivePath>!/<entry>'; Path: '<repoKey>:<archivePath>'`**——比 §3.2 既有记录多出**后半段 `; Path: '<repoKey>:<archivePath>'`**（全 URI 含 contextPath；Path 段 `repo:path` 冒号拼写）。**高**（逐字）
-3. `!` 后**不带斜杠**（`/l024.zip!entry.txt`）→ 不进归档解析，按字面文件名查存储 → 404 envelope **`File not found.; Path: '<repoKey>:<archivePath>!<entry>'`**（"File not found." 带句号逐字；Path 段保留 `!` 原样）。**高**（逐字——官方「`!` 后必须跟 `/`」的落地产物）
-4. 成员校验和后缀 `…!/entry.txt.sha1` → 200 返回**按需计算的成员** sha1（§3.2 中置信项就此活体定案）。**高**
+3. `!` 后**不带斜杠**（`/l024.zip!entry.txt`）→ 不进归档解析，按字面文件名查存储 → 404 envelope **`File not found.; Path: '<repoKey>:<archivePath>!<entry>'`**（"File not found." 带句号逐字；Path 段保留 `!` 原样）。**高**（L024-1 maven 仓逐字 + **L024-10 a04 generic 仓同形定谳**——仓类型无关性关闭，`File not found.; Path: 'l024e-local:pkg/l024e.zip!entry.txt'` 逐字）。
+4. 成员校验和后缀 `…!/entry.txt.sha1` → 200 返回**按需计算的成员** sha1（§3.2 中置信项就此活体定案）；**CT = `application/x-checksum`**（非 text/plain——L024-10 a05 活体）。**高**
+5. **成员命中响应头族**（L024-10 a01/a02 活体，body 字节与 CT 之外的面）：A 带六头 `Accept-Ranges: bytes` / `Content-Disposition` / `X-Artifactory-Filename: <成员名>` / `X-Checksum-Md5|Sha1|Sha256`（按需计算的**成员**校验和）——与 §1.4 文件下载头族同构。**高**
+6. 成员 miss 404 的 full URI 文案含 **contextPath**（`/artifactory/…`）——跨实现前缀差归一面 PN-ctx 在案（L024-10 §0）。**高**（a03 双端除 context token 外逐字同）
 
 ---
 

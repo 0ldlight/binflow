@@ -121,7 +121,7 @@ propertySets([])
 | DELETE `/api/storage/{repoKey}/{path}?properties=k1,k2&recursive=` | 删属性 | 204 | 未指定属性 → 400 `Unspecified properties to delete.` | 高 |
 | POST `/api/storage/{repoKey}/{path}`（旧「Update Item Properties」形态） | —（**7.161.x 已移除**） | — | **405** errors-envelope `Method Not Allowed`（L024-1 活体逐字；反编译 ArtifactResource 无 @POST 互证） | 高 |
 | PATCH `/api/metadata/{repoKey}/{path}?recursiveProperties=`（**现行增量改属性**，6.1.0+） | body `{"props":{...}}` 增量改属性（值=串/串数组/`null`=删键）；亦接受 `{"stats":{...}}` | 204 无 body | 见 §3.1 | 高 |
-| DELETE `/api/metadata/{repoKey}/{path}?recursive=` | 删**全部**属性 | 204 | item 无属性 → 直接 204（无操作） | 高 |
+| DELETE `/api/metadata/{repoKey}/{path}?recursive=` | 删**全部**属性 | 204 | **失败臂无守卫**：item 无属性 → 204；item 不存在 / virtual 仓 → 仍 **204 静默 no-op**（L024-10 m10c/m10d 活体定谳，与 PATCH 族 400 文案不同——勿借文案） | 高 |
 
 > **勘误（T-113）**：本表 `?permissions` 行原记「key 为 r/w/d/a 权限位，value 为主体名集合」——键值方向相反，且字母集笔误（annotate 的字母是 `n` 非 `a`，另有 manage=`m`）。正确形态以修正后行为准。依据：`RestAddonImpl#getItemPermissions` 构造 主体名 → 权限字母集合 的映射，逐主体调 `#appendPrincipalsAndPermissions`（**空集合跳过**——无任何权限的主体不出现）；字母集见 `ArtifactoryPermission` 枚举（r/w/n/d/m）；官方 REST 文档 Get Item Permissions 示例同形（`"users":{"bob":["r","w","n"]}`）——代码与官方文档双证。
 >
@@ -160,12 +160,14 @@ FileInfo JSON 字段（`o.a.a.api.rest.artifact.RestFileInfo` + `RestBaseStorage
 7. 数组元素须为字符串——非文本元素（数字等）被静默跳过（反编译，中）。
 8. `recursiveProperties` 语义同 PUT 族 `recursive`（目录缺省递归/文件非递归/`0/1`）；**官方文档列的 `atomicProperties` 参数在 7.161.24 反编译资源层不读取（忽略）**——差异登记。**中**
 9. 执行序 = 先删（null 与被改键）→ 再改 → 后增（任一步失败短路返回其错误码）。**高**（反编译；活体只验终点）
-10. `stats` 腿：`{"stats":{...}}` JSON-merge 进既有下载统计并落库——普通客户端不应触达（登记，低，未活体）。
+10. `stats` 腿（**L024-10 定谳，推翻 L024-1 的「低置信未活体」登记**）：PATCH `{"stats":{"downloadCount":1}}` → 204，且**真 JSON-merge 落库**（非 no-op）——`downloadCount` 直写；`lastDownloadedBy` 写 **`"import"` 标记**（非调用者用户名）；`lastDownloaded`/`remoteLastDownloaded` 维持 0。随后 `?stats` 回显**六字段全量**：`uri`（= **repo-root 下载形** `<base>/<contextUrl>/<repo>/<path>`，非 api/storage 形）、`downloadCount`、`lastDownloaded`（epoch-0 整数 0，非 null）、`lastDownloadedBy`、`remoteDownloadCount`、`remoteLastDownloaded`——零值字段**整体保留不省略**。**高**（l024e-wire m09/m09b 双单元活体）。
 11. **三动词权限门**：PATCH/PUT/DELETE 均要求 annotate；无权限 → 403（PATCH 走 403 带文案 `Request for '<repoPath>' is forbidden for user: '<u>', You must have annotate permission on this path`；PUT/DELETE 403 裸）。**高**（反编译）
 12. **virtual/remote 仓上的属性写**（活体逐字，2026-09-16）：PUT `/api/storage` 属性 → **404 envelope `"Not Found"`**（资源层裸 404 状态经全局 mapper 包 envelope——非空体）；PATCH `/api/metadata` → **400 envelope `"Failed to set properties on <repo>:<path>: Repository '<repo>' is not a local repository"`**（与「item 不存在」文案不同）。**高**
 13. **怪癖**：PATCH 的 400 文案在资源层以纯文本构造，但对外包装进标准 errors envelope（`message` 内为纯文案）——活体定案（反编译 entity 与活体 envelope 双证）。**高**
 
 > **L024-4 差分回填注记（2026-09-16）**：§3 表 `PUT /api/storage/{repoKey}/{path}?properties=` 行为 jf build-publish 主链的**剩余断链点**——jf「Setting properties…」步实发 `PUT /api/storage/<path>`（props 经 URL、bytes_in=0），BinFlow 未实现（404 `"…is not implemented in BinFlow"`）；参照侧审计 `PROPERTY_UPDATED` 实证。该行规格本体（204 / `Properties value cannot be empty.` / 非法字符 400）不变，证据锚补 `reports/compatibility/l024d-wire/{a,b}`（L024-search-aql-diff §2.6 / §3-L8）。同链余项 = `/api/system/version` 版本串（jf `strconv.Atoi` 尾错，version 债登记）。
+
+> **L024-10 差分回填注记（2026-09-16，D01 尾差分）**：① `/api/metadata` 的**其它动词**（PUT/GET/POST）→ **405** errors-envelope `"Method Not Allowed"` + **`Allow: DELETE,OPTIONS,PATCH` 头**（m14a/b/c 三臂活体逐字）——与 POST /api/storage 405 同族；无仓段 POST → 404 `Not Found`（L010-2 面维持）。② DELETE 失败臂无守卫与 stats 腿真 merge 已分别回填上表与 §3.1-10。③ `?properties` GET 的 `Cache-Control` 头与 405 `Allow` 头为「A 带 B 缺」无语义面（normalize 提案 PN-hdr drop，L024-10 §0）。证据锚 `reports/compatibility/l024e-wire/{a,b}/`（L024-d01-tail-diff，31 单元）。
 
 ---
 
