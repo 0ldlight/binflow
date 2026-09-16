@@ -129,7 +129,7 @@ propertySets([])
 行为句式：
 
 - 当客户端以 admin GET `/api/repositories/configurations` 时，服务端返回 200，体为按仓类型分组的对象：顶层键 = `LOCAL` / `REMOTE` / `VIRTUAL` / `FEDERATED` / `RELEASE_BUNDLE`（大写；仅返回实际存在该类型时有键），组内数组按 key 升序，`Cache-Control: no-store`，`Content-Type: application/vnd.org.jfrog.artifactory.repositories.RepositoryConfigurationsList+json`，pretty-print。**高**（活体 + 反编译 + 官方页三源）
-- 每条配置字段 = 「公共字段集」17 键：`key, packageType, description, notes, includesPattern, excludesPattern, repoLayoutRef, signedUrlTtl, priorityResolution, projectKey(有项目才出现), environments, blackedOut, propertySets, archiveBrowsingEnabled, downloadRedirect, cdnRedirect, xrayIndex, xrayDataTtl, rclass`（rclass 小写；null 字段省略）——与 v2 读的字段集同源但含 `rclass` 不含 `type`。**高**（活体）
+- 每条配置字段 = 「公共字段集」（**实测每仓键数 local 18 / remote 46 / virtual 12**，null 省略致浮动——见 §2.1.9 键面锚）：`key, packageType, description, notes, includesPattern, excludesPattern, repoLayoutRef, signedUrlTtl, priorityResolution, projectKey(有项目才出现), environments, blackedOut, propertySets, archiveBrowsingEnabled, downloadRedirect, cdnRedirect, xrayIndex, xrayDataTtl, rclass`（rclass 小写；null 字段省略）——与 v2 读的字段集同源但含 `rclass` 不含 `type`。**高**（活体）
 - 当客户端带 `packageType=generic,buildinfo`（逗号分隔）或 `repoType=local,remote` 时，服务端做 OR 过滤（两种过滤可叠加）；当过滤值不匹配任何仓时返回 200 空对象 `{}`（不报错）。**高**（活体：comma 双命中实测；官方页明示 comma 分隔）
 - 当客户端以非 admin 调用时，服务端返回 403，体 = errors 信封 `{"errors":[{"status":403,"message":"Forbidden"}]}`。**高**（活体 + @RolesAllowed(admin) 反编译 + 官方页「Requires a user with admin permissions」）
 - 此条补充官方规范：官方页未载 403 信封文案与空对象行为、未载顶层键大写形态。
@@ -173,7 +173,8 @@ propertySets([])
 - 成功返回 200，`Content-Type: application/json`，体 = 裸字符串 `Repositories updated successfully.`（无引号、非信封）。**高**（活体）
 - 当批内含不存在的 key 时返回 **404**，体 = **裸文本**（非信封）`No repositories found for the following keys: <a, b>`，CT application/json；整单无副作用。**高**（活体）
 - 当客户端以 Content-Type 指定某 vendor 类型（如 Remote vendor）而批内仓不属该 rclass 时，同样落入 404 上述文案（既有仓按 vendor 类型过滤检索）。**中**（反编译 getExistingRepoConfigs；活体仅验证 application/json 通吃）
-- 非授权仓 → 403 `User is not authorized to update the following repositories: <a, b>`；缺 key → 400 `Repository key are missing in configuration`；超 100 项 → 400 limit 文案同上。**中**（仅反编译；活体未造非 admin 批改臂）
+- **非 admin 批改 → 403 裸文本 `Only platform/project admins are allowed to update repositories`**（CT application/json，非 errors 信封）——**L025-4 w08 活体证伪修订**：L025-1 反编译登记的 `User is not authorized to update the following repositories: <a, b>` 文案**作废**（反编译单源被活体推翻，勿再引用）。**高**（活体 w08）
+- 缺 key → 400 `Repository key are missing in configuration`（w03 活体逐字绿，**高**）；超 100 项 → 400 limit 文案同上。**中**（仅反编译）
 - 此条补充官方规范：merge 语义与裸 404 文案官方均未载（官方仅说「entire batch fails」）。
 
 #### 2.1.7 DELETE /api/v2/repositories/batch（批删——207 混合态状态机）
@@ -181,7 +182,8 @@ propertySets([])
 body = JSON 字符串数组 `["a","b"]`（重复键去重、保序）。状态机（置信度：高 = 反编译 + 活体臂双源；官方式 207 文档仅覆盖单删报告形状）：
 
 1. **空数组/缺 body** → 400，体 = `{"statusMessage":"No repository keys were provided for deletion"}`（无 reports 键）。**高**（活体）
-2. **预校验段（整单中止臂）**：任一键为 blank/trash/support-bundle、导入进行中、无删除权限、配置校验器否决 → 整单立即返回该单仓状态码，体 = 单报告 `{"statusMessage":"<该仓消息>"}`（无 reports 键、无逐仓展开）。实测非 admin 臂：403，`statusMessage = "Cannot delete repository: 'x', Reason: User: ('u') has insufficient permission to delete repositories: x"`。**高**（活体 + 反编译 validateAllRepositories 抛出路径）
+2. **预校验段（整单中止臂）**：任一键为 trash/support-bundle、导入进行中、无删除权限、配置校验器否决 → 整单立即返回该单仓状态码，体 = 单报告 `{"statusMessage":"<该仓消息>"}`（无 reports 键、无逐仓展开）。实测非 admin 臂：403，`statusMessage = "Cannot delete repository: 'x', Reason: User: ('u') has insufficient permission to delete repositories: x"`。**高**（活体 w13 隔离重探 + 反编译 validateAllRepositories 抛出路径）
+   **blank-key 例外（L025-4 w12 活体证伪修订）**：空串键**不走预校验中止**，落**逐仓 ghost 段**——`["k",""]` → 整单 200，`""` 行 `success:true` + `statusMsg = "Cannot delete repository: '', repository config does not exist"`（引号内为空串），真仓正常删除。L025-1 原把 blank 列入整单中止集**作废**。**高**（活体 w12）
 3. **逐仓删除段**：不存在的键**不失败**，产出 success:true 报告，`statusMsg = "Cannot delete repository: '<key>', repository config does not exist"`；删除锁被占（并发删同仓）同样 success:true，`statusMsg = "Cannot delete repository: '<key>', repository deletion is already in progress"`（官方单删语义里的 202 在批内退化为 success 形态）。**高**（活体并发双删实测）
 4. **聚合规则**：全部报告无 error/warning（**含全部 ghost 与 202 形态**）→ **200** `statusMessage="All repositories were removed successfully"`；真失败与成功并存 → **207** `"Some repositories failed to be removed"`；全部真失败 → 返回首个失败仓的状态码。**高**（200/ghost 聚合活体实测；207/全败 = 反编译 calcStatusCode + 官方 207 文档双源，活体触发待验证）
 5. 成功响应体：`{"reports":[{"repoKey","statusMsg","deletedArtifactsCount","success":true}],"statusMessage":…}`；真失败报告额外含 `"deleteArtifactsFailureCount"` 与 `"errors":[{"status","message"}]`（上限 50 条示例，`artifact.delete.report.failure.examples.max`）且 `success:false`。`reports` 为 HashSet，**顺序不稳定**。**高**（成功形态活体；失败形态 = 反编译 + 官方单删 FailureReport 文档）
@@ -198,6 +200,21 @@ body = JSON 字符串数组 `["a","b"]`（重复键去重、保序）。状态�
 - 布局名不存在 → **500** errors 信封 `"No value present"`（内部 Optional 直取未捕获——bug 兼容点）。**高**（活体）
 - 写臂（POST 建于集合、PUT 改、DELETE `/api/admin/repolayouts/{name}`、POST `testArtPath`、POST `resolveRegex`）= admin 门（读臂 any-project-admin）。**中**（仅反编译；活体未动全局布局）
 - matrix D02-R12 行 capability 措辞（`/api/repo_layouts[/{name}]` CRUD）需改写为上述现实——归 compatibility-engineer。
+
+#### 2.1.9 键面实测锚（G1 实现票备料；L025-4 回填，2026-09-17）
+
+config 渲染面的**分层键数真值**（A 参照 7.161.15，scratch 仓 `l025q-*` 实测，wire `reports/compatibility/l025q-wire/a/`；null 字段省略故同 rclass 键数随仓配置浮动，此处为实测样本值）：
+
+| 面 | local | remote | virtual | url 键 | 证据 |
+|---|---|---|---|---|---|
+| `/api/repositories/configurations`（公共字段投影） | **18** 键/仓 | **46** 键/仓 | **12** 键/仓 | remote 有；**local/virtual 无** | c01 |
+| v1 单仓 GET（全量渲染，含包型专属字段） | **61** 键 | —（≥46） | — | **无**（local 实测） | w06b |
+| v2 批读值（=v1 全量 schema） | **61** 键 | — | **50** 键 | 无（local） | b01（§2.1.4 的「61/61 逐键一致」即此） |
+| v2 单仓 GET（剥包型字段） | **18** 键 | 详见 §2.1.3 清单 | — | 无 | v01/v03/v04 |
+| v2 非 admin 五键视图 | — | `{description,key,packageType,type,url}` 恰五键（含 `type` 不含 `rclass`，**带 url**） | — | 有 | v05（remote 臂；§2.1.3 同步） |
+
+- **admin 与非 admin 非「同投影」**：configurations/v1/v2/非 admin 是**四层不同键面**（上表）；G1 差分中 BinFlow 侧把批读、admin 读、非 admin 视图渲染成同一 5 键投影且 local 也带 url——与 A 的分层真值不符（账实不符已由 L025-4 上报 conductor，G1 实现票以本表为目标键面）。
+- local 全量渲染的 61 键含包型专属字段（`calculateYumMetadata`/`cargoAnonymousAccess`/`ddebSupported`/`debianTrivialLayout`/`blockPushingSchema1`…），与 §2 的 M1 精简字段集是超集关系——G1 票的字段全集清单以 w06b/b01 wire 为准逐键抄录。
 
 ---
 
