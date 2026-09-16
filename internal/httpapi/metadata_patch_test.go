@@ -333,6 +333,16 @@ func TestMetadataOtherVerbs405(t *testing.T) {
 			t.Fatalf("%s Allow = %q", m, allow)
 		}
 	}
+	// L024-12 micro-residual: the retired POST /api/storage form carries its
+	// own resource's Allow set (the reference's live probe: DELETE,GET,
+	// OPTIONS,PUT), whatever query arms ride along.
+	resp := h.do(http.MethodPost, "/binflow/api/storage/generic-local/a.bin", adminUser, adminPass, nil, nil)
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed || resp.Header.Get("Allow") != "DELETE,GET,OPTIONS,PUT" {
+		t.Fatalf("POST storage = %d Allow=%q body=%s, want 405 with the resource Allow set",
+			resp.StatusCode, resp.Header.Get("Allow"), body)
+	}
 }
 
 func TestMetadataDeletePermissions(t *testing.T) {
