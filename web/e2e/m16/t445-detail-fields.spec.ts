@@ -199,7 +199,7 @@ test('file detail: File URL copy button, downloads family end-to-end via ?stats 
   await expect(page.locator('[data-testid="node-file-url"]')).toContainText(`/${key}`)
 })
 
-test('detail fields: Module ID and virtual-association blocks are absent (registered, not fabricated)', async ({
+test('detail fields: Module ID renders honest-empty; virtual-association blocks stay absent (registered, not fabricated)', async ({
   page,
 }) => {
   await login(page)
@@ -210,11 +210,23 @@ test('detail fields: Module ID and virtual-association blocks are absent (regist
   await page.goto(`/binflow/ui/artifacts/${key}/docs/guide.md`)
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
   const detailText = await page.locator('[data-testid="node-detail"]').innerText()
-  // 缺位登记反断言：Module ID 不建（Build-info stay-out §9A-S8）；Package
-  // Information / Dependency Declaration / Virtual Repository Associations /
-  // Included Repositories 块不建（BinFlow 无包信息域/仓关联面——不伪造）
+  // Module ID：T-512（74174a07）按登记翻案落地——字段现在在场，无 build
+  // 关联时如实呈现 '—'（不伪造值）。L025-2：从缺位反断言翻为诚实空断言
+  //（值是异步装载——先呈 '…' 占位，poll 到位）。
+  expect(detailText, 'Module ID field must render (T-512 lift)').toContain('Module ID')
+  await expect
+    .poll(
+      async () => {
+        const t = await page.locator('[data-testid="node-detail"]').innerText()
+        return t.slice(t.indexOf('Module ID'), t.indexOf('Module ID') + 24)
+      },
+      { timeout: 10_000 },
+    )
+    .toMatch(/Module ID\s*—/)
+  // 缺位登记反断言（仍不建的面）：Package Information / Dependency
+  // Declaration / Virtual Repository Associations / Included Repositories
+  // 块不建（BinFlow 无包信息域/仓关联面——不伪造）
   for (const absent of [
-    'Module ID',
     'Package Information',
     'Dependency Declaration',
     'Virtual Repository Associations',

@@ -247,10 +247,10 @@ test('footer: reset removed (Cancel + Create/Save only); reserved wire keys neve
 })
 
 // ---------------------------------------------------------------------------
-// ④ API 漂移钉（tripwire）：decode-only 静默丢弃的契约漂移钉进断言 -------------
+// ④ 四域 round-trip（原 API 漂移钉——L006 落地后按钉自带升级路径翻正） ---------
 // ---------------------------------------------------------------------------
 
-test('api drift pin: PUT accepts the four B-1.5 fields (200) but GET echo misses them — decode-only drop', async ({
+test('api round trip: PUT accepts the four B-1.5 fields (200) and the GET echo carries them', async ({
   page,
 }) => {
   await loginAs(page, 'admin')
@@ -260,18 +260,20 @@ test('api drift pin: PUT accepts the four B-1.5 fields (200) but GET echo misses
     repoLayoutRef: 'maven-2-default', blackedOut: true, maxUniqueSnapshots: 7, archiveBrowsingEnabled: true,
     includesPattern: '**/*.jar', // 对照组：configJSON 转发的字段
   })
-  expect(made.status).toBe(200) // 解码层不拒（PRD「已收」证据即止于此）
+  expect(made.status).toBe(200)
 
   const got = await sessionApi(page, 'GET', `/api/repositories/${key}`)
   expect(got.status).toBe(200)
   const cfg = ((got.json as { configuration?: Record<string, unknown> }).configuration ?? {})
   // 对照组回显（机制证明——configJSON 转发链活着）
   expect(cfg.includesPattern).toBe('**/*.jar')
-  // 四域静默丢弃（decode-only）：BE 承接票（configJSON 转发 + 行为联动）落地
-  // 后本腿翻红——即升级提示：预留位转正 + 本 spec 三链腿改提交-回显-行为。
-  for (const k of ['repoLayoutRef', 'blackedOut', 'maxUniqueSnapshots', 'archiveBrowsingEnabled'] as const) {
-    expect(cfg, `drift pin: ${k} currently dropped by configJSON`).not.toHaveProperty(k)
-  }
+  // 四域回显（L006 7f6b5a32 落地，L025-2 按原漂移钉自带的升级路径翻正：
+  // 原钉断言「decode-only 静默丢弃」，承接票落地即翻红——本腿现在是
+  // 提交-回显闭环的正面断言）
+  expect(cfg.repoLayoutRef).toBe('maven-2-default')
+  expect(cfg.blackedOut).toBe(true)
+  expect(cfg.maxUniqueSnapshots).toBe(7)
+  expect(cfg.archiveBrowsingEnabled).toBe(true)
 
   await m8Client().request('DELETE', `/binflow/api/repositories/${key}`)
 })

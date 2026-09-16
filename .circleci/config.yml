@@ -79,10 +79,10 @@
 #              herd): race_full (full-tree -race, the `make test` recipe
 #              split x4) + protocol_matrix against the STANDING UAT with no
 #              deploy first — the drift face (disk growth, GC, long-lived
-#              process state) the post-deploy matrix never sees. Config-
-#              based schedules run the default branch's config; the new
-#              API "scheduled pipelines" can replace this later without
-#              touching the jobs.
+#              process state) the post-deploy matrix never sees. L025-2:
+#              the trigger mapping is pipeline.trigger_source-gated (see
+#              the nightly workflow below) — the legacy config `schedule:`
+#              block never mapped on this org (run #91 evidence).
 #   APPROVAL   no external-publish job exists today (goreleaser release
 #              faces stay conductor+user actions per the Makefile Q1/DoD 7
 #              note) — the approval-gate shape is registered as a comment
@@ -101,14 +101,29 @@ version: 2.1
 # red specs at HEAD (pro-license lease afterAll poisoning + the t434/t445/
 # t449/t492 family + spec-side PUT-as-replace against a shared instance,
 # ADR-0050), red on every main run since run #81 (2026-09-10) while the
-# deploy chain rotted behind it. Explicit skip, NOT a deletion. To run it:
-# flip this default to true for a push, or use the CircleCI UI's "Trigger
-# pipeline" with run_e2e=true — NOTE the v2 trigger API (circleci pipeline
-# run / run trigger CLI) answers "Project not found" for this standalone
-# chunk-managed org (verified L024-2), so the push path is the reliable
-# one. Restore always-on by moving the e2e job back into the uat workflow
-# once the e2e debt ticket lands. The uat/deploy/protocol chain (the nine
-# mandated segments) is unaffected.
+# deploy chain rotted behind it. Explicit skip, NOT a deletion.
+#
+# L025-2 (2026-09-17) census — the debt is ATTRIBUTED, not yet closed:
+# the license-lease poison is FIXED (shared cross-spec lease,
+# web/e2e/support/pro-license.ts — live-reproduced then verified), and five
+# spec legs re-pinned to deliberate server parity fixes landed since
+# (t439 round-trip / m9 users-404 envelope / t445 Module-ID / t492
+# aria-selected / t445 stats poll). But the dominant residual family is
+# the fe-rewrite wave (phases 1-5, e0d93a00..f43ceea7, 09-08..09-10):
+# ~28 legs pin the OLD console's implementation details (on-chain class,
+# thead/td DOM, 924px modal, menuitem counts, data-dependent goldens) and
+# need dev-frontend spec re-derivation against the new console, plus the
+# t464 en-face i18n defect (module-scope NAV_GROUPS labels evaluate before
+# the async en catalog registers). Full per-leg table:
+# reports/agents/L025-2.md. The default therefore STAYS false until that
+# ticket lands green — flipping it now would redden every main run. To run
+# it meanwhile: flip this default to true for a push, or use the CircleCI
+# UI's "Trigger pipeline" with run_e2e=true — NOTE the v2 trigger API
+# (circleci pipeline run / run trigger CLI) answers "Project not found"
+# for this standalone chunk-managed org (verified L024-2), so the push
+# path is the reliable one. Restore always-on by moving the e2e job back
+# into the uat workflow once the fe-rewrite spec debt ticket lands green.
+# The uat/deploy/protocol chain (the nine mandated segments) is unaffected.
 parameters:
   run_e2e:
     type: boolean
@@ -624,7 +639,17 @@ jobs:
 
 workflows:
   version: 2
+  # L025-2: trigger_source gates on BOTH sides of the nightly split. A
+  # scheduled firing creates ONE pipeline that would otherwise run every
+  # trigger-less workflow (CircleCI documented behavior: "when a pipeline is
+  # triggered via schedule trigger each of its workflows will run") — that is
+  # exactly the observed bug: run #91's scheduled firing deployed UAT via the
+  # uat workflow while the legacy config `schedule:` block on nightly never
+  # mapped (race_full has never executed, T-473 -> L024-2 registration). Now:
+  # scheduled firings run the nightly face only (race depth + standing-UAT
+  # protocol matrix, NO deploy); push firings run the uat/e2e faces only.
   uat:
+    when: pipeline.trigger_source != "scheduled_pipeline"
     jobs:
       - build:
           filters:
@@ -665,20 +690,28 @@ workflows:
             branches:
               only: [main]
 
-  # T-473: nightly window — full race depth + the protocol matrix against
-  # the STANDING UAT instance (no deploy_uat first: this is the drift face
-  # — disk growth, GC, long-lived-process state — complementary to the
-  # main-push matrix that gates a fresh deploy). Config-based schedules
-  # always run the default branch's config, so this lands when develop
-  # merges to main. Kept as a separately-named workflow so Insights splits
-  # nightly from main-push runs of protocol_matrix.
+  # T-473 nightly window, trigger mapping FIXED in L025-2 — full race depth
+  # + the protocol matrix against the STANDING UAT instance (no deploy_uat
+  # first: this is the drift face — disk growth, GC, long-lived-process
+  # state — complementary to the main-push matrix that gates a fresh
+  # deploy). The original form carried the legacy config `schedule:` block
+  # (cron 17 3 * * * on main) — which never fired race_full: schedule
+  # firings run trigger-less workflows (uat ran instead — run #91), and the
+  # workflow carrying the legacy block never matched. Per CircleCI's
+  # migration guidance the block is dropped; this workflow now runs on ANY
+  # scheduled pipeline firing (trigger_source == "scheduled_pipeline") while
+  # `uat` above is gated to the complement. NOT gated on pipeline.schedule
+  # .name: the registered trigger's name is unqueryable for this standalone
+  # org (API v2 answers 500/Project-not-found — verified L024-2 and again
+  # in L025-2), and there is exactly one schedule here to disambiguate.
+  # If after this change nightly still never fires, the project-level
+  # schedule trigger needs (re)creating in the CircleCI UI — Project
+  # Settings -> Triggers: daily 03:17 UTC, branch main (a user action;
+  # registered in reports/agents/L025-2.md). No branch filters on the jobs:
+  # a schedule trigger pins its own single branch, and a stray filter here
+  # would silently re-create the never-runs shape this fix removes.
   nightly:
-    triggers:
-      - schedule:
-          cron: "17 3 * * *"
-          filters:
-            branches:
-              only: [main]
+    when: pipeline.trigger_source == "scheduled_pipeline"
     jobs:
       - race_full
       - protocol_leg:

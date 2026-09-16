@@ -61,10 +61,13 @@ console-size:
 	if [ "$$total" -gt 5242880 ]; then \
 		echo "WARNING: SPA payload exceeds the 5MB budget (PRD W37)"; \
 	fi
-## docs: build the help documentation site (Docusaurus 3, npm ci —
-## lockfile-pinned) and copy it into internal/docs/dist for go:embed.
-## Requires node >= 20 (engines gate in package.json). The site is built
-## from docs/user/*.md (ADR-0011: tech-writers never touch docs-site/).
+## docs: DEPRECATED (L025-2, user directive "docs-site 不需要维护") — docs
+## maintenance moved to fern/. Kept for MANUAL rebuilds only: builds the
+## legacy help site (docs-site/, Docusaurus 3, npm ci — lockfile-pinned) and
+## copies it into internal/docs/dist for go:embed. CI has NOT built this leg
+## since L024-2 — the binary embeds the committed internal/docs/dist tree
+## as-is; running this target locally DIVERGES that committed face, so
+## commit the result deliberately or not at all. Requires node >= 20.
 ## Rebuild the binary afterwards to embed the fresh build.
 docs:
 	cd docs-site && npm ci && npm run build
