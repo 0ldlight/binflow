@@ -67,15 +67,15 @@ func TestAQLBarePropertyInclude(t *testing.T) {
 		}
 	})
 
-	t.Run("the @key catch-all keeps its empty-array echo", func(t *testing.T) {
+	t.Run("the @key catch-all omits the key on property-less rows (diff L5)", func(t *testing.T) {
 		status, body := aqlDo(t, h,
 			`items.find({"repo":"jf-local","name":"plain.bin"}).include("name","@*")`,
 			adminUser, adminPass, "")
 		if status != http.StatusOK {
 			t.Fatalf("status = %d, want 200\nbody: %s", status, body)
 		}
-		if !strings.Contains(body, "\"properties\" : [ ]") {
-			t.Fatalf("@* on a property-less row keeps the empty-array echo\nbody: %s", body)
+		if strings.Contains(body, "properties") {
+			t.Fatalf("@* on a property-less row must OMIT the key\nbody: %s", body)
 		}
 	})
 }

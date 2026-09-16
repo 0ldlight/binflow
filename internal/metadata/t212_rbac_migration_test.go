@@ -42,6 +42,9 @@ func rewindToPreRBAC(t *testing.T, db *sql.DB) {
 	// the day they land (T-290) — extend this list with each new
 	// post-011 ALTER migration.
 	for _, stmt := range []string{
+		`ALTER TABLE nodes DROP COLUMN client_md5`,
+		`ALTER TABLE nodes DROP COLUMN client_sha1`,
+		`ALTER TABLE nodes DROP COLUMN client_sha256`,
 		`DELETE FROM schema_migrations WHERE version >= 11`,
 		`ALTER TABLE users DROP COLUMN role`,
 		`ALTER TABLE permission_principals DROP COLUMN can_manage`,

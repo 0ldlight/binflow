@@ -160,13 +160,15 @@ func (s *Server) handleSearchLatestVersion(w http.ResponseWriter, r *http.Reques
 		}
 		writeError(w, http.StatusNotFound, msgLatestIntegrationNotFound)
 	default:
-		// The version-line reading: the non-wildcard value names a line
-		// whose INTEGRATION versions compete ("1.1" matches
-		// "1.1-20260915.175736-1", the expansion of "1.1-SNAPSHOT", and
-		// the unexpanded "1.1-SNAPSHOT" spelling itself).
+		// Diff L2's pinned mechanism (V-ab closed): the non-wildcard value
+		// names a version line; the answer is the line's SNAPSHOT parts
+		// concatenated v + <timestamp> + "-" + <build> with NO separator
+		// between v and the timestamp — the reference's own quirk
+		// ("1.1" -> "1.120260915.192244-1", live).
 		for _, cand := range versions {
-			if cand.Integration && (cand.Value == v || strings.HasPrefix(cand.Value, v+"-")) {
-				writePlainText(w, http.StatusOK, cand.Value)
+			if cand.Integration && strings.TrimSuffix(cand.Value, "-SNAPSHOT") == v &&
+				cand.SnapshotTS != "" {
+				writePlainText(w, http.StatusOK, v+cand.SnapshotTS+"-"+cand.SnapshotBuild)
 				return
 			}
 		}
@@ -277,7 +279,9 @@ func (s *Server) handleVersionsByProps(w http.ResponseWriter, r *http.Request, r
 	if len(rows) == 0 {
 		b.WriteString(" ") // Jackson's empty-array form: [ ]
 	} else {
-		b.WriteString(" " + strings.Join(rows, ",") + " ")
+		// diff L3: the reference's row separator carries a space after the
+		// comma (`}, {` — live bytes).
+		b.WriteString(" " + strings.Join(rows, ", ") + " ")
 	}
 	b.WriteString("]\n}")
 	writeRawBody(w, http.StatusOK, "application/json", b.String())
@@ -322,30 +326,34 @@ func (s *Server) handleSearchBadChecksum(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	base := requestBase(r)
-	rows := make([]badChecksumRow, 0, len(hits))
+	// Diff L4's flat row shape: {uri, server<type>, client<type>} with the
+	// top-level limitReached marker — the V-z nested shape is voided.
+	var servKey, cliKey string
+	switch typ {
+	case "sha1":
+		servKey, cliKey = "serverSha1", "clientSha1"
+	case "sha256":
+		servKey, cliKey = "serverSha256", "clientSha256"
+	default:
+		servKey, cliKey = "serverMd5", "clientMd5"
+	}
+	rows := make([]map[string]any, 0, len(hits))
 	for _, hit := range hits {
-		rows = append(rows, badChecksumRow{
-			URI: storageURI(base, hit.RepoKey, hit.Path),
-			Checksums: map[string]checksumPair{
-				typ: {Expected: hit.Registered, Actual: hit.Actual},
-			},
+		rows = append(rows, map[string]any{
+			"uri":   storageURI(base, hit.RepoKey, hit.Path),
+			servKey: hit.Server,
+			cliKey:  hit.Client,
 		})
 	}
-	writeJSONBody(w, http.StatusOK, badChecksumResults{Results: rows})
-}
-
-type checksumPair struct {
-	Expected string `json:"expected"`
-	Actual   string `json:"actual"`
-}
-
-type badChecksumRow struct {
-	URI       string                  `json:"uri"`
-	Checksums map[string]checksumPair `json:"checksums"`
+	limitReached := len(hits) > badChecksumRowCap
+	writeJSONBody(w, http.StatusOK, badChecksumResults{
+		Results: rows, LimitReached: limitReached,
+	})
 }
 
 type badChecksumResults struct {
-	Results []badChecksumRow `json:"results"`
+	Results      []map[string]any `json:"results"`
+	LimitReached bool             `json:"limitReached"`
 }
 
 // writeRawBody emits a pre-rendered body verbatim — the /api/versions face

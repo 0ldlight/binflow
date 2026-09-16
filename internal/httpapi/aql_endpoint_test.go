@@ -334,10 +334,11 @@ func TestSearchAQLWindowSuffixes(t *testing.T) {
 		if !strings.Contains(body, "\"properties\" : [ {\n    \"key\" : \"severity\",\n    \"value\" : \"high\"\n  },{\n    \"key\" : \"team\",\n    \"value\" : \"platform\"\n  } ]") {
 			t.Fatalf("properties member wrong\nbody: %s", body)
 		}
-		// The propless row keeps the two-space empty form.
+		// Diff L5: the propless row omits the key entirely (every property
+		// projection spelling, not just the bare operand).
 		_, body = aqlDo(t, h, `items.find({"repo":"win-local","name":"b.bin"}).include("name","@team")`, adminUser, adminPass, "")
-		if !strings.Contains(body, "\"properties\" : [ ]") {
-			t.Fatalf("propless properties member wrong\nbody: %s", body)
+		if strings.Contains(body, "properties") {
+			t.Fatalf("propless row must omit the properties key\nbody: %s", body)
 		}
 	})
 }

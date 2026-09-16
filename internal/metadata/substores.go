@@ -95,11 +95,13 @@ func (s *repoStore) List(ctx context.Context) ([]*Repo, error) {
 type nodeStore struct{ db *sql.DB }
 
 func (s *nodeStore) Get(ctx context.Context, repoKey, path string) (*Node, error) {
-	const stmt = `SELECT repo_key, path, sha256, size, mime, created_by, created_at, updated_at
+	const stmt = `SELECT repo_key, path, sha256, size, mime, created_by, created_at, updated_at,
+		client_md5, client_sha1, client_sha256
 		FROM nodes WHERE repo_key = ? AND path = ?`
 	row := s.db.QueryRowContext(ctx, stmt, repoKey, path)
 	n := &Node{}
-	err := row.Scan(&n.RepoKey, &n.Path, &n.Sha256, &n.Size, &n.Mime, &n.CreatedBy, &n.CreatedAt, &n.UpdatedAt)
+	err := row.Scan(&n.RepoKey, &n.Path, &n.Sha256, &n.Size, &n.Mime, &n.CreatedBy, &n.CreatedAt, &n.UpdatedAt,
+		&n.ClientMd5, &n.ClientSha1, &n.ClientSha256)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("nodes get %s/%s: %w", repoKey, path, ErrNodeNotFound)
 	}
@@ -111,17 +113,22 @@ func (s *nodeStore) Get(ctx context.Context, repoKey, path string) (*Node, error
 
 func (s *nodeStore) Put(ctx context.Context, n *Node) error {
 	const stmt = `INSERT INTO nodes
-		(repo_key, path, sha256, size, mime, created_by, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		(repo_key, path, sha256, size, mime, created_by, created_at, updated_at,
+		 client_md5, client_sha1, client_sha256)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (repo_key, path) DO UPDATE SET
 			sha256 = excluded.sha256,
 			size = excluded.size,
 			mime = excluded.mime,
 			created_by = excluded.created_by,
 			created_at = excluded.created_at,
-			updated_at = excluded.updated_at`
+			updated_at = excluded.updated_at,
+			client_md5 = excluded.client_md5,
+			client_sha1 = excluded.client_sha1,
+			client_sha256 = excluded.client_sha256`
 	if _, err := s.db.ExecContext(ctx, stmt,
-		n.RepoKey, n.Path, n.Sha256, n.Size, n.Mime, n.CreatedBy, n.CreatedAt, n.UpdatedAt); err != nil {
+		n.RepoKey, n.Path, n.Sha256, n.Size, n.Mime, n.CreatedBy, n.CreatedAt, n.UpdatedAt,
+		n.ClientMd5, n.ClientSha1, n.ClientSha256); err != nil {
 		return wrapExec("nodes put", n.RepoKey, err)
 	}
 	return nil
@@ -156,7 +163,8 @@ func (s *nodeStore) DeleteByPrefix(ctx context.Context, repoKey, prefix string) 
 }
 
 func (s *nodeStore) ListByPrefix(ctx context.Context, repoKey, prefix string) ([]*Node, error) {
-	const stmt = `SELECT repo_key, path, sha256, size, mime, created_by, created_at, updated_at
+	const stmt = `SELECT repo_key, path, sha256, size, mime, created_by, created_at, updated_at,
+		client_md5, client_sha1, client_sha256
 		FROM nodes WHERE repo_key = ? AND (path = ? OR path LIKE ? ESCAPE '\') ORDER BY path`
 	exact, subtree := likePrefix(prefix)
 	rows, err := s.db.QueryContext(ctx, stmt, repoKey, exact, subtree)
@@ -167,7 +175,8 @@ func (s *nodeStore) ListByPrefix(ctx context.Context, repoKey, prefix string) ([
 	var out []*Node
 	for rows.Next() {
 		n := &Node{}
-		if err := rows.Scan(&n.RepoKey, &n.Path, &n.Sha256, &n.Size, &n.Mime, &n.CreatedBy, &n.CreatedAt, &n.UpdatedAt); err != nil {
+		if err := rows.Scan(&n.RepoKey, &n.Path, &n.Sha256, &n.Size, &n.Mime, &n.CreatedBy, &n.CreatedAt, &n.UpdatedAt,
+			&n.ClientMd5, &n.ClientSha1, &n.ClientSha256); err != nil {
 			return nil, wrapExec("nodes list-by-prefix scan", repoKey, err)
 		}
 		out = append(out, n)

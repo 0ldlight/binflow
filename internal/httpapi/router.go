@@ -945,6 +945,20 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	// required: a 401 challenge would mask the spec's status.
 	case rest == "storage" || strings.HasPrefix(rest, "storage/"):
 		repoKey, rel := splitStoragePath(rest)
+		// L024-5 (diff L8): the jf CLI's setItemProperties form carries the
+		// pairs as PATH MATRIX parameters (PUT /api/storage/<path>;k=v) —
+		// the query face's twin. Peel them into the query parameter and
+		// delegate to the same handler; a bare PUT without any property
+		// carrier keeps falling through (the reference's own answer there
+		// is the properties-plane 400, not a deploy).
+		if r.Method == http.MethodPut && strings.Contains(rel, ";") {
+			if matrix, cleaned := peelStorageMatrix(rel); len(matrix) > 0 {
+				q := r.URL.Query()
+				q.Set("properties", strings.Join(matrix, ";"))
+				r.URL.RawQuery = q.Encode()
+				rel = cleaned
+			}
+		}
 		if repoKey == "" {
 			// L010-2: the no-repo-segment storage request (?list or bare,
 			// with or without the trailing slash) is no route in the
@@ -992,7 +1006,7 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 				})
 			return
 		}
-		if _, ok := r.URL.Query()["properties"]; ok {
+		if rawQueryHas(r, "properties") {
 			// FR-89 (M10 T-286, architecture section 15.3.3): the property
 			// read/write family — the E-09 gap's redemption, riding the same
 			// route as a third query arm. GET keeps the item-info read gate
@@ -2115,4 +2129,21 @@ func withStrippedPrefix(r *http.Request, p *auth.Principal) *http.Request {
 // holds even though the gate is attached per route).
 func (s *Server) enforce(w http.ResponseWriter, r *http.Request, req routeAuth, h http.HandlerFunc) {
 	authorize(s.deps.Authz, req)(h).ServeHTTP(w, r)
+}
+
+// rawQueryHas reports a parameter's presence off the RAW query string —
+// L024-5: net/url's ParseQuery (what r.URL.Query rides) fails WHOLE on a
+// semicolon-bearing query (the Go 1.17 posture), and the reference's own
+// clients (jf among them) send properties pairs semicolon-separated, so
+// the tolerant '&' split here is the only spelling that sees them.
+func rawQueryHas(r *http.Request, name string) bool {
+	for _, part := range strings.Split(r.URL.RawQuery, "&") {
+		if k, _, _ := strings.Cut(part, "="); k == name {
+			return true
+		}
+		if part == name { // a bare flag (?list) has no '='
+			return true
+		}
+	}
+	return false
 }

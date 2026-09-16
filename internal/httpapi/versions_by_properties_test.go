@@ -114,6 +114,7 @@ func TestVersionsByProperties(t *testing.T) {
 		// design. The two 1.1 artifacts ride in (repo_key, path) order.
 		want := "{\n  \"version\" : \"1.1\",\n  \"artifacts\" : [ " +
 			"{\n    \"repo\" : \"props-local\",\n    \"path\" : \"a/two-b.jar\",\n  }," +
+			" " +
 			"{\n    \"repo\" : \"props-local\",\n    \"path\" : \"a/two.jar\",\n  } ]\n}"
 		if body != want {
 			t.Fatalf("body = %q\nwant    %q", body, want)

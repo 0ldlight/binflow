@@ -1,7 +1,9 @@
 package repo
 
-// L024-3A: the version kernel's ordering and unique-snapshot expansion
-// (aql.md §16.2) — pure table legs; the wire faces live in httpapi.
+// The version kernel's ordering and literal-segment projection (aql.md
+// §16.2 as the L024-4 differential pinned it — the directory segment rides
+// verbatim, expansion never; the snapshot parts feed the latestVersion
+// non-wildcard arm) — pure table legs; the wire faces live in httpapi.
 
 import (
 	"testing"
@@ -41,9 +43,11 @@ func TestCollectVersions(t *testing.T) {
 		{RepoKey: "m", Path: "com/acme/app/2.0-SNAPSHOT/app-2.0-sources.jar"},  // classifier inside a snapshot dir
 	}
 	got := collectVersions(nodes, "com.acme", "app")
+	// Diff L1: the segment is literal — the 2.0-SNAPSHOT directory is ONE
+	// row (integration), carrying the line's snapshot parts for the
+	// latestVersion arm (diff L2); the expansion never renders here.
 	want := []ArtifactVersion{
-		{Value: "2.0-20260915.175736-1", Integration: true},
-		{Value: "2.0-SNAPSHOT", Integration: true},
+		{Value: "2.0-SNAPSHOT", Integration: true, SnapshotTS: "20260915.175736", SnapshotBuild: "1"},
 		{Value: "1.1", Integration: false},
 		{Value: "1.0", Integration: false},
 	}

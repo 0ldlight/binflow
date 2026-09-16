@@ -384,6 +384,10 @@ func TestDockerUpgradeFromM1Database(t *testing.T) {
 		`ALTER TABLE nodes DROP COLUMN remote_download_count`,
 		// 023 (T-444): the annotate bit — same plain-ALTER family.
 		`ALTER TABLE permission_principals DROP COLUMN can_annotate`,
+		// 028 (L024-5): the client-declared digest columns.
+		`ALTER TABLE nodes DROP COLUMN client_md5`,
+		`ALTER TABLE nodes DROP COLUMN client_sha1`,
+		`ALTER TABLE nodes DROP COLUMN client_sha256`,
 		`DELETE FROM schema_migrations WHERE version > 1`,
 	} {
 		if _, err := db2.ExecContext(ctx, stmt); err != nil {

@@ -29,15 +29,19 @@ type usageStore struct{ db *sql.DB }
 // nodeUpsertStmt is byte-for-byte NodeStore.Put's statement (the combined
 // method must not drift from the plain one's upsert semantics).
 const nodeUpsertStmt = `INSERT INTO nodes
-	(repo_key, path, sha256, size, mime, created_by, created_at, updated_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	(repo_key, path, sha256, size, mime, created_by, created_at, updated_at,
+	 client_md5, client_sha1, client_sha256)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT (repo_key, path) DO UPDATE SET
 		sha256 = excluded.sha256,
 		size = excluded.size,
 		mime = excluded.mime,
 		created_by = excluded.created_by,
 		created_at = excluded.created_at,
-		updated_at = excluded.updated_at`
+		updated_at = excluded.updated_at,
+		client_md5 = excluded.client_md5,
+		client_sha1 = excluded.client_sha1,
+		client_sha256 = excluded.client_sha256`
 
 // usageAdjustPutStmt adjusts the counter by (incoming - current row size):
 // the innermost SELECT reads the size of the node row this upsert REPLACES,
@@ -150,7 +154,8 @@ func (s *usageStore) PutNodeWithUsage(ctx context.Context, n *Node, updatedAt st
 		return wrapExec("repo_usage put-node adjust", n.RepoKey, err)
 	}
 	if _, err := tx.ExecContext(ctx, nodeUpsertStmt,
-		n.RepoKey, n.Path, n.Sha256, n.Size, n.Mime, n.CreatedBy, n.CreatedAt, n.UpdatedAt); err != nil {
+		n.RepoKey, n.Path, n.Sha256, n.Size, n.Mime, n.CreatedBy, n.CreatedAt, n.UpdatedAt,
+		n.ClientMd5, n.ClientSha1, n.ClientSha256); err != nil {
 		return wrapExec("repo_usage put-node upsert", n.RepoKey, err)
 	}
 	if err := tx.Commit(); err != nil {

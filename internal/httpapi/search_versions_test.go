@@ -58,10 +58,10 @@ func TestSearchVersions(t *testing.T) {
 		wantRows   []string
 	}{
 		{
-			name:       "hit: newest first, unique snapshot expanded",
+			name:       "hit: newest first, segments literal (diff L1)",
 			query:      "g=com.acme&a=demo-app",
 			wantStatus: http.StatusOK,
-			wantRows:   []string{"3.0-SNAPSHOT", "2.0-20260915.175736-1", "1.1", "1.0"},
+			wantRows:   []string{"3.0-SNAPSHOT", "2.0-SNAPSHOT", "1.1", "1.0"},
 		},
 		{
 			name:       "v wildcard filters the full set",
@@ -172,18 +172,22 @@ func TestSearchLatestVersion(t *testing.T) {
 			wantBody:   "Latest integration version not found",
 		},
 		{
-			name:       "v non-wildcard resolves the line's integration expansion",
+			// Diff L2 (V-ab closed): v + the line's snapshot timestamp + "-N",
+			// glued with NO separator between v and the timestamp.
+			name:       "v non-wildcard concatenates the line's snapshot parts",
 			query:      "g=com.acme&a=demo-app&v=2.0",
 			wantStatus: http.StatusOK,
-			wantBody:   "2.0-20260915.175736-1",
+			wantBody:   "2.0" + "20260915.175736" + "-1",
 			wantText:   true,
 		},
 		{
-			name:       "v non-wildcard matches the unexpanded snapshot spelling too",
+			// The full-literal spelling is not the line form — the
+			// differential pinned only the release-line arm (l03/l04);
+			// this BinFlow-made arm follows the same rule honestly.
+			name:       "v non-wildcard on the full literal spelling answers the empty-set 404",
 			query:      "g=com.acme&a=demo-app&v=3.0-SNAPSHOT",
-			wantStatus: http.StatusOK,
-			wantBody:   "3.0-SNAPSHOT",
-			wantText:   true,
+			wantStatus: http.StatusNotFound,
+			wantBody:   "Unable to find artifact versions",
 		},
 		{
 			name:       "v non-wildcard on a release-only line answers the empty-set 404 (live arm)",

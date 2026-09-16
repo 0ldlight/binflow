@@ -260,17 +260,6 @@ func aqlOutputHasVirtual(fields []search.OutputField) bool {
 	return false
 }
 
-// aqlBarePropInclude reports whether the projection carries the bare
-// include("property") operand whose omit-when-empty rule §16.1-4 pins.
-func aqlBarePropInclude(fields []search.OutputField) bool {
-	for _, f := range fields {
-		if f.Kind == search.OutputProp && f.PropBare {
-			return true
-		}
-	}
-	return false
-}
-
 // renderAQLRow renders one result row through the projection echo list:
 // pretty form is one field per line at two spaces (the v01/v05 shape),
 // compact form is a single line. Property projections aggregate into the
@@ -305,10 +294,10 @@ func (s *Server) renderAQLRow(b *strings.Builder, row *metadata.NodeQueryRow, fi
 				continue
 			}
 			propsEmitted = true
-			// The bare include("property") operand omits the whole key for
-			// property-less rows (aql.md §16.1-4, live-verbatim: neither an
-			// empty array nor null) — the jf build-publish projection.
-			if aqlBarePropInclude(fields) && len(row.Props) == 0 {
+			// EVERY property projection omits the whole key for
+			// property-less rows (aql.md §16.1-4 + diff L5's q03: neither
+			// an empty array nor null, in any spelling).
+			if len(row.Props) == 0 {
 				continue
 			}
 			emit("properties", renderAQLProps(row, fields, compact))
@@ -351,7 +340,7 @@ func (s *Server) renderAQLRow(b *strings.Builder, row *metadata.NodeQueryRow, fi
 // live v16) — the exact property wire form has no live sample yet (aql.md
 // section 12 V-d: verify against an instance with property data).
 func renderAQLProps(row *metadata.NodeQueryRow, fields []search.OutputField, compact bool) string {
-	all, wanted := false, map[string]bool{}
+	all, wanted, form := false, map[string]bool{}, "pair"
 	for _, f := range fields {
 		if f.Kind != search.OutputProp {
 			continue
@@ -360,6 +349,9 @@ func renderAQLProps(row *metadata.NodeQueryRow, fields []search.OutputField, com
 			all = true
 		} else {
 			wanted[f.PropKey] = true
+		}
+		if f.PropForm == "key" || f.PropForm == "value" {
+			form = f.PropForm // the long forms' single-member projection (L5)
 		}
 	}
 	type kv struct{ k, v string }
@@ -385,6 +377,19 @@ func renderAQLProps(row *metadata.NodeQueryRow, fields []search.OutputField, com
 		return "[ ]"
 	}
 	entry := func(p kv, compact bool) string {
+		// Diff L5's single-member forms: key-only / value-only objects.
+		if form == "key" {
+			if compact {
+				return `{"key":` + aqlJSONString(p.k) + `}`
+			}
+			return "{\n    \"key\" : " + aqlJSONString(p.k) + "\n  }"
+		}
+		if form == "value" {
+			if compact {
+				return `{"value":` + aqlJSONString(p.v) + `}`
+			}
+			return "{\n    \"value\" : " + aqlJSONString(p.v) + "\n  }"
+		}
 		if compact {
 			return `{"key":` + aqlJSONString(p.k) + `,"value":` + aqlJSONString(p.v) + `}`
 		}

@@ -17,13 +17,13 @@ import (
 // kernel's hit set (g+a literal path pieces) projected onto version rows,
 // newest first.
 //
-// Version semantics (§16.2, live-verified):
-//   - the version value is the [version] path segment between the module
-//     directory and the file name;
-//   - an integration version (the "-SNAPSHOT" directory spelling) reports
-//     the EXPANDED unique form (2.0-SNAPSHOT -> 2.0-20260915.175736-1,
-//     integration=true) when the directory's files carry unique-snapshot
-//     names, and the directory spelling itself otherwise;
+// Version semantics (§16.2 as the L024-4 differential pinned it, diff L1):
+//   - the version value is the [version] path segment LITERALLY — a
+//     directory holding the literal "1.1-SNAPSHOT" file name reports
+//     "1.1-SNAPSHOT"; the expanded form appears only for directories the
+//     storage itself names with the timestamp (a direct PUT of a
+//     timestamp-named file); metadata expansion is never consulted;
+//   - integration is the literal "-SNAPSHOT" substring of the segment;
 //   - ordering is newest first.
 
 // VersionSearchService is the version-family capability face of the concrete
@@ -42,6 +42,12 @@ type VersionSearchService interface {
 type ArtifactVersion struct {
 	Value       string
 	Integration bool
+	// SnapshotTS/SnapshotBuild are the integration line's unique-snapshot
+	// parts (yyyyMMdd.HHmmss and the -N build number, from the newest
+	// uniquely-named file) — the latestVersion non-wildcard arm's raw
+	// material (diff L2).
+	SnapshotTS    string
+	SnapshotBuild string
 }
 
 // SearchVersions implements VersionSearchService: the gavc kernel's hit set
@@ -61,11 +67,11 @@ func (s *service) SearchVersions(ctx context.Context, p *Principal, g, a string,
 }
 
 // collectVersions projects gavc hit paths onto deduplicated version rows,
-// newest first.
+// newest first (diff L1: the segment rides verbatim, no expansion).
 func collectVersions(nodes []*metadata.Node, g, a string) []ArtifactVersion {
 	prefix := strings.ReplaceAll(g, ".", "/") + "/" + a + "/"
-	byValue := map[string]bool{}
-	var out []ArtifactVersion
+	byValue := map[string]*ArtifactVersion{}
+	var out []*ArtifactVersion
 	for _, n := range nodes {
 		if !strings.HasPrefix(n.Path, prefix) {
 			continue
@@ -75,28 +81,42 @@ func collectVersions(nodes []*metadata.Node, g, a string) []ArtifactVersion {
 		if dir == "" {
 			continue
 		}
-		integration := strings.Contains(dir, "-SNAPSHOT")
-		value := dir
-		if integration {
-			value = uniqueSnapshotValue(dir, n.Path, a)
+		row := &ArtifactVersion{
+			Value:       dir,
+			Integration: strings.Contains(dir, "-SNAPSHOT"),
 		}
-		if byValue[value] {
+		if row.Integration {
+			// The line's unique-snapshot parts feed the latestVersion
+			// non-wildcard arm (diff L2): keep the NEWEST unique file's
+			// timestamp/build pair seen for the line.
+			if ts, build, ok := uniqueSnapshotParts(dir, n.Path, a); ok &&
+				(byValue[dir] == nil || ts > byValue[dir].SnapshotTS) {
+				row.SnapshotTS, row.SnapshotBuild = ts, build
+			} else if byValue[dir] != nil && byValue[dir].SnapshotTS != "" {
+				row.SnapshotTS, row.SnapshotBuild = byValue[dir].SnapshotTS, byValue[dir].SnapshotBuild
+			}
+		}
+		if prev := byValue[dir]; prev != nil {
+			if row.SnapshotTS > prev.SnapshotTS {
+				prev.SnapshotTS, prev.SnapshotBuild = row.SnapshotTS, row.SnapshotBuild
+			}
 			continue
 		}
-		byValue[value] = true
-		out = append(out, ArtifactVersion{Value: value, Integration: integration})
+		byValue[dir] = row
+		out = append(out, row)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return CompareVersions(out[i].Value, out[j].Value) > 0 })
-	return out
+	rows := make([]ArtifactVersion, 0, len(out))
+	for _, r := range out {
+		rows = append(rows, *r)
+	}
+	return rows
 }
 
-// uniqueSnapshotValue resolves an integration directory's reported value
-// (§16.2): the expanded unique form when the directory's files carry one
-// (module-2.0-20260915.175736-1.jar -> 2.0-20260915.175736-1), the directory
-// spelling otherwise. The file name is derived from the path itself; any
-// shape that does not parse as the module's artifact keeps the directory
-// spelling — the honest fallback, never a guess.
-func uniqueSnapshotValue(dir, path, module string) string {
+// uniqueSnapshotParts extracts the timestamp/buildNumber pair of a
+// uniquely-named snapshot file (module-<base>-yyyyMMdd.HHmmss-N.ext) inside
+// the dir's line — the latestVersion non-wildcard arm's raw material.
+func uniqueSnapshotParts(dir, path, module string) (ts, build string, ok bool) {
 	file := path
 	if i := strings.LastIndexByte(path, '/'); i >= 0 {
 		file = path[i+1:]
@@ -105,13 +125,12 @@ func uniqueSnapshotValue(dir, path, module string) string {
 	if i := strings.LastIndexByte(base, '.'); i > 0 {
 		base = base[:i]
 	}
-	if base == dir {
-		return dir
+	if !isUniqueSnapshotOf(base, dir) {
+		return "", "", false
 	}
-	if isUniqueSnapshotOf(base, dir) {
-		return base
-	}
-	return dir
+	tail := base[len(strings.TrimSuffix(dir, "-SNAPSHOT"))+1:]
+	parts := strings.Split(tail, "-")
+	return parts[0], parts[len(parts)-1], true
 }
 
 // isUniqueSnapshotOf reports whether candidate is dir's unique-snapshot

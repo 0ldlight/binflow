@@ -1,10 +1,11 @@
 package httpapi_test
 
-// L024-3A: GET /api/search/badChecksum (aql.md §16.5-R13, D03-R13): the two
-// live-verbatim 400 copies, the admin-only gate, and the corruption hit row
-// — seeded by overwriting a blob's bytes under the storage engine itself, so
-// the audit compares a registered ledger digest against genuinely different
-// content.
+// GET /api/search/badChecksum (aql.md §16.5-R13 as the L024-4 differential
+// closed it, diff L4): the two live-verbatim 400 copies, the admin-only
+// gate, and the DB-side client-vs-server comparison — a MISSING declaration
+// is bad; a declared digest equal to the registered one is NOT, even when
+// the stored bytes were physically corrupted afterwards (the reference
+// never rescans bytes — the four-point live proof).
 
 import (
 	"crypto/md5"
@@ -22,9 +23,25 @@ import (
 func TestSearchBadChecksum(t *testing.T) {
 	h := newHarnessCfg(t, nil, [][2]string{{"carol", "carol-pass"}})
 	seedRepo(t, h, "bad-local")
-	// The clean corpus: two intact artifacts.
+	// The corpus: one undeclared artifact (bad by the missing-client arm),
+	// one artifact whose md5 the deploy DECLARED (the declaration is
+	// persisted on the node row), whose blob is then physically corrupted
+	// — the reference's own posture leaves it UNflagged (client == server).
 	deposit(t, h, "bad-local", "fine/one.bin", "clean-bytes-one")
-	sha := deposit(t, h, "bad-local", "fine/two.bin", "clean-bytes-two")
+	sum1 := md5.Sum([]byte("clean-bytes-two"))
+	declaredMD5 := hex.EncodeToString(sum1[:])
+	sum1s := sha256.Sum256([]byte("clean-bytes-two"))
+	declaredSHA256 := hex.EncodeToString(sum1s[:])
+	resp0 := h.do(http.MethodPut, "/binflow/bad-local/fine/two.bin", adminUser, adminPass,
+		[]byte("clean-bytes-two"), map[string]string{
+			"X-Checksum-Md5":    declaredMD5,
+			"X-Checksum-Sha256": declaredSHA256,
+		})
+	_ = resp0.Body.Close()
+	if resp0.StatusCode != http.StatusCreated {
+		t.Fatalf("declared deposit: %d", resp0.StatusCode)
+	}
+	sha := declaredSHA256
 
 	// The corruption: replace the second blob's content on disk with
 	// different bytes — the registered ledger digests now describe content
@@ -37,10 +54,6 @@ func TestSearchBadChecksum(t *testing.T) {
 	if err := os.WriteFile(blobPath, corrupted, 0o600); err != nil {
 		t.Fatalf("corrupt blob: %v", err)
 	}
-	sum := md5.Sum(corrupted)
-	corruptMD5 := hex.EncodeToString(sum[:])
-	sum256 := sha256.Sum256(corrupted)
-	corruptSHA256 := hex.EncodeToString(sum256[:])
 
 	t.Run("missing type answers the verbatim 400", func(t *testing.T) {
 		resp := h.do(http.MethodGet, "/binflow/api/search/badChecksum", adminUser, adminPass, nil, nil)
@@ -80,7 +93,7 @@ func TestSearchBadChecksum(t *testing.T) {
 		}
 	})
 
-	t.Run("md5 audit reports the corrupted blob with both digests", func(t *testing.T) {
+	t.Run("md5 audit flags the undeclared row only, flat shape + limitReached", func(t *testing.T) {
 		resp := h.do(http.MethodGet, "/binflow/api/search/badChecksum?type=md5&repos=bad-local", adminUser, adminPass, nil, nil)
 		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
@@ -89,44 +102,39 @@ func TestSearchBadChecksum(t *testing.T) {
 		var parsed struct {
 			Results []struct {
 				URI       string `json:"uri"`
-				Checksums map[string]struct {
-					Expected string `json:"expected"`
-					Actual   string `json:"actual"`
-				} `json:"checksums"`
+				ServerMd5 string `json:"serverMd5"`
+				ClientMd5 string `json:"clientMd5"`
 			} `json:"results"`
+			LimitReached bool `json:"limitReached"`
 		}
 		page := mustGet(t, resp)
 		if err := json.Unmarshal([]byte(page), &parsed); err != nil {
 			t.Fatalf("body is not JSON: %v\n%s", err, page)
 		}
 		if len(parsed.Results) != 1 {
-			t.Fatalf("results = %d, want the one corrupted row:\n%s", len(parsed.Results), page)
+			t.Fatalf("results = %d, want exactly the undeclared row (the declared-but-corrupted one stays clean):\n%s", len(parsed.Results), page)
 		}
 		row := parsed.Results[0]
-		if !strings.HasSuffix(row.URI, "/api/storage/bad-local/fine/two.bin") {
+		if !strings.HasSuffix(row.URI, "/api/storage/bad-local/fine/one.bin") {
 			t.Fatalf("uri = %q", row.URI)
 		}
-		pair, ok := row.Checksums["md5"]
-		if !ok {
-			t.Fatalf("md5 pair missing:\n%s", page)
+		if row.ServerMd5 == "" || row.ClientMd5 != "" {
+			t.Fatalf("flat row = {server:%q, client:%q}, want the server value with an empty client", row.ServerMd5, row.ClientMd5)
 		}
-		if pair.Actual != corruptMD5 {
-			t.Fatalf("actual md5 = %q, want the mutated content's %q", pair.Actual, corruptMD5)
-		}
-		if pair.Expected == "" || pair.Expected == pair.Actual {
-			t.Fatalf("expected md5 = %q, want the registered ledger value", pair.Expected)
+		if parsed.LimitReached {
+			t.Fatal("limitReached must be false")
 		}
 	})
 
-	t.Run("sha256 audit hits the same corruption", func(t *testing.T) {
+	t.Run("sha256 audit mirrors the arm", func(t *testing.T) {
 		resp := h.do(http.MethodGet, "/binflow/api/search/badChecksum?type=sha256&repos=bad-local", adminUser, adminPass, nil, nil)
 		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("status = %d\n%s", resp.StatusCode, mustGet(t, resp))
 		}
 		page := mustGet(t, resp)
-		if !strings.Contains(page, corruptSHA256) {
-			t.Fatalf("body must carry the mutated content's sha256:\n%s", page)
+		if !strings.Contains(page, "clientSha256") || strings.Contains(page, "two.bin") {
+			t.Fatalf("the declared row must stay unflagged:\n%s", page)
 		}
 	})
 
