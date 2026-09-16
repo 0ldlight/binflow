@@ -119,6 +119,13 @@ var _ Service = (*service)(nil)
 // (RFC3339 text, ADR-0007).
 func (s *service) now() string { return s.nowFn().Format(time.RFC3339) }
 
+// nodeNow renders the NODE rows' timestamps with millisecond precision
+// (L024-5 diff L6: the AQL created/modified echo carries the upload
+// clock's millis — the plain second form truncated them to a constant
+// .000). RFC3339 readers accept the fraction; only node rows switch, the
+// rest of the plane keeps the historical spelling.
+func (s *service) nodeNow() string { return s.nowFn().Format("2006-01-02T15:04:05.000Z07:00") }
+
 // actor resolves the audit actor name for a principal (nil = anonymous).
 func actor(p *Principal) string {
 	if p == nil {
@@ -686,7 +693,7 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 		if err := s.checkQuota(ctx, p, gov, repoKey, path, committed.Size, replaced); err != nil {
 			return nil, err
 		}
-		n, err := s.putNode(ctx, p, repoKey, path, false, committed, mime, opts.Properties)
+		n, err := s.putNode(ctx, p, repoKey, path, false, committed, expect, mime, opts.Properties)
 		if err != nil {
 			return nil, err
 		}
@@ -732,7 +739,7 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 		// "0 bytes then error" must not pass as an empty body.
 		return nil, fmt.Errorf("folder deploy %s/%s: %w: body must be empty", repoKey, path, ErrInvalidPath)
 	}
-	n, err := s.putNode(ctx, p, repoKey, path, true, storage.BlobRef{}, mime, opts.Properties)
+	n, err := s.putNode(ctx, p, repoKey, path, true, storage.BlobRef{}, storage.BlobRef{}, mime, opts.Properties)
 	if err != nil {
 		return nil, err
 	}
@@ -906,7 +913,7 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 		return nil, err
 	}
 
-	n, err := s.putNode(ctx, p, repoKey, path, false, committed, mime, nil)
+	n, err := s.putNode(ctx, p, repoKey, path, false, committed, ref, mime, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1014,7 +1021,7 @@ func (s *service) PutLandedBlob(ctx context.Context, p *Principal, repoKey, path
 	}
 
 	committed := storage.BlobRef{Sha256: ref.Sha256, Sha1: ref.Sha1, Md5: ref.Md5, Size: phys.Size}
-	n, err := s.putNode(ctx, p, repoKey, path, false, committed, mime, nil)
+	n, err := s.putNode(ctx, p, repoKey, path, false, committed, ref, mime, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1111,7 +1118,7 @@ const emptyFolderSHA = metadata.FolderMarkerSHA
 // any folder node write for the same blob-first reason as content uploads.
 func (s *service) ensureFolderLedger(ctx context.Context) error {
 	return s.md.Blobs().Put(ctx, &metadata.Blob{
-		Sha256: emptyFolderSHA, Size: 0, CreatedAt: s.now(),
+		Sha256: emptyFolderSHA, Size: 0, CreatedAt: s.nodeNow(),
 	})
 }
 
@@ -1124,7 +1131,7 @@ func (s *service) ensureFolderLedger(ctx context.Context) error {
 // whole landing family (Put/PutWithOptions/PutFromBlob/PutLandedBlob,
 // section 15.3.1's "全族同链"), so no landing path can bypass it; callers
 // without matrix props pass nil and write nothing.
-func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path string, folder bool, ref storage.BlobRef, mime string, props map[string][]string) (*metadata.Node, error) {
+func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path string, folder bool, ref, declared storage.BlobRef, mime string, props map[string][]string) (*metadata.Node, error) {
 	// Ancestors first (ADR-0016): every ancestor directory row lands BEFORE
 	// the target row, for file and folder targets alike. A crash past this
 	// point can only leave benign empty folder rows behind — never a file
@@ -1146,10 +1153,12 @@ func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path strin
 		if existing.Sha256 == ref.Sha256 {
 			// Same content (or the same folder marker): refresh the
 			// modified-side fields, keep created/createdBy (repo-semantics
-			// section 3).
+			// section 3) — the redeclaration refreshes the client-declared
+			// digests with it (diff L4's audit reads the LAST declaration).
 			existing.Mime = mime
-			existing.UpdatedAt = s.now()
-			if err := s.md.Usage().PutNodeWithUsage(ctx, existing, s.now()); err != nil {
+			existing.UpdatedAt = s.nodeNow()
+			existing.ClientMd5, existing.ClientSha1, existing.ClientSha256 = declared.Md5, declared.Sha1, declared.Sha256
+			if err := s.md.Usage().PutNodeWithUsage(ctx, existing, s.nodeNow()); err != nil {
 				return nil, fmt.Errorf("idempotent redeploy %s/%s: %w", repoKey, path, err)
 			}
 			return existing, s.applyDeployProps(ctx, repoKey, path, props)
@@ -1170,10 +1179,11 @@ func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path strin
 		return nil, fmt.Errorf("blob row %s: %w", ref.Sha256, err)
 	}
 
-	now := s.now()
+	now := s.nodeNow()
 	n := &metadata.Node{
 		RepoKey: repoKey, Path: path, Sha256: ref.Sha256, Size: ref.Size, Mime: mime,
 		CreatedBy: p.Name, CreatedAt: now, UpdatedAt: now,
+		ClientMd5: declared.Md5, ClientSha1: declared.Sha1, ClientSha256: declared.Sha256,
 	}
 	if existing != nil {
 		// Overwrite keeps the first deployment's created/createdBy and
@@ -1181,7 +1191,7 @@ func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path strin
 		n.CreatedBy = existing.CreatedBy
 		n.CreatedAt = existing.CreatedAt
 	}
-	if err := s.md.Usage().PutNodeWithUsage(ctx, n, s.now()); err != nil {
+	if err := s.md.Usage().PutNodeWithUsage(ctx, n, s.nodeNow()); err != nil {
 		return nil, fmt.Errorf("node %s/%s: %w", repoKey, path, err)
 	}
 	return n, s.applyDeployProps(ctx, repoKey, path, props)
@@ -1249,8 +1259,8 @@ func (s *service) putFolderRow(ctx context.Context, p *Principal, repoKey, folde
 	case err == nil:
 		if existing.Sha256 == emptyFolderSHA {
 			existing.Mime = mime
-			existing.UpdatedAt = s.now()
-			if err := s.md.Usage().PutNodeWithUsage(ctx, existing, s.now()); err != nil {
+			existing.UpdatedAt = s.nodeNow()
+			if err := s.md.Usage().PutNodeWithUsage(ctx, existing, s.nodeNow()); err != nil {
 				return nil, fmt.Errorf("idempotent folder redeploy %s/%s: %w", repoKey, folderPath, err)
 			}
 			return existing, nil
@@ -1276,7 +1286,7 @@ func (s *service) putFolderRow(ctx context.Context, p *Principal, repoKey, folde
 		n.CreatedBy = existing.CreatedBy
 		n.CreatedAt = existing.CreatedAt
 	}
-	if err := s.md.Usage().PutNodeWithUsage(ctx, n, s.now()); err != nil {
+	if err := s.md.Usage().PutNodeWithUsage(ctx, n, s.nodeNow()); err != nil {
 		return nil, fmt.Errorf("node %s/%s: %w", repoKey, folderPath, err)
 	}
 	return n, nil
@@ -1797,7 +1807,7 @@ func (s *service) PutManifest(ctx context.Context, p *Principal, repoKey, image,
 	// plus this node (the crash-recovery order mirrors Put's blob-first
 	// rule with the blob already committed).
 	n, err := s.putNode(ctx, p, repoKey, nodePath, false,
-		storage.BlobRef{Sha256: digest, Size: size}, mediaType, nil)
+		storage.BlobRef{Sha256: digest, Size: size}, storage.BlobRef{}, mediaType, nil)
 	if err != nil {
 		return nil, err
 	}

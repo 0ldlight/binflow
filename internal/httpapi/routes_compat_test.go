@@ -172,7 +172,10 @@ func TestCompatPlaneE26(t *testing.T) {
 
 	for _, tc := range []struct{ method, path string }{
 		{http.MethodPost, "/binflow/api/repositories/generic-local/something"},
-		{http.MethodPost, "/binflow/api/storage/generic-local/x"},
+		// The POST /api/storage row moved OUT of the E-26 family (L024-8 /
+		// D01-R08): the old property form's verb is the bare 405 envelope
+		// now — pinned verbatim in metadata_patch_test.go
+		// (TestStoragePostFormRetired).
 		{http.MethodDelete, "/binflow/api/storage/generic-local"},
 		// T-97 R5 flip: POST /api/security/users/{name} ROUTES now (SE-06
 		// partial update — pinned in t97_groups_test.go); the row that used

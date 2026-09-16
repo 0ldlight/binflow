@@ -171,3 +171,30 @@ domains:
       assertion_domain: l023d-prefix      # N6：名清单断言域=请求前缀子集（双端实例携带第三方 build 存量，票外不碰）
     auth:
       basic_credentials: redact
+  search:                                # L024-7 转正登记（contracts/search.yaml normalize 锚）——源：L024-search-aql-diff.md §1 S1-S4 提案（differential-qa-engineer 双轮已按此执行），登记权 compatibility-engineer
+    headers:
+      drop:                               # S1：沿 buildinfo N1
+        - Date
+        - Server
+        - X-Powered-By
+        - Set-Cookie
+        - X-Request-Id
+        - X-Artifactory-Id
+        - X-Artifactory-Node-Id
+        - Via
+        - X-Jfrog-Version
+        - Content-Length
+        - Connection
+        - Transfer-Encoding
+        - X-Content-Type-Options
+      content_type:                       # S1：json-family 等价（vnd.org.jfrog.artifactory.search.*+json ≡ application/json）+ charset 剥离（沿 buildinfo N2）
+        json_family_equivalence: true
+    body:
+      absolute_url_prefix: <BASE>         # S2：badChecksum 行 uri / storage uri 的 host 段占位
+      aql_created_modified:               # S3：上传时钟值 shape 化（值=双端各自部署时刻，语义同构）
+        timestamp: <ts>
+      aql_unsorted_order:                 # S4（提案维持）：AQL 无 .sort() 时行序集合化 + properties[] 元素序集合化——aql.md §16.1-3 参照自身元素序不稳 + jf 不依赖序；q01/q02/q03 判定差纯元素序
+        row_order: set_semantics
+        properties_element_order: set_semantics
+    auth:
+      basic_credentials: redact

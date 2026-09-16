@@ -728,6 +728,14 @@ func (p *parser) parseIncludeField() (IncludeField, *QueryError) {
 	case raw == "*":
 		p.includeStar = true
 		return IncludeField{Raw: raw, Star: true}, nil
+	case raw == "property" && !isBuildEntry(p.domain):
+		// The bare domain-name operand (aql.md §16.1-2, the jf CLI's own
+		// include spelling — L024 D11): projects every property as the
+		// "properties" [{key,value}] array, key omitted for property-less
+		// rows. Inside a build-family entry the name stays unknown (the
+		// property entries are closed there, §15.3 — the honest rejection
+		// below answers).
+		return IncludeField{Raw: raw, PropKey: "*", BareProperty: true}, nil
 	case len(raw) > 0 && raw[0] == '@':
 		return p.makePropInclude(raw, raw[1:], t.pos)
 	}

@@ -22,7 +22,8 @@ test.beforeEach(async ({ request }) => {
   await provisionRoles()
 })
 
-/** 本 spec 的可检索夹具：独立仓库 + 唯一文件名（重复跑幂等——PUT 覆盖） */
+/** 本 spec 的可检索夹具：每次调用全新 uniq key（PUT=create 首建，
+ * ADR-0050 后 PUT 不再替换——重跑是累积而非覆盖，搜索面按 marker 圈定） */
 async function seedSearchFixture(): Promise<{ repo: string; file: string; marker: string }> {
   const marker = `t239s${Date.now().toString(36)}`
   const repo = `${marker}-local`

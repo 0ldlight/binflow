@@ -65,6 +65,9 @@ func TestUsageBackfillMigration(t *testing.T) {
 	// place that must name the pre-005 cut explicitly.
 	db := st.(*sqliteStore).db
 	for _, stmt := range []string{
+		`ALTER TABLE nodes DROP COLUMN client_md5`,
+		`ALTER TABLE nodes DROP COLUMN client_sha1`,
+		`ALTER TABLE nodes DROP COLUMN client_sha256`,
 		`DELETE FROM schema_migrations WHERE version >= 5`,
 		`DROP INDEX IF EXISTS idx_user_groups_username`,
 		`DELETE FROM repo_usage`,

@@ -945,6 +945,20 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	// required: a 401 challenge would mask the spec's status.
 	case rest == "storage" || strings.HasPrefix(rest, "storage/"):
 		repoKey, rel := splitStoragePath(rest)
+		// L024-5 (diff L8): the jf CLI's setItemProperties form carries the
+		// pairs as PATH MATRIX parameters (PUT /api/storage/<path>;k=v) —
+		// the query face's twin. Peel them into the query parameter and
+		// delegate to the same handler; a bare PUT without any property
+		// carrier keeps falling through (the reference's own answer there
+		// is the properties-plane 400, not a deploy).
+		if r.Method == http.MethodPut && strings.Contains(rel, ";") {
+			if matrix, cleaned := peelStorageMatrix(rel); len(matrix) > 0 {
+				q := r.URL.Query()
+				q.Set("properties", strings.Join(matrix, ";"))
+				r.URL.RawQuery = q.Encode()
+				rel = cleaned
+			}
+		}
 		if repoKey == "" {
 			// L010-2: the no-repo-segment storage request (?list or bare,
 			// with or without the trailing slash) is no route in the
@@ -955,6 +969,15 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			// in stale reverse docs (rest-api.md section 3 refresh is the
 			// reverse-engineer's LOOP 010 item).
 			writeError(w, http.StatusNotFound, "Not Found")
+			return
+		}
+		if r.Method == http.MethodPost {
+			// The old "Update Item Properties" POST form is gone from the
+			// reference (7.161.x, rest-api.md section 3: the resource carries
+			// no @POST — the current form is PATCH /api/metadata, the case
+			// below): the verb answers the bare 405 envelope, verbatim,
+			// whatever query arms ride along.
+			writeError(w, http.StatusMethodNotAllowed, http.StatusText(http.StatusMethodNotAllowed))
 			return
 		}
 		if _, ok := r.URL.Query()["list"]; ok && r.Method == http.MethodGet {
@@ -992,7 +1015,7 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 				})
 			return
 		}
-		if _, ok := r.URL.Query()["properties"]; ok {
+		if rawQueryHas(r, "properties") {
 			// FR-89 (M10 T-286, architecture section 15.3.3): the property
 			// read/write family — the E-09 gap's redemption, riding the same
 			// route as a third query arm. GET keeps the item-info read gate
@@ -1029,6 +1052,34 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			return
 		}
 		notImplemented(w, "/binflow/api/"+rest)
+
+	// ---- /api/metadata (L024-8 / D01-R08, rest-api.md section 3.1 — the
+	// CURRENT incremental property face; the POST /api/storage spelling it
+	// replaced is the bare 405 inside the storage case above) ----
+	// PATCH carries the JSON body ({"props":…}/{"stats":…}); DELETE drops
+	// every property. The route demands a credential (the properties
+	// family's write posture) and the handler owns the annotate gate with
+	// the face's own wordings; every other verb keeps the E-26 404.
+	case rest == "metadata" || strings.HasPrefix(rest, "metadata/"):
+		repoKey, rel := splitAPIPath(rest, "metadata")
+		if repoKey == "" {
+			// The resource's own grammar demands a path segment: the bare
+			// spelling is no route (the storage family's no-segment 404).
+			writeError(w, http.StatusNotFound, "Not Found")
+			return
+		}
+		switch r.Method {
+		case http.MethodPatch:
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleMetadataPatch(w, r, repoKey, rel)
+			})
+		case http.MethodDelete:
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleMetadataDelete(w, r, repoKey, rel)
+			})
+		default:
+			notImplemented(w, "/binflow/api/"+rest)
+		}
 
 	// ---- /api/copy, /api/move (M12 T-339, FR-105.1 / repo-operations.md
 	// sections 0/1) ----
@@ -1156,6 +1207,34 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		// M17 T-511: the checksum reverse lookup (which builds depend on
 		// this artifact) — same handler-gated posture.
 		s.enforce(w, r, routeAuth{}, s.handleSearchDependency)
+	case rest == "search/versions" && r.Method == http.MethodGet:
+		// L024-3A (D03-R10 / aql.md §16.2): the version list — the gavc
+		// family's own door posture (route gate open, the use case owns the
+		// anonymous channel).
+		s.enforce(w, r, routeAuth{}, s.handleSearchVersions)
+	case rest == "search/latestVersion" && r.Method == http.MethodGet:
+		// L024-3A (D03-R11 / aql.md §16.3): text/plain latest-version face.
+		s.enforce(w, r, routeAuth{}, s.handleSearchLatestVersion)
+	case rest == "search/badChecksum" && r.Method == http.MethodGet:
+		// L024-3A (D03-R13 / aql.md §16.5): admin-only corruption report —
+		// the handler owns the 401/403 arms (RolesAllowed admin).
+		s.enforce(w, r, routeAuth{}, s.handleSearchBadChecksum)
+	case strings.HasPrefix(rest, "versions/"):
+		// L024-3A (D03-R12 / aql.md §16.4): latest version by properties at
+		// its REAL mount /api/versions/{repoKey}/{path} (either segment may
+		// be _any) — a non-anonymous face whose 401 arm is the handler's.
+		if r.Method != http.MethodGet {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		repoKey, tail, found := strings.Cut(strings.TrimPrefix(rest, "versions/"), "/")
+		if !found || repoKey == "" || tail == "" {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleVersionsByProps(w, r, repoKey, tail)
+		})
 
 	// ---- /api/build* (M17 T-508/T-509, FR-152.2 / ADR-0045 decision 6 +
 	// Errata ①) ----
@@ -1849,7 +1928,14 @@ func splitAPIName(rest, prefix string) (name, tail string) {
 // on); a dot-segment or empty repo key yields "" so the caller answers the
 // generic 404.
 func splitStoragePath(rest string) (repoKey, relPath string) {
-	seg := strings.TrimPrefix(strings.TrimPrefix(rest, "storage"), "/")
+	return splitAPIPath(rest, "storage")
+}
+
+// splitAPIPath is splitStoragePath generalized over the /api family prefix
+// (storage, metadata): the {repo}/{path} grammar is the family's own, so
+// the segment validation and the decoding live in ONE place.
+func splitAPIPath(rest, family string) (repoKey, relPath string) {
+	seg := strings.TrimPrefix(strings.TrimPrefix(rest, family), "/")
 	if seg == "" {
 		return "", ""
 	}
@@ -2087,4 +2173,21 @@ func withStrippedPrefix(r *http.Request, p *auth.Principal) *http.Request {
 // holds even though the gate is attached per route).
 func (s *Server) enforce(w http.ResponseWriter, r *http.Request, req routeAuth, h http.HandlerFunc) {
 	authorize(s.deps.Authz, req)(h).ServeHTTP(w, r)
+}
+
+// rawQueryHas reports a parameter's presence off the RAW query string —
+// L024-5: net/url's ParseQuery (what r.URL.Query rides) fails WHOLE on a
+// semicolon-bearing query (the Go 1.17 posture), and the reference's own
+// clients (jf among them) send properties pairs semicolon-separated, so
+// the tolerant '&' split here is the only spelling that sees them.
+func rawQueryHas(r *http.Request, name string) bool {
+	for _, part := range strings.Split(r.URL.RawQuery, "&") {
+		if k, _, _ := strings.Cut(part, "="); k == name {
+			return true
+		}
+		if part == name { // a bare flag (?list) has no '='
+			return true
+		}
+	}
+	return false
 }

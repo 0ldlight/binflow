@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/prd/pending-rulings.md` |
-| 版本 | v2.5（L023-3 buildinfo 域增席：+R-23a media-type label 族〔D8〕/ R-23b 自定义 buildRepo projects 门〔D9〕——素材 L023-buildinfo-diff.md §3/§9 + contracts/buildinfo.yaml；**整包席位 23→25**；v2.4=L021-2 三裁定包：+R-22a auth401 措辞族 / R-22b 匿名读默认策略〔ADR-0009 复核，R-2 联动〕 / R-22c 登录失败限流〔security〕——素材 L020-auth401-maven-faces.md；v2.3=L016-3：+R-16~R-21 六席位；v2.2=L014-1 重呈裁：R-15a 探针翻案三新案 / R-15b 两案重呈+成本估计 + R-15c/d 落格收注 + as-built 漂移纠偏入路径；v2.1=L011-2 增补：票 E+F 四臂入册 R-15；v2.0=L008-4a 整编：R-10~R-14 + §4 批量批复式；v1.0=L002-4 首建 9 项） |
+| 版本 | v2.6（L024-7 search/maven 域增席：+R-24a listFiles 行形参照漂移两形 / R-24b maven 非 GAV 201 容忍 / R-24c version 串策略〔jf 数值解析面 1.0.0 回落正式化——D11 收官最后一格〕——素材 L024-search-aql-diff.md §7 + contracts/search.yaml；**整包席位 25→28**；v2.5=L023-3 buildinfo 域增席：+R-23a media-type label 族〔D8〕/ R-23b 自定义 buildRepo projects 门〔D9〕——素材 L023-buildinfo-diff.md §3/§9 + contracts/buildinfo.yaml，整包 23→25；v2.4=L021-2 三裁定包：+R-22a auth401 措辞族 / R-22b 匿名读默认策略〔ADR-0009 复核，R-2 联动〕 / R-22c 登录失败限流〔security〕——素材 L020-auth401-maven-faces.md；v2.3=L016-3：+R-16~R-21 六席位；v2.2=L014-1 重呈裁：R-15a 探针翻案三新案 / R-15b 两案重呈+成本估计 + R-15c/d 落格收注 + as-built 漂移纠偏入路径；v2.1=L011-2 增补：票 E+F 四臂入册 R-15；v2.0=L008-4a 整编：R-10~R-14 + §4 批量批复式；v1.0=L002-4 首建 9 项） |
 | 维护者 | product-manager（唯写）；裁定结果回写本表 + 各关联账目，不另建副本 |
 | 裁定通道 | 「用户」类经 conductor 转用户终裁；「产品」类 PM 域内可裁、报 conductor 备案；「ADR」类走 DECISIONS.md 流程 |
 
@@ -51,6 +51,9 @@
 | R-22d | helmoci 措辞族（D3 reindex 受理 message + D2 CT 族注记） | reindex `Helm chart index calculation for repository '<key>' has been scheduled.`；index CT=text/yaml、prov=text/plain; charset=utf-8 | reindex `Recalculating index for helm repository <key> scheduled to run`；index CT=text/plain、prov=application/octet-stream | **两案（D3）**：对齐 A message 串（一处受理渲染）/ 维持 B 串 INTENTIONAL（client-blind——状态/异步语义/条目保全双端同，纯 message 差）。**PM 建议倾向对齐**（与 R-22a 同构口径，可并批复）。**D2 CT 族不入裁位**——client-blind（helm 双端均解析）+ helm.md §2 表「text/yaml」对 A 真身不成立系**规格勘误票**（reverse-engineer 域）+ charset 后缀差归 normalize R7 域 | 产品（D3 message 面） | 素材=L021-helmoci-evidence.md §D2/D3（两 DIVERGENT 契约条目的裁定面——D1 urls 形态另案后段） |
 | R-23a | build REST 族 media-type label 双面（L023-2D D8，7 单元候裁维持） | text 面（DELETE 200 E6/批删/retention count 门）标 `text/plain`（**更正确**——body 实为纯文本）；json 面恒 `application/json` | text 面统一标 `application/json`（**错标**——body 是纯文本；spec §11.6「text/plain」字面活体复伪）；json 面回 vendor 型（BuildInfo/Builds/BuildsByName/PromotionResult+json） | **两案**：案甲=对齐复刻（text 面错标 application/json 照抄 + json 面 vendor 型补齐——writeJSONBodyCT 先例机制现成；差分断言逐字同） / 案乙=维持正确标签 INTENTIONAL（client-blind——jf 2.122.0 真腿双通过，客户端不校验 label；「更正确」是产品姿态，需 ADR 登记）。**PM 建议倾向案甲**（json 面 vendor 缺位与 rest/user-detail-vendor-content-type 同族且该族已按对齐收；text 面错标随批一并复刻，保 parity 单口径——除非用户裁定「正确性优先于 parity」则案乙） | 产品（label 面）；案乙需 ADR | known-divergence `buildinfo/media-type-label-family` UNKNOWN（LOOP 024 限期）；**翻绿联动**：裁定后 matrix D07-R04/R08/R10 翻 compatible（本轮候裁态挂账） |
 | R-23b | 自定义 buildRepo 写门（PUT ?buildRepo=<X>-build-info——L023-2D D9） | 无门 204（BinFlow 无 projects 域——ADR-0045 点 6/M17 面外；读路径双端均无门） | 400 projects 门（`<projectKey>-build-info` 须 project 存在；文案对缺仓/缺 project/缺后缀三因共用「does not exist」——误导性文案为参照真值） | **两案**：案甲=超集承接 INTENTIONAL（参照存在主体〔缺省 buildRepo 路径〕双端零差，分歧仅 BinFlow 自有可达面显现——「无域可门」的结构性结果；与 R-12「参照主体缺位」同款，补引 ADR-0045 点 6 即转正）/ 案乙=最小仓存在校验门（复刻 400+文案的仓存在臂；但「project 存在」语义无域不可复刻——对齐不完整且引入半门）。**PM 建议倾向案甲**（对齐路径需先裁 projects 域边界，成本外溢；自定义 buildRepo 在 BinFlow 生态无消费方） | 产品（域边界姿态）；案甲补引 ADR-0045 | known-divergence `buildinfo/custom-buildrepo-projects-gate` UNKNOWN（LOOP 024 限期）；contracts/buildinfo.yaml#buildinfo/custom-buildrepo-gate DIVERGENT 待翻 |
+| R-24a | /api/versions listFiles 行形（A 跨日自矛盾两形——L024-4 vs L024-6 wire 两档在案） | 怪癖形：两键+每行尾逗号非严格 JSON（按 L024-4 时点 spec §16.4 V-aa 实现——与当日 A 分歧） | **自矛盾**：昨日两轮=两键+尾逗号；当日=四键严格 JSON `{repo,path,downloadUri,uri}` 末行无尾逗号（od 字节级双语料组一致） | **两案**：案甲=采四键严格 JSON 形（较新较严的 od 级实况——B 改实现+spec V-aa 勘误）/ 案乙=采怪癖形（L024-4 两轮 wire 锚，B 现实现零改动——待 A 侧复现窗口定谳）。**PM 建议取证先行**（ADR-0001：第二参照窗 od 取证后再裁，不预设；若两窗再现两形则升级实例状态调查） | 产品（裁定+取证排程） | known-divergence `search/row-shape-reference-drift` UNKNOWN（LOOP 025 限期）；matrix D03-R12 候裁态挂账 |
+| R-24b | maven 仓非 GAV 路径上传容忍（L024-6 L10 新面） | 400 `maven layout: "f9/mz.bin": artifacts need <groupId path>/<artifactId>/<version>/<file> (at least 3 directories)`（布局强制） | 201 自由接受（无布局校验） | **两案**：案甲=对齐 A 自由（非 GAV 路径照收——收窄校验；参照的 201 系无校验非设计契约）/ 案乙=维持 400 强制 INTENTIONAL（布局卫生——错路径 typo 即刻拦截优于静默入库；需 ADR 登记）。**PM 建议倾向案乙**（真实客户端恒发 GAV 不踩该面；A 的自由是缺校验的库癖性，「更严」是产品增益姿态） | 产品；案乙需 ADR | known-divergence `maven/non-gav-upload-acceptance` UNKNOWN（LOOP 025 限期，maven 域裁定） |
+| R-24c | version 串策略（/api/system/version 回 'dev' → jf strconv.Atoi 尾错 exit=1——jf 主链唯一残余） | `dev`（dev 实例姿态——jf 数值解析面断裂，build-publish CLI exit=1〔服务端全链已闭合〕） | 数值形态串（如 `7.161.15`——jf 解析通过，主链 exit=0） | **两案**：案甲=数值回落正式化（version 端点回可数值解析串〔回落 1.0.0 形态或参照对齐串〕——jf 全链 exit=0 收口，D11 档案最后一格）/ 案乙=维持 'dev'（dev 实例姿态，债登记——CI 面 jf 恒 exit=1）。**PM 建议倾向案甲**（服务端链已全绿唯 CLI 退出码挂账；version 端点参照面本就是数值串，对齐顺带收口；发布实例侧另有正式版本号通道不冲突） | 产品（版本串策略；dev/UAT/发布三态口径） | L024-search-aql-diff.md §7.1-L8/§7.2（version 债开放项）；known-divergence `buildinfo/aql-property-channel` resolved.note |
 
 ## 2. 逐项详述
 
@@ -285,6 +288,14 @@ curl -su admin:'***' ":8082/artifactory/api/repositories?project=&type=local"
 - **PM 论证**：案乙的对齐完整性缺口使其收益封顶（最多灭 1 单元差的仓存在臂，project 臂永久分歧）；自定义 buildRepo 在 BinFlow 生态无消费方（缺省路径全覆盖）；裁对齐的完整路径需先立项 projects 域——成本外溢远超本面。
 - **回写**：案甲 → 台账 INTENTIONAL（authority=本裁定+ADR-0045 点 6）+ 契约 204 姿态冻结；案乙 → 门+文案票+差分复验。
 
+### R-24a/R-24b/R-24c（v2.6 新增——search/maven 域，L024-7）
+
+素材：known-divergence.yaml `search/row-shape-reference-drift` / `maven/non-gav-upload-acceptance`（rationale 即两案素材）+ reports/compatibility/L024-search-aql-diff.md §7（终轮段=权威）+ contracts/search.yaml。证据 E5 双轮（L024-4 全环 + L024-6 终轮 dev.2f434814 × A 7.161.15）。
+
+- **R-24a（L3 参照漂移——listFiles 行形）**：A 侧两形不可同真（L024-4 两轮=两键+尾逗号非严格 JSON，wire 在档 / L024-6 当日=四键严格 JSON `{repo,path,downloadUri,uri}`，od 字节级双语料组一致）——裁定轴是「参照真值采谁」非「对齐与否」；B 现实现=规格 §16.4 V-aa 怪癖形，与当日 A 分歧。**取证优先于裁定**（第二参照窗 od 复核；两窗再现两形则升级 A 实例状态调查）；定谳后 spec V-aa 勘误随票、D03-R12 随翻。
+- **R-24b（L10 maven 非 GAV 上传容忍）**：A 201 自由=无校验库癖性非设计契约；B 400 布局强制=产品卫生姿态（错路径 typo 即刻拦截优于静默入库）。真实客户端（mvn deploy 恒发 GAV、jf/curl 主链）不踩该面——裁量轴是「布局卫生 vs parity」。裁乙需 ADR；裁甲开收窄票（400→201）+差分复验。
+- **R-24c（version 串策略）**：jf 数值解析面在 'dev' 上断裂致 build-publish CLI exit=1（服务端全链已闭合——§7.2：build PUT 204 + AQL 200 + setItemProperties Done）；案甲=数值回落正式化（version 端点回可数值解析串，回落 1.0.0 形态或参照对齐串）→ jf 全链 exit=0 收口（D11 档案最后一格）+差分腿复验；案乙=维持 'dev'（CI 面 jf 恒 exit=1 长期挂账）。
+
 ## 3. 裁定后回写路径（约定）
 
 | 裁定项 | 回写目标 |
@@ -309,6 +320,9 @@ curl -su admin:'***' ":8082/artifactory/api/repositories?project=&type=local"
 | R-20/R-21 | 裁对齐 → maven 实现票（渲染三处补齐 / 事件驱动重算）+ 台账 resolved；裁维持 → INTENTIONAL（authority=本裁定；R-20 可引 mvn 容忍新证、R-21 可引终态等价论）+ 契约姿态冻结 + 本表 |
 | R-23a | 案甲 → label 修复票（text 面错标复刻 + json 面 vendor 补齐〔writeJSONBodyCT 复用〕）+ 差分复验 → 台账 resolved + 契约 label 断言升格 + **matrix D07-R04/R08/R10 翻 ✅** + 本表；案乙 → 台账 INTENTIONAL（authority=本裁定+ADR 登记）+ 契约 label 姿态冻结 + D07-R04/R08/R10 随翻 ✅（label 差异出判定面）+ 本表 |
 | R-23b | 案甲 → 台账 INTENTIONAL（authority=本裁定+ADR-0045 点 6）+ 契约 204 姿态冻结 + 本表；案乙 → 门+文案票（仓存在臂）+ 差分复验 + 台账 resolved + 本表 |
+| R-24a | 第二参照窗取证先行 → 定谳后：采四键形 → B 实现票（listFiles 行形改严格 JSON）+ spec §16.4 V-aa 勘误票（reverse-engineer 域）+ 台账 resolved + **matrix D03-R12 翻 ✅** + 本表；采怪癖形 → 台账 resolved（A 当日实况记为漂移注记）+ D03-R12 翻 ✅ + 本表 |
+| R-24b | 案甲 → maven 布局校验收窄票（400→201）+ 差分复验 + 台账 resolved + 本表；案乙 → 台账 INTENTIONAL（authority=本裁定+ADR）+ maven 契约 400 姿态冻结 + 本表 |
+| R-24c | 案甲 → version 端点小票（数值回落串）+ jf build-publish exit=0 差分腿 + 本表；案乙 → version 债登记 INTENTIONAL（authority=本裁定）+ 本表（jf CI 面 exit=1 长期挂账知悉） |
 
 > 本表不替任何 authority 拍板；每项终裁后由 product-manager 在本表更新状态列并按上表路径派发回写票。
 
@@ -336,5 +350,6 @@ curl -su admin:'***' ":8082/artifactory/api/repositories?project=&type=local"
    - **v2.4 扩容（L021-2）**：R-22a 案甲（对齐 A 文案族+分型渲染）/ R-22b 案乙（维持 ADR-0009+INTENTIONAL，R-2 同构）/ R-22c 案甲变体（security 票评估后自有形态实现）
    - **v2.4 增补（L022-1④）**：+R-22d helmoci 措辞族（D3 两案+D2 归一/勘误注记）；R-20/R-21 已随 L022-1 实现落地收口（表内划线留档，不占批复面）
    - **v2.5 扩容（L023-3）**：R-23a 案甲（text 面错标复刻+json 面 vendor 补齐）/ R-23b 案甲（超集承接 INTENTIONAL，补引 ADR-0045 点 6）——整包席位 23→25；两席均零取证前置可即批
+   - **v2.6 扩容（L024-7）**：R-24b 案乙（维持 400 强制 INTENTIONAL——布局卫生）/ R-24c 案甲（version 数值回落正式化——jf 全链 exit=0 收口）——整包席位 25→28；**R-24a 不在整包内**——取证前置（第二参照窗 od 取证后单批，ADR-0001 红线：参照真值未定谳不裁）
 3. **生效路径**：裁决回执经 conductor 落地——PM 回写本表状态列 + 按 §3 派发回写票；INTENTIONAL 项的 ADR 登记与契约冻结随票；实现/建模类裁定转 tech-lead 拆票。
 4. **预授权式（v2.1 新增，限 R-15c/R-15d；v2.2 注：已被 L013 执行完毕留档）**：用户可一次批「对齐参照实测」——探针出数后 PM 按 §2 R-15d 四象限表自动选案执行并回报（免二次呈批）；探针出第三态（400/复合形态）或落「PM 反对」格时中止预授权、回报 conductor 再呈批。**执行留痕：L013-4+5 已按此式落格案乙并收口（D02-R01 翻 ✅）**。R-15a/R-15b 不适用预授权（均可直接裁，无需取证前置——a 的呈批素材已含 L013 探针五臂 wire，残余转义臂细节随实现票；b 的实现对齐已有高置信规格）。

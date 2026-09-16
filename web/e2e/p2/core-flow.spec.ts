@@ -11,9 +11,12 @@
 //    与写口姿态。
 //
 // 环境协议：与既有 spec 相同——BASE 指向真实 BinFlow（base-probe 守门）；
-// 种子全部走 REST（幂等 converge——不对用户实例 ./data 操作）。
+// 种子全部走 REST（repo 腿 GET-first ensureRepo、其余幂等 converge——
+// 不对用户实例 ./data 操作）。
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
+
+import { adminCredential, ensureRepo, makeClient as makeSeedClient } from '../../scripts/seed-m8.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8080'
 
@@ -62,7 +65,17 @@ async function seedP2(): Promise<void> {
   if (process.env.P2_SKIP_SEED === '1') return
   const admin = makeClient()
   await admin.login('admin', 'password')
-  await converge(() => admin.put('/binflow/api/repositories/p2-local', { rclass: 'local', packageType: 'generic', description: 'p2 core-flow' }))
+  // p2-local 是固定 key：本文件三个 describe 的 beforeAll 各 seed 一份，
+  // 共用/二次实例上 key 已存在——ADR-0050 后 PUT 是 create-only（对已存在
+  // key 回 400），旧 converge 吞错硬过等于放弃了种子语义。走 ensureRepo
+  // GET-first（T-SEED50 助手）：404 → PUT 首建，200 → POST 同 body merge。
+  const creds = adminCredential()
+  await ensureRepo(makeSeedClient({ base: BASE, username: creds.username, password: creds.password }), {
+    key: 'p2-local',
+    rclass: 'local',
+    packageType: 'generic',
+    description: 'p2 core-flow',
+  })
   // 三角色夹具（readonly_admin + plain user + 读授予）——body 形态与
   // seed-m8.ensureUser/ensureReadGrant 同源（name+email；permissions 用
   // repos/principals 投影）

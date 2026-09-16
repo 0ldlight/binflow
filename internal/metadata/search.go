@@ -119,7 +119,8 @@ func likeSubstringFolded(frag string) string {
 // concatenation signal is a false positive here by construction. limit > 0
 // caps the row count SQL-side (the K63 +1 probe arm).
 func (s *nodeStore) nodeQuery(ctx context.Context, conds []string, args []any, limit int) ([]*Node, error) {
-	q := `SELECT repo_key, path, sha256, size, mime, created_by, created_at, updated_at
+	q := `SELECT repo_key, path, sha256, size, mime, created_by, created_at, updated_at,
+		client_md5, client_sha1, client_sha256
 		FROM nodes WHERE path NOT LIKE '%/'`
 	for _, c := range conds {
 		q += " AND (" + c + ")" //nolint:gosec // G202: fragments are package-constant shapes; values stay parameterized in args
@@ -137,7 +138,8 @@ func (s *nodeStore) nodeQuery(ctx context.Context, conds []string, args []any, l
 	var out []*Node
 	for rows.Next() {
 		n := &Node{}
-		if err := rows.Scan(&n.RepoKey, &n.Path, &n.Sha256, &n.Size, &n.Mime, &n.CreatedBy, &n.CreatedAt, &n.UpdatedAt); err != nil {
+		if err := rows.Scan(&n.RepoKey, &n.Path, &n.Sha256, &n.Size, &n.Mime, &n.CreatedBy, &n.CreatedAt, &n.UpdatedAt,
+			&n.ClientMd5, &n.ClientSha1, &n.ClientSha256); err != nil {
 			return nil, wrapExec("nodes search scan", "", err)
 		}
 		out = append(out, n)

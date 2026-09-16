@@ -51,6 +51,17 @@
 #   措辞勘正、行态 absent 维持（现行面归 Docker 域中置信，⛔ 候选随 absent-roadmap 复核）。置信三行
 #   medium→high（R12/R14/R16——活体+反编译/官方页双源）。summary 同步 absent 72→71/not_applicable 19→20/
 #   high 134→137/medium 66→63。195 冻结行集不增删（本批零新行、一重分类系勘误款）。
+# L024-7（LOOP 024，2026-09-16）D03 搜索族终版落账：① D03-R11 翻 compatible（L024-4 全环差分 + L024-5
+#   返工 + L024-6 终轮 §7——五臂逐字绿含 V-y 双深层 404 活体收口；实现链 52c9ba42/2f434814）；②
+#   D03-R10/R12/R13 候裁态 note 更新 + 四行落 contract_ref=contracts/search.yaml / last_difftest 行级锚
+#   （余单面：R10=L1 通配展开臂 / R12=L3 参照自矛盾〔候 R-24a〕/ R13=L4 maven-metadata 排除小面）；
+#   ③ known-divergence 新增 4 条（search/snapshot-row-wildcard-match〔BUG〕、search/badchecksum-
+#   maven-metadata-exclusion〔BUG-minor〕、search/row-shape-reference-drift〔UNKNOWN 候 R-24a〕、
+#   maven/non-gav-upload-acceptance〔UNKNOWN 候 R-24b，maven 域〕）；④ buildinfo/aql-property-channel
+#   resolved（D11 jf 全链闭合——AQL 面+setItemProperties 双落地，唯 version 债另册 R-24c）；⑤
+#   pending-rulings v2.6 +R-24a/R-24b/R-24c（整包 25→28）；⑥ normalize.yaml 新增 search 域（S1-S4 提案
+#   转正——contracts/search.yaml normalize 锚闭引用）。summary 同步 compatible 80→81/absent 71→70/
+#   contract_ref 22→26/last_difftest 33→37。195 冻结行集不增删（本批零新行）。
 
 ---
 schema: 1
@@ -93,9 +104,9 @@ priority_policy:
 summary:
   total_rows: 200
   state_counts:
-    compatible: 80
+    compatible: 81
     partial: 17
-    absent: 71
+    absent: 70
     not_applicable: 20
     superset: 12
   confidence_counts:
@@ -109,14 +120,14 @@ summary:
   by_state_x_priority:
     compatible:
       P0: 56
-      P1: 23
+      P1: 24
       P2: 1
     partial:
       P0: 2
       P1: 10
       P2: 5
     absent:
-      P1: 29
+      P1: 28
       P2: 42
     superset:
       P2: 12
@@ -138,8 +149,8 @@ summary:
       superset: 1
     D03:
       rows: 19
-      compatible: 9
-      absent: 7
+      compatible: 10
+      absent: 6
       not_applicable: 3
     D04:
       rows: 35
@@ -192,9 +203,9 @@ summary:
     D14:
       rows: 1
       not_applicable: 1
-  contract_ref_non_null: 22  # L023-3 勘正+同步：D12-R05（L012）+ goproxy/maven/pypi 系契约行（L014-L020 各轮回填未同步计数，前置值 10 漏记至实值 13）+ 本批 D07-R01..R08/R10 九行 → 实计 22（逐行 ruby 对账通过）
-  golden_ref_non_null: 1     # D12-R01（empty-blob-synthetic / pull-sequence）——storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 提金候选（l023d-wire/a/）在册待采，本批零金样变更
-  last_difftest_non_null: 33 # L023-3 勘正+同步：前置值 16 系 L007-4 时点，L008-L022 各轮回填未同步（实值 24）+ 本批 D07-R01..R08/R10 九行 → 实计 33（逐行 ruby 对账通过）
+  contract_ref_non_null: 26  # L024-7 同步：前置 22（L023-3 勘正后）+ 本批 D03-R10..R13 四行 → 实计 26（逐行 ruby 对账通过）
+  golden_ref_non_null: 1     # D12-R01（empty-blob-synthetic / pull-sequence）——storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 / L024-4 §5 提金候选（l023d-wire/a/、l024d-wire/a/）在册待采，本批零金样变更
+  last_difftest_non_null: 37 # L024-7 同步：前置 33（L023-3 勘正后）+ 本批 D03-R10..R13 四行 → 实计 37（逐行 ruby 对账通过）
 rows:
 - row_id: D01-R01
   domain: D01
@@ -992,31 +1003,45 @@ rows:
   capability: GET /api/search/versions?g=&a=&v=&repos=&remote=
   state: absent
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/search.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L024-search-aql-diff.md §2.1 v01-v05 + §7.1-L1/§7.3（终轮 4/5 单元 SAME）
   priority_class: P1
   layer: A
   source_row: "§4 行 10"
+  note: >-
+    L024-7 候裁态（行态维持 absent）：终轮 4/5 单元绿——404 逐字（v02）、v=1.* 通配过滤语义（v03 首轮）、
+    v=9.* 后置过滤空集 200 results:[]（§16.2 补充官方规范项，v04）、字面 SNAPSHOT 行 v01/v05 终轮双绿
+    （versions 行=存储路径版本段口径，L1 主体已对齐）。余单面=L1 通配展开臂（终轮 v03：A 对 SNAPSHOT 行
+    按 metadata 展开形匹配并回显 `1.1-20260916.010507-1`、B 按字面匹配——过滤臂的展开语义未实现，
+    known-divergence search/snapshot-row-wildcard-match）。翻绿条件=通配臂修复+差分复验。实现链
+    52c9ba42（L024-3A）/2f434814（L024-5）。契约条目 search/versions（DIVERGENT）。
 - row_id: D03-R11
   domain: D03
   capability: GET /api/search/latestVersion?g=&a=&v=&repos=&remote=
-  state: absent
+  state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/search.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L024-search-aql-diff.md §2.2 l01-l06 + §7.1-L2/§7.3（终轮五臂逐字绿）
   priority_class: P1
   layer: A
   source_row: "§4 行 11"
+  note: >-
+    L024-7 翻绿（2026-09-16）：absent→compatible——六单元五臂逐字绿：缺省=最新 release 1.1
+    （text/plain 裸串、跳过 integration）、v=1.* 通配首命中、v=9.9 404 `Unable to find artifact
+    versions`、V-y 双深层 404 活体收口（l05 `Latest release version not found`/l06 `Latest integration
+    version not found`——aql.md §16.6 V-y 关闭）；l03 v 非通配构造双端同形（V-ab 定谳形：v+metadata
+    快照时间戳+"-N" 无连字符——pass2 差一秒=夹具时钟竞态、pass1 同秒逐字同，串行绿=通过）。实现链
+    52c9ba42/2f434814。契约条目 search/latest-version（VERIFIED）。
 - row_id: D03-R12
   domain: D03
   capability: GET /api/versions/{repoKey}/{path}（最新版本按属性——latestVersionByProperties 真实挂载，非 /api/search/*）
   state: absent
   confidence: high
-  contract_ref:
+  contract_ref: contracts/search.yaml
   golden_ref:
-  last_difftest:
+  last_difftest: reports/compatibility/L024-search-aql-diff.md §2.3 p01-p04 + §7.1-L3/§7.3（p01/p03 SAME；p02=L3 UNKNOWN 候裁）
   priority_class: P2
   layer: A
   source_row: "§4 行 12"
@@ -1025,17 +1050,31 @@ rows:
     真实挂载 GET /api/versions/{repoKey}/{path}（全 wire：命中/空集/_any 通配四臂/listFiles 尾逗号怪癖/
     双 404 逐字——aql.md §16.4，置信高=活体+反编译双源）；置信 medium→high。reports/agents/L024-1.md
     §1 表（勘误③）。
+    L024-7 候裁态（2026-09-16，行态维持 absent）：p01 默认形（{"version":"1.1","artifacts":[]} 空数组
+    非省略逐字节）/p03 404 裸 `Not Found` 信封终轮 SAME；尾逗号怪癖本体双绿（V-aa 多行定谳）。余单面=
+    L3 listFiles 行形 UNKNOWN（A 跨日自矛盾两形：L024-4 两轮=两键+尾逗号非严格 JSON wire 在档 /
+    L024-6 当日=四键严格 JSON {repo,path,downloadUri,uri} od 字节级——B 现实现=规格怪癖形与当日 A 分歧，
+    known-divergence search/row-shape-reference-drift，候 R-24a/第二参照窗）；p04=L9 401 措辞既有族
+    （R-22a 席，非本域）。实现链 52c9ba42/2f434814。契约条目 search/versions-by-properties（DIVERGENT）。
 - row_id: D03-R13
   domain: D03
   capability: GET /api/search/badChecksum?type=&repos=（响应上限 10,000）
   state: absent
   confidence: medium
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/search.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L024-search-aql-diff.md §2.4 b01-b05 + §7.1-L4/§7.3（终轮核心面 SAME）
   priority_class: P2
   layer: A
   source_row: "§4 行 13"
+  note: >-
+    L024-7 候裁态（行态维持 absent）：终轮核心面全绿——双 400 逐字（b01 `No checksum type defined`/
+    b02 `Checksum type: sha512 is not defined`）、命中行形=平铺 {uri[,serverMd5,clientMd5]}+顶级
+    limitReached:false、语义=DB client-vs-server 对比（missing client=bad；真坏 blob 四点 od 级活证 A
+    不实扫字节——V-z 证伪关闭，spec §16.5-R13 勘误在案），b04/b04b 真坏臂双旗标口径终轮 SAME。余单面=
+    b03 maven-metadata.xml 系统文件排除（B 多旗标 ×3、A 排除——known-divergence
+    search/badchecksum-maven-metadata-exclusion）+ uri 按仓差异（V-ac 开放，反编译复核待）。翻绿条件=
+    排除小面修复+差分复验。实现链 52c9ba42/2f434814。契约条目 search/bad-checksum（DIVERGENT）。
 - row_id: D03-R14
   domain: D03
   capability: GET /api/search/archive（deprecated——7.161.x 已撤挂载，活体 404）

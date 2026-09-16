@@ -111,6 +111,12 @@ type Node struct {
 	CreatedBy string // principal name
 	CreatedAt string // RFC3339 UTC
 	UpdatedAt string // RFC3339 UTC
+	// ClientMd5/ClientSha1/ClientSha256 are the digests the deploying
+	// client DECLARED (X-Checksum-*, L024-5 diff L4) — badChecksum's
+	// client half. '' = undeclared.
+	ClientMd5    string
+	ClientSha1   string
+	ClientSha256 string
 }
 
 // NodeStats is the per-node download statistics projection of the nodes

@@ -157,22 +157,14 @@ func TestStoragePropertiesLegacySemicolon(t *testing.T) {
 	}
 }
 
-// TestStoragePropertiesRESTSemicolonIsContent pins the T-447 contract note
-// as frozen wire behavior (T-493, FR-157④ — "REST 只认逗号配对"): the ';'
-// matrix grammar belongs to the PATH plane (deploy-time properties, the
-// fixtures above); on the REST ?properties arm a semicolon never opens a
-// pair. Two spellings, two honest answers:
-//
-//   - an ENCODED semicolon (%3B) inside a value is VALUE CONTENT — one
-//     value, stored and read back byte-for-byte, never split;
-//   - a RAW semicolon in the raw query value drops the whole properties
-//     pair out of Go's query parsing (net/url refuses ';' as a separator),
-//     so the properties arm never engages: GET falls to the plain item
-//     body, PUT/DELETE meet the family's unknown-spelling E-26 404. The
-//     raw ';' thus cannot act as a pair separator by construction.
-//
-// The wire form is unchanged by the M17 errata family; only the
-// documentation face moves (T-518).
+// TestStoragePropertiesRESTSemicolonIsContent pins the separator law as
+// the L024-4 differential closed it (L024-5, overriding T-493's "comma
+// only" reading): BOTH the comma and the semicolon open pairs on the REST
+// ?properties arm — the reference's own client (jf rt build-publish's
+// "Setting properties" step) sends semicolon-separated pairs and the
+// reference lands them (live, diff L8). The ENCODED semicolon (%3B) stays
+// VALUE CONTENT — the split runs on the raw string before decoding, so one
+// value survives byte-for-byte.
 func TestStoragePropertiesRESTSemicolonIsContent(t *testing.T) {
 	h := newHarness(t)
 	seedRepo(t, h, "generic-local")
@@ -207,22 +199,16 @@ func TestStoragePropertiesRESTSemicolonIsContent(t *testing.T) {
 		t.Fatalf("props = %#v, want {k: [v1;v2], k2: [x]} — the comma opened k2, the semicolon stayed content", props)
 	}
 
-	// RAW semicolon arm: the pair vanishes from the parsed query, the
-	// properties arm never engages. PUT answers the family's unknown-
-	// spelling 404; GET answers the PLAIN item body — which carries its own
-	// detail properties echo, so the discriminator is the view's absence:
-	// the plain body has repo/path/created, the properties view does not.
-	if st := doProps(t, h, http.MethodPut, base+"?properties=k=v1;v2", adminUser, adminPass); st != http.StatusNotFound {
-		t.Fatalf("raw-semicolon PUT status = %d, want the E-26 404", st)
+	// RAW semicolon arm (diff L8): the semicolon OPENS the pair — the jf
+	// spelling lands, the route reading the raw query string (net/url's
+	// ParseQuery fails whole on ';', which is why the tolerant reader
+	// exists).
+	if st := doProps(t, h, http.MethodPut, base+"?properties=k=v1;v2", adminUser, adminPass); st != http.StatusNoContent {
+		t.Fatalf("raw-semicolon PUT status = %d, want 204 (jf's own spelling)", st)
 	}
-	resp := h.do(http.MethodGet, base+"?properties=k=v1;v2", adminUser, adminPass, nil, nil)
-	body := mustGet(t, resp)
-	drain(resp)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("raw-semicolon GET status = %d, want the plain item body's 200", resp.StatusCode)
-	}
-	if !strings.Contains(body, `"repo"`) {
-		t.Fatalf("raw-semicolon GET answered the properties view (no repo field): %s", body)
+	_, props = getProps(t, h, base+"?properties", adminUser, adminPass)
+	if len(props["k"]) != 2 || props["k"][0] != "v1" || props["k"][1] != "v2" {
+		t.Fatalf("props = %#v, want k split on the raw semicolon into [v1 v2]", props)
 	}
 }
 
@@ -454,15 +440,19 @@ func TestStoragePropertiesRoutePosture(t *testing.T) {
 	seedRepo(t, h, "generic-local")
 	putContent(t, h, "/binflow/generic-local/route/app.bin", "app")
 
-	// Other verbs on the arm fall to the E-26 404 (the family defines
-	// exactly GET/PUT/DELETE); propertiesXml stays an E-26 resident.
-	if s := doProps(t, h, http.MethodPost, "/binflow/api/storage/generic-local/route/app.bin?properties=k=v", adminUser, adminPass); s != http.StatusNotFound {
-		t.Fatalf("POST status = %d", s)
-	}
-	resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local/route/app.bin?propertiesXml", adminUser, adminPass, nil, nil)
+	// The old POST form is gone from the reference (rest-api.md section 3,
+	// 7.161.x): whatever arms ride along, the verb is the bare 405 envelope,
+	// verbatim (L024-8 / D01-R08 — the current write face is PATCH
+	// /api/metadata).
+	resp := h.do(http.MethodPost, "/binflow/api/storage/generic-local/route/app.bin?properties=k=v", adminUser, adminPass, nil, nil)
 	defer drain(resp)
-	if resp.StatusCode != http.StatusNotFound || !strings.Contains(mustGet(t, resp), "not implemented") {
-		t.Fatalf("propertiesXml status = %d body = %s", resp.StatusCode, mustGet(t, resp))
+	if resp.StatusCode != http.StatusMethodNotAllowed || !strings.Contains(mustGet(t, resp), `"message": "Method Not Allowed"`) {
+		t.Fatalf("POST status = %d body = %s, want the verbatim 405 envelope", resp.StatusCode, mustGet(t, resp))
+	}
+	xml := h.do(http.MethodGet, "/binflow/api/storage/generic-local/route/app.bin?propertiesXml", adminUser, adminPass, nil, nil)
+	defer drain(xml)
+	if xml.StatusCode != http.StatusNotFound || !strings.Contains(mustGet(t, xml), "not implemented") {
+		t.Fatalf("propertiesXml status = %d body = %s", xml.StatusCode, mustGet(t, xml))
 	}
 
 	// The plain item GET (no parameter) is untouched: full FileInfo body.

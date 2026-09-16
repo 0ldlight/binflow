@@ -100,6 +100,11 @@ type IncludeField struct {
 	// PropKey is set for the "@<key>" property projection; "@*" leaves it
 	// "*". Takes precedence over Field.
 	PropKey string
+	// BareProperty marks the bare domain-name operand include("property")
+	// (aql.md §16.1-2/§16.6-2 — the jf CLI's own spelling): every property
+	// projects as the "properties" key/value object array, and a row with no
+	// properties OMITS the key entirely (§16.1-4) instead of rendering [ ].
+	BareProperty bool
 	// Field is the registry resolution for plain field arguments; zero
 	// (ID "") when Star or PropKey is set.
 	Field FieldRef

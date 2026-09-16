@@ -24,9 +24,10 @@ import { m9Client, repoKeys, seedM9, usageSeedBody, userPassword } from './suppo
 //              visible-set difference is asserted as-is at the wire the UI
 //              consumes — u8's batch returns exactly its readable ten.
 //
-// Seeding: seedM9 in beforeAll — idempotent (PUT-replace + identical bytes
-// re-PUT = delta 0), so this spec is self-sufficient on a fresh instance and
-// convergent on a shared one. Request counting uses the in-page network layer
+// Seeding: seedM9 in beforeAll — idempotent (repos ride ensureRepo GET-first
+// since ADR-0050; content re-PUT of identical bytes = delta 0), so this spec
+// is self-sufficient on a fresh instance and convergent on a shared one.
+// Request counting uses the in-page network layer
 // (page.on('request')) over the /binflow/api/ prefix — the same counter form
 // the parallel T-257 leg rides; kept in-file (m9 specs stay area-isolated
 // until a shared helper ticket says otherwise).

@@ -955,5 +955,68 @@ entries:
     专用最小面（property 入口只读子集）——jf 主链路 exit 码是真实 CI 断面。伴随既有债：B
     /api/system/version 回 'dev' 的 jf 解析尾错（票外，另案）。
   authority: { type: spec_ruling, ref: "docs/reverse/aql.md §15（build.properties 入口 M17 面外维持 400——T-511 翻转点冻结面）" }
-  review_gate: T-511 范围（提权/拆票建议已随 L023-2D §8 下步④ 上报 conductor；翻转即 resolved）
+  review_gate: closed（2026-09-16——L024-3A/5 jf 全链闭合，见 resolved；version 债另册 R-24c）
   evidence: reports/compatibility/L023-buildinfo-diff.md D11 + §4 jf publish 腿 + §9.1（维持）+ l023d-wire/{a,b}/jf-legs.log
+  resolved:
+    date: '2026-09-16'
+    evidence: >-
+      L024-6 终轮 §7.1-L8/§7.2（dev.2f434814 × A 7.161.15）：主断链闭合——L024-3A AQL 裸 property 面
+      落地（52c9ba42；B 访问日志 POST /api/search/aql 200×2 实证，`Unknown AQL field: property` 消失，
+      §16.1 逐字查询 properties 键值对象数组内容集合同）+ L024-5 setItemProperties 落地（2f434814；
+      jf build-publish「Setting properties... Done setting properties.」，PUT /api/storage 204——vcs.*×3
+      + build.*×3 全 6 键 properties 查询复核）。jf 服务端全链闭合（build PUT 204 + AQL 200 +
+      properties Done），唯 CLI exit=1 残余=/api/system/version 'dev' 解析债（开放项，非本账面——
+      R-24c 席位）。契约 search/d11-build-publish-chain 已 VERIFIED。
+    note: >-
+      L024-4 §2.6 连带定谳：「jf 未触发 AQL」现象不成立（触发条件=upload 201+checksum 头，满足即发；
+      L024-3A 的零 AQL 观察归因其隔离实例，登记不猜）。T-511 提权/拆票建议就此销账——断链已闭合，
+      无需提权。
+- id: search/snapshot-row-wildcard-match
+  surface: /api/search/versions 通配臂（v=1.*）对字面 SNAPSHOT 行的匹配面（A 按 metadata 展开形匹配回显 vs B 按字面）
+  classification: BUG
+  rationale: >-
+    L024-4 L1 → L024-6 终轮收窄（2026-09-16，dev.2f434814）：主体已对齐——字面 SNAPSHOT 文件行
+    （v01/v05）双端回字面 `1.1-SNAPSHOT`（integration:true；versions 行=存储路径版本段口径落地）。
+    余单面=通配过滤臂 v03：A 对 SNAPSHOT 行**按 metadata 展开形匹配并回显**（`1.1-20260916.010507-1`）、
+    B 按字面匹配——过滤臂的展开语义未实现（同端点两臂口径：无过滤臂=字面、通配臂=展开——参照自身
+    即如此，非矛盾）。修法=通配匹配时对 SNAPSHOT 候选做 metadata 展开形匹配+回显。
+  authority: { type: differential, ref: "reports/compatibility/L024-search-aql-diff.md §7.1-L1（终轮 v03 仍分歧）" }
+  review_gate: 微票（通配臂展开匹配）+ 差分复验 v03 → D03-R10 翻绿
+  evidence: reports/compatibility/L024-search-aql-diff.md §2.1 v01/v03/v05 + §7.1-L1 + contracts/search.yaml#search/versions
+- id: search/badchecksum-maven-metadata-exclusion
+  surface: badChecksum 扫描的系统文件排除（maven-metadata.xml——B 旗标 ×3 vs A 排除）
+  classification: BUG
+  rationale: >-
+    L024-4 L4 → L024-6 终轮收窄（2026-09-16）：核心面全对齐——平铺行形 {uri[,serverMd5,clientMd5]}+
+    顶级 limitReached:false、DB client-vs-server 语义（missing=bad）、真坏 blob 双旗标口径（b04/b04b
+    od 级活证）。余单面=b03：B 多旗标 maven-metadata.xml 系统文件 ×3（A 排除该系统文件不入结果）。
+    修法=扫描排除 maven-metadata.xml（系统文件名单最小面）。
+  authority: { type: differential, ref: "reports/compatibility/L024-search-aql-diff.md §7.1-L4（终轮 b03 余面）" }
+  review_gate: 微票（排除 maven-metadata.xml）+ 差分复验 b03 → D03-R13 翻绿（V-ac uri 按仓差异另案开放）
+  evidence: reports/compatibility/L024-search-aql-diff.md §2.4 b03 + §7.1-L4 + contracts/search.yaml#search/bad-checksum
+- id: search/row-shape-reference-drift
+  surface: /api/versions listFiles 行形（A 跨日自矛盾两形——两键+尾逗号非严格 JSON vs 四键严格 JSON）
+  classification: UNKNOWN
+  rationale: >-
+    L024-4（2026-09-15 两轮）A=两键+每行尾逗号非严格 JSON（wire 在档，driver diff 200 字符截断内
+    `}, {` 可见）；L024-6（2026-09-16）A=四键严格 JSON {repo,path,downloadUri,uri}、末行无尾逗号
+    （od 字节级，generic depth-1/depth-2 两组语料一致）——**A 真值自相矛盾**，两形不可同真（候选解释：
+    实例内部状态/缓存/不可见配置差，未定谳不猜）。B 现实现=规格 §16.4 V-aa 怪癖形（两键+尾逗号——
+    以 L024-4 时点 wire 为锚），与 L024-6 当日 A 实况分歧。采谁需裁定或第二参照窗 od 取证；定谳后
+    spec §16.4 V-aa 勘误随票。D03-R12 候裁态挂账本条。
+  authority: { type: pending, ref: "产品/conductor 裁（两形采谁——pending-rulings v2.6 R-24a；或第二参照窗取证定谳）" }
+  review_gate: LOOP 025 限期升级（R-24a 批复/第二参照窗 od 取证；ADR-0001 取证前不预设两案）
+  evidence: reports/compatibility/L024-search-aql-diff.md §2.3 p02 + §7.1-L3 + docs/reverse/aql.md §16.4 V-aa
+- id: maven/non-gav-upload-acceptance
+  surface: maven 仓非 GAV 路径上传容忍（PUT <repo>/f9/mz.bin——A 201 自由 vs B 400 布局强制）
+  classification: UNKNOWN
+  rationale: >-
+    L024-6 终轮新面 L10（2026-09-16）：PUT l024d-mvn-local/f9/mz.bin → A **201 自由接受** / B **400**
+    `maven layout: "f9/mz.bin": artifacts need <groupId path>/<artifactId>/<version>/<file> (at least
+    3 directories)`——B 布局校验严于 A。两案：对齐 A 自由（maven 布局校验收窄——非 GAV 路径照收）vs
+    维持强制 INTENTIONAL（布局卫生姿态，需 authority）。真实客户端影响低（正规 mvn deploy 恒发 GAV
+    路径，jf/curl 主链不踩）；A 的 201 系无校验非设计契约（参照库癖性 vs 产品卫生的裁量轴）。归 maven
+    域裁定（maven 契约/规格面联动）。
+  authority: { type: pending, ref: "产品/用户裁（maven 布局校验：对齐 A 自由 vs 维持 400 强制 INTENTIONAL）——pending-rulings v2.6 R-24b" }
+  review_gate: LOOP 025 限期升级（R-24b 批复：裁对齐开收窄票〔400→201〕；裁维持转 INTENTIONAL+契约 400 姿态冻结）
+  evidence: reports/compatibility/L024-search-aql-diff.md §7.1-L10 + reports/compatibility/l024d-wire/（f9/mz 探针臂）

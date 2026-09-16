@@ -19,7 +19,7 @@ import (
 // columns. It is pinned literally so any drift in the derivation
 // expressions (verified against live SQLite semantics) fails loudly.
 const aqlSelectPrefix = "SELECT nodes.repo_key, nodes.path, " +
-	"substr(nodes.path, 1, length(rtrim(nodes.path, replace(nodes.path, '/', ''))) - 1), " +
+	"CASE WHEN nodes.path LIKE '%/%' THEN substr(nodes.path, 1, length(rtrim(nodes.path, replace(nodes.path, '/', ''))) - 1) ELSE '.' END, " +
 	"substr(nodes.path, length(rtrim(nodes.path, replace(nodes.path, '/', ''))) + 1), " +
 	"CASE WHEN nodes.path LIKE '%/' THEN 'folder' ELSE 'file' END, " +
 	"length(nodes.path) - length(replace(nodes.path, '/', '')) + (CASE WHEN nodes.path LIKE '%/' THEN 0 ELSE 1 END), " +
@@ -504,7 +504,7 @@ func TestQueryNodesBehavior(t *testing.T) {
 			byPath[r.Path] = r
 		}
 		want := map[string][4]any{ // parent, name, type, depth
-			"root.bin":            {"", "root.bin", "file", int64(1)},
+			"root.bin":            {".", "root.bin", "file", int64(1)}, // root parent = the literal '.' (aql.md §16.1-1, live-verbatim)
 			"org/lib-1.0.jar":     {"org", "lib-1.0.jar", "file", int64(2)},
 			"org/sub/lib-2.0.jar": {"org/sub", "lib-2.0.jar", "file", int64(3)},
 			"日本語/資料-01.txt":       {"日本語", "資料-01.txt", "file", int64(2)},
@@ -522,6 +522,25 @@ func TestQueryNodesBehavior(t *testing.T) {
 			if r.ParentPath != w[0] || r.Name != w[1] || r.Type != w[2] || r.Depth != w[3] {
 				t.Errorf("%s = (parent=%q name=%q type=%q depth=%d), want %v", path, r.ParentPath, r.Name, r.Type, r.Depth, w)
 			}
+		}
+	})
+
+	t.Run("path ne dot excludes root-level rows", func(t *testing.T) {
+		// The jf build-publish query shape (aql.md §16.1-1): {"path":{"$ne":"."}}
+		// drops root-level files — whose path value IS the literal dot — and
+		// keeps every nested row.
+		got := q(NodeQuery{Where: &QueryAnd{Children: []NodePredicate{
+			&QueryCompare{Field: QueryRepo, Op: QueryEq, Value: "libs"},
+			&QueryCompare{Field: QueryPath, Op: QueryNe, Value: "."},
+			&QueryFolderTest{Folder: false},
+		}}, Limit: 100, HasLimit: true})
+		for _, r := range got {
+			if r.ParentPath == "." {
+				t.Fatalf("root-level row %q survived path $ne \".\"", r.Path)
+			}
+		}
+		if len(got) == 0 {
+			t.Fatalf("nested rows must survive the exclusion, got none")
 		}
 	})
 

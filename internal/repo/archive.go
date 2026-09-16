@@ -626,11 +626,14 @@ const archiveMemberMaxBytes = 256 << 20
 
 // ArchiveMemberRequest is one member read: the archive artifact's node path
 // and the member addressing (which may itself carry "!/" recursion and a
-// trailing .sha1/.md5/.sha256 checksum suffix).
+// trailing .sha1/.md5/.sha256 checksum suffix). RequestURI, when the HTTP
+// face provides it, is the decoded path exactly as the client addressed it
+// (context prefix included) — the miss message's "full URI" segment.
 type ArchiveMemberRequest struct {
 	RepoKey     string
 	ArchivePath string
 	Entry       string
+	RequestURI  string
 }
 
 // ArchiveMemberResult is the extracted member: the streaming body (checksum
@@ -686,13 +689,20 @@ func (s *service) ArchiveMember(ctx context.Context, p *Principal, req ArchiveMe
 	// The checksum suffix (§3.2): ".sha1"/".md5"/".sha256" after the final
 	// member segment addresses the computed digest, not a stored member.
 	entry, checksumAlgo := splitMemberChecksumSuffix(req.Entry)
+	uri := req.RequestURI
+	if uri == "" {
+		uri = req.RepoKey + "/" + req.ArchivePath + "!/" + req.Entry
+	}
 	src := memberSource{
 		rc:      rc,
 		release: release,
 		size:    node.Size,
 		kind:    kind,
 		name:    req.ArchivePath,
-		uri:     req.RepoKey + "/" + req.ArchivePath + "!/" + req.Entry,
+		uri:     uri,
+		// §3.3 arm 2's Path segment: the top-level archive node, the
+		// repo:path colon spelling (the same nodeRef through nested levels).
+		nodeRef: req.RepoKey + ":" + req.ArchivePath,
 	}
 	body, size, ctype, err := openMember(src, entry)
 	if err != nil {
@@ -755,10 +765,11 @@ func (m *memberReadCloser) Close() error {
 }
 
 // memberSource is one opened archive: the byte source (seekable — the blob
-// plane's disk readers), its size, the format kind, and the two spellings
-// the §3.2 error messages carry (this level's archive name and the
-// caller's full URI). release frees the top-level blob reader (idempotent;
-// the nested arm may fire it early once the level is buffered).
+// plane's disk readers), its size, the format kind, and the spellings the
+// §3.2/§3.3 error messages carry (this level's archive name, the caller's
+// full URI and the top-level node's repo:path reference). release frees
+// the top-level blob reader (idempotent; the nested arm may fire it early
+// once the level is buffered).
 type memberSource struct {
 	rc      io.ReadSeekCloser
 	release func()
@@ -766,6 +777,7 @@ type memberSource struct {
 	kind    string // "zip" | "tar" | "targz"
 	name    string
 	uri     string
+	nodeRef string
 }
 
 // openMember resolves one entry level against a source, recursing on a
@@ -809,6 +821,7 @@ func openMember(src memberSource, entry string) (io.ReadCloser, int64, string, e
 		kind:    kind,
 		name:    name,
 		uri:     src.uri,
+		nodeRef: src.nodeRef,
 	}
 	return openMember(next, tail)
 }
@@ -861,7 +874,7 @@ func openZipMember(src memberSource, name string) (io.ReadCloser, int64, string,
 			return rc, size, memberContentType(name), nil
 		}
 	}
-	return nil, 0, "", memberNotFound(name, src.uri)
+	return nil, 0, "", memberNotFound(name, src.uri, src.nodeRef)
 }
 
 // openTarMember scans the (optionally gzipped) tar stream for the entry.
@@ -885,7 +898,7 @@ func openTarMember(src memberSource, name string) (io.ReadCloser, int64, string,
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
-			return nil, 0, "", memberNotFound(name, src.uri)
+			return nil, 0, "", memberNotFound(name, src.uri, src.nodeRef)
 		}
 		if err != nil {
 			return nil, 0, "", memberUnreadable(src.name, err)
@@ -896,12 +909,15 @@ func openTarMember(src memberSource, name string) (io.ReadCloser, int64, string,
 	}
 }
 
-// memberNotFound is §3.2's verbatim 404.
-func memberNotFound(name, uri string) error {
+// memberNotFound is the miss 404, §3.3 arm 2's live-calibrated shape: the
+// entry and the FULL URI (context prefix included) plus the Path segment
+// naming the archive node in the repo:path colon spelling.
+func memberNotFound(name, uri, nodeRef string) error {
 	return &StatusError{
-		Code:    http.StatusNotFound,
-		Message: fmt.Sprintf("Unable to find zip resource: '%s' using full URI '%s'", name, uri),
-		cause:   fmt.Errorf("archive member %q: %w", name, ErrNodeNotFound),
+		Code: http.StatusNotFound,
+		Message: fmt.Sprintf("Unable to find zip resource: '%s' using full URI '%s'; Path: '%s'",
+			name, uri, nodeRef),
+		cause: fmt.Errorf("archive member %q: %w", name, ErrNodeNotFound),
 	}
 }
 

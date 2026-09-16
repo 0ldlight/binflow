@@ -522,11 +522,13 @@ func TestT343MemberReadREST(t *testing.T) {
 		t.Fatalf("member checksum = %d %q", code, body)
 	}
 
-	// The verbatim miss.
+	// The verbatim miss (§3.3 arm 2, L024-1 live calibration): the full URI
+	// carries the /binflow context and the trailing Path segment names the
+	// archive node in the repo:path colon spelling.
 	code, body, _ = st.doBytes(http.MethodGet,
 		"/binflow/lib/pkg/a.zip!/nope.txt", adminUser, adminPass, nil, nil)
 	if code != 404 || !strings.Contains(envelopeMsg(t, body),
-		"Unable to find zip resource: 'nope.txt' using full URI 'lib/pkg/a.zip!/nope.txt'") {
+		"Unable to find zip resource: 'nope.txt' using full URI '/binflow/lib/pkg/a.zip!/nope.txt'; Path: 'lib:pkg/a.zip'") {
 		t.Fatalf("miss = %d %s", code, body)
 	}
 
@@ -535,6 +537,15 @@ func TestT343MemberReadREST(t *testing.T) {
 		"/binflow/lib/plain!name.txt", adminUser, adminPass, nil, nil)
 	if code != 200 || string(body) != "bang-but-no-slash" {
 		t.Fatalf("plain bang name = %d %q", code, body)
+	}
+	// §3.3 arm 3: the miss spelling of the same form never enters the
+	// archive family — the generic plane's own file-miss 404 answers (the
+	// reference's File-not-found colon form is the package-type family's
+	// wording, maven's L020 verbatim; the generic plane keeps §1.4's).
+	code, body, _ = st.doBytes(http.MethodGet,
+		"/binflow/lib/pkg/missing.zip!entry.txt", adminUser, adminPass, nil, nil)
+	if code != 404 || strings.Contains(envelopeMsg(t, body), "zip resource") {
+		t.Fatalf("bang-no-slash miss = %d %s, want the ordinary file-miss 404", code, body)
 	}
 
 	// Non-GET on the member spelling is refused with Allow.

@@ -24,6 +24,9 @@ import (
 func rewindToPreAnnotate(t *testing.T, db *sql.DB) {
 	t.Helper()
 	for _, stmt := range []string{
+		`ALTER TABLE nodes DROP COLUMN client_md5`,
+		`ALTER TABLE nodes DROP COLUMN client_sha1`,
+		`ALTER TABLE nodes DROP COLUMN client_sha256`,
 		`DELETE FROM schema_migrations WHERE version >= 23`,
 		`ALTER TABLE permission_principals DROP COLUMN can_annotate`,
 	} {

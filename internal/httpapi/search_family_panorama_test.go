@@ -54,6 +54,9 @@ func TestSearchPanoramaM16Rows(t *testing.T) {
 		{"UI packagesSearch (T-452)", http.MethodPost, "packagesSearch/leadFile", http.StatusNotFound, "not implemented"},
 		{"UI syntax-search (T-452)", http.MethodPost, "syntax-search", http.StatusOK, "not implemented"},
 		{"QRL REST (T-452)", http.MethodGet, "v1/system/query_rate_limiter/config", http.StatusBadRequest, "not implemented"},
+		{"versions (L024-3A)", http.MethodGet, "search/versions?g=com.acme&a=app", http.StatusNotFound, "not implemented"},
+		{"latestVersion (L024-3A)", http.MethodGet, "search/latestVersion?g=com.acme&a=app", http.StatusNotFound, "not implemented"},
+		{"badChecksum no-type (L024-3A)", http.MethodGet, "search/badChecksum", http.StatusBadRequest, "not implemented"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -95,21 +98,22 @@ func TestSearchPanoramaM16Rows(t *testing.T) {
 
 // TestSearchPanoramaDeferredRows pins the table's M16+/远期 rows: every
 // member there keeps the E-26 404 with the not-implemented wording (the
-// audit's "维持 404" half — badChecksum / versions / latestVersion /
-// license / buildArtifacts plus the two out-of-SearchResource extras
-// archive / latestVersionByProperties).
+// audit's "维持 404" half — license / buildArtifacts plus the two
+// out-of-SearchResource extras archive / latestVersionByProperties).
 //
 // T-511 assertion inversion ⑥ (FR-152.3 / aql.md §15.4): GET /api/search/
 // dependency LEFT this table — the member ROUTES now (its 400 family and
 // positive halves live in search_build_test.go). buildArtifacts stays in
 // its GET arm only: the official member is POST (the OSS live matrix's
 // GET-405 arm), which search_build_test.go owns.
+//
+// L024-3A assertion inversion (D03-R10/R11/R13 / aql.md §16.2/§16.3/§16.5):
+// versions / latestVersion / badChecksum LEFT this table — they ROUTE now
+// (versions + latestVersion live in search_versions_test.go, badChecksum in
+// search_badchecksum_test.go).
 func TestSearchPanoramaDeferredRows(t *testing.T) {
 	h := newHarness(t)
 	for _, path := range []string{
-		"search/badChecksum?md5=" + strings.Repeat("0", 32),
-		"search/versions?g=com.acme&a=app",
-		"search/latestVersion?g=com.acme&a=app",
 		"search/license?name=apache",
 		"search/buildArtifacts",
 		"search/archive?name=lib",

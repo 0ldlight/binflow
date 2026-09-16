@@ -5,7 +5,7 @@ reference_environment: { relocated: 2026-09-15, http: "http://172.16.58.130:8082
 environment_topology: {
   corrected: "2026-09-15 用户术语纠正：UAT=uat.binflow.org；本地/dev=172.16.58.130:8083（自 Mac 迁来）",
   uat: "https://uat.binflow.org（52.79.109.153——真 UAT，HTTPS 308 跳转，version uat.72ae611）",
-  dev: "http://172.16.58.130:8083（容器 binflow-dev〔原 binflow-uat 更名〕，镜像 uat-l0213-b906e7cd-alpine，卷 binflow-uat-data；Mac docker 工作负载已全数迁离）",
+  dev: "http://172.16.58.130:8083（容器 binflow-dev〔原 binflow-uat 更名〕，卷 binflow-uat-data；**必须 --network binflow-net——主机默认 docker0 网桥 2026-09-16 起降级**（TCP 握手通数据丢/容器不可达网关），参照栈因自带用户网络不受影响）",
   reference: "http://172.16.58.130:8082（Artifactory pro 7.161.15 + postgres）",
   mac: "本地 docker 全退役（2026-09-15 用户指令：penpot 不再使用——Docker Desktop 已停，**不允许擅自启动**；penpot 栈容器随停，卷/镜像保留在盘待用户定夺删除）",
   discipline: "docker 一律远程执行（ssh lzw@172.16.58.130）——本地 docker 禁用；构建走本机交叉编译+远程换二进制（零拉取）；差分/probe 指 reference+dev；UAT 环境结论以 uat.binflow.org 为准"
@@ -194,7 +194,7 @@ completed_tasks:
 compatibility_score:
   source: "docs/compatibility/matrix.yaml（L000-C 后唯一事实源；rest-compat-matrix.md 降级历史快照）"
   before: { compatible: 57, partial: 28, absent: 80, not_applicable: 17, superset: 11, total: 193, note: "迁移后权威基线（含 D06-R13 冻结后翻态）" }
-  after: { compatible: 80, partial: 17, absent: 71, not_applicable: 20, superset: 12, total: 200, note: "L023 批次 1 build-info 落账（L023-3 含尾单）：D07 六行 absent→compatible（R01-R03=L023-2D/2G 双轮；R05-R07=L023-2K §10.5 末验——实现链 c42fb255/9716d500/dbc52c66/c6f6c71a/5077f50b/1afec0af）+ L024-1 收编勘误（D03-R14 旧挂载活体 404 已撤→not_applicable ghost-row 勘误款；四行 capability 描述勘正）；total 193→200 系 before 快照后冻结行集外新行提案 +7（D01-R38..43、D06-R30），以 matrix summary 逐行对账为准" }
+  after: { compatible: 81, partial: 17, absent: 70, not_applicable: 20, superset: 12, total: 200, note: "L023 批次 1 build-info + L024 搜索族落账：D07 六行（R01-R03=L023-2D/2G，R05-R07=L023-2K §10.5）+ D03-R11（L024-4/5/6 §7——52c9ba42/2f434814）absent→compatible；L024-1 勘误 D03-R14→not_applicable（旧挂载活体 404 已撤）；total 193→200 系 before 快照后冻结行集外新行提案 +7（D01-R38..43、D06-R30），以 matrix summary 逐行对账为准" }
 
 p0_gaps: ["U-STG-01 BinaryProvider 存储链（已 partial——残余 U-STG-12~19）", "U-PROTO-01 docker remote 代理 v2（L000-B 在途）", "U-ENT-05 entitlement 同源"]
 p1_gaps: 50

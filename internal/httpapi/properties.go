@@ -481,7 +481,11 @@ func parsePropertiesQuery(r *http.Request) (map[string][]string, error) {
 	}
 	props := map[string][]string{}
 	last := ""
-	for _, seg := range splitRawFilter(raw) {
+	// L024-5: the pair separator is BOTH the comma and the semicolon — the
+	// reference's own clients (jf) send properties semicolon-separated,
+	// the official doc form mixes them; a valueless segment continues the
+	// previous key either way (the existing multi-value law).
+	for _, seg := range strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ';' }) {
 		decoded, derr := url.QueryUnescape(seg)
 		if derr != nil {
 			return nil, fmt.Errorf("malformed percent-encoding in properties segment %q: %w", seg, derr)
@@ -543,4 +547,24 @@ func isTruthyFlag(v string) bool {
 		return true
 	}
 	return false
+}
+
+// peelStorageMatrix splits the trailing ";k=v[;k2=v2…]" matrix parameters
+// off a storage path tail (L024-5, diff L8): the jf CLI's setItemProperties
+// spelling. A segment without '=' (a plain path piece, or a value-less
+// matrix key) stops the peel — only well-formed pairs ride.
+func peelStorageMatrix(rel string) (pairs []string, cleaned string) {
+	i := strings.IndexByte(rel, ';')
+	if i < 0 {
+		return nil, rel
+	}
+	matrix := rel[i+1:]
+	rel = rel[:i]
+	for _, seg := range strings.Split(matrix, ";") {
+		if _, _, found := strings.Cut(seg, "="); !found {
+			return nil, rel + ";" + matrix // not a property matrix: keep verbatim
+		}
+		pairs = append(pairs, seg)
+	}
+	return pairs, rel
 }

@@ -67,6 +67,15 @@ type OutputField struct {
 	Kind    OutputKind
 	Field   FieldID
 	PropKey string
+	// PropBare marks the bare include("property") operand (§16.1): the row
+	// renderer omits the whole "properties" key for property-less rows
+	// instead of echoing an empty array.
+	PropBare bool
+	// PropForm is the property entry's member form (diff L5): "pair" (the
+	// {key,value} object of the bare/@key spellings), "key"
+	// (include("property.key") — key-only objects) or "value"
+	// (include("property.value")).
+	PropForm string
 }
 
 // PlanOptions carries the planner's runtime dependencies. Now is the clock
@@ -746,9 +755,9 @@ func buildProjection(q *Query) (fields []metadata.QueryField, props []string, ou
 		fields = append(fields, e.field)
 		out = append(out, OutputField{Key: e.key, Kind: OutputItem, Field: e.id})
 	}
-	addProp := func(key, raw string) {
+	addProp := func(key, raw string, bare bool) {
 		props = append(props, key)
-		out = append(out, OutputField{Key: raw, Kind: OutputProp, PropKey: key})
+		out = append(out, OutputField{Key: raw, Kind: OutputProp, PropKey: key, PropBare: bare, PropForm: "pair"})
 	}
 	addStat := func(inc IncludeField) {
 		// The column-backed stat members pull their counting columns into
@@ -774,13 +783,20 @@ func buildProjection(q *Query) (fields []metadata.QueryField, props []string, ou
 			}
 			out = append(out, OutputField{Key: inc.Raw, Kind: OutputVirtualRepos, Field: FieldVirtualRepos})
 		case inc.PropKey != "":
-			addProp(inc.PropKey, inc.Raw)
+			addProp(inc.PropKey, inc.Raw, inc.BareProperty)
 		case inc.Field.ID == FieldVirtualRepos:
 			out = append(out, OutputField{Key: inc.Raw, Kind: OutputVirtualRepos, Field: FieldVirtualRepos})
 		case inc.Field.ID == FieldPropertyKey || inc.Field.ID == FieldPropertyValue:
-			// The long forms project the whole property pair of every
-			// property the node carries.
-			addProp("*", inc.Raw)
+			// The long forms are SINGLE-member projections (diff L5:
+			// include("property.key") renders key-only objects,
+			// include("property.value") value-only — the pair form needs
+			// both, the @key/bare spellings keep it).
+			form := "key"
+			if inc.Field.ID == FieldPropertyValue {
+				form = "value"
+			}
+			props = append(props, "*")
+			out = append(out, OutputField{Key: inc.Raw, Kind: OutputProp, PropKey: "*", PropForm: form})
 		case inc.Field.Domain == DomainStatistics:
 			addStat(inc)
 		default:

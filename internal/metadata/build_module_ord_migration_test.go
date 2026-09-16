@@ -59,6 +59,12 @@ func TestBuildModuleOrdMigrationCarriesData(t *testing.T) {
 				PRIMARY KEY (build_name, build_number, started, build_repo, module_id, seq),
 				FOREIGN KEY (build_name, build_number, started, build_repo, module_id)
 					REFERENCES build_modules (build_name, build_number, started, build_repo, module_id) ON DELETE CASCADE)`,
+			// 028 (L024-5): the client-digest columns — dropped so the
+			// migrator's re-apply of 028 lands cleanly (ALTER has no IF NOT
+			// EXISTS in the common subset).
+			`ALTER TABLE nodes DROP COLUMN client_md5`,
+			`ALTER TABLE nodes DROP COLUMN client_sha1`,
+			`ALTER TABLE nodes DROP COLUMN client_sha256`,
 			`DELETE FROM schema_migrations WHERE version >= 26`,
 		} {
 			if _, err := db.ExecContext(ctx, stmt); err != nil {

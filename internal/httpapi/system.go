@@ -23,7 +23,12 @@ const ProductName = "BinFlow"
 // DefaultVersion is the fallback version string when the caller did not
 // inject one (T-16 stamps the real build version; the scaffold binary
 // reports "dev" — same convention as cmd's own --version).
-const DefaultVersion = "dev"
+// DefaultVersion is the unstamped build's version claim. L024-5 closed the
+// jf-chain debt on "dev": the official CLI parses the MAJOR segment with
+// strconv.Atoi and hard-fails the whole command's exit on "dev" (every jf
+// leg's tail error since T-508) — a numeric BinFlow version keeps the
+// claim honest (ldflags stamping still overrides) and the client green.
+const DefaultVersion = "1.0.0"
 
 // healthResponse is the /binflow/api/v1/health body (E-22/FR-6-AC2):
 // a top-level status plus one nested object per subsystem. Every
@@ -67,7 +72,10 @@ type versionResponse struct {
 // handleVersion answers the honest version block.
 func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
 	version, revision := s.deps.Version, s.deps.Revision
-	if version == "" {
+	// "" and "dev" are the SAME unstamped state (cmd's ldflags fallback
+	// spells it "dev"): both fall to the numeric default — the official
+	// CLI's version parse hard-fails on the bare word (L024-5).
+	if version == "" || version == "dev" {
 		version = DefaultVersion
 	}
 	body, err := json.MarshalIndent(versionResponse{Version: version, Revision: revision, Product: ProductName}, "", "  ")

@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 404,
+      "message": "Unable to find zip resource: 'nope.txt' using full URI '/binflow/l024e-local/pkg/l024e.zip!/nope.txt'; Path: 'l024e-local:pkg/l024e.zip'"
+    }
+  ]
+}

@@ -137,11 +137,17 @@ func TestT438StatsFaceShape(t *testing.T) {
 		}
 	})
 
-	t.Run("non-GET verb is the E-26 404", func(t *testing.T) {
+	t.Run("non-GET verb is the retired-POST 405", func(t *testing.T) {
+		// L024-8 / D01-R08: the storage resource carries no @POST in the
+		// reference — the verb is the bare 405 envelope whatever query arms
+		// ride along (the old "Update Item Properties" form's grave).
 		resp := h.do(http.MethodPost, "/binflow/api/storage/generic-local/acme/artifact.bin?stats", adminUser, adminPass, nil, nil)
-		_ = decodeError(t, resp)
-		if resp.StatusCode != http.StatusNotFound {
-			t.Fatalf("POST ?stats = %d, want 404", resp.StatusCode)
+		eb := decodeError(t, resp)
+		if resp.StatusCode != http.StatusMethodNotAllowed {
+			t.Fatalf("POST ?stats = %d, want 405", resp.StatusCode)
+		}
+		if !strings.Contains(eb.Errors[0].Message, "Method Not Allowed") {
+			t.Fatalf("message = %q", eb.Errors[0].Message)
 		}
 	})
 }
