@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 404,
+    "message" : "Latest integration version not found"
+  } ]
+}

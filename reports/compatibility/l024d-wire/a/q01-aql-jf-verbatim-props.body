@@ -1,0 +1,30 @@
+
+{
+"results" : [ {
+  "repo" : "l024d-aql-local",
+  "path" : "sub",
+  "name" : "file1.bin",
+  "type" : "file",
+  "size" : 21,
+  "created" : "2026-09-16T01:05:07.377Z",
+  "modified" : "2026-09-16T01:09:14.118Z",
+  "actual_md5" : "ab7fb452e9854fca28f1ebe231faec31",
+  "actual_sha1" : "5544a21788e738dc7798cc3db1087945a2bb59dd",
+  "properties" : [ {
+    "key" : "build.timestamp",
+    "value" : "1789450000000"
+  }, {
+    "key" : "build.number",
+    "value" : "1"
+  }, {
+    "key" : "build.name",
+    "value" : "l024d-b"
+  } ],
+  "sha256" : "9cfa6fbeea281774fa1223e5d5fc76c3117c549fb313895ecdf4e65a7c224bb2"
+} ],
+"range" : {
+  "start_pos" : 0,
+  "end_pos" : 1,
+  "total" : 1
+}
+}

@@ -1,0 +1,8 @@
+{
+  "messages": [
+    {
+      "level": "WARNING",
+      "message": "Unable to find the following artifacts of build 'l023d-app3' #1: a.jar"
+    }
+  ]
+}

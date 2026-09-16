@@ -1,0 +1,7 @@
+HTTP 401
+Content-Type: application/json
+Www-Authenticate: Basic realm="BinFlow Realm"
+X-Request-Id: 2ed7f30ad03d1860761e66995c8b4463
+Date: Wed, 16 Sep 2026 01:09:15 GMT
+Content-Length: 94
+Connection: close

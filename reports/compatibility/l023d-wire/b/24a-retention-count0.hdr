@@ -1,0 +1,7 @@
+HTTP 400
+Connection: close
+Content-Length: 49
+Content-Type: text/plain; charset=utf-8
+Date: Tue, 15 Sep 2026 15:01:46 GMT
+X-Content-Type-Options: nosniff
+X-Request-Id: 967d7c2abab012c0f4313792f007c531

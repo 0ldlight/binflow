@@ -1,0 +1,7 @@
+{
+  "buildsNumbers" : [ {
+    "uri" : "/6",
+    "started" : "2026-09-16T01:00:00.000+0000"
+  } ],
+  "uri" : "http://172.16.58.130:8082/artifactory/api/build/l023d-r3?buildRepo=artifactory-build-info"
+}

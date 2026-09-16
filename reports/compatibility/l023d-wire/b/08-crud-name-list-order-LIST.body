@@ -1,0 +1,25 @@
+{
+  "uri": "http://172.16.58.130:8083/binflow/api/build?buildRepo=artifactory-build-info",
+  "builds": [
+    {
+      "uri": "/t512app-mu1m8x0xtu97",
+      "lastStarted": "2026-09-08T02:00:00.123+0000"
+    },
+    {
+      "uri": "/t512app-mu1mqb4vuc5q",
+      "lastStarted": "2026-09-08T02:00:00.123+0000"
+    },
+    {
+      "uri": "/t512app-mu1n49ln4aqb",
+      "lastStarted": "2026-09-08T02:00:00.123+0000"
+    },
+    {
+      "uri": "/l023d-beta",
+      "lastStarted": "2026-09-15T08:30:00.000+0000"
+    },
+    {
+      "uri": "/l023d-app",
+      "lastStarted": "2026-09-15T12:40:00.000+0000"
+    }
+  ]
+}

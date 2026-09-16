@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 400,
+      "message": "Unable to find artifacts of build 'l023d-app3' #1 from artifactory-build-info repo: aborting promotion."
+    }
+  ]
+}

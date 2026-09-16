@@ -1,0 +1,7 @@
+{
+  "description": "",
+  "key": "l025q-rem",
+  "packageType": "generic",
+  "type": "remote",
+  "url": "http://172.16.58.130:8082/artifactory"
+}

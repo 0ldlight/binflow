@@ -1,0 +1,35 @@
+{
+  "buildInfo" : {
+    "properties" : {
+      "env" : "dev"
+    },
+    "version" : "1.0",
+    "name" : "l023d-app",
+    "number" : "1",
+    "buildAgent" : {
+      "name" : "difftest",
+      "version" : "1"
+    },
+    "agent" : {
+      "name" : "l0232d",
+      "version" : "1"
+    },
+    "started" : "2026-09-15T10:30:00.000+0530",
+    "durationMillis" : 0,
+    "artifactoryPrincipal" : "admin",
+    "url" : "http://ci.example/null",
+    "modules" : [ {
+      "type" : "generic",
+      "id" : "mod-a",
+      "artifacts" : [ {
+        "type" : "jar",
+        "sha1" : "",
+        "sha256" : "",
+        "md5" : "",
+        "name" : "a.jar",
+        "path" : "x/y/a.jar"
+      } ]
+    } ]
+  },
+  "uri" : "http://172.16.58.130:8082/artifactory/api/build/l023d-app/1?buildRepo=artifactory-build-info"
+}

@@ -1,0 +1,8 @@
+HTTP 400
+Connection: close
+Transfer-Encoding: chunked
+Content-Type: application/json
+Date: Tue, 15 Sep 2026 15:01:44 GMT
+X-Artifactory-Id: aea06e5970b47238:-3d585b69:1a0a0f9029a:-8000
+X-Artifactory-Node-Id: lzw
+X-Jfrog-Version: Artifactory/7.161.15 86115900

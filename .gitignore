@@ -62,3 +62,7 @@ data/
 /s1.bin
 /s2.bin
 tools/difftest/l016/ws/
+
+# local tooling sidecars (agent skills, chunk hooks)
+/.agents/
+/.claude/skills/

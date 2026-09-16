@@ -1,0 +1,17 @@
+{
+  "reports": [
+    {
+      "repoKey": "l025q-b1",
+      "statusMsg": "Repository 'l025q-b1' and all its content have been removed successfully.",
+      "deletedArtifactsCount": 0,
+      "success": true
+    },
+    {
+      "repoKey": "",
+      "statusMsg": "Cannot delete repository: '', repository config does not exist",
+      "deletedArtifactsCount": 0,
+      "success": true
+    }
+  ],
+  "statusMessage": "All repositories were removed successfully"
+}

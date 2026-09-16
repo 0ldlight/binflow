@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Build info repository 'l023d-void-build-info' does not exist"
+  } ]
+}

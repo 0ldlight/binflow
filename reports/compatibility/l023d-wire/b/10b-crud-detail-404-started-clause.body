@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 400,
+      "message": "build started \"2026-09-15T09:00:00.000 0000\" must be an ISO8601 timestamp (yyyy-MM-dd'T'HH:mm:ss.SSSZ): build: invalid build info"
+    }
+  ]
+}

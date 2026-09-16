@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 500,
+    "message" : "No value present"
+  } ]
+}

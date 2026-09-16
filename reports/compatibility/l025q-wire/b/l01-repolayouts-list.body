@@ -1,0 +1,227 @@
+[
+  {
+    "name": "maven-2-default",
+    "artifactPathPattern": "[orgPath]/[module]/[baseRev](-[folderItegRev])/[module]-[baseRev](-[fileItegRev])(-[classifier]).[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "ivy-default",
+    "artifactPathPattern": "[org]/[module]/[baseRev](-[folderItegRev])/[type]s/[module](-[classifier])-[baseRev](-[fileItegRev]).[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "maven-1-default",
+    "artifactPathPattern": "[org]/[type]s/[module]-[baseRev](-[fileItegRev])(-[classifier]).[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "nuget-default",
+    "artifactPathPattern": "[orgPath]/[module]/[module].[baseRev](-[fileItegRev]).nupkg",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "npm-default",
+    "artifactPathPattern": "[orgPath]/-/[module]-[baseRev](-[fileItegRev]).tgz",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "bower-default",
+    "artifactPathPattern": "[orgPath]/[module]/[module]-[baseRev](-[fileItegRev]).[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "vcs-default",
+    "artifactPathPattern": "[orgPath]/[module]/[refs<tags|branches>]/[baseRev]/[module]-[baseRev](-[fileItegRev])(-[classifier]).[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "sbt-default",
+    "artifactPathPattern": "[org]/[module]/(scala_[scalaVersion<.+>])/(sbt_[sbtVersion<.+>])/[baseRev]/[type]s/[module](-[classifier]).[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "simple-default",
+    "artifactPathPattern": "[orgPath]/[module]/[module]-[baseRev].[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "cargo-default",
+    "artifactPathPattern": "crates/[module]/[module]-[baseRev].[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "composer-default",
+    "artifactPathPattern": "[orgPath]/[module]/[module]-[baseRev](-[fileItegRev]).[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": true,
+      "delete": true
+    }
+  },
+  {
+    "name": "conan-default",
+    "artifactPathPattern": "[org]/[module]/[baseRev]/[channel<[^/]+>]/[folderItegRev]/(package/[package_id<[^/]+>]/[fileItegRev]/)[remainder<(?:.+)>]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "puppet-default",
+    "artifactPathPattern": "[orgPath]/[module]/[orgPath]-[module]-[baseRev].tar.gz",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "go-default",
+    "artifactPathPattern": "[orgPath]/[module]/@v/v[baseRev](-[fileItegRev]).[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "build-default",
+    "artifactPathPattern": "[orgPath]/[module](-[fileItegRev]).[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": true,
+      "delete": true
+    }
+  },
+  {
+    "name": "terraform-module-default",
+    "artifactPathPattern": "[namespace]/[module-name]/[provider]/[version].[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "terraform-provider-default",
+    "artifactPathPattern": "\n                [namespace]/[provider-name]/[version]/terraform-provider-[provider-name]_[version]_[os]_[arch].[ext]\n            ",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "swift-default",
+    "artifactPathPattern": "[scope]/[name]/[name]-[version].zip",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "ansible-default",
+    "artifactPathPattern": "collections/[namespace]/[name]/[version]/[namespace]-[name]-[version].tar.gz",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "sbt-ivy-default",
+    "artifactPathPattern": "[orgPath]/[module]/[baseRev](-[folderItegRev])/[module]-[baseRev](-[fileItegRev])(-[classifier]).[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "nix-default",
+    "artifactPathPattern": "binary-cache/[narinfoHash]/[narinfoHash].narinfo",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "skills-default",
+    "artifactPathPattern": "[module]/[version]/[module]-[version].[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "agent-plugins-default",
+    "artifactPathPattern": "[module]/[version]/[module]-[version].[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "agent-packages-default",
+    "artifactPathPattern": "[scope]/[package-name]/[package-name]-[version].zip",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  },
+  {
+    "name": "luarocks-default",
+    "artifactPathPattern": "[module]/[module]-[baseRev](-[fileItegRev]).[ext]",
+    "layoutActions": {
+      "copy": true,
+      "edit": false,
+      "delete": false
+    }
+  }
+]

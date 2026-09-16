@@ -1,0 +1,14 @@
+{
+  "reports" : [ {
+    "repoKey" : "l025q-seed",
+    "statusMsg" : "Repository 'l025q-seed' and all its content have been removed successfully.",
+    "deletedArtifactsCount" : 0,
+    "success" : true
+  }, {
+    "repoKey" : "l025q-b1",
+    "statusMsg" : "Cannot delete repository: 'l025q-b1', repository config does not exist",
+    "deletedArtifactsCount" : 0,
+    "success" : true
+  } ],
+  "statusMessage" : "All repositories were removed successfully"
+}

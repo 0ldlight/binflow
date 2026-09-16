@@ -1,0 +1,20 @@
+
+{
+"results" : [ {
+  "name" : "file1.bin",
+  "properties" : [ {
+    "key" : "build.timestamp"
+  }, {
+    "key" : "build.number"
+  }, {
+    "key" : "build.name"
+  } ]
+},{
+  "name" : "file2.bin"
+} ],
+"range" : {
+  "start_pos" : 0,
+  "end_pos" : 2,
+  "total" : 2
+}
+}

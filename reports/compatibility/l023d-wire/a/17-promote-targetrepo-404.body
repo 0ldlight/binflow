@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 404,
+    "message" : "Cannot find target repository by the key 'l023d-no-such'"
+  } ]
+}

@@ -1,0 +1,9 @@
+{
+  "messages" : [ {
+    "level" : "INFO",
+    "message" : "Skipping build item relocation: no target repository selected."
+  }, {
+    "level" : "ERROR",
+    "message" : "Skipping promotion status update: invalid\\unparsable timestamp not-a-time."
+  } ]
+}

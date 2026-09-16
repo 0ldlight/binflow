@@ -1,0 +1,8 @@
+HTTP 201
+Content-Type: application/vnd.org.jfrog.artifactory.storage.ItemCreated+json; charset=UTF-8
+Location: http://172.16.58.130:8083/l024d-aql-local/ctrl/wire.bin
+X-Checksum-Sha256: b925fcc680c1ebfcc31b6863b018a144a36567a14a18afb448f4fbaf210219bf
+X-Request-Id: 097cd6154f927068a3d3aaa43225e205
+Date: Wed, 16 Sep 2026 01:09:16 GMT
+Content-Length: 676
+Connection: close
