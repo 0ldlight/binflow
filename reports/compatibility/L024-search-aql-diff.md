@@ -126,3 +126,49 @@
 ## 6. 环境处置
 
 双端 l024d-* 四仓删净（deleteContent）；l024d-jf-app build 删净（A /build 404 复核）；**四枚坏化 blob 物理清除**（A filestore 2 枚 + B blobs 2 枚，rm 后 shard 目录复核仅剩无关 blob）；jf config l024da 移除；/tmp 清理。ssh 操作仅触本票命名空间。
+
+---
+
+# §7 复验终轮（L024-6，2026-09-16——L024-5 返工后差分终轮）
+
+- **B 被测**：dev.**2f434814**（L024-5 返工重部署；A 参照不变）
+- **重放**：原驱动全量两轮 + 条件映射探针（listFiles 行形×语料/深度）+ jf 全链腿 + od 级字节取证（**本轮多处结论以 od 为准——cat 显示受输出压缩影响曾遮蔽 downloadUri 行**，方法论注记）
+- **终态**：SAME 16 / DIVERGENT 8（判定单元口径；见下方逐项）
+
+## 7.1 D-item 终轮对账（L024-4 → L024-6）
+
+| D-item | L024-4 | 终轮 | 证据 |
+|---|---|---|---|
+| L1 versions 字面 SNAPSHOT 行 | DIVERGENT | **主体 SAME + 余通配臂** | v01/v05 翻绿（双端字面 `1.1-SNAPSHOT` integration:true）；**v03（v=1.\*）仍分歧**：A 对 SNAPSHOT 行**按 metadata 展开形匹配并回显**（`1.1-20260916.010507-1`）、B 按字面匹配——过滤臂的展开语义未实现 |
+| L2 latestVersion v 非通配拼接 | DIVERGENT | **SAME（flake 标注）** | l03 双端均 `v+ts+"-N"` 无连字符形（`1.120260916.010913-2`）；pass2 的「差一秒」=夹具时钟竞态（双端 metadata 写入跨秒 010913/010914），pass1 同秒逐字同——**串行绿=通过**（复跑门协议） |
+| L3 listFiles 分隔符 | DIVERGENT | **UNKNOWN 升级上报** | **A 侧跨日漂移**：昨日（L024-4 两轮）A=两键+尾逗号非严格 JSON（wire 在档，driver diff 200 字符截断内可见 `}, {` 紧跟 path）；**今日 A=四键严格 JSON** `{repo,path,downloadUri,uri}`、末行无尾逗号（od 字节级，两组语料〔generic depth-1/depth-2〕一致）——A 真值自相矛盾，**上报 conductor/compat 裁定口径**；B 现实现=规格 §16.4 怪癖形（两键+尾逗号），与今日 A 实况分歧 |
+| L4 badChecksum 语义+行形 | DIVERGENT | **SAME + 新小面** | b04/b04b 翻绿（平铺行形+DB client-vs-server 语义+missing=bad 全对齐，真坏 blob 双旗标口径同）；b03 余=**B 多旗标 maven-metadata.xml 系统文件 ×3（A 排除）**——BUG-minor 新面 |
+| L5 property.key 展开式 | DIVERGENT | **SAME（S4 集合序归一后）** | q03 key-only 投影+无属性省键双端对齐；判定差纯 properties 元素序 |
+| L6 毫秒截断 | DIVERGENT | **SAME** | B created `.034` 真毫秒 |
+| L7 AQL 序归一提案 | 提案 | 维持（q01/q02/q03 判定差=纯元素序；q02 wheel 行 vcs.* 齐后内容集合同） | §16.1-3 |
+| L8 setItemProperties 断链 | DIVERGENT | **SAME** | jf publish 链 "Setting properties... **Done setting properties.**"——PUT /api/storage 落地，vcs.\* 全 6 键落 B（properties 查询复核）；**publish 唯余 version 债**（strconv "dev"→exit=1，登记开放项不判） |
+| L9 401 措辞族 | 既有 | 维持（p04；b05 遭 A 暴力防护 403 干扰——首跑干净 wire 为证） | L020-3 |
+| **L10 新**：maven 仓非 GAV 路径上传 | — | **DIVERGENT（新面）** | `PUT l024d-mvn-local/f9/mz.bin` → A **201 自由** / B **400** `maven layout: "f9/mz.bin": artifacts need <groupId path>/<artifactId>/<version>/<file> (at least 3 directories)`——B 布局强制严于 A（候 INTENTIONAL/BUG，maven 域裁定） |
+
+## 7.2 jf 全链腿终轮
+
+| 腿 | A | B |
+|---|---|---|
+| upload（matrix build 属性） | exit=0 | exit=0 |
+| build-publish | exit=0（buildInfoUiUrl） | **服务端全链成**（build PUT 204 + AQL 200 + setItemProperties Done）；CLI exit=1 唯一原因=version 债（开放项） |
+| vcs.* 属性落地 | 审计 PROPERTY_UPDATED | **properties 查询实证 build.\*×3+vcs.\*×3 全 6 键** |
+
+## 7.3 D03 翻态终版建议
+
+| 行 | 终版 | 依据 |
+|---|---|---|
+| D03-R10 versions | **候裁态**——无过滤臂全绿；通配展开臂（L1 余）+ 不判开放项 | v01/v02/v04/v05 SAME；v03 L1 余 |
+| D03-R11 latestVersion | **翻 ✅（VERIFIED）**——五臂逐字绿（l03 flake=夹具时钟竞态，串行绿） | l01-l06 |
+| D03-R12 /api/versions | **候裁态（L3 UNKNOWN 上报——A 真值自矛盾）** | p01/p03 SAME；p02 待裁；p04=L9 既有 |
+| D03-R13 badChecksum | **候裁态**——双 400+命中行形+语义全绿；余 maven-metadata 排除小面 + uri 按仓差异（V-ac 开放） | b01/b02/b04/b04b SAME |
+| D03-R14/R18 | 维持既裁 | — |
+| D11 链档案 | **全链闭合**（AQL 面+setItemProperties 均落地；唯 version 债=开放项） | §7.2 |
+
+## 7.4 终轮环境处置
+
+双端四仓/build/jf config/坏化 blob（四枚物理 rm）删净复核（A repos []/B repos []/A /build 404/B 零 l024d）；f9/mz 探针文件随仓清除；/tmp 清理。

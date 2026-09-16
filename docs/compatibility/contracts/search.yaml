@@ -39,9 +39,9 @@ contracts:
   error_behavior:
     - { when: '无任何命中', status: 404, literal_body: 'errors[] 信封 Unable to find artifact versions' }
   binflow_state:
-    verdict: 'DIVERGENT（单面：字面 SNAPSHOT 行 B 回 metadata 展开形）'
-    detail: '404 逐字/通配/后置过滤空集/repos 限定四单元双绿；L1=字面 1.1-SNAPSHOT 文件行 A 回字面串、B 回 1.1-20260915.192244-1（metadata 展开）'
-    divergence_ref: 'L024-search-aql-diff.md L1'
+    verdict: 'DIVERGENT（余通配臂单面；无过滤臂终轮翻绿）'
+    detail: 'L024-6 终轮：无过滤/404/后置过滤/repos 限定全绿（字面 1.1-SNAPSHOT 行双端同）；余 L1 残=通配臂——A 对 SNAPSHOT 行按 metadata 展开形匹配并回显（v=1.* 命中 1.1-<ts>-1）、B 按字面匹配'
+    divergence_ref: 'L024-search-aql-diff.md §7.1 L1 残臂'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.52c9ba42 }
   evidence:
     - { kind: difftest, report: reports/compatibility/L024-search-aql-diff.md, anchor: '§2.1 v01-v05', date: '2026-09-15' }
@@ -64,14 +64,13 @@ contracts:
     - { when: 'v 通配无命中', status: 404, literal_body: 'errors[] 信封 Latest integration version not found' }
     - { when: '无任何版本命中（含 v 非通配无线）', status: 404, literal_body: 'errors[] 信封 Unable to find artifact versions' }
   binflow_state:
-    verdict: 'DIVERGENT（单面：非通配拼接带连字符）'
-    detail: 'l01/l02/l04/l05/l06 五单元逐字双绿（V-y 两深层 404 活体收口）；L2=l03 A 回 1.120260915.192244-1（无连字符拼接怪癖=参照真值）、B 回 1.1-20260915.192244-1'
-    divergence_ref: 'L024-search-aql-diff.md L2'
-  version: { artifactory_ref: 7.161.15, binflow_tested: dev.52c9ba42 }
+    verdict: 'VERIFIED（L024-6 终轮 dev.2f434814：l03 无连字符拼接形对齐；pass2 差一秒=夹具时钟竞态串行绿）'
+    detail: '六单元全绿——V-y 双深层 404 逐字 + v 非通配 v+ts+"-N" 无连字符形（1.120260916.010913-2 双端同构）'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.2f434814 }
   evidence:
-    - { kind: difftest, report: reports/compatibility/L024-search-aql-diff.md, anchor: '§2.2 l01-l06', date: '2026-09-15' }
+    - { kind: difftest, report: reports/compatibility/L024-search-aql-diff.md, anchor: '§2.2 + §7.1 L2', date: '2026-09-16' }
   confidence: high
-  status: DIVERGENT
+  status: VERIFIED
 # ── /api/versions/{repoKey}/{path}（最新版本按属性） ────────────────────────
 - id: search/versions-by-properties
   feature: 'GET /api/versions/{repoKey}/{path}（小写 version 属性为版本源；listFiles=1 尾逗号非严格 JSON 怪癖；_any 通配；404 裸 Not Found）'
@@ -91,9 +90,9 @@ contracts:
     - { when: '无命中', status: 404, literal_body: 'errors[] 信封 Not Found（裸文案）' }
     - { when: '匿名', status: 401, ref: '#known-401-wording-family' }
   binflow_state:
-    verdict: 'DIVERGENT（仅一字节分隔符 + 既有 401 族）'
-    detail: '默认形逐字节双绿；尾逗号怪癖双绿（V-aa 多行定谳：每行恒现）；L3=行分隔符 B "},{" 应为 "}, {"；匿名臂属 L020-3 既有裁定族'
-    divergence_ref: 'L024-search-aql-diff.md L3/L9'
+    verdict: 'UNKNOWN（A 侧跨日漂移，上报裁定）'
+    detail: 'L024-6 od 字节级：今日 A 行形=四键严格 JSON {repo,path,downloadUri,uri} 末行无尾逗号（两组语料一致）；昨日 L024-4 两轮 A=两键+尾逗号（wire 在档）——A 真值自相矛盾；B 现实现=规格 §16.4 怪癖形。默认形/404 绿；匿名臂属 L020-3 既有族'
+    divergence_ref: 'L024-search-aql-diff.md §7.1 L3（UNKNOWN 升级）'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.52c9ba42 }
   evidence:
     - { kind: difftest, report: reports/compatibility/L024-search-aql-diff.md, anchor: '§2.3 p01-p04', date: '2026-09-15' }
@@ -121,9 +120,9 @@ contracts:
     - { when: '非 admin', status: 403 }
     - { when: '匿名', status: 401, ref: '#known-401-wording-family' }
   binflow_state:
-    verdict: 'DIVERGENT（语义+行形双面）'
-    detail: '双 400 逐字双绿；L4=①语义：B 实扫字节（真坏触发=超集检测；missing client 不触发）②行形：B 嵌套 checksums{expected,actual} 无 limitReached。按被证伪的 V-z 实现需返工（aql.md §16.5 V-z 勘误输入）'
-    divergence_ref: 'L024-search-aql-diff.md L4'
+    verdict: 'DIVERGENT（余系统文件排除小面；语义+行形终轮翻绿）'
+    detail: 'L024-6 终轮：平铺行形+DB client-vs-server 语义+missing=bad+真坏 blob 双旗标口径全对齐（b04/b04b SAME）；余=B 多旗标 maven-metadata.xml 系统文件（A 排除）BUG-minor；uri 按仓差异=V-ac 开放'
+    divergence_ref: 'L024-search-aql-diff.md §7.1 L4 残面'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.52c9ba42 }
   evidence:
     - { kind: difftest, report: reports/compatibility/L024-search-aql-diff.md, anchor: '§2.4 b01-b05（含 ssh 坏化四 blob od 复核）', date: '2026-09-15' }
@@ -151,9 +150,8 @@ contracts:
   error_behavior:
     - { when: '查询非法', status: 400, note: 'B 历史断链 Unknown AQL field: property 已闭合（L023 D11→本轮 200 实证）' }
   binflow_state:
-    verdict: 'SAME（S4 集合序归一后；残余 L6/L8 挂账）'
-    detail: '§16.1 逐字查询内容集合双绿（properties 三键值对/md5/sha1/十字段）；L6=B created/modified 毫秒恒 .000（截断）；L8 下游=wheel 行 vcs.* 缺（setItemProperties 未实现的 AQL 可见面）'
-    divergence_ref: 'L024-search-aql-diff.md L6/L8'
+    verdict: 'SAME（S4 集合序归一后；L6/L8 终轮翻绿）'
+    detail: 'L024-6 终轮：毫秒真值（.034）；setItemProperties 落地后 wheel 行 vcs.* 齐——内容集合双绿；判定差纯 properties 元素序（S4 提案）'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.52c9ba42 }
   evidence:
     - { kind: difftest, report: reports/compatibility/L024-search-aql-diff.md, anchor: '§2.5 q01/q02', date: '2026-09-15' }
@@ -173,9 +171,7 @@ contracts:
   side_effects: []
   error_behavior: []
   binflow_state:
-    verdict: 'DIVERGENT（两面）'
-    detail: 'L5=B 有属性行回完整 {key,value} 对（应 key-only）；无属性行回 []（应省键）'
-    divergence_ref: 'L024-search-aql-diff.md L5'
+    verdict: 'SAME（S4 集合序归一后——L5 终轮翻绿：key-only 投影+无属性省键对齐）'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.52c9ba42 }
   evidence:
     - { kind: difftest, report: reports/compatibility/L024-search-aql-diff.md, anchor: '§2.5 q03', date: '2026-09-15' }
@@ -198,11 +194,10 @@ contracts:
   error_behavior:
     - { when: '④ setItemProperties（B 未实现）', status: 404, literal_body: '/binflow/api/storage/<path> is not implemented in BinFlow → jf publish exit=1（version 债尾错叠加）' }
   binflow_state:
-    verdict: 'DIVERGENT（L8 单断链；主断链已闭合）'
-    detail: 'L023 D11 主断链（AQL property 面）闭合实证：B 侧 POST /api/search/aql 200×2 独立腿；属性通道产物（GET /api/build 详情 modules[].artifacts[] 六字段）与 A 逐位同；**余链=PUT /api/storage setItemProperties 404（rest-api.md §3 L120 规格在案）+ /api/system/version 串债**'
-    divergence_ref: 'L024-search-aql-diff.md L8 + §2.6'
-  version: { artifactory_ref: 7.161.15, binflow_tested: dev.52c9ba42 }
+    verdict: 'VERIFIED（L024-6 终轮：setItemProperties 落地——jf publish 服务端全链闭合）'
+    detail: 'jf 2.122.0 链全绿：upload 201（matrix 属性）→ build PUT 204 → AQL 200 → setItemProperties "Done setting properties."（vcs.*×3 落 B，properties 查询复核共 6 键）；CLI exit=1 唯一原因=/api/system/version 串债（开放项，不判）'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.2f434814 }
   evidence:
-    - { kind: difftest, report: reports/compatibility/L024-search-aql-diff.md, anchor: '§2.6 + l024d-wire/{a,b}/jf-d11-leg.log + B 访问日志/A 审计日志摘录', date: '2026-09-15' }
+    - { kind: difftest, report: reports/compatibility/L024-search-aql-diff.md, anchor: '§2.6 + §7.2 + l024d-wire/{a,b}/jf-d11-leg.log', date: '2026-09-16' }
   confidence: high
-  status: DIVERGENT
+  status: VERIFIED
