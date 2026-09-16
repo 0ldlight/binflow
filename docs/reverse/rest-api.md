@@ -84,7 +84,7 @@
 | GET | `/api/repositories` | 列出当前用户在 repo 根上有读权限的仓库 | 200，`Cache-Control: no-store` | — | 高 |
 | GET | `/api/repositories?type=&packageType=&project=` | 过滤；type 取值 `local/remote/virtual/federated`；非法 type/packageType → **空数组**（不报错） | 200 | — | 高 |
 | GET | `/api/repositories/{repoKey}` | 取单仓配置 | 200 repo config JSON | 不存在 → 404 纯文本 `The repository <key> was not found`（新版本默认；旧开关下 400 空 body） | 高 |
-| GET | `/api/repositories/configurations?packageType=&repoType=` | 全量配置（admin only） | 200，按 type 分组、组内按 key 排序，`Cache-Control: no-store` | — | 高 |
+| GET | `/api/repositories/configurations?packageType=&repoType=` | 全量配置（admin only） | 200，按 type 分组、组内按 key 排序，`Cache-Control: no-store` | 403 信封 | 高（详见 §2.1.1） |
 | PUT | `/api/repositories/{repoKey}` | 创建 | 200 纯文本 `Successfully created repository '<key>' \n` | 400 校验失败；body 内 `key` 与路径不一致 → 400（create）/ 409（update） | 高 |
 | POST | `/api/repositories/{repoKey}` | 更新 | 200 纯文本 `Repository <key> update successfully.\n` | 404 不存在；409 key 冲突；400 其它 | 高 |
 | DELETE | `/api/repositories/{repoKey}` | 删除 | 200 + 报告体 | 400 空 key（`Repo key must not be empty`）；404（`Repository <key> does not exist`）；403 删最后一个非系统 local repo（`Deleting the last local repository is not allowed`） | 高 |
@@ -102,6 +102,102 @@ checksumPolicyType("client-checksums"), archiveBrowsingEnabled(false),
 propertySets([])
 ```
 （`rclass` 在 REST JSON 中用大写枚举 `LOCAL` 的映射由 JAXB/Json 注解决定；对外文档惯例为 `"rclass":"local"`。）**高（字段与默认值）/ 中（个别包类型专属字段仅特定 packageType 序列化时出现）**
+
+### 2.1 D02 P1 群：配置族五面（configurations / v2 配置读 / batch 族 / existence / 布局面）（L025-1，2026-09-16）
+
+置信度总则：标「高」= 反编译 7.161.24 + 参照 7.161.15 活体双源（部分另加官方 v2 文档三源）；标「中」= 仅反编译或仅活体单源；标「低」= 推断待验证。
+证据锚：活体 = 本票 curl 探针（scratch 仓/用户 `l025p-*` 用毕删净，见 reports/agents/L025-1.md Tests）；反编译定位命令见该报告 Commands；官方页 = docs.jfrog.com/artifactory/reference/{getallrepositoryconfigurations, getrepositoryconfigurationv2, createmultiplerepositories, updatemultiplerepositories, deleterepository}（2026-09-16 实取）。
+
+#### 2.1.0 端点表
+
+| # | 方法 | 路径 | 权限 | 成功 | 错误 | 置信度 |
+|---|---|---|---|---|---|---|
+| 1 | GET | `/api/repositories/configurations?packageType=&repoType=` | admin（7.61.3+） | 200 按类型分组对象 | 403 | 高 |
+| 2 | GET | `/api/repositories/existence?projectKey=&type=` | 目标项目管理员 | 200 exists 对象 | 400 / 403 | 高 |
+| 3 | GET | `/api/v2/repositories/{key}` | admin 全量；非 admin 部分字段 | 200 v2 schema | 404 | 高 |
+| 4 | GET | `/api/v2/repositories/batch?names=a&names=b` | resource 级 admin/user | 200 map | 400 | 高 |
+| 5 | PUT | `/api/v2/repositories/batch`（**批建**） | admin | 201 text/plain | 400 | 高 |
+| 6 | POST | `/api/v2/repositories/batch`（**批改**） | admin | 200 json 字符串 | 400 / 403 / 404 | 高 |
+| 7 | DELETE | `/api/v2/repositories/batch`（批删，body=键数组） | admin | 200 / 207 / 首失败码 | 400 | 高 |
+| 8 | GET 等 | `/api/repo_layouts[/{name}]`（官方旧挂载） | — | — | 404（挂载已撤） | 高 |
+| 9 | GET | `/api/admin/repolayouts[/{key}]`（实际挂载） | any-project-admin（读）/ admin（写） | 200 | 500（缺名） | 高（读臂）/ 中（写臂） |
+
+**勘误（本票定案，matrix/rest-compat-matrix 行描述需随票修行）**：① batch 族动词映射 = **PUT 批建 / POST 批改 / DELETE 批删 / GET 批读**——与 v1 单仓动词同向（PUT=create、POST=update）；旧 inventory/rest-compat-matrix 行写作「POST 批建 / PUT 批改」是反的。② existence 查询参数实名 `projectKey`；`project` 被静默忽略。③ `/api/repo_layouts` 在 7.161.15 已 404（反编译全库无该路径串、官方新索引无页）；布局的真实挂载是 `/api/admin/repolayouts`（UI-rest 族，官方未文档化）。
+
+#### 2.1.1 GET /api/repositories/configurations（全量配置，admin）
+
+行为句式：
+
+- 当客户端以 admin GET `/api/repositories/configurations` 时，服务端返回 200，体为按仓类型分组的对象：顶层键 = `LOCAL` / `REMOTE` / `VIRTUAL` / `FEDERATED` / `RELEASE_BUNDLE`（大写；仅返回实际存在该类型时有键），组内数组按 key 升序，`Cache-Control: no-store`，`Content-Type: application/vnd.org.jfrog.artifactory.repositories.RepositoryConfigurationsList+json`，pretty-print。**高**（活体 + 反编译 + 官方页三源）
+- 每条配置字段 = 「公共字段集」17 键：`key, packageType, description, notes, includesPattern, excludesPattern, repoLayoutRef, signedUrlTtl, priorityResolution, projectKey(有项目才出现), environments, blackedOut, propertySets, archiveBrowsingEnabled, downloadRedirect, cdnRedirect, xrayIndex, xrayDataTtl, rclass`（rclass 小写；null 字段省略）——与 v2 读的字段集同源但含 `rclass` 不含 `type`。**高**（活体）
+- 当客户端带 `packageType=generic,buildinfo`（逗号分隔）或 `repoType=local,remote` 时，服务端做 OR 过滤（两种过滤可叠加）；当过滤值不匹配任何仓时返回 200 空对象 `{}`（不报错）。**高**（活体：comma 双命中实测；官方页明示 comma 分隔）
+- 当客户端以非 admin 调用时，服务端返回 403，体 = errors 信封 `{"errors":[{"status":403,"message":"Forbidden"}]}`。**高**（活体 + @RolesAllowed(admin) 反编译 + 官方页「Requires a user with admin permissions」）
+- 此条补充官方规范：官方页未载 403 信封文案与空对象行为、未载顶层键大写形态。
+
+#### 2.1.2 GET /api/repositories/existence（项目×类型探测，7.103+）
+
+- 当客户端 GET `/api/repositories/existence?projectKey=default&type=local` 时，服务端返回 200 `{"exists":<bool>,"matchingRepoTypes":["LOCAL"],"projectKey":"default"}`（pretty-print；`matchingRepoTypes` 为请求类型的解析结果，无 type 参数时回显全部五类且顺序不稳定）。**高**（活体）
+- 当客户端带 `type=local&type=remote`（重复参数）时按 OR 生效；带 `type=local,remote`（逗号）时返回 400 errors 信封 `"Invalid repository type: local,remote"`；带未知值同样 400 `"Invalid repository type: <v>"`。**高**（活体）
+- 当客户端带 `project=<v>` 时该参数被**静默忽略**（响应 projectKey 恒为 default 或 projectKey 参数值）——参数实名 `projectKey`。**高**（活体双臂判别）
+- 当客户端对目标项目非项目管理员（admin 恒通过，含不存在的项目名）时返回 403 errors 信封 `Forbidden`；此时 `exists:false` + `projectKey:<原名>` 回显属于 admin 视角（admin 对任意 projectKey 均放行）。**高**（活体 + 反编译 isProjectAdmin 门）
+- 此条补充官方规范：官方无独立文档页；参数名、逗号拒绝、admin 对不存在项目的回显均为反编译+活体补充。
+
+#### 2.1.3 GET /api/v2/repositories/{key}（v2 配置读）
+
+- 当客户端 GET（Accept: application/json）已存在的仓时，服务端返回 200 pretty-print 配置，`Content-Type` 恒为按 rclass 的 vendor 类型（`application/vnd.org.jfrog.artifactory.repositories.<Rclass>RepositoryConfiguration+json`），`Cache-Control: no-store`。**高**
+- v2 schema 与 v1（GET /api/repositories/{key}）的差异：**`rclass` 改名为 `type`**；剔除全部包类型专属字段。local/generic 实测 v2 = 16 键：`key,type,packageType,description,notes,includesPattern,excludesPattern,repoLayoutRef,signedUrlTtl,priorityResolution,environments,blackedOut,propertySets,archiveBrowsingEnabled,downloadRedirect,cdnRedirect,xrayIndex,xrayDataTtl`；remote 另含 url/username/password/disableProxy/hardFail/offline/storeArtifactsLocally/socketTimeoutMillis/localAddress/retrievalCachePeriodSecs/assumedOfflinePeriodSecs/missedRetrievalCachePeriodSecs/metadataRetrievalTimeoutSecs/unusedArtifactsCleanupPeriodHours/shareConfiguration/synchronizeProperties/listRemoteFolderItems/allowAnyHostAuth/enableCookieManagement/propagateQueryParams/blockMismatchingMimeTypes/bypassHeadRequests/disableUrlNormalization/contentSynchronisation{…}/sendContext/passThrough/curated/retrieveSha256FromServer/customHttpHeaders；virtual 仅 9 键：`key,type,packageType,description,notes,includesPattern,excludesPattern,signedUrlTtl,environments,repositories,hideUnauthorizedResources,artifactoryRequestsCanRetrieveRemoteArtifacts`。**高**（活体三 rclass 全采样）
+- 当客户端读不存在的 key 时返回 404 errors 信封 `{"errors":[{"status":404,"message":"The repository <key> was not found"}]}`。**高**（活体；反编译裸 text/plain 被 errors 信封过滤器包裹——活体为准）
+- 当客户端以非 admin（但有基本凭据）读时返回 200 **部分字段**（实测 remote 仅 5 键：`key,type,packageType,description,url`）——官方页「Non-admin users receive only partial configuration data」的落地面。**高**（活体 + 官方页双源）
+- 类型协商怪癖：协商输入是请求的 **Content-Type 而非 Accept**——GET 时带 `Content-Type: <Remote vendor>` 对 local 仓返回 406 errors 信封 `Not Acceptable`，而带不匹配的 `Accept:` 头返回 200。**高**（活体双臂判别；此条补充官方规范——官方未载协商键为 Content-Type）
+
+#### 2.1.4 GET /api/v2/repositories/batch（批读）
+
+- 当客户端 GET `/api/v2/repositories/batch?names=a&names=b` 时，服务端返回 200 map：键 = 仓 key（按找到的），值 = **v1 全量 schema 配置**（含 `rclass`，字段集与 GET /api/repositories/{key} 逐键一致，null 省略），`Content-Type: application/json`，`Cache-Control: no-store`。**高**（活体逐键 diff：61/61 一致）
+- 不存在的 names 被静默省略（不报错）；`names=a,b` 逗号串按**单个 key** 处理（通常整体落空 → `{}`）。**高**（活体）
+- 当客户端不带 names（或空串）时返回 400 errors 信封 `"Repository keys are missing."`。**高**（活体）
+- 当 names 数量超过 100（`repo.config.rest.create.items.limit` 默认）时返回 400 `"Repository item limit exceeded: {N}. Limit: {100}"`。**中**（仅反编译；活体未造 101 仓）
+- 此条补充官方规范：批读端点官方无文档页。
+
+#### 2.1.5 PUT /api/v2/repositories/batch（批建——全有或全无）
+
+- 当客户端 PUT 一个合法配置数组（每项必含 `key`，body 为 JSON 数组）时，服务端按序创建并返回 **201**，`Content-Type: text/plain`，体 = 每仓一行 `Successfully created repository '<key>' `（行尾带空格+`\n`），行间以额外 `\n` 连接（实测两仓体 = `Successfully created repository 'a' \n\nSuccessfully created repository 'b' \n\n`）。**高**（活体逐字节）
+- 批内任一配置校验失败 → **整单 400**，已建项回滚（实测：含已存在 key 的批次中，同批新 key 未被创建）。多错误以 `\n` 连接合并为单条 message（errors 信封内）。**高**（活体 + 官方页「the entire batch request will fail」双源）
+- 逐字错误文案（errors 信封）：已存在 key → `error when validating repository name: <key> : Repository key already exists`；缺 key → `Repository key are missing in configuration`（原文如此，"key are"）。**高**（活体）
+- 数组超过 100 项（`repo.config.rest.update`…create 限同值 100）→ 400 `Repository item limit exceeded: {N}. Limit: {100}`。**中**（仅反编译）
+- 创建顺序内部规则：federated 项先于其余 rclass 批（反编译 sortByPriorities）。**低**（仅反编译且未活体判别顺序可观察性）
+- 此条补充官方规范：201 体逐字节形态、回滚保证、逐字 400 文案官方均未载。
+
+#### 2.1.6 POST /api/v2/repositories/batch（批改——**merge 方言**）
+
+- 当客户端 POST 合法数组（每项必含 `key`）时，服务端对每仓做**合并更新**（省略字段保留存量、显式值覆盖——与单仓 POST /api/repositories/{key} 的 ADR-0050 update-merge 方言同语义；实测：只发 `xrayIndex:true` 的仓，其 description 原值保留）。**高**（活体 + 反编译 handleUpdateRepos bean 合并）
+- 成功返回 200，`Content-Type: application/json`，体 = 裸字符串 `Repositories updated successfully.`（无引号、非信封）。**高**（活体）
+- 当批内含不存在的 key 时返回 **404**，体 = **裸文本**（非信封）`No repositories found for the following keys: <a, b>`，CT application/json；整单无副作用。**高**（活体）
+- 当客户端以 Content-Type 指定某 vendor 类型（如 Remote vendor）而批内仓不属该 rclass 时，同样落入 404 上述文案（既有仓按 vendor 类型过滤检索）。**中**（反编译 getExistingRepoConfigs；活体仅验证 application/json 通吃）
+- 非授权仓 → 403 `User is not authorized to update the following repositories: <a, b>`；缺 key → 400 `Repository key are missing in configuration`；超 100 项 → 400 limit 文案同上。**中**（仅反编译；活体未造非 admin 批改臂）
+- 此条补充官方规范：merge 语义与裸 404 文案官方均未载（官方仅说「entire batch fails」）。
+
+#### 2.1.7 DELETE /api/v2/repositories/batch（批删——207 混合态状态机）
+
+body = JSON 字符串数组 `["a","b"]`（重复键去重、保序）。状态机（置信度：高 = 反编译 + 活体臂双源；官方式 207 文档仅覆盖单删报告形状）：
+
+1. **空数组/缺 body** → 400，体 = `{"statusMessage":"No repository keys were provided for deletion"}`（无 reports 键）。**高**（活体）
+2. **预校验段（整单中止臂）**：任一键为 blank/trash/support-bundle、导入进行中、无删除权限、配置校验器否决 → 整单立即返回该单仓状态码，体 = 单报告 `{"statusMessage":"<该仓消息>"}`（无 reports 键、无逐仓展开）。实测非 admin 臂：403，`statusMessage = "Cannot delete repository: 'x', Reason: User: ('u') has insufficient permission to delete repositories: x"`。**高**（活体 + 反编译 validateAllRepositories 抛出路径）
+3. **逐仓删除段**：不存在的键**不失败**，产出 success:true 报告，`statusMsg = "Cannot delete repository: '<key>', repository config does not exist"`；删除锁被占（并发删同仓）同样 success:true，`statusMsg = "Cannot delete repository: '<key>', repository deletion is already in progress"`（官方单删语义里的 202 在批内退化为 success 形态）。**高**（活体并发双删实测）
+4. **聚合规则**：全部报告无 error/warning（**含全部 ghost 与 202 形态**）→ **200** `statusMessage="All repositories were removed successfully"`；真失败与成功并存 → **207** `"Some repositories failed to be removed"`；全部真失败 → 返回首个失败仓的状态码。**高**（200/ghost 聚合活体实测；207/全败 = 反编译 calcStatusCode + 官方 207 文档双源，活体触发待验证）
+5. 成功响应体：`{"reports":[{"repoKey","statusMsg","deletedArtifactsCount","success":true}],"statusMessage":…}`；真失败报告额外含 `"deleteArtifactsFailureCount"` 与 `"errors":[{"status","message"}]`（上限 50 条示例，`artifact.delete.report.failure.examples.max`）且 `success:false`。`reports` 为 HashSet，**顺序不稳定**。**高**（成功形态活体；失败形态 = 反编译 + 官方单删 FailureReport 文档）
+6. 成功文案：真实仓 `Repository '<key>' and all its content have been removed successfully.`（local/federated） / `Repository '<key>' has been removed successfully.`（virtual）。**高**（活体两 rclass）
+7. 该端点受 `remove.repository.flow.v2.enabled`（默认 **true**）门控：关闭时返回 400 `Delete multiple repositories v2 is not supported. Please contact support`。**高**（反编译常量默认值 + 活体默认路径行为吻合）
+
+**联动发现（上报 D02-R05 复核）**：同一开关令**单仓** DELETE /api/repositories/{key} 在 7.161.15 也走 v2 报告形态——实测成功 = 200 报告体（`{"repoKey","statusMsg","deletedArtifactsCount","success":true}`），不存在 = **404 + success:true 报告体**（`statusMsg="Cannot delete repository: 'x', repository config does not exist"`），而不再是旧纯文本消息。§2 表 DELETE 行的「404 `Repository <key> does not exist`」为废弃流文案，现行以本节为准。**高**（活体两臂）
+
+#### 2.1.8 布局面（repo_layouts 定案）
+
+- 当客户端 GET `/api/repo_layouts` 或 `/api/repo_layouts/{name}` 时，服务端返回 404 errors 信封（`Not Found` / `Not found`）——官方旧挂载在 7.161.15 已撤（反编译全库无该路径串；官方新索引无页）。**高**（活体 + 反编译双源）
+- 实际挂载 = `/api/admin/repolayouts`（UI-rest 族，官方未文档化）：GET 列表 → 200 数组，每项 `{name, artifactPathPattern, layoutActions}`；实测内置 **25** 个布局（maven-2-default / simple-default / npm-default / …见测试记录）。**高**（活体）
+- GET `/api/admin/repolayouts/{name}` → 200 完整布局对象：`{name, artifactPathPattern, distinctiveDescriptorPathPattern, descriptorPathPattern, folderIntegrationRevisionRegExp, fileIntegrationRevisionRegExp, repositoryAssociations:{localRepositories:[],remoteRepositories:[],virtualRepositories:[]}}`。**高**（活体）
+- 布局名不存在 → **500** errors 信封 `"No value present"`（内部 Optional 直取未捕获——bug 兼容点）。**高**（活体）
+- 写臂（POST 建于集合、PUT 改、DELETE `/api/admin/repolayouts/{name}`、POST `testArtPath`、POST `resolveRegex`）= admin 门（读臂 any-project-admin）。**中**（仅反编译；活体未动全局布局）
+- matrix D02-R12 行 capability 措辞（`/api/repo_layouts[/{name}]` CRUD）需改写为上述现实——归 compatibility-engineer。
 
 ---
 
@@ -204,6 +300,7 @@ FileInfo JSON 字段（`o.a.a.api.rest.artifact.RestFileInfo` + `RestBaseStorage
 - **checksum 文件上传（`.sha1` 旁车文件）行为**：官方文档分散记载；反编译确认 1024 字节上限、409 文案、与 repo checksum 策略的联动。
 - **`?list` 家族补充面**：官方 Get Storage Item Information 页未记载 `statsTimestamps`/`includePropertiesMd5` 两参、仓库根可列行为、参数整数校验（非整数/越 int32 界 → 400 `For input string: "<v>"`、空值/空白=缺席）、文件目标 400 文案（`Expected a folder but found a file, at: <repo>:<path>`）与 `Cannot list files of root.` 仅属无仓段请求——反编译 + 活体差分补充（T-L010-3 勘误块，L008-3 32 臂）。
 - **GET `/api/repositories/{key}` 不存在的 400/404 双态**：官方文档写 404；代码显示由 `respondWith404ForNonExistentRepo` 开关控制（新版默认 404）。BinFlow 实现选 404。
+- **D02 配置族五面（§2.1，L025-1）**：官方未载面——批读端点（GET batch）、existence 参数实名 projectKey 且拒绝逗号、批建 201 体逐字节与整单回滚、批改 merge 方言与裸 404 文案、批删 ghost/202 形态在批内记 success:true、`/api/repo_layouts` 挂载已撤（现实体 `/api/admin/repolayouts`）、布局缺名 500 `No value present`、v2 读以 Content-Type（非 Accept）做类型协商——均反编译+活体双源补充。官方已载面：configurations admin 门与 comma 过滤、v2 读非 admin 部分字段、批建/批改整单失败语义、单删 207 报告形状（deleterepository 页）。
 
 ## 待验证清单（低置信度项）
 
@@ -213,3 +310,9 @@ FileInfo JSON 字段（`o.a.a.api.rest.artifact.RestFileInfo` + `RestBaseStorage
 4. `?list` 坏参与文件目标同报时参照侧的校验次序（现按反编译代码序推导：参数解析先于目标解析；BinFlow 侧已按此测试——勘误块第 11 条，LOOP 010 合并差分可覆盖）。
 5. `?list&includeRootPath=1` 打在仓库根时根条目 `/` 的 `lastModified` 字段形态（L008-3 A27 参照侧字段级未取证；BinFlow 现渲染 1970 零时刻，见 T-L009-2 Risks ①）。
 6. FileList 文件行的 `sha2` 字段是否随行列出（旧规格记 `sha2?`；L008-3 32 臂证据面只到 sha1 逐字级，未单独取证 sha2 在列）。
+7. 批删真 207 与全败聚活体触发（§2.1.7-4：需可复现的逐仓真失败——联邦 424 需配 Base URL、内容删失败需保护属性；现 207/全败聚合 = 反编译状态机 + 官方单删 207 文档双源，标高但缺活体臂）。
+8. 批建/批改 >100 项 limit 400 文案（`Repository item limit exceeded: {N}. Limit: {100}`）——仅反编译，未造 101 仓实测。
+9. 批建 federated-first 内部排序的可观察性（§2.1.5）。
+10. POST 批改的 403 非授权文案与 vendor Content-Type 过滤 404（§2.1.6 两中置信臂）。
+11. `/api/admin/repolayouts` 写臂三动词与 testArtPath/resolveRegex 的响应形态（§2.1.8，仅反编译）。
+12. `deletedArtifactsCount` 计数语义（40 文件实测回填 80——疑似含文件夹/校验和伴生项，未定）。

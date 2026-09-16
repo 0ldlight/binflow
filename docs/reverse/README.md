@@ -13,7 +13,7 @@ reverse-engineer 在此产出 **clean-room 行为规格**——让实现者不�
 
 | 文件 | 内容 | 里程碑 |
 |---|---|---|
-| `rest-api.md` | REST 端点表（路径/方法/参数/响应码/示例）；§3.1 增量属性面（PATCH /api/metadata 全语义 + POST /api/storage 405 移除定案，L024-1） | M1 + L024 |
+| `rest-api.md` | REST 端点表（路径/方法/参数/响应码/示例）；§2.1 D02 配置族五面（configurations/v2 读/batch 207 状态机/existence/布局面定案，L025-1）；§3.1 增量属性面（PATCH /api/metadata 全语义 + POST /api/storage 405 移除定案，L024-1） | M1 + L024 + L025 |
 | `storage-layout.md` | filestore 目录推导、checksum 命名、元数据序列化 | M1 |
 | `config-formats.md` | artifactory.config.xml / binarystore.xml 要点 → BinFlow 配置映射 | M1 |
 | `repo-semantics.md` | local/remote/virtual 语义、layout 解析、缓存规则 | M1–M3 |
