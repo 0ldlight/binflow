@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 400,
+      "message": "props or stats fields required"
+    }
+  ]
+}

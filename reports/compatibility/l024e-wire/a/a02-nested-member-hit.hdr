@@ -1,0 +1,16 @@
+HTTP 200
+Accept-Ranges: bytes
+Content-Disposition: attachment; filename="deep.txt"; filename*=UTF-8''deep.txt
+Content-Length: 21
+Content-Type: text/plain
+Date: Wed, 16 Sep 2026 01:51:16 GMT
+Etag: e62337e7be548dd9834cc4e6a862545003f49c3b
+Last-Modified: Wed, 16 Sep 2026 01:51:15 GMT
+X-Artifactory-Filename: deep.txt
+X-Artifactory-Id: e283103486ad66fe:-6dadc198:1a0a631e39e:-8000
+X-Artifactory-Node-Id: lzw
+X-Checksum-Md5: 322e79bd7d739888de41461db982f719
+X-Checksum-Sha1: e62337e7be548dd9834cc4e6a862545003f49c3b
+X-Checksum-Sha256: 5b74f97ab33e3c435ce7e55e13d60163ce0f1b6d3cb0507c11712d4216c8cc98
+X-Jfrog-Version: Artifactory/7.161.15 86115900
+Connection: close

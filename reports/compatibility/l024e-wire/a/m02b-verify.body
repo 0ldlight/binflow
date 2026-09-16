@@ -1,0 +1,7 @@
+{
+  "properties" : {
+    "k" : [ "v3" ],
+    "seed" : [ "old" ]
+  },
+  "uri" : "http://172.16.58.130:8082/artifactory/api/storage/l024e-local/f1/target.bin"
+}

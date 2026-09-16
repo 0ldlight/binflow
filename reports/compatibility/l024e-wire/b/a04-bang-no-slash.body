@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 404,
+      "message": "Failed to find the requested resource 'l024e-local/pkg/l024e.zip!entry.txt'."
+    }
+  ]
+}

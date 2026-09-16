@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 400,
+      "message": "Failed to set properties on l024e-local:f1/target.bin: Failed to parse json object while performing patch properties request."
+    }
+  ]
+}

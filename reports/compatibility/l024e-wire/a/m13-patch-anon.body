@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 403,
+    "message" : "This request is blocked due to recurrent request failures, please try again in 15 second(s)"
+  } ]
+}
