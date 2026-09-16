@@ -1,0 +1,114 @@
+# BinFlow 兼容契约——D02 配置族（configurations/v2 读/batch 写/布局面；d02-config 域首文件，L025-4 蓝本，2026-09-17）
+# schema: compat-contract/1 —— 作者注：L025-4（differential-qa-engineer）据双端活体 wire 起草的蓝本，
+#   入册裁定权在 compatibility-engineer。证据面=L025 双端（A=pro 7.161.15 :8082 / B=dev.498683c5 :8083），
+#   36 判定单元 + 定向补探针；差分报告=reports/compatibility/L025-d02-config-diff.md（D-item=G1..G9）。
+# normalize: fixtures/normalize.yaml#d02-config（提案——报告头 Q1-Q5：config 体结构投影/批删 reports 集合序/
+#   布局 associations 实例态）
+domain: d02-config
+scope: D02 P1 群五面（configurations 全量/existence/v2 单仓与批读/批建批改批删/布局面）。
+reference_instance: 'Artifactory pro 7.161.15（http://172.16.58.130:8082，admin）'
+binflow_tested_instance: 'BinFlow dev dev.498683c5（http://172.16.58.130:8083，admin）'
+contracts:
+- id: d02-config/existence
+  feature: '项目×类型探测（{exists,matchingRepoTypes,projectKey}；重复参 OR/逗号 400/project= 静默忽略）'
+  surface: 'GET <apiBase>/repositories/existence?projectKey=&type='
+  request: { method: GET, path: '<apiBase>/repositories/existence', query: { projectKey: '实名（project 被静默忽略）', type: '可重复 OR；逗号/未知值 400' } }
+  authentication: { type: basic, role: 'admin 恒过（含不存在项目名）；非项目管理员 403 Forbidden' }
+  expect: { status: 200, body: 'pretty {exists:<bool>,matchingRepoTypes:["<TYPE>"…],projectKey:<回显>}' }
+  error_behavior:
+    - { when: 'type=local,remote 逗号或未知值', status: 400, literal_body: 'errors 信封 Invalid repository type: <v>' }
+    - { when: '非项目管理员', status: 403, literal_body: 'errors 信封 Forbidden' }
+  binflow_state: { verdict: 'SAME（四臂全绿）' }
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.498683c5 }
+  evidence: [ { kind: difftest, report: reports/compatibility/L025-d02-config-diff.md, anchor: '§1 e01-e04', date: '2026-09-17' } ]
+  confidence: high
+  status: VERIFIED
+- id: d02-config/batch-put-create
+  feature: '批建（201 体逐字节：每仓一行尾空格+\\n、行间额外 \\n；全有或全无回滚；空数组 201 空体）'
+  surface: 'PUT <apiBase>/v2/repositories/batch（JSON 数组）'
+  request: { method: PUT, path: '<apiBase>/v2/repositories/batch', body: '[{key,rclass,packageType,…}]' }
+  authentication: { type: basic, role: admin }
+  expect: { status: 201, 'content-type': text/plain, body: "逐字节：Successfully created repository 'a' \\n\\nSuccessfully created repository 'b' \\n\\n（行尾空格；空数组=201 空体）" }
+  error_behavior:
+    - { when: '批内含已存在 key', status: 400, literal_body: "errors 信封 error when validating repository name: <k> : Repository key already exists（整单失败+已建回滚）" }
+    - { when: '项缺 key', status: 400, literal_body: 'errors 信封 Repository key are missing in configuration（原文如此）' }
+    - { when: '非 admin', status: 403, literal_body: 'errors 信封 Forbidden（裸——L025-4 四臂④定谳；B 现值 administrator privileges required，G4）' }
+  binflow_state: { verdict: 'SAME（201 体/回滚/空数组/双 400 绿）；唯非 admin 文案 G4', detail: 'w01-w04 逐字节/逐字绿', divergence_ref: 'L025-d02-config-diff.md G4' }
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.498683c5 }
+  evidence: [ { kind: difftest, report: reports/compatibility/L025-d02-config-diff.md, anchor: '§1 w01-w05', date: '2026-09-17' } ]
+  confidence: high
+  status: DIVERGENT
+- id: d02-config/batch-post-merge
+  feature: '批改 merge 方言（省略保留/显式覆盖；200 裸串；ghost 404 裸文本）'
+  surface: 'POST <apiBase>/v2/repositories/batch'
+  request: { method: POST, path: '<apiBase>/v2/repositories/batch', body: '[{key,<可变字段>}]' }
+  authentication: { type: basic, role: admin }
+  expect: { status: 200, 'content-type': application/json, body: '裸字符串 Repositories updated successfully.（无引号非信封）' }
+  error_behavior:
+    - { when: '批含不存在 key', status: 404, literal_body: '裸文本 No repositories found for the following keys: <a, b>（CT application/json；整单无副作用）' }
+    - { when: '非 admin', status: 403, literal_body: '裸文本 Only platform/project admins are allowed to update repositories（L025-4 四臂定谳——spec §2.1.6 反编译文案被证伪；B 现值 User is not authorized to update…，G3）' }
+  binflow_state: { verdict: 'SAME（merge/200/ghost 绿）；唯非 admin 文案 G3', divergence_ref: 'L025-d02-config-diff.md G3' }
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.498683c5 }
+  evidence: [ { kind: difftest, report: reports/compatibility/L025-d02-config-diff.md, anchor: '§1 w06-w08', date: '2026-09-17' } ]
+  confidence: high
+  status: DIVERGENT
+- id: d02-config/batch-delete-statemachine
+  feature: '批删 207 状态机（空删 400 statusMessage-only；ghost=success:true 逐仓；全 success 聚合 200；blank-key=ghost 形非预校验；三 rclass 成功文案 remote=local 形；reports HashSet 序）'
+  surface: 'DELETE <apiBase>/v2/repositories/batch（body=字符串数组）'
+  request: { method: DELETE, path: '<apiBase>/v2/repositories/batch', body: '["a","b"]（重复去重保序）' }
+  authentication: { type: basic, role: 'admin（无删除权=预校验整单 403 单报告）' }
+  expect:
+    status: '200（全部 success 含全 ghost）/207（真混合——开放未活体）/首失败码（全败——开放）'
+    body: '{"reports":[{repoKey,statusMsg,deletedArtifactsCount,success}],statusMessage}；reports 序=HashSet 不稳（Q4 集合序断言）'
+    literal_lines: "成功=Repository '<k>' and all its content have been removed successfully.（local/remote/federated）/ Repository '<k>' has been removed successfully.（virtual）/ ghost=Cannot delete repository: '<k>', repository config does not exist / 聚合=All repositories were removed successfully / Some repositories failed to be removed"
+  error_behavior:
+    - { when: '空数组/缺 body', status: 400, literal_body: '{"statusMessage":"No repository keys were provided for deletion"}（无 reports）' }
+    - { when: 'blank key ""', status: 200, literal_body: "ghost 逐仓形（L025-4 四臂定谳——spec §2.1.7-2 预校验中止被证伪；B 现值 400 单报告，G2）" }
+    - { when: '无删除权', status: 403, literal_body: "单报告 Cannot delete repository: '<k>', Reason: User: ('<u>') has insufficient permission to delete repositories: <k>（双端逐字同）" }
+  binflow_state:
+    verdict: 'SAME（状态机可达臂：w09/w10/w11/w13 全绿含 Q4 集合）；唯 blank-key G2 + 真 207/全败开放（G7）'
+    detail: '真 207/全败/失败报告值域=共享参照不可安全构造（B 单测注入在案）'
+    divergence_ref: 'L025-d02-config-diff.md G2/G7'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.498683c5 }
+  evidence: [ { kind: difftest, report: reports/compatibility/L025-d02-config-diff.md, anchor: '§1 w09-w14 + §2 G2/G7', date: '2026-09-17' } ]
+  confidence: high
+  status: DIVERGENT
+- id: d02-config/v2-read
+  feature: 'v2 单仓读（type 键方言/CT vendor/no-store/404 信封/CT-非-Accept 协商 406/非 admin 五键）'
+  surface: 'GET <apiBase>/v2/repositories/{key}'
+  request: { method: GET, path: '<apiBase>/v2/repositories/<key>', headers: { Accept: '不参与协商；Content-Type=vendor 类型参与（错配→406）' } }
+  authentication: { type: basic, role: 'admin 全量 / 非 admin 五键 {key,type,packageType,description,url}' }
+  expect: { status: 200, 'content-type': 'application/vnd.org.jfrog.artifactory.repositories.<Rclass>RepositoryConfiguration+json', 'cache-control': no-store }
+  error_behavior:
+    - { when: 'key 不存在', status: 404, literal_body: 'errors 信封 The repository <key> was not found' }
+    - { when: 'Content-Type=不匹配 rclass 的 vendor', status: 406, literal_body: 'errors 信封 Not Acceptable' }
+  binflow_state: { verdict: 'DIVERGENT（G1 投影缺口）——404/406/非 admin 五键/CT/no-store 面绿；admin 全量字段集 B=5 键投影', divergence_ref: 'L025-d02-config-diff.md G1' }
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.498683c5 }
+  evidence: [ { kind: difftest, report: reports/compatibility/L025-d02-config-diff.md, anchor: '§1 v01-v05', date: '2026-09-17' } ]
+  confidence: high
+  status: DIVERGENT
+- id: d02-config/v1-read-unknown
+  feature: 'v1 单仓 GET 未知 key（A=400 裸 Bad Request——跨切面）'
+  surface: 'GET <apiBase>/repositories/{unknown}'
+  request: { method: GET, path: '<apiBase>/repositories/<unknown>' }
+  authentication: { type: basic, role: any }
+  expect: { status: 400, body: '{"errors":[{"status":400,"message":"Bad Request"}]}（裸——L025-4 新发现；B 现值 404 Repository does not exist…，G5）' }
+  binflow_state: { verdict: DIVERGENT, divergence_ref: 'L025-d02-config-diff.md G5' }
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.498683c5 }
+  evidence: [ { kind: difftest, report: reports/compatibility/L025-d02-config-diff.md, anchor: '§2 G5（w02b）', date: '2026-09-17' } ]
+  confidence: high
+  status: DIVERGENT
+- id: d02-config/repolayouts
+  feature: '布局面（/api/admin/repolayouts 列表 25+单读六/七键；缺名 500 No value present；旧挂载 /api/repo_layouts 双 404）'
+  surface: 'GET <apiBase>/admin/repolayouts[/{name}]；GET <apiBase>/repo_layouts[/{name}]（旧，404）'
+  request: { method: GET, path: '<apiBase>/admin/repolayouts' }
+  authentication: { type: basic, role: 'any-project-admin（读）' }
+  expect: { status: 200, body: '列表=25 项 {name,artifactPathPattern,layoutActions}；单读=六/七键全字段；associations=实例态（Q5）' }
+  error_behavior:
+    - { when: '布局名不存在', status: 500, literal_body: 'errors 信封 No value present（bug 兼容点）' }
+    - { when: '旧挂载 /api/repo_layouts', status: 404, literal_body: 'errors 信封 Not Found / Not found' }
+  binflow_state: { verdict: '候裁（body IDENTICAL；G6=A 侧 CORS+Cache-Control 头族 B 缺）', divergence_ref: 'L025-d02-config-diff.md G6' }
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.498683c5 }
+  evidence: [ { kind: difftest, report: reports/compatibility/L025-d02-config-diff.md, anchor: '§1 l01-l04', date: '2026-09-17' } ]
+  confidence: high
+  status: DIVERGENT
