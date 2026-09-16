@@ -1,8 +1,0 @@
-{
-  "errors": [
-    {
-      "status": 400,
-      "message": "Failed to set properties on l024e-virt:f1/target.bin: Repository 'l024e-virt' is not a local repository"
-    }
-  ]
-}

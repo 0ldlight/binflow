@@ -1,8 +1,0 @@
-{
-  "errors": [
-    {
-      "status": 400,
-      "message": "Failed to set properties on l024e-local:f1/none.bin: Item l024e-local:f1/none.bin does not exist"
-    }
-  ]
-}

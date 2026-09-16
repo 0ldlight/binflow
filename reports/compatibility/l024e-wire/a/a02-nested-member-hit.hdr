@@ -3,9 +3,9 @@ Accept-Ranges: bytes
 Content-Disposition: attachment; filename="deep.txt"; filename*=UTF-8''deep.txt
 Content-Length: 21
 Content-Type: text/plain
-Date: Wed, 16 Sep 2026 01:51:16 GMT
+Date: Wed, 16 Sep 2026 12:49:54 GMT
 Etag: e62337e7be548dd9834cc4e6a862545003f49c3b
-Last-Modified: Wed, 16 Sep 2026 01:51:15 GMT
+Last-Modified: Wed, 16 Sep 2026 12:49:53 GMT
 X-Artifactory-Filename: deep.txt
 X-Artifactory-Id: e283103486ad66fe:-6dadc198:1a0a631e39e:-8000
 X-Artifactory-Node-Id: lzw

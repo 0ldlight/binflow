@@ -1,6 +1,7 @@
-HTTP 404
+HTTP 405
+Allow: DELETE,OPTIONS,PATCH
 Content-Type: application/json
-X-Request-Id: 0e2fd2e8f1dabcbe52467d1fb2555a95
-Date: Wed, 16 Sep 2026 01:51:16 GMT
-Content-Length: 152
+X-Request-Id: d121f99d1d00ffc327a6fe5560125abe
+Date: Wed, 16 Sep 2026 12:49:54 GMT
+Content-Length: 93
 Connection: close
