@@ -975,8 +975,11 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			// The old "Update Item Properties" POST form is gone from the
 			// reference (7.161.x, rest-api.md section 3: the resource carries
 			// no @POST — the current form is PATCH /api/metadata, the case
-			// below): the verb answers the bare 405 envelope, verbatim,
-			// whatever query arms ride along.
+			// below): the verb answers the 405 envelope with the resource's
+			// Allow header (L024-12 micro-residual: DELETE,GET,OPTIONS,PUT —
+			// the reference's own set, live-probed), whatever query arms
+			// ride along.
+			w.Header().Set("Allow", "DELETE,GET,OPTIONS,PUT")
 			writeError(w, http.StatusMethodNotAllowed, http.StatusText(http.StatusMethodNotAllowed))
 			return
 		}
@@ -1078,7 +1081,11 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 				s.handleMetadataDelete(w, r, repoKey, rel)
 			})
 		default:
-			notImplemented(w, "/binflow/api/"+rest)
+			// L024-11 / diff T2: the other verbs are the 405 envelope with
+			// the Allow header (the POST /api/storage family's own shape),
+			// never the E-26 404.
+			w.Header().Set("Allow", "DELETE,OPTIONS,PATCH")
+			writeError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
 		}
 
 	// ---- /api/copy, /api/move (M12 T-339, FR-105.1 / repo-operations.md

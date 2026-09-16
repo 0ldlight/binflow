@@ -1,6 +1,8 @@
 package httpapi_test
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -117,14 +119,36 @@ func TestMetadataPatchBodyErrors(t *testing.T) {
 		})
 	}
 
-	// Item 10 (low-confidence leg, registered no-op): a stats-only body
-	// passes the gate and changes nothing observable.
+	// Item 10 as the L024-10 differential closed it (L024-11 / diff T4):
+	// a stats-only body MERGES — the count lands absolutely, the "import"
+	// marker rides lastDownloadedBy, and the ?stats echo renders the
+	// download-form uri with every field present.
 	if st, msg := doMeta(t, h, http.MethodPatch, base, adminUser, adminPass,
 		`{"stats":{"downloadCount":5}}`); st != http.StatusNoContent {
 		t.Fatalf("stats-only PATCH = %d %s", st, msg)
 	}
 	if _, props := getProps(t, h, "/binflow/api/storage/generic-local/l024/app.bin?properties", adminUser, adminPass); len(props) != 0 {
 		t.Fatalf("stats leg touched props: %#v", props)
+	}
+	resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local/l024/app.bin?stats", adminUser, adminPass, nil, nil)
+	page, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	var stats struct {
+		URI                  string `json:"uri"`
+		DownloadCount        int64  `json:"downloadCount"`
+		LastDownloaded       int64  `json:"lastDownloaded"`
+		LastDownloadedBy     string `json:"lastDownloadedBy"`
+		RemoteDownloadCount  int64  `json:"remoteDownloadCount"`
+		RemoteLastDownloaded int64  `json:"remoteLastDownloaded"`
+	}
+	if json.Unmarshal(page, &stats) != nil || stats.DownloadCount != 5 ||
+		stats.LastDownloadedBy != "import" || stats.LastDownloaded != 0 ||
+		stats.RemoteDownloadCount != 0 || stats.RemoteLastDownloaded != 0 {
+		t.Fatalf("stats echo = %s, want the merged import-marked shape", page)
+	}
+	if !strings.HasSuffix(stats.URI, "/binflow/generic-local/l024/app.bin") ||
+		strings.Contains(stats.URI, "/api/storage/") {
+		t.Fatalf("stats uri = %q, want the download form", stats.URI)
 	}
 	// A malformed stats value is the same parse 400.
 	if st, msg := doMeta(t, h, http.MethodPatch, base, adminUser, adminPass,
@@ -273,12 +297,51 @@ func TestMetadataDeleteAll(t *testing.T) {
 	if _, props := getProps(t, h, readBack+"/pin/a.bin?properties=pk", adminUser, adminPass); len(props) != 1 {
 		t.Fatal("recursive=0 DELETE leaked to the child")
 	}
-	// The shared target guards: missing item and virtual repository answer
-	// the family's 400 wrap (the DELETE-side wording is not live-probed —
-	// the registered shared-guard reading).
-	if st, msg := doMeta(t, h, http.MethodDelete, base+"/ghost.bin", adminUser, adminPass, ""); st != http.StatusBadRequest ||
-		!strings.Contains(msg, "Item generic-local:ghost.bin does not exist") {
-		t.Fatalf("missing item DELETE = %d %s", st, msg)
+	// L024-11 / diff T1: the DELETE face is GUARD-LESS — a missing item
+	// (and a virtual repository alike) answers the silent 204, the PATCH
+	// family's 400 wordings never ride this verb (the differential's live
+	// closure of the low-confidence arm).
+	if st, _ := doMeta(t, h, http.MethodDelete, base+"/ghost.bin", adminUser, adminPass, ""); st != http.StatusNoContent {
+		t.Fatal("missing item DELETE must be the guard-less 204")
+	}
+}
+
+// TestMetadataOtherVerbs405 (L024-11 / diff T2): PUT/GET/POST on the
+// /api/metadata face are the 405 envelope with the Allow header — never
+// the E-26 404.
+func TestMetadataOtherVerbs405(t *testing.T) {
+	h := newHarnessCfg(t, nil, nil)
+	seedRepo(t, h, "generic-local")
+	for _, m := range []string{http.MethodPut, http.MethodGet, http.MethodPost} {
+		resp := h.do(m, "/binflow/api/metadata/generic-local/a.bin", adminUser, adminPass, nil, nil)
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusMethodNotAllowed {
+			t.Fatalf("%s = %d %s, want 405", m, resp.StatusCode, body)
+		}
+		var env struct {
+			Errors []struct {
+				Status  int    `json:"status"`
+				Message string `json:"message"`
+			} `json:"errors"`
+		}
+		if json.Unmarshal(body, &env) != nil || len(env.Errors) != 1 || env.Errors[0].Status != 405 ||
+			env.Errors[0].Message != "Method Not Allowed" {
+			t.Fatalf("%s body = %s, want the 405 envelope verbatim", m, body)
+		}
+		if allow := resp.Header.Get("Allow"); allow != "DELETE,OPTIONS,PATCH" {
+			t.Fatalf("%s Allow = %q", m, allow)
+		}
+	}
+	// L024-12 micro-residual: the retired POST /api/storage form carries its
+	// own resource's Allow set (the reference's live probe: DELETE,GET,
+	// OPTIONS,PUT), whatever query arms ride along.
+	resp := h.do(http.MethodPost, "/binflow/api/storage/generic-local/a.bin", adminUser, adminPass, nil, nil)
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed || resp.Header.Get("Allow") != "DELETE,GET,OPTIONS,PUT" {
+		t.Fatalf("POST storage = %d Allow=%q body=%s, want 405 with the resource Allow set",
+			resp.StatusCode, resp.Header.Get("Allow"), body)
 	}
 }
 

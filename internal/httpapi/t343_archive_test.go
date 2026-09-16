@@ -14,6 +14,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -514,12 +516,30 @@ func TestT343MemberReadREST(t *testing.T) {
 	if got := hdr.Get("Content-Type"); got != "text/plain; charset=utf-8" {
 		t.Fatalf("content type = %q", got)
 	}
+	// L024-11 / diff T5: the member-hit header family (live on the
+	// reference): ranges, the attachment disposition (both filename
+	// spellings), the filename echo and the three member digests.
+	if hdr.Get("Accept-Ranges") != "bytes" ||
+		hdr.Get("Content-Disposition") != `attachment; filename="hello.txt"; filename*=UTF-8''hello.txt` ||
+		hdr.Get("X-Artifactory-Filename") != "hello.txt" ||
+		len(hdr.Get("X-Checksum-Md5")) != 32 || len(hdr.Get("X-Checksum-Sha1")) != 40 ||
+		len(hdr.Get("X-Checksum-Sha256")) != 64 {
+		t.Fatalf("member header family missing:\n%s", hdr)
+	}
+	sum := sha1.Sum([]byte("hello-bytes"))
+	if hdr.Get("X-Checksum-Sha1") != hex.EncodeToString(sum[:]) {
+		t.Fatalf("member sha1 header = %q", hdr.Get("X-Checksum-Sha1"))
+	}
 
-	// The member checksum suffix answers the computed sha1.
-	code, body, _ = st.doBytes(http.MethodGet,
+	// The member checksum suffix answers the computed sha1 (diff T6: the
+	// checksum media type, not text/plain).
+	code, body, hdr = st.doBytes(http.MethodGet,
 		"/binflow/lib/pkg/a.zip!/dir/hello.txt.sha1", adminUser, adminPass, nil, nil)
 	if code != 200 || len(string(body)) != 40 {
 		t.Fatalf("member checksum = %d %q", code, body)
+	}
+	if got := hdr.Get("Content-Type"); got != "application/x-checksum" {
+		t.Fatalf("checksum content type = %q, want application/x-checksum", got)
 	}
 
 	// The verbatim miss (§3.3 arm 2, L024-1 live calibration): the full URI
@@ -538,14 +558,15 @@ func TestT343MemberReadREST(t *testing.T) {
 	if code != 200 || string(body) != "bang-but-no-slash" {
 		t.Fatalf("plain bang name = %d %q", code, body)
 	}
-	// §3.3 arm 3: the miss spelling of the same form never enters the
-	// archive family — the generic plane's own file-miss 404 answers (the
-	// reference's File-not-found colon form is the package-type family's
-	// wording, maven's L020 verbatim; the generic plane keeps §1.4's).
+	// L024-11 / diff T3: the miss spelling of the bare-'!' form answers the
+	// archive family's File-not-found wording with the colon Path tail —
+	// the L024-10 differential closed the repo-type doubt (generic and
+	// maven alike, live).
 	code, body, _ = st.doBytes(http.MethodGet,
 		"/binflow/lib/pkg/missing.zip!entry.txt", adminUser, adminPass, nil, nil)
-	if code != 404 || strings.Contains(envelopeMsg(t, body), "zip resource") {
-		t.Fatalf("bang-no-slash miss = %d %s, want the ordinary file-miss 404", code, body)
+	if code != 404 || envelopeMsg(t, body) !=
+		"File not found.; Path: 'lib:pkg/missing.zip!entry.txt'" {
+		t.Fatalf("bang-no-slash miss = %d %s, want the File-not-found colon form", code, body)
 	}
 
 	// Non-GET on the member spelling is refused with Allow.

@@ -575,7 +575,8 @@ func TestArchiveMemberZip(t *testing.T) {
 		if string(got) != hex.EncodeToString(sum[:]) {
 			t.Fatalf("sha1 = %q", got)
 		}
-		if !res.ChecksumText || res.ContentType != "text/plain" {
+		// L024-11 / diff T6: the checksum media type, not text/plain.
+		if !res.ChecksumText || res.ContentType != "application/x-checksum" {
 			t.Fatalf("checksum mode not flagged: %+v", res)
 		}
 	})

@@ -228,6 +228,40 @@ func (s *nodeStore) CountDownload(ctx context.Context, repoKey, path, by, at str
 	return nil
 }
 
+// MergeStats implements NodeStore.MergeStats (L024-11 / diff T4: the
+// PATCH {"stats":…} leg's TRUE merge — the low-confidence no-op reading is
+// voided): the given fields are SET absolutely on the node row (the wire's
+// downloadCount:1 landed as 1), last_downloaded_by carries the "import"
+// marker when the body did not name one, and an unnamed field keeps its
+// value (JSON-merge, not replace-whole). A missing row updates nothing and
+// reports no error (the face's guard-less posture).
+func (s *nodeStore) MergeStats(ctx context.Context, repoKey, path string, st StatsMerge) error {
+	set := ""
+	var args []any
+	if st.DownloadCount != nil {
+		set += "download_count = ?, "
+		args = append(args, *st.DownloadCount)
+	}
+	if st.RemoteDownloadCount != nil {
+		set += "remote_download_count = ?, "
+		args = append(args, *st.RemoteDownloadCount)
+	}
+	if st.By != "" {
+		set += "last_downloaded_by = ?, "
+		args = append(args, st.By)
+	}
+	if set == "" {
+		return nil
+	}
+	set = strings.TrimSuffix(set, ", ")
+	stmt := `UPDATE nodes SET ` + set + ` WHERE repo_key = ? AND path = ? AND sha256 <> ?`
+	args = append(args, repoKey, path, FolderMarkerSHA)
+	if _, err := s.db.ExecContext(ctx, stmt, args...); err != nil {
+		return wrapExec("nodes merge-stats", repoKey, err)
+	}
+	return nil
+}
+
 // Stats implements NodeStore.Stats: the four counting columns of one node
 // row, ErrNodeNotFound when absent.
 func (s *nodeStore) Stats(ctx context.Context, repoKey, path string) (*NodeStats, error) {

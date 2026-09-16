@@ -645,6 +645,14 @@ type ArchiveMemberResult struct {
 	ContentType string
 	// ChecksumText marks checksum mode: Body carries the digest text.
 	ChecksumText bool
+	// The member-hit header family's facts (L024-11 / diff T5): the entry's
+	// base name and the three digests of the member bytes — empty digests
+	// mean the member streamed unbuffered past the checksum ceiling (the
+	// headers then stay absent, registered).
+	Filename string
+	Md5      string
+	Sha1     string
+	Sha256   string
 }
 
 // ArchiveMember implements the §3 face. Resolution deliberately rides
@@ -710,11 +718,33 @@ func (s *service) ArchiveMember(ctx context.Context, p *Principal, req ArchiveMe
 		return nil, err
 	}
 	if checksumAlgo == "" {
-		return &ArchiveMemberResult{
-			Body:        &memberReadCloser{inner: body, release: release},
-			Size:        size,
+		res := &ArchiveMemberResult{
 			ContentType: ctype,
-		}, nil
+			Filename:    path.Base(entry),
+		}
+		// Diff T5's header family: the three digests of the member bytes.
+		// Buffering is the only source (zip carries no member digests); the
+		// ceiling keeps an oversized member on the streaming path — the
+		// headers then stay absent rather than the request paying RAM for
+		// them (registered divergence on the >32MiB arm).
+		if size >= 0 && size <= memberChecksumCeiling {
+			buf, rerr := io.ReadAll(body)
+			if rerr != nil {
+				_ = body.Close()
+				release()
+				return nil, memberUnreadable(src.name, rerr)
+			}
+			_ = body.Close()
+			m := md5.Sum(buf)   //nolint:gosec // G501: compatibility digest only
+			h1 := sha1.Sum(buf) //nolint:gosec // G401: compatibility digest only
+			h256 := sha256.Sum256(buf)
+			res.Md5, res.Sha1, res.Sha256 = hex.EncodeToString(m[:]), hex.EncodeToString(h1[:]), hex.EncodeToString(h256[:])
+			res.Body = &memberReadCloser{inner: io.NopCloser(bytes.NewReader(buf)), release: release}
+		} else {
+			res.Body = &memberReadCloser{inner: body, release: release}
+		}
+		res.Size = size
+		return res, nil
 	}
 
 	// Checksum mode: hash the member on the fly and answer the digest text
@@ -740,13 +770,20 @@ func (s *service) ArchiveMember(ctx context.Context, p *Principal, req ArchiveMe
 		return nil, memberUnreadable(src.name, copyErr)
 	}
 	digest := hex.EncodeToString(h.Sum(nil))
+	// Diff T6: the checksum-suffix answer rides the checksum media type
+	// (application/x-checksum, live), not text/plain.
 	return &ArchiveMemberResult{
 		Body:         io.NopCloser(strings.NewReader(digest)),
 		Size:         int64(len(digest)),
-		ContentType:  "text/plain",
+		ContentType:  "application/x-checksum",
 		ChecksumText: true,
 	}, nil
 }
+
+// memberChecksumCeiling caps the buffered digest computation of the
+// member-hit header family (diff T5): past it the response streams without
+// the X-Checksum-* headers instead of paying the member's bytes in RAM.
+const memberChecksumCeiling = 32 << 20
 
 // memberReadCloser couples a lazily-streaming member body with the release
 // of the archive source it reads through (exactly once, on Close).

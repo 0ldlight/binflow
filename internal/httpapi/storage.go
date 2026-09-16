@@ -148,12 +148,19 @@ func (s *Server) handleStorageItem(w http.ResponseWriter, r *http.Request, repoK
 // remoteLastDownloadedBy — both are UNSOURCED in BinFlow (no smart-remote
 // pull-back statistics exist) and are therefore omitted, never faked
 // (architecture 11.49; the add-a-column path is a small migration ticket).
+// statsInfoBody is the ?stats echo (diff T4's wire shape): the uri is the
+// DOWNLOAD form (the content address, not the api/storage spelling) and
+// the five stat fields ALWAYS render — a never-downloaded row carries the
+// numeric zeros, no field is omitted. lastDownloaded is the epoch-ms
+// NUMBER (0 = never); remoteLastDownloaded has no storage column and
+// renders its structural 0 (registered).
 type statsInfoBody struct {
-	URI                 string `json:"uri"`
-	DownloadCount       int64  `json:"downloadCount"`
-	LastDownloaded      string `json:"lastDownloaded,omitempty"`
-	LastDownloadedBy    string `json:"lastDownloadedBy,omitempty"`
-	RemoteDownloadCount int64  `json:"remoteDownloadCount"`
+	URI                  string `json:"uri"`
+	DownloadCount        int64  `json:"downloadCount"`
+	LastDownloaded       int64  `json:"lastDownloaded"`
+	LastDownloadedBy     string `json:"lastDownloadedBy,omitempty"`
+	RemoteDownloadCount  int64  `json:"remoteDownloadCount"`
+	RemoteLastDownloaded int64  `json:"remoteLastDownloaded"`
 }
 
 // handleStorageStats serves GET /api/storage/{repo}/{path}?stats (M16 T-438,
@@ -177,12 +184,14 @@ func (s *Server) handleStorageStats(w http.ResponseWriter, r *http.Request, repo
 		return
 	}
 	body := statsInfoBody{
-		URI:                 storageURI(requestBase(r), repoKey, node.Path),
+		// Diff T4: the uri is the DOWNLOAD form — the content address the
+		// wire shows, never the api/storage spelling.
+		URI:                 requestBase(r) + prefix + "/" + repoKey + "/" + node.Path,
 		DownloadCount:       st.DownloadCount,
 		RemoteDownloadCount: st.RemoteDownloadCount,
 	}
-	if st.LastDownloadedAt != "" {
-		body.LastDownloaded = isoMillisUTC(st.LastDownloadedAt)
+	if t, err := time.Parse(time.RFC3339, st.LastDownloadedAt); err == nil {
+		body.LastDownloaded = t.UnixMilli()
 	}
 	if managementAllowed(s.deps.Authz, func(m auth.ManagementAuthorizer) bool {
 		return m.CanManage(r.Context(), p, auth.CapSystemRead)
