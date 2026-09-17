@@ -5,128 +5,134 @@
 from helpers import (op, tag, q, pp, h, r, rh, S, arr, body, obj,
                      ERR_401, ERR_403, ANON)
 
-tag("artifacts", "通用制品域——内容路径上传/下载/删除与 storage 元数据面（无 /api 前缀的容器路径 + /api/storage 族）")
-tag("artifact-operations", "制品操作族——copy/move、归档下载与解包、trash can（pro 槽 repo-operations / trashcan）")
+tag("artifacts", "Artifacts — content-path upload/download/delete plus the storage metadata face (container paths without the /api prefix + the /api/storage family)")
+tag("artifact-operations", "Artifact operations — copy/move, archive download and extraction, trash can (pro slots repo-operations / trashcan)")
 
 
 def build():
     # ---- 内容面：/binflow/{repoKey}/{path} ----
     def common(verb):
         return (
-            "\n\n官方拼写：`%s /binflow/{repoKey}/{path}`（内容路径，各协议客户端同走这里）。"
-            "读门随实例匿名开关（开匿名实例免认证读；闭实例 401）。Maven 域（`/{GAV路径}` 部署/解析/校验和）、"
-            "npm tarball（`/{name}/-/{name}-{v}.tgz` 直取）、Go Modules（`/{module}/@v/...`）等包型接入面同路径族，"
-            "详见各接入指南。" % verb)
+            "\n\nCanonical path: `%s /binflow/{repoKey}/{path}` (content path; all protocol clients go through it). "
+            "Read access follows the instance's anonymous switch (anonymous-enabled instances allow unauthenticated reads; otherwise 401). "
+            "Package-type access surfaces share the same path family — Maven (`/{GAV path}` deploy/resolve/checksums), "
+            "npm tarballs (`/{name}/-/{name}-{v}.tgz` direct fetch), Go Modules (`/{module}/@v/...`) — see each client guide." % verb)
 
     op("/{repoKey}/{path}", "get", "artifactDownload", "artifacts",
-       "下载文件",
-       "支持 Range/If-None-Match/ETag；`.sha1|.md5|.sha256` 后缀回裸 hex；"
-       "归档内成员直读：`/{repo}/{archive}!/{entry}`（首个 `!/` 切分、嵌套递归）。" + common("GET"),
-       params=[pp("repoKey", "仓库 key"), pp("path", "制品路径（多段）")],
+       "Download a file",
+       "Supports Range/If-None-Match/ETag; `.sha1|.md5|.sha256` suffixes return the bare hex; "
+       "archive members are directly readable: `/{repo}/{archive}!/{entry}` (split at the first `!/`, nested recursively)." + common("GET"),
+       params=[pp("repoKey", "Repository key"), pp("path", "Artifact path (multiple segments)")],
        responses={
-           "200": r("文件流", headers=rh("X-Checksum-Sha1", "服务端实测校验和（有值才发）")
-                   | rh("X-Checksum-Sha256", "服务端实测校验和（有值才发）")
-                   | rh("X-Checksum-Md5", "服务端实测校验和（有值才发）")
-                   | rh("ETag", "<sha1>，不包围引号；条件请求 If-None-Match")
-                   | rh("Last-Modified", "RFC1123 格式")
+           "200": r("File stream", headers=rh("X-Checksum-Sha1", "Server-measured checksum (sent only when available)")
+                   | rh("X-Checksum-Sha256", "Server-measured checksum (sent only when available)")
+                   | rh("X-Checksum-Md5", "Server-measured checksum (sent only when available)")
+                   | rh("ETag", "<sha1> without surrounding quotes; conditional requests via If-None-Match")
+                   | rh("Last-Modified", "RFC1123 format")
                    | rh("Accept-Ranges", "bytes")
-                   | rh("X-Artifactory-Filename", "URL-encoded 文件名")),
-           "404": r("制品不存在", schema=S("ErrorsEnvelope"),
+                   | rh("X-Artifactory-Filename", "URL-encoded file name")),
+           "404": r("Artifact not found", schema=S("ErrorsEnvelope"),
                 example={"errors": [{"status": 404, "message": "Unable to find the requested resource 'generic-local/missing.jar'."}]}),
            "401": ERR_401,
        }, security=ANON)
 
     op("/{repoKey}/{path}", "head", "artifactHead", "artifacts",
-       "文件元信息",
-       "响应头同 GET 无 body。" + common("HEAD"),
-       params=[pp("repoKey", "仓库 key"), pp("path", "制品路径（多段）")],
-       responses={"200": r("无 body；响应头同 GET")},
+       "File metadata",
+       "Response headers identical to GET, no body." + common("HEAD"),
+       params=[pp("repoKey", "Repository key"), pp("path", "Artifact path (multiple segments)")],
+       responses={"200": r("No body; response headers identical to GET")},
        security=ANON)
 
     op("/{repoKey}/{path}", "put", "artifactUpload", "artifacts",
-       "上传文件",
-       "body 为内容；checksum 头支持。**matrix 参数**（`;k=v` 尾随成对序列剥离为部署属性）"
-       "——非成对 `;` 维持文件名字面。`PUT /binflow/{repoKey}/{path}/`（尾斜杠）= 创建目录；"
-       "`PUT /binflow/{repoKey}/{path}.sha1|.md5|.sha256` = 上传校验和旁车文件。"
-       "解包部署：携带 `X-Explode-Archive[: true]`（或 `X-Explode-Archive-Atomic: true`）——"
-       "白名单 zip/tar/tar.gz/tgz；成功 201 空体 + `X-Binflow-Exploded-Files: <n>` 计数头；归档原件不落库（目标父目录 `w`）。"
-       "npm 域的 tarball 路径 PUT 为 405（npm 域仅认 packument PUT）。" + common("PUT"),
-       params=[pp("repoKey", "仓库 key"), pp("path", "制品路径（多段）"),
-               h("X-Checksum-Sha1", "客户端声明校验和"),
-               h("X-Checksum-Sha256", "客户端声明校验和"),
-               h("X-Checksum-Md5", "客户端声明校验和"),
-               h("X-Checksum", "无类型标记的校验和（按长度自动识别）"),
-               h("X-Checksum-Deploy", "checksum-only 部署（不传 body）；值 true"),
-               h("Expect", "100-continue：去重加速——先查 blob 是否存在"),
-               h("X-Explode-Archive", "解包部署开关（true）"),
-               h("X-Explode-Archive-Atomic", "原子解包（true）")],
-       req_body=body("文件内容", schema={"type": "string", "format": "binary"}),
+       "Upload a file",
+       "The body is the content; checksum headers are supported. **Matrix parameters** "
+       "(trailing `;k=v` pairs are stripped off as deploy properties) — an unpaired `;` stays literal in the file name. "
+       "`PUT /binflow/{repoKey}/{path}/` (trailing slash) creates a directory; "
+       "`PUT /binflow/{repoKey}/{path}.sha1|.md5|.sha256` uploads a checksum sidecar file. "
+       "Explode deploy: send `X-Explode-Archive: true` (or `X-Explode-Archive-Atomic: true`) — "
+       "whitelist zip/tar/tar.gz/tgz; success is 201 with an empty body plus the `X-Binflow-Exploded-Files: <n>` count header; "
+       "the archive itself is not stored (`w` on the target parent directory). "
+       "A tarball-path PUT in the npm domain is 405 (the npm domain accepts packument PUTs only)." + common("PUT"),
+       params=[pp("repoKey", "Repository key"), pp("path", "Artifact path (multiple segments)"),
+               h("X-Checksum-Sha1", "Client-declared checksum"),
+               h("X-Checksum-Sha256", "Client-declared checksum"),
+               h("X-Checksum-Md5", "Client-declared checksum"),
+               h("X-Checksum", "Checksum without a type marker (auto-detected by length)"),
+               h("X-Checksum-Deploy", "Checksum-only deploy (no body); value true"),
+               h("Expect", "100-continue: dedup fast path — checks blob existence first"),
+               h("X-Explode-Archive", "Explode deploy switch (true)"),
+               h("X-Explode-Archive-Atomic", "Atomic explode (true)")],
+       req_body=body("File content", schema={"type": "string", "format": "binary"}),
        responses={
-           "201": r("上传成功", headers=rh("Location", "新资源 URL")
-                    | rh("X-Binflow-Exploded-Files", "解包部署落库文件计数")),
-           "409": r("checksum 不匹配", schema=S("ErrorsEnvelope"),
+           "201": r("Uploaded", headers=rh("Location", "URL of the new resource")
+                    | rh("X-Binflow-Exploded-Files", "Count of files stored by the explode deploy")),
+           "409": r("Checksum mismatch", schema=S("ErrorsEnvelope"),
                     example={"errors": [{"status": 409, "message": "Checksum error for 'maven-local/com/example/demo/1.0.0/demo-1.0.0.jar': received 'abc123' but actual is 'def456'."}]}),
-           "413": r("配额超限", schema=S("ErrorsEnvelope"),
+           "413": r("Quota exceeded", schema=S("ErrorsEnvelope"),
                     example={"errors": [{"status": 413, "message": "Repository 'tiny' quota exceeded: used 800 of 934 bytes; the write to 'b.bin' needs 800 more bytes."}]}),
            "401": ERR_401,
        })
 
     op("/{repoKey}/{path}", "delete", "artifactDelete", "artifacts",
-       "删除文件或目录树",
-       "目录树递归删除。" + common("DELETE"),
-       params=[pp("repoKey", "仓库 key"), pp("path", "制品路径（多段）")],
-       responses={"200": r("已删除"), "401": ERR_401, "403": ERR_403})
+       "Delete a file or a directory tree",
+       "Directory trees are deleted recursively." + common("DELETE"),
+       params=[pp("repoKey", "Repository key"), pp("path", "Artifact path (multiple segments)")],
+       responses={"200": r("Deleted"), "401": ERR_401, "403": ERR_403})
 
     # ---- /api/storage 族 ----
     op("/api/storage/{repoKey}/{path}", "get", "storageItemInfo", "artifacts",
-       "取 FileInfo / FolderInfo JSON",
-       "官方拼写：`GET /binflow/api/storage/{repoKey}/{path}`。查询臂：\n"
-       "- `?properties=K1,K2*` 取属性（key 过滤 + 尾 `*` 通配；无命中 = 200 `{\"properties\":{}}`——BinFlow 自有裁定，"
-       "非 Artifactory 的 404；node 不存在 = 404）；\n"
-       "- `?stats` 取下载统计（计数对全档可见——item-info 读门；`lastDownloadedBy` 仅 admin / readonly_admin 回带，"
-       "低档位 omitempty，从不伪造；探针自身不计入计数）；\n"
-       "- `?lastModified` 取目录最新修改时间；\n"
-       "- `?permissions` 取有效权限视图（admin only，仅 local 仓）。\n"
-       "trash can 浏览骑同一面：`GET /api/storage/auto-trashcan[...][?properties|?list]`（五元组断言面 = `?properties`）。",
-       params=[pp("repoKey", "仓库 key"), pp("path", "节点路径"),
-               q("properties", "key 过滤（逗号分隔；尾 `*` 通配）"),
-               q("stats", "存在即取下载统计", schema={"type": "boolean"}),
-               q("lastModified", "存在即取目录最新修改时间", schema={"type": "boolean"}),
-               q("permissions", "存在即取有效权限视图（admin only，仅 local 仓）", schema={"type": "boolean"})],
-       responses={"200": r("FileInfo / FolderInfo（?arms 回对应形态；?stats 回 StatsInfo）",
+       "Get FileInfo / FolderInfo JSON",
+       "Canonical path: `GET /binflow/api/storage/{repoKey}/{path}`. Query arms:\n"
+       "- `?properties=K1,K2*` returns properties (key filter + trailing `*` wildcard; no matches = 200 `{\"properties\":{}}` — "
+       "a BinFlow ruling, not Artifactory's 404; nonexistent node = 404);\n"
+       "- `?stats` returns download statistics (counts visible on all tiers — the item-info read gate; "
+       "`lastDownloadedBy` is returned only to admin / readonly_admin, omitted on lower tiers, never fabricated; "
+       "the probe itself is not counted);\n"
+       "- `?lastModified` returns the directory's latest modification time;\n"
+       "- `?permissions` returns the effective-permissions view (admin only, local repositories only).\n"
+       "Trash can browsing rides the same face: `GET /api/storage/auto-trashcan[...][?properties|?list]` "
+       "(the five-tuple assertion face = `?properties`).",
+       params=[pp("repoKey", "Repository key"), pp("path", "Node path"),
+               q("properties", "Key filter (comma-separated; trailing `*` wildcard)"),
+               q("stats", "Present → return download statistics", schema={"type": "boolean"}),
+               q("lastModified", "Present → return the directory's latest modification time", schema={"type": "boolean"}),
+               q("permissions", "Present → return the effective-permissions view (admin only, local repositories only)", schema={"type": "boolean"})],
+       responses={"200": r("FileInfo / FolderInfo (?arms return the corresponding shape; ?stats returns StatsInfo)",
                            schema={"anyOf": [S("FolderInfo"), S("FileInfo"), S("StatsInfo")]}),
-                  "404": r("node 不存在")},
+                  "404": r("Node not found")},
        security=ANON)
 
-    int32_err = ("七个整数参数任一**出现**且解析失败（非整数或越 int32 界）→ 400 `For input string: \"<v>\"`；"
-                 "空值/空白视为缺席（同未传）")
+    int32_err = ("If any of the seven integer parameters is **present** but fails to parse (not an integer or out of int32 range) "
+                 "→ 400 `For input string: \"<v>\"`; empty/blank values are treated as absent (same as not sent)")
     op("/api/storage/{repoKey}", "get", "storageList", "artifacts",
-       "流式文件清单（仅认证用户）",
-       "官方拼写：`GET /binflow/api/storage/{repoKey}?list`（带路径前缀亦可：`/api/storage/{repoKey}/{path}?list`）。"
-       "七参族全量：`deep`/`depth`/`listFolders`/`includeRootPath` 控制枚举形态，"
-       "`mdTimestamps`/`statsTimestamps`/`includePropertiesMd5` 为条目附加元数据。开关臂按值 ==1 取（其它整数不开启）；"
-       "`depth` 仅作 `deep=1` 的限深，自身不触发递归。响应 Content-Type 为 vendor 形"
-       " `application/vnd.org.jfrog.artifactory.storage.FileList+json`——"
-       "`files[]` 按字母序混排、`uri` 带前导斜杠且相对被查目录；目录行（`listFolders=1`）`uri` 无尾斜杠、`size` -1、"
-       "`folder` true。" + int32_err + "。匿名 403（handler 自答，非 401 挑战）。",
-       params=[pp("repoKey", "仓库 key"),
-               q("list", "存在即流式清单（匿名 403——handler 自答，非 401 挑战）", schema={"type": "boolean"}),
-               q("deep", "1 = 递归列出子目录内容（缺省 0 平铺；其它整数值不开启——开关臂按 ==1 取）",
+       "Streaming file listing (authenticated users only)",
+       "Canonical path: `GET /binflow/api/storage/{repoKey}?list` (a path prefix also works: `/api/storage/{repoKey}/{path}?list`). "
+       "The full seven-parameter family: `deep`/`depth`/`listFolders`/`includeRootPath` control the enumeration shape, "
+       "`mdTimestamps`/`statsTimestamps`/`includePropertiesMd5` attach extra per-entry metadata. Boolean arms are taken as "
+       "value == 1 (other integers do not enable); `depth` only bounds the recursion of `deep=1` and does not trigger "
+       "recursion itself. The response Content-Type is the vendor form "
+       "`application/vnd.org.jfrog.artifactory.storage.FileList+json` — "
+       "`files[]` mixes files and folders in one alphabetical order, `uri` carries a leading slash and is relative to the "
+       "queried directory; folder rows (`listFolders=1`) have no trailing slash on `uri`, `size` -1, `folder` true. "
+       + int32_err + ". Anonymous → 403 (answered by the handler itself, not a 401 challenge).",
+       params=[pp("repoKey", "Repository key"),
+               q("list", "Present → streaming listing (anonymous → 403 — answered by the handler itself, not a 401 challenge)", schema={"type": "boolean"}),
+               q("deep", "1 = recursively list subdirectory contents (default 0 flat; other integer values do not enable — boolean arms are taken as ==1)",
                  schema={"type": "integer", "default": 0}, example=1),
-               q("depth", "deep=1 的递归限深（缺省 0 不限；1 = 只列直接子级）；仅修饰符——自身不触发递归",
+               q("depth", "Recursion depth bound for deep=1 (default 0 unlimited; 1 = direct children only); modifier only — does not trigger recursion itself",
                  schema={"type": "integer", "default": 0}, example=1),
-               q("listFolders", "1 = 目录行并入 files[]（size -1、folder true，与文件行同一字母序）",
+               q("listFolders", "1 = folder rows merged into files[] (size -1, folder true, same alphabetical order as file rows)",
                  schema={"type": "integer", "default": 0}, example=1),
-               q("includeRootPath", "1 = 被查询目录自身以 `/` 行领首 files[]（size -1）",
+               q("includeRootPath", "1 = the queried directory itself leads files[] as a `/` row (size -1)",
                  schema={"type": "integer", "default": 0}, example=1),
-               q("mdTimestamps", "1 = 携带属性的条目（文件与目录）附加 mdTimestamps.properties（属性最近变更时刻）",
+               q("mdTimestamps", "1 = entries carrying properties (files and folders) get mdTimestamps.properties (time of the last property change)",
                  schema={"type": "integer", "default": 0}, example=1),
-               q("statsTimestamps", "1 = 有下载史的文件条目附加 mdTimestamps.artifactory.stats（最近下载时刻；从未下载与目录行不附）",
+               q("statsTimestamps", "1 = file entries with download history get mdTimestamps.artifactory.stats (last download time; never-downloaded files and folder rows are skipped)",
                  schema={"type": "integer", "default": 0}, example=1),
-               q("includePropertiesMd5", "1 = 携带属性的条目附加 propertiesMd5（属性集 canonical 序列化的 md5）",
+               q("includePropertiesMd5", "1 = entries carrying properties get propertiesMd5 (md5 over the canonical serialization of the property set)",
                  schema={"type": "integer", "default": 0}, example=1)],
-       responses={"200": r("文件清单（FileList 形：uri / created / files[]；条目字段 uri·size·lastModified·folder·sha1·sha2 "
-                          "+ 可选 mdTimestamps{}·propertiesMd5）",
+       responses={"200": r("File listing (FileList shape: uri / created / files[]; entry fields uri·size·lastModified·folder·sha1·sha2 "
+                          "+ optional mdTimestamps{}·propertiesMd5)",
                           schema=obj({"uri": {"type": "string"},
                                       "created": {"type": "string"},
                                       "files": arr(obj({"uri": {"type": "string"},
@@ -137,86 +143,90 @@ def build():
                                                         "sha2": {"type": "string"},
                                                         "mdTimestamps": obj({"properties": {"type": "string"},
                                                                              "artifactory.stats": {"type": "string"}},
-                                                                            desc="mdTimestamps=1 / statsTimestamps=1 各自附加的键（仅有底层事实时）"),
+                                                                            desc="Keys attached by mdTimestamps=1 / statsTimestamps=1 respectively (only when the underlying fact exists)"),
                                                         "propertiesMd5": {"type": "string"}},
-                                                       desc="清单条目（字母序混排；目录行 size -1 无摘要）"))},
-                                      desc="FileList 响应（流式）"),
+                                                       desc="Listing entry (alphabetical interleave; folder rows have size -1 and no digest)"))},
+                                      desc="FileList response (streaming)"),
                           ctype="application/vnd.org.jfrog.artifactory.storage.FileList+json"),
                   "400": r(int32_err, schema=S("ErrorsEnvelope"),
                            example={"errors": [{"status": 400, "message": "For input string: \"abc\""}]}),
                   "403": ERR_403})
 
     op("/api/storage/{repoKey}/{path}", "put", "storagePropertiesPut", "artifacts",
-       "写属性（merge 语义）",
-       "官方拼写：`PUT /binflow/api/storage/{repoKey}/{path}?properties=k=v1,v2[&recursive=1]`。"
-       "**merge 语义**：同名键值集整体替换、异名键保留；node 须存在（404）。",
-       params=[pp("repoKey", "仓库 key"), pp("path", "节点路径"),
-               q("properties", "k=v1,v2 形（多键逗号分隔）", required=True),
-               q("recursive", "folder + recursive=1 递归", schema={"type": "boolean"})],
-       responses={"200": r("已写入"), "404": r("node 不存在"), "401": ERR_401})
+       "Write properties (merge semantics)",
+       "Canonical path: `PUT /binflow/api/storage/{repoKey}/{path}?properties=k=v1,v2[&recursive=1]`. "
+       "**Merge semantics**: the value set of a same-named key is replaced wholesale, differently-named keys are kept; "
+       "the node must exist (404).",
+       params=[pp("repoKey", "Repository key"), pp("path", "Node path"),
+               q("properties", "k=v1,v2 form (multiple keys comma-separated)", required=True),
+               q("recursive", "folder + recursive=1 applies recursively", schema={"type": "boolean"})],
+       responses={"200": r("Written"), "404": r("Node not found"), "401": ERR_401})
 
     op("/api/storage/{repoKey}/{path}", "delete", "storagePropertiesDelete", "artifacts",
-       "删属性（幂等）",
-       "官方拼写：`DELETE /binflow/api/storage/{repoKey}/{path}?properties=k1,k2[&recursive=1]`。"
-       "不存在的键 204；`properties=*` 全删；folder + `recursive=1` 递归。",
-       params=[pp("repoKey", "仓库 key"), pp("path", "节点路径"),
-               q("properties", "k1,k2 或 *（全删）", required=True),
-               q("recursive", "folder 递归", schema={"type": "boolean"})],
-       responses={"204": r("已删除（幂等）"), "401": ERR_401})
+       "Delete properties (idempotent)",
+       "Canonical path: `DELETE /binflow/api/storage/{repoKey}/{path}?properties=k1,k2[&recursive=1]`. "
+       "Nonexistent keys are 204; `properties=*` deletes everything; folder + `recursive=1` applies recursively.",
+       params=[pp("repoKey", "Repository key"), pp("path", "Node path"),
+               q("properties", "k1,k2 or * (delete all)", required=True),
+               q("recursive", "Apply recursively on folders", schema={"type": "boolean"})],
+       responses={"204": r("Deleted (idempotent)"), "401": ERR_401})
 
     # ---- copy / move / archive / trash ----
-    for verb, word in (("copy", "复制"), ("move", "搬移")):
+    for verb, word in (("copy", "copy"), ("move", "move")):
         op("/api/%s/{srcRepo}/{srcPath}" % verb, "post", "artifact%s" % verb.capitalize(),
            "artifact-operations",
-           "树级%s（零拷贝）" % word,
-           "官方拼写：`POST /binflow/api/%s/{srcRepo}[/{srcPath}]?to=/{targetRepo}[/{targetPath}]`"
-           "（srcPath 可省略 = 整仓）。%s = copy + 源删除 + 目录剪除（move 另需源 `delete`）。"
-           "认证 + 逐文件管线（源 read/目标 write）+ license；`dry=1` 干跑；"
-           "响应 200 + `messages[]`，Content-Type 为 vendor 形"
-           " `application/vnd.org.jfrog.artifactory.storage.CopyOrMoveResult+json`；"
-           "状态 = 最后一条 error 的码（无码 409 兜底）。community 实例整族答 403 +"
-           " `X-Binflow-License-Required: repo-operations`；`/api/flat/copy|move` 不实现（404）。"
-           % (verb, "树级搬移" if verb == "move" else "树级复制"),
-           params=[pp("srcRepo", "源仓库 key"), pp("srcPath", "源路径（可省略 = 整仓）"),
-                   q("to", "/{targetRepo}[/{targetPath}] 目标", required=True),
-                   q("dry", "1 = 干跑", schema={"type": "string"})],
-           responses={"200": r("CopyOrMoveResult（messages[]）", schema=S("CopyMoveResult"),
+           "Tree-level %s (zero-copy)" % word,
+           "Canonical path: `POST /binflow/api/%s/{srcRepo}[/{srcPath}]?to=/{targetRepo}[/{targetPath}]` "
+           "(srcPath may be omitted = the whole repository). A %s = copy + source deletion + directory pruning "
+           "(move additionally requires source `delete`). Requires authentication + a per-file pipeline "
+           "(source read / target write) + license; `dry=1` for a dry run; "
+           "responds 200 + `messages[]`, Content-Type is the vendor form "
+           "`application/vnd.org.jfrog.artifactory.storage.CopyOrMoveResult+json`; "
+           "the status = the code of the last error message (409 fallback when none). Community instances answer the "
+           "whole family 403 + `X-Binflow-License-Required: repo-operations`; `/api/flat/copy|move` is not implemented (404)."
+           % (verb, "Move" if verb == "move" else "Copy"),
+           params=[pp("srcRepo", "Source repository key"), pp("srcPath", "Source path (may be omitted = the whole repository)"),
+                   q("to", "Target /{targetRepo}[/{targetPath}]", required=True),
+                   q("dry", "1 = dry run", schema={"type": "string"})],
+           responses={"200": r("CopyOrMoveResult (messages[])", schema=S("CopyMoveResult"),
                                ctype="application/vnd.org.jfrog.artifactory.storage.CopyOrMoveResult+json"),
                       "401": ERR_401, "403": ERR_403})
 
     op("/api/archive/download/{repoKey}/{path}", "get", "archiveDownload",
-       "artifact-operations", "目录/整仓流式打包下载",
-       "官方拼写：`GET /binflow/api/archive/download/{repo}[/{path}]?archiveType=zip|tar|tar.gz|tgz`"
-       "（path 可省略 = 整仓）。不落盘；读权限（匿名 401 先于参数解析）；"
-       "`includeChecksumFiles=true` 附 checksum 伴随条目。**默认关**（`folder_download.enabled=false`，"
-       "六字段可配、重启生效——见制品操作族指南）。",
-       params=[pp("repoKey", "仓库 key"), pp("path", "子树路径（可省略 = 整仓）"),
+       "artifact-operations", "Streaming archive download of a directory or whole repository",
+       "Canonical path: `GET /binflow/api/archive/download/{repo}[/{path}]?archiveType=zip|tar|tar.gz|tgz` "
+       "(path may be omitted = the whole repository). Nothing is written to disk; read permission "
+       "(anonymous 401 precedes parameter parsing); `includeChecksumFiles=true` includes checksum sidecar entries. "
+       "**Off by default** (`folder_download.enabled=false`; six configurable fields, effective on restart — "
+       "see the artifact operations guide).",
+       params=[pp("repoKey", "Repository key"), pp("path", "Subtree path (may be omitted = the whole repository)"),
                q("archiveType", "zip | tar | tar.gz | tgz", required=True,
                  schema={"type": "string", "enum": ["zip", "tar", "tar.gz", "tgz"]}),
-               q("includeChecksumFiles", "true 附 checksum 伴随条目", schema={"type": "boolean"})],
-       responses={"200": r("归档流"),
+               q("includeChecksumFiles", "true includes checksum sidecar entries", schema={"type": "boolean"})],
+       responses={"200": r("Archive stream"),
                   "401": ERR_401, "403": ERR_403})
 
     op("/api/trash/restore/{path}", "post", "trashRestore", "artifact-operations",
-       "恢复回收站条目",
-       "官方拼写：`POST /binflow/api/trash/restore/{path}?to=&transaction-size=`。"
-       "`to` 覆盖 > 五元组 > 路径首段；剥 `trash.*` 标记、原属性保留；"
-       "响应 = copy/move 的 `messages[]` 同构。门 = system:write（仅全量 admin）+ pro 槽 trashcan（暂行）。",
-       params=[pp("path", "回收站内路径"),
-               q("to", "恢复目标（覆盖五元组推断）"),
-               q("transaction-size", "事务批量", schema={"type": "integer"})],
-       responses={"200": r("CopyOrMoveResult（messages[] 同构）", schema=S("CopyMoveResult")),
+       "Restore a trash can entry",
+       "Canonical path: `POST /binflow/api/trash/restore/{path}?to=&transaction-size=`. "
+       "`to` overrides > five-tuple inference > first path segment; `trash.*` markers are stripped, original properties "
+       "are kept; the response is isomorphic to copy/move `messages[]`. Gate = system:write (full admins only) + the "
+       "trashcan pro slot (interim).",
+       params=[pp("path", "Path inside the trash can"),
+               q("to", "Restore target (overrides five-tuple inference)"),
+               q("transaction-size", "Transaction batch size", schema={"type": "integer"})],
+       responses={"200": r("CopyOrMoveResult (messages[], isomorphic)", schema=S("CopyMoveResult")),
                   "401": ERR_401, "403": ERR_403})
 
     op("/api/trash/empty", "post", "trashEmpty", "artifact-operations",
-       "清空整个回收站",
-       "官方拼写：`POST /binflow/api/trash/empty`。回 JSON 摘要 `{\"removed\",\"files\",\"folders\",\"bytes\"}`。",
-       responses={"200": r("摘要", schema=S("TrashSummary")),
+       "Empty the whole trash can",
+       "Canonical path: `POST /binflow/api/trash/empty`. Returns a JSON summary `{\"removed\",\"files\",\"folders\",\"bytes\"}`.",
+       responses={"200": r("Summary", schema=S("TrashSummary")),
                   "401": ERR_401, "403": ERR_403})
 
     op("/api/trash/clean/{path}", "delete", "trashClean", "artifact-operations",
-       "单条（子树）永久清除",
-       "官方拼写：`DELETE /binflow/api/trash/clean/{path}`。摘要同 empty。",
-       params=[pp("path", "回收站内路径")],
-       responses={"200": r("摘要", schema=S("TrashSummary")),
+       "Permanently purge a single entry (subtree)",
+       "Canonical path: `DELETE /binflow/api/trash/clean/{path}`. Same summary shape as empty.",
+       params=[pp("path", "Path inside the trash can")],
+       responses={"200": r("Summary", schema=S("TrashSummary")),
                   "401": ERR_401, "403": ERR_403})

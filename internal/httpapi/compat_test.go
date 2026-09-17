@@ -265,8 +265,9 @@ func TestRepositoriesCRUD(t *testing.T) {
 	})
 }
 
-// TestRepositoriesAuthMatrix: the management plane demands authentication,
-// and the whole repository surface (reads included, D2) demands admin.
+// TestRepositoriesAuthMatrix: the management plane demands authentication;
+// the repo READ faces are authentication-only (L026-7 — every authenticated
+// caller reaches them), the writes still demand admin (D2).
 func TestRepositoriesAuthMatrix(t *testing.T) {
 	h := newHarness(t)
 	seedRepo(t, h, "generic-local")
@@ -280,9 +281,9 @@ func TestRepositoriesAuthMatrix(t *testing.T) {
 	}{
 		{"anonymous list is 401", http.MethodGet, "/binflow/api/repositories", "", "", http.StatusUnauthorized},
 		{"anonymous create is 401", http.MethodPut, "/binflow/api/repositories/new-repo", "", "", http.StatusUnauthorized},
-		{"non-admin list is 403 (D2, FR-5-AC8)", http.MethodGet, "/binflow/api/repositories", "ci-bot", "ci-pw", http.StatusForbidden},
+		{"non-admin list is 200 (L026-7: read faces auth-only, entries identical to admin)", http.MethodGet, "/binflow/api/repositories", "ci-bot", "ci-pw", http.StatusOK},
 		{"admin list is 200", http.MethodGet, "/binflow/api/repositories", adminUser, adminPass, http.StatusOK},
-		{"non-admin single-repo get is 403 (D2)", http.MethodGet, "/binflow/api/repositories/generic-local", "ci-bot", "ci-pw", http.StatusForbidden},
+		{"non-admin single-repo get is 200 (L026-7: four-key projection)", http.MethodGet, "/binflow/api/repositories/generic-local", "ci-bot", "ci-pw", http.StatusOK},
 		{"non-admin storage stats is 403 (D2)", http.MethodGet, "/binflow/api/v1/storage/stats", "ci-bot", "ci-pw", http.StatusForbidden},
 		{"non-admin v1 health is 403 (D2)", http.MethodGet, "/binflow/api/v1/health", "ci-bot", "ci-pw", http.StatusForbidden},
 		{"admin v1 health is 200", http.MethodGet, "/binflow/api/v1/health", adminUser, adminPass, http.StatusOK},

@@ -70,6 +70,13 @@ type Service struct {
 	az    Authorizer
 	caps  CapabilitySource
 	nodes NodeChecker
+	// repos is the optional system-repo provisioning seam (system.go):
+	// nil keeps EnsureSystemRepo an honest no-op.
+	repos RepoStore
+	// cleanupHours is the config face's knob (system.go; the factory
+	// default until a PUT lands a value).
+	cleanupHours int
+	cfgMu        sync.Mutex
 	// auditRec records the domain's audit rows best-effort (ADR-0046
 	// decision 12's two words; nil = the bare unit stack).
 	auditRec audit.Recorder
@@ -114,7 +121,7 @@ func WithFeatureGate(on func(ctx context.Context) bool) Option {
 // bug, not a capability; nil is the fail-closed build. The optional seams
 // ride the options.
 func New(store Store, az Authorizer, caps CapabilitySource, opts ...Option) *Service {
-	s := &Service{store: store, az: az, caps: caps}
+	s := &Service{store: store, az: az, caps: caps, cleanupHours: DefaultCleanupPeriodHours}
 	for _, opt := range opts {
 		opt(s)
 	}

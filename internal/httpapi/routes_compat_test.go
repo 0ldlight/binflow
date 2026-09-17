@@ -67,8 +67,11 @@ func TestManagementPlane401Matrix(t *testing.T) {
 
 // TestD2D3AdminReadPlaneMatrix is the D2/D3 regression matrix: the four
 // surfaces QA flagged (repository reads, single-repo read, v1 stats, v1
-// health) answer 403 for a non-admin principal, 200 for admin, 401 for
-// anonymous — and the unauthenticated probes stay open. Token minting LEFT
+// health) answer 401 for anonymous and 200 for admin; the stats/health
+// pair answers 403 for a non-admin principal. The two REPO rows left the
+// 403 set with L026-7 (the L026-5 spec ruling: the read faces are
+// authentication-only — a non-admin collects the list and the partial
+// projection) — and the unauthenticated probes stay open. Token minting LEFT
 // this matrix with T-190 (PRD M6 v1.2 Q11): the self-mint is open to every
 // authenticated caller, so its posture is asserted separately below.
 func TestD2D3AdminReadPlaneMatrix(t *testing.T) {
@@ -79,23 +82,26 @@ func TestD2D3AdminReadPlaneMatrix(t *testing.T) {
 		name   string
 		method string
 		path   string
+		// nonAdmin: the non-admin principal's expected status (the two
+		// L026-7 repo rows carry 200, the D2 stats/health pair keeps 403).
+		nonAdmin int
 	}{
-		{"repo list", http.MethodGet, "/binflow/api/repositories"},
-		{"single repo", http.MethodGet, "/binflow/api/repositories/generic-local"},
-		{"v1 storage stats", http.MethodGet, "/binflow/api/v1/storage/stats"},
-		{"v1 health", http.MethodGet, "/binflow/api/v1/health"},
+		{"repo list", http.MethodGet, "/binflow/api/repositories", http.StatusOK},
+		{"single repo", http.MethodGet, "/binflow/api/repositories/generic-local", http.StatusOK},
+		{"v1 storage stats", http.MethodGet, "/binflow/api/v1/storage/stats", http.StatusForbidden},
+		{"v1 health", http.MethodGet, "/binflow/api/v1/health", http.StatusForbidden},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Non-admin: 403.
+			// Non-admin.
 			var body []byte
 			if tc.method == http.MethodPost {
 				body = []byte("grant_type=client_credentials")
 			}
 			resp := h.do(tc.method, tc.path, "qa-bot", "qa-pw", body, nil)
 			respBody := mustGet(t, resp)
-			if resp.StatusCode != http.StatusForbidden {
-				t.Fatalf("non-admin status = %d, want 403; body=%s", resp.StatusCode, respBody)
+			if resp.StatusCode != tc.nonAdmin {
+				t.Fatalf("non-admin status = %d, want %d; body=%s", resp.StatusCode, tc.nonAdmin, respBody)
 			}
 			// Admin: 200.
 			resp = h.do(tc.method, tc.path, adminUser, adminPass, body, nil)
