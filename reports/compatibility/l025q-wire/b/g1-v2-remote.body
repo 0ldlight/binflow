@@ -1,0 +1,59 @@
+{
+  "allowAnyHostAuth": false,
+  "archiveBrowsingEnabled": false,
+  "assumedOfflinePeriodSecs": 300,
+  "blackedOut": false,
+  "blockMismatchingMimeTypes": false,
+  "bypassHeadRequests": false,
+  "contentSynchronisation": {
+    "enabled": false,
+    "properties": {
+      "enabled": false
+    },
+    "source": {
+      "originAbsenceDetection": false
+    },
+    "statistics": {
+      "enabled": false
+    }
+  },
+  "curated": false,
+  "customHttpHeaders": [],
+  "description": "",
+  "disableProxy": false,
+  "disableUrlNormalization": false,
+  "downloadRedirect": false,
+  "enableCookieManagement": false,
+  "environments": [],
+  "excludesPattern": "",
+  "hardFail": false,
+  "includesPattern": "**/*",
+  "key": "l025q-rem",
+  "listRemoteFolderItems": false,
+  "localAddress": "",
+  "metadataRetrievalTimeoutSecs": 60,
+  "missedRetrievalCachePeriodSecs": 1800,
+  "notes": "",
+  "offline": false,
+  "packageType": "generic",
+  "passThrough": false,
+  "password": "",
+  "priorityResolution": false,
+  "propagateQueryParams": false,
+  "propertySets": [],
+  "repoLayoutRef": "maven-2-default",
+  "retrievalCachePeriodSecs": 7200,
+  "retrieveSha256FromServer": false,
+  "sendContext": false,
+  "shareConfiguration": false,
+  "signedUrlTtl": 90,
+  "socketTimeoutMillis": 15000,
+  "storeArtifactsLocally": true,
+  "synchronizeProperties": false,
+  "type": "remote",
+  "unusedArtifactsCleanupPeriodHours": 0,
+  "url": "http://172.16.58.130:8082/artifactory",
+  "username": "",
+  "xrayDataTtl": 90,
+  "xrayIndex": false
+}

@@ -1,0 +1,8 @@
+HTTP 200
+Cache-Control: no-store
+Content-Type: application/vnd.org.jfrog.artifactory.repositories.RemoteRepositoryConfiguration+json
+X-Content-Type-Options: nosniff
+X-Request-Id: d413b51f1279f6fcb872c271c1eaa8e7
+Date: Thu, 17 Sep 2026 00:23:28 GMT
+Content-Length: 1509
+Connection: close

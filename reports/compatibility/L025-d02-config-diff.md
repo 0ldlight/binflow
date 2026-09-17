@@ -49,3 +49,62 @@
 ## 4. 环境处置
 
 双端 l025q-* 仓（seed/virt/rem/b1/b2/t1/t2）全删复核（A/B residue []）；非 admin 用户 `l025q-u` 双端删除复核（404）；/tmp 清理；本轮零 ssh。
+
+## 5. L025-8 终轮重放（dev.b79a2d51——G1 键表 989ad5ed + G4/G2/G5 256571d1 + FE b79a2d51 后）
+
+- **模式**：dual（A 全程可达；轮中一次工作机→实验室断网 ~8 分钟，后台轮询恢复后继续，无双端状态污染——恢复后首探双方 fixture 一致性复核过）
+- **夹具**：l025q-u 非 admin 用户双端重建（L025-4 清理删除致 pass1 五单元 401；email 必填 + A 限流 20s 冷却后 pass2 干净）；seed/virt/rem 三仓驱动器自建
+- **批跑**：`python3 tools/difftest/l0254/d02_config_diff.py` pass2 = **SAME 28 / DIVERGENT 8**（pass1 判定集与 pass2 一致除夹具 401 五单元——复跑门过）
+
+### 5.1 四层键集面逐层键名 diff（G1 修复验证，本轮核心）
+
+| 层 | local(seed) | virtual(virt) | remote(rem) |
+|---|---|---|---|
+| v1 全渲染 `GET /api/repositories/<k>` | A 61 = B 61 键名同 | A 50 = B 50 | A 102 = B 102 |
+| v2 `GET /api/v2/repositories/<k>` | A 18 = B 18 | A 12 = B 12 | A 46 = B 46 |
+| configurations 公共投影 | 18 = 18 | 12 = 12 | 46 = 46 |
+| 非 admin 部分视图 | 4 = 4 | 5 = 5 | 5 = 5（description/key/packageType/type/url 逐名同） |
+
+**四层键名差总数 = 0**（wire `l025q-wire/{a,b}/g1-v1-*.body`、`g1-v2-*.body`、`g1-plain-*.body` + pass2 c01/v05）。**值级**：v1-local/v1-virtual/v2 全部/virtual·local 非 admin = **parsed 全等**；唯一残差 = **v1-remote `hexPublicKey` 值形**（A=PEM 公钥块，B=空串）——登记项候裁（G1-R1，不挡翻绿）；v2 face 不含该键（v2 层全净）。
+
+### 5.2 L025-5 三臂重放
+
+| 臂 | 结果 | 证据 |
+|---|---|---|
+| PUT 批建非 admin（G4） | **SAME** | w05：A=B 403 裸 `Forbidden` 信封逐字同（256571d1 修复落位） |
+| DELETE blank-key ghost（G2） | **SAME** | w12：`["k",""]` 双端 200 逐仓 ghost 形（`''` 行 success:true `Cannot delete...does not exist`），真仓同删 |
+| v1 GET 未知 key（G5） | **SAME** | w02b：双端 400 `{"errors":[{"status":400,"message":"Bad Request"}]}` |
+
+### 5.3 pass2 八分歧逐个裁处
+
+| 单元 | 分歧面 | 裁处 |
+|---|---|---|
+| v03 | 驱动器怪癖：bodyless GET 丢 CT 头 + 字面比对（键序） | **显式 CT 重探双端 406 `{"errors":[{"status":406,"message":"Not Acceptable"}]}` parsed 同**（wire v03-explicit-ct-406.*）→ 实质 SAME |
+| l01/l02 | A 独有 `Access-Control-Allow-Headers/Methods` + `Cache-Control: no-store`；l02 另有 `repositoryAssociations` 实例态 | **G6 头族维持开放**（PN 候裁）；布局定义字段 parsed 同（除 associations=Q5 实例态规则） |
+| w06b | A 独有 `Cache-Control: no-store`（body parsed 同） | G6 邻面，维持开放 |
+| w08 | A=`Only platform/project admins are allowed to update repositories` B=`User is not authorized to update the following repositories: l025q-b1` | **G3 登记项未修**（plain-user 403 文案族，候裁不挡） |
+| w11/w14 | reports[] 行序差（A=HashSet 序 / B=请求序） | **Q4 集合化复判：两单元行集全等、statusMessage 同**（`All repositories were removed successfully`）→ 实质 SAME |
+| w13 | A=200 ghost 报告 B=403 预校验 | **隔离双臂定谳**：existing 臂（seed）=双端 403 `Cannot delete repository: 'k', Reason: User: ('l025q-u') has insufficient permission to delete repositories: k` **parsed 同**（L025-4 逐字同面在 b79a2d51 复现）；ghost 臂（none）=A 存在性检查先行→200 ghost / B 权限预校验先行→403——**检查次序面**（新窄残差 G9-R2，归 plain-user 403 登记族候裁，不挡） |
+
+### 5.4 终轮口径
+
+| 口径 | 数 |
+|---|---|
+| 判定单元 | 36 + 定向补探 5（v03 显式 CT / g1 四层×3 rclass / w13 隔离双臂） |
+| SAME | 28 + 实质复判 3（v03/w11/w14）= **31/36** |
+| 残差分歧面 | 5：G6 头族 3 面（l01/l02/w06b）+ plain-user 403 族 2 面（w08 文案、w13-ghost 检查次序）+ G1-R1 hexPublicKey 值形（v1-remote 层补探发现）——全部登记候裁，无新增未登记面 |
+
+## 6. matrix D02 批次 3 全行翻绿建议终版（落账归 conductor/compatibility-engineer）
+
+| 行 | 终版建议 | 依据 |
+|---|---|---|
+| configurations 全量读 | **翻 ✅ VERIFIED**（G1 已修——四层键名 0 差，§5.1） | c01-c03 + g1 层 |
+| existence | **翻 ✅ VERIFIED**（维持 L025-4 建议） | e01-e04 |
+| v2 单仓读 | **翻 ✅ VERIFIED**（v01/v02/v04/v05 + 18/12/46 键名同 + 显式 406） | v01-v05 + g1-v2 |
+| v2 批读 | **翻 ✅ VERIFIED**（b01-b03 + configurations 投影键同） | b01-b03 + §5.1 |
+| repolayouts 族 | **翻 ✅ VERIFIED**（body 全 parsed 同；G6 头族单独登记候裁——Q1 drop 或补齐，不随行翻转） | l01-l04 |
+| PUT 批建 | **翻 ✅ VERIFIED**（201 体逐字节/回滚/空数组/非 admin 裸 Forbidden=G4 修复落位） | w01-w05 |
+| POST 批改 | **翻 ✅ VERIFIED**（merge/ghost 绿；w08=G3 plain-user 403 文案登记项单独候裁） | w06-w08 |
+| DELETE 批删 207 状态机 | **翻 ✅ VERIFIED**（状态机可达臂全绿含 blank-key ghost=G2 修复落位；Q4 集合化；G7 真 207 不可构造维持开放备案） | w09-w14 |
+
+**两登记项不挡翻绿**（单独候裁）：① G1-R1 `hexPublicKey` 值形（仅 v1-remote face；v2 无此键）；② plain-user 403 族（G3 w08 文案 + G9-R2 w13-ghost 检查次序）。G6 头族 PN 独立候裁。

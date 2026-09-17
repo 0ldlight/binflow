@@ -1,0 +1,9 @@
+{
+  "reports" : [ {
+    "repoKey" : "l025q-none",
+    "statusMsg" : "Cannot delete repository: 'l025q-none', repository config does not exist",
+    "deletedArtifactsCount" : 0,
+    "success" : true
+  } ],
+  "statusMessage" : "All repositories were removed successfully"
+}

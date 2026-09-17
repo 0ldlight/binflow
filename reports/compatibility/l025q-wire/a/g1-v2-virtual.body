@@ -1,0 +1,14 @@
+{
+  "key" : "l025q-virt",
+  "type" : "virtual",
+  "packageType" : "generic",
+  "description" : "",
+  "notes" : "",
+  "includesPattern" : "**/*",
+  "excludesPattern" : "",
+  "signedUrlTtl" : 90,
+  "environments" : [ ],
+  "repositories" : [ "l025q-seed" ],
+  "hideUnauthorizedResources" : false,
+  "artifactoryRequestsCanRetrieveRemoteArtifacts" : false
+}

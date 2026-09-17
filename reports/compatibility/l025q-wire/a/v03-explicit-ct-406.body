@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 406,
+    "message" : "Not Acceptable"
+  } ]
+}
