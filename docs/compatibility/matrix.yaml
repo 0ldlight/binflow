@@ -2332,7 +2332,7 @@ rows:
     p01-p12/p59 + 门 p50/p57 wire 锚；有记录成功形 UNKNOWN〔U9〕；差分未跑，行态维持 absent）。
 - row_id: D08-R05
   domain: D08
-  capability: GET/PUT /api/release/bundles/config + artifacts 清单 + fat_manifest
+  capability: GET/PUT /api/release/bundles/config + artifacts 清单 + fat_manifest + v2 伴随读面（/api/v2/release_bundle/*）
   state: absent
   confidence: high
   contract_ref: contracts/release-bundle.yaml#release-bundle/config-and-artifacts
