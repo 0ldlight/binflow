@@ -43,34 +43,41 @@ def build():
         "info": {
             "title": "BinFlow API",
             "version": "1.0.0",
-            "summary": "BinFlow 制品仓库 REST API——Artifactory 兼容面 + /api/v1 自有面 + 协议接入面",
+            "summary": "BinFlow artifact repository REST API — the Artifactory-compatible surface, the native /api/v1 surface, and protocol client surfaces",
             "description": (
-                "BinFlow 的 API 分为四个面：\n\n"
-                "1. **制品的容路径**（无 `/api` 前缀）：`/binflow/<repoKey>/<path>`——上传、下载、删除制品，"
-                "各协议客户端走这里；\n"
-                "2. **管理面 API**（`/binflow/api/*`）：仓库 CRUD、用户/组/权限、审计、GC、Token、搜索、系统信息；\n"
-                "3. **Docker Registry 根级平面**（`/v2/*`）——独立路由，不走 `/binflow` 前缀（本 spec 中该组路径"
-                "以独立的根级 server 表达）；\n"
-                "4. **Webhook 事件面**（`/binflow/event/api/v1/*`）——订阅 CRUD/试发/排障。\n\n"
-                "**认证**：Basic（HTTP Basic Auth——REST API 层面要求凭据始终在请求中且正确，不存在「先访问后挑战」，"
-                "一次性认证失败直接 401）与 Bearer Token（高 QPS/CI 推荐——校验不触发 argon2 哈希计算）。"
-                "控制台另有 `binflow_session` 会话 cookie（HttpOnly; Path=/binflow; SameSite=Lax），"
-                "随同源请求自动发送；会话认证的非 GET/HEAD 写请求携带非同源 `Origin` 头 → 403。\n\n"
-                "**错误响应三种格式**：errors[] 信封（主要格式："
-                "`{\"errors\":[{\"status\":<code>,\"message\":\"…\"}]}`）；纯文本错误（用户/组管理域）；"
-                "OAuth 风格错误（Token 端点与 docker 域：`{\"error\":…,\"error_description\":…}`）。\n\n"
-                "**已保留 / 未实现路径（有意 404）**：`/api/v2/**`（Artifactory v2 权限 API——用 `/api/v1/permissions`；"
-                "钥对仓关联面 `/api/v2/repositories/{key}/keyPairs` 例外）、`/api/export/**` 与 `/api/import/**`"
-                "（备份恢复仅 CLI）、`/api/system/storage/prune/**`（空间回收走 GC）、`/binflow/v2/**`"
-                "（docker 端点不走 `/binflow` 前缀）、`/api/system/licenses`（复数——HA 多证语义不采纳）、"
-                "搜索族 `props|users|artifactory|badge`（`prop` 是官方单数拼写，复数 `props` 404）、"
-                "`/api/flat/copy|move`。"),
+                "The BinFlow API spans four surfaces:\n\n"
+                "1. **Artifact content paths** (no `/api` prefix): `/binflow/<repoKey>/<path>` — upload, download and "
+                "delete artifacts; every protocol client goes through here;\n"
+                "2. **Management API** (`/binflow/api/*`): repository CRUD, users/groups/permissions, audit, GC, "
+                "tokens, search, system info;\n"
+                "3. **Docker Registry root-level plane** (`/v2/*`) — separately routed, not under the `/binflow` "
+                "prefix (in this spec those paths carry their own root-level server);\n"
+                "4. **Webhook event surface** (`/binflow/event/api/v1/*`) — subscription CRUD, test sends, "
+                "troubleshooting.\n\n"
+                "**Authentication**: Basic (HTTP Basic Auth — at the REST API layer credentials must always be present "
+                "and correct in the request; there is no challenge-then-retry, a failed authentication is an immediate "
+                "401) and Bearer tokens (recommended for high QPS/CI — validation does not run the argon2 hash). "
+                "The console additionally uses a `binflow_session` cookie "
+                "(HttpOnly; Path=/binflow; SameSite=Lax) sent automatically with same-origin requests; non-GET/HEAD "
+                "writes authenticated by the session that carry a cross-origin `Origin` header → 403.\n\n"
+                "**Three error formats**: the errors[] envelope (the primary format: "
+                "`{\"errors\":[{\"status\":<code>,\"message\":\"…\"}]}`); plain-text errors (user/group management "
+                "domains); OAuth-style errors (token endpoint and the docker domain: "
+                "`{\"error\":…,\"error_description\":…}`).\n\n"
+                "**Intentionally unrouted paths (not supported, 404)**: `/api/v2/**` (the Artifactory v2 permissions "
+                "API — use `/api/v1/permissions`; the repository key-pair association face "
+                "`/api/v2/repositories/{key}/keyPairs` is the one exception), `/api/export/**` and `/api/import/**` "
+                "(backup/restore is CLI-only), `/api/system/storage/prune/**` (space reclamation goes through GC), "
+                "`/binflow/v2/**` (docker endpoints do not live under the `/binflow` prefix), "
+                "`/api/system/licenses` (plural — the HA multi-license semantics are not adopted), the search family "
+                "`props|users|artifactory|badge` (`prop` is the official singular spelling; the plural `props` is "
+                "404), and `/api/flat/copy|move`."),
             "contact": {"name": "BinFlow", "url": "https://binflow.docs.buildwithfern.com"},
         },
         "servers": [
             {"url": "/binflow",
-             "description": "BinFlow 默认上下文路径（binflow.yaml 的 http.path，缺省 /binflow）——"
-                            "管理面、内容路径与事件面共用此前缀"},
+             "description": "BinFlow default context path (http.path in binflow.yaml, default /binflow) — "
+                            "shared by the management API, content paths and the event surface"},
         ],
         "security": [{"basicAuth": []}, {"bearerToken": []}],
         "tags": helpers.TAGS,
@@ -79,15 +86,17 @@ def build():
             "securitySchemes": {
                 "basicAuth": {
                     "type": "http", "scheme": "basic",
-                    "description": "HTTP Basic 认证（curl `-u`、CI 脚本、客户端凭据配置——maven settings.xml、"
-                                   ".pypirc、npm _auth）。所有 /binflow/api/* 基础路由均支持；"
-                                   "口令哈希为 argon2id（memory-hard），高并发场景请用 Bearer Token。",
+                    "description": "HTTP Basic authentication (curl `-u`, CI scripts, client credential "
+                                   "configuration — maven settings.xml, .pypirc, npm _auth). Supported on every "
+                                   "/binflow/api/* base route; password hashes are argon2id (memory-hard) — prefer "
+                                   "Bearer tokens under high concurrency.",
                 },
                 "bearerToken": {
                     "type": "http", "scheme": "bearer", "bearerFormat": "64-hex",
-                    "description": "Access Token（`POST /api/security/token` 签发；64 位 hex / 默认 TTL 30 天）。"
-                                   "校验不触发 argon2 哈希计算，性能远优于 Basic；docker token 流同表——"
-                                   "管理面吊销对 docker token 即时生效。",
+                    "description": "Access tokens (minted by `POST /api/security/token`; 64-char hex / default TTL "
+                                   "30 days). Validation does not run the argon2 hash and vastly outperforms Basic; "
+                                   "the docker token flow uses the same table — revocations on the management API "
+                                   "take effect on docker tokens immediately.",
                 },
             },
             "schemas": helpers.build_schemas(),
