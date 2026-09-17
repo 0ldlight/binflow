@@ -116,23 +116,29 @@ test('admin: AQL query renders rows through the T-414 column frame; column selec
 
   // 行渲染（行锚沿既有 search-result-<i> 族）+ 计数副标（search-count 复用）
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
-  // 列框架归一（T-449）：name 列（链接）与 path 列分立——full path 跨单元格
+  // 列框架归一（T-449）：name 列（链接）与 path 列分立。L026-2 重锚：fe-rewrite
+  // 后搜索表 = ARIA grid（无 table/td）——path 跨格断言改钉行内 gridcell，
+  // 表头锚 = search-grid 内 columnheader
+  const rowCells = page
+    .getByRole('row')
+    .filter({ has: page.locator('[data-testid="search-result-0"]') })
+    .getByRole('gridcell')
   await expect(page.locator('[data-testid="search-result-0"]')).toContainText(`${marker}-a.bin`)
-  await expect(page.locator('[data-testid="search-result-0"]')).toContainText('sort')
-  await expect(page.locator('[data-testid="search-result-0"]')).toContainText(repo)
+  await expect(rowCells.filter({ hasText: 'sort' })).toHaveCount(1)
+  await expect(rowCells.filter({ hasText: repo })).toHaveCount(1)
   await expect(page.locator('[data-testid="search-count"]')).toHaveText('AQL 结果 – 2 行')
 
   // 列选器（AQL 模式内）：默认列集 = 选择列 + 制品|路径|仓库|修改时间（5 表头，
   // T-449 断言反转②）；勾入 sha256 → 6 + 行单元格 6；弃回 → 5
-  const th = page.locator('[data-testid="search-page"] table thead th')
+  const th = page.locator('[data-testid="search-grid"] [role="columnheader"]')
   await expect(th).toHaveCount(5)
   await expect(th.filter({ hasText: 'sha256' })).toHaveCount(0)
   await page.click('[data-testid="search-columns"]')
   await page.click('[data-testid="search-columns-item-sha256"]')
   await expect(th).toHaveCount(6)
-  await expect(page.locator('[data-testid="search-result-0"] td')).toHaveCount(6)
+  await expect(rowCells).toHaveCount(6)
   // sha256 列：投影值在场 + 一键拷贝（mono + CopyButton——T-414 列框架原样）
-  const sha = page.locator('[data-testid="search-result-0"] td').nth(5)
+  const sha = rowCells.nth(5)
   await expect(sha).toContainText('…')
   await expect(sha.locator('button')).toBeVisible()
   await page.click('[data-testid="search-columns-item-sha256"]')
@@ -165,10 +171,13 @@ test('admin: syntax error shows the 400 E-01 copy verbatim; unsupported domain i
   await expect(page.locator('[data-testid="search-result-0"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="search-count"]')).toHaveCount(0)
 
-  // 未支持域：400 点名 builds（诚实拒绝，零伪空集）
-  await runAql(page, 'builds.find({})')
+  // 未支持域：400 点名域 + 支持域枚举（诚实拒绝，零伪空集）。L026-2 重锚：
+  // builds 自 T-511 起已是支持域（live 实测 dev.b79a2d51：builds.find 返回
+  // 真实行集）——未支持域样本改用真未支持的 gibberish
+  await runAql(page, 'gibberish.find({})')
   await expect(err).toBeVisible()
-  await expect(err).toContainText('builds')
+  await expect(err).toContainText('gibberish')
+  await expect(err).toContainText('items, builds, modules, dependencies')
   await expect(page.locator('[data-testid="empty-state"]')).toHaveCount(0)
 })
 
@@ -201,19 +210,21 @@ test('admin: column header clicks inject, flip and remove the .sort() clause in 
   await page.click('[data-testid="search-aql-sort-size"]')
   await expect(page.locator('[data-testid="search-result-0"]')).toContainText(`${marker}-small.bin`)
   expect(await editor.inputValue()).toBe(`${base}.sort({"$asc":["size"]})`)
-  // 表头 aria-sort 跟随
-  await expect(page.locator('th').filter({ hasText: '大小' })).toHaveAttribute('aria-sort', 'ascending')
+  // 表头方向镜像：L026-2 重锚——aria-sort 随 MUI th 退役（button 上的
+  // aria-sort 属 aria-allowed-attr critical，已修为箭头字符承载方向）；
+  // 状态硬契约 = 编辑器子句 + 行序（↑/↓ 无障碍名同源）
+  await expect(page.locator('[data-testid="search-aql-sort-size"]')).toContainText('↑')
 
   // 翻转 desc → 首行 = 最大文件
   await page.click('[data-testid="search-aql-sort-size"]')
   await expect(page.locator('[data-testid="search-result-0"]')).toContainText(`${marker}-large.bin`)
   expect(await editor.inputValue()).toBe(`${base}.sort({"$desc":["size"]})`)
-  await expect(page.locator('th').filter({ hasText: '大小' })).toHaveAttribute('aria-sort', 'descending')
+  await expect(page.locator('[data-testid="search-aql-sort-size"]')).toContainText('↓')
 
-  // 第三击摘除子句（回到无排序）
+  // 第三击摘除子句（回到无排序——编辑器回 base、方向回中性 ↑ 暗态）
   await page.click('[data-testid="search-aql-sort-size"]')
   expect(await editor.inputValue()).toBe(base)
-  await expect(page.locator('th').filter({ hasText: '大小' })).not.toHaveAttribute('aria-sort', 'ascending')
+  await expect(page.locator('[data-testid="search-aql-sort-size"]')).not.toContainText('↓')
 })
 
 // ---- 5. 分页交互：.offset() 改写 + range.start_pos/limit 回显（④分页；
@@ -348,9 +359,14 @@ test('axe: AQL mode — results and error states clean in both themes', async ({
     await page.goto('/binflow/ui/search?mode=aql')
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
 
-    // 结果态（编辑器 + 表头排序钮 + 结果表 + range 尾行同屏）
+    // 结果态（编辑器 + 表头排序钮 + 结果表 + range 尾行同屏）。
+    // L026-2：click 后指针停在「执行」钮上——hover:bg-primary/90 的混色底
+    //（#2279cf）对白字 4.46 < 4.5（design-system hover 态对比度缺陷，票内
+    // 登记待 token 面 fix）。本腿的被测态 = 结果态而非 hover 态，扫描前把
+    // 指针移离交互件（对齐被测态，非吞断言）
     await runAql(page, `items.find({"repo":"${repo}"}).include("repo","path","name","size","modified","sha256")`)
     await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
+    await page.mouse.move(4, 4)
     await expectA11yClean(page, testInfo)
 
     // 错误态（内联 Alert——mono 长文案的对比度面）
@@ -371,6 +387,7 @@ test('axe: AQL mode — results and error states clean in both themes', async ({
     )
     await runAql(page, 'items.find({"repo":"x"')
     await expect(page.locator('[data-testid="search-aql-error"]')).toBeVisible()
+    await page.mouse.move(4, 4)
     await expectA11yClean(page, testInfo)
     await page.unroute('**/binflow/api/search/aql')
   }

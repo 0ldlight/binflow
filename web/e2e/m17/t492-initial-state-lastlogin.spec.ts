@@ -164,9 +164,12 @@ test('users last login column: projection renders, never-login honest, column or
     // 列头在场 + 列序对位 Artifactory（Status 之后、操作之前）
     const th = page.locator('[data-testid="users-table"] thead th')
     await expect(page.locator('[data-testid="users-sort-lastlogin"]')).toBeVisible()
+    // L026-2 重锚：SortTh 列头文本 = 标签 + 方向箭头字形（「Status ↑」）
+    // ——精确 indexOf 恒 -1；列序断言改前缀匹配
     const headers = await th.evaluateAll((els) => els.map((e) => e.textContent ?? ''))
-    expect(headers.indexOf('Status')).toBeLessThan(headers.indexOf('最近登录'))
-    expect(headers.indexOf('最近登录')).toBeLessThan(headers.length - 1)
+    const col = (label: string) => headers.findIndex((h) => h.startsWith(label))
+    expect(col('Status')).toBeLessThan(col('最近登录'))
+    expect(col('最近登录')).toBeLessThan(headers.length - 1)
 
     // admin 行：截断到秒的呈现形 + title 全值（RFC3339 UTC）
     const adminCell = page.locator('[data-testid="user-row-admin"] td.font-mono')

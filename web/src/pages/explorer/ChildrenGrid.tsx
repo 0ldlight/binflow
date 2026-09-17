@@ -112,11 +112,14 @@ export function ChildrenGrid({
     [datasource],
   )
 
-  // 数据源变化（切层/过滤）——重置滚动与选区
-  const dsKey = `${repoKey}|${rows.length}|${filter}|${filesOnly}`
-  const lastDsKey = useRef('')
-  if (lastDsKey.current !== dsKey && gridApiRef.current) {
-    lastDsKey.current = dsKey
+  // 数据源变化（切层/过滤/刷新）——重置滚动与选区。L026-2 修复：此前以
+  // rows.length 为变更键，同长度不同内容（根层 [docs,onlyfiles] → 子层
+  // [deep,guide.md]）不重置数据源，AG Grid 无限行模型保留旧层行——文件
+  // 叶子选中后 children 表仍显示上一层。改为 rows 引用同一性（useMemo 已
+  // 保证内容变则引用变），长度与内容两种变更都覆盖
+  const lastRows = useRef<readonly ChildNode[] | null>(null)
+  if (lastRows.current !== rows && gridApiRef.current) {
+    lastRows.current = rows
     gridApiRef.current.setGridOption('datasource', datasource)
   }
 

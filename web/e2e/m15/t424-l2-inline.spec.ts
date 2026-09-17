@@ -65,6 +65,8 @@ test('admin: row copy-key — aria-label, Space activates, clipboard gets full k
 
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/admin/repositories/local')
+  // L026-2：dev 实例 453 仓 > 默认页 100——先按 key 过滤收敛到唯一行
+  await page.fill('[data-testid="repos-filter-key"]', key)
   const row = page.locator(`[data-testid="repos-row-${key}"]`)
   await expect(row).toBeVisible({ timeout: 30_000 })
 
@@ -107,6 +109,8 @@ test('admin: row Set Me Up direct-open — same T-382 drawer (smu-* anchors), pr
 
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/admin/repositories/local')
+  // L026-2：dev 实例 453 仓 > 默认页 100——先按 key 过滤收敛到唯一行
+  await page.fill('[data-testid="repos-filter-key"]', key)
   const row = page.locator(`[data-testid="repos-row-${key}"]`)
   await expect(row).toBeVisible({ timeout: 30_000 })
 
@@ -149,6 +153,8 @@ test('admin: E1 no-regression — no row-end action menu; delete affordance only
 
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/admin/repositories/local')
+  // L026-2：dev 实例 453 仓 > 默认页 100——先按 key 过滤收敛到唯一行
+  await page.fill('[data-testid="repos-filter-key"]', key)
   const row = page.locator(`[data-testid="repos-row-${key}"]`)
   await expect(row).toBeVisible({ timeout: 30_000 })
 
@@ -187,6 +193,8 @@ test('readonly_admin: L2 quick actions present (read-plane), zero delete afforda
 
   await loginAs(page, 'readonly_admin')
   await page.goto('/binflow/ui/admin/repositories/local')
+  // L026-2：dev 实例 453 仓 > 默认页 100——先按 key 过滤收敛到唯一行
+  await page.fill('[data-testid="repos-filter-key"]', key)
   const row = page.locator(`[data-testid="repos-row-${key}"]`)
   await expect(row).toBeVisible({ timeout: 30_000 })
 
@@ -217,6 +225,8 @@ test('axe: repositories list with inline actions clean in both themes', async ({
     await page.evaluate((t) => localStorage.setItem('binflow-console-theme', t), theme)
     await page.goto('/binflow/ui/admin/repositories/local')
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+    // L026-2：按 key 过滤收敛到唯一行（453 仓 > 默认页 100，同本文件四腿）
+    await page.fill('[data-testid="repos-filter-key"]', key)
     await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toBeVisible({ timeout: 30_000 })
     await expectA11yClean(page, testInfo)
   }

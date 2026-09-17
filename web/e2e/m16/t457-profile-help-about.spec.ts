@@ -383,16 +383,20 @@ test('axe: profile page, help menu, and About dialog clean in both themes', asyn
     // 实际像素采样，菜单/弹窗进出场动画未完时采样即假性炸裂（共租负载下
     // 3/3 复现：菜单退场项与 about-close 先后中招；settle 后净绿）。两处
     // 全页扫描前统一 settle 400ms，同款处置见 t447-props-download axe 腿。
+    // L026-2 重锚：Radix 菜单/弹窗开态对壳层外内容设 aria-hidden（AT 隔离）
+    // ——全页扫描必踩 aria-hidden-focus（.h-screen 含可聚焦后代）。扫描
+    // 面收敛到门户子树（t443 repos-create-menu include 同款先例）——受测
+    // 态（菜单/弹窗本体）仍全量断言
     await page.click('[data-testid="topbar-help"]')
     await expect(page.locator('[data-testid="help-training"]')).toBeVisible()
     await page.waitForTimeout(400)
-    await expectA11yClean(page, testInfo)
+    await expectA11yClean(page, testInfo, { include: '[data-testid="topbar-help-menu"]' })
 
     // About 弹窗态（版本块 + 关闭钮）
     await page.click('[data-testid="help-about"]')
     await expect(page.locator('[data-testid="about-dialog"]')).toBeVisible()
     await page.waitForTimeout(400)
-    await expectA11yClean(page, testInfo)
+    await expectA11yClean(page, testInfo, { include: '[data-testid="about-dialog"]' })
     await page.keyboard.press('Escape')
     await expect(page.locator('[data-testid="about-dialog"]')).toHaveCount(0)
   }

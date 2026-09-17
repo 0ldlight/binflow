@@ -121,8 +121,13 @@ test('tree leaves: dirs expand into folder rows AND file leaves; file-only dirs 
   await expect(page.locator('[data-testid="node-detail"] h3 .font-mono')).toHaveText('docs/guide.md')
 
   // 叶子选中态（selected class）+ 表行联动选中
+  //（L026-2 重锚×2：① 远端 dev 实例（453 仓）children 网装载尾延可超 5s
+  //  默认窗，放宽到 15s——本地 5s 内即达，非吞断言；② fe-rewrite 换 AG Grid
+  //  后联动选中态从行内 span（tree-row-<name> 旧 class 承载）上移到 grid 行
+  //  元素的 rowClassRules（ag-row-selected-file）——断言锚到承载该态的行元素）
   await expect(page.locator('[data-testid="tree-leaf-docs/guide.md"]')).toHaveClass(/selected/)
-  await expect(page.locator('[data-testid="tree-row-guide.md"]')).toHaveClass(/selected/)
+  const linkedRow = page.getByRole('row').filter({ has: page.locator('[data-testid="tree-row-guide.md"]') })
+  await expect(linkedRow).toHaveClass(/ag-row-selected-file/, { timeout: 15_000 })
 
   // 目录选中给直系概要（Artifact Count / Size——children 表收窄的补偿面）
   await page.locator('[data-testid="tree-node-docs"]').click()
@@ -152,7 +157,8 @@ test('select is not expand: repo click keeps branch collapsed; twisty is indepen
 
   await page.goto(`/binflow/ui/artifacts/${key}`)
   const repoRow = page.locator(`[data-testid="tree-repo-${key}"]`)
-  await expect(repoRow).toBeVisible()
+  // L026-2：远端 dev 实例树装载尾延（453 仓）——15s 窗
+  await expect(repoRow).toBeVisible({ timeout: 15_000 })
   await expect(repoRow).toHaveAttribute('aria-expanded', 'false')
 
   // 单击仓库名 = 纯选中：右侧面切换（仓库形态详情），展开态不变（断言反转①
@@ -249,7 +255,7 @@ test('toolband: pkg-type facet, rclass group, sort-by, compacted radio, my favor
   const rowZ = page.locator(`[data-testid="tree-repo-${zLocal}"]`)
   const rowA = page.locator(`[data-testid="tree-repo-${aVirtual}"]`)
   const rowD = page.locator(`[data-testid="tree-repo-t434d${ts}"]`)
-  for (const r of [rowZ, rowA, rowD]) await expect(r).toBeVisible()
+  for (const r of [rowZ, rowA, rowD]) await expect(r).toBeVisible({ timeout: 15_000 })
 
   // Sort-by 默认名称序：a < d < z（virtual 的 a 前置）
   const nameOrder = await page.evaluate(() =>
@@ -292,15 +298,18 @@ test('toolband: pkg-type facet, rclass group, sort-by, compacted radio, my favor
   await page.uncheck('[data-testid="tree-facet-rclass-virtual"]')
   await expect(rowZ).toBeVisible()
 
-  // Compacted 单选：行高收窄（结构门 = 容器档位类 + 行高实测）
+  // Compacted 单选：行高收窄。L026-2 重锚：fe-rewrite 后 compacted 档不再
+  // 以容器档位类呈现（实现改为 rowH 24/28 行高 + bf-tree-compacted 存储
+  // 键，TreePanel.tsx rowH 分支）——结构门重锚到持久化契约（localStorage）
+  // + 行高实测（24 < 28），语义等价于旧容器类断言
   const heightOf = async () => (await rowZ.boundingBox())?.height ?? 0
   const normalH = await heightOf()
   await page.check('[data-testid="tree-view-compacted"]')
-  await expect(page.locator('[data-testid="browser-tree"]')).toHaveClass(/compacted/)
+  expect(await page.evaluate(() => localStorage.getItem('bf-tree-compacted'))).toBe('1')
   const compactH = await heightOf()
   expect(compactH).toBeLessThan(normalH)
   await page.check('[data-testid="tree-view-normal"]')
-  await expect(page.locator('[data-testid="browser-tree"]')).not.toHaveClass(/compacted/)
+  expect(await page.evaluate(() => localStorage.getItem('bf-tree-compacted'))).toBe('0')
 
   // My Favorites：右键标记 → 计数 1 → 过滤仅收藏 → reload 持久（AC4）
   await rowZ.click({ button: 'right' })
@@ -339,7 +348,8 @@ test('axe: tree page with toolband, file leaves and url-tabbed detail clean in b
     // 页签段深链 + 仓根展开（叶子行在 DOM）后扫描
     await page.goto(`/binflow/ui/artifacts/${key}/docs/guide.md`)
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
-    await expect(page.locator('[data-testid="tree-leaf-docs/guide.md"]')).toBeVisible()
+    // L026-2：远端 dev 树装载尾延（453 仓）——叶子行可见性放宽到 15s
+    await expect(page.locator('[data-testid="tree-leaf-docs/guide.md"]')).toBeVisible({ timeout: 15_000 })
     await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
     await expectA11yClean(page, testInfo, { include: '[data-testid="tree-page"]' })
   }

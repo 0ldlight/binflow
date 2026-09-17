@@ -135,9 +135,12 @@ test('en sampling: tree / form / detail / search / security / monitoring / gover
   await page.goto('/binflow/ui/admin/governance/audit')
   await expect(page.getByRole('heading', { name: 'Audit Log' })).toBeVisible()
   // admin 登录即产生 login.success 事件；时间列 en 形 = 当日 h:mm:ss AM/PM
-  // 或跨天 MMM d, yyyy h:mm:ss AM/PM（formatAuditTime en 变体）
+  // 或跨天 MMM d, yyyy h:mm:ss AM/PM（formatAuditTime en 变体）。
+  // L026-2 重锚：fe-rewrite 后审计表无 .audit-time 类——语义锚改为
+  // 首行（audit-row-0）首个单元格（时间列默认可见且居首，AuditPage.tsx
+  // cols 列序 time→actor→action→target→source→detail）。
   await expect
-    .poll(async () => (await page.locator('.audit-time').first().textContent())?.trim() ?? '')
+    .poll(async () => (await page.locator('[data-testid="audit-row-0"] td').first().textContent())?.trim() ?? '')
     .toMatch(/^(\d{1,2}:\d{2}:\d{2} (AM|PM)|[A-Z][a-z]{2} \d{1,2}, \d{4} \d{1,2}:\d{2}:\d{2} (AM|PM))$/)
 })
 
@@ -147,9 +150,15 @@ test('en date format: search results modified = MMM d, yyyy h:mm:ss AM/PM +ZZZZ'
   await seedRepoWithArtifact()
   await page.goto(`/binflow/ui/search?q=hello.txt`)
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible()
-  // FR-144.6 的 en 变体（FR-149.4）：同款本地时区 + 显式偏移，12 小时制——
-  // 定位到 modified 单元格（含 AM/PM + 偏移特征）后整格正则断言
-  const stampCell = page.locator('[data-testid="search-result-0"] td').filter({ hasText: /(AM|PM) [+-]\d{4}/ })
+  // FR-144.6 的 en 变体（FR-149.4）：同款本地时区 + 显式偏移，12 小时制。
+  // L026-2 重锚：fe-rewrite 后搜索结果是 ARIA grid（role=grid/gridcell，
+  // 无 table/td）——定位 = 结果 0 所在行（search-result-0 锚仍在名称格内）
+  // → 行内含 AM/PM+偏移特征的 gridcell，整格正则断言
+  const stampCell = page
+    .getByRole('row')
+    .filter({ has: page.locator('[data-testid="search-result-0"]') })
+    .getByRole('gridcell')
+    .filter({ hasText: /(AM|PM) [+-]\d{4}/ })
   await expect(stampCell).toHaveCount(1)
   await expect(stampCell).toHaveText(/^[A-Z][a-z]{2} \d{1,2}, \d{4} \d{1,2}:\d{2}:\d{2} (AM|PM) [+-]\d{4}$/)
   // 顺带核 zh 形锚不被 en 污染：同格不得再是 dd-MM-yy 24h 形

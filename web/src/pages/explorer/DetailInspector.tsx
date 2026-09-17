@@ -677,6 +677,14 @@ function FileStatsRows({ repoKey, path, refreshKey }: { repoKey: string; path: s
     return value === undefined || value === '' ? EMPTY_VALUE : String(value)
   }
   const busyText = stats.status === 'loading' ? STATS_HINTS.loading : EMPTY_VALUE
+  // lastDownloaded wire = epoch millis（T-438 / 参照实例 ?stats 同款）——
+  // 展示面落 ISO（t445 契约：YYYY-MM-DDTHH:mm:ss.sssZ，mono tnum）
+  const isoValue = (value: string | number | undefined): string => {
+    const s = v(value)
+    if (s === EMPTY_VALUE || s === STATS_HINTS.loading) return s
+    const t = new Date(typeof value === 'number' ? value : Date.parse(value ?? ''))
+    return Number.isNaN(t.getTime()) ? s : t.toISOString()
+  }
   const row = (label: string, testid: string, content: ReactNode, lang?: 'en') => (
     <div className="kv mb-1 flex gap-2 text-dense">
       <span className="k w-36 shrink-0 text-muted-foreground">{label}</span>
@@ -689,7 +697,7 @@ function FileStatsRows({ repoKey, path, refreshKey }: { repoKey: string; path: s
     <>
       {row(STATS_LABELS.downloads, 'node-downloads', d ? String(d.downloadCount) : busyText)}
       {row(STATS_LABELS.lastDownloadedBy, 'node-last-downloaded-by', v(d?.lastDownloadedBy), 'en')}
-      {row(STATS_LABELS.lastDownloaded, 'node-last-downloaded', v(d?.lastDownloaded))}
+      {row(STATS_LABELS.lastDownloaded, 'node-last-downloaded', isoValue(d?.lastDownloaded))}
       {row(STATS_LABELS.remoteDownloads, 'node-remote-downloads', d ? String(d.remoteDownloadCount) : busyText)}
     </>
   )

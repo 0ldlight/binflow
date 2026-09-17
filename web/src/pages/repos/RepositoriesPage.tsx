@@ -315,11 +315,15 @@ export default function RepositoriesPage() {
                   {tt('＋ 新建仓库')}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-64 p-1" align="end" data-testid="repos-create-menu">
+              {/* role="menu"：触发钮已声明 aria-haspopup="menu"——Radix
+                  Popover 默认 role=dialog 且无名（axe aria-dialog-name），
+                  三导航项补 menuitem（menu 子角色义务），L026-2 */}
+              <PopoverContent className="w-64 p-1" align="end" role="menu" data-testid="repos-create-menu">
                 {TABS.map((t) => (
                   <button
                     key={t.id}
                     type="button"
+                    role="menuitem"
                     data-testid={`repos-create-${t.id}`}
                     className="block w-full rounded-sm px-2 py-2 text-left text-dense hover:bg-accent"
                     onClick={() => {

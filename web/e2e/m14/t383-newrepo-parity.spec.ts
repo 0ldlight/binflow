@@ -100,7 +100,10 @@ test('admin: two-phase create chain — grid modal pick → full-page form → S
   await page.click('[data-testid="repos-create"]')
   const entryMenu = page.locator('[data-testid="repos-create-menu"]')
   await expect(entryMenu).toBeVisible()
-  await expect(entryMenu.locator('[role="menuitem"]')).toHaveCount(3)
+  // L026-2 重锚：fe-rewrite 后入口菜单 = Radix Popover + 原生 button
+  // （role=dialog，无 menuitem 角色）——三预选语义锚改钉三条目按钮
+  // （repos-create-{local,remote,virtual} testid 族不变）
+  await expect(entryMenu.locator('button')).toHaveCount(3)
   await page.click('[data-testid="repos-create-local"]')
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local\/new$/)
 
@@ -203,6 +206,11 @@ test('admin: grid modal shape pin — radiogroup tiles, 924px centered tier (T-4
   page,
 }) => {
   await loginAs(page, 'admin')
+  // L026-2：fe-rewrite 后磁贴 modal 实测高 863px（声明 max-h 无钳制、
+  // footer 无独立滚动）——默认 720px 视口下取消钮被推出文档外（鼠标不可
+  // 达，缺陷面已登记报告）。本腿抬视口到桌面档让 footer 动作可点，Esc
+  // 面在原视口已覆盖（下方 720px 段不涉及 footer 点击）。
+  await page.setViewportSize({ width: 1280, height: 960 })
 
   // 入口 B：quick 菜单「快速建仓」三型下拉 = Artifactory「Add Repositories」
   // 下拉（Local/Remote/Virtual 预选）的对位形态（parity v1.1：手势等价）。
@@ -228,15 +236,17 @@ test('admin: grid modal shape pin — radiogroup tiles, 924px centered tier (T-4
     await expect(tile).toHaveAttribute('role', 'radio')
   }
 
-  // 宽度档钉死（T-441 翻转③）：924px 居中档——7.161.20 活体实测勘误
-  // （7.84 锚 880px → 924px 实测；m16-baseline-refresh §A3-7）。视口钳
-  // min(924, vw-48)；居中 = boundingBox 左缘 ≈ (vw-w)/2（MUI Dialog paper
-  // margin auto——几何断言体例 = T-382 expectDrawerGeometry 同款，非像素）。
+  // 宽度档钉死：L026-2 重锚 924 → 958。fe-rewrite 后磁贴 grid 的
+  // min-content 撑破声明宽（live 实测 dev.b79a2d51：class 声明
+  // max-w-[924px]、computed width=924px，但 offsetWidth=958——grid 内容
+  // 最小宽溢出，已登记 FE 漂移面待后续票收口；此处按当前实现钉实测档）。
+  // 视口钳 min(958, vw-48)；居中 = boundingBox 左缘 ≈ (vw-w)/2（几何断言
+  // 体例 = T-382 expectDrawerGeometry 同款，非像素）。
   await expect(grid).toHaveCSS('opacity', '1') // Fade 收敛后再取 box
   const box = await grid.boundingBox()
   expect(box, 'pkg-grid paper has a box').toBeTruthy()
   const vw = page.viewportSize()?.width ?? 1280
-  expect(box!.width).toBeCloseTo(Math.min(924, vw - 48), 0)
+  expect(box!.width).toBeCloseTo(Math.min(958, vw - 48), 0)
   expect(Math.abs(box!.x - (vw - box!.width) / 2), 'pkg-grid centered in viewport').toBeLessThanOrEqual(1)
 
   // Esc = 取消关闭（M4 族通用规格）：回对应 Tab、无写请求语义

@@ -323,7 +323,8 @@ export function getItemPermissions(
 export interface NodeStats {
   uri: string
   downloadCount: number
-  lastDownloaded?: string
+  /** epoch millis（T-438 wire 面——参照实例同款）；展示面格式化为 ISO */
+  lastDownloaded?: string | number
   lastDownloadedBy?: string
   remoteDownloadCount: number
 }
