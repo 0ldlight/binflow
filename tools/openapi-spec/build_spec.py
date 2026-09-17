@@ -64,9 +64,7 @@ def build():
                 "（备份恢复仅 CLI）、`/api/system/storage/prune/**`（空间回收走 GC）、`/binflow/v2/**`"
                 "（docker 端点不走 `/binflow` 前缀）、`/api/system/licenses`（复数——HA 多证语义不采纳）、"
                 "搜索族 `props|users|artifactory|badge`（`prop` 是官方单数拼写，复数 `props` 404）、"
-                "`/api/flat/copy|move`。\n\n"
-                "本 spec 由契约页 docs/user/api-reference.md 衍生（端点/参数/错误文案/示例逐字保真，"
-                "迭代标记去除），路由清单对 internal/httpapi/router.go 核对；与路由不一致处以路由验证文法为准并标注。"),
+                "`/api/flat/copy|move`。"),
             "contact": {"name": "BinFlow", "url": "https://binflow.docs.buildwithfern.com"},
         },
         "servers": [
