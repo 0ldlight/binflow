@@ -34,10 +34,16 @@ function pkgSlot(id: string): Record<string, unknown> {
   }
 }
 
-/** 编辑态回显体(GET /api/repositories/{key})——L025-6 后详读面键**顶层平铺**
- *  （无 configuration 子对象）；本 mock 即真栈键形态。 */
+/** 编辑态回显体(GET /api/repositories/{key})——详读面键**顶层平铺**（无
+ *  configuration 子对象）；L026-3 起服务端 appendUnmodeledBlobKeys 让离表
+ *  存储键（byHash/forceMetadataNameVersion 等）原样随详读面回显——本 mock
+ *  的平铺策略键形 = 真栈面形（L027-4 在 dev-3c0c3a87 活体验证定谳，
+ *  L026-2 三条 BEHAVIOR-CONTAMINATED 复检旗据此销旗）。environments=[]
+ *  是 admin 全量面的恒在座位（每面 withEnvironments 垫底）——非 admin
+ *  窄投影（partialConfigMap 四键）永不含它，getRepoDetail 的窄面判定
+ *  （isNarrowRepoFace）以此区分，mock 须与真栈全量面同形。 */
 function repoDetail(key: string, packageType: string, cfg: Record<string, unknown>): Record<string, unknown> {
-  return { key, rclass: 'local', packageType, description: 'e2e', ...cfg }
+  return { key, rclass: 'local', packageType, description: 'e2e', environments: [], ...cfg }
 }
 
 interface FormMockOpts {

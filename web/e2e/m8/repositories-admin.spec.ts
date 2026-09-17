@@ -263,7 +263,13 @@ test('readonly_admin: full list visible, write entries gone; detail/config read-
   await detailDeploy.evaluate((el) => (el as HTMLButtonElement).click())
   await expect(page.locator('[data-testid="deploy-dialog"]')).toHaveCount(0)
   await page.click('[data-testid="repo-tab-configuration"]')
-  await expect(page.locator('[data-testid="repo-governance-card"]')).toContainText('10240')
+  // L027-4 双臂退役后：readonly_admin 的 v1 详读面 = partialConfigMap 四键
+  // 窄投影（读写座位解耦，L026-7 开门前开后同形）——配置卡呈现窄面
+  // （quotaBytes 缺键 → 「0（不限）」是缺键呈现，非存储真值）。面契约
+  // 钉：窄投影不带 quotaBytes（admin 全量面恒带，L026-3 blob 回显）。
+  await expect(page.locator('[data-testid="repo-governance-card"]')).toContainText('（不限）')
+  const roFace = await sessionApi(page, 'GET', `/api/repositories/${key}`)
+  expect((JSON.parse(roFace.text) as Record<string, unknown>).quotaBytes).toBeUndefined()
   await expect(page.locator('[data-testid="repo-quota-input"]')).toBeDisabled()
   await expect(page.locator('[data-testid="repo-quota-save"]')).toBeDisabled()
   // Replications Tab（T-404 指针升级）：本仓配置摘要卡 + 全局复制页链接；

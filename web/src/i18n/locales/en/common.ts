@@ -53,6 +53,7 @@ registerEn('common', {
   "大小": "Size",
   "当前用户": "Current user",
   "当前账号口令": "Current account password",
+  "当前账号的仓库详读面是窄投影（无全量配置键），全量替换保存会把未触碰的键翻成缺省——已拒绝，请用全量读位（admin）操作": "Your account's repository detail face is a narrow projection (no full config keys); a full-replacement save would flip untouched keys to their defaults — refused. Use a full read seat (admin).",
   "登录、建仓、上传等操作会记录在这里": "Logins, repository creation, uploads and other operations are recorded here",
   "调度": "Schedule",
   "动作": "Action",

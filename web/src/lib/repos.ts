@@ -84,13 +84,16 @@ export function validateUpstreamURL(url: string): string | null {
 
 // ---- GET 面 ----
 
-// L025-7 读位注记：v1 详读面自 L025-6（G1 渲染收敛）起按参照实测键表渲染
-// （local 61 / remote 102 / virtual 50，键**顶层平铺**、无 configuration 子
-// 对象）——BinFlow 专键（quotaBytes / allowPrivateUpstream / socketTimeoutSecs
-// / defaultDeploymentRepo / deb·rpm 策略族部分键）不在键表上，详读面读不到。
-// 它们的唯一全量回显位 = 列表面行内 configuration blob（repoListItemOf 原样
-// 回显存储 config——internal/httpapi repo_config_roundtrip_test.go 的
-// listConfigurationOf 先例）。getRepoDetail 负责读位合并，页面消费形状不变。
+// L027-4 读位注记（退役 L025-7 双臂）：v1 详读面 = 参照键表平铺体（local 61 /
+// remote 102 / virtual 50，键顶层平铺、无 configuration 子对象）。离表的
+// BinFlow 专键（quotaBytes / priorityResolution / deb·rpm·helm 策略族…）自
+// L026-3 起由服务端 appendUnmodeledBlobKeys 原样随**每个渲染面**回显（含
+// v1 详读面），两读面自 L026-7 起对任意认证调用方开放（列表面 entries 与
+// admin 逐字节同）——403 容错臂（清单面门）与全量 blob 合并臂（降级读位）
+// 随之退役。唯一存留的列表面读位：L025-8 deny 五键（blobEchoDenyKeys）恒
+// 不随任何渲染面回显——列表面行内 configuration blob 是它们唯一的注册读位
+// （L026-3 注记「the FE reads them on the list face」），getRepoDetail 按
+// remote 收窄提取（见下）。
 
 /** GET /api/repositories/{key} 的回显体（configuration 是规范化后的 config） */
 export interface RepoDetail {
@@ -155,33 +158,47 @@ export function getRepositoriesFiltered(repoType = '', packageType = ''): Promis
   return apiJSON<RepoListItem[]>(`/repositories${qs ? `?${qs}` : ''}`)
 }
 
+/** L025-8 deny 五键（internal/httpapi blobEchoDenyKeys）：恒不随任何渲染面
+ *  回显（键面 zero-diff 约束），列表面 configuration blob 是唯一注册读位；
+ *  前端消费其中 allowPrivateUpstream / socketTimeoutSecs（remote 表单预填
+ *  + 详情页 SSRF 警示框），其余三键仅随行透传不落地 UI。 */
+const LIST_FACE_ONLY_KEYS = [
+  'allowPrivateUpstream',
+  'socketTimeoutSecs',
+  'metadataRetrievalCachePeriodSecs',
+  'enableTokenAuthentication',
+  'maxUniqueSnapshots',
+] as const
+
 /**
- * 仓详情读位合并（L025-7）：v1 详读面（参照键平铺体）∪ 列表面 configuration
- * blob（BinFlow 专键唯一回显位）——blob 覆盖在面上，存储值优先（与渲染器
- * renderConfigSeats 自身的「blob wins」优先级同向）。详读面失败整体失败（错误
- * 态呈现）；列表面 403 = 调用方无全量清单（CapRepoRead 门：普通 user 持仓级
- * manage 过详情读臂却 403 于清单——m-holder 形态），降级为面上键，其余错误
- * （401/5xx/网络）照常抛——读位不完整宁可响亮失败也不静默喂缺省给全量替换
- * 保存（priorityResolution 翻转隐患的根因）。m-holder 的专键回显缺口
- * （清单 403 → blob 无读位）是服务端座位缺口，见本票报告 Next。
+ * 仓详情读位（L027-4 退役 L025-7 双臂）：v1 详读面一跳直取——L026-3 起离表
+ * 存储键原样随详读面回显，L026-7 起读面仅认证不认权（403 容错臂随之退役，
+ * L026-7 报告 Risks ②）。此处仅做形状归一：面体顶层平铺（L025-6 形态），
+ * 拆出四列 + url，余键归 configuration（消费形状 RepoDetail 不变）。唯一
+ * 的第二读位：remote 仓补读列表面行，只提取 LIST_FACE_ONLY_KEYS（非全量
+ * 合并、无容错——清单读失败整体响亮失败）；失败整体失败（错误态呈现），
+ * 读位不完整宁可响亮失败也不静默喂缺省给全量替换保存（priorityResolution
+ * 翻转隐患的根因；非 admin 窄投影的写路径防线见 isNarrowRepoFace）。
  */
 export async function getRepoDetail(key: string): Promise<RepoDetail> {
   const face = await apiJSON<Record<string, unknown>>(`/repositories/${encodeURIComponent(key)}`)
-  let list: RepoListItem[] | null = null
-  try {
-    list = await apiJSON<RepoListItem[]>('/repositories')
-  } catch (err) {
-    if (!(err instanceof ApiError && err.status === 403)) throw err
-  }
   const { key: faceKey, rclass, packageType, description, ...cfg } = face
-  const blob = list?.find((r) => r.key === key)?.configuration
+  if (rclass === 'remote') {
+    const list = await apiJSON<RepoListItem[]>('/repositories')
+    const blob = list.find((r) => r.key === key)?.configuration
+    if (blob) {
+      for (const k of LIST_FACE_ONLY_KEYS) {
+        if (blob[k] !== undefined) cfg[k] = blob[k]
+      }
+    }
+  }
   return {
     key: typeof faceKey === 'string' ? faceKey : key,
     rclass: typeof rclass === 'string' ? rclass : '',
     packageType: typeof packageType === 'string' ? packageType : '',
     description: typeof description === 'string' ? description : '',
     url: typeof cfg.url === 'string' ? cfg.url : '',
-    configuration: blob ? { ...cfg, ...blob } : cfg,
+    configuration: cfg,
   }
 }
 
@@ -314,7 +331,28 @@ export function cfgStrList(cfg: Record<string, unknown> | undefined, field: stri
  * 先 GET 详情再重组完整 body，防止「改配额丢其它字段」）。maven 仓附
  * 包类型专属字段。
  */
+/**
+ * v1 详读面窄投影判定（L027-4 双臂退役的写路径保险）：非 CapRepoWrite
+ * 调用方（readonly_admin / m-holder / 普通 user）的详读面是 handler 侧
+ * partialConfigMap 四/五键投影（L025-6 起分叉，L026-7 开门后仍守窄——读
+ * 写座位解耦是 L026-5 定谳）。admin 全量面经 renderConfigSeats 恒含
+ * environments 座位（每面 withEnvironments 垫底），窄投影永不含——缺位
+ * 即窄面。
+ */
+export function isNarrowRepoFace(d: RepoDetail): boolean {
+  return d.configuration?.environments === undefined
+}
+
 export function buildLocalQuotaBody(d: RepoDetail, quotaBytes: number): RepoConfigBody {
+  // 窄投影面上全量替换保存 = 把未触碰的键静默翻成缺省（L025-7 定下的
+  // 写路径保险：读位不完整宁可响亮失败）。双臂退役后此守卫承担非 admin
+  // 读位的翻转防线（admin 全量面恒过）。
+  if (isNarrowRepoFace(d)) {
+    throw new ApiError(
+      403,
+      t('当前账号的仓库详读面是窄投影（无全量配置键），全量替换保存会把未触碰的键翻成缺省——已拒绝，请用全量读位（admin）操作'),
+    )
+  }
   const cfg = d.configuration
   const body: RepoConfigBody = {
     rclass: 'local',

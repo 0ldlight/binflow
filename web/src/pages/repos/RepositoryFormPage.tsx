@@ -57,6 +57,7 @@ import {
   cfgStr,
   cfgStrList,
   getRepoDetail,
+  isNarrowRepoFace,
   testRepoUpstream,
   updateRepo,
   validateRepoKey,
@@ -609,6 +610,13 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
 
   // 全表单门控（audit §4 formValid 逐条——Save 零坏请求）
   const gateReason: string | null = (() => {
+    // L027-4 双臂退役的写路径保险：编辑态详读面是窄投影（非 CapRepoWrite
+    // 调用方，读写座位解耦）时，表单预填的就是缺省而非真值——全量替换
+    // 保存会翻转未触碰的键，Save 恒禁用并说明（L025-7「读位不完整宁可
+    // 响亮失败」的退役后承接）。
+    if (mode === 'edit' && detail.status === 'ok' && detail.data && isNarrowRepoFace(detail.data)) {
+      return t('当前账号的仓库详读面是窄投影（无全量配置键），全量替换保存会把未触碰的键翻成缺省——已拒绝，请用全量读位（admin）操作')
+    }
     if (mode === 'create') {
       if (f.key.trim() === '') return t('Repository key 未填')
       if (validateRepoKey(f.key.trim())) return t('Repository key 不合规')
