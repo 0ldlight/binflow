@@ -89,21 +89,21 @@ func TestM02RemoteCreateAndEchoREST(t *testing.T) {
 	if cfg["rclass"] != "remote" {
 		t.Fatalf("rclass = %v, want remote", cfg["rclass"])
 	}
-	conf, ok := cfg["configuration"].(map[string]any)
-	if !ok {
-		t.Fatalf("configuration missing: %v", cfg)
+	if cfg["url"] != "http://127.0.0.1:9099" {
+		t.Fatalf("url = %v, want the upstream verbatim", cfg["url"])
 	}
-	if conf["url"] != "http://127.0.0.1:9099" {
-		t.Fatalf("configuration.url = %v, want the upstream verbatim", conf["url"])
-	}
-	for _, field := range []string{"password", "s3cret-upstream"} {
+	// L025-6: the A-true face renders the EMPTY password seat ("password":
+	// "", the wire shape); the invariant is the credential VALUE, not the
+	// key name.
+	for _, field := range []string{"s3cret-upstream"} {
 		if raw, _ := json.Marshal(cfg); strings.Contains(string(raw), field) {
 			t.Fatalf("GET body leaks %q: %s", field, raw)
 		}
 	}
-	// The defaults ride the echo (PRD v1.2 C4). socketTimeoutMillis is the
-	// canonical ms spelling since T-346 (FR-113.1); the legacy
-	// socketTimeoutMs never rides the echo.
+	// The defaults ride the stored config (PRD v1.2 C4; read via the list
+	// face's blob echo — socketTimeoutSecs and allowPrivateUpstream are
+	// BinFlow-only keys the A-true detail face does not render). L025-6.
+	conf := listConfigurationOf(t, h, "generic-remote")
 	for k, v := range map[string]any{
 		"retrievalCachePeriodSecs":       float64(7200),
 		"missedRetrievalCachePeriodSecs": float64(1800),
@@ -186,13 +186,12 @@ func TestM03VirtualREST(t *testing.T) {
 		if code != http.StatusOK || cfg["rclass"] != "virtual" {
 			t.Fatalf("GET = %d %v", code, cfg["rclass"])
 		}
-		conf := cfg["configuration"].(map[string]any)
-		members, _ := conf["repositories"].([]any)
+		members, _ := cfg["repositories"].([]any)
 		if len(members) != 2 || members[0] != "generic-local" || members[1] != "maven-remote-x" {
-			t.Fatalf("configuration.repositories = %v", conf["repositories"])
+			t.Fatalf("repositories = %v", cfg["repositories"])
 		}
-		if conf["defaultDeploymentRepo"] != "generic-local" {
-			t.Fatalf("configuration.defaultDeploymentRepo = %v", conf["defaultDeploymentRepo"])
+		if listConfigurationOf(t, h, "maven-virtual")["defaultDeploymentRepo"] != "generic-local" {
+			t.Fatalf("defaultDeploymentRepo = %v", listConfigurationOf(t, h, "maven-virtual")["defaultDeploymentRepo"])
 		}
 	})
 
@@ -343,8 +342,7 @@ func TestRemoteVirtualUpdateREST(t *testing.T) {
 			`{"url":"http://new.example.org/m2"}`); s != http.StatusOK {
 			t.Fatalf("update: %d %s", s, b)
 		}
-		_, cfg := getRepoJSON(t, h, "generic-remote")
-		conf := cfg["configuration"].(map[string]any)
+		conf := listConfigurationOf(t, h, "generic-remote")
 		if conf["url"] != "http://new.example.org/m2" {
 			t.Fatalf("configuration.url after update = %v", conf["url"])
 		}
@@ -368,8 +366,7 @@ func TestRemoteVirtualUpdateREST(t *testing.T) {
 			`{"repositories":["another-local","generic-local"]}`); s != http.StatusOK {
 			t.Fatalf("update: %d %s", s, b)
 		}
-		_, cfg := getRepoJSON(t, h, "aggregated")
-		conf := cfg["configuration"].(map[string]any)
+		conf := listConfigurationOf(t, h, "aggregated")
 		members, _ := conf["repositories"].([]any)
 		if len(members) != 2 || members[0] != "another-local" || members[1] != "generic-local" {
 			t.Fatalf("members after update = %v", conf["repositories"])
@@ -387,8 +384,7 @@ func TestRemoteVirtualUpdateREST(t *testing.T) {
 		if status != http.StatusOK {
 			t.Fatalf("partial update = %d %q, want 200 (merge-on-omit)", status, body)
 		}
-		_, cfg := getRepoJSON(t, h, "generic-remote")
-		conf := cfg["configuration"].(map[string]any)
+		conf := listConfigurationOf(t, h, "generic-remote")
 		if conf["url"] != "http://u" {
 			t.Fatalf("configuration.url after partial update = %v", conf["url"])
 		}
@@ -401,8 +397,7 @@ func TestRemoteVirtualUpdateREST(t *testing.T) {
 		if status != http.StatusOK {
 			t.Fatalf("description-only update = %d %s", status, body)
 		}
-		_, cfg = getRepoJSON(t, h, "generic-remote")
-		conf = cfg["configuration"].(map[string]any)
+		conf = listConfigurationOf(t, h, "generic-remote")
 		if conf["url"] != "http://u" {
 			t.Fatalf("configuration.url after description-only update = %v", conf["url"])
 		}
@@ -428,8 +423,7 @@ func TestRemoteVirtualUpdateREST(t *testing.T) {
 			"error when validating repository name: generic-remote : Repository key already exists") {
 			t.Fatalf("PUT-on-existing = (%d, %q), want the 400 key-exists literal", status, body)
 		}
-		_, cfg := getRepoJSON(t, h, "generic-remote")
-		conf := cfg["configuration"].(map[string]any)
+		conf := listConfigurationOf(t, h, "generic-remote")
 		if conf["url"] != "http://u" || conf["hardFail"] != false {
 			t.Fatalf("refused PUT left side effects: %v", conf)
 		}

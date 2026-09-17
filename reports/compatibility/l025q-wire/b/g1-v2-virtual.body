@@ -1,0 +1,16 @@
+{
+  "artifactoryRequestsCanRetrieveRemoteArtifacts": false,
+  "description": "",
+  "environments": [],
+  "excludesPattern": "",
+  "hideUnauthorizedResources": false,
+  "includesPattern": "**/*",
+  "key": "l025q-virt",
+  "notes": "",
+  "packageType": "generic",
+  "repositories": [
+    "l025q-seed"
+  ],
+  "signedUrlTtl": 90,
+  "type": "virtual"
+}

@@ -164,17 +164,17 @@ domains:
     - {category: update, method: POST,   path: "/api/repositories/{key}",  auth: admin, note: "200 纯文本；404/409/400"}
     - {category: delete, method: DELETE, path: "/api/repositories/{key}",  auth: admin, note: "最后 local 仓守卫 400"}
     - {category: list-configurations, method: GET, path: "/api/repositories/configurations?packageType=&repoType=", auth: admin, note: "按 type 分组、组内 key 排序；Cache-Control: no-store"}
-    - {category: exists, method: GET,    path: "/api/repositories/existence?type=&project=", auth: user, note: "7.103+ 探测"}
+    - {category: exists, method: GET,    path: "/api/repositories/existence?type=&projectKey=", auth: user, note: "7.103+ 探测；参数实名 projectKey（project 被静默忽略）——L025-1 勘误"}
   - resource: repositories-v2
     layer: core-rest
     evidence: inv-2 §1.B / rest-compat D02 行7–8
     confidence: 中
     operations:
     - {category: read,          method: GET,    path: "/api/v2/repositories/{key}", auth: user,  note: "v2 schema 读"}
-    - {category: batch-read,   method: GET,    path: "/api/v2/repositories/batch", auth: admin, note: "路径实取；批写三动词方法归属中置信"}
-    - {category: batch-create, method: POST,   path: "/api/v2/repositories/batch", auth: admin, note: "同上"}
-    - {category: batch-update, method: PUT,    path: "/api/v2/repositories/batch", auth: admin, note: "同上"}
-    - {category: batch-delete, method: DELETE, path: "/api/v2/repositories/batch", auth: admin, note: "207 混合态"}
+    - {category: batch-read,   method: GET,    path: "/api/v2/repositories/batch?names=", auth: admin, note: "值=v1 全量 schema；names 重复参数 OR——L025-1 实测"}
+    - {category: batch-create, method: PUT,    path: "/api/v2/repositories/batch", auth: admin, note: "L025-1 勘误：PUT=批建（201 text/plain 整单制）；旧记 POST 反了"}
+    - {category: batch-update, method: POST,  path: "/api/v2/repositories/batch", auth: admin, note: "L025-1 勘误：POST=批改（merge 方言）；旧记 PUT 反了"}
+    - {category: batch-delete, method: DELETE, path: "/api/v2/repositories/batch", auth: admin, note: "207 混合态（ghost/并发中删记 success:true——L025-1 全谱）"}
   - resource: federation        # FederatedRepoResource 53 操作
     layer: addon
     evidence: inv-2 §1.B / rest-compat D02 行11
@@ -200,11 +200,11 @@ domains:
     evidence: inv-2 §1.B / rest-compat D02 行12 / config-formats.md §2
     confidence: 高
     operations:
-    - {category: list,   method: GET,    path: "/api/repo_layouts",        auth: admin, note: "26 内置布局"}
-    - {category: read,   method: GET,    path: "/api/repo_layouts/{name}", auth: admin, note: ""}
-    - {category: create, method: POST,   path: "/api/repo_layouts/{name}", auth: admin, note: ""}
-    - {category: update, method: PUT,    path: "/api/repo_layouts/{name}", auth: admin, note: ""}
-    - {category: delete, method: DELETE, path: "/api/repo_layouts/{name}", auth: admin, note: ""}
+    - {category: list,   method: GET,    path: "/api/admin/repolayouts",            auth: any-project-admin, note: "L025-1 定案：/api/repo_layouts 已 404 撤挂载；实际挂载 /api/admin/repolayouts（25 内置布局）；缺名 500 No value present"}
+    - {category: read,   method: GET,    path: "/api/admin/repolayouts/{name}",   auth: any-project-admin, note: "含 repositoryAssociations 三数组"}
+    - {category: create, method: POST,   path: "/api/admin/repolayouts",          auth: admin, note: "UI-rest 族；官方未文档化"}
+    - {category: update, method: PUT,    path: "/api/admin/repolayouts",          auth: admin, note: ""}
+    - {category: delete, method: DELETE, path: "/api/admin/repolayouts/{name}",   auth: admin, note: ""}
   - resource: gpg             # GpgResource 5 操作
     layer: core-rest
     evidence: inv-2 §1.B / rest-compat D04 行27

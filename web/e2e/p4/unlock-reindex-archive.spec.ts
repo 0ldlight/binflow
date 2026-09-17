@@ -1,10 +1,10 @@
 import { execFileSync } from 'node:child_process'
-import { readFileSync, rmSync, appendFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { test, expect } from '@playwright/test'
 
 import { loginAs } from '../m8/support/roles'
 import { m8Client } from '../m8/support/seed'
+import { proLeaseAcquire, proLeaseMarkInstalled, proLeaseRelease } from '../support/pro-license'
 
 // FE-P4 A5/A6：解锁面收尾——reindex 入口（audit §2.17 首次 UI 化）与
 // archive 下载（api/archive/download 首次 UI 化）。
@@ -37,64 +37,17 @@ const createdKeys: string[] = [helmKey, genericKey]
 let licenseInstalledByUs = false
 let licenseBlocked = ''
 let archiveBlocked = ''
-const leaseFile = `/tmp/p4-license-lease-${new URL(BASE).port}.txt`
 
-/** 进程存活探测（lease 计数的陈尸防御：历次运行遗留的死 pid 会被计入
- *  others 令 remaining 永不归零——license 永不卸载的实例态泄漏形态） */
-function pruneDeadPids(all: string[]): string[] {
-  return all.filter((l) => {
-    const n = Number(l)
-    if (!Number.isInteger(n)) return true // 'installed' 标记不是 pid
-    try {
-      process.kill(n, 0)
-      return true
-    } catch {
-      return false
-    }
-  })
-}
-
-function readLease(): string[] {
-  try {
-    return pruneDeadPids(readFileSync(leaseFile, 'utf8').split('\n').filter((l) => l.trim() !== ''))
-  } catch {
-    return []
-  }
-}
-
-function acquireLicenseLease(): void {
-  try {
-    const kept = readLease()
-    rmSync(leaseFile, { force: true })
-    appendFileSync(leaseFile, [...kept, `${process.pid}`].join('\n') + '\n')
-  } catch {
-    // 尽力而为——失败退化为「谁装谁卸」
-  }
-}
-
-async function releaseLicenseLease(): Promise<void> {
-  let remaining = 1
-  let weInstalled = licenseInstalledByUs
-  try {
-    const all = readLease()
-    const others = all.filter((l) => l !== String(process.pid) && l !== 'installed')
-    weInstalled = weInstalled || all.includes('installed')
-    remaining = others.length
-    if (remaining === 0) rmSync(leaseFile, { force: true })
-  } catch {
-    // 无租约文件 = 单 worker 常态
-  }
-  if (remaining === 0 && weInstalled) {
-    await m8Client().request('DELETE', '/binflow/api/system/license').catch(() => undefined)
-  }
-}
+// pro 租约走共享层（../support/pro-license——实例端口为键，t461/p4/t514
+// 三消费方同键互见；死 pid 剪除与末位卸载语义都在那里）。L025-2：release
+// 无条件——旧形态仅安装 worker 归还，remaining 永不归零、license 毒实例。
 
 test.beforeAll(async () => {
   const client = m8Client()
   // pro 租约（helm 建仓门 + archive 的 repo-operations 槽位）
   const probe = await client.probeGet('/binflow/api/system/license')
   const alreadyPro = probe.status === 200 && (JSON.parse(probe.text).tier ?? '') === 'pro'
-  acquireLicenseLease()
+  proLeaseAcquire(BASE)
   if (!alreadyPro) {
     try {
       const doc = execFileSync(
@@ -110,7 +63,7 @@ test.beforeAll(async () => {
         headers: { 'content-type': 'text/plain' },
       })
       licenseInstalledByUs = true
-      appendFileSync(leaseFile, 'installed\n')
+      proLeaseMarkInstalled(BASE)
     } catch (err) {
       licenseBlocked = `pro license unavailable (${String(err).slice(0, 160)})`
     }
@@ -144,7 +97,8 @@ test.afterAll(async () => {
       .request('DELETE', `/binflow/api/repositories/${key}?deleteContent=true`)
       .catch(() => undefined)
   }
-  if (licenseInstalledByUs) await releaseLicenseLease()
+  // 无条件归还租约（L025-2——见文件头注记）
+  await proLeaseRelease(BASE, licenseInstalledByUs)
 })
 
 test.beforeEach(async ({ request }) => {

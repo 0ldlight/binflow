@@ -37,14 +37,10 @@ func TestDebRpmPolicyKeysRoundTripREST(t *testing.T) {
 		t.Fatalf("create status = %d; body=%s", status, body)
 	}
 
-	code, cfg := getRepoJSON(t, h, "policy-local")
-	if code != http.StatusOK {
+	if code, _ := getRepoJSON(t, h, "policy-local"); code != http.StatusOK {
 		t.Fatalf("GET status = %d", code)
 	}
-	conf, ok := cfg["configuration"].(map[string]any)
-	if !ok {
-		t.Fatalf("configuration missing: %v", cfg)
-	}
+	conf := listConfigurationOf(t, h, "policy-local")
 	want := map[string]any{
 		"byHash":                          "SHA256",
 		"optionalIndexCompressionFormats": []any{"xz", "lzma"},
@@ -74,8 +70,7 @@ func TestDebRpmPolicyKeysRoundTripREST(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("create (off arm) status = %d; body=%s", status, body)
 	}
-	_, cfg = getRepoJSON(t, h, "policy-off")
-	conf = cfg["configuration"].(map[string]any)
+	conf = listConfigurationOf(t, h, "policy-off")
 	for k, v := range map[string]any{
 		"calculateYumMetadata":            false,
 		"yumRootDepth":                    float64(0),
@@ -102,8 +97,7 @@ func TestDebRpmPolicyKeysUpdateReplacesConfig(t *testing.T) {
 	if status, body := postRepoStatus(t, h, "policy-up", `{"byHash":"NONE"}`); status != http.StatusOK {
 		t.Fatalf("update status = %d; body=%s", status, body)
 	}
-	_, cfg := getRepoJSON(t, h, "policy-up")
-	conf := cfg["configuration"].(map[string]any)
+	conf := listConfigurationOf(t, h, "policy-up")
 	if conf["byHash"] != "NONE" {
 		t.Errorf("byHash after update = %v, want NONE", conf["byHash"])
 	}
@@ -118,8 +112,7 @@ func TestDebRpmPolicyKeysUpdateReplacesConfig(t *testing.T) {
 	if status, body := postRepoStatus(t, h, "policy-up", `{"description":"words only"}`); status != http.StatusOK {
 		t.Fatalf("description-only status = %d; body=%s", status, body)
 	}
-	_, cfg = getRepoJSON(t, h, "policy-up")
-	conf = cfg["configuration"].(map[string]any)
+	conf = listConfigurationOf(t, h, "policy-up")
 	if conf["byHash"] != "SHA256" {
 		t.Errorf("byHash after description-only update = %v, want the kept SHA256", conf["byHash"])
 	}
@@ -163,13 +156,10 @@ func TestDebRpmPolicyKeysTypeRefusal(t *testing.T) {
 		if status != http.StatusOK {
 			t.Fatalf("status = %d; body=%s", status, body)
 		}
-		_, cfg := getRepoJSON(t, h, "policy-tol")
-		conf, ok := cfg["configuration"].(map[string]any)
-		if ok {
-			if _, there := conf["someFutureField"]; there {
-				raw, _ := json.Marshal(conf)
-				t.Fatalf("unknown field leaked into the config: %s", raw)
-			}
+		conf := listConfigurationOf(t, h, "policy-tol")
+		if _, there := conf["someFutureField"]; there {
+			raw, _ := json.Marshal(conf)
+			t.Fatalf("unknown field leaked into the config: %s", raw)
 		}
 	})
 }
@@ -206,8 +196,7 @@ func TestByHashEnumValueDomainREST(t *testing.T) {
 			t.Fatalf("body %q does not name the enum", body)
 		}
 		// The refused update left the stored value untouched.
-		_, cfg := getRepoJSON(t, h, "policy-enum-up")
-		conf := cfg["configuration"].(map[string]any)
+		conf := listConfigurationOf(t, h, "policy-enum-up")
 		if conf["byHash"] != "ALL" {
 			t.Fatalf("byHash after refused update = %v, want the kept ALL", conf["byHash"])
 		}

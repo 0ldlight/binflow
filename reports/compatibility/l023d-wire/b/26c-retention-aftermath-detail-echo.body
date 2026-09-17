@@ -1,0 +1,25 @@
+{
+  "buildInfo": {
+    "agent": {
+      "name": "l0232d",
+      "version": "1"
+    },
+    "artifactoryPrincipal": "admin",
+    "buildAgent": {
+      "name": "difftest",
+      "version": "1"
+    },
+    "buildRetention": {
+      "buildNumbersNotToBeDiscarded": [],
+      "count": 1,
+      "deleteBuildArtifacts": false
+    },
+    "durationMillis": 0,
+    "name": "l023d-r3",
+    "number": "6",
+    "started": "2026-09-16T01:00:00.000+0000",
+    "url": "http://ci.example/null",
+    "version": "1.0"
+  },
+  "uri": "http://172.16.58.130:8083/binflow/api/build/l023d-r3/6?buildRepo=artifactory-build-info"
+}

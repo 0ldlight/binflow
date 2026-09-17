@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Invalid repository type: local,remote"
+  } ]
+}

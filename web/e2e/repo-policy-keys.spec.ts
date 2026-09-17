@@ -34,14 +34,15 @@ function pkgSlot(id: string): Record<string, unknown> {
   }
 }
 
-/** 编辑态回显体(GET /api/repositories/{key}) */
-function repoDetail(key: string, packageType: string, configuration: Record<string, unknown>): Record<string, unknown> {
-  return { key, rclass: 'local', packageType, description: 'e2e', url: '', configuration }
+/** 编辑态回显体(GET /api/repositories/{key})——L025-6 后详读面键**顶层平铺**
+ *  （无 configuration 子对象）；本 mock 即真栈键形态。 */
+function repoDetail(key: string, packageType: string, cfg: Record<string, unknown>): Record<string, unknown> {
+  return { key, rclass: 'local', packageType, description: 'e2e', ...cfg }
 }
 
 interface FormMockOpts {
   adminRole?: string
-  /** GET /api/repositories/{key} 的应答表(key → configuration); 未列出的 key 404 */
+  /** GET /api/repositories/{key} 的应答表(key → 平铺配置体); 未列出的 key 404 */
   details?: Record<string, Record<string, unknown>>
   /** 写动词(PUT/POST)成功与否; 请求体推入返回的数组 */
   writes?: unknown[]
@@ -136,7 +137,9 @@ test('deb editor: set policy keys and save — transport body matches the regist
   // 高级分区(Advanced 步): deb 六键呈现(字段册驱动), 回显预填
   await expect(page.locator('[data-testid="repo-form-page"]')).toBeVisible()
   await gotoAdvanced(page)
-  await expect(page.getByText('Deb 索引策略——索引引擎策略键')).toBeVisible()
+  // T-463 i18n 外化后节题改拼写（「索引引擎策略键（仅 <pkg> 仓…」）——本 spec
+  // 三处节题断言随本票顺车归位（straggler，与 T-439/T-441 步进归位同款）
+  await expect(page.getByText('索引引擎策略键（仅 debian 仓')).toBeVisible()
   await expect(page.locator('[data-testid="form-byHash"]')).toHaveValue('SHA256')
   await expect(page.locator('[data-testid="form-historyCycles"]')).toHaveValue('5')
   await expect(page.locator('[data-testid="form-optionalIndexCompressionFormats"]')).toHaveCount(1)
@@ -208,7 +211,7 @@ test('rpm create: RP-2 opt-in and root depth ride the PUT; explicit false surviv
   await gotoAdvanced(page)
   // deb 族字段不得出现在 rpm 仓(字段册按包类型收窄)
   await expect(page.locator('[data-testid="form-byHash"]')).toHaveCount(0)
-  await expect(page.getByText('RPM 索引策略——索引引擎策略键')).toBeVisible()
+  await expect(page.getByText('索引引擎策略键（仅 rpm 仓')).toBeVisible()
 
   await page.locator('[data-testid="form-calculateYumMetadata"]').check()
   await page.locator('[data-testid="form-yumRootDepth"]').fill('2')
@@ -244,7 +247,7 @@ test('helm editor: enforce-layout pair round-trips an explicit false on flip-off
   await page.goto('/binflow/ui/admin/repositories/helm-local/edit')
   await gotoAdvanced(page)
 
-  await expect(page.getByText('Helm 强制布局——索引引擎策略键')).toBeVisible()
+  await expect(page.getByText('索引引擎策略键（仅 helm 仓')).toBeVisible()
   await expect(page.locator('[data-testid="form-forceMetadataNameVersion"]')).toBeChecked()
   await expect(page.locator('[data-testid="form-forceNonDuplicateChart"]')).not.toBeChecked()
 

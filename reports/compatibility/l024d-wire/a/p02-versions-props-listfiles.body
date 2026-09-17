@@ -1,0 +1,14 @@
+{
+  "version" : "1.1",
+  "artifacts" : [ {
+    "repo" : "l024d-props-local",
+    "path" : "l024d/f1/b.bin",
+    "downloadUri" : "http://172.16.58.130:8082/artifactory/l024d-props-local/l024d/f1/b.bin",
+    "uri" : "http://172.16.58.130:8082/artifactory/l024d-props-local/l024d/f1/b.bin"
+  }, {
+    "repo" : "l024d-props-local",
+    "path" : "l024d/f1/c.bin",
+    "downloadUri" : "http://172.16.58.130:8082/artifactory/l024d-props-local/l024d/f1/c.bin",
+    "uri" : "http://172.16.58.130:8082/artifactory/l024d-props-local/l024d/f1/c.bin"
+  } ]
+}

@@ -1,0 +1,34 @@
+{
+  "name": "maven-2-default",
+  "artifactPathPattern": "[orgPath]/[module]/[baseRev](-[folderItegRev])/[module]-[baseRev](-[fileItegRev])(-[classifier]).[ext]",
+  "distinctiveDescriptorPathPattern": true,
+  "descriptorPathPattern": "[orgPath]/[module]/[baseRev](-[folderItegRev])/[module]-[baseRev](-[fileItegRev])(-[classifier]).pom",
+  "folderIntegrationRevisionRegExp": "SNAPSHOT",
+  "fileIntegrationRevisionRegExp": "SNAPSHOT|(?:(?:[0-9]{8}.[0-9]{6})-(?:[0-9]+))",
+  "repositoryAssociations": {
+    "localRepositories": [],
+    "remoteRepositories": [
+      "demo-remote",
+      "l025q-rem",
+      "t240r-mu1m9k4bzlju",
+      "t240r-mu1mr0zn2hps",
+      "t240r-mu1n52fzjstw",
+      "t404r-mu1m6jawoufz",
+      "t404r-mu1mnyxnebxt",
+      "t404r-mu1n137vfygk",
+      "t443auth-mu1m7ndo4iji",
+      "t443auth-mu1mp2k5idz8",
+      "t443auth-mu1n2iaj81ws",
+      "t443ax-mu1m7nv8bi5s",
+      "t443ax-mu1mp38uzdot",
+      "t443ax-mu1n2ipix4kf",
+      "t443ok-mu1m7ndo2flz",
+      "t443ok-mu1mp2k59kcf",
+      "t443ok-mu1n2iajebw8",
+      "t443r-mu1m7mcbs077",
+      "t443r-mu1mp1yikurv",
+      "t443r-mu1n2gyjs13x"
+    ],
+    "virtualRepositories": []
+  }
+}

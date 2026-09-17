@@ -69,6 +69,18 @@
 #   ③ known-divergence 增记归一提案两族（d01/context-path-interpolation〔PN-ctx〕、d01/header-face-
 #   drop-proposal〔PN-hdr——Allow/Cache-Control 聚合〕——候 normalize#d01-tail 入册裁定）+ 四条开放项
 #   维持不判；④ summary 同步 compatible 81→83/absent 70→68/last_difftest 37→39。195 冻结行集不增删。
+# L025-10（LOOP 025，2026-09-17，D02 批次 3 落账）：① D02 五行翻 compatible——R06（configurations 全量
+#   读——G1 已修：四层键集键名差 0，L025-6 989ad5ed）/R07（v2 单仓读——18/12/46 键名同+显式 CT 406）/R08
+#   （v2 batch 族四动词——§5.2 三臂 SAME〔L025-5 256571d1〕+Q4 集合化；能力行动词映射勘正=PUT 批建/POST
+#   批改〔L025-1 翻案〕）/R09（existence 四臂全绿直达）/R12（repolayouts——能力行同步勘误：26→25 布局+
+#   真身 /api/admin/repolayouts〔旧挂载活体双 404〕）——evidence 链=reports/compatibility/L025-d02-config-
+#   diff.md §5 终轮+§6 翻绿终版（dev.b79a2d51 × A 7.161.15，commit d7a70797）+ contracts/d02-config.yaml；
+#   ② 契约 d02-config.yaml 7 条目全升 VERIFIED（evidence 链补 §5.1/§5.2/§5.3 终轮锚）；③ known-divergence
+#   新增 d02 域 3 族（repolayouts-header-family〔G6 头族 l01/l02/w06b〕/plain-user-403-family〔G3 w08 文案+
+#   G9-R2 w13-ghost 检查次序〕/v1-remote-hexpublickey-shape〔G1-R1 值形——仅 v1 面〕——全部 UNKNOWN 候裁
+#   不挡翻绿，pending-rulings v2.7 R-25a/R-25b/R-25c 呈批 28→31 席）；④ summary 同步 compatible 83→88/
+#   absent 68→63/high 137→140/medium 63→60/contract_ref 26→31/last_difftest 39→44（置信三行 R07/R08/R12
+#   medium→high——双端活体终轮）。195 冻结行集不增删（本批零新行、零重分类）。
 
 ---
 schema: 1
@@ -111,14 +123,14 @@ priority_policy:
 summary:
   total_rows: 200
   state_counts:
-    compatible: 83
+    compatible: 88
     partial: 17
-    absent: 68
+    absent: 63
     not_applicable: 20
     superset: 12
   confidence_counts:
-    high: 137
-    medium: 63
+    high: 140
+    medium: 60
     low: 0
   priority_counts:
     P0: 58
@@ -127,15 +139,15 @@ summary:
   by_state_x_priority:
     compatible:
       P0: 56
-      P1: 26
-      P2: 1
+      P1: 30
+      P2: 2
     partial:
       P0: 2
       P1: 10
       P2: 5
     absent:
-      P1: 26
-      P2: 42
+      P1: 22
+      P2: 41
     superset:
       P2: 12
     not_applicable:
@@ -150,8 +162,8 @@ summary:
       not_applicable: 4
     D02:
       rows: 13
-      compatible: 5
-      absent: 6
+      compatible: 10
+      absent: 1
       not_applicable: 1
       superset: 1
     D03:
@@ -210,9 +222,9 @@ summary:
     D14:
       rows: 1
       not_applicable: 1
-  contract_ref_non_null: 26  # L024-7 同步：前置 22（L023-3 勘正后）+ 本批 D03-R10..R13 四行 → 实计 26（逐行 ruby 对账通过）
+  contract_ref_non_null: 31  # L025-10 同步：前置 26（L024-7 收官后）+ 本批 D02-R06/R07/R08/R09/R12 五行 → 实计 31（逐行 ruby 对账通过）
   golden_ref_non_null: 1     # D12-R01（empty-blob-synthetic / pull-sequence）——storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 / L024-4 §5 提金候选（l023d-wire/a/、l024d-wire/a/）在册待采，本批零金样变更
-  last_difftest_non_null: 39 # L024 收官尾单同步：前置 37（L024-7）+ D01-R08/R16 两行 → 实计 39（逐行 ruby 对账通过）
+  last_difftest_non_null: 44 # L025-10 同步：前置 39（L024 收官尾单）+ 本批 D02 五行 → 实计 44（逐行 ruby 对账通过）
 rows:
 - row_id: D01-R01
   domain: D01
@@ -838,47 +850,51 @@ rows:
 - row_id: D02-R06
   domain: D02
   capability: GET /api/repositories/configurations?packageType=&repoType=（admin）
-  state: absent
+  state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: docs/compatibility/contracts/d02-config.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L025-d02-config-diff.md §5/§6（终轮 dev.b79a2d51 × A 7.161.15——§5.1 四层键集 c01+configurations 投影层 18/12/46 键名同；commit d7a70797）
   priority_class: P1
   layer: A
   source_row: "§3 行 6"
+  note: 'L025-10 翻绿（L025-8 终轮 §6）：G1 投影大缺口已修——L025-6 六面渲染器（989ad5ed）落位后四层键集面键名差=0、值级 parsed 全等（唯 v1-remote hexPublicKey 值形单独候裁=台账 d02/v1-remote-hexpublickey-shape，不在本行面）。读族结构面（分组/排序/CT/no-store/过滤空集/非 admin 403 信封）L025-4 §1 c01-c03 全绿。'
 - row_id: D02-R07
   domain: D02
   capability: GET /api/v2/repositories/{key}（v2 配置读）
-  state: absent
-  confidence: medium
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  state: compatible
+  confidence: high
+  contract_ref: docs/compatibility/contracts/d02-config.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L025-d02-config-diff.md §5/§6（v01-v05+g1-v2 层——18/12/46 键名同、显式 CT 406 双同、非 admin 五键逐名同；commit d7a70797）
   priority_class: P1
   layer: A
   source_row: "§3 行 7"
+  note: 'L025-10 翻绿（L025-8 终轮 §6）：404 信封/CT vendor/no-store/CT-非-Accept 406（显式头重探双同）/非 admin 分 rclass 部分视图（4/5/5 键——L025-6 local 4 键无 url 修账实不符）全绿；G1 修复后 v2 层全净（hexPublicKey 不在 v2 面）。'
 - row_id: D02-R08
   domain: D02
-  capability: "/api/v2/repositories/batch 族（GET 批读/POST 批建/PUT 批改/DELETE 批删 207 混合态）"
-  state: absent
-  confidence: medium
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  capability: "/api/v2/repositories/batch 族（GET 批读/PUT 批建/POST 批改/DELETE 批删 207 混合态——L025-1 动词映射翻案勘正）"
+  state: compatible
+  confidence: high
+  contract_ref: docs/compatibility/contracts/d02-config.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L025-d02-config-diff.md §5/§6（w01-w14 终轮——§5.2 三臂 SAME〔256571d1〕+ §5.3 八分歧裁处；commit d7a70797）
   priority_class: P1
   layer: A
   source_row: "§3 行 8"
+  note: 'L025-10 翻绿（L025-8 终轮 §6）：批建 201 体逐字节/整单回滚/空数组 201/merge 200 裸串/ghost 404/空删 400/混合删三 rclass 文案（Q4 集合化行集全等）全绿；G4（PUT 403 裸 Forbidden）/G2（blank-key ghost 形）/G5（v1 未知 key 400）=L025-5 256571d1 修复落位、§5.2 三臂全 SAME。余两面单独候裁不挡行：w08 POST 非 admin 文案+w13-ghost 检查次序=台账 d02/plain-user-403-family（候 R-25b）；G7 真 207/全败=共享参照不可安全构造维持开放备案（B 单测注入证据在案）。'
 - row_id: D02-R09
   domain: D02
   capability: GET /api/repositories/existence（按 type/project 探测，7.103+）
-  state: absent
+  state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: docs/compatibility/contracts/d02-config.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L025-d02-config-diff.md §5/§6（e01-e04 四臂全绿维持——命中形/逗号 400/重复参 OR/project= 静默忽略；commit d7a70797）
   priority_class: P1
   layer: A
   source_row: "§3 行 9"
+  note: 'L025-10 翻绿：L025-4 §1 e01-e04 四臂全绿 + L025-8 终轮复验维持（契约 d02-config/existence 自始 VERIFIED——唯一零修复直达面）。'
 - row_id: D02-R10
   domain: D02
   capability: GET /api/repositories/{key}（Remote Repository Configuration deprecated 变体）
@@ -903,15 +919,16 @@ rows:
   source_row: "§3 行 11"
 - row_id: D02-R12
   domain: D02
-  capability: "/api/repo_layouts[/{name}] CRUD（26 内置布局）"
-  state: absent
-  confidence: medium
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  capability: "/api/admin/repolayouts[/{name}]（25 内置布局——旧挂载 /api/repo_layouts 已撤双 404；L025-1 三翻案之一勘误：26→25）"
+  state: compatible
+  confidence: high
+  contract_ref: docs/compatibility/contracts/d02-config.yaml
+  golden_ref:
+  last_difftest: reports/compatibility/L025-d02-config-diff.md §5/§6（l01-l04——列表 25 项 body IDENTICAL/单读六七键 parsed 同/缺名 500 No value present/旧挂载双 404；commit d7a70797）
   priority_class: P2
   layer: A
   source_row: "§3 行 12"
+  note: 'L025-10 翻绿 + 能力行勘误（L025-1 证伪：真身=/api/admin/repolayouts、25 布局非 26——spec commit 6814c3d7；旧 /api/repo_layouts 挂载活体双 404=l04a/b）。唯一残差=G6 头族（A 独有 Access-Control-Allow-Headers/Methods+Cache-Control: no-store，l01/l02/w06b 三面）单独登记台账 d02/repolayouts-header-family 候 normalize Q1 drop-or-补齐（候 R-25a），不随行翻转。associations=实例态（Q5 规则）。'
 - row_id: D02-R13
   domain: D02
   capability: "（超集）POST /api/repositories/{key}/test（remote 连通测试三臂）"

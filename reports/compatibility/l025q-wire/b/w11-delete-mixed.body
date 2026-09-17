@@ -1,0 +1,29 @@
+{
+  "reports": [
+    {
+      "repoKey": "l025q-b2",
+      "statusMsg": "Repository 'l025q-b2' and all its content have been removed successfully.",
+      "deletedArtifactsCount": 0,
+      "success": true
+    },
+    {
+      "repoKey": "l025q-virt",
+      "statusMsg": "Repository 'l025q-virt' has been removed successfully.",
+      "deletedArtifactsCount": 0,
+      "success": true
+    },
+    {
+      "repoKey": "l025q-rem",
+      "statusMsg": "Repository 'l025q-rem' and all its content have been removed successfully.",
+      "deletedArtifactsCount": 0,
+      "success": true
+    },
+    {
+      "repoKey": "l025q-none",
+      "statusMsg": "Cannot delete repository: 'l025q-none', repository config does not exist",
+      "deletedArtifactsCount": 0,
+      "success": true
+    }
+  ],
+  "statusMessage": "All repositories were removed successfully"
+}

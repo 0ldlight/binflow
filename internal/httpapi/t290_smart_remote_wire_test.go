@@ -34,14 +34,10 @@ func TestT290SmartRemoteWireRoundTrip(t *testing.T) {
 		t.Fatalf("create status = %d; body=%s", status, body)
 	}
 
-	code, cfg := getRepoJSON(t, h, "smart-remote")
-	if code != http.StatusOK {
+	if code, _ := getRepoJSON(t, h, "smart-remote"); code != http.StatusOK {
 		t.Fatalf("GET status = %d", code)
 	}
-	conf, ok := cfg["configuration"].(map[string]any)
-	if !ok {
-		t.Fatalf("configuration missing: %v", cfg)
-	}
+	conf := listConfigurationOf(t, h, "smart-remote")
 	for k, v := range map[string]any{
 		"socketTimeoutMillis":               float64(2500), // the legacy input spelling, canonicalized
 		"socketTimeoutSecs":                 float64(3),    // ceil of 2500ms
@@ -70,8 +66,7 @@ func TestT290SmartRemoteDefaultsOnWire(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("create status = %d; body=%s", status, body)
 	}
-	_, cfg := getRepoJSON(t, h, "plain-remote")
-	conf := cfg["configuration"].(map[string]any)
+	conf := listConfigurationOf(t, h, "plain-remote")
 	for k, v := range map[string]any{
 		"socketTimeoutMillis":               float64(15000),
 		"socketTimeoutSecs":                 float64(15),
@@ -100,11 +95,7 @@ func TestT290M11FieldAcceptedOnWire(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("create status = %d, want 200; body=%s", status, body)
 	}
-	_, cfg := getRepoJSON(t, h, "m11-remote")
-	conf, ok := cfg["configuration"].(map[string]any)
-	if !ok {
-		t.Fatalf("configuration missing: %v", cfg)
-	}
+	conf := listConfigurationOf(t, h, "m11-remote")
 	if conf["enableTokenAuthentication"] != true {
 		t.Fatalf("enableTokenAuthentication = %v, want true", conf["enableTokenAuthentication"])
 	}
@@ -138,8 +129,7 @@ func TestT290M11FieldAcceptedOnWire(t *testing.T) {
 		if status != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", status, body)
 		}
-		_, cfg := getRepoJSON(t, h, "xsd-remote")
-		conf := cfg["configuration"].(map[string]any)
+		conf := listConfigurationOf(t, h, "xsd-remote")
 		if conf["socketTimeoutMillis"] != float64(800) {
 			t.Fatalf("socketTimeoutMillis = %v, want 800", conf["socketTimeoutMillis"])
 		}

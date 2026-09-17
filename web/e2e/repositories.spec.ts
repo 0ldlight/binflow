@@ -55,6 +55,18 @@ function uniq(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 }
 
+/** L025-6 后 v1 详读面 = 参照键表平铺体，BinFlow 专键（quotaBytes /
+ *  defaultDeploymentRepo…）离表——对账读位列表面 configuration blob
+ *  （listConfigurationOf 先例）。 */
+async function listConfigOf(
+  page: import('@playwright/test').Page,
+  key: string,
+): Promise<Record<string, unknown>> {
+  const res = await api(page, 'GET', '/api/repositories')
+  const rows = JSON.parse(res.text) as { key: string; configuration?: Record<string, unknown> }[]
+  return rows.find((r) => r.key === key)?.configuration ?? {}
+}
+
 test('local generic full lifecycle: create with governance -> list -> edit roundtrip -> delete with content', async ({ page }) => {
   const key = uniq('t99a')
   await page.goto('/binflow/ui/admin/repositories/local/new')
@@ -88,15 +100,17 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   await page.click('[data-testid="repo-tab-overview"]')
   await expect(page.locator('[data-testid="repo-usage-card"]')).toBeVisible()
 
-  // API 对账：packageType / governance 字段回显（AC①：建后 curl 单查对账）
+  // API 对账：packageType / governance 字段回显（AC①：建后 curl 单查对账）。
+  // L025-6 后详读面键平铺（includesPattern 顶层）；BinFlow 专键 quotaBytes
+  // 走列表面 blob 对账。
   const created = await api(page, 'GET', `/api/repositories/${key}`)
   expect(created.status).toBe(200)
   const createdJson = JSON.parse(created.text)
   expect(createdJson.packageType).toBe('generic')
   expect(createdJson.rclass).toBe('local')
-  expect(createdJson.configuration.quotaBytes).toBe(1048576)
-  expect(createdJson.configuration.includesPattern).toBe('**/*')
-  expect(createdJson.configuration.excludesPattern).toBe('tmp/**')
+  expect(createdJson.includesPattern).toBe('**/*')
+  expect(createdJson.excludesPattern).toBe('tmp/**')
+  expect(await listConfigOf(page, key)).toMatchObject({ quotaBytes: 1048576 })
 
   // 列表：行可见 + 过滤（T-240：local 仓行在 local Tab 子路由）。
   // T-475：列表自 T-451 起有客户端页窗（默认 100/页）；套件累积态下
@@ -134,9 +148,9 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   await expect(page.locator('[data-testid="toast"]')).toContainText('update successfully')
   const updated = await api(page, 'GET', `/api/repositories/${key}`)
   const updatedJson = JSON.parse(updated.text)
-  expect(updatedJson.configuration.quotaBytes).toBe(2097152)
-  expect(updatedJson.configuration.includesPattern).toBe('release/**')
-  expect(updatedJson.configuration.excludesPattern).toBe('tmp/**') // 未动的字段保全
+  expect(updatedJson.includesPattern).toBe('release/**')
+  expect(updatedJson.excludesPattern).toBe('tmp/**') // 未动的字段保全
+  expect(await listConfigOf(page, key)).toMatchObject({ quotaBytes: 2097152 })
 
   // 上传制品（内容面同凭据）：治理 pattern 门生效——includes=release/**
   // 时 acme/ 被拒（409 双 pattern），release/ 放行
@@ -201,8 +215,9 @@ test('remote maven: url roundtrip, password never echoed, empty delete', async (
   const json = JSON.parse(got.text)
   expect(json.rclass).toBe('remote')
   expect(json.packageType).toBe('maven')
-  expect(json.configuration.url).toBe('https://repo1.maven.org/maven2')
-  expect(json.configuration.username).toBe('dev')
+  // L025-6 后键平铺：url/username 顶层
+  expect(json.url).toBe('https://repo1.maven.org/maven2')
+  expect(json.username).toBe('dev')
 
   // 编辑：url 预填（remote 更新必带 url，否则服务端 400）——单页直达
   await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
@@ -283,11 +298,12 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${vkey}$`))
   await expect(page.locator('[data-testid="repo-virtual-card"]')).toBeVisible()
 
-  // API 对账：成员序 + defaultDeploymentRepo（写路由只接受 local 成员）
+  // API 对账：成员序（详读面平铺键）+ defaultDeploymentRepo（BinFlow 专键，
+  // 列表面 blob——L025-6 后离表）
   const got = await api(page, 'GET', `/api/repositories/${vkey}`)
   const json = JSON.parse(got.text)
-  expect(json.configuration.repositories).toEqual([m2, m1])
-  expect(json.configuration.defaultDeploymentRepo).toBe(m1)
+  expect(json.repositories).toEqual([m2, m1])
+  expect(await listConfigOf(page, vkey)).toMatchObject({ defaultDeploymentRepo: m1 })
 
   // review B1：列表成员浮层可开、内容可读，且点击不触发行导航
   //（T-240：virtual 仓行在 virtual Tab 子路由）
@@ -309,8 +325,8 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   await expect(page.locator('[data-testid="toast"]')).toContainText('update successfully')
   const after = await api(page, 'GET', `/api/repositories/${vkey}`)
   const afterJson = JSON.parse(after.text)
-  expect(afterJson.configuration.repositories).toEqual([m2])
-  expect(afterJson.configuration.defaultDeploymentRepo).toBeUndefined()
+  expect(afterJson.repositories).toEqual([m2])
+  expect((await listConfigOf(page, vkey)).defaultDeploymentRepo).toBeUndefined()
 
   // 服务端 400 行内回显：编辑态成员在表单打开后被外部删除 → 保存被服务端拒
   //（T-443 dirty-gating：先落一处变更使 Save 可达——本腿语义是服务端 400
@@ -326,4 +342,51 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   // 收尾
   await api(page, 'DELETE', `/api/repositories/${vkey}`)
   await api(page, 'DELETE', `/api/repositories/${m1}`)
+})
+
+// L025-7 回归腿：G1 渲染收敛（989ad5ed）后 BinFlow 专键离开 v1 详读面——
+// 控制台读位迁列表面 blob（getRepoDetail 合并）。钉死写路径保险：专键已置位
+// 的 local 仓，编辑器零触碰开关、只改 description 保存 → priorityResolution /
+// quotaBytes / includesPattern 不翻转（读位断裂时 cfgBool 回 false、表单全量
+// 回传会把用户没动的开关翻成缺省写回）。
+test('L025-7: BinFlow-only keys survive an untouched-fields edit (read seat = list-face blob)', async ({ page }) => {
+  const key = uniq('l0257')
+  await page.goto('/binflow/ui/')
+  await login(page)
+  await api(page, 'PUT', `/api/repositories/${key}`, {
+    rclass: 'local',
+    packageType: 'generic',
+    description: 'l025-7 seed',
+    priorityResolution: true,
+    quotaBytes: 1048576,
+    includesPattern: 'keep/**',
+  })
+
+  // 列表 → 详情：专键经合并读位回显（governance 卡配额 + 优先解析 kv 行）
+  await page.goto('/binflow/ui/admin/repositories/local')
+  await page.fill('[data-testid="repos-filter-key"]', key)
+  await page.click(`[data-testid="repos-row-${key}"]`)
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${key}$`))
+  await page.click('[data-testid="repo-tab-configuration"]')
+  await expect(page.locator('[data-testid="repo-governance-card"]')).toContainText('1048576')
+  await expect(page.locator('[data-testid="repo-detail-page"]')).toContainText('是（priorityResolution）')
+
+  // 编辑：高级步回显真值（读位断裂时这里是 0 / 未勾），只改 description 保存
+  await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
+  await page.click('[data-testid="form-step-advanced"]')
+  await expect(page.locator('[data-testid="form-quota"]')).toHaveValue('1048576')
+  await expect(page.locator('[data-testid="form-includes"]')).toHaveValue('keep/**')
+  await expect(page.locator('label:has-text("priorityResolution") > input')).toBeChecked()
+  await page.click('[data-testid="form-step-basic"]')
+  await page.fill('[data-testid="form-description"]', 'l025-7 untouched-fields save')
+  await page.click('[data-testid="form-submit"]')
+  await expect(page.locator('[data-testid="toast"]')).toContainText('update successfully')
+
+  // 对账（列表面 blob）：未触碰的专键不翻转
+  const cfg = await listConfigOf(page, key)
+  expect(cfg.priorityResolution).toBe(true)
+  expect(cfg.quotaBytes).toBe(1048576)
+  expect(cfg.includesPattern).toBe('keep/**')
+
+  await api(page, 'DELETE', `/api/repositories/${key}`)
 })

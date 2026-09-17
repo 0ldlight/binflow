@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 400,
+      "message": "Checksum type: sha512 is not defined"
+    }
+  ]
+}

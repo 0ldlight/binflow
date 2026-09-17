@@ -189,8 +189,9 @@ func TestT217ManageHolderBoundaryLegs(t *testing.T) {
 	if after := t215Admin(t, h, http.MethodGet, "api/v1/permissions", "", 200); after != before {
 		t.Errorf("permission inventory changed across denied edits\nbefore: %s\nafter:  %s", before, after)
 	}
-	if got := t215Code(t, h, http.MethodGet, "api/repositories/brand-new", adminUser, adminPass, ""); got != http.StatusNotFound {
-		t.Errorf("GET brand-new after denied create = %d, want 404", got)
+	// L025-5 / diff G5: the unknown-key GET answers the bare-400 quirk.
+	if got := t215Code(t, h, http.MethodGet, "api/repositories/brand-new", adminUser, adminPass, ""); got != http.StatusBadRequest {
+		t.Errorf("GET brand-new after denied create = %d, want the 400 unknown-key quirk", got)
 	}
 	if got := t215Code(t, h, http.MethodGet, "api/v1/session", "dave", "dave-pw", ""); got != http.StatusOK {
 		t.Errorf("dave's password survived the denied user write = %d, want 200", got)

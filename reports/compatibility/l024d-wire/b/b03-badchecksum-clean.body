@@ -1,0 +1,55 @@
+{
+  "results": [
+    {
+      "clientMd5": "",
+      "serverMd5": "9e65ef1a4db5d01b707908a5ca939ea5",
+      "uri": "http://172.16.58.130:8083/binflow/api/storage/l024d-mvn-local/l024d/grp/l024d-art/1.0/l024d-art-1.0.pom"
+    },
+    {
+      "clientMd5": "",
+      "serverMd5": "593570816382cc3b9c3abe4faad41ed8",
+      "uri": "http://172.16.58.130:8083/binflow/api/storage/l024d-mvn-local/l024d/grp/l024d-art/1.1-20260916.130000-1/l024d-art-1.1-20260916.130000-1.pom"
+    },
+    {
+      "clientMd5": "",
+      "serverMd5": "5400608ca17572f0e8545cf0083b3d67",
+      "uri": "http://172.16.58.130:8083/binflow/api/storage/l024d-mvn-local/l024d/grp/l024d-art/1.1-SNAPSHOT/l024d-art-1.1-20260916.010507-1.pom"
+    },
+    {
+      "clientMd5": "",
+      "serverMd5": "5400608ca17572f0e8545cf0083b3d67",
+      "uri": "http://172.16.58.130:8083/binflow/api/storage/l024d-mvn-local/l024d/grp/l024d-art/1.1-SNAPSHOT/l024d-art-1.1-20260916.010914-2.pom"
+    },
+    {
+      "clientMd5": "",
+      "serverMd5": "2a5f5c6cccd3f44da2a74eb32169d87b",
+      "uri": "http://172.16.58.130:8083/binflow/api/storage/l024d-mvn-local/l024d/grp/l024d-art/1.1-SNAPSHOT/maven-metadata.xml"
+    },
+    {
+      "clientMd5": "",
+      "serverMd5": "927ce10acc52959e945fbbf679fdfc6c",
+      "uri": "http://172.16.58.130:8083/binflow/api/storage/l024d-mvn-local/l024d/grp/l024d-art/1.1/l024d-art-1.1.pom"
+    },
+    {
+      "clientMd5": "",
+      "serverMd5": "7d43d507e476b64ce0f765d5bae43323",
+      "uri": "http://172.16.58.130:8083/binflow/api/storage/l024d-mvn-local/l024d/grp/l024d-art/2.0-20260916.120000-1/l024d-art-2.0-20260916.120000-1.pom"
+    },
+    {
+      "clientMd5": "",
+      "serverMd5": "8b8e674cd3289f777f3848aaafe73c2e",
+      "uri": "http://172.16.58.130:8083/binflow/api/storage/l024d-mvn-local/l024d/grp/l024d-art/maven-metadata.xml"
+    },
+    {
+      "clientMd5": "",
+      "serverMd5": "3d50f16ec2d2df72d80945ccdccd5670",
+      "uri": "http://172.16.58.130:8083/binflow/api/storage/l024d-mvn-local/l024d/grp/l024d-art2/3.0-20260916.140000-1/l024d-art2-3.0-20260916.140000-1.pom"
+    },
+    {
+      "clientMd5": "",
+      "serverMd5": "e415bc19111e8c38ed996b8597430efa",
+      "uri": "http://172.16.58.130:8083/binflow/api/storage/l024d-mvn-local/l024d/grp/l024d-art2/maven-metadata.xml"
+    }
+  ],
+  "limitReached": false
+}

@@ -11,8 +11,8 @@ environment_topology: {
   discipline: "docker 一律远程执行（ssh lzw@172.16.58.130）——本地 docker 禁用；构建走本机交叉编译+远程换二进制（零拉取）；差分/probe 指 reference+dev；UAT 环境结论以 uat.binflow.org 为准"
 }
 updated: 2026-09-16T21:0x:00Z
-current_iteration: 025
-current_goal: "LOOP 025：批次 3 配置族（D08 6 行+D03/D01/D02 P1 12+D06 P1 3）+ CI 遗留三票（e2e 债族/nightly 调度/docs-site 目录退役）"
+current_iteration: 026
+current_goal: "LOOP 026：批次 4 release-bundle（D08 主战线）+ fe-rewrite spec 重推导票（55 腿三桶→run_e2e 重开）+ nightly 首跑观察（09-18 03:17 UTC）+ m-holder 专键读位投影面"
 iteration_024_seal: "闭卷（2026-09-16）：批次 2 全绿（D03 R11+D01 R16/R08 三行 ✅——compatible 83/absent 68）+ D11 jf 主链三段贯通（AQL 面/ParseQuery/属性步——T-511 销账）+ CI 解冻（10 连红根因清，UAT 五日首换装 uat.f91b9e5）+ 环境指令集落地（本地 docker/penpot 全退役、binflow-net 迁移）+ fern 新域自动发布链 + web 双债清偿；限额 12 波断点复活零损失；候批 28 席；commits 985fe171..e5a5cee2（15+）"
 iteration_023_seal: "闭卷（2026-09-15）：UI Phase 1 七批收官（详见 ui_*_seal）+ 环境拓扑纠正（UAT=uat.binflow.org）+ build-info 批次 1 全环（规格 13 勘误→实现五票+返工链→差分四轮 SAME 40/8〔纯候裁族〕→D07 六行✅）+ ADR-0045 Errata 二 + 工作流三升级（自动 PR #115/#116、fern 自动发布链、SSH-443 旁路）；台账 25 席候批；commits 1335868d..42b0f1d1（16+）"
 ui_phase1_seal: "UI Phase 1 七批收官（2026-09-15）：批 0-6 全毕（基线 31 golden/token 收敛 -425 行/壳 240/64+Penpot 侧栏/Inter +48.5KB/P0 原语+styleguide 生产负证/旧 CSS 退役 grep 归零/域件+AG Grid 双谱+motion reduce 护栏）；徽章两族终裁=并存语义分工（tint 层级/soft 中性）；axe 62 面双主题 0 serious/critical；dev=dev.647a93ec；**流程资产**：design-baseline 金标门+重部署重刷纪律+双端对拍排障法（批 1 三证/批 5 返工拦截两战入册）；UI 侧余债=twMerge 字号修票+e2e 基建四项"
@@ -192,10 +192,12 @@ completed_tasks:
   - { id: L000-E, domain: release-packaging, owner: release-engineer, what: "DEFECT-L000-1 修复：deploy/release/Dockerfile.alpine + Dockerfile.distroless + deploy/dev/Dockerfile 补 COPY web/public ./public → compose up -d --build 全路径出证（wire-brand-assets 不再空）" }
   - { id: L000-F, domain: package-protocols-oss(docker), owner: dev-registry-adapter, what: "P0 修复：internal/adapter/docker/remote.go 上游 wire path 补 /v2/ 前缀（差分 C04/C09 灭因）+ wire path 单测 + registry:3 重放闭合五阻断案（C05~C08/C10）→ diff 报告追加复验段" }
 
+iteration_events:                      # L025-10 起新键（conductor 票面指令——此前无此键；落账事件一句话流水）
+  - { id: L025-8, at: 2026-09-17, what: "D02 终轮差分（dev.b79a2d51 × A 7.161.15，commit d7a70797）：实质口径 31 一致/5 残差（全为登记候裁）、四层键集面键名差=0（G1 修复验证）、L025-5 三臂 SAME、八面全 VERIFIED 翻绿建议（L025-10 落账）、wire 44 件 l025q-wire 归档" }
 compatibility_score:
   source: "docs/compatibility/matrix.yaml（L000-C 后唯一事实源；rest-compat-matrix.md 降级历史快照）"
   before: { compatible: 57, partial: 28, absent: 80, not_applicable: 17, superset: 11, total: 193, note: "迁移后权威基线（含 D06-R13 冻结后翻态）" }
-  after: { compatible: 83, partial: 17, absent: 68, not_applicable: 20, superset: 12, total: 200, note: "L023 批次 1 build-info + L024 搜索/D01 尾面落账：D07 六行（R01-R03=L023-2D/2G，R05-R07=L023-2K §10.5）+ D03-R11（L024-4/5/6 §7）+ D01-R16（L024-12 §6）+ D01-R08（L024-12 §6+conductor 微修 c35843f8——Allow 头双端逐字）absent→compatible；L024-1 勘误 D03-R14→not_applicable；total 193→200 系 before 快照后冻结行集外新行提案 +7（D01-R38..43、D06-R30），以 matrix summary 逐行对账为准" }
+  after: { compatible: 88, partial: 17, absent: 63, not_applicable: 20, superset: 12, total: 200, note: "L023 批次 1 build-info + L024 搜索/D01 尾面 + L025 批次 3 D02 配置族落账：D07 六行（R01-R03=L023-2D/2G，R05-R07=L023-2K §10.5）+ D03-R11（L024-4/5/6 §7）+ D01-R16（L024-12 §6）+ D01-R08（L024-12 §6+conductor 微修 c35843f8——Allow 头双端逐字）+ D02 五行 R06/R07/R08/R09/R12（L025-8 终轮 §5/§6——八面归五行：G1 键集 989ad5ed+G2/G4/G5 256571d1 修复落位，G6 头族/plain-user 403/hexPublicKey 三族候裁不挡）absent→compatible；L024-1 勘误 D03-R14→not_applicable；total 193→200 系 before 快照后冻结行集外新行提案 +7（D01-R38..43、D06-R30），以 matrix summary 逐行对账为准" }
 
 p0_gaps: ["U-STG-01 BinaryProvider 存储链（已 partial——残余 U-STG-12~19）", "U-PROTO-01 docker remote 代理 v2（L000-B 在途）", "U-ENT-05 entitlement 同源"]
 p1_gaps: 50

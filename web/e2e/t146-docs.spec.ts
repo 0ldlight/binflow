@@ -3,7 +3,9 @@ import { test, expect } from '@playwright/test'
 // T-146 QA: 文档中心 (剧本 4) — Playwright tests
 // G18: offline availability, G19: completeness, G19b: help entry
 //
-// The server must be running with the docs site built (make docs).
+// The server must be running with the docs face embedded (the committed
+// internal/docs/dist tree — L024-2 posture; `make docs` is deprecated and
+// NOT required).
 // Target: http://localhost:18180 (baseURL from PLAYWRIGHT_BASE env or default).
 //
 // test.beforeAll is intentionally skipped — this spec runs against an
@@ -13,6 +15,18 @@ import { test, expect } from '@playwright/test'
 // docs QA 专用实例仍以 env 覆盖（ADMIN_PW=docsqa-test-pw-146 优先于缺省）。
 const ADMIN = process.env.ADMIN_USER ?? 'admin'
 const ADMIN_PW = process.env.ADMIN_PW ?? 'password'
+
+// L025-2：docs 嵌入面双态。CI 自 L024-2 起不建 docs 站（docs-site 退役，
+// 二进制嵌入提交的 placeholder 壳——与本地 `make build` 同形）；本地跑过
+// `make docs` 的构建则嵌真站。内容腿（导航/搜索/深链 200）只在真站态有意义，
+// placeholder 态如实 skip 留痕；结构腿（段挂载 200 / 301 / 段外 404 / 离线
+// 纯净）双态都成立，不 skip。
+const PLACEHOLDER_MARK = '本构建未包含文档站产物'
+let docsBuilt = true
+test.beforeEach(async ({ request }) => {
+  const resp = await request.get('/binflow/docs/')
+  docsBuilt = resp.ok() && !(await resp.text()).includes(PLACEHOLDER_MARK)
+})
 
 async function login(page: import('@playwright/test').Page) {
   await page.fill('[data-testid="login-username"]', ADMIN)
@@ -26,6 +40,7 @@ async function login(page: import('@playwright/test').Page) {
 // ---------------------------------------------------------------------------
 
 test('G18-1: docs home page returns 200 with BinFlow branding', async ({ page }) => {
+  test.skip(!docsBuilt, 'placeholder docs embed (L024-2 posture) — content legs need a make docs build')
   await page.goto('/binflow/docs/')
   await expect(page).toHaveTitle(/BinFlow/)
   // The page should contain the sidebar with navigation links
@@ -51,6 +66,7 @@ test('G18-3: no external host references in page source (offline-ready)', async 
 })
 
 test('G18-4: search bar is present and functional', async ({ page }) => {
+  test.skip(!docsBuilt, 'placeholder docs embed (L024-2 posture) — content legs need a make docs build')
   await page.goto('/binflow/docs/')
   // The search input should be visible
   await expect(page.locator('input.navbar__search-input')).toBeVisible()
@@ -73,6 +89,7 @@ test('G18-4: search bar is present and functional', async ({ page }) => {
 })
 
 test('G18-5: all navigation links are clickable without 404', async ({ page }) => {
+  test.skip(!docsBuilt, 'placeholder docs embed (L024-2 posture) — content legs need a make docs build')
   // Navigate to each major page and verify 200
   const pages = [
     { path: '/binflow/docs/', label: '文档中心首页' },
@@ -101,6 +118,7 @@ test('G18-5: all navigation links are clickable without 404', async ({ page }) =
 // ---------------------------------------------------------------------------
 
 test('G19-1: all install pages accessible', async ({ page }) => {
+  test.skip(!docsBuilt, 'placeholder docs embed (L024-2 posture) — content legs need a make docs build')
   const installPages = [
     '/binflow/docs/install/binary',
     '/binflow/docs/install/docker',

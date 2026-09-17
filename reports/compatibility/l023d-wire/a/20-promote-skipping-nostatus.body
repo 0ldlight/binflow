@@ -1,0 +1,6 @@
+{
+  "messages" : [ {
+    "level" : "INFO",
+    "message" : "Skipping promotion status update: no status received."
+  } ]
+}

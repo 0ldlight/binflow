@@ -1,0 +1,10 @@
+HTTP 201
+Content-Type: application/vnd.org.jfrog.artifactory.storage.ItemCreated+json;charset=UTF-8
+Date: Wed, 16 Sep 2026 01:09:16 GMT
+Location: http://172.16.58.130:8082/artifactory/l024d-aql-local/ctrl/wire.bin
+X-Artifactory-Id: e283103486ad66fe:-6dadc198:1a0a631e39e:-8000
+X-Artifactory-Node-Id: lzw
+X-Checksum-Sha256: b925fcc680c1ebfcc31b6863b018a144a36567a14a18afb448f4fbaf210219bf
+X-Jfrog-Version: Artifactory/7.161.15 86115900
+Connection: close
+Transfer-Encoding: chunked

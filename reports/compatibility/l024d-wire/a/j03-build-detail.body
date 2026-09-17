@@ -1,0 +1,32 @@
+{
+  "buildInfo" : {
+    "version" : "1.0.1",
+    "name" : "l024d-jf-app",
+    "number" : "1",
+    "buildAgent" : {
+      "name" : "GENERIC",
+      "version" : "2.122.0"
+    },
+    "agent" : {
+      "name" : "jfrog-cli-go",
+      "version" : "2.122.0"
+    },
+    "started" : "2026-09-16T03:18:57.368+0800",
+    "durationMillis" : 0,
+    "artifactoryPrincipal" : "admin",
+    "modules" : [ {
+      "type" : "generic",
+      "id" : "l024d-jf-app",
+      "artifacts" : [ {
+        "type" : "bin",
+        "sha1" : "9ed7955c2d0b6482e37b7a2c24e8c66630695b1a",
+        "sha256" : "2cd90f2abb88f2e2b738dba240757f7e95bee96d8298c31c4c84668cb1fd0b41",
+        "md5" : "92c7f50623b44d9d67385530a64fac4a",
+        "name" : "wheel.bin",
+        "originalDeploymentRepo" : "l024d-aql-local",
+        "path" : "jf/1/wheel.bin"
+      } ]
+    } ]
+  },
+  "uri" : "http://172.16.58.130:8082/artifactory/api/build/l024d-jf-app/1?buildRepo=artifactory-build-info"
+}

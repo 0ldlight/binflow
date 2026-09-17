@@ -1,0 +1,20 @@
+{
+  "archiveBrowsingEnabled": false,
+  "blackedOut": false,
+  "cdnRedirect": false,
+  "description": "",
+  "downloadRedirect": false,
+  "environments": [],
+  "excludesPattern": "",
+  "includesPattern": "**/*",
+  "key": "l025q-seed",
+  "notes": "",
+  "packageType": "generic",
+  "priorityResolution": false,
+  "propertySets": [],
+  "repoLayoutRef": "maven-2-default",
+  "signedUrlTtl": 90,
+  "type": "local",
+  "xrayDataTtl": 90,
+  "xrayIndex": false
+}

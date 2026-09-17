@@ -1,0 +1,9 @@
+{
+  "description": "",
+  "key": "l025q-virt",
+  "packageType": "generic",
+  "repositories": [
+    "l025q-seed"
+  ],
+  "type": "virtual"
+}

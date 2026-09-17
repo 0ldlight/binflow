@@ -18,7 +18,10 @@ import (
 	"testing"
 )
 
-// getConfiguration fetches one repository's echoed configuration map.
+// getConfiguration fetches one repository's v1 configuration body. L025-6:
+// the four domains ride the FULL render's top level (the old
+// "configuration" echo is gone with the A-true 61-key face); the stages
+// alias surfaces as environments there (one knob, one rendered spelling).
 func getConfiguration(t *testing.T, h *harness, key string) map[string]any {
 	t.Helper()
 	resp := h.do(http.MethodGet, "/binflow/api/repositories/"+key, adminUser, adminPass, nil, nil)
@@ -26,13 +29,42 @@ func getConfiguration(t *testing.T, h *harness, key string) map[string]any {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET %s: status %d body=%s", key, resp.StatusCode, body)
 	}
-	var m struct {
+	m := decodeJSONMap(t, body)
+	if m["rclass"] == nil {
+		t.Fatalf("GET %s: not a v1 configuration body: %s", key, body)
+	}
+	return m
+}
+
+// listConfigurationOf reads the LIST face's configuration echo (the full
+// stored blob) — the remaining read seat for BinFlow-only config keys
+// (quotaBytes, byHash, metadataRetrievalCachePeriodSecs ...) that L025-6's
+// A-true detail face no longer renders.
+func listConfigurationOf(t *testing.T, h *harness, key string) map[string]any {
+	t.Helper()
+	resp := h.do(http.MethodGet, "/binflow/api/repositories", adminUser, adminPass, nil, nil)
+	var items []struct {
+		Key           string         `json:"key"`
 		Configuration map[string]any `json:"configuration"`
 	}
-	if err := json.Unmarshal([]byte(body), &m); err != nil {
-		t.Fatalf("GET %s body %q: %v", key, body, err)
+	if err := json.Unmarshal([]byte(mustGet(t, resp)), &items); err != nil {
+		t.Fatalf("repo list body is not JSON: %v", err)
 	}
-	return m.Configuration
+	for _, it := range items {
+		if it.Key == key {
+			return it.Configuration
+		}
+	}
+	t.Fatalf("list lacks %s", key)
+	return nil
+}
+
+// renderedField maps the update-body spelling onto the render's spelling.
+func renderedField(field string) string {
+	if field == "stages" {
+		return "environments"
+	}
+	return field
 }
 
 // TestRepoConfigFourDomainRoundTripWire: the AC's table — one row per
@@ -51,6 +83,7 @@ func TestRepoConfigFourDomainRoundTripWire(t *testing.T) {
 		{"maxUniqueSnapshots explicit 0", "maxUniqueSnapshots", 0, float64(0)},
 		{"archiveBrowsingEnabled", "archiveBrowsingEnabled", true, true},
 		{"environments spelling", "environments", []string{"DEV", "PROD"}, []any{"DEV", "PROD"}},
+		// stages is the update-body alias; the render spells the knob environments.
 		{"stages spelling (7.161-era alias)", "stages", []string{"BOX"}, []any{"BOX"}},
 	}
 	for _, tt := range tests {
@@ -67,7 +100,7 @@ func TestRepoConfigFourDomainRoundTripWire(t *testing.T) {
 				t.Fatalf("create status %d body=%s", code, out)
 			}
 			cfg := getConfiguration(t, h, "lib")
-			got, ok := cfg[tt.field]
+			got, ok := cfg[renderedField(tt.field)]
 			if !ok {
 				t.Fatalf("create echo: configuration %v lacks %q (the T-439 decode-only drift)", cfg, tt.field)
 			}
@@ -91,6 +124,7 @@ func TestRepoConfigFourDomainRoundTripWire(t *testing.T) {
 				t.Fatalf("update status %d body=%s", code, out)
 			}
 			cfg = getConfiguration(t, h, "lib")
+			field := renderedField(tt.field)
 			var wantUpdated any
 			switch v := updated.(type) {
 			case int:
@@ -102,8 +136,8 @@ func TestRepoConfigFourDomainRoundTripWire(t *testing.T) {
 			case []string:
 				wantUpdated = toAnySlice(v)
 			}
-			if fmt.Sprint(cfg[tt.field]) != fmt.Sprint(wantUpdated) {
-				t.Errorf("update echo: %s = %#v, want %#v", tt.field, cfg[tt.field], wantUpdated)
+			if fmt.Sprint(cfg[field]) != fmt.Sprint(wantUpdated) {
+				t.Errorf("update echo: %s = %#v, want %#v", field, cfg[field], wantUpdated)
 			}
 		})
 	}

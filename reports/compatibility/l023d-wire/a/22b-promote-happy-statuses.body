@@ -1,0 +1,42 @@
+{
+  "buildInfo" : {
+    "version" : "1.0",
+    "name" : "l023d-rel",
+    "number" : "5",
+    "buildAgent" : {
+      "name" : "difftest",
+      "version" : "1"
+    },
+    "agent" : {
+      "name" : "l0232d",
+      "version" : "1"
+    },
+    "started" : "2026-09-15T17:00:00.000+0000",
+    "durationMillis" : 0,
+    "artifactoryPrincipal" : "admin",
+    "url" : "http://ci.example/null",
+    "modules" : [ {
+      "type" : "generic",
+      "id" : "m-rel",
+      "artifacts" : [ {
+        "type" : "bin",
+        "sha1" : "cacf3af727695625092acff0164c20359be00d14",
+        "sha256" : "7778222156882d923cbe27069ce1f4f552d83afc0d4aa09bb9025c223d5b138e",
+        "md5" : "7c9e71313ee3146e96ef62ff44d4cbae",
+        "name" : "wheel.bin",
+        "originalDeploymentRepo" : "l023d-dev-local",
+        "path" : "app/5/wheel.bin"
+      } ]
+    } ],
+    "statuses" : [ {
+      "status" : "released",
+      "comment" : "c1",
+      "repository" : "l023d-rel-local",
+      "timestamp" : "2026-09-15T10:00:00.000+0000",
+      "user" : "admin",
+      "ciUser" : "ci-bot",
+      "timestampDate" : 1789466400000
+    } ]
+  },
+  "uri" : "http://172.16.58.130:8082/artifactory/api/build/l023d-rel/5?buildRepo=artifactory-build-info"
+}

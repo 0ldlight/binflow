@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 400,
+      "message": "Repository key are missing in configuration"
+    }
+  ]
+}

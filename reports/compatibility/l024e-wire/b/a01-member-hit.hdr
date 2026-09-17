@@ -1,7 +1,13 @@
 HTTP 200
+Accept-Ranges: bytes
+Content-Disposition: attachment; filename="entry.txt"; filename*=UTF-8''entry.txt
 Content-Length: 22
 Content-Type: text/plain; charset=utf-8
+X-Artifactory-Filename: entry.txt
+X-Checksum-Md5: ca1ca52d4316f72eb8226fa31a6200d2
+X-Checksum-Sha1: d772a9086baaf8c9fbc54fdf154297ae4ac358f7
+X-Checksum-Sha256: 40f79b5df033cd95449b595a714a8787db752756f1d023161bf724a9c54a415f
 X-Content-Type-Options: nosniff
-X-Request-Id: bf530d70c35f7b70e5bac32e4e6c5b49
-Date: Wed, 16 Sep 2026 01:51:16 GMT
+X-Request-Id: d4b08b4e8f9f0ba353ed49ae04580e94
+Date: Wed, 16 Sep 2026 12:49:54 GMT
 Connection: close

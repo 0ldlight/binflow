@@ -7,6 +7,7 @@ import type { Page } from '@playwright/test'
 import { expectA11yClean } from '../m8/support/a11y'
 import { loginAs } from '../m8/support/roles'
 import { m8Client, sessionApi } from '../m8/support/seed'
+import { proLeaseAcquire, proLeaseMarkInstalled, proLeaseRelease } from '../support/pro-license'
 
 // T-514（M17 W7，FR-153.2/.3 FE 面——T-513 查询族 + T-491 通配桶 BE 的
 // 消费腿；B-2.16 预置桶缺位解除 + bundle 列表/详情新面）：
@@ -26,8 +27,10 @@ import { m8Client, sessionApi } from '../m8/support/seed'
 //   ④ axe 双主题（三视图抽样：名单 + 描述符）。
 //
 // 实例态纪律：bundle 创建（POST /api/release/bundle）走 release-bundle
-// 槽位门（pro 暂行）——pro license 经 bin/bf 自铸安装（t461 先例），本文件
-// serial（单 worker）故 beforeAll 装 / afterAll 卸即可，无需租约计数。
+// 槽位门（pro 暂行）——pro license 经 bin/bf 自铸安装（t461 先例）。
+// L025-2：本文件 serial（单 worker）但**跨文件**仍与 t461/p4 并行——装卸
+// 走共享租约（../support/pro-license，实例端口为键），末位 worker 才卸载，
+// 不再「自己装就自己卸」抽走兄弟 spec 腿中的 license。
 // **bundle 无删除端点**（T-513 最小面清单不可变——E-26）——本 spec 创建的
 // bundle 在实例上长存（uniq 名不与重跑碰撞；测试实例为一次性数据目录）。
 // 锚源：console-ux §10.5 T-514 批（bundles-* / bundle-* 族 +
@@ -88,7 +91,11 @@ async function installProLicense(): Promise<boolean> {
 }
 
 test.beforeAll(async () => {
+  // 共享租约先登记再探测（L025-2：实例端口为键，t461/p4/t514 三消费方
+  // 同键互见——本文件卸载不得砸到仍在跑腿的兄弟 spec，反之亦然）
+  proLeaseAcquire()
   licenseInstalledByUs = await installProLicense()
+  if (licenseInstalledByUs) proLeaseMarkInstalled()
 })
 
 test.afterAll(async () => {
@@ -102,9 +109,9 @@ test.afterAll(async () => {
   for (const r of createdRepos) {
     await client.request('DELETE', `/binflow/api/repositories/${r}?deleteContent=true`).catch(() => undefined)
   }
-  if (licenseInstalledByUs) {
-    await client.request('DELETE', '/binflow/api/system/license').catch(() => undefined)
-  }
+  // 无条件归还租约：末位 worker（跨三消费方计数归零）才卸载——旧形态
+  // 「自己装就自己卸」会在兄弟 spec 腿中段抽走 license（同根因另一面）
+  await proLeaseRelease(undefined, licenseInstalledByUs)
 })
 
 /** 建夹具：local 仓 + 一个真实制品（COMPLETE bundle 的快照行） */

@@ -12,11 +12,13 @@ T-232 交付。M8 全部 UI 票（T-235~T-244）与 QA U 序列的 Playwright sp
 ## 1. 运行口径（真栈 + 新鲜二进制纪律）
 
 ```sh
-# 仓库根：console、docs 与二进制（probe 同款新鲜度守卫——任何 Go 构建输入新于
+# 仓库根：console 与二进制（probe 同款新鲜度守卫——任何 Go 构建输入新于
 # bin/binflow-server 即先 make build；scripts/m7-resume-probe.sh 有同构实现）。
-# make docs 不能省：t146-docs 相关腿（login-docs / profile-token-docs 等
-# /binflow/docs/** 深链断言）依赖嵌入的文档站——缺它首跑 4 红全为此（T-396 观察⑤）。
-make console && make docs && make build
+# docs 站自 L024-2 起不再随 CI 构建（docs-site 退役）：二进制嵌入提交的
+# placeholder 壳（真站需手动 `make docs`，已标 deprecated）。t146-docs 的
+# 内容腿（导航/搜索/深链）在 placeholder 态如实 skip，结构腿（200/301/404）
+# 双态都在——spec 内自动探测，无需额外步骤。
+make console && make build
 
 # 起被测实例（本地 filestore，scratch 数据目录）
 ./bin/binflow-server serve &        # 默认 127.0.0.1:8080；ADMIN_PW 缺省 password

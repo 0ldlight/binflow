@@ -70,10 +70,12 @@ test('initial state: entering /artifacts auto-selects the first repo and shows i
 
   // 自动选中：URL 规范化为 /artifacts/<首仓库>（replace——历史栈不增项）
   await expect(page).toHaveURL(`/binflow/ui/artifacts/${first}`)
-  // item view 即刻呈现（仓库形态详情）+ 树行选中态（on-chain）
+  // item view 即刻呈现（仓库形态详情）+ 树行选中态。L025-2：fe-rewrite 后
+  // 选中态从 on-chain class 改为 aria-selected（TreePanel 行级真值——
+  // on-chain 在新树里另有所指〔URL 链在位〕，选中钉 class 属实现细节）
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
   await expect(page.locator('[data-testid="node-detail"]')).toContainText(first)
-  await expect(page.locator(`[data-testid="tree-repo-${first}"]`)).toHaveClass(/on-chain/)
+  await expect(page.locator(`[data-testid="tree-repo-${first}"]`)).toHaveAttribute('aria-selected', 'true')
 })
 
 test('initial state edge: empty first repo — item view presents, children table shows the honest empty state', async ({

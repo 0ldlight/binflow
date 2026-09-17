@@ -32,11 +32,7 @@ func TestHelmEnforceKeysRoundTripREST(t *testing.T) {
 		t.Fatalf("create status = %d; body=%s", status, body)
 	}
 
-	_, cfg := getRepoJSON(t, h, "enforce-local")
-	conf, ok := cfg["configuration"].(map[string]any)
-	if !ok {
-		t.Fatalf("configuration missing: %v", cfg)
-	}
+	conf := listConfigurationOf(t, h, "enforce-local")
 	for k, v := range map[string]any{
 		"forceMetadataNameVersion": true,
 		"forceNonDuplicateChart":   true,
@@ -55,8 +51,7 @@ func TestHelmEnforceKeysRoundTripREST(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("create (off arm) status = %d; body=%s", status, body)
 	}
-	_, cfg = getRepoJSON(t, h, "enforce-off")
-	conf = cfg["configuration"].(map[string]any)
+	conf = listConfigurationOf(t, h, "enforce-off")
 	for k, v := range map[string]any{
 		"forceMetadataNameVersion": false,
 		"forceNonDuplicateChart":   false,
@@ -82,8 +77,7 @@ func TestHelmEnforceKeysUpdateReplacesConfig(t *testing.T) {
 	if status, body := postRepoStatus(t, h, "enforce-up", `{"forceNonDuplicateChart":false}`); status != http.StatusOK {
 		t.Fatalf("update status = %d; body=%s", status, body)
 	}
-	_, cfg := getRepoJSON(t, h, "enforce-up")
-	conf := cfg["configuration"].(map[string]any)
+	conf := listConfigurationOf(t, h, "enforce-up")
 	if conf["forceNonDuplicateChart"] != false {
 		t.Errorf("forceNonDuplicateChart after update = %v, want false", conf["forceNonDuplicateChart"])
 	}
@@ -94,8 +88,7 @@ func TestHelmEnforceKeysUpdateReplacesConfig(t *testing.T) {
 	if status, body := postRepoStatus(t, h, "enforce-up", `{"description":"words only"}`); status != http.StatusOK {
 		t.Fatalf("description-only status = %d; body=%s", status, body)
 	}
-	_, cfg = getRepoJSON(t, h, "enforce-up")
-	conf = cfg["configuration"].(map[string]any)
+	conf = listConfigurationOf(t, h, "enforce-up")
 	if conf["forceNonDuplicateChart"] != false {
 		t.Errorf("forceNonDuplicateChart after description-only update = %v, want the kept false", conf["forceNonDuplicateChart"])
 	}

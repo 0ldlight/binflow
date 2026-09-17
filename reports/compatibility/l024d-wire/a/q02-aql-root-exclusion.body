@@ -1,0 +1,54 @@
+
+{
+"results" : [ {
+  "path" : "sub",
+  "name" : "file1.bin",
+  "actual_md5" : "ab7fb452e9854fca28f1ebe231faec31",
+  "properties" : [ {
+    "key" : "build.timestamp",
+    "value" : "1789450000000"
+  }, {
+    "key" : "build.number",
+    "value" : "1"
+  }, {
+    "key" : "build.name",
+    "value" : "l024d-b"
+  } ]
+},{
+  "path" : "sub",
+  "name" : "file2.bin",
+  "actual_md5" : "969b3e7e1b9fc13a98c981c7c26dae3e"
+},{
+  "path" : "ctrl",
+  "name" : "wire.bin",
+  "actual_md5" : "c7fbddb069243a714c39938f2f31c658"
+},{
+  "path" : "jf/2",
+  "name" : "wheel.bin",
+  "actual_md5" : "0c1d9c5214d72524ab22e69eee43e08f",
+  "properties" : [ {
+    "key" : "build.number",
+    "value" : "2"
+  }, {
+    "key" : "build.timestamp",
+    "value" : "1789520938503"
+  }, {
+    "key" : "vcs.branch",
+    "value" : "develop"
+  }, {
+    "key" : "vcs.revision",
+    "value" : "2f434814db8cd1622bc00ba047698400f2bb1f50"
+  }, {
+    "key" : "build.name",
+    "value" : "l024d-jf-app"
+  }, {
+    "key" : "vcs.url",
+    "value" : "https://github.com/0ldlight/binflow.git"
+  } ]
+} ],
+"range" : {
+  "start_pos" : 0,
+  "end_pos" : 4,
+  "total" : 4
+}
+}

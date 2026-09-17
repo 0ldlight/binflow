@@ -1,0 +1,10 @@
+{
+  "results": [
+    {
+      "clientSha1": "",
+      "serverSha1": "df9ea4f9e414e39ece8e76a9d8a03cf92501099b",
+      "uri": "http://172.16.58.130:8083/binflow/api/storage/l024d-bad-local/corrupt/x.bin"
+    }
+  ],
+  "limitReached": false
+}

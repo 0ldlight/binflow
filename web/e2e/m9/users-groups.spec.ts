@@ -236,11 +236,13 @@ test('N03: delete user — typed-name strong confirm, cascade in the E5 view, 40
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: 'removed successfully' })).toBeVisible({ timeout: 8000 })
   await expect(page.locator(`[data-testid="user-row-${victim}"]`)).toHaveCount(0)
 
-  // cascade: GET 404 verbatim (text body — the DELETE-404 family shape), the
-  // E5 group view no longer lists the victim (its only membership)
+  // cascade: GET 404 envelope (L008 differential verdict → landed fix: the
+  // reference answers the JSON errors envelope, not BinFlow's old plain
+  // "User not found" — L025-2 re-pins to the parity truth), the E5 group
+  // view no longer lists the victim (its only membership)
   const gone = await sessionApi(page, 'GET', `/api/security/users/${victim}`)
   expect(gone.status).toBe(404)
-  expect(gone.text).toBe('User not found')
+  expect(gone.json).toEqual({ errors: [{ status: 404, message: 'Not Found' }] })
   const e5 = await sessionApi(page, 'GET', `/api/security/groups/${cascadeGroup}?includeUsers=true`)
   expect(e5.status).toBe(200)
   expect((e5.json as { userNames: string[] }).userNames).toEqual([])

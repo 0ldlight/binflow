@@ -35,19 +35,13 @@ func ttlRow(t *testing.T, h *harness, key string) int64 {
 	return row.MetadataTTLSeconds
 }
 
-// configField reads one canonical field out of the GET echo's
-// "configuration" object.
+// configField reads one canonical field out of the stored config. L025-6:
+// metadataRetrievalCachePeriodSecs is a BinFlow-only knob the A-true
+// detail face does not render, so the read seat is the LIST face's
+// configuration echo (the full stored blob).
 func configField(t *testing.T, h *harness, key, field string) any {
 	t.Helper()
-	code, cfg := getRepoJSON(t, h, key)
-	if code != http.StatusOK {
-		t.Fatalf("GET %s = %d", key, code)
-	}
-	inner, _ := cfg["configuration"].(map[string]any)
-	if inner == nil {
-		t.Fatalf("GET %s carries no configuration object: %v", key, cfg)
-	}
-	return inner[field]
+	return listConfigurationOf(t, h, key)[field]
 }
 
 func TestRemoteMetadataTTLWireRoundTrip(t *testing.T) {

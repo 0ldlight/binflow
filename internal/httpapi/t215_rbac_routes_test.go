@@ -149,9 +149,10 @@ func TestT215ReadOnlyAdminChangeFaceDenied(t *testing.T) {
 			}
 		}
 	}
-	// The create-arm row must not have minted the repository either.
-	if got := t215Code(t, h, http.MethodGet, "api/repositories/brand-new", adminUser, adminPass, ""); got != http.StatusNotFound {
-		t.Errorf("GET brand-new after denied create = %d, want 404", got)
+	// The create-arm row must not have minted the repository either
+	// (the unknown-key GET answers the bare-400 quirk, L025-5 / diff G5).
+	if got := t215Code(t, h, http.MethodGet, "api/repositories/brand-new", adminUser, adminPass, ""); got != http.StatusBadRequest {
+		t.Errorf("GET brand-new after denied create = %d, want the 400 unknown-key quirk", got)
 	}
 }
 

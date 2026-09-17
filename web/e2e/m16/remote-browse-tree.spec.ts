@@ -1,7 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { appendFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { createServer } from 'node:http'
 import { gzipSync } from 'node:zlib'
@@ -9,6 +8,7 @@ import { gzipSync } from 'node:zlib'
 import { expectA11yClean } from '../m8/support/a11y'
 import { loginAs } from '../m8/support/roles'
 import { m8Client } from '../m8/support/seed'
+import { proLeaseAcquire, proLeaseMarkInstalled, proLeaseRelease } from '../support/pro-license'
 
 // T-461（M16 B13，FR-147.3——FE 远端浏览树消费：listRemoteFolderItems
 // 可选档 on/off 双态 + 未缓存路径回源 + 降级呈现）。消费面：
@@ -163,50 +163,13 @@ let licenseBlocked = ''
 //
 // 实例态纪律：本 spec 需要 pro（batch-1 建仓门）但不得把 pro 留给实例
 //（community 假设的既有腿会翻红——m8 trash-locked 实证）。多 worker 并行
-// 时 beforeAll/afterAll 各跑一份：以实例端口为键的租约文件计数活跃
-// worker，末位 worker（计数归零）才卸载 license。
-
-const leaseFile = `/tmp/t461-license-lease-${new URL(BASE).port}.txt`
-
-/** 本 worker 登记租约——无条件（实例已 pro 的 worker 也要登记：否则装
- *  license 的 worker 会在其结束时就地卸载，砸到仍在跑腿的兄弟 worker） */
-function acquireLicenseLease(): void {
-  try {
-    appendFileSync(leaseFile, `${process.pid}\n`)
-  } catch {
-    // 租约协调是尽力而为——失败退化为「谁装谁卸」（单 worker 即常态路径）
-  }
-}
-
-/** 本 worker 装过 license：随租约文件携带 installed 标记（跨 worker 传递） */
-function markLicenseInstalled(): void {
-  try {
-    appendFileSync(leaseFile, 'installed\n')
-  } catch {
-    // 同上——尽力而为
-  }
-}
-
-/** 归还租约；末位 worker（无其余登记）且文件携带 installed 标记时卸载
- *  license 还原实例态（实例本就 pro 的运行不携带标记——零误删） */
-async function releaseLicenseLease(): Promise<void> {
-  let remaining = 1
-  let weInstalled = licenseInstalledByUs
-  try {
-    const all = readFileSync(leaseFile, 'utf8').split('\n').filter((l) => l.trim() !== '')
-    const others = all.filter((l) => l !== String(process.pid) && l !== 'installed')
-    weInstalled = weInstalled || all.includes('installed')
-    remaining = others.length
-    if (remaining === 0) rmSync(leaseFile, { force: true })
-    else writeFileSync(leaseFile, `${others.join('\n')}${weInstalled ? '\ninstalled' : ''}\n`)
-  } catch {
-    // 读不到 = 无并发记录，按末位处理
-    remaining = 0
-  }
-  if (remaining === 0 && weInstalled) {
-    await rest('DELETE', '/binflow/api/system/license').catch(() => undefined)
-  }
-}
+// 时 beforeAll/afterAll 各跑一份：共享租约文件（../support/pro-license，
+// 实例端口为键——t461/p4/t514 三消费方同键互见）计数活跃 worker，末位
+// worker（计数归零）才卸载 license。
+//
+// L025-2 修复要点：release 无条件（旧形态 `if (licenseInstalledByUs)` 令
+// 非安装 worker 的租约行永不清除——remaining 永不归零、license 永不卸载，
+// run 中段毒实例、54 失败族的根因）。
 
 /** admin REST 便捷封装（makeClient.request 的动词面——非 2xx 抛错带状态） */
 async function rest(method: 'GET' | 'PUT' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<void> {
@@ -222,7 +185,7 @@ test.beforeAll(async () => {
   // 租约计数文件协调：每 worker 登记，末位 worker 才卸载。
   const probe = await m8Client().probeGet('/binflow/api/system/license')
   const alreadyPro = probe.status === 200 && (JSON.parse(probe.text).tier ?? '') === 'pro'
-  acquireLicenseLease()
+  proLeaseAcquire(BASE)
   if (alreadyPro) return
   try {
     const doc = execFileSync(
@@ -236,7 +199,7 @@ test.beforeAll(async () => {
       headers: { 'content-type': 'text/plain' },
     })
     licenseInstalledByUs = true
-    markLicenseInstalled()
+    proLeaseMarkInstalled(BASE)
   } catch (err) {
     licenseBlocked = `pro license unavailable for batch-1 package types (${String(err).slice(0, 160)})`
   }
@@ -246,9 +209,8 @@ test.afterAll(async () => {
   for (const key of createdKeys) {
     await rest('DELETE', `/binflow/api/repositories/${key}?deleteContent=true`).catch(() => undefined)
   }
-  if (licenseInstalledByUs) {
-    await releaseLicenseLease()
-  }
+  // 无条件归还租约（见上方 L025-2 注记）——末位 worker 才真正卸载
+  await proLeaseRelease(BASE, licenseInstalledByUs)
   await sharedFixture?.close()
 })
 

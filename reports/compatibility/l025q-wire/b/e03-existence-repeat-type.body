@@ -1,0 +1,8 @@
+{
+  "exists": true,
+  "matchingRepoTypes": [
+    "LOCAL",
+    "REMOTE"
+  ],
+  "projectKey": "default"
+}

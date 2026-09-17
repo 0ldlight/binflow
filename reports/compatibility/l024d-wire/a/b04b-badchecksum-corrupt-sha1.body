@@ -1,0 +1,8 @@
+{
+  "results" : [ {
+    "uri" : "http://172.16.58.130:8082/artifactory/api/storage/l024d-bad-local/corrupt/x.bin",
+    "serverSha1" : "df9ea4f9e414e39ece8e76a9d8a03cf92501099b",
+    "clientSha1" : ""
+  } ],
+  "limitReached" : false
+}

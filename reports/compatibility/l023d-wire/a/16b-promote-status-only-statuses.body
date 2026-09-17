@@ -1,0 +1,60 @@
+{
+  "buildInfo" : {
+    "version" : "1.0",
+    "name" : "l023d-app2",
+    "number" : "1",
+    "buildAgent" : {
+      "name" : "difftest",
+      "version" : "1"
+    },
+    "agent" : {
+      "name" : "l0232d",
+      "version" : "1"
+    },
+    "started" : "2026-09-15T15:00:00.000+0000",
+    "durationMillis" : 0,
+    "artifactoryPrincipal" : "admin",
+    "url" : "http://ci.example/null",
+    "modules" : [ {
+      "type" : "generic",
+      "id" : "mod-a",
+      "artifacts" : [ {
+        "type" : "jar",
+        "sha1" : "",
+        "sha256" : "",
+        "md5" : "",
+        "name" : "a.jar",
+        "path" : "x/y/a.jar"
+      } ]
+    }, {
+      "type" : "generic",
+      "id" : "mod-a",
+      "artifacts" : [ {
+        "type" : "pom",
+        "sha1" : "",
+        "sha256" : "",
+        "md5" : "",
+        "name" : "a.pom",
+        "path" : "x/y/a.pom"
+      } ]
+    }, {
+      "type" : "generic",
+      "id" : "mod-a",
+      "artifacts" : [ {
+        "type" : "pom",
+        "sha1" : "",
+        "sha256" : "",
+        "md5" : "",
+        "name" : "a.pom",
+        "path" : "x/y/a.pom"
+      } ]
+    } ],
+    "statuses" : [ {
+      "status" : "staged",
+      "timestamp" : "2026-09-15T15:01:28.184+0000",
+      "user" : "admin",
+      "timestampDate" : 1789484488184
+    } ]
+  },
+  "uri" : "http://172.16.58.130:8082/artifactory/api/build/l023d-app2/1?buildRepo=artifactory-build-info"
+}

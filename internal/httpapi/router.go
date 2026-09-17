@@ -799,6 +799,34 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/admin/security/keypair/generate" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite}, s.handleKeypairGenerate)
 
+	// ---- /api/v2/repositories/{key} + /batch (L025-3A read face, D02
+	// // 2.1.3/2.1.4; L025-3B write family, // 2.1.5-2.1.7): the v2
+	// configuration read — type-for-rclass dialect, vendor content types,
+	// the Content-Type negotiation quirk and the non-admin five-key partial
+	// view inside the handler — plus the batch verbs: PUT batch-create
+	// (family-6 create arm, global repo:write), POST batch-modify (the
+	// per-key update gate aggregates INSIDE the handler into the spec's
+	// unauthorized-list 403) and DELETE batch-delete (the pre-validation
+	// permission arm renders the spec's statusMessage form, also inside
+	// the handler — hence the required-only route). The literal "batch"
+	// wins over the {key}/keyPairs prefix families (the reference's own
+	// @Path precedence). ----
+	case rest == "v2/repositories/batch" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true}, s.handleRepoBatchGet)
+	case rest == "v2/repositories/batch" && r.Method == http.MethodPut:
+		// L025-5 / diff G4: the non-admin 403 is the handler's BARE
+		// "Forbidden" envelope (the configurations face's own wording, live)
+		// — the route-level manage gate would answer the BinFlow standard
+		// rendering instead, so the route stays required-only.
+		s.enforce(w, r, routeAuth{required: true}, s.handleRepoBatchPut)
+	case rest == "v2/repositories/batch" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleRepoBatchPost)
+	case rest == "v2/repositories/batch" && r.Method == http.MethodDelete:
+		s.enforce(w, r, routeAuth{required: true}, s.handleRepoBatchDelete)
+	case strings.HasPrefix(rest, "v2/repositories/") && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true},
+			s.withName(rest, "v2/repositories/", s.handleRepoGetV2))
+
 	// ---- /api/v2/repositories/{repoKey}/keyPairs (T-319; the Artifactory
 	// 7.19 association face: plain-text body carries the pair name; the
 	// write rides the repository update path, so the class/package-type
@@ -888,6 +916,17 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true},
 			s.withNameUnescaped(rest, "security/permissions/", s.handlePermissionDeleteV1))
 
+	// ---- /api/repositories/configurations + /existence (L025-3A, D02
+	// // 2.1.1/2.1.2): two literal subpaths that must win over the {key}
+	// prefix family below (the reference's own literal-resource routes
+	// shadow a repository keyed "configurations" the same way). Both admin
+	// gates render the spec's verbatim 403 "Forbidden" envelope, so they
+	// live in the handlers, not the route gate. ----
+	case rest == "repositories/configurations" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true}, s.handleRepoConfigurations)
+	case rest == "repositories/existence" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true}, s.handleRepoExistence)
+
 	// ---- /api/repositories (E-04..E-08) ----
 	// The list sits on repo:read (family 5, D2/C22b): readonly_admin sees
 	// the full inventory; a plain user must not (M1 has no per-repository
@@ -935,6 +974,25 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		default:
 			notImplemented(w, "/binflow/api/"+rest)
 		}
+
+	// ---- /api/repo_layouts (L025-3A, D02 // 2.1.8): the RETIRED official
+	// mount — every verb answers the plain 404 envelope (the reference
+	// removed the route; the collection and item arms carry the two
+	// spellings the live probe recorded). ----
+	case rest == "repo_layouts":
+		writeError(w, http.StatusNotFound, "Not Found")
+	case strings.HasPrefix(rest, "repo_layouts/"):
+		writeError(w, http.StatusNotFound, "Not found")
+
+	// ---- /api/admin/repolayouts (L025-3A, D02 // 2.1.8): the live layout
+	// mount (UI-rest family, officially undocumented). Read arm only — the
+	// write verbs are decompile-sourced medium confidence and wait for a
+	// live arm; they fall to the E-26 404. ----
+	case rest == "admin/repolayouts" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true}, s.handleRepoLayoutsList)
+	case strings.HasPrefix(rest, "admin/repolayouts/") && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true},
+			s.withName(rest, "admin/repolayouts/", s.handleRepoLayoutGet))
 
 	// ---- /api/storage (E-09/E-10; read = content plane semantics) ----
 	// The item-info and ?list read gates mirror the content plane rather

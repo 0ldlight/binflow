@@ -1,0 +1,10 @@
+{
+  "builds" : [ {
+    "uri" : "/l023d-beta",
+    "lastStarted" : "2026-09-15T08:30:00.000+0000"
+  }, {
+    "uri" : "/l023d-app",
+    "lastStarted" : "2026-09-15T12:40:00.000+0000"
+  } ],
+  "uri" : "http://172.16.58.130:8082/artifactory/api/build?buildRepo=artifactory-build-info"
+}

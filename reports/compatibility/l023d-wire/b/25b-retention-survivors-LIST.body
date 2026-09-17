@@ -1,0 +1,13 @@
+{
+  "uri": "http://172.16.58.130:8083/binflow/api/build/l023d-r2?buildRepo=artifactory-build-info",
+  "buildsNumbers": [
+    {
+      "uri": "/3",
+      "started": "2026-09-15T22:00:00.000+0000"
+    },
+    {
+      "uri": "/2",
+      "started": "2026-09-15T21:00:00.000+0000"
+    }
+  ]
+}
