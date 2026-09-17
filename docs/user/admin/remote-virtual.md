@@ -292,5 +292,5 @@ M3 起 BinFlow 从「纯内网服务」变为**出网客户端**（架构规范 
 ## 下一步
 
 - 各协议客户端配置：[maven](../integrations/maven.md) · [npm](../integrations/npm.md) · [pypi](../integrations/pypi.md) · [docker](../docker-registry.md)
-- 管理面 API（建仓/用户/token）：API Reference篇（随里程碑补齐）
+- 管理面 API（建仓/用户/token）：[API Reference](../api-reference.md)
 - 从 Artifactory 迁移的概念对照：[faq.md](../faq.md)
