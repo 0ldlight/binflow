@@ -6,14 +6,14 @@ sidebar_position: 61
 # AQL 搜索指南（Artifactory Query Language 子集）
 
 > 适用版本：M15（语言内核 T-409/T-411、引擎 T-413、REST 端点 T-415）。行为逐项核对 `internal/search`（parser/fields/engine）与 `internal/httpapi/search_aql.go`；本文 curl 命令于 HEAD 构建的双 scratch 实例实测（2026-09-02），输出摘录原样；statistics 域与 usage 端点两节于当前 HEAD 构建的 scratch 实例（127.0.0.1:18095，admin 凭据）实测（2026-09-04），输出原样摘录。
-> BinFlow 实现 AQL 的 **items 域只读查询子集**——子集边界与 Artifactory 的差异逐条见文末[迁移对照表](#从-artifactory-aql-迁移对照表)；老搜索端点（gavc/prop/pattern）见 [API 参考 · SR 搜索域](api-reference.md#sr-搜索域)。
+> BinFlow 实现 AQL 的 **items 域只读查询子集**——子集边界与 Artifactory 的差异逐条见文末[迁移对照表](#从-artifactory-aql-迁移对照表)；老搜索端点（gavc/prop/pattern）见 [API Reference · Search](api-reference.md#search)。
 
 AQL 是 Artifactory 的制品查询语言：一段查询文本描述「查什么、输出哪些字段、怎么排序翻页」，服务端返回流式 JSON。BinFlow 以 `items.find(...)` 为唯一入口，覆盖日常的「按仓库/路径/属性/checksum/时间窗找制品」场景。
 
 ## 前置条件
 
 - 一个运行中的 BinFlow 实例（任何部署形态均可；本文示例 `BASE=http://127.0.0.1:18501`）。
-- **AQL 不允许匿名**：闭环实例（`anonymous_access: false`）匿名调用 → 401；开匿名实例匿名调用 → 403。用 Basic 或 Token 凭据（见 [API 参考 · 认证](api-reference.md#三种认证方式)）。
+- **AQL 不允许匿名**：闭环实例（`anonymous_access: false`）匿名调用 → 401；开匿名实例匿名调用 → 403。用 Basic 或 Token 凭据（见 [API Reference · Authentication](api-reference.md#authentication)）。
 
 ```bash
 export BASE=http://127.0.0.1:18501
@@ -354,6 +354,6 @@ curl -su $AU -X POST $BASE/binflow/api/search/aql --data-binary 'items.find({"re
 
 ## 下一步
 
-- 老搜索端点（gavc / prop / pattern / artifact / checksum）：[API 参考 · SR 搜索域](api-reference.md#sr-搜索域)；控制台搜索页的 AQL 模式见[控制台指南](console.md#搜索与仪表盘)
+- 老搜索端点（gavc / prop / pattern / artifact / checksum）：[API Reference · Search](api-reference.md#search)；控制台搜索页的 AQL 模式见[控制台指南](console.md#搜索与仪表盘)
 - 属性的写入与其它读取入口：[属性系统用法](properties.md)
 - 从 Artifactory 整体迁移：[bf-migrate 指南](guides/migrate-artifactory.md)与 [FAQ 迁移对照表](faq.md#从-artifactory-迁移对照表)

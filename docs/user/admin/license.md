@@ -5,7 +5,7 @@ sidebar_position: 47
 
 # License 与 Add-ons 管理
 
-> 适用版本：M10（license/addon 体系随 M10 交付；ADR-0032/ADR-0033 为设计依据）+ **M11 增补**（conan/helm/rpm/debian 四槽位，T-308~T-311）+ **M12 增补**（`repo-operations` / `trashcan` 两功能槽，T-339/T-343/T-345——trashcan 档位**暂行 pro**，Q3 终裁建议 community）+ **M13 增补**（第 19 槽 `webhook`，pro 档）。REST 面见 [API 参考 · M10 新增端点速览](../api-reference.md#m10-新增端点速览t-296)；行为规格锚：`docs/design/architecture.md` §15。
+> 适用版本：M10（license/addon 体系随 M10 交付；ADR-0032/ADR-0033 为设计依据）+ **M11 增补**（conan/helm/rpm/debian 四槽位，T-308~T-311）+ **M12 增补**（`repo-operations` / `trashcan` 两功能槽，T-339/T-343/T-345——trashcan 档位**暂行 pro**，Q3 终裁建议 community）+ **M13 增补**（第 19 槽 `webhook`，pro 档）。REST 面见 [API Reference · License and add-ons](../api-reference.md#license-and-add-ons)；行为规格锚：`docs/design/architecture.md` §15。
 > 本文不含任何密钥材料：签发工具的用法是文档面，钥料管理规程见下文「离线签发工具」的安全注意。
 
 BinFlow 的功能分级由**一份 license 文档 + 一张编译期 addon 槽位矩阵**决定：
@@ -237,4 +237,4 @@ bf license inspect pro.lic --key pub.hex
 
 - 各门控包型接入：[Go](../integrations/golang.md) · [NuGet](../integrations/nuget.md) · [Cargo](../integrations/cargo.md)
 - 属性系统（community 恒解锁）：[属性系统用法](../properties.md)
-- API 面与错误信封：[API 参考](../api-reference.md)
+- API 面与错误信封：[API Reference](../api-reference.md)

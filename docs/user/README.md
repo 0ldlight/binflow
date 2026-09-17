@@ -60,7 +60,7 @@
   - [bf CLI 使用指南](guides/bf-cli.md)（四子命令、~/.bf/config.yaml 多 profile、密钥 env 引用制）
   - [从 Artifactory 迁移（bf-migrate）](guides/migrate-artifactory.md)（三阶段、--dry-run/--resume、口令与 token 不可导出策略）
   - [Prometheus 指标参考](metrics/prometheus-reference.md)（/metrics 端点、四类指标族、path 基数防护、PromQL 示例）
-- **API 参考**（`api-reference.md`）：Artifactory 兼容子集 + `/api/v1`（M9 六端点速览：usage 批量 / users 加宽与 enabled / DELETE users / groups includeUsers / permissions filter=manage；M10 license/addons/uploads；M11 增补速览：认证配置面 / keypair 族 / cleanup / 四包型 reindex / smart remote 两字段生效；M12 增补速览：copy/move + 归档族（archive-download / `archive!/` / explode）+ trash REST 族；M13 增补速览：webhook 订阅七端点族 + `GET /api/v1/system/settings` 旋钮回显 + remote `chartsBaseUrl` 字段；**M15 增补速览**：AQL + 老搜索三端点（gavc/prop/pattern）+ 复制包 B〔Replicate Now · Test 连接 · 全局封锁〕；**近期增补**：cron 调度四面——维护三槽 / 定时备份 CRUD / 调度投影 / 复制 `cron_exp`，就地收入系统端点表）
+- **API Reference**（`api-reference.md`）：Artifactory 兼容面 + BinFlow 原生 `/api/v1`，按功能域组织——制品与存储 / Docker `/v2` / npm / PyPI / 仓库管理（含 remote 探测）/ 用户与组 / 权限 / 搜索（AQL · usage · gavc · prop · pattern）/ 制品操作与回收站 / GPG keypair / 认证配置 / 系统（audit · GC · 限流）/ license 与 addons / cleanup / cron 维护与定时备份 / 分片上传 / 复制（含全局封锁）/ webhook / reindex；另含三种认证方式、三种错误格式与「有意不路由路径」清单
 - [FAQ 与故障排查](faq.md)（401/403/404/409/413 信封解读、高 QPS 用 Token、M4 不兼容清单、Artifactory 迁移对照表、M9 增补两问、M10 增补三问〔license 降级 / 属性两入口 / MPU 后端差异〕、M11 增补四问〔四包型 tier / 降级数据安全 / remote·virtual 差异 / 存储与认证新面〕、M12 增补三问〔trash 保留期 / 操作族 license 门控 / dual-write fail-open 语义〕、M13 增补三问〔webhook 事件丢失排查 / 死信重放 / remote 缓存命中观测〕、**M15 增补两问〔AQL 子集边界 / AQL 迁移差异改写〕**）
 
 ## 从 Artifactory 迁移

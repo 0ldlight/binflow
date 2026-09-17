@@ -161,4 +161,4 @@ kubectl create secret generic binflow-oidc \
 
 - 目录认证（同一登录表单、先本地后目录）：[LDAP 配置](ldap-config.md)
 - 组与权限模型：[用户组与权限管理](../admin/groups-permissions.md)
-- Token 生命周期与吊销：[API 参考](../api-reference.md)
+- Token 生命周期与吊销：[API Reference](../api-reference.md)

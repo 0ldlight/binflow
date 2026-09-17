@@ -146,7 +146,7 @@ curl -s -H "Authorization: Bearer <access_token>" $BASE/binflow/api/v1/storage/u
 | 跨重启续传 | **支持**：会话坐标与 token 绑定持久化在引擎的 upload_sessions 行，kill -9 后同一 token 在重启实例上继续传剩余分片（T-323R） | 不适用 |
 | 普通上传 | 内容 PUT 单发即可，两后端无差异——MPU 是大文件的**可选**通道（jfrog-cli 对 ≥200MiB 文件自动走此面，实测 2.122.0 全链通过） | 同左 |
 
-docker `/v2` 面的分块上传是**另一个平面**（其跨重启续传策略见上文 M7 问），与 `/api/v1/uploads` 互不相干。端点契约见 [API 参考 · uploads 域](api-reference.md)。
+docker `/v2` 面的分块上传是**另一个平面**（其跨重启续传策略见上文 M7 问），与 `/api/v1/uploads` 互不相干。端点契约见 [API Reference · Multipart uploads](api-reference.md)。
 
 ## M11 增补四问（四包型 tier / 门控 / 存储·认证新面）
 

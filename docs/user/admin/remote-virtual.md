@@ -38,7 +38,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-remote-cent
 | `socketTimeoutMillis` | 否 | **15000** | 上游连接/读/响应头超时（毫秒粒度，可表达亚秒超时）——**canonical 拼写**（artifactory.xsd，**M12 起回显统一为本拼写**，FR-113.1/T-290-2 兑现）。M10 期 PRD 拼写 `socketTimeoutMs` 仍接受为**输入别名**（只进不出，回显恒为新拼写；两拼写非零分歧 400）；显式 `0` = 缺席（回落 `socketTimeoutSecs`/默认） |
 | `socketTimeoutSecs` | 否 | **15** | 上游连接/读超时（秒）——**legacy 字段**（M3）：`socketTimeoutMillis` 非零时以 ms 为准；回显时恒附派生 `socketTimeoutSecs`（= ceil(ms/1000)，永不虚报更长超时） |
 | `metadataRetrievalTimeoutSecs` | 否 | **60** | **M10**：并发拉取同一 metadata 路径（如 `maven-metadata.xml`）时等待者的等锁上限，超时回发旧缓存副本（零回源）——per-repo 化（原为引擎级常量 60s） |
-| `unusedArtifactsCleanupPeriodHours` | 否 | **0**（关） | 未使用缓存制品的清理周期（小时）。**M11 起生效**——cleanup 引擎按窗口删除「窗口内无下载事件且未再落地」的缓存 node（在用判定含 virtual 仓聚合下载；`GET /api/v1/system/cleanup` 查状态，见 [API 参考](../api-reference.md#m11-增补速览t-328)） |
+| `unusedArtifactsCleanupPeriodHours` | 否 | **0**（关） | 未使用缓存制品的清理周期（小时）。**M11 起生效**——cleanup 引擎按窗口删除「窗口内无下载事件且未再落地」的缓存 node（在用判定含 virtual 仓聚合下载；`GET /api/v1/system/cleanup` 查状态，见 [API Reference · Cleanup](../api-reference.md#cleanup)） |
 | `enableTokenAuthentication` | 否 | **false** | **M11（L25 反转）**：`true` 时拉取侧对上游发 `Authorization: Bearer <password>`（无密码 = 匿名维持）；Basic 形态的既有仓零变化 |
 | `contentSynchronisation` | 否 | `{"enabled":false,…}` | **M11（L25 反转）**：拉取侧内容同步策略对象，四子字段 `enabled` / `propertiesEnabled`（内容类节点落地后从上游属性面附着属性，best-effort）/ `statisticsEnabled` / `sourceOrigin`（后两子字段接受 + 回显，暂无行为）。canonical 回显恒带四子字段 |
 | `assumedOfflinePeriodSecs` | 否 | **300** | 上游故障静默期：故障标记后期内零上游流量，期后自动恢复探测 |
@@ -292,5 +292,5 @@ M3 起 BinFlow 从「纯内网服务」变为**出网客户端**（架构规范 
 ## 下一步
 
 - 各协议客户端配置：[maven](../integrations/maven.md) · [npm](../integrations/npm.md) · [pypi](../integrations/pypi.md) · [docker](../docker-registry.md)
-- 管理面 API（建仓/用户/token）：API 参考篇（随里程碑补齐）
+- 管理面 API（建仓/用户/token）：API Reference篇（随里程碑补齐）
 - 从 Artifactory 迁移的概念对照：[faq.md](../faq.md)

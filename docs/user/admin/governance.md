@@ -45,7 +45,7 @@ M4 审计动作全集（可作 `action=` 过滤值；M7 增补 `user.role.change
 | token | `token.issue`、`token.revoke`（detail 含指纹/subject/TTL；step-up 路径的 `token.issue` 另含 `step_up` 维度，见 [step-up 指南](token-step-up.md#审计)） |
 | webhook（M13） | `webhook.subscription.create` / `.update` / `.delete` / `.test`（detail 含 key/enabled）、`webhook.dead_letter`（投递放弃——detail 含 subscription/attempts/error/status_code，URL 照录） |
 
-> 本表为 M4 核心词族；后续里程碑的动作词随特性文档走——`cleanup.run`（[cleanup](../api-reference.md#m11-增补速览t-328)）、`trash.restore` / `trash.retention`（[Trash can](trash-can.md)）、license 族（[License 与 Add-ons](license.md)）、`auth.config.*`（[认证配置](auth-config.md)）、webhook 族（上表）。
+> 本表为 M4 核心词族；后续里程碑的动作词随特性文档走——`cleanup.run`（[cleanup](../api-reference.md#cleanup)）、`trash.restore` / `trash.retention`（[Trash can](trash-can.md)）、license 族（[License 与 Add-ons](license.md)）、`auth.config.*`（[认证配置](auth-config.md)）、webhook 族（上表）。
 
 历史注记：M4 曾登记「token 签发/吊销不落审计」缺口，现已修复（`token.issue` / `token.revoke` 均落审计，scratch 实例 2026-08-24 实测）。
 
@@ -69,7 +69,7 @@ SHA=$(shasum -a 256 w.bin | cut -d' ' -f1)
 curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/checksum?sha256=$SHA"
 ```
 
-**M15 起搜索面六端点齐备**：上述两端点之外，新增 AQL（`POST /api/search/aql`）与老搜索三端点（`GET /api/search/gavc|prop|pattern`）——语言子集、错误文案族与 Artifactory 迁移对照见 **[AQL 搜索指南](../aql.md)**，wire 速览见 [API 参考 · M15 增补](../api-reference.md#m15-增补速览t-426)。未命中一律 200 空数组；结果上限 1,000 行（截断置 `X-Binflow-Search-Truncated` 头）。
+**M15 起搜索面六端点齐备**：上述两端点之外，新增 AQL（`POST /api/search/aql`）与老搜索三端点（`GET /api/search/gavc|prop|pattern`）——语言子集、错误文案族与 Artifactory 迁移对照见 **[AQL 搜索指南](../aql.md)**，wire 速览见 [API Reference · Search](../api-reference.md#search)。未命中一律 200 空数组；结果上限 1,000 行（截断置 `X-Binflow-Search-Truncated` 头）。
 
 仍 404（有意不做）：`/api/search/props|users|artifactory|badge`（注意 `prop` 为官方单数拼写）。匿名姿态按面分化：老搜索族（artifact/checksum/gavc/prop/pattern）闭环实例匿名 → 403；**AQL 永不允许匿名**（闭环 401 / 开匿名 403）。
 
