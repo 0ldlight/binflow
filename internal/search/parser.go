@@ -67,9 +67,21 @@ func newParser(query string) (*parser, *QueryError) {
 			Msg:  msgQueryTooLong,
 		}
 	}
-	toks, err := lexAll(query)
-	if err != nil {
-		return nil, err
+	toks, lerr := lexAll(query)
+	if lerr != nil {
+		// Streaming-reference parity (L027-1 c27): Artifactory's parser
+		// pulls tokens lazily, so a grammar failure at an earlier position
+		// preempts a lexer failure further right (`items.find(bogus-syntax(`
+		// anchors at `bogus`). Re-run the parser over the lexed prefix
+		// (closed with a synthetic EOF at the failure position) and prefer
+		// its error when one fires; a prefix the grammar fully accepts
+		// leaves the lexer error as the report — the streaming parser would
+		// have asked for exactly that token and hit the failure there.
+		pp := &parser{query: query, toks: append(toks, token{kind: tkEOF, pos: lerr.Pos})}
+		if qe := pp.run(); qe != nil {
+			return nil, qe
+		}
+		return nil, lerr
 	}
 	return &parser{query: query, toks: toks}, nil
 }

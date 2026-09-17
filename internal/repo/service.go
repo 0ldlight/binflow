@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/lzwzzy/binflow/internal/bundle"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/remote"
 	"github.com/lzwzzy/binflow/internal/storage"
@@ -2839,8 +2840,18 @@ func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, 
 	// clause — PRD 85.3's "数据与仓配置零删除" read literally (the breaker
 	// must leave the configuration in place for the restart that restores
 	// it). Reads of the repository's content are unaffected (D1).
-	if err := s.validateRepoTypeDyn(ctx, p, repoRow.RepoKey, repoRow.Type, repoRow.PackageType); err != nil {
-		return err
+	//
+	// The release-bundle system population is exempt: its row is owned by
+	// the bundle domain (bundle.EnsureSystemRepo writes it directly, by
+	// construction outside the management plane's validated matrix), and
+	// the reference deletes it over the same REST face (L026-1 cleanup
+	// precedent + L027-1 c43/c55: DELETE /api/repositories/release-bundles
+	// answers 200 on the reference) — running it through the matrix
+	// validation would strand the auto-created row forever.
+	if repoRow.PackageType != bundle.PackageTypeReleaseBundles {
+		if err := s.validateRepoTypeDyn(ctx, p, repoRow.RepoKey, repoRow.Type, repoRow.PackageType); err != nil {
+			return err
+		}
 	}
 	nodes, err := s.md.Nodes().ListByPrefix(ctx, repoKey, "")
 	if err != nil {
