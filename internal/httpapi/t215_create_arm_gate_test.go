@@ -97,13 +97,17 @@ func TestT215ManageHolderCreateArmStaysAdminOnly(t *testing.T) {
 	t215GrantManage(t, h, "t-ghost", "m7ghost", "mholder", false)
 	t215Admin(t, h, http.MethodDelete, "api/repositories/m7ghost", "", 200)
 
-	// Leg 1: the manage bit opens the family-7 read arm for the holder, and
-	// the plain user's 403 on the same row proves it was the m evaluation.
+	// Leg 1: L026-7 (the L026-5 spec ruling) made the v1 read face
+	// authentication-only — BOTH the manage holder and the plain user
+	// collect the 200 partial projection (the reference serves every
+	// authenticated user; wire a-holder-v1-*/a-noperm-v1-*), so the plain
+	// leg below no longer discriminates the m evaluation — the projection
+	// key-set check lives in repo_read_access_test.go.
 	if got := t215Code(t, h, http.MethodGet, "api/repositories/m7t", "mholder", "mh-pw", ""); got != http.StatusOK {
-		t.Errorf("GET repo detail as manage holder = %d, want 200 (route gate passes via m)", got)
+		t.Errorf("GET repo detail as manage holder = %d, want 200", got)
 	}
-	if got := t215Code(t, h, http.MethodGet, "api/repositories/m7t", "plain", "plain-pw", ""); got != http.StatusForbidden {
-		t.Errorf("GET repo detail as plain user = %d, want 403 (no m, control leg)", got)
+	if got := t215Code(t, h, http.MethodGet, "api/repositories/m7t", "plain", "plain-pw", ""); got != http.StatusOK {
+		t.Errorf("GET repo detail as plain user = %d, want 200 (L026-7 read-face decoupling)", got)
 	}
 
 	// Leg 2: the create arm. The route gate passes (t-ghost lists m7ghost);

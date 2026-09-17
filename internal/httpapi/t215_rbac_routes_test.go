@@ -76,8 +76,11 @@ func TestT215RoleMatrixReadFace(t *testing.T) {
 		path                  string
 		admin, roa, plainUser int
 	}{
-		{"api/repositories", 200, 200, 403},
-		{"api/repositories/m7t", 200, 200, 403},
+		// L026-7 (the L026-5 spec ruling): the repo read faces are
+		// authentication-only — a plain user collects the full list and
+		// the four-key partial projection, not the 403.
+		{"api/repositories", 200, 200, 200},
+		{"api/repositories/m7t", 200, 200, 200},
 		{"api/v1/health", 200, 200, 403},
 		{"api/security/users", 200, 200, 403},
 		{"api/security/users/roa", 200, 200, 403},

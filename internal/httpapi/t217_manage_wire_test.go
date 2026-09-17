@@ -174,11 +174,14 @@ func TestT217ManageHolderBoundaryLegs(t *testing.T) {
 			t.Errorf("%s: carol = %d, want 403", leg.name, got)
 		}
 	}
-	// The global list never opened to manage holders (family 5, section
-	// 11.30): the DETAIL of a covered repository is carol's surface, the
-	// inventory is not.
-	if got := t215Code(t, h, http.MethodGet, "api/repositories", "carol", "carol-pw", ""); got != http.StatusForbidden {
-		t.Errorf("GET /api/repositories as manage holder = %d, want 403 (no global list, family 5)", got)
+	// L026-7 (the L026-5 spec ruling, rest/m-holder-repo-read-faces): the
+	// read faces decoupled from the permission model — the inventory list
+	// is every authenticated caller's surface now (the reference answers
+	// the FULL list to manage holders and zero-permission users alike,
+	// entries byte-identical to admin), and the DETAIL projection below
+	// is the same shape inside and outside the coverage.
+	if got := t215Code(t, h, http.MethodGet, "api/repositories", "carol", "carol-pw", ""); got != http.StatusOK {
+		t.Errorf("GET /api/repositories as manage holder = %d, want 200 (L026-7 read-face decoupling)", got)
 	}
 	if got := t215Code(t, h, http.MethodGet, "api/repositories/app-local", "carol", "carol-pw", ""); got != http.StatusOK {
 		t.Errorf("GET /api/repositories/app-local as manage holder = %d, want 200 (family 7 detail)", got)

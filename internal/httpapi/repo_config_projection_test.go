@@ -484,13 +484,21 @@ func TestRepoConfigKeyFacesNonAdmin(t *testing.T) {
 		assertKeySetExact(t, "batch remote", rv, "description key packageType rclass url")
 	})
 
-	// The v1 face's plain-user arm stays behind the architecture's family-7
-	// manage gate (403) — the reference serves every authenticated user;
-	// that gap is registered for ruling in the L025-6 report.
-	t.Run("v1 plain user still gated", func(t *testing.T) {
-		resp := h.do(http.MethodGet, "/binflow/api/repositories/ploc", "u1", "p1", nil, nil)
-		if resp.StatusCode != http.StatusForbidden {
-			t.Fatalf("plain-user v1 GET status = %d, want 403 (family-7 gate)", resp.StatusCode)
+	// L026-7 (the L026-5 spec ruling): the v1 face serves every
+	// authenticated user the same per-rclass partial projection the v2
+	// face does — the family-7 route gate is gone, coverage plays no
+	// part (wire a-holder-v1-*/a-noperm-v1-*).
+	t.Run("v1 plain user same per-rclass partial", func(t *testing.T) {
+		for _, tt := range []struct {
+			label, path, extra string
+		}{
+			{"local four keys", "/binflow/api/repositories/ploc", "rclass"},
+			{"remote five keys", "/binflow/api/repositories/prem", "rclass url"},
+			{"virtual five keys", "/binflow/api/repositories/pvirt", "rclass repositories"},
+		} {
+			t.Run(tt.label, func(t *testing.T) {
+				assertKeySetExact(t, tt.label, getMap(tt.path), "description key packageType "+tt.extra)
+			})
 		}
 	})
 }
