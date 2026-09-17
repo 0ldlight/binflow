@@ -485,6 +485,10 @@ func New(deps Deps, log *slog.Logger) *Server {
 		opts := []bundle.Option{
 			bundle.WithNodes(deps.Metadata.Nodes()),
 			bundle.WithAudit(s.audit),
+			// L026-6 (D08-R03): the system-repo provisioning seam behind
+			// the store face's default-storing-repo side effect (the
+			// release-bundles repository, release-bundle.md §10.4 arm 5).
+			bundle.WithRepoStore(deps.Metadata.Repos()),
 			bundle.WithFeatureGate(func(ctx context.Context) bool {
 				return s.addonAllowed(ctx, BundleAddonID, bundleFeatureMinTier(deps))
 			}),

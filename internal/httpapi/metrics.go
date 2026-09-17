@@ -471,18 +471,11 @@ func (s *Server) observeBuildsPromote(outcome string, d time.Duration) {
 	s.metrics.buildsPromoteDur.Observe(d.Seconds())
 }
 
-// observeBundleCreate records one successful release-bundle create (M17
-// T-513): the outcome counter (created / resumed — the conflict arm's 409
-// stays the HTTP status series, matching every family's failure posture).
-func (s *Server) observeBundleCreate(outcome string) {
-	if s.metrics == nil {
-		return
-	}
-	s.metrics.bundleCreates.Inc("outcome", outcome)
-}
-
 // countBundleGet records one successful release-bundle read by face
-// (M17 T-513).
+// (M17 T-513; L026-6 widened the faces — names/versions/detail/status/
+// artifacts). The bundleCreates family stays registered for the store
+// face's future happy path (its REST create entrance left with the
+// explicit-manifest degrade).
 func (s *Server) countBundleGet(face string) {
 	if s.metrics == nil {
 		return
