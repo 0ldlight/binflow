@@ -1,0 +1,37 @@
+[ {
+  "key" : "example-repo-local",
+  "description" : "Example artifactory repository",
+  "type" : "LOCAL",
+  "url" : "http://172.16.58.130:8082/artifactory/example-repo-local",
+  "packageType" : "Generic"
+}, {
+  "key" : "l026q-rbsrc",
+  "description" : "",
+  "type" : "LOCAL",
+  "url" : "http://172.16.58.130:8082/artifactory/l026q-rbsrc",
+  "packageType" : "Generic"
+}, {
+  "key" : "l026r-hold",
+  "description" : "",
+  "type" : "LOCAL",
+  "url" : "http://172.16.58.130:8082/artifactory/l026r-hold",
+  "packageType" : "Generic"
+}, {
+  "key" : "l026r-optdeb",
+  "description" : "",
+  "type" : "LOCAL",
+  "url" : "http://172.16.58.130:8082/artifactory/l026r-optdeb",
+  "packageType" : "Debian"
+}, {
+  "key" : "l026r-optgen",
+  "description" : "",
+  "type" : "LOCAL",
+  "url" : "http://172.16.58.130:8082/artifactory/l026r-optgen",
+  "packageType" : "Generic"
+}, {
+  "key" : "l026r-outside",
+  "description" : "",
+  "type" : "LOCAL",
+  "url" : "http://172.16.58.130:8082/artifactory/l026r-outside",
+  "packageType" : "Generic"
+} ]

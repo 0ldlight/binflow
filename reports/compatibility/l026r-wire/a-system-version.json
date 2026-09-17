@@ -1,0 +1,15 @@
+{
+  "version" : "7.161.15",
+  "revision" : "86115900",
+  "servicesVersions" : {
+    "package_handler_version" : "5.675.13"
+  },
+  "addons" : [ "docker", "helmoci", "oci", "packages-archive", "vagrant", "replication", "filestore", "curation", "plugins", "worker", "gems", "composer", "bower", "nuget", "debian", "opkg", "rpm", "cocoapods", "conan", "vcs", "release-bundle", "jf-connect", "jf-event", "keys", "alpine", "analytics", "cargo", "chef", "federated", "git", "observability", "onboarding", "pub", "rest", "swift", "lead-artifact-detector", "terraform", "license", "package-reroute", "puppet", "ldap", "sso", "layouts", "properties", "search", "securityresourceaddon", "filtered-resources", "p2", "watch", "webstart", "support", "xray", "retention", "policies", "archive" ],
+  "license" : "26a15afeb8ddffa50e93bc1ad6f20817574b77275",
+  "entitlements" : {
+    "EVENT_BASED_PULL_REPLICATION" : true,
+    "SMART_REMOTE_TARGET_FOR_EDGE" : false,
+    "REPO_REPLICATION" : true,
+    "MULTIPUSH_REPLICATION" : true
+  }
+}

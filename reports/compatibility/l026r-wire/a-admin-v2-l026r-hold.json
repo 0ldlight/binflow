@@ -1,0 +1,20 @@
+{
+  "key" : "l026r-hold",
+  "type" : "local",
+  "packageType" : "generic",
+  "description" : "",
+  "notes" : "",
+  "includesPattern" : "**/*",
+  "excludesPattern" : "",
+  "repoLayoutRef" : "maven-2-default",
+  "signedUrlTtl" : 90,
+  "priorityResolution" : false,
+  "environments" : [ ],
+  "blackedOut" : false,
+  "propertySets" : [ ],
+  "archiveBrowsingEnabled" : false,
+  "downloadRedirect" : false,
+  "cdnRedirect" : false,
+  "xrayIndex" : false,
+  "xrayDataTtl" : 90
+}

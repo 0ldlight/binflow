@@ -1,0 +1,23 @@
+{
+  "key" : "l026r-optdeb",
+  "type" : "local",
+  "packageType" : "debian",
+  "description" : "",
+  "notes" : "",
+  "includesPattern" : "**/*",
+  "excludesPattern" : "",
+  "repoLayoutRef" : "maven-2-default",
+  "signedUrlTtl" : 90,
+  "debianTrivialLayout" : false,
+  "ddebSupported" : false,
+  "priorityResolution" : false,
+  "environments" : [ ],
+  "blackedOut" : false,
+  "propertySets" : [ ],
+  "optionalIndexCompressionFormats" : [ ],
+  "archiveBrowsingEnabled" : false,
+  "downloadRedirect" : false,
+  "cdnRedirect" : false,
+  "xrayIndex" : false,
+  "xrayDataTtl" : 90
+}
