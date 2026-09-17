@@ -13,7 +13,7 @@ reverse-engineer 在此产出 **clean-room 行为规格**——让实现者不�
 
 | 文件 | 内容 | 里程碑 |
 |---|---|---|
-| `rest-api.md` | REST 端点表（路径/方法/参数/响应码/示例）；§2.1 D02 配置族五面（configurations/v2 读/batch 207 状态机/existence/布局面定案，L025-1）；§3.1 增量属性面（PATCH /api/metadata 全语义 + POST /api/storage 405 移除定案，L024-1） | M1 + L024 + L025 |
+| `rest-api.md` | REST 端点表（路径/方法/参数/响应码/示例）；§2.1 D02 配置族五面（configurations/v2 读/batch 207 状态机/existence/布局面定案，L025-1）；§3.1 增量属性面（PATCH /api/metadata 全语义 + POST /api/storage 405 移除定案，L024-1）；§7 Release Bundle 端点族活体核验（v1/v2 并存 + 权限矩阵，L026-1） | M1 + L024 + L025 + L026 |
 | `storage-layout.md` | filestore 目录推导、checksum 命名、元数据序列化 | M1 |
 | `config-formats.md` | artifactory.config.xml / binarystore.xml 要点 → BinFlow 配置映射 | M1 |
 | `repo-semantics.md` | local/remote/virtual 语义、layout 解析、缓存规则 | M1–M3 |
@@ -38,6 +38,6 @@ reverse-engineer 在此产出 **clean-room 行为规格**——让实现者不�
 | `remote-browsing.md` | remote 仓远端浏览行为规格：`listRemoteFolderItems` 可选档语义（默认 false）、官方支持面（5 型）与机制声明、13 包型上游枚举能力矩阵（T-425 §1/§2 成稿）、上游故障降级、virtual §8.5 口径扩面（FR-147 前置锚，T-435） | M16 |
 | `cron-scheduling.md` | cron 表达式与调度行为锚：Quartz 语法域表/特殊字符、出厂调度默认值（backup/GC/cleanup 族）、校验时机与拒绝文案、next-run 语义（K70 归位；ADR-0044 软协作缝——FR-150 前置锚，T-435） | M16 |
 | `build-info.md` | Build-info 域行为规格：端点族子集表（上传/append 合并/promotion 状态机/retention/docker promote）、数据模型字段集（wire + 表族 DDL）、权限面两出口（ADR-0045 软缝十项对拍）、webhook·AQL 联动、OSS 档档位核验（FR-152 前置锚，T-488；一手 OpenAPI + 官方参考页双源——本轮活体双损坏零实证） | M17 |
-| `release-bundle.md` | Release Bundle 域行为规格：Artifactory 源侧 `/api/release/*` 18 端点 + Distribution 侧 v1/v2 索引、bundle 模型（artifact_bundles/bundle_files DDL）、冲突三态（202/200/409）与状态机（INPROGRESS/COMPLETE…）、深度边界两出口（Q2 材料）、Any Distribution 预置语义、Enterprise+ 档位核验（FR-153 前置锚，T-488；ADR-0046 软缝八项对拍） | M17 |
+| `release-bundle.md` | Release Bundle 域行为规格：Artifactory 源侧 `/api/release/*` 18 端点 + Distribution 侧 v1/v2 索引、bundle 模型（artifact_bundles/bundle_files DDL）、冲突三态（202/200/409）与状态机（INPROGRESS/COMPLETE…）、深度边界两出口（Q2 材料）、Any Distribution 预置语义、Enterprise+ 档位核验（FR-153 前置锚，T-488；ADR-0046 软缝八项对拍）；§10 活体核验（L026-1：v1/v2 并存定案、R01–R06 错误臂/空态/权限矩阵 64 发实弹、release-bundles 系统仓自动创建实证、ANY DISTRIBUTION 非 REST 实体定案） | M17 |
 | `rest-compat-matrix.md` | **全量 REST 兼容矩阵（M17+ 跨切程活体 registry）**：官方 REST reference 三索引（653 条目）× BinFlow fern 158 ops 逐端点四态对账（✅57/◐27/❌83/⛔17 + 超集 11——195 行）；首程三带行集冻结（T-504/505/506 输入）+ M18+ backlog registry + T-488 零重复对账（Q10 纯书面基线——三源置信度逐行标注，T-503） | M17 |
 | `artifactory-full-feature-matrix.md` | **主矩阵（M10+ 路线图骨干）**：四分区去重合并的全量功能对照——213 条、十大高价值缺口、依赖外部产品项单列、待验证清单汇总 | 全量盘点 |

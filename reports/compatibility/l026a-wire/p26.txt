@@ -1,0 +1,11 @@
+### p26 POST /api/v2/audit  [extra: -H Content-Type: application/json -d {}]
+### STATUS: 400
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:09:38 GMT
+### BODY:
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Bad request: [`'event_summary' must be non-null`, `'event_status' must be non-null`, `'release_bundle_version' must be non-null`, `'subject_reference' must be non-null`, `'release_bundle_name' must be non-null`, `'subject_type' must be non-null`, `'created_by' must be non-null`]"
+  } ]
+}

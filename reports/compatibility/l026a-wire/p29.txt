@@ -1,0 +1,11 @@
+### p29 POST /api/release/bundle  [extra: -H Content-Type: application/json -d {"aql":"builds.find({\"name\":{\"$eq\":\"x\"}})"}]
+### STATUS: 400
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:13:44 GMT
+### BODY:
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Request is invalid. AQL query should find artifacts (items)"
+  } ]
+}

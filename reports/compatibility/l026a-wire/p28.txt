@@ -1,0 +1,11 @@
+### p28 POST /api/release/bundle  [extra: -H Content-Type: application/json -d {"aql":""}]
+### STATUS: 400
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:13:44 GMT
+### BODY:
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Request is invalid. Missing AQL query"
+  } ]
+}

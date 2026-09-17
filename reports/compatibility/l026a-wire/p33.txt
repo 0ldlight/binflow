@@ -1,0 +1,11 @@
+### p33 POST /api/release/bundle  [extra: -H Content-Type: application/json -d {"aql":"items.find(bogus-syntax("}]
+### STATUS: 400
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:14:48 GMT
+### BODY:
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Failed to parse query: items.find(bogus-syntax(, it looks like there is syntax error near the following sub-query: bogus-syntax("
+  } ]
+}

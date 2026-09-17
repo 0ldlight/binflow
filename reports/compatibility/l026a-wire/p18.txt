@@ -1,0 +1,11 @@
+### p18 GET /api/v2/release_bundle/records/no-such  [extra: ]
+### STATUS: 200
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:07:54 GMT
+### BODY:
+{
+  "release_bundles" : [ ],
+  "total" : 0,
+  "limit" : 1000,
+  "offset" : 0
+}

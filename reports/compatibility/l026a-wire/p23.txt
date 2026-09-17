@@ -1,0 +1,11 @@
+### p23 GET /api/v2/release_bundle/received/nosuchbundle/1.0  [extra: ]
+### STATUS: 400
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:09:36 GMT
+### BODY:
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Bad request: [`Release Bundle name must begin with a {letter | _ | digit} and consist of {letters | _ | . | - | digits}`]"
+  } ]
+}

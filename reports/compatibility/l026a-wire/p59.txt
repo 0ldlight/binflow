@@ -1,0 +1,8 @@
+### p59 GET /api/release/bundles/no-such-bundle-l026/1.0?type=source (re-verify)
+### STATUS: 404 application/json
+{
+  "errors" : [ {
+    "status" : 404,
+    "message" : "Bundle not found"
+  } ]
+}

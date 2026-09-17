@@ -1,0 +1,11 @@
+### p39 POST /api/release/bundle/transaction/open  [extra: -H Content-Type: application/json -d {"signedJwsBundle":"garbage"}]
+### STATUS: 400
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:22:01 GMT
+### BODY:
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Failed to parse JWS. Invalid serialized unsecured/JWS/JWE object: Missing part delimiters"
+  } ]
+}

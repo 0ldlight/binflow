@@ -1,0 +1,11 @@
+### p47 GET /api/release/fat_manifest_content/nonexistent/manifest.json  [extra: ]
+### STATUS: 400
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:22:55 GMT
+### BODY:
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Fat manifest content view is only allowed on list.manifest.json files. Got: [nonexistent/manifest.json]"
+  } ]
+}

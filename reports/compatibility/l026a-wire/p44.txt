@@ -1,0 +1,12 @@
+### p44 PUT /api/release/store  [extra: -H Content-Type: application/json -d {"signedJwsBundle":"garbage","storingRepo":"l026q-rbsrc","artifactMapping":{}}]
+### STATUS: 400
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:22:53 GMT
+### BODY:
+{
+  "reason" : "INVALID_RB_REPO",
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Invalid release bundle repository"
+  } ]
+}

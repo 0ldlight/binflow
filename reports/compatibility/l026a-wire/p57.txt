@@ -1,0 +1,11 @@
+### p57 GET /api/release/bundles [as: anonymous]
+### STATUS: 401
+Content-Type: application/json;charset=ISO-8859-1
+Www-Authenticate: Basic realm="Artifactory Realm"
+### BODY:
+{
+  "errors" : [ {
+    "status" : 401,
+    "message" : "Authentication is required"
+  } ]
+}

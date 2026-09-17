@@ -1,0 +1,11 @@
+### p04 GET /api/release/bundles/no-such-bundle-l026/1.0  [extra: ]
+### STATUS: 404
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:02:44 GMT
+### BODY:
+{
+  "errors" : [ {
+    "status" : 404,
+    "message" : "Bundle not found"
+  } ]
+}

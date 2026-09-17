@@ -1,0 +1,8 @@
+### p01 GET /api/release/bundles  [extra: ]
+### STATUS: 200
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:02:44 GMT
+### BODY:
+{
+  "bundles" : { }
+}

@@ -1,0 +1,11 @@
+### p17 GET /api/v2/release_bundle/records/no-such/1.0  [extra: ]
+### STATUS: 404
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:07:54 GMT
+### BODY:
+{
+  "errors" : [ {
+    "status" : 404,
+    "message" : "Path not found: release-bundles-v2/no-such/1.0/release-bundle.json.evd"
+  } ]
+}

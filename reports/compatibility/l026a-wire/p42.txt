@@ -1,0 +1,11 @@
+### p42 POST /api/release/bundle/transaction/async/close/nonexistent/tx/path  [extra: ]
+### STATUS: 400
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:22:03 GMT
+### BODY:
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Release bundle tx/path not found"
+  } ]
+}

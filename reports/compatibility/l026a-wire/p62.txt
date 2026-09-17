@@ -1,0 +1,17 @@
+### p62 GET /api/security/permissions/{Any Distribution,Any Local} [admin]
+--- Any%20Distribution:
+{
+  "errors" : [ {
+    "status" : 404,
+    "message" : "Not Found"
+  } ]
+}
+status=404
+--- Any%20Local:
+{
+  "errors" : [ {
+    "status" : 404,
+    "message" : "Not Found"
+  } ]
+}
+status=404

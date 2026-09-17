@@ -1,0 +1,11 @@
+### p48 PUT /api/release/store  [extra: -H Content-Type: application/json -d {"signedJwsBundle":"garbage"}]
+### STATUS: 500
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:24:10 GMT
+### BODY:
+{
+  "errors" : [ {
+    "status" : 500,
+    "message" : "Invalid serialized unsecured/JWS/JWE object: Missing part delimiters"
+  } ]
+}
