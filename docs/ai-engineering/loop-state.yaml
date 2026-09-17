@@ -192,10 +192,12 @@ completed_tasks:
   - { id: L000-E, domain: release-packaging, owner: release-engineer, what: "DEFECT-L000-1 修复：deploy/release/Dockerfile.alpine + Dockerfile.distroless + deploy/dev/Dockerfile 补 COPY web/public ./public → compose up -d --build 全路径出证（wire-brand-assets 不再空）" }
   - { id: L000-F, domain: package-protocols-oss(docker), owner: dev-registry-adapter, what: "P0 修复：internal/adapter/docker/remote.go 上游 wire path 补 /v2/ 前缀（差分 C04/C09 灭因）+ wire path 单测 + registry:3 重放闭合五阻断案（C05~C08/C10）→ diff 报告追加复验段" }
 
+iteration_events:                      # L025-10 起新键（conductor 票面指令——此前无此键；落账事件一句话流水）
+  - { id: L025-8, at: 2026-09-17, what: "D02 终轮差分（dev.b79a2d51 × A 7.161.15，commit d7a70797）：实质口径 31 一致/5 残差（全为登记候裁）、四层键集面键名差=0（G1 修复验证）、L025-5 三臂 SAME、八面全 VERIFIED 翻绿建议（L025-10 落账）、wire 44 件 l025q-wire 归档" }
 compatibility_score:
   source: "docs/compatibility/matrix.yaml（L000-C 后唯一事实源；rest-compat-matrix.md 降级历史快照）"
   before: { compatible: 57, partial: 28, absent: 80, not_applicable: 17, superset: 11, total: 193, note: "迁移后权威基线（含 D06-R13 冻结后翻态）" }
-  after: { compatible: 83, partial: 17, absent: 68, not_applicable: 20, superset: 12, total: 200, note: "L023 批次 1 build-info + L024 搜索/D01 尾面落账：D07 六行（R01-R03=L023-2D/2G，R05-R07=L023-2K §10.5）+ D03-R11（L024-4/5/6 §7）+ D01-R16（L024-12 §6）+ D01-R08（L024-12 §6+conductor 微修 c35843f8——Allow 头双端逐字）absent→compatible；L024-1 勘误 D03-R14→not_applicable；total 193→200 系 before 快照后冻结行集外新行提案 +7（D01-R38..43、D06-R30），以 matrix summary 逐行对账为准" }
+  after: { compatible: 88, partial: 17, absent: 63, not_applicable: 20, superset: 12, total: 200, note: "L023 批次 1 build-info + L024 搜索/D01 尾面 + L025 批次 3 D02 配置族落账：D07 六行（R01-R03=L023-2D/2G，R05-R07=L023-2K §10.5）+ D03-R11（L024-4/5/6 §7）+ D01-R16（L024-12 §6）+ D01-R08（L024-12 §6+conductor 微修 c35843f8——Allow 头双端逐字）+ D02 五行 R06/R07/R08/R09/R12（L025-8 终轮 §5/§6——八面归五行：G1 键集 989ad5ed+G2/G4/G5 256571d1 修复落位，G6 头族/plain-user 403/hexPublicKey 三族候裁不挡）absent→compatible；L024-1 勘误 D03-R14→not_applicable；total 193→200 系 before 快照后冻结行集外新行提案 +7（D01-R38..43、D06-R30），以 matrix summary 逐行对账为准" }
 
 p0_gaps: ["U-STG-01 BinaryProvider 存储链（已 partial——残余 U-STG-12~19）", "U-PROTO-01 docker remote 代理 v2（L000-B 在途）", "U-ENT-05 entitlement 同源"]
 p1_gaps: 50

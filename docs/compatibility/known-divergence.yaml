@@ -1045,3 +1045,43 @@ entries:
   authority: { type: pending, ref: "产品/用户裁（maven 布局校验：对齐 A 自由 vs 维持 400 强制 INTENTIONAL）——pending-rulings v2.6 R-24b" }
   review_gate: LOOP 025 限期升级（R-24b 批复：裁对齐开收窄票〔400→201〕；裁维持转 INTENTIONAL+契约 400 姿态冻结）
   evidence: reports/compatibility/L024-search-aql-diff.md §7.1-L10 + reports/compatibility/l024d-wire/（f9/mz 探针臂）
+- id: d02/repolayouts-header-family
+  surface: GET /api/admin/repolayouts[/{name}] 响应头族（G6——l01 列表/l02 单读/w06b configurations 读邻面三单元）
+  classification: UNKNOWN
+  rationale: >-
+    L025-4 首轮发现 + L025-8 终轮维持（2026-09-17，dev.b79a2d51 × A 7.161.15）：A 侧三面独有
+    `Access-Control-Allow-Headers`/`Access-Control-Allow-Methods`（CORS 对）+ `Cache-Control: no-store`，
+    B 全缺；body 面双端 parsed 同（l01 列表 25 项 IDENTICAL；l02 associations=Q5 实例态规则）。两案：
+    案甲=补齐头族（no-store 对管理/配置读面有真实缓存卫生语义，照抄 A）/ 案乙=normalize drop
+    （client-blind——非浏览器消费者不校验；与 d01/header-face-drop-proposal〔PN-hdr Cache-Control 聚合〕
+    同族同构，normalize 统一收口免逐面补头）。不挡 matrix D02-R12/R06 翻绿（行为面=body+状态已零差）。
+  authority: { type: pending, ref: "产品/用户裁（管理读面 Cache-Control/CORS 头族：补齐 vs normalize drop〔与 PN-hdr 族并批〕）——pending-rulings v2.7 R-25a" }
+  review_gate: LOOP 026 限期升级（R-25a 批复：裁补齐→头族实现票+差分复验；裁 drop→normalize.yaml#d02-config Q1 转正+本条 resolved）
+  evidence: reports/compatibility/L025-d02-config-diff.md §2 G6 + §5.3 l01/l02/w06b 裁处 + reports/compatibility/l025q-wire/（l01/l02 hdr 对）
+- id: d02/plain-user-403-family
+  surface: '非 admin 批写 403 族两面（G3 w08：POST /api/v2/repositories/batch 文案 + G9-R2 w13-ghost：DELETE batch 检查次序）'
+  classification: UNKNOWN
+  rationale: >-
+    L025-8 终轮 §5.3 定谳残面（2026-09-17）：① w08 文案——A=`Only platform/project admins are
+    allowed to update repositories`（裸文本 CT application/json）/ B=`User is not authorized to
+    update the following repositories: <k>`；spec §2.1.6 反编译中置信文案已被 L025-4 活体双证伪
+    （A 真值=现值，G8 spec 勘误随票）。② w13-ghost 臂检查次序——A=存在性检查先行→200 ghost 报告
+    （`Cannot delete repository: '<k>', repository config does not exist` 行）/ B=权限预校验先行→403；
+    existing 臂双端 403 单报告逐字同（L025-4+b79a2d51 两轮复现）。两案：案甲=对齐 A 两面（w08 文案
+    一处渲染点照抄；w13 改次序=存在性先行——ghost 报告信息量大于裸 403）/ 案乙=维持 B 姿态
+    INTENTIONAL（w08 client-blind 按 403 归类；w13 预校验先行为安全序——泄露面更小）。不挡 D02-R08 翻绿。
+  authority: { type: pending, ref: "产品/用户裁（plain-user 批写 403 两面：文案对齐+次序对齐 vs 维持 INTENTIONAL）——pending-rulings v2.7 R-25b" }
+  review_gate: LOOP 026 限期升级（R-25b 批复：裁对齐→两面实现票〔w08 文案+w13 次序〕+差分复验+spec §2.1.6 勘误收口；裁维持→INTENTIONAL+ADR 登记）
+  evidence: reports/compatibility/L025-d02-config-diff.md §2 G3/G9 + §5.3 w08/w13 隔离双臂裁处 + reports/compatibility/l025q-wire/（w08/w13 对）
+- id: d02/v1-remote-hexpublickey-shape
+  surface: 'GET /api/repositories/{remoteKey}（v1 面）hexPublicKey 值形（G1-R1——v1-remote 渲染层唯一残差）'
+  classification: UNKNOWN
+  rationale: >-
+    L025-8 终轮 §5.1 四层键集补探发现（2026-09-17）：v1-remote 层键名 102=102 同、值级唯一残差=
+    `hexPublicKey`——A=PEM 公钥块、B=空串。影响面极窄：仅 v1 单仓读 remote 臂（v2 层 46 键全净无此键；
+    v1-local/v1-virtual 值级 parsed 全等；configurations 投影/非 admin 视图均不含该键）。两案：
+    案甲=补真实 PEM 公钥投影（对齐——消费方如旧脚本读 remote 公钥指纹）/ 案乙=维持空串 INTENTIONAL
+    （v1 deprecated 变体面——matrix D02-R10 ⛔ 邻面同源；v2 现行面零差）。不挡 D02-R06/R07 翻绿。
+  authority: { type: pending, ref: "产品/用户裁（v1-remote hexPublicKey：补 PEM 投影 vs 维持空串 INTENTIONAL〔v1 deprecated 面〕）——pending-rulings v2.7 R-25c" }
+  review_gate: LOOP 026 限期升级（R-25c 批复：裁补齐→remote 公钥渲染票+差分复验；裁维持→INTENTIONAL+ADR 登记〔v1 deprecated 面外注记〕）
+  evidence: reports/compatibility/L025-d02-config-diff.md §5.1 值级残差段（g1-v1-rem wire 对）+ reports/compatibility/l025q-wire/{a,b}/g1-v1-rem*
