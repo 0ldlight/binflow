@@ -20,6 +20,12 @@
 # healthcheck mechanism. In distroless, we CANNOT use CMD wget because there
 # is no shell. We use a simple Go healthcheck probe binary instead.
 #
+# Docs face (L025-2, user directive "docs-site 不需要维护"): the former
+# docs-site/Docusaurus build stage is RETIRED (distroless caught up to the
+# alpine surgery in L025-9). The binary embeds the COMMITTED internal/docs/dist
+# tree as-is (same posture as the CircleCI build job since L024-2); docs
+# maintenance lives in fern/.
+#
 # Build:
 #
 #   docker buildx build \
@@ -48,20 +54,7 @@ COPY web/src ./src
 COPY web/public ./public
 RUN npm run build
 
-# ---- stage 2: docs (node) ---------------------------------------------------
-# Docusaurus config references docs/user/ as the content source via relative
-# path '../docs/user' (docusaurus.config.js:71). We must COPY the content
-# tree alongside the site machinery so the build can resolve it.
-
-FROM node:22-alpine AS docs
-WORKDIR /docs-site
-COPY docs-site/package.json docs-site/package-lock.json ./
-RUN npm ci
-COPY docs-site/ ./
-COPY docs/ /docs/
-RUN npm run build
-
-# ---- stage 3: builder -------------------------------------------------------
+# ---- stage 2: builder -------------------------------------------------------
 
 FROM golang:1.26-alpine AS builder
 
@@ -82,8 +75,9 @@ COPY internal ./internal
 RUN rm -rf /src/internal/console/dist/assets /src/internal/console/dist/index.html
 COPY --from=console /web/dist/ /src/internal/console/dist/
 
-RUN rm -rf /src/internal/docs/dist/assets /src/internal/docs/dist/index.html
-COPY --from=docs /docs-site/build/ /src/internal/docs/dist/
+# docs/dist rebuild — retired with the docs stage above. internal/docs/dist
+# is COMMITTED (L024-2 posture, same as the CircleCI embed) and rides the
+# COPY internal ./internal above untouched.
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
@@ -93,7 +87,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
         -X main.revision=${BINFLOW_REVISION}" \
       -o /out/binflow-server ./cmd/binflow-server
 
-# ---- stage 3b: healthcheck helper (tiny Go binary) --------------------------
+# ---- stage 2b: healthcheck helper (tiny Go binary) --------------------------
 # Distroless has no shell, so we build a tiny static Go binary that does
 # an HTTP GET on /readyz and exits 0 on 200. This replaces the shell-based
 # `wget` used in the alpine variant.
@@ -135,14 +129,14 @@ func main() {
 GOEOF
 RUN go build -trimpath -ldflags="-s -w" -o /healthcheck/probe
 
-# ---- stage 3c: data directory (scratch + docker) ---------------------------
+# ---- stage 2c: data directory (scratch + docker) ---------------------------
 # Distroless has no shell so we can't RUN mkdir. We build a tiny layer from
 # scratch that creates /var/lib/binflow with correct ownership.
 
 FROM alpine:3.24 AS datadir
 RUN mkdir -p /var/lib/binflow && chown -R 65532:65532 /var/lib/binflow
 
-# ---- stage 4: runtime (distroless) ------------------------------------------
+# ---- stage 3: runtime (distroless) ------------------------------------------
 
 FROM gcr.io/distroless/static-debian13:nonroot
 
