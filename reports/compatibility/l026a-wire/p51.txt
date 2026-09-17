@@ -1,0 +1,10 @@
+### p51 POST /api/release/bundle [as: l026r-d08-user]
+### STATUS: 400
+Content-Type: application/json
+### BODY:
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Request is invalid. Missing AQL query"
+  } ]
+}

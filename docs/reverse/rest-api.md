@@ -319,6 +319,33 @@ FileInfo JSON 字段（`o.a.a.api.rest.artifact.RestFileInfo` + `RestBaseStorage
 - **GET `/api/repositories/{key}` 不存在的 400/404 双态**：官方文档写 404；代码显示由 `respondWith404ForNonExistentRepo` 开关控制（新版默认 404）。BinFlow 实现选 404。
 - **D02 配置族五面（§2.1，L025-1）**：官方未载面——批读端点（GET batch）、existence 参数实名 projectKey 且拒绝逗号、批建 201 体逐字节与整单回滚、批改 merge 方言与裸 404 文案、批删 ghost/202 形态在批内记 success:true、`/api/repo_layouts` 挂载已撤（现实体 `/api/admin/repolayouts`）、布局缺名 500 `No value present`、v2 读以 Content-Type（非 Accept）做类型协商——均反编译+活体双源补充。官方已载面：configurations admin 门与 comma 过滤、v2 读非 admin 部分字段、批建/批改整单失败语义、单删 207 报告形状（deleterepository 页）。
 
+## 7. Release Bundle 端点族（`/api/release/*` v1 + `/api/v2/release_bundle/*` v2 并存；L026-1 活体核验）
+
+> 域详情（模型/冲突三态/状态机/权限桶/Any Distribution 语义）归 `release-bundle.md`（§10 = 本票 64 发活体 wire 全录 `reports/compatibility/l026a-wire/`）；本节只锚 REST 表面行为。
+
+两代面并存（pro 7.161.15 实弹）：v1 `/api/release/*` 18 端点全存活；v2 读面在 `/api/v2/release_bundle/*`（**下划线单数**；`/api/v2/release-bundles` 连字符复数 = 404）。矩阵 D08-R01~R05 按 v1 记录不翻案。
+
+| 方法 | 路径 | 成功（活体实测） | 错误/空态（活体实测） | 置信度 |
+|---|---|---|---|---|
+| POST | `/api/release/bundle` | 200 `{"results":[{"urn","sha256","properties","size","pkg_type"}]}`；空命中 `{"results":[]}` | 缺 aql → 400 `Request is invalid. Missing AQL query`；非 items.find → 400 `…should find artifacts (items)`；语法错 → 400 `Failed to parse query: …` | 高 |
+| POST | `/api/release/bundle/transaction[/open]` | （需 JWS 未实弹） | 非 JWS → 400 `Failed to parse JWS. Invalid serialized unsecured/JWS/JWE object: Missing part delimiters` | 高 |
+| POST | `/api/release/bundle/transaction/close|async/close|async/close/status/{tx}` | （未实弹） | 事务不存在 → 400 `Release bundle {tx} not found` | 高 |
+| PUT | `/api/release/store` | （202/200/409 需签名链未实弹） | 见四臂：缺 signedJwsBundle → **500** `jwsString is marked non-null but is null`；storingRepo 非法 → 400 双键 `{"reason":"INVALID_RB_REPO",errors[…]}`；JWS 坏 → **500** 裸解析消息；projectKey 不存在 → 404 Access 透传 | 高 |
+| OPTIONS | `/api/release/store` | 200 `OPTIONS, PUT` + `Allow` | — | 高 |
+| GET | `/api/release/bundles[?type=]` | 200 `{"bundles":{}}`（名→版本 map） | — | 高 |
+| GET | `/api/release/bundles/{name}` | 200 `{"versions":[]}`（**不存在也 200**） | — | 高 |
+| GET | `/api/release/bundles/{name}/{version}[?format=jws]` | 200 bundle JSON / jose | 404 `Bundle not found` | 高 |
+| GET | `/api/release/bundles/{name}/{version}/status` | 200 状态串 | 404 `<name>:<version> not found` | 高 |
+| HEAD | `/api/release/bundles/{name}/{version}` | 200 + `X-Checksum-Sha256` | 404 无 body | 高 |
+| GET | `/api/release/bundles/{name}/{version}/artifacts` | 200 清单 | 404 `Bundle not found` | 高 |
+| DELETE | `/api/release/bundles/{name}/{version}` | 200 `{}` | 404 `Bundle not found` | 高 |
+| DELETE | `/api/release/bundles/source/{name}/{version}` | 200 `{}` | 404 `Release bundle not found`（异消息族） | 高 |
+| GET/PUT | `/api/release/bundles/config` | GET 200 `{"incompleteCleanupPeriodHours":720}` / PUT 202 | — | 高 |
+| GET | `/api/release/fat_manifest_content/{path}` | 200（仅 list.manifest.json） | 400 `Fat manifest content view is only allowed on list.manifest.json files. Got: [<path>]` | 高 |
+| GET | `/api/v2/release_bundle/names|received|records/{name}` | 见 release-bundle.md §10.6 分页信封 | records/statuses 404 泄露 `release-bundles-v2` 布局；received-DELETE 404 泄露 `-jfds` 仓名 | 高 |
+
+权限（R06）：`/bundles|bundle 装配` = admin+user；`store|config|async-status|fat_manifest` = admin-only（非 admin 403 errors 信封 `Forbidden`）；匿名全域 401 `Authentication is required`；ANY DISTRIBUTION 桶**非 REST 权限目标实体**（permission 名单只有 Any Remote/Anything，单查 404）——详 release-bundle.md §10.7。
+
 ## 待验证清单（低置信度项）
 
 1. `DELETE ...?atomic=true` 与默认多事务路径在部分失败时的中间态可见性（需动态验证：删除目录树中途 kill 进程，观察残留）。

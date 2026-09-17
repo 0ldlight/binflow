@@ -1,0 +1,16 @@
+### p36 POST /api/release/bundle  [extra: -H Content-Type: application/json -d {"aql":"items.find({\"repo\":{\"$eq\":\"l026q-rbsrc\"}})"}]
+### STATUS: 200
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:20:04 GMT
+### BODY:
+{
+  "results" : [ {
+    "urn" : "l026q-rbsrc/alpha/v1/f1.txt",
+    "sha256" : "3ff198fab7dd7e56606653cb9a686cc17504922c52f7c8ac979e5e77bdd6d877",
+    "properties" : {
+      "l026k" : [ "d8" ]
+    },
+    "size" : 18,
+    "pkg_type" : "Generic"
+  } ]
+}

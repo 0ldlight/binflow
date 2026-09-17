@@ -1,0 +1,10 @@
+### p55 GET /api/release/fat_manifest_content/x/list.manifest.json [as: l026r-d08-user]
+### STATUS: 403
+Content-Type: application/json
+### BODY:
+{
+  "errors" : [ {
+    "status" : 403,
+    "message" : "Forbidden"
+  } ]
+}

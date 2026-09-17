@@ -1,0 +1,9 @@
+### p61 GET /api/security/permissions [admin]
+### STATUS: 200 application/json
+[ {
+  "name" : "Any Remote",
+  "uri" : "http://172.16.58.130:8082/artifactory/api/security/permissions/Any%20Remote"
+}, {
+  "name" : "Anything",
+  "uri" : "http://172.16.58.130:8082/artifactory/api/security/permissions/Anything"
+} ]

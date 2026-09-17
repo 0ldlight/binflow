@@ -1,0 +1,8 @@
+### p60 DELETE /api/v2/release_bundle/received/nosuchbundle/1.0
+### STATUS: 404 application/json
+{
+  "errors" : [ {
+    "status" : 404,
+    "message" : "Record not found, repository: release-bundles-v2-jfds, name: nosuchbundle, version: 1.0"
+  } ]
+}

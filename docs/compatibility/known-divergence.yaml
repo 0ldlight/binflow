@@ -1085,3 +1085,49 @@ entries:
   authority: { type: pending, ref: "产品/用户裁（v1-remote hexPublicKey：补 PEM 投影 vs 维持空串 INTENTIONAL〔v1 deprecated 面〕）——pending-rulings v2.7 R-25c" }
   review_gate: LOOP 026 限期升级（R-25c 批复：裁补齐→remote 公钥渲染票+差分复验；裁维持→INTENTIONAL+ADR 登记〔v1 deprecated 面外注记〕）
   evidence: reports/compatibility/L025-d02-config-diff.md §5.1 值级残差段（g1-v1-rem wire 对）+ reports/compatibility/l025q-wire/{a,b}/g1-v1-rem*
+- id: d02/deb-default-key-family
+  surface: 'deb 包型条件默认键族（新建空 debian local 仓 GET v1/v2 面的包型条件键+值级默认——L026-5 定谳）'
+  classification: UNKNOWN
+  rationale: >-
+    L026-5 A/B 探针定谳（2026-09-17，A pro 7.161.15 × B dev.b79a2d51）：**optionalIndexCompressionFormats
+    定谳=deb 族包型条件键+新仓默认 []（空数组）**——A minimal deb 仓 v1 面 62 键=共享 local 61 键+
+    本键（[]）；同型 generic 仓 61 键不出本键（唯一 v1 条件键）；v2 面 deb 条件键三枚（ddebSupported=false/
+    debianTrivialLayout=false/optionalIndexCompressionFormats=[]，21 vs 18 键）；值级 enableDebianSupport
+    deb 默认 true（generic false，键共享）。设值可存可回显（POST ["bz2"]→GET 回显，键数不变）。注意：
+    docs/reverse/debian.md §40 默认 ["bz2"] 与 Runtime 实测不符——按证据优先级（Runtime>反编译）以 []
+    定谳，§40 勘误候选转 reverse-engineer（本票不直改 docs/reverse/）。勘误前车：conductor 首轮
+    「65 键/包型键族条件出」口径已被本轮 wire 修正（实测 62 键；calculateYumMetadata/ddebSupported/
+    debianTrivialLayout 等在 generic 面同出=false，属共享键非条件键）。B 侧：deb 建仓被 ADR-0032
+    license 档位门挡（community dev 400 "package type not available on this instance… community <
+    pro"，wire 在档）——deb 面 dev 不可达；共享面基线已零差（A/B generic 61/61、18/18 键名值级全同），
+    代码读数（internal/httpapi/repo_config_render.go v1LocalSeats/v2LocalSeats 共享表无包型条件 seat）
+    → pro 档若建 deb 仓将缺 v1 optionalIndexCompressionFormats（仅 L026-3 blob 回显设值出）+v2 三
+    条件键+enableDebianSupport-on-deb 默认（不可验）。候选补键清单（只登记不实现）：v1×1+
+    v2×3+值级×1。两案：案甲=补齐 deb 条件键渲染（pro 档差分复验——deb 面在 dev 不可达须 licensed
+    实例或档位翻态腿）/ 案乙=维持共享面不加条件键（deb 面语义完整性受损——apt 索引压缩格式配置
+    仅设值回显可用，默认面缺键）。
+  authority: { type: pending, ref: "产品裁（deb 条件键补齐 vs 维持共享面——候实现票；非 INTENTIONAL 无 ADR 在册）" }
+  review_gate: LOOP 026 限期升级（候实现票派发判定：补齐需 pro 档差分腿设计；debian.md §40 勘误票随批）
+  evidence: reports/compatibility/l026r-wire/（a-l026r-optdeb-v1/v2-deb + a-l026r-optgen-v1/v2-generic + b-l026r-debd-put-400-license-gate + b-l026r-debgen-v1/v2-generic）+ reports/agents/L026-5.md Tests（设值回显探针）
+- id: rest/m-holder-repo-read-faces
+  surface: 'm-holder（plain 用户非空 manage 覆盖）repo 读位三面（v1 单仓/v1 列表/configurations——LOOP 026 goal「m-holder 专键读位后端投影面」票的 A 侧规格输入）'
+  classification: UNKNOWN
+  rationale: >-
+    L026-5 A 侧规格探针+B 对照（2026-09-17）。**A 参照行为规格（holder+noperm 双夹具，读面与权限
+    解耦）**：当客户端为任意认证非 admin 用户 GET /api/repositories/{key}——服务端返回 200 四键投影
+    {key,rclass,packageType,description}，覆盖内外同形（manage/read 位均不参与读门；无任何权限用户
+    同形）；GET /api/repositories——200 全量清单，entries 与 admin 逐字节同（无权限过滤，entry 五键
+    {key,type,packageType,description,url}）；GET /api/v2/repositories/{key}——200 四键 {key,type,
+    packageType,description}（local 无 url；与 d02-config/v2-read 非 admin 五键注记一致）；GET
+    /api/repositories/configurations——403 errors 信封 Forbidden（manage 不开门）。**B 现状（dev.
+    b79a2d51 wire）**：v1 单仓覆盖内=200 四键（同 A）；v1 单仓覆盖外=**403** "administrator
+    privileges required"（A=200 四键投影）；v1 列表=**403** 同文案（A=200 全量，CapRepoRead 拒清单
+    ——FE L025-7 v1∪blob 双臂降级合并 workaround 在账）；v2 单仓双臂=200 四键（同 A）；
+    configurations=403 Forbidden 信封（同 A）。分歧面=v1 单仓覆盖外+列表两处（A 无权限门槛读位 vs
+    B admin 门）。裁量轴：对齐 A（plain 用户无门槛四键投影+全量列表——信息面=rclass/包型/描述四键，
+    无配置敏感面）vs 维持 B 门（least-privilege 姿态，FE 已有降级 workaround——但 workaround 双臂
+    合并在列表 403 时退化为空清单，Artifactory 原生 UI 面对 plain 用户可见全仓列表）。规格草案全文
+    见 reports/agents/L026-5.md（docs/reverse/ 风格句式，转 reverse-engineer 成票候选）。
+  authority: { type: pending, ref: "产品裁（plain 用户 repo 读位：对齐 A 无门槛投影+全量列表 vs 维持 admin 门）——LOOP 026 goal 已排「m-holder 专键读位后端投影面」实现票，本条为其 A 侧规格输入" }
+  review_gate: LOOP 026 限期升级（实现票派发时裁：两分歧面进票或维持 B+INTENTIONAL ADR；v1 覆盖外 403 与列表 403 可分裁）
+  evidence: reports/compatibility/l026r-wire/（a-holder-* 六面 + a-noperm-* 四面 + a-admin-* 三面对照 + b-holder-* 六面）+ reports/agents/L026-5.md §任务三规格草案

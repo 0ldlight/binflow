@@ -1,0 +1,11 @@
+### p25 GET /api/v2/release_bundle/statuses/nosuchbundle/1.0.0-1  [extra: ]
+### STATUS: 404
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:09:37 GMT
+### BODY:
+{
+  "errors" : [ {
+    "status" : 404,
+    "message" : "Record not found, repository: release-bundles-v2, name: nosuchbundle, version: 1.0.0-1"
+  } ]
+}

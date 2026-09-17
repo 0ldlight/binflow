@@ -1,0 +1,10 @@
+### p54 GET /api/release/bundle/transaction/async/close/status/x [as: l026r-d08-user]
+### STATUS: 403
+Content-Type: application/json
+### BODY:
+{
+  "errors" : [ {
+    "status" : 403,
+    "message" : "Forbidden"
+  } ]
+}

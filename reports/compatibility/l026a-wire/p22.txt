@@ -1,0 +1,12 @@
+### p22 GET /api/v2/audit?limit=1  [extra: ]
+### STATUS: 405
+Allow: POST,OPTIONS
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:07:55 GMT
+### BODY:
+{
+  "errors" : [ {
+    "status" : 405,
+    "message" : "Method Not Allowed"
+  } ]
+}

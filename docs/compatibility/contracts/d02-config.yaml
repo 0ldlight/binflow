@@ -7,8 +7,13 @@
 #   全 SAME（G4/G2/G5 修复 256571d1 落位）、§5.3 八分歧逐个裁处（实质口径 31 一致/5 残差）。残差三族
 #   不挡 VERIFIED、单独候裁：G6 头族→known-divergence#d02/repolayouts-header-family（候 R-25a）、
 #   plain-user 403 两面（w08 文案+w13-ghost 检查次序）→#d02/plain-user-403-family（候 R-25b）、
-#   G1-R1 hexPublicKey 值形→#d02/v1-remote-hexpublickey-shape（候 R-25c）；G7 真 207/全败=共享参照
-#   不可安全构造，维持开放备案（B 单测注入证据在案）。
+# G7 真 207/全败=共享参照不可安全构造，维持开放备案（B 单测注入证据在案）。
+# L026-5（2026-09-17，compatibility-engineer A/B 探针定谳）：+1 条目 deb-package-conditional-keys
+#   （SPECIFIED）——optionalIndexCompressionFormats 定谳：deb 族包型条件键（v1 local 面唯一条件键）、
+#   新仓默认 []（Runtime 实测 > 反编译——debian.md §40 默认 ["bz2"] 勘误候选，见新条目注记）；
+#   v2 面 deb 条件键三枚（+ddebSupported/debianTrivialLayout）。B 侧 deb 建仓被 ADR-0032 license
+#   档位门挡（community dev 400），deb 面不可达——候选键清单只登记不实现（known-divergence
+#   #d02/deb-default-key-family 候实现票）。wire=reports/compatibility/l026r-wire/。
 # normalize: fixtures/normalize.yaml#d02-config（提案——报告头 Q1-Q5：config 体结构投影/批删 reports 集合序/
 #   布局 associations 实例态）
 domain: d02-config
@@ -133,3 +138,26 @@ contracts:
     - { kind: difftest, report: reports/compatibility/L025-d02-config-diff.md, anchor: '§5.3 l01/l02 裁处 + §6 行 repolayouts 族（VERIFIED——G6 单独候裁）', date: '2026-09-17' }
   confidence: high
   status: VERIFIED
+- id: d02-config/deb-package-conditional-keys
+  feature: 'deb 包型条件默认键（新建空 debian local 仓：v1 面 62 键=共享 local 61+optionalIndexCompressionFormats；v2 面 21 键=共享 18+ddebSupported/debianTrivialLayout/optionalIndexCompressionFormats；值级 enableDebianSupport deb 默认 true）'
+  surface: 'GET <apiBase>/repositories/{key} + GET <apiBase>/v2/repositories/{key}（packageType=debian 新建空仓默认面）'
+  request: { method: GET, path: '<apiBase>/repositories/<debKey>；<apiBase>/v2/repositories/<debKey>' }
+  authentication: { type: basic, role: admin }
+  expect:
+    status: 200
+    v1_body: '62 键=共享 local 61 键 + optionalIndexCompressionFormats: []（空数组默认——非 ["bz2"]；设值 POST 后回显实值，键数不变 62）'
+    v2_body: '21 键=共享 local 18 键 + ddebSupported: false + debianTrivialLayout: false + optionalIndexCompressionFormats: []'
+    value_level: 'enableDebianSupport: true（deb 仓默认值——generic 仓同键 false；键本身在共享面两型同出）'
+  side_effects: []
+  error_behavior: []
+  binflow_state:
+    verdict: '未实现/不可达——B debian 系 ADR-0032 pro 档包型：community dev 建仓 400（license tier ''community'' < ''pro''，wire 在档）→ deb 默认面在 dev 无 B 侧 wire。代码读数（repo_config_render.go v1LocalSeats/v2LocalSeats 共享表无包型条件 seat）：pro 档新建空 deb 仓将缺 v1 optionalIndexCompressionFormats（仅 L026-3 blob 回显设值出）+ v2 三条件键；enableDebianSupport-on-deb 默认 true 是否落 blob 不可验（建仓层在 dev 不可达）'
+    detail: '共享面基线零差：A generic 61/61、18/18 键名与值级全同（仅 key 实例值差）——L025-6 渲染器已达平；分歧面=deb 条件键 4 席（v1×1+v2×3）+值级 1 席'
+    divergence_ref: 'known-divergence.yaml#d02/deb-default-key-family（候实现票+pro 档差分复验——只登记不实现）'
+  version: { artifactory_ref: 7.161.15, binflow_tested: dev.b79a2d51 }
+  evidence:
+    - { kind: probe, path: reports/compatibility/l026r-wire/a-l026r-optdeb-v1-deb.json, note: 'A minimal deb v1 62 键 + a-l026r-optgen-v1-generic.json（61 键对照，条件键唯 optionalIndexCompressionFormats）', date: '2026-09-17' }
+    - { kind: probe, path: reports/compatibility/l026r-wire/a-l026r-optdeb-v2-deb.json, note: 'A deb v2 21 键（+ddebSupported/debianTrivialLayout）+ a-l026r-optgen-v2-generic.json（18 键对照）', date: '2026-09-17' }
+    - { kind: probe, path: reports/compatibility/l026r-wire/b-l026r-debd-put-400-license-gate.json, note: 'B deb 建仓 400 ADR-0032 门 + b-l026r-debgen-v1/v2-generic.json（B 共享面 61/18 全同基线）', date: '2026-09-17' }
+  confidence: high
+  status: SPECIFIED

@@ -1,0 +1,5 @@
+### p63 PUT /api/repositories/l026r-d08-dist rclass=distribution [admin]
+### STATUS: 400 application/json
+{"rclass":"distribution","url":"http://172.16.58.130:8082/distribution/api/v1","packageType":"generic"}
+--- response:
+{"errors":[{"status":400,"message":"Unsupported repository type 'distribution' or media type 'application/json'"}]}

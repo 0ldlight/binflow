@@ -194,6 +194,9 @@ completed_tasks:
 
 iteration_events:                      # L025-10 起新键（conductor 票面指令——此前无此键；落账事件一句话流水）
   - { id: L025-8, at: 2026-09-17, what: "D02 终轮差分（dev.b79a2d51 × A 7.161.15，commit d7a70797）：实质口径 31 一致/5 残差（全为登记候裁）、四层键集面键名差=0（G1 修复验证）、L025-5 三臂 SAME、八面全 VERIFIED 翻绿建议（L025-10 落账）、wire 44 件 l025q-wire 归档" }
+  - { id: L026-3, at: 2026-09-17, what: "main P0 回归根修收编（dev-go-core，commit 3472e5bb）：appendUnmodeledBlobKeys 未建模键 blob 回显+blobEchoDenyKeys 排除集（stages/password/五 remote 合成键）——L025-6 键表化渲染逐出的策略键（deb/rpm 全族）PUT→GET 顶层往返恢复；TestRepoConfigUnmodeledKeyEcho 钉契约；哨兵三包全绿（deb 38.3s/rpm 35.2s）+lint 0；optionalIndexCompressionFormats 候裁留探（conductor A 探已定谳包型条件+默认 []，非反编译所记 [bz2]）→L026-5 落账" }
+  - { id: L026-4, at: 2026-09-17, what: "GitHub CI e2e 门控+metadata 预算腿收编（devops-engineer，commit e10e2567）：e2e job 门 workflow_dispatch+run_e2e（对齐 CircleCI 姿态，重开条件注写门位）——main push 不再烧 45 分钟债族；Makefile 拆 BUDGET_PKGS=metadata 独占串行段+t212 界 1s→2s（#121/#122 唯一红腿共居簇 1.44-1.77s 实证）——双层根治共居 flake；PR #124 squash 合并（main=c56e0c62），**UAT 翻转 uat.c56e0c6**（720s 内，CircleCI build→deploy 链绿）——UAT 已跑 L026-3 修复版" }
+  - { id: L026-5, at: 2026-09-17, what: "波 2 派发（compatibility-engineer 在途）：三段 A 探定谳落账——①optionalIndexCompressionFormats 包型条件座+默认 [] 定谳+debian.md §40 勘误候选；②deb 包型默认键族 A/B 对拍（A 65 键 vs B 键表 61 键——候选补键清单只登记）；③m-holder repo 读位 A 侧规格探针（L025-7 FE 双臂降级的后端投影面规格输入）" }
 compatibility_score:
   source: "docs/compatibility/matrix.yaml（L000-C 后唯一事实源；rest-compat-matrix.md 降级历史快照）"
   before: { compatible: 57, partial: 28, absent: 80, not_applicable: 17, superset: 11, total: 193, note: "迁移后权威基线（含 D06-R13 冻结后翻态）" }

@@ -1,0 +1,11 @@
+### p40 POST /api/release/bundle/transaction/open  [extra: -H Content-Type: application/json -d not json]
+### STATUS: 400
+Content-Type: application/json
+Date: Thu, 17 Sep 2026 02:22:02 GMT
+### BODY:
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Unrecognized token 'not': was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line: 1, column: 1]"
+  } ]
+}
