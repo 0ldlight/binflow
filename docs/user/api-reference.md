@@ -1,472 +1,422 @@
 ---
-title: API 参考
+title: API Reference
 sidebar_position: 70
 ---
 
-# API 参考
+# API Reference
 
-> 适用版本：M1~M14（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面（含 SAML SP 证书三端点，T-331）、GPG keypair 族、cleanup 引擎、四包型 reindex 族、smart remote 两字段生效、MPU 面整体翻转（ADR-0039）与 cargo remote/virtual 仓型——见[M11 增补速览](#m11-增补速览t-328)；**M12 增补**：制品操作族（copy/move + 归档族）与 trash REST 族（NuGet v2 全路由/v3 代理属协议接入面，见 [NuGet 接入](integrations/nuget.md)）——见[M12 增补速览](#m12-增补速览t-347a)；**M13 增补**：webhook 订阅七端点族（`/event/api/v1`）+ `GET /api/v1/system/settings` 旋钮回显 + remote 仓 `chartsBaseUrl` 字段——见[M13 增补速览](#m13-增补速览t-375)；**M14 增补**：`rclass=remote + packageType=docker` 建仓开闸（T-392，见[Sr 仓库管理域](#sr-仓库管理域)表后注记）、npm login 端点族（T-394，见[NE: npm 域](#ne-npm-域)）与 replication 配置族补册（含新增 `PUT` 启停端点，T-405——见[M14 增补速览](#m14-增补速览t-397t-398)）；**M15 增补**：AQL 端点 + 老搜索三端点（gavc/prop/pattern，见[SR 搜索域](#sr-搜索域)）与复制包 B（Replicate Now · Test 连接 · 全局封锁，见[M15 增补速览](#m15-增补速览t-426)；语言细节见 [AQL 搜索指南](aql.md)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
-> **近期增补（cron 调度域）**：维护三槽（`GET/PUT /api/v1/system/maintenance`）、定时备份 CRUD（`/api/v1/system/backups` 五面）、调度只读投影（`GET /api/v1/system/schedules`）与复制配置 `cron_exp` 字段——端点行已就地收入下表，完整语义（表达式子集、校验族、审计词）见 **[计划任务（cron 调度）与定时备份](admin/cron-scheduling.md)**。
-> **M10 增补（T-293 部分回写，2026-08-26）**：`?properties` 族反转为 **GET/PUT/DELETE 三动词**（POST 增量动词不做——其余动词落 404 冻结姿态；原 M5 期表格把属性动词标为 M4/M1 系陈旧勘误）；上传路径 matrix 参数 M10 生效。M10 其余新端点（license/addons/uploads、Go/NuGet/Cargo 接入面）已随 T-296 补齐——速览见[下文](#m10-新增端点速览t-296)。
-> BinFlow 自有端点以 `/api/v1` 前缀标记。
+> This page applies to **BinFlow v1.0.0**. BinFlow-native endpoints carry the `/api/v1` prefix; all other management endpoints follow the Artifactory-compatible REST conventions.
 
-BinFlow 的 API 分为两个面：
+The BinFlow API spans four surfaces:
 
-1. **制品的容路径**（无 `/api` 前缀）：`/binflow/<repoKey>/<path>`——上传、下载、删除制品，各协议客户端走这里。
-2. **管理面 API**（`/binflow/api/*`）：仓库 CRUD、用户/组/权限、审计、GC、Token、搜索、系统信息。
-3. **Docker Registry 根级平面**（`/v2/*`）——独立路由，见[Docker 接入指南](docker-registry.md)。
-4. **Webhook 事件面**（`/binflow/event/api/v1/*`，M13）——订阅 CRUD/试发/排障，见[Webhook 使用指南](admin/webhooks.md)。
+1. **Artifact content paths** (no `/api` prefix): `/binflow/<repoKey>/<path>` — upload, download and delete artifacts; every protocol client goes through here.
+2. **Management API** (`/binflow/api/*`): repository CRUD, users/groups/permissions, audit, GC, tokens, search, system info.
+3. **Docker Registry root-level plane** (`/v2/*`) — separately routed, not under the `/binflow` prefix; see the [Docker registry guide](docker-registry.md).
+4. **Webhook event surface** (`/binflow/event/api/v1/*`) — subscription CRUD, test sends, troubleshooting; see the [Webhooks guide](admin/webhooks.md).
 
----
-
-## 兼容端点总表
-
-按 PRD 兼容域标注：E（通用）、DE（Docker）、ME（Maven）、NE（npm）、PE（PyPI）、SE（安全）、SR（搜索）。
-
-### E: 通用制品域
-
-| 方法 | 路径 | 语义 | 里程碑 |
-|---|---|---|---|
-| PUT | `/binflow/{repoKey}/{path}` | 上传文件（body 为内容），checksum 头支持；**matrix 参数（`;k=v` 尾随成对序列剥离为部署属性）M10 起生效**——非成对 `;` 维持文件名字面 | M1/M10 |
-| PUT | `/binflow/{repoKey}/{path}/` | 创建目录（尾斜杠） | M1 |
-| PUT | `/binflow/{repoKey}/{path}.sha1\|.md5\|.sha256` | 上传校验和旁车文件 | M1 |
-| GET | `/binflow/{repoKey}/{path}` | 下载文件（支持 Range/If-None-Match/ETag） | M1 |
-| HEAD | `/binflow/{repoKey}/{path}` | 文件元信息（响应头同 GET 无 body） | M1 |
-| DELETE | `/binflow/{repoKey}/{path}` | 删除文件或目录树 | M1 |
-| DELETE | `/binflow/api/storage/{repoKey}/{path}?properties=k1,k2[&recursive=1]` | 删属性（幂等，不存在的键 204；`properties=*` 全删；folder + `recursive=1` 递归） | M10 |
-| PUT | `/binflow/api/storage/{repoKey}/{path}?properties=k=v1,v2[&recursive=1]` | 写属性——**merge 语义**：同名键值集整体替换、异名键保留；node 须存在（404） | M10 |
-| GET | `/binflow/api/storage/{repoKey}/{path}` | 取 FileInfo / FolderInfo JSON | M1 |
-| GET | `/binflow/api/storage/{repoKey}/{path}?properties=K1,K2*` | 取属性（key 过滤 + 尾 `*` 通配；无命中 = 200 `{"properties":{}}`——BinFlow 自有裁定，非 Artifactory 的 404；node 不存在 = 404） | M10 |
-| GET | `/binflow/api/storage/{repoKey}/{path}?stats` | 取下载统计：`{uri, downloadCount, lastDownloaded, lastDownloadedBy, remoteDownloadCount}`——计数对全档可见（item-info 读门）；`lastDownloadedBy` 仅 admin / readonly_admin 回带（低档位 omitempty，从不伪造）；`?stats` 探针自身不计入计数（内容面 GET 与存储面节点读取计入） | M1 |
-| GET | `/binflow/api/storage/{repoKey}/{path}?lastModified` | 取目录最新修改时间 | M1 |
-| GET | `/binflow/api/storage/{repoKey}/{path}?permissions` | 取有效权限视图（admin only，仅 local 仓） | M4 |
-| GET | `/binflow/api/storage/{repoKey}?list` | 流式文件清单（七参族 `deep`/`depth`/`listFolders`/`includeRootPath`/`mdTimestamps`/`statsTimestamps`/`includePropertiesMd5`——出现值须为整数否则 400 `For input string: "<v>"`；仅认证用户） | M1 |
-
-### DE: Docker 域（独立 /v2 路由）
-
-| 方法 | 路径 | 语义 | 里程碑 |
-|---|---|---|---|
-| GET | `/v2/` | API 版本检查（401 挑战，不随匿名开关变化） | M2 |
-| GET | `/v2/_catalog` | 仓库目录 | M2 |
-| GET | `/v2/{name}/tags/list` | 标签列表（空标签集返回 `"tags":null`） | M2 |
-| GET | `/v2/{name}/manifests/{ref}` | 取 manifest（tag 或 digest） | M2 |
-| PUT | `/v2/{name}/manifests/{ref}` | 上传 manifest（Content-Type 透传不白名单） | M2 |
-| DELETE | `/v2/{name}/manifests/{digest}` | 删除 manifest（by-digest 仅） | M2 |
-| POST | `/v2/{name}/blobs/uploads/` | 启动 blob 上传会话 | M2 |
-| GET | `/v2/{name}/blobs/uploads/{uuid}` | 上传状态查询（**204 + `Range: 0-<offset-1>`** 权威断点；M7 起跨重启存活，续传见 [Docker 接入指南](docker-registry.md#大层上传中断续传跨重启)） | M2/M7 |
-| PATCH | `/v2/{name}/blobs/uploads/{uuid}` | 上传 blob 分片（`Content-Range` 起点错位 → 416 空 body + 权威 `Range`） | M2 |
-| PUT | `/v2/{name}/blobs/uploads/{uuid}` | 完成 blob 上传（`?digest=sha256:...`） | M2 |
-| GET | `/v2/{name}/blobs/{digest}` | 下载 blob | M2 |
-| HEAD | `/v2/{name}/blobs/{digest}` | blob 存在检测 | M2 |
-| DELETE | `/v2/{name}/blobs/{digest}` | **405 UNSUPPORTED**—blob 删除仅 GC | M2 |
-| GET/POST | `/v2/token` | Docker 认证 token 端点（distribution token 协议） | M2 |
-| GET | `/v2/{name}/referrers/` | **404**—OCI referrers API 不做 | M2 |
-
-### ME: Maven 域（内容路径）
-
-| 方法 | 路径 | 语义 | 里程碑 |
-|---|---|---|---|
-| PUT | `/binflow/{repoKey}/{GAV路径}` | 部署 Maven 构件（layout 严格校验） | M3 |
-| GET | `/binflow/{repoKey}/{GAV路径}` | 解析构件（含 `maven-metadata.xml`） | M3 |
-| GET | `/binflow/{repoKey}/{GAV路径}.sha1\|.md5\|.sha256` | 取校验和 | M3 |
-
-### NE: npm 域
-
-| 方法 | 路径 | 语义 | 里程碑 |
-|---|---|---|---|
-| GET | `/binflow/api/npm/{repoKey}/-/${pkg}` | packument（包元数据） | M3 |
-| PUT | `/binflow/api/npm/{repoKey}/-/${pkg}` | 发布包（十步 packument 链） | M3 |
-| DELETE | `/binflow/api/npm/{repoKey}/-/${pkg}?rev=...` | unpublish（移除指定版本） | M3 |
-| GET | `/binflow/{repoKey}/{name}/-/{name}-{v}.tgz` | 下载 tarball（内容路径直取） | M3 |
-| PUT | `/binflow/{repoKey}/{name}/-/{name}-{v}.tgz` | **405**—npm 域仅认 packument PUT | M3 |
-| PUT | `/binflow/api/npm/{repoKey}/-/user/org.couchdb.user:{name}` | **login（couch 用户文档族，M14 起可用）**——npm `login --auth-type=legacy` 的落点：凭据在 body（`name`/`password`），该路径族对 npm 仓**豁免写认证门**，由登录端点验证 body 凭据后铸 token（**201 幂等再铸**，不报 409）；错口令 401 + Basic challenge。仅 `packageType=npm` 仓适用（generic 仓同路径仍 401——类型钉死防匿名写入） | M3/M14 |
-| PUT | `/binflow/api/npm/{repoKey}/-/user/org.couchdb.user:{name}/-rev/{rev}` | login 重试拼写（npm 带 revision 重发），同臂服务（M14 起随豁免生效） | M3/M14 |
-| POST | `/binflow/api/npm/{repoKey}/-/v1/login` | **401**——web 登录端点不提供；npm 客户端（npm ≥ 9 默认 web 形态）收到 401 后自动回落 couch 链，行为可用 | M14 |
-| GET | `/binflow/api/npm/{repoKey}/-/whoami` | 当前用户（需认证；无该仓读权限的账号 403——读面 ACL 语义） | M3 |
-| GET | `/binflow/api/npm/{repoKey}/-/ping` | 连通性探测（免认证，`200 {}`） | M3 |
-
-### PE: PyPI 域
-
-| 方法 | 路径 | 语义 | 里程碑 |
-|---|---|---|---|
-| GET | `/binflow/api/pypi/{repoKey}/simple/` | 包列表（PEP 503/629） | M3 |
-| GET | `/binflow/api/pypi/{repoKey}/simple/{pkg}/` | 单包索引页（HTML + JSON，Accept 驱动） | M3 |
-| POST | `/binflow/api/pypi/{repoKey}/` | 上传（multipart `:action=file_upload`） | M3 |
-| GET | `/binflow/api/pypi/{repoKey}/packages/{name}/{ver}/{file}` | 下载构件（twine 回显 URL） | M3 |
-
-### SE: 安全域
-
-| 方法 | 路径 | 语义 | 里程碑 |
-|---|---|---|---|
-| GET | `/binflow/api/security/users` | 用户列表（**M9 加宽**：条目增 `email`/`adminRole`/`enabled`/`groups`〔恒渲染，空组 `[]`〕，一次请求含全部列表所需字段） | M1 |
-| GET | `/binflow/api/security/users/{name}` | 用户详情（无口令字段；M7 起回显 `adminRole`，**M9 起恒回显 `enabled`**） | M1 |
-| PUT | `/binflow/api/security/users/{name}` | 创建或替换用户（create-or-replace，两态 201；M7 起 body 可含 `adminRole`，仅 admin 可写） | M1 |
-| POST | `/binflow/api/security/users/{name}` | 部分更新用户（email/password/admin/groups/adminRole/enabled——`enabled` 为指针语义，显式 `false` 禁用登录） | M4 |
-| DELETE | `/binflow/api/security/users/{name}` | **删除用户**（M9：三护栏 400、同事务级联、200 纯文本；重复删除**确定性 404**——见[M9 增补速览](#m9-增补速览)） | M9 |
-| PUT | `/binflow/api/security/password` | 当前用户改密 | M1 |
-| POST | `/binflow/api/security/users/authorization/changePassword` | 别名改密端点 | M4 |
-| GET | `/binflow/api/security/groups` | 组列表 | M4 |
-| GET | `/binflow/api/security/groups/{name}` | 组详情（**M9 增 `?includeUsers=true`**：响应附 `userNames: []`；字面 `true` 才开，其余拼法回无参形态；groups 列表端点不加宽） | M4 |
-| PUT | `/binflow/api/security/groups/{name}` | 创建或更新组（创建 201 / 更新 200） | M4 |
-| POST | `/binflow/api/security/groups/{name}` | 改描述 | M4 |
-| DELETE | `/binflow/api/security/groups/{name}` | 删组（被 target 引用 → 409） | M4 |
-| POST | `/binflow/api/security/token` | 签发 Access Token（admin 为任意用户签发；非 admin 限本人——M6 起；M7 起实例可开 step-up 二次认证，见 [step-up 指南](admin/token-step-up.md)） | M1 |
-| POST | `/binflow/api/security/token/revoke` | 吊销 Token（admin only） | M1 |
-| POST | `/binflow/api/v1/permissions` | 创建 Permission Target（create-or-replace；动作集**五值闭集** `read / deploy-cache / annotate / delete / manage`——`write` 仍被接受为 `deploy-cache` 的兼容别名〔**不附带 annotate**〕，GET 回显恒正名单形；`annotate` 单独控制属性写门，见[用户组与权限管理](admin/groups-permissions.md#动作动词read--deploy-cache--annotate--delete--manage)；manage 持有者可编辑覆盖集内的 target） | M1 |
-| GET | `/binflow/api/v1/permissions` | 列出 Permission Targets（principals 回显动作**正名单单形**：`read, deploy-cache, annotate, delete, manage`——`write` 别名收词不回显；M7 起 principals 回显 `manage` 位；**M9 增 `?filter=manage`**：manage 持有者可达的覆盖集内 target 子集——admin/readonly_admin 带参与无参响应逐字节一致；未知 filter 值 400） | M4 |
-| DELETE | `/binflow/api/v1/permissions/{name}` | 删除 Permission Target（**204** 无 body；被删 target 的 repo 集取自存量行，manage 覆盖越界 → 403） | M1 |
-
-### SR: 搜索域
-
-| 方法 | 路径 | 参数 | 语义 | 里程碑 |
-|---|---|---|---|---|
-| GET | `/binflow/api/search/artifact` | `name=`（必填，**大小写不敏感子串**——M15 K64 校准）、`repos=a,b` | 按名称子串搜索（SQL LIKE，权限过滤） | M4/M15 |
-| GET | `/binflow/api/search/checksum` | `sha1=/md5=/sha256=`（至少一）、`repos=a,b` | 按 checksum 精确搜索 | M1 |
-| POST | `/binflow/api/search/aql` | body = AQL 文本（`text/plain`）；`?compact=true`；`?query=` 空体回退 | **AQL 查询**（items 域子集 + `stat.*` 统计字段族，完整语言/错误/迁移对照见 [AQL 搜索指南](aql.md)） | M15 |
-| GET | `/binflow/api/search/usage` | `notUsedSince=`（必填 epoch 毫秒）、`createdBefore=`（缺省回退 notUsedSince）、`repos=a,b` | **闲置制品检索**（「N 天未下载」清理策略数据面；行五字段 `{uri, downloadCount, lastDownloaded, remoteDownloadCount, remoteLastDownloaded}`；空集与缺参均 **404 `No results found.`**——语义与实测示例见 [AQL 搜索指南 · usage 端点](aql.md#usage-端点get-apisearchusage)） | — |
-| GET | `/binflow/api/search/gavc` | `g=/a=/v=/c=`（至少一）、`repos=a,b` | Maven 坐标检索（布局路径形态匹配） | M15 |
-| GET | `/binflow/api/search/prop` | `props=k[=v]` 或任意 `?k=v` 参数（`repos` 保留） | 按属性检索（键无值 = 键存在性） | M15 |
-| GET | `/binflow/api/search/pattern` | `pattern=<repo-glob>:<path-glob>` | 按路径模式检索（`*`/`?` SQL 语义，跨段） | M15 |
-| GET | `/binflow/api/search/props\|users\|artifactory\|badge` | — | **404** 有意不做（注意 `prop` 是官方单数拼写，复数 `props` 404） | M1 |
-
-### SR: 仓库管理域
-
-| 方法 | 路径 | 语义 | 里程碑 |
-|---|---|---|---|
-| GET | `/binflow/api/repositories` | 仓库列表（admin / readonly_admin） | M1 |
-| GET | `/binflow/api/repositories?type=&packageType=` | 过滤列表 | M1 |
-| GET | `/binflow/api/repositories/{key}` | 单仓配置（M7 起 manage 持有者对覆盖仓亦可读） | M1 |
-| PUT | `/binflow/api/repositories/{key}` | **只建仓（create-only）**——已存在 key 一律 400（`error when validating repository name: <key> : Repository key already exists`，零副作用）；更新拼写只有 POST。admin only | M1 |
-| POST | `/binflow/api/repositories/{key}` | 改仓，**合并语义**：省略字段=保留存量、`null`/空串=清空（数组空值保留、对象 `{}` 整族复位）、显式值=覆盖（含 `0`）；未知 key 404。含 quotaBytes 配额写；manage 持有者同上 | M1 |
-| DELETE | `/binflow/api/repositories/{key}` | 删仓（含可选 `?deleteContent`；admin only，不下放） | M1 |
-
-> **建仓形态变化**：`PUT` 接受 `rclass=remote + packageType=docker`（community 档——不新增 license 槽），协议面语义见 [remote/virtual 管理指南 · docker remote 仓](admin/remote-virtual.md#docker-remote-仓m14fr-129)；`rclass=virtual + packageType=docker` 亦已开闸（聚合读面按成员仓并集服务，实测建仓 200）——**rclass × packageType 组合门已全量退役**，建仓面剩余门是 license 档位（进阶包型在低档位 400 `package type not available on this instance: ...`，实测文案）与**远端浏览批 1 型门**（remote 仓 body 的 `listRemoteFolderItems: true` 仅 helm/debian/rpm 接受，其它包型 400 点名批 1 集——见[远端浏览可选档](admin/remote-virtual.md#远端浏览可选档listremotefolderitems)）。
-
-### 系统端点
-
-| 方法 | 路径 | 语义 | 里程碑 |
-|---|---|---|---|
-| GET | `/binflow/api/system/ping` | 存活探测（免认证） | M1 |
-| GET | `/binflow/api/system/version` | 版本信息（免认证） | M1 |
-| GET | `/binflow/api/v1/health` | 健康面板（admin / readonly_admin） | M1 |
-| GET | `/binflow/api/v1/storage/stats` | 全实例存储统计（admin / readonly_admin） | M1 |
-| GET | `/binflow/api/v1/storage/usage/{repo}` | 单仓配额用量（admin / readonly_admin / 对该仓有 `read` **或** `manage` 授权者——M7 起 manage ∨-臂） | M4 |
-| GET | `/binflow/api/v1/storage/usage` | **批量用量**（M9：bare array，行形与单仓同构；按调用者可见集过滤；`?repos=` 点名、`?include=counts` 附 `nodeCount`/`updatedAt`——见[M9 增补速览](#m9-增补速览)） | M9 |
-| GET | `/binflow/api/v1/audit` | 审计日志查询（admin / readonly_admin） | M4 |
-| POST | `/binflow/api/v1/system/gc` | 触发 GC（admin only；readonly_admin 403 **含 dry-run**） | M4 |
-| GET/PUT | `/binflow/api/v1/system/maintenance` | **cron 维护三槽**（`gc`/`cleanup-unused-cache`/`cleanup-virtual`：GET 三槽投影；PUT 逐槽布防，空 cronExp=清除、enabled=false 停用形；表达式校验全域唯一，坏表达式 400 点名——见[计划任务指南](admin/cron-scheduling.md)） | — |
-| PUT/GET/DELETE | `/binflow/api/v1/system/backups`（+ `/{key}`） | **定时备份 CRUD**（官方单 PUT 形 body 带 `backupKey`；`exportPath` 服务器绝对路径门、`nextBackupTime` 首跑时刻可写位〔过去 400〕、空 cronExp=合法不调度；DELETE 双行联动删） | — |
-| GET | `/binflow/api/v1/system/schedules` | 三域调度行只读投影（`?domain=` 闭集过滤，非法域 400 实测 `domain must be one of maintenance, backup, replication (or omitted for every domain)`） | — |
-
-### 会话端点
-
-| 方法 | 路径 | 语义 | 里程碑 |
-|---|---|---|---|
-| POST | `/binflow/api/v1/session` | 登录（JSON 或 form；免认证） | M4 |
-| GET | `/binflow/api/v1/session` | Whoami（当前会话信息） | M4 |
-| DELETE | `/binflow/api/v1/session` | 登出（吊销会话） | M4 |
-
-### 已保留 / 未实现路径
-
-| 路径 | 状态 | 说明 |
-|---|---|---|
-| `/binflow/api/v2/**` | 404 | Artifactory v2 权限 API 不实现（用 `/api/v1/permissions`） |
-| `/binflow/api/export/**`, `/binflow/api/import/**` | 404 | 备份恢复仅 CLI |
-| `/binflow/api/system/storage/prune/**` | 404 | 空间回收走 GC |
-| `/binflow/v2/**` | 404 | Docker 端点不走 `/binflow` 前缀（见 /v2 根级例外） |
+An interactive, machine-readable version of this reference is published as an OpenAPI spec on the documentation site.
 
 ---
 
-## M9 增补速览
+## Authentication
 
-六条 M9 端点/加宽的关键 wire 事实（全部在 HEAD 构建的 scratch 实例上 curl 实测，2026-08-25）：
+BinFlow accepts three kinds of credentials, each suited to a different scenario.
 
-### E1 · `GET /api/v1/storage/usage`（usage 批量）
+### Basic authentication
 
-- **bare array**（无信封、无分页；空可见集 `200 []` 恒非 null）；行形与单仓端点逐字段同构：`{"repo","usedBytes","quotaBytes"}`。
-- **可见集**：admin / readonly_admin 全量；普通 user = 对该仓有 `read` **或** `manage` 的子集（与单仓端点同一 ∨-臂）；匿名 401。点名未知名的仓与点名无权限的仓**同形静默缺失**（无存在性信号）。
+Use with curl, CI scripts and client credential files (Maven `settings.xml`, `.pypirc`, npm `_auth`). At the REST API layer credentials must always be present and correct in the request — there is no challenge-then-retry dance; a failed authentication is an immediate 401:
 
 ```bash
-curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/storage/usage
-# [{"repo":"g-local","usedBytes":10,"quotaBytes":0}, ...]
+# The -u shorthand (recommended)
+curl -su admin:<password> $BASE/binflow/api/system/ping
 
-curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/storage/usage?repos=g-local,no-such"   # 未知名静默缺失
-# [{"repo":"g-local","usedBytes":10,"quotaBytes":0}]
-
-curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/storage/usage?include=counts"
-# 行增 {"nodeCount":1,"updatedAt":"2026-08-24T20:37:26Z"}
-#   nodeCount 只计文件 node；updatedAt = 仓库配置变更时刻（非「最新制品时间」）
-
-curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/storage/usage?include=bogus"          # 未知值显式拒绝
-# 400 {"errors":[{"status":400,"message":"include must be \"counts\" (unknown include value: \"bogus\")"}]}
+# The equivalent explicit Authorization header
+curl -s -H "Authorization: Basic $(printf 'admin:<password>' | base64 -w0)" \
+  $BASE/binflow/api/system/ping
 ```
 
-### E2/E3 · users 列表加宽与 `enabled` 回显
+Every `/binflow/api/*` route accepts Basic authentication. Passwords are hashed with **argon2id** (memory-hard); for high-throughput scenarios use an access token instead.
 
-- 列表条目从 `{name,uri,realm,source}` 加宽为 `{name,uri,realm,source,email,adminRole,enabled,groups}`——`enabled`/`groups` 恒渲染（空组 `[]` 非 null）；控制台用户页由此单请求成表（M8 期 21 请求扇出退役）。
-- 单查端点 `GET /api/security/users/{name}` 增 `enabled: bool` 恒渲染（DB 行事实）。写侧：`POST /api/security/users/{name}` body `{"enabled":false}` 禁用（禁用后该用户登录/既有会话 401），`{"enabled":true}` 复启——显式传值才生效，缺省不动。
+### Bearer tokens
 
-### E4 · `DELETE /api/security/users/{name}`（删除用户）
+Best for high QPS, CI/CD pipelines and headless clients. Token validation skips the argon2 hash entirely, so it is far cheaper than Basic:
 
-**admin only**（`CapSecurityWrite`；非 admin 403、匿名 401）。成功 **200 纯文本**（`The user: '<name>' has been removed successfully.`），四道护栏全 **400 纯文本**，检查序固定：
+```bash
+# Mint a token (admins may mint for any user; non-admins mint for themselves)
+TOKEN=$(curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token \
+  -d 'grant_type=client_credentials&username=ci-bot' | jq -r '.access_token')
+# 200: {"access_token":"<64hex>","token_id":"<id>","expires_in":2592000,"scope":"api:*"}
 
-| 序 | 护栏 | 响应（逐字） |
-|---|---|---|
-| 1 | 目标不存在 | **404** `User not found`（文本体，与 GET 单用户同形——注意不是 Artifactory 的无 body 404） |
-| 2 | 内置 `admin` | 400 `Cannot delete the built-in admin user.` |
-| 3 | 最后一个 admin | 400 `Cannot delete user '<name>'. There must be at least one user configured with admin privileges.` |
-| 4 | 自删 | 400 `Cannot delete the current authenticated user.` |
+# Use the token
+curl -s -H "Authorization: Bearer $TOKEN" $BASE/binflow/api/v1/storage/stats
 
-- **级联（同事务）**：剥该用户在全部 permission target 的授权行（ACE）→ 删用户行 → FK 级联清组员关系、**吊销全部 token 与 web session**（已持有的 Bearer 即刻 401，实测）；审计历史保留。与组删除的 409 保护是**有意不对称**：组是多成员策略对象（静默剥夺全员授权 → 拒绝），用户是单主体（级联即删除意图本身）。
-- **重复删除 = 确定性 404（有意非幂等）**：删除成功后同一请求再发得 404 `User not found` 文本体——不是 Artifactory「吞 404 视为成功」的幂等形态（那是其并发窗口产物）。调用方应把第二次 404 理解为「对象已被删」，不要重试。
-- 审计：成功删除落 `user.delete`（detail 含 `user`）；**护栏拒绝不落审计**。
-- 控制台对应面（M9）：列表行 + 编辑页危险区双入口，**输入用户名强确认**——见[控制台指南](console.md#用户与权限adminsecurity)。
+# Revoke a token
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token/revoke \
+  -d "token_id=<the token_id from above>"
+```
 
-### E5 · `GET /api/security/groups/{name}?includeUsers=true`
-
-- 带参（字面 `true`，大小写敏感）：三字段之上附 `userNames: []string`（空组 `[]` 恒非 null）；其余拼法（`false`/`junk`/`TRUE`）回无参三字段形态 200，**不发明 400**。未知组带参 → 404 `Group not found`（与无参同文案）。
-- `GET /api/security/groups` **列表不加宽**（K19 定案）：成员汇总的单一事实源是 user_groups 行 → users 列表 `groups[]` 投影（客户端过滤）+ 本参数按需取单组。
-
-### E6 · `GET /api/v1/permissions?filter=manage`
-
-- **无 filter：行为字节不变**（admin/readonly_admin 全量；其余含 manage 持有者一律 403 `administrator privileges required`）。
-- `filter=manage` 三臂：admin/readonly_admin → 全量（与无参响应**逐字节一致**，实测 diff 为空）；manage 持有者且覆盖集非空 → 仅 `repos ⊆ 覆盖集` 的 target（条目字段与全量一致；**部分覆盖的 target 隐藏**）；覆盖集为空 → 403（与无参门同形同字节）。`?filter=`（空值）= 无 ask；未知值 → **400 errors[] 信封**（`filter must be "manage" (unknown filter value: "bogus")`）。
-- 用途：仓库级管理员（manage 持有者）经此端点在控制台可达权限编辑器——见 [RBAC 指南](admin/rbac-roles.md#manage-能做什么--不能做什么)。
-
----
-
-## M10 新增端点速览（T-296）
-
-license / addons / uploads 三族与三个门控包型的接入面（依据 ADR-0032/0033/0034 as-built + T-285/T-287/T-289/T-294 实测，2026-08-26）：
-
-### license 域（**单数**路径）
-
-| 方法 | 路径 | 语义 | 里程碑 |
-|---|---|---|---|
-| GET | `/binflow/api/system/license` | 状态查询（CapSystemRead——admin/readonly_admin；body 永不含文档原文/签名） | M10 |
-| POST | `/binflow/api/system/license` | 安装（body = 文档原文；成功 **201**；验签拒 **400**，wire 码 `LICENSE_EXPIRED`/`LICENSE_INVALID`，现证不动；CapSystemWrite） | M10 |
-| DELETE | `/binflow/api/system/license` | 卸载（幂等 **200 纯文本** `License removed successfully.`；CapSystemWrite；降级不劫持数据） | M10 |
-| * | `/binflow/api/system/licenses`（复数） | **404** 有意不做（Artifactory HA 多证语义不采纳；404 即引导） | M10 |
-
-### addon 域
-
-| 方法 | 路径 | 语义 | 里程碑 |
-|---|---|---|---|
-| GET | `/binflow/api/v1/addons` | 11 槽位清单实时求值（bare array：`id`/`kind`/`minTier`/`enabled`/`reason`/`displayName`/`description`；CapSystemRead；**无写面**——其余动词 404） | M10 |
-
-### uploads 域（MPU；Artifactory 形——M11 T-332 整体翻转，ADR-0039；**数据端点仅纯 S3 后端**，filestore/双写实例回 **501 纯文本**非 404）
-
-| 方法 | 路径 | 语义 | 里程碑 |
-|---|---|---|---|
-| POST | `/binflow/api/v1/uploads/create?repoKey=&repoPath=&partSizeMB=` | 开会话（QueryParam 非 JSON 体；认证 + admin/user 角色 + 目标仓 `w`；virtual 仓回落 defaultDeploymentRepo；不限包型）。**200 `{"token": ...}`**——会话能力凭据 | M11 |
-| GET | `/binflow/api/v1/uploads/config` | 能力探测：**200 `{"supported": bool}`**（S3 栈 true / filestore **false**——探测端点不回 501）；带 jfrog-cli-go UA 版本门（低于 2.62.2 回 false） | M11 |
-| POST | `/binflow/api/v1/uploads/urlPart?partNumber=N` | 第 n 片的上传 URL（Bearer 会话 token；**200 `{"url": ...}`**——URL 查询串自带 `?token=` 能力，PUT 可免 Authorization） | M11 |
-| POST | `/binflow/api/v1/uploads/status` | 异步任务进度（Bearer）：**200 `{status, error, progress, checksumToken}`**；status ∈ PARTS/PROCESSING/**FINISHED**(progress 100 + checksumToken)/NON_RETRYABLE_ERROR | M11 |
-| PUT | `/binflow/api/v1/uploads/part/{id}/{n}?token=` | 传片（urlPart 目标；**200** S3 PutObject 形；可乱序到达——有界重排暂存；服务端中继进 S3 multipart，checksum 服务端实测） | M11 |
-| POST | `/binflow/api/v1/uploads/complete?sha1=` | 提交组装（Bearer；**sha1** 40 hex 必填）→ **202 受理**，任务异步；错配经 status 的 NON_RETRYABLE_ERROR 呈现 | M11 |
-| POST | `/binflow/api/v1/uploads/abort` | 弃置会话（Bearer）→ 204 | M11 |
-
-流程（jfrog-cli 实测 2.122.0）：create 拿 token → urlPart/PUT 分片（可并发乱序）→ `complete?sha1=` 202 → 轮询 status 至 **FINISHED** 拿 `checksumToken`（5 分钟）→ 客户端凭它做零传输 `X-Checksum-Deploy` PUT 落节点（节点由客户端落，服务端只组装+登记 blob）。会话跨重启存活：能力绑定持久化在引擎 upload_sessions 行，重启后同一 token 继续可用（T-323R 在新 wire 上保留）。旧形状（JSON 体 create/config 重分片、GET urlPart/status 清单、路径 id 四端点、complete 201/sha256）已退役 → 404。
-
-### 门控包型接入面（pro 档槽位）
-
-| 包型 | 挂载面 | 详见 |
-|---|---|---|
-| go | 内容面 `/binflow/<repoKey>/<module>/@v/...`（GET 五端点 + PUT 三件套厂商扩展；与五核心包型同构，无额外路径段） | [Go Modules 接入](integrations/golang.md) |
-| nuget | 管理面 `/binflow/api/nuget/{v3,v2}/<repoKey>/...`（plane-aware 重写进 dispatchContent 链，ADR-0034） | [NuGet 接入](integrations/nuget.md) |
-| cargo | 内容面 `/binflow/<repoKey>/`（`index/` sparse 索引 + `v1/crates/` 下载 + `api/v1/crates/` Web API） | [Cargo 接入](integrations/cargo.md) |
-
-门控拒绝闭集（D1 读放行 / D2 写 403 + `X-Binflow-License-Required` / D3 建仓 400 / D6 到期即降级）与 `addons.disabled` 熔断见 [License 与 Add-ons 管理](admin/license.md)。
-
----
-
-## M11 增补速览（T-328）
-
-认证配置面（T-305 + SAML SP 证书三端点 T-331）、GPG keypair 族（T-319）、cleanup 引擎（T-324）、四包型 reindex 族（T-308/309/310/311）与 smart remote 两字段生效（T-317 L25 反转）；另 M11 交付 **cargo remote/virtual 仓型**（T-316/T-318——REST 建仓走通用 `PUT /binflow/api/repositories/{key}`，协议面语义见 [Cargo 接入](integrations/cargo.md)）。本节 curl 命令在 HEAD 构建 scratch 实例（`BINFLOW_REMOTE_CREDENTIALS_KEY` 已设）上实测（2026-08-28）；行为依据各票工作日志与 ADR-0035/0036/0038/0039。
-
-### 认证配置域（`/api/v1/admin/security/*`；三段 × GET/PUT/test + SAML SP 证书三端点）
-
-| 方法 | 路径 | 门 | 语义 |
-|---|---|---|---|
-| GET | `/binflow/api/v1/admin/security/ldap` | CapSecurityRead | LDAP 段（未设置回默认形） |
-| PUT | `/binflow/api/v1/admin/security/ldap` | CapSecurityWrite | 整段替换，**保存即生效**（无需重启） |
-| POST | `/binflow/api/v1/admin/security/ldap/test` | CapSecurityWrite | 测试连接（TestReport，见下） |
-| GET / PUT / POST …/test | `…/admin/security/oauth` | 同上 | OIDC 段（snake_case wire） |
-| GET / PUT / POST …/test | `…/admin/security/saml/config` | 同上 | SAML 段（未设置 GET 回 `{}`） |
-| GET | `/binflow/api/v1/admin/security/saml/config/key/public` | CapSecurityRead | **当前 SP 加密证书 PEM**（text/plain）；未生成 404 `saml sp encryption certificate has not been generated`（T-331，实测） |
-| PUT | `/binflow/api/v1/admin/security/saml/config/key/public/regenerate` | CapSecurityWrite | 轮换 SP 钥对（force 一对一替换、旧证书即刻失效），响应体 = 新证书 PEM |
-| POST | `/binflow/api/v1/admin/security/saml/key` | CapSecurityWrite | 生成/替换 SP 钥对（BinFlow 原生面；与 regenerate 同机、审计动作分立：`auth.config.samlkey.{generate,regenerate}`，零密材落日志） |
-
-- **secret 哨兵语义（write-only）**：GET 对已设置 secret 恒回 20 星 `********************`；PUT 键缺席 = 保持、`""` = 清除、新明文 = 替换；**回传哨兵 → 400** `refusing the masked placeholder — leave the field empty to keep the stored secret, or re-enter the value`（实测）。
-- secret 落库前 enc:v1 密封（实例主密钥 `BINFLOW_REMOTE_CREDENTIALS_KEY`）；无主密钥时 secret 写拒绝。
-- test 响应：`{"ok":bool,"phase":"…","category":"…","message":"…"}`，`ok:false` 时 HTTP 400（如 `{"ok":false,"phase":"dial","category":"unreachable","message":"could not connect to the target (dial failed or timed out)"}`，实测）。
-- 审计：`auth.config.update`（detail 只含变更键名，值不落）/ `auth.config.test`。
-- 字段表与控制台面：[认证配置指南](admin/auth-config.md)。
-
-### keypair 域（`/api/security/keypair*`，Artifactory 兼容 + BinFlow 原生生成）
-
-| 方法 | 路径 | 门 | 语义 |
-|---|---|---|---|
-| POST | `/binflow/api/security/keypair` | CapSecurityWrite | 导入（create-or-replace；201 回 KeyPairSummary） |
-| PUT | `/binflow/api/security/keypair` | CapSecurityWrite | 更新（不存在 → 404；轮换面） |
-| GET | `/binflow/api/security/keypair` | CapSecurityRead | 列表（bare array） |
-| GET | `/binflow/api/security/keypair/{pairName}` | CapSecurityRead | 单查（KeyPairSummary；未知名 404） |
-| DELETE | `/binflow/api/security/keypair/{pairName}` | CapSecurityWrite | 删除；200 纯文本 `OK`；**被仓引用 → 400 点名引用仓清单** |
-| POST | `/binflow/api/security/keypair/verify` | CapSecurityWrite | 200 纯文本 `Key was verified.`；body 全量材料或（BinFlow 扩展）仅 `{"pairName":…}` 校验存量密封钥（实测） |
-| GET | `/binflow/api/security/keypair/public/repositories/{repoKey}` | CapSecurityRead | 该仓关联 keypair 的 armored 公钥（text/plain） |
-| POST | `/binflow/api/v1/admin/security/keypair/generate` | CapSecurityWrite | **BinFlow 原生服务端生成**（201 回 summary；重名 409）——Artifactory 官方 REST 无 keygen，此端点为自有管理面 |
-| POST / DELETE | `/binflow/api/v2/repositories/{repoKey}/keyPairs[/{keyName}]` | CapSecurityWrite | 仓关联（text/plain body = 钥名）/解除——仅 local `debian`/`rpm` 仓接受 `keyPairName`，其余包型按名 400 |
-
-- **私钥与口令永不出库**（无导出端点）；Summary 四字段 `{pairName, pairType, alias, publicKey}` + BinFlow additive 四字段（`algorithm`/`createdAt`/`updatedAt`/`updatedBy`/`repositories`，实测回显）。
-- 生成入参：`{"pairName","alias","passphrase","keyBits","uidName","uidComment","uidEmail"}`；导入入参 = KeyPairInput（`pairName`/`pairType`("GPG")/`alias`/`privateKey`/`publicKey`/`passphrase`）。
-- `X-GPG-PASSPHRASE` 头不收（D-8：口令随钥行密封）。
-- 消费面：debian `InRelease`/`Release.gpg`、rpm `repomd.xml.asc`/`.key`（见[Debian 接入](integrations/debian.md)/[RPM 接入](integrations/rpm.md)）。
-
-### cleanup 域（unused-cleanup 引擎；remote 缓存清理）
-
-| 方法 | 路径 | 门 | 语义 |
-|---|---|---|---|
-| POST | `/binflow/api/v1/system/cleanup` | system:write（admin only） | 手动触发一次；body `{"apply":bool,"repo":string?}`——**dry-run 默认**；同步执行回 CleanupReport |
-| GET | `/binflow/api/v1/system/cleanup` | system:read | 状态面：cron 节奏、累计计数、上次报告、各 remote 仓策略行 |
-
-- 引擎三腿（单把维护锁，与 gc/export/import 互斥）：过期上传会话扫掠 → policy 删除（窗口内无下载事件的 remote 缓存 FILE node；**在用 oracle = 审计下载 trails ∪ 以该仓为成员的 virtual 仓下载**）→ GCSweep（ADR-0031 双门；grace 窗内递延计数进 `gracePending`）。
-- 策略源：remote 仓配置 `unusedArtifactsCleanupPeriodHours`（**M11 起生效**；M10 仅落库）；cron 每小时 apply 一轮。
-- `audit.enabled=false` 时 policy 腿拒绝运行（无下载痕迹就没有诚实的「未用」，宁可不删），session/gc 腿照跑。
-- 报告字段（实测）：`trigger/apply/repos[{repo,periodHours,cutoff,keptByUse,candidates,deleted,bytes}]/gracePending/gcDeleted/sessionsSwept/objectsCleaned/bytesReclaimed/ok`；审计 `cleanup.run`；指标 `binflow_cleanup_objects` / `binflow_cleanup_bytes`（gauge）。
-
-### 四包型 reindex 管理族（dispatchAPI，ADR-0034）
-
-| 端点 | 语义 |
+| Property | Value |
 |---|---|
-| `POST /binflow/api/conan/reindex[?repoKey=]` / `POST /binflow/api/conan/{repoKey}/reindex` | conan 修订索引重建（仅 local；同步；CanManageRepo） |
-| `POST /binflow/api/helm/{repoKey}/reindex` / `…/reindex/{path}` | helm index.yaml 重算（异步全仓 / 同步部分） |
-| `POST /binflow/api/deb/reindex/{repoKey}?async=0\|1` | debian 索引重算（virtual/remote 类 400） |
-| `POST /binflow/api/yum/{repoKey}?path=&async=0\|1` | rpm repodata 重算；**virtual 仓 200/202 触发聚合重合并**（`path` 自动补 `/repodata`）；auto-async 仓同步请求 409 |
+| Token length | 64 hex characters (256-bit) |
+| Default TTL | 2592000 seconds (30 days); adjustable via `auth__token_default_ttl_hours` |
+| Minting | Admins mint for any user; non-admins for themselves only. The body accepts optional `step_up_password` / `step_up_grant` (required on the non-admin session arm only when `auth.token_step_up` is enabled — see the [step-up guide](admin/token-step-up.md)) |
+| Revocation | Admin only; all tokens live in one table |
+| Audit | Issuance is not audited; `token.revoke` is |
+| Docker token flow | Uses the same table — a revocation on the management API takes effect on docker tokens immediately |
 
-各端点语义详见对应接入指南（[Conan](integrations/conan.md) · [Helm](integrations/helm-charts.md) · [RPM](integrations/rpm.md) · [Debian](integrations/debian.md)）。
+### Console session cookie
 
-### smart remote 两字段生效（L25 反转，T-317）
+Used by the web console. The server-issued `binflow_session` cookie (HttpOnly; Path=/binflow; SameSite=Lax) rides along with same-origin requests automatically:
 
-M10 的「按名 400」退役——remote 仓配置现在**接受 + canonical 回显 + 行为生效**（实测）：
+```bash
+# Log in (JSON) → Set-Cookie: binflow_session=<id>; HttpOnly; Path=/binflow; SameSite=Lax
+curl -s -c jar.txt -X POST $BASE/binflow/api/v1/session \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"<password>"}'
+# 200 {"username":"admin","admin":true}
 
-| 字段 | 类型 | 默认 | 行为 |
-|---|---|---|---|
-| `enableTokenAuthentication` | bool | false | `true` 时拉取侧对上游发 `Authorization: Bearer <password>`（无密码 = 匿名维持）；SSRF 链/凭据不泄漏规则不变 |
-| `contentSynchronisation.enabled` | bool | false | 开启拉取侧内容同步 |
-| `contentSynchronisation.propertiesEnabled` | bool | false | 内容类节点落地后从上游 `/api/storage/{repo}/{path}?properties=` 附着属性（best-effort，失败仅 WARN） |
-| `contentSynchronisation.statisticsEnabled` | bool | false | 接受 + 回显；统计上报协议无公开规格，暂无行为 |
-| `contentSynchronisation.sourceOrigin` | bool | false | 接受 + 回显；origin 标记面未落地，暂无行为 |
+# Whoami (while the session is valid)
+curl -s -b jar.txt $BASE/binflow/api/v1/session
+# 200 {"username":"admin","admin":true}
 
-推送侧属性携带（generic 平面）随复制引擎默认开启：源节点属性在推送时合并到目标（幂等重传触发零传输收敛）。replica 虚仓隔离维持 ADR-0025 决策 1 现状（面只读 405 + 逐字文案；backing 直写仍开放）。
+# Log out (the session is revoked server-side)
+curl -s -b jar.txt -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{http_code}'
+# 204
+
+# Replaying the same cookie after expiry → 401
+```
+
+The session TTL defaults to 24 hours and **activity does not extend it** (sliding renewal is capped by the absolute TTL). The login entry is exempt from invalid-cookie rejection, which makes it immune to cookie tossing. See the [console guide](console.md).
+
+> **CSRF protection**: non-GET/HEAD writes authenticated by the session cookie that carry a cross-origin `Origin` header get **403**. Basic and token authentication are naturally immune.
 
 ---
 
-## M12 增补速览（T-347A）
+## Error formats
 
-三个族（行为细节与逐字报错见[制品操作族](admin/artifact-operations.md)与[Trash can 管理](admin/trash-can.md)；依据 T-339/T-343/T-345 真二进制与 httptest 真服务端栈实测）：
+### errors[] envelope (primary format)
 
-### 制品操作域（`/api/copy|move` + `/api/archive/download` + 内容面两形态；**整族 pro 槽 `repo-operations`**）
+The primary error format of the artifact domain and the management API:
 
-| 方法 | 路径 | 门 | 语义 |
-|---|---|---|---|
-| POST | `/binflow/api/copy/{srcRepo}[/{srcPath}]?to=/{targetRepo}[/{targetPath}]` | 认证 + 逐文件管线（源 read/目标 write）+ license | 树级复制（零拷贝）；`dry=1` 干跑；响应 200 + `messages[]`，Content-Type 为 vendor 形 `application/vnd.org.jfrog.artifactory.storage.CopyOrMoveResult+json`；状态 = 最后一条 error 的码（无码 409 兜底） |
-| POST | `/binflow/api/move/{srcRepo}[/{srcPath}]?to=…` | 同上 + 源 `delete` | 树级搬移（copy + 源删除 + 目录剪除） |
-| GET | `/binflow/api/archive/download/{repo}[/{path}]?archiveType=zip\|tar\|tar.gz\|tgz` | 读权限（匿名 401 先于参数解析） | 目录/整仓流式打包（不落盘）；`includeChecksumFiles=true` 附 checksum 伴随条目；**默认关**（`folder_download.enabled=false`，**M13 起六字段可配**，重启生效——见[制品操作族](admin/artifact-operations.md)） |
-| GET | `/binflow/{repo}/{archive}!/{entry}`（内容面） | 归档路径读门 | 归档内成员直读（首个 `!/` 切分、嵌套递归、`.sha1/.md5/.sha256` 后缀回裸 hex）；非 GET 405 |
-| PUT | `/binflow/{repo}/{path}` + `X-Explode-Archive[: true]`（或 `X-Explode-Archive-Atomic: true`） | 目标父目录 `w` | 解包部署：白名单 zip/tar/tar.gz/tgz；成功 **201 空体** + `X-Binflow-Exploded-Files: <n>` 计数头；归档原件不落库 |
+```json
+// 404 — artifact not found
+HTTP/1.1 404 Not Found
+Content-Type: application/json
 
-注：`/api/flat/copy|move` 不实现（404）；community 实例整族答 403 + `X-Binflow-License-Required: repo-operations`（真二进制实测）。
+{"errors":[{"status":404,"message":"Unable to find the requested resource 'generic-local/missing.jar'."}]}
 
-### trash 域（`/api/trash/*`；门 = system:write（**仅全量 admin**）+ pro 槽 `trashcan`〔暂行〕）
+// 413 — quota exceeded
+HTTP/1.1 413 Request Entity Too Large
+Content-Type: application/json
 
-| 方法 | 路径 | 语义 |
+{"errors":[{"status":413,"message":"Repository 'tiny' quota exceeded: used 800 of 934 bytes; the write to 'b.bin' needs 800 more bytes."}]}
+
+// 409 — checksum mismatch
+HTTP/1.1 409 Conflict
+Content-Type: application/json
+
+{"errors":[{"status":409,"message":"Checksum error for 'maven-local/com/example/demo/1.0.0/demo-1.0.0.jar': received 'abc123' but actual is 'def456'."}]}
+
+// 400 — invalid parameter
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+{"errors":[{"status":400,"message":"Repository key must be at least 2 characters: 'x'"}]}
+
+// 403 — no permission
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+
+{"errors":[{"status":403,"message":"permission denied"}]}
+
+// 401 — unauthenticated or invalid credentials (artifact domain)
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Basic realm="BinFlow"
+Content-Type: application/json
+
+{"errors":[{"status":401,"message":"invalid credentials"}]}
+```
+
+### Plain-text errors (user and group management)
+
+Some errors in the user, group and token endpoints respond with plain-text bodies:
+
+```bash
+# 404 — group not found
+HTTP/1.1 404 Not Found
+Content-Type: text/plain; charset=utf-8
+
+Unable to find group by name 'nonexistent-group'.
+
+# 400 — invalid group name
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain; charset=utf-8
+
+Unable to create group: name must match [a-z][a-z0-9._-]* but it starts with uppercase 'X'.
+
+# 400 — creating a user without an email
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain; charset=utf-8
+
+Please provide a valid user email.
+
+# 400 — user references a nonexistent group
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain; charset=utf-8
+
+Unable to find group by name 'devs'. Please make sure the group exists before adding users to it.
+
+# 400 — admin/adminRole boolean contradiction (only admins may write role fields)
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain; charset=utf-8
+
+conflicting 'admin' and 'adminRole' fields: admin=false is incompatible with adminRole="admin" (admin=true is equivalent to adminRole=admin)
+
+# 409 — deleting a group referenced by permissions
+HTTP/1.1 409 Conflict
+Content-Type: text/plain; charset=utf-8
+
+Cannot delete group 'devs': it is referenced by permission target(s): devs-rw, jane-rd. Remove the group from those targets first.
+
+# DELETE /api/security/users/{name} belongs to the plain-text family as well:
+# success 200 / guardrail 400 / missing target 404 — every message verbatim in the users table below
+```
+
+### OAuth-style errors (token endpoints and the docker domain)
+
+The token mint/revoke endpoints and `/v2/token` follow the OAuth 2.0 error conventions:
+
+```bash
+# Token minting: management error
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+{"error":"invalid_request","error_description":"missing grant_type parameter"}
+
+# Token revocation: unknown token
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+
+{"error":"access_denied","error_description":"token not found"}
+
+# Token minting: authentication failed
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+WWW-Authenticate: Basic realm="BinFlow"
+
+{"error":"invalid_client","error_description":"authentication failed"}
+
+# Step-up authentication, two forms (the non-admin session arm when auth.token_step_up is enabled)
+# 401 — the second credential is missing (local/LDAP without step_up_password; OIDC without step_up_grant)
+{"error":"step_up_required","error_description":"step-up authentication required to mint a token"}
+
+# 401 — the second credential was rejected / grant expired / grant reused (single-use, deleted on consumption)
+{"error":"step_up_invalid","error_description":"step-up credential rejected, expired, or already used"}
+
+# Docker /v2 challenge
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Docker-Distribution-Api-Version: registry/2.0
+WWW-Authenticate: Bearer realm="http://localhost:8080/v2/token",service="binflow"
+
+{"errors":[{"code":"UNAUTHORIZED","message":"authentication required","detail":null}]}
+
+# Docker /v2 insufficient permission
+HTTP/1.1 403 Forbidden
+Content-Type: application/json
+Docker-Distribution-Api-Version: registry/2.0
+
+{"errors":[{"code":"DENIED","message":"requested access to the resource is denied","detail":null}]}
+```
+
+---
+
+## Request and response headers
+
+### Common request headers
+
+| Header | Where | Purpose |
 |---|---|---|
-| POST | `/binflow/api/trash/restore/{path}?to=&transaction-size=` | 恢复（`to` 覆盖 > 五元组 > 路径首段；剥 `trash.*` 标记、原属性保留）；响应 = copy/move 的 `messages[]` 同构 |
-| POST | `/binflow/api/trash/empty` | 清空整个 can；回 JSON 摘要 `{"removed","files","folders","bytes"}` |
-| DELETE | `/binflow/api/trash/clean/{path}` | 单条（子树）永久清除；摘要同上 |
+| `Authorization: Basic <base64>` | All management + content paths | Basic authentication |
+| `Authorization: Bearer <token>` | All management + content paths + docker | Token authentication |
+| `X-Checksum-Sha1` / `X-Checksum-Sha256` / `X-Checksum-Md5` | PUT upload | Client-declared checksum |
+| `X-Checksum` | PUT upload | Checksum without a type marker (auto-detected by length) |
+| `X-Checksum-Deploy: true` | PUT upload | Checksum-only deploy (no body) |
+| `Expect: 100-continue` | PUT upload | Dedup fast path — checks blob existence first |
+| `Content-Type` | manifest PUT | Passed through, not whitelisted (docker domain) |
+| `X-Explode-Archive` / `X-Explode-Archive-Atomic` | PUT upload | Explode deploy (`true`): store the archive's members, not the archive |
 
-浏览不是第四路由：骑既有 `GET /api/storage/auto-trashcan[...][?properties|?list]`（五元组断言面 = `?properties`）。捕获/保留期（默认 14 天、小时 cron；**M13 起保留期经 `trashcan.retention_days` 可配**，重启生效）语义见 [Trash can 管理](admin/trash-can.md)。
+### Common response headers
 
----
-
-## M13 增补速览（T-375）
-
-webhook 订阅七端点族、system/settings 旋钮回显与 remote 仓 `chartsBaseUrl` 字段（依据 T-362~T-368 as-built + T-375 双实例实测，2026-08-30；完整语义见 [Webhook 使用指南](admin/webhooks.md)与 [Helm Chart 仓库接入](integrations/helm-charts.md)）：
-
-### webhook 域（`/binflow/event/api/v1/**`；注意**不在** `/binflow/api` 下；**整族 pro 槽 `webhook`**——写动词 community 403 + `X-Binflow-License-Required: webhook`，读面不设门）
-
-| 方法 | 路径 | 门 | 语义 |
-|---|---|---|---|
-| GET | `/binflow/event/api/v1/subscriptions` | system:read（readonly_admin 可见） | 订阅列表（bare array） |
-| POST | `/binflow/event/api/v1/subscriptions` | system:write + license | 创建；**201** 回显 SubscriptionView（`secret` 恒掩码 `********`） |
-| GET | `/binflow/event/api/v1/subscriptions/{key}` | system:read | 单查；miss **404 `Subscription not found`** |
-| PUT | `/binflow/event/api/v1/subscriptions/{key}` | system:write + license | 全量更新；**204 无体**；key 不可改 |
-| DELETE | `/binflow/event/api/v1/subscriptions/{key}` | system:write + license | 删除（级联删投递行）；**204**；再删 404 |
-| POST | `/binflow/event/api/v1/subscriptions/test` | system:write + license | **试发草稿**（吃完整订阅体，非 key 引用）；同步单发不入箱；200 TestOutcome（`ok`/`attempt{status_code,elapsed_millis,error}`——**失败也是 200，看 body**） |
-| GET | `/binflow/event/api/v1/troubleshooting` | system:read | 排障记录环（query：`subscription`/`target`/`start`/`end`/`count`；失败必录、`debug:true` 成功也录；进程内环 10000 条/30s 修剪，重启失史） |
-
-- 请求体 = 订阅一形：`key`（`^[A-Za-z][A-Za-z0-9_-]+$` ≤500）/`project_key`/`description`/`enabled`（**默认 false**）/`event_filter{domain,event_types[],criteria}`（strict——未知键 400）/`handlers[]`（**恰 1 个**；`webhook` 或 `custom-webhook` 两型）/`debug`。
-- 投递：HMAC-SHA256 hex 于 `X-JFrog-Event-Auth`（`use_secret_for_signing=false` 时为 secret 明文直传）；重试 **5 次首试计入 / 固定 10s / 单次 30s 超时 / 仅发送失败或 ≥500**（4xx 一步终态）；死信落审计 `webhook.dead_letter` + 指标族 `binflow_webhook_*`。
-- SSRF：目标默认拒 loopback/私网；`webhook.allow_private_target`（默认 false，重启生效）放行。
-
-### system 域：旋钮回显
-
-| 方法 | 路径 | 门 | 语义 |
-|---|---|---|---|
-| GET | `/binflow/api/v1/system/settings` | system:read（admin / readonly_admin） | 回显**已解析**的运行旋钮（YAML+env+defaults 合流值）：`folder_download` 六字段 + `trashcan.retention_days`。**knob-scoped 裁量**——只回行为旋钮，永不携带 secret/DSN/路径；只读（其余动词 E-26 404）；旋钮本身重启生效 |
-
-```bash
-curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/system/settings
-# {"folder_download":{"enabled":false,"enabled_for_anonymous":false,
-#   "max_download_size_mb":1024,"max_files":5000,"max_concurrent_requests":10,
-#   "enabled_empty_directories":false},
-#  "trashcan":{"retention_days":14}}
-```
-
-### 仓库域：remote 配置增量字段
-
-| 字段 | 类型 | 适用 | 行为 |
-|---|---|---|---|
-| `chartsBaseUrl` | string | **仅 `packageType=helm` 的 remote** | content 类回源（tgz/.prov/`_external` 折叠路径）的分体基址；metadata（index.yaml）恒走仓 URL；缺省回退仓 URL。绝对 http(s) URL，`""` = 清除。**其它包型携带 → 400 点名字段**；异 host 时**无凭据**出站（仓凭据不发第三方）。virtual 聚合 index 的改写识别基址同此字段（M13） |
-
-（HelmOCI remote/virtual 仓型与 `_external` 落盘缓存同为本里程碑增量，建仓走通用 `PUT /api/repositories/{key}`，协议面语义见 [Helm Chart 仓库接入](integrations/helm-charts.md#helmoci-仓型oci-形态m13local--remote--virtual)。）
+| Header | Where | Purpose |
+|---|---|---|
+| `X-Checksum-Sha1` / `X-Checksum-Sha256` / `X-Checksum-Md5` | GET download | Server-measured checksum (sent only when available) |
+| `ETag: <sha1>` | GET download | Without surrounding quotes; conditional requests via `If-None-Match` |
+| `Last-Modified` | GET download | RFC1123 format |
+| `Accept-Ranges: bytes` | GET download | Range request support |
+| `X-Artifactory-Filename` | GET download | URL-encoded file name |
+| `Location` | PUT upload success | URL of the new resource |
+| `X-Binflow-Exploded-Files: <n>` | Explode deploy | Count of files stored |
+| `Cache-Control: no-store` | Repository lists and other sensitive data | Caching forbidden |
 
 ---
 
-## M14 增补速览（T-397/T-398）
+## Endpoint reference
 
-M14 的 docker remote 建仓与 npm login 族已随 T-397 落入各自域表（[Sr 仓库管理域](#sr-仓库管理域)表后注记 / [NE: npm 域](#ne-npm-域)）；本节补 **replication 配置族**——GET/POST/DELETE 自 M6 起在列但此前未入册，M14 新增的 `PUT` 启停端点（T-405）一并补全。完整语义（字段校验/引擎行为/审计）见[治理指南 · 复制](admin/governance.md#复制push-replication)。
+Endpoints are grouped by functional domain. Permission notes use the instance roles: **admin**, **readonly_admin**, and regular users with per-repository grants.
 
-### replication 域（`/binflow/api/v1/…`；写动词仅全量 admin）
+### Artifacts and storage
 
-| 方法 | 路径 | 门 | 语义 |
+Content paths — every protocol client (Maven, Go, Cargo, npm tarballs, …) deploys and resolves through this same family.
+
+| Method | Path | Semantics |
+|---|---|---|
+| PUT | `/binflow/{repoKey}/{path}` | Upload a file (body is the content); checksum headers supported. **Matrix parameters** — trailing `;k=v` pairs are stripped off as deploy properties; an unpaired `;` stays literal in the file name. Explode deploy via `X-Explode-Archive: true` (whitelist zip/tar/tar.gz/tgz; success 201 empty body + `X-Binflow-Exploded-Files` count; the archive itself is not stored) |
+| PUT | `/binflow/{repoKey}/{path}/` | Create a directory (trailing slash) |
+| PUT | `/binflow/{repoKey}/{path}.sha1\|.md5\|.sha256` | Upload a checksum sidecar file |
+| GET | `/binflow/{repoKey}/{path}` | Download a file (Range / If-None-Match / ETag). `.sha1\|.md5\|.sha256` suffixes return the bare hex; archive members are directly readable as `/{repo}/{archive}!/{entry}` (split at the first `!/`, nested recursively) |
+| HEAD | `/binflow/{repoKey}/{path}` | File metadata — response headers identical to GET, no body |
+| DELETE | `/binflow/{repoKey}/{path}` | Delete a file or a directory tree (recursive) |
+| PUT | `/binflow/{repoKey}/{GAV path}` | Deploy a Maven artifact (strict layout validation); resolve via GET, checksums via the `.sha1/.md5/.sha256` suffixes |
+| GET | `/binflow/api/storage/{repoKey}/{path}` | FileInfo / FolderInfo JSON. Query arms: `?properties=K1,K2*` (key filter + trailing `*` wildcard; no matches = 200 `{"properties":{}}` — a BinFlow ruling, not Artifactory's 404; a nonexistent node is 404), `?lastModified` (the directory's latest modification time), `?permissions` (effective-permissions view; admin only, local repositories only) |
+| GET | `/binflow/api/storage/{repoKey}/{path}?stats` | Download statistics `{uri, downloadCount, lastDownloaded, lastDownloadedBy, remoteDownloadCount}`. Counts are visible on all tiers (the item-info read gate); `lastDownloadedBy` is returned only to admin / readonly_admin (omitted on lower tiers, never fabricated); the stats probe itself is not counted |
+| PUT | `/binflow/api/storage/{repoKey}/{path}?properties=k=v1,v2[&recursive=1]` | Write properties — **merge semantics**: the value set of a same-named key is replaced wholesale, differently-named keys are kept; the node must exist (404) |
+| DELETE | `/binflow/api/storage/{repoKey}/{path}?properties=k1,k2[&recursive=1]` | Delete properties (idempotent; nonexistent keys 204; `properties=*` deletes everything; folder + `recursive=1` applies recursively) |
+| GET | `/binflow/api/storage/{repoKey}?list` | Streaming file listing (authenticated users only). Seven-parameter family: `deep` / `depth` / `listFolders` / `includeRootPath` / `mdTimestamps` / `statsTimestamps` / `includePropertiesMd5`; a parameter present but not an integer → 400 `For input string: "<v>"`. Content-Type is the vendor form `application/vnd.org.jfrog.artifactory.storage.FileList+json` |
+
+Property grammar and merge examples: [properties guide](properties.md).
+
+### Docker Registry (root-level /v2 plane)
+
+Separately routed — not under the `/binflow` prefix. Client configuration and resumable uploads: [Docker registry guide](docker-registry.md).
+
+| Method | Path | Semantics |
+|---|---|---|
+| GET | `/v2/` | API version check (401 challenge, unchanged by the instance's anonymous switch) |
+| GET | `/v2/_catalog` | Repository catalog (`?n=` page size) |
+| GET | `/v2/{name}/tags/list` | Tag list (an empty tag set returns `"tags":null`) |
+| GET | `/v2/{name}/manifests/{ref}` | Get a manifest (tag or digest) |
+| PUT | `/v2/{name}/manifests/{ref}` | Upload a manifest (Content-Type passed through, not whitelisted) |
+| DELETE | `/v2/{name}/manifests/{digest}` | Delete a manifest (by digest only) |
+| POST | `/v2/{name}/blobs/uploads/` | Start a blob upload session |
+| GET | `/v2/{name}/blobs/uploads/{uuid}` | Upload status query — **204 + `Range: 0-<offset-1>`** is the authoritative offset (survives restarts) |
+| PATCH | `/v2/{name}/blobs/uploads/{uuid}` | Upload a blob chunk (a mismatched `Content-Range` start → 416 empty body + the authoritative `Range`) |
+| PUT | `/v2/{name}/blobs/uploads/{uuid}` | Complete a blob upload (`?digest=sha256:...`) |
+| GET | `/v2/{name}/blobs/{digest}` | Download a blob |
+| HEAD | `/v2/{name}/blobs/{digest}` | Blob existence check |
+| DELETE | `/v2/{name}/blobs/{digest}` | **405 UNSUPPORTED** — blob deletion goes through GC only |
+| GET/POST | `/v2/token` | Docker auth token endpoint (distribution token protocol) |
+| GET | `/v2/{name}/referrers/` | **404** — the OCI referrers API is not supported |
+
+### npm
+
+The `/api/npm` mount rewrites onto the content face — `/binflow/api/npm/<repo>/<rest>` and `/binflow/<repo>/<rest>` address one node namespace.
+
+| Method | Path | Semantics |
+|---|---|---|
+| GET | `/binflow/api/npm/{repoKey}/{pkg}` | Packument (package metadata); the scoped form `@scope%2Fpkg` is equivalent |
+| PUT | `/binflow/api/npm/{repoKey}/{pkg}` | Publish a package (ten-step packument chain) |
+| DELETE | `/binflow/api/npm/{repoKey}/{pkg}/-rev/{rev}` | Unpublish the whole package (`rev` is an opaque placeholder) |
+| DELETE | `/binflow/api/npm/{repoKey}/{pkg}/-/{filename}/-rev/{rev}` | Unpublish a specific version (`filename` = `<name>-<version>.tgz`; scoped names carry the scope segment) |
+| GET | `/binflow/{repoKey}/{name}/-/{name}-{v}.tgz` | Download a tarball (direct content path) |
+| PUT | `/binflow/{repoKey}/{name}/-/{name}-{v}.tgz` | **405** — the npm domain accepts packument PUTs only |
+| PUT | `/binflow/api/npm/{repoKey}/-/user/org.couchdb.user:{name}` | npm legacy login (couch user document family) — where `npm login --auth-type=legacy` lands. Credentials ride in the body (`name`/`password`); this path family is **exempt from the write-authentication gate** on npm repositories: the endpoint validates the body credentials and mints a token (**201 re-mints idempotently**, no 409); a wrong password gets 401 + Basic challenge. Applies to `packageType=npm` repositories only (the same path on a generic repository still 401s — the type is pinned to prevent anonymous writes) |
+| PUT | `/binflow/api/npm/{repoKey}/-/user/org.couchdb.user:{name}/-rev/{rev}` | Login retry spelling (npm resends with a revision attached); served by the same arm |
+| POST | `/binflow/api/npm/{repoKey}/-/v1/login` | **401** — the web login endpoint is not provided; npm (≥ 9 defaults to the web flow) automatically falls back to the couch chain, so the flow works |
+| GET | `/binflow/api/npm/{repoKey}/-/whoami` | Current user (requires authentication; accounts without read permission on the repository get 403 — read-face ACL semantics) |
+| GET | `/binflow/api/npm/{repoKey}/-/ping` | Connectivity probe (no authentication, `200 {}`) |
+
+### PyPI
+
+| Method | Path | Semantics |
+|---|---|---|
+| GET | `/binflow/api/pypi/{repoKey}/simple/` | Package list (PEP 503/629) |
+| GET | `/binflow/api/pypi/{repoKey}/simple/{pkg}/` | Per-package index page (HTML + JSON, Accept-driven) |
+| POST | `/binflow/api/pypi/{repoKey}/` | Upload (multipart `:action=file_upload`) |
+| GET | `/binflow/api/pypi/{repoKey}/packages/{name}/{ver}/{file}` | Download a distribution (the URL twine echoes back) |
+
+### Repositories
+
+| Method | Path | Semantics |
+|---|---|---|
+| GET | `/binflow/api/repositories?type=&packageType=` | Repository list (admin / readonly_admin); both filters optional |
+| GET | `/binflow/api/repositories/{key}` | Single repository configuration (manage holders can also read repositories in their coverage set) |
+| PUT | `/binflow/api/repositories/{key}` | **Create only** — an existing key always gets 400 (`error when validating repository name: <key> : Repository key already exists`) with **zero side effects**; the only update spelling is POST. Admin only |
+| POST | `/binflow/api/repositories/{key}` | Update, **merge semantics**: omitted field = keep the stored value; `null` / empty string = clear (array empty values kept, an object `{}` resets the whole family); explicit value = overwrite (`0` included). Unknown key 404. Carries `quotaBytes` quota writes; admin or the repository's manage holder |
+| POST | `/binflow/api/repositories/{key}/test` | Remote repository upstream connectivity probe. Optional body `{url,username,password}` overrides the stored configuration for this probe only (zero writes; a changed URL/username without a password probes anonymously — the stored secret is never sent); an empty body probes with the stored configuration. Verdict 200/400 `{ok,status_code,message}`; only `rclass=remote` repositories have an upstream to test |
+| DELETE | `/binflow/api/repositories/{key}` | Delete a repository (optional `?deleteContent=true`; admin only, not delegated) |
+
+Notes on repository creation:
+
+- `rclass=remote + packageType=docker` (community tier — no extra license slot) and `rclass=virtual + packageType=docker` (the aggregated read face serves the union of member repositories) are both open — **the rclass × packageType combination gates are fully retired**. The remaining gates are the **license tier** (advanced package types on lower tiers get 400 `package type not available on this instance: ...`) and the **remote browsing option**: `listRemoteFolderItems: true` on a remote repository body is accepted for helm/debian/rpm only; other package types get a 400 naming the supported set. See the [remote and virtual repositories guide](admin/remote-virtual.md).
+- Remote (smart) repository fields: `enableTokenAuthentication` (`true` sends `Authorization: Bearer <password>` upstream on pulls; no password = stays anonymous) and the `contentSynchronisation` family (`enabled`, `propertiesEnabled` — best-effort property attachment from the upstream, failures only WARN; `statisticsEnabled` / `sourceOrigin` are accepted and echoed but currently carry no behavior). `chartsBaseUrl` (helm remotes only) sets the base address for content-type origin fetches (tgz/.prov/`_external` fold paths) — an absolute http(s) URL, `""` clears it; metadata (index.yaml) always goes to the repository URL; carrying the field on other package types gets a 400 naming it.
+
+### Users and groups
+
+This family's errors are plain-text response bodies.
+
+| Method | Path | Semantics |
+|---|---|---|
+| GET | `/binflow/api/security/users` | User list (admin / readonly_admin). Entries `{name,uri,realm,source,email,adminRole,enabled,groups}` — `enabled`/`groups` always rendered (empty groups `[]` not null); one request carries every field the listing needs |
+| POST | `/binflow/api/security/users` | Create a user (collection route, create-only; a BinFlow-native face). Body must include `name`; an existing name → **409** `The user already exists: <name>`; mixed-case usernames rejected 400. Success **201 no body** |
+| GET | `/binflow/api/security/users/{name}` | User details — no password fields; `adminRole` and `enabled` always echoed. Unknown name → 404 `User not found` (text body) |
+| PUT | `/binflow/api/security/users/{name}` | Create or replace a user (create-or-replace; both states 201). Body may include `adminRole` (admin-writable only) |
+| POST | `/binflow/api/security/users/{name}` | Partial update — email/password/admin/groups/adminRole/enabled; `enabled` uses pointer semantics: an explicit `false` disables login (that user's logins and existing sessions get 401), `true` re-enables; absent leaves things unchanged |
+| DELETE | `/binflow/api/security/users/{name}` | Delete a user (admin only). Success **200 plain text** `The user: '<name>' has been removed successfully.`; guardrails below, in a fixed check order |
+| PUT | `/binflow/api/security/password` | Change the current user's password |
+| POST | `/binflow/api/security/users/authorization/changePassword` | Alias password-change endpoint |
+| GET | `/binflow/api/security/groups` | Group list (admin / readonly_admin); the list endpoint carries no member roll-up |
+| GET | `/binflow/api/security/groups/{name}?includeUsers=true` | Group details; the parameter (literal `true`, case-sensitive) attaches `userNames: []` (empty group `[]` never null); other spellings (`false`/`junk`/`TRUE`) return the plain three-field shape 200 — no invented 400. Unknown group → 404 `Group not found` |
+| PUT | `/binflow/api/security/groups/{name}` | Create or update a group (create 201 / update 200) |
+| POST | `/binflow/api/security/groups/{name}` | Update the group description |
+| DELETE | `/binflow/api/security/groups/{name}` | Delete a group — referenced by a permission target → 409 (plain text, names the targets) |
+
+User deletion guardrails (all 400 plain text except the first):
+
+| # | Guardrail | Response (verbatim) |
+|---|---|---|
+| 1 | Target missing | **404** `User not found` (text body, same shape as the single-user GET) |
+| 2 | Built-in admin | 400 `Cannot delete the built-in admin user.` |
+| 3 | Last admin | 400 `Cannot delete user '<name>'. There must be at least one user configured with admin privileges.` |
+| 4 | Self-deletion | 400 `Cannot delete the current authenticated user.` |
+
+Deletion cascades in one transaction: permission-target grant rows are stripped, the user row deleted, group memberships FK-cascaded, and **every token and web session revoked** (held Bearers turn 401 immediately); audit history is kept. **Repeated deletion is a deterministic 404 (intentionally not idempotent)** — read the second 404 as "already deleted" and do not retry. Successful deletions are audited as `user.delete`; guardrail rejections are not audited.
+
+### Permissions
+
+| Method | Path | Semantics |
+|---|---|---|
+| POST | `/binflow/api/v1/permissions` | Create a permission target (create-or-replace). The action set is a **closed five-value set** `read / deploy-cache / annotate / delete / manage` — `write` is still accepted as a compatibility alias for `deploy-cache` (**it does not imply annotate**), and GET echoes always use the canonical names. `annotate` alone gates property writes; manage holders can edit targets within their coverage set. See the [groups and permissions guide](admin/groups-permissions.md) |
+| GET | `/binflow/api/v1/permissions` | List permission targets (admin / readonly_admin). principals echoes use the canonical single form. `?filter=manage` returns the subset of targets within a manage holder's reach (admins get byte-identical responses with and without the parameter; partially covered targets are hidden; an empty coverage set 403s); `?filter=` (empty) = no ask; unknown values 400 |
+| DELETE | `/binflow/api/v1/permissions/{name}` | Delete a permission target (**204**, no body); the repo set comes from the stored row — going outside the manage coverage → 403 |
+
+Repository-level administrators reach the permission editor through `?filter=manage` — see the [RBAC guide](admin/rbac-roles.md).
+
+### Access tokens
+
+| Method | Path | Semantics |
+|---|---|---|
+| POST | `/binflow/api/security/token` | Mint an access token — admins mint for any user, non-admins for themselves. Errors follow the OAuth 2.0 conventions (examples above) |
+| POST | `/binflow/api/security/token/revoke` | Revoke a token (admin only). Unknown token → 403 `{"error":"access_denied","error_description":"token not found"}` |
+
+### Search
+
+Results are always filtered by the caller's permissions. Language subset, error message family and the Artifactory migration table: [AQL search guide](aql.md).
+
+| Method | Path | Parameters | Semantics |
 |---|---|---|---|
-| GET | `/binflow/api/v1/replications` | system:read（readonly_admin 可读） | 配置列表（bare array；凭据字段永不回显） |
-| POST | `/binflow/api/v1/replications` | system:write（仅 admin） | 建配置；**201** 回显配置行；`enabled` 缺省 true；重名 409、未知源仓 400 点名 key |
-| **PUT** | `/binflow/api/v1/replications/{id}` | system:write（仅 admin） | **M14（T-405）启停**：`{id}` = 列表行首的**数值 id**（不可变键；DELETE 按 name——两种寻址并存）；body `{"enabled":true\|false}` 必填，**其余字段解析但忽略**（整行 round-trip 不被拒）；**200** 回显更新后配置行（GET 投影同形，`updated_at` 刷新，sealed 凭据原样保留）。**cron 调度域起 PUT 扩臂**：`enabled` **或** `cron_exp` 至少其一（空 body 400 `enabled or cron_exp is required; no other field is editable on this face`）；`cron_exp` 空串 = 清除调度（纯事件轨）、`enabled:false` = 停用形（cron 保留、`next_schedule_sync` 清空、事件轨同停）——语义与实测见[计划任务指南 · 复制域](admin/cron-scheduling.md#复制域cron-双轨)。错误：匿名 401 / 非 admin 403 / 未知 id 404 `replication config not found: <id>` / 非数字 id 400 / 缺 enabled 400 |
-| DELETE | `/binflow/api/v1/replications/{name}` | system:write（仅 admin） | 按名删除（任务台账级联清空）；**204** 无体；再删 404 |
-| GET | `/binflow/api/v1/replication/status` | system:read | 复制面板载荷：`targets[]`（每配置任务计数行）+ `events[]`（跨配置最近任务合并，`?limit=` 1..500 缺省 50） |
+| GET | `/binflow/api/search/artifact` | `name=` (required, case-insensitive substring), `repos=a,b` | Search by name substring (SQL LIKE) |
+| GET | `/binflow/api/search/checksum` | `sha1=` / `md5=` / `sha256=` (at least one), `repos=a,b` | Exact checksum search |
+| POST | `/binflow/api/search/aql` | body = AQL text (`text/plain`); `?compact=true`; `?query=` empty-body fallback | **AQL query** — the items domain subset plus the `stat.*` statistics field family. Limits: results 1,000 rows (over cap sets `X-Binflow-Search-Truncated: true`, continue with `.offset()`); query text 6,000 characters; concurrency 4 → 429 + `Retry-After: 1`; execution 10s → 408. Not available to anonymous callers (closed instances 401 / anonymous-enabled instances 403); unsupported domains and fields are rejected 400 by name. Virtual keys are legal — member repositories expand at compile time |
+| GET | `/binflow/api/search/usage` | `notUsedSince=` (required, epoch milliseconds), `createdBefore=` (defaults back to notUsedSince), `repos=a,b` | **Unused artifact search** — the data face for "not downloaded in N days" cleanup strategies. Rows carry `{uri, downloadCount, lastDownloaded, remoteDownloadCount, remoteLastDownloaded}`; both the empty set and missing parameters return **404 `No results found.`** |
+| GET | `/binflow/api/search/creation` | `from=` (required, epoch milliseconds), `to=` (defaults to now), `repos=a,b` | Search by creation time. Row shape `{uri, created}` — rows matched only via lastModified return the modification time; empty set 404 `No results found.`; anonymous → 401 |
+| GET | `/binflow/api/search/dates` | `from=`, `to=`, `dateFields=` (CSV over the closed set `created, lastModified, lastDownloaded, remote_last_downloaded`), `repos=a,b` | Search by date field (default `{created, lastModified}`); unknown field names 400 verbatim; empty set 404 `No results found.` |
+| GET | `/binflow/api/search/gavc` | `g=/a=/v=/c=` (at least one), `repos=a,b` | Maven coordinate search — matches Maven layout path forms (fully literal, case-sensitive); does not filter by repository package type or layout descriptors (`repos=` narrows) |
+| GET | `/binflow/api/search/prop` | `props=k[=v]` or any `?k=v` parameter (`repos` reserved) | Property search — a key without a value = key existence; key-value pairs follow the property grammar (invalid keys 400). `prop` is the official singular spelling; the plural `props` is 404 |
+| GET | `/binflow/api/search/pattern` | `pattern=<repo-glob>:<path-glob>` | Path pattern search — `*`/`?` cross segments (SQL semantics, the same engine as AQL `$match`); the repo half may wildcard across repositories; querying a virtual key returns an empty set (member expansion happens only on the AQL face) |
+| GET | `/binflow/api/search/props\|users\|artifactory\|badge` | — | **404** — intentionally not provided |
 
-```bash
-# 启停（M14）——停用后新制品即不入队、在途任务跑完自身结论；恢复后积压由下一趟 sweep 排空，无需重启
-curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/v1/replications/1 \
-  -H 'Content-Type: application/json' -d '{"enabled":false}'
-# 200 {"id":1,"name":"push-prod",…,"enabled":false,…,"updated_at":"<刷新>"}
-```
-
-> **`target_url` 形态（M15 实测勘误）**：引擎推送地址 = `{target_url}/binflow/{target_repo}/{path}`——`target_url` 填目标实例**裸 origin**（如 `http://target.example:8080`），**不带** `/binflow` 后缀（带了会拼出 `/binflow/binflow/…`）。
-
----
-
-## M15 增补速览（T-426）
-
-搜索域两组新面（AQL + 老搜索三端点）与复制包 B（Replicate Now / Test 连接 / 全局封锁）。AQL 的语言子集、错误文案族与迁移对照见 [AQL 搜索指南](aql.md)；复制语义见[治理指南 · 复制](admin/governance.md#复制push-replication)。本节 curl 于 HEAD 构建的双实例实测（2026-09-02），输出摘录原样。
-
-### 搜索：AQL（`POST /api/search/aql`）
-
-- body = 查询文本（`--data-binary 'items.find({"repo":"maven-local"})'`）；**匿名不可用**（闭环实例 401 / 开匿名实例 403）；未支持域（`builds`/`statistics`/`properties`…）与未支持字段（`stat.*`/`modified_by`/`original_*`）一律 **400 点名**；链序 `include→sort→offset→limit` 乱序 = 400 语法错（文案逐字同 Artifactory）。
-- 上限：结果 **1,000 行**（超限置 `X-Binflow-Search-Truncated: true` + `range.notification` 官方文案，`.offset()` 续翻）；查询文本 **6,000 字符**；并发 4 → **429 + `Retry-After: 1`**；执行 10s → **408**。
-- virtual key 是合法查询值：编译期展开为成员仓，行内 `repo` = 实际存储仓 key + 隐式 `virtual_repos` 输出；不存在的 repo key → 200 空集。
+The `gavc`/`prop`/`pattern` endpoints share the family envelope `{"results":[FileInfo…]}` with `artifact`/`checksum`; misses are always **200 + `results:[]`** (not 404), capped at 1,000 rows with the same `X-Binflow-Search-Truncated` truncation header.
 
 ```bash
 curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/search/aql \
@@ -477,365 +427,122 @@ curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/search/aql \
 # "range" : { "start_pos" : 0, "end_pos" : 2, "total" : 2, "limit" : 2 }
 # }
 
-curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/search/aql --data-binary 'builds.find({})'
-# 400 {"errors":[{"status":400,
-#   "message":"AQL domain not supported: builds (BinFlow AQL supports: items; build-info domains are not implemented)"}]}
-```
-
-### 搜索：老搜索三端点（`GET /api/search/{gavc,prop,pattern}`，T-417）
-
-三端点与既有 `artifact`/`checksum` 同族：envelope `{"results":[FileInfo…]}`（E-09 全字段超集，含 `uri`/`downloadUri`）、结果**按调用者权限过滤**、未命中一律 **200 + `results:[]`**、上限 1,000 行 + 同一枚 `X-Binflow-Search-Truncated` 截断头。
-
-```bash
-# Maven 坐标（g/a/v/c 至少一项；按 M3 布局路径形态匹配，全字面、大小写敏感）
-curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/gavc?g=com.acme&a=demo&v=1.0.0&c=sources"
-# {"results":[{"uri":"…/api/storage/maven-local/com/acme/demo/1.0.0/demo-1.0.0-sources.jar",…}]}
-curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/gavc?g=com.acme&a=demo&v=9.9.9"
-# 200 {"results":[]}      （空集族——不是 404）
-
-# 属性检索：文档形 props=k=v / 官方任意参数形（?build.name=x）；键无值 = 键存在性；键值走 M10 属性文法（非法键 400）
+# Property search: documented form, or any parameter as a key
 curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/prop?props=stage=prod"
 curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/prop?stage=prod&repos=team-local"
 
-# 路径模式：<repo-glob>:<path-glob>；'*'/'?' 跨段（SQL 语义，与 AQL $match 同内核）；repo 半可通配跨仓
+# Path patterns cross segments and may wildcard repositories
 curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/pattern?pattern=maven-local:com/acme/**/*.jar"
 curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/pattern?pattern=*-local:**/build-*.bin"
 curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/pattern?pattern=nocolon"
 # 400 ... "Pattern search requires a '<repo-pattern>:<path-pattern>' value."
 ```
 
-边界（as-built）：`gavc` 不按仓包型/layout 描述符过滤（路径形态匹配 + `repos=` 收窄）；`pattern` 查 virtual key → 空集（成员展开只在 AQL 面）；复数拼写 `props` → 404。
+### Artifact operations
 
-### 复制包 B：Replicate Now / Test / 全局封锁（T-420/T-422）
+The whole family sits behind the `repo-operations` pro slot — community instances answer 403 + `X-Binflow-License-Required: repo-operations`. Behavior detail and verbatim errors: [artifact operations guide](admin/artifact-operations.md).
 
-| 方法 | 路径 | 门 | 语义 |
-|---|---|---|---|
-| POST | `/binflow/api/v1/replications/{id}/run` | system:write（仅 admin） | **全量同步触发**（按已存配置种一趟对账任务；`{id}` = 数值 id）。200 `{"info":"The replication tasks was successfully scheduled to run","id","name","scheduled","capped"}`——**排程即返回，不等复制**；`scheduled`=本次种入任务数（空源仓 = 0 空跑）；`capped`=受 `max_items_per_push` 截断（再点取下一段）。重复触发**不去重**（200 再种，目标侧 sha256 幂等收敛）；停用配置 → **409**（先 `PUT enabled=true`）；push 被封 → **409**（锚文 `Push replication is blocked, skipping replication` + 解锁指路）；未知 id 404 |
-| POST | `/binflow/api/v1/replications/{id}/test` | system:write（仅 admin） | 探测**已存配置**的目标连通（`GET {target_url}/binflow/api/storage/{target_repo}`，携已存密封凭据）；可选 body `{target_url/target_repo/target_username/target_password}` 逐字段覆盖（改了 URL/用户名没给密码 → 按匿名探测，旧密文不外发）。**ok 判定体**：通过 200 `{"ok":true,"status_code":200,"message":"Push replication target url '<url>' tested successfully"}`；失败**同形 400**（`ok:false` + 目标状态码/原因内联）。零副作用、**不看封锁态** |
-| POST | `/binflow/api/v1/replications/test` | system:write（仅 admin） | **无 id 草稿面**：body 必填（`{target_url,target_repo,target_username?,target_password?}`），未保存的候选先测后存；自实例目标 → `ok:false`（`Cannot replicate to the same instance: …`）；`-cache` 结尾目标 → 官方文案 `Replication to remote cache repositories are not allowed.` |
-| GET | `/binflow/api/v1/system/replications` | system:read | 全局封锁态，官方键形 `{"blockPullReplications":bool,"blockPushReplications":bool}` |
-| POST | `/binflow/api/v1/system/replications/block` / `unblock` | system:write（仅 admin） | **应急刹车**：query `push`/`pull` 选方向（缺省 = 该方向动作；**非 `"true"` 串 = 本次不动**）；响应 **text/plain** 官方文案（`Successfully blocked all replications, no replication will be triggered.` / 仅单方向变体 / 双不动 `No action taken.`）。幂等、写入即持久（重启保持）；**不拦配置面**（CRUD/启停/列表封锁期照常） |
-
-封锁生效面：事件轨（新制品零入队）+ 认领轨（在途任务重试间隙停发，重试计数保留）+ 手动触发（run 409）+ **拉侧回源**（`blockPull=on` 时 remote 仓零上游接触：新鲜缓存照常 HIT、过期副本降级 STALE、miss 404 点名封锁——不写 assumed-offline 窗，解除即恢复）。三面一致入口：`binflow.yaml` 的 `replication.block_push` / `replication.block_pull`（缺省 false，首次启动种子落库，此后 REST 管理）+ REST 三端点 + 治理页全局封锁卡。
-
-```bash
-# Replicate Now：5 个制品排程，目标实例逐路径收敛（sha256 幂等）
-curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/1/run
-# 200 {"info":"The replication tasks was successfully scheduled to run","id":1,"name":"push-b",
-#      "scheduled":5,"capped":false}
-
-# Test：正确凭据 200 / 错误凭据 400（判定体内联目标状态）
-curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/1/test
-# 200 {"ok":true,"status_code":200,
-#      "message":"Push replication target url 'http://127.0.0.1:18502/binflow/api/storage/mirror-b' tested successfully"}
-curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/test \
-  -H 'Content-Type: application/json' \
-  -d '{"target_url":"http://127.0.0.1:18502","target_repo":"mirror-b","target_username":"admin","target_password":"wrong"}'
-# 400 {"ok":false,"status_code":401,
-#      "message":"Connection failed: Target replication URL returned error 401: {…invalid credentials…}"}
-
-# 全局封锁 roundtrip
-curl -su admin:$ADMIN_PW -X POST "$BASE/binflow/api/v1/system/replications/block?push=true"
-# Successfully blocked all replications, no replication will be triggered.
-curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/1/run
-# 409 ... "Push replication is blocked, skipping replication (config push-b; POST /api/v1/system/replications/unblock to resume)"
-curl -su admin:$ADMIN_PW -X POST "$BASE/binflow/api/v1/system/replications/unblock?push=true"
-# Successfully unblocked all replications.
-```
-
-审计词新增：`replication.run`（run 族控制面）、`replication.config.test`、`replication.block.update`（detail 含 name/target/scheduled/capped 或封锁终态）；与引擎执行层 `replication.push` 分层不混用。
-
----
-
-## `/api/v1` 自有端点
-
-BinFlow 在 Artifactory 兼容端点之外增加了一批自有端点（以 `/api/v1` 前缀标记），实现差异化能力：
-
-| 端点 | 方法 | 说明 |
+| Method | Path | Semantics |
 |---|---|---|
-| `/binflow/api/v1/health` | GET | 实例健康详情（admin / readonly_admin） |
-| `/binflow/api/v1/storage/stats` | GET | 全实例 blob/字节统计（admin / readonly_admin） |
-| `/binflow/api/v1/storage/usage/{repo}` | GET | 单仓配额用量（admin / readonly_admin / 该仓 read 或 manage 授权者） |
-| `/binflow/api/v1/storage/usage` | GET | 批量配额用量（M9：可见集过滤的 bare array，替代逐仓 N 次轮询） |
-| `/binflow/api/v1/audit` | GET | 审计日志查询（admin / readonly_admin） |
-| `/binflow/api/v1/system/gc` | POST | 触发 GC（同步执行，dry-run/apply；admin only） |
-| `/binflow/api/v1/system/cleanup` | POST/GET | unused-cleanup 引擎手动触发（dry-run 默认）与状态面（M11） |
-| `/binflow/api/v1/system/maintenance` | GET/PUT | **cron 调度 · 维护三槽**（`gc` / `cleanup-unused-cache` / `cleanup-virtual`；读 system:read、写仅 admin）——表达式子集与语义见[计划任务指南](admin/cron-scheduling.md) |
-| `/binflow/api/v1/system/backups`（+ `/{key}`） | PUT/GET/DELETE | **cron 调度 · 定时备份 CRUD**（backupKey/cronExp/exportPath 绝对路径门/nextBackupTime 首跑时刻）——见[计划任务指南](admin/cron-scheduling.md#定时备份到点-export) |
-| `/binflow/api/v1/system/schedules` | GET | 三域调度行只读投影（`?domain=` 值域 = maintenance / backup / replication 闭集，非法域 400；控制台服务状态页数据源） |
-| `/binflow/api/v1/system/settings` | GET | 运行旋钮回显（folder_download 六字段 + trashcan.retention_days 的解析值；M13） |
-| `/binflow/api/v1/session` | POST/GET/DELETE | 控制台会话管理（whoami/登录回显 `adminRole` 与 `source`） |
-| `/binflow/api/v1/replications` | GET/POST/PUT/DELETE | push 复制配置 CRUD（GET/POST/DELETE 自 M6；**PUT 启停 = M14**，按数值 id、DELETE 按 name；**`cron_exp` 调度字段**——create/PUT 携带，park/清空语义与回显 `next_schedule_sync` 见[计划任务指南 · 复制域](admin/cron-scheduling.md#复制域cron-双轨)）——见[M14 增补速览](#m14-增补速览t-397t-398) |
-| `/binflow/api/v1/replications/{id}/run` · `/{id}/test` · `/test` | POST | **M15 复制包 B**：全量同步触发（Replicate Now）与目标连通探测（已存配置 / 无 id 草稿）——见[M15 增补速览](#m15-增补速览t-426) |
-| `/binflow/api/v1/system/replications` | GET/POST | **M15 全局封锁**：blockPush/blockPull 应急刹车三端点（GET 态 + block/unblock，官方键形与文案） |
-| `/binflow/api/v1/replication/status` | GET | 复制面板载荷（targets 任务计数 + events 最近任务合并；readonly_admin 可读） |
-| `/binflow/api/search/aql` | POST | **M15 AQL 查询**（items 域子集；语言与迁移对照见 [AQL 搜索指南](aql.md)） |
-| `/binflow/api/v1/permissions` | POST/GET/DELETE | Permission Target CRUD（动作集 r/w/d/manage；GET 带 `?filter=manage` 时 manage 持有者可达覆盖集内子集——M9） |
+| POST | `/binflow/api/copy/{srcRepo}[/{srcPath}]?to=/{targetRepo}[/{targetPath}]` | Tree-level copy (zero-copy). `dry=1` for a dry run; responds 200 + `messages[]` (vendor Content-Type `application/vnd.org.jfrog.artifactory.storage.CopyOrMoveResult+json`); the status = the code of the last error message (409 fallback). Per-file pipeline: source read / target write |
+| POST | `/binflow/api/move/{srcRepo}[/{srcPath}]?to=…` | Tree-level move — copy + source deletion + directory pruning (additionally requires source `delete`) |
+| GET | `/binflow/api/archive/download/{repo}[/{path}]?archiveType=zip\|tar\|tar.gz\|tgz` | Streaming archive download of a directory or whole repository (nothing written to disk); `includeChecksumFiles=true` includes checksum sidecar entries. **Off by default** — `folder_download.enabled` and five more knobs, effective on restart |
+| GET | `/binflow/{repo}/{archive}!/{entry}` | Read an archive member directly (first `!/` splits, nested archives recurse, `.sha1/.md5/.sha256` suffixes return the bare hex); non-GET 405 |
+| PUT | `/binflow/{repo}/{path}` + `X-Explode-Archive: true` | Explode deploy — whitelist zip/tar/tar.gz/tgz; success **201 empty body** + `X-Binflow-Exploded-Files: <n>`; requires `w` on the target parent directory |
 
----
+`/api/flat/copy|move` is not implemented (404).
 
-## 三种认证方式
+### Trash can
 
-BinFlow 支持三种认证凭据，适用于不同的使用场景：
+Gate: system:write (full admins only) + the `trashcan` pro slot (interim). Capture and retention semantics: [trash can guide](admin/trash-can.md).
 
-### 1. Basic 认证（HTTP Basic Auth）
-
-适用于 curl、CI 脚本、客户端凭据配置（maven settings.xml、`.pypirc`、npm `_auth`）。REST API 层面要求凭据始终在请求中且正确——**不存在「先访问后挑战」**（与 HTTP 标准 401 挑战不同——一次性认证失败直接返回 401）：
-
-```bash
-# 全局选项形式（推荐 -u 简写）
-curl -su admin:<口令> $BASE/binflow/api/system/ping
-
-# 等价的显式 Authorization 头
-curl -s -H "Authorization: Basic $(printf 'admin:<口令>' | base64 -w0)" \
-  $BASE/binflow/api/system/ping
-```
-
-所有 `/binflow/api/*` 基础路由均支持 Basic 认证。口令哈希为 **argon2id**（memory-hard），高并发场景请使用 Access Token。
-
-### 2. Token 认证（Bearer Token）
-
-适用于高 QPS、CI/CD 流水线和无浏览器场景。Token 校验不触发 argon2 哈希计算，性能远优于 Basic：
-
-```bash
-# 签发 token（admin 可指名替目标用户签发；非 admin 免 username 自铸）
-TOKEN=$(curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token \
-  -d 'grant_type=client_credentials&username=ci-bot' | jq -r '.access_token')
-# 200: {"access_token":"<64hex>","token_id":"<id>","expires_in":2592000,"scope":"api:*"}
-
-# 使用 token
-curl -s -H "Authorization: Bearer $TOKEN" $BASE/binflow/api/v1/storage/stats
-
-# 吊销 token
-curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token/revoke \
-  -d "token_id=<上面的 token_id>"
-```
-
-| 属性 | 值 |
-|---|---|
-| token 长度 | 64 位 hex（256-bit） |
-| 默认 TTL | 2592000 秒（30 天）；`auth__token_default_ttl_hours` 可调 |
-| 签发 | admin 为任意用户签发；非 admin 限本人（M6 起）；body 可选 `step_up_password` / `step_up_grant`（M7，仅 `auth.token_step_up` 开启时的非 admin session 臂要求，见 [step-up 指南](admin/token-step-up.md)） |
-| 吊销 | admin only；所有 token 同表管理 |
-| 审计签发 | M4 登记缺口（无审计事件），token.revoke 日志可见 |
-| docker token 流 | 也走同表——管理面吊销对 docker token 即时生效 |
-
-### 3. 会话 Cookie（浏览器端）
-
-适用于 Web 控制台。服务端签发的 `binflow_session` cookie（HttpOnly; Path=/binflow; SameSite=Lax），自动随同源请求发送：
-
-```bash
-# 登录（JSON）→ Set-Cookie: binflow_session=<id>; HttpOnly; Path=/binflow; SameSite=Lax
-curl -s -c jar.txt -X POST $BASE/binflow/api/v1/session \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"<口令>"}'
-# 200 {"username":"admin","admin":true}
-
-# whoami（会话有效时）
-curl -s -b jar.txt $BASE/binflow/api/v1/session
-# 200 {"username":"admin","admin":true}
-
-# 登出（服务端吊销会话）
-curl -s -b jar.txt -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{http_code}'
-# 204
-
-# 会话过期后同一 cookie 重放 → 401
-```
-
-会话 TTL 默认为 24 小时，**活跃不能续期**（滑动续期被绝对 TTL 封顶吞没），详见[控制台使用指南](console.md#登录与会话)。
-
-> **CSRF 防护**：会话 cookie 认证的非 GET/HEAD 写请求，携带非同源 `Origin` 头 → **403**。Basic/Token 认证天然免疫。
-
----
-
-## 错误响应：三种格式
-
-### 1. errors[] 信封（主要格式）
-
-制品域和管理面 API 的主要错误格式（对应 E-01 统一信封）：
-
-```json
-// 404 — 制品不存在
-HTTP/1.1 404 Not Found
-Content-Type: application/json
-
-{"errors":[{"status":404,"message":"Unable to find the requested resource 'generic-local/missing.jar'."}]}
-
-// 413 — 配额超限
-HTTP/1.1 413 Request Entity Too Large
-Content-Type: application/json
-
-{"errors":[{"status":413,"message":"Repository 'tiny' quota exceeded: used 800 of 934 bytes; the write to 'b.bin' needs 800 more bytes."}]}
-
-// 409 — checksum 不匹配
-HTTP/1.1 409 Conflict
-Content-Type: application/json
-
-{"errors":[{"status":409,"message":"Checksum error for 'maven-local/com/example/demo/1.0.0/demo-1.0.0.jar': received 'abc123' but actual is 'def456'."}]}
-
-// 400 — 参数非法
-HTTP/1.1 400 Bad Request
-Content-Type: application/json
-
-{"errors":[{"status":400,"message":"Repository key must be at least 2 characters: 'x'"}]}
-
-// 403 — 无权限
-HTTP/1.1 403 Forbidden
-Content-Type: application/json
-
-{"errors":[{"status":403,"message":"permission denied"}]}
-
-// 401 — 未认证或凭据无效（制品域）
-HTTP/1.1 401 Unauthorized
-WWW-Authenticate: Basic realm="BinFlow"
-Content-Type: application/json
-
-{"errors":[{"status":401,"message":"invalid credentials"}]}
-```
-
-### 2. 纯文本错误（用户管理域）
-
-用户、组、Token 端点的部分错误使用纯文本响应体：
-
-```bash
-# 404 — 组不存在
-HTTP/1.1 404 Not Found
-Content-Type: text/plain; charset=utf-8
-
-Unable to find group by name 'nonexistent-group'.
-
-# 400 — 建组参数错误
-HTTP/1.1 400 Bad Request
-Content-Type: text/plain; charset=utf-8
-
-Unable to create group: name must match [a-z][a-z0-9._-]* but it starts with uppercase 'X'.
-
-# 400 — 创建用户缺 email
-HTTP/1.1 400 Bad Request
-Content-Type: text/plain; charset=utf-8
-
-Please provide a valid user email.
-
-# 400 — 用户引用了不存在的组
-HTTP/1.1 400 Bad Request
-Content-Type: text/plain; charset=utf-8
-
-Unable to find group by name 'devs'. Please make sure the group exists before adding users to it.
-
-# 400 — adminRole 与 admin 布尔矛盾（M7；仅 admin 可写角色字段）
-HTTP/1.1 400 Bad Request
-Content-Type: text/plain; charset=utf-8
-
-conflicting 'admin' and 'adminRole' fields: admin=false is incompatible with adminRole="admin" (admin=true is equivalent to adminRole=admin)
-
-# 409 — 删除的组被权限引用
-HTTP/1.1 409 Conflict
-Content-Type: text/plain; charset=utf-8
-
-Cannot delete group 'devs': it is referenced by permission target(s): devs-rw, jane-rd. Remove the group from those targets first.
-
-# M9 起：DELETE /api/security/users/{name} 同属纯文本家族
-# 成功 200 / 护栏 400 / 不存在 404（文本体「User not found」）——全部文案逐字见「M9 增补速览」E4
-```
-
-### 3. OAuth 风格错误（Token 端点和 docker 域）
-
-Token 签发/吊销端点与 `/v2/token` 按 OAuth 2.0 错误规范响应：
-
-```bash
-# Token 签发：管理面错误
-HTTP/1.1 400 Bad Request
-Content-Type: application/json
-
-{"error":"invalid_request","error_description":"missing grant_type parameter"}
-
-# Token 吊销：未知 token
-HTTP/1.1 403 Forbidden
-Content-Type: application/json
-
-{"error":"access_denied","error_description":"token not found"}
-
-# Token 签发：认证失败
-HTTP/1.1 401 Unauthorized
-Content-Type: application/json
-WWW-Authenticate: Basic realm="BinFlow"
-
-{"error":"invalid_client","error_description":"authentication failed"}
-
-# Token 签发：step-up 两形态（M7，开关 auth.token_step_up 开启时的非 admin session 臂）
-# 401 — 所欠二次凭据缺失（本地/LDAP 缺 step_up_password；OIDC 缺 step_up_grant；含错腿凭据）
-HTTP/1.1 401 Unauthorized
-Content-Type: application/json
-
-{"error":"step_up_required","error_description":"step-up authentication required to mint a token"}
-
-# 401 — 二次凭据失验 / grant 过期 / grant 复用（单次消费即删）/ 服务重启丢台账
-HTTP/1.1 401 Unauthorized
-Content-Type: application/json
-
-{"error":"step_up_invalid","error_description":"step-up credential rejected, expired, or already used"}
-
-# Docker /v2 面 401 挑战
-HTTP/1.1 401 Unauthorized
-Content-Type: application/json
-Docker-Distribution-Api-Version: registry/2.0
-WWW-Authenticate: Bearer realm="http://localhost:8080/v2/token",service="binflow"
-
-{"errors":[{"code":"UNAUTHORIZED","message":"authentication required","detail":null}]}
-
-# Docker /v2 面权限不足
-HTTP/1.1 403 Forbidden
-Content-Type: application/json
-Docker-Distribution-Api-Version: registry/2.0
-
-{"errors":[{"code":"DENIED","message":"requested access to the resource is denied","detail":null}]}
-```
-
----
-
-## 请求/响应头参考
-
-### 通用请求头
-
-| 头 | 适用场景 | 说明 |
+| Method | Path | Semantics |
 |---|---|---|
-| `Authorization: Basic <base64>` | 全部管理面 + 内容路径 | Basic 认证 |
-| `Authorization: Bearer <token>` | 全部管理面 + 内容路径 + docker | Token 认证 |
-| `X-Checksum-Sha1` / `X-Checksum-Sha256` / `X-Checksum-Md5` | PUT 上传 | 客户端声明校验和 |
-| `X-Checksum` | PUT 上传 | 无类型标记的校验和（按长度自动识别） |
-| `X-Checksum-Deploy: true` | PUT 上传 | checksum-only 部署（不传 body） |
-| `Expect: 100-continue` | PUT 上传 | 去重加速：先查 blob 是否存在 |
-| `Content-Type` | manifest PUT | 透传不白名单（docker 域） |
+| POST | `/binflow/api/trash/restore/{path}?to=&transaction-size=` | Restore — `to` overrides > five-tuple inference > first path segment; `trash.*` markers stripped, original properties kept; the response is isomorphic to copy/move `messages[]` |
+| POST | `/binflow/api/trash/empty` | Empty the whole can; JSON summary `{"removed","files","folders","bytes"}` |
+| DELETE | `/binflow/api/trash/clean/{path}` | Permanently purge a single entry (subtree); same summary shape |
 
-### 通用响应头
+Browsing is not a fourth route — it rides the regular `GET /api/storage/auto-trashcan[...][?properties|?list]` face.
 
-| 头 | 适用场景 | 说明 |
+### Key pairs
+
+GPG key pairs for repository metadata signing. Private keys and passphrases never leave the store (no export endpoint). Consumption: debian `InRelease`/`Release.gpg`, rpm `repomd.xml.asc`/`.key` — see the [Debian](integrations/debian.md) and [RPM](integrations/rpm.md) guides.
+
+| Method | Path | Semantics |
 |---|---|---|
-| `X-Checksum-Sha1` / `X-Checksum-Sha256` / `X-Checksum-Md5` | GET 下载 | 服务端实测校验和（有值才发） |
-| `ETag: <sha1>` | GET 下载 | 不包围引号；条件请求 `If-None-Match` |
-| `Last-Modified` | GET 下载 | RFC1123 格式 |
-| `Accept-Ranges: bytes` | GET 下载 | Range 请求支持 |
-| `X-Artifactory-Filename` | GET 下载 | URL-encoded 文件名 |
-| `Location` | PUT 上传成功 | 新资源 URL |
-| `Cache-Control: no-store` | 仓库列表等敏感数据 | 禁止缓存 |
+| POST | `/binflow/api/security/keypair` | Import (create-or-replace; 201 echoes a KeyPairSummary). The `X-GPG-PASSPHRASE` header is not accepted — the passphrase is sealed with the key row |
+| PUT | `/binflow/api/security/keypair` | Update (not found → 404; the rotation face) |
+| GET | `/binflow/api/security/keypair` | List (bare array) |
+| GET | `/binflow/api/security/keypair/{pairName}` | Get one (unknown name 404) |
+| DELETE | `/binflow/api/security/keypair/{pairName}` | Delete; 200 plain text `OK`; referenced by repositories → 400 naming the referencing repositories |
+| POST | `/binflow/api/security/keypair/verify` | 200 plain text `Key was verified.`; the body is the full material, or (BinFlow extension) just `{"pairName":…}` to verify the stored sealed key |
+| GET | `/binflow/api/security/keypair/public/repositories/{repoKey}` | The repository's associated key pair, armored public key (text/plain) |
+| POST | `/binflow/api/v1/admin/security/keypair/generate` | **Generate server-side** (201 echoes a summary; duplicate name 409) — official Artifactory REST has no keygen; this is a BinFlow-native management face |
+| POST / DELETE | `/binflow/api/v2/repositories/{repoKey}/keyPairs[/{keyName}]` | Associate (text/plain body = the key pair name) / disassociate — only local `debian`/`rpm` repositories accept `keyPairName`; other package types get 400 by name |
 
----
+Import body = `{pairName, pairType ("GPG"), alias, privateKey, publicKey, passphrase}`; generation body = `{pairName, alias, passphrase, keyBits, uidName, uidComment, uidEmail}`. Summaries carry `{pairName, pairType, alias, publicKey}` plus additive fields (`algorithm`/`createdAt`/`updatedAt`/`updatedBy`/`repositories`).
 
-## 审计日志查询参数
+### Authentication configuration
 
-`GET /binflow/api/v1/audit`（admin only）：
+Three sections (`ldap` / `oauth` / `saml/config`), each with GET (read) / PUT (replace wholesale — **takes effect on save**, no restart) / POST `…/test` (connectivity probe), plus the SAML SP certificate endpoints. Field tables and the console face: [authentication configuration guide](admin/auth-config.md).
 
-| 参数 | 类型 | 说明 |
+| Method | Path | Semantics |
 |---|---|---|
-| `repo` | string | 按仓库等值过滤 |
-| `actor` | string | 按操作者等值过滤 |
-| `action` | string | 按动作等值过滤（见审计词表） |
-| `since` | RFC3339 | 起始时间（闭） |
-| `until` | RFC3339 | 结束时间（开） |
-| `limit` | int | 默认 100，上限 1000（超限 400） |
-| `cursor` | string | 游标分页（不透明，`nextCursor` 回传） |
+| GET/PUT/POST `…/test` | `/binflow/api/v1/admin/security/ldap` | LDAP section (unset GET returns the default shape) |
+| GET/PUT/POST `…/test` | `/binflow/api/v1/admin/security/oauth` | OIDC section (snake_case wire) |
+| GET/PUT/POST `…/test` | `/binflow/api/v1/admin/security/saml/config` | SAML section (unset GET returns `{}`) |
+| GET | `/binflow/api/v1/admin/security/saml/config/key/public` | **Current SP encryption certificate PEM** (text/plain); not yet generated → 404 `saml sp encryption certificate has not been generated` |
+| PUT | `/binflow/api/v1/admin/security/saml/config/key/public/regenerate` | Rotate the SP key pair (forced one-for-one replacement, the old certificate invalidated immediately); the response body is the new certificate PEM |
+| POST | `/binflow/api/v1/admin/security/saml/key` | Generate/replace the SP key pair (BinFlow-native face; same machinery as regenerate, a distinct audit action) |
 
-响应格式：
+- **Secret sentinel semantics (write-only)**: GET always returns 20 asterisks `********************` for a set secret; on PUT an absent key = keep, `""` = clear, new plaintext = replace; **sending the sentinel back → 400** `refusing the masked placeholder — leave the field empty to keep the stored secret, or re-enter the value`.
+- Secrets are sealed with enc:v1 before storage (instance master key `BINFLOW_REMOTE_CREDENTIALS_KEY`); without a master key, secret writes are refused.
+- Test responses: `{"ok":bool,"phase":"…","category":"…","message":"…"}`; `ok:false` yields HTTP 400 (e.g. `{"ok":false,"phase":"dial","category":"unreachable","message":"could not connect to the target (dial failed or timed out)"}`).
+- Audit: `auth.config.update` (detail carries changed key names only, values are never stored) / `auth.config.test` / `auth.config.samlkey.{generate,regenerate}` (no key material is logged).
+
+### System
+
+| Method | Path | Semantics |
+|---|---|---|
+| GET | `/binflow/api/system/ping` | Liveness probe (no authentication) |
+| GET | `/binflow/api/system/version` | Version info (no authentication) |
+| GET | `/binflow/api/v1/health` | Health dashboard (admin / readonly_admin); deployment probes should use the unauthenticated `/healthz` / `/readyz` |
+| GET | `/binflow/api/v1/storage/stats` | Instance-wide storage statistics (admin / readonly_admin) |
+| GET | `/binflow/api/v1/storage/usage/{repo}` | Single-repository quota usage — admin / readonly_admin / anyone granted `read` **or** `manage` on the repository; row shape `{"repo","usedBytes","quotaBytes"}` |
+| GET | `/binflow/api/v1/storage/usage` | **Batch quota usage** — **bare array** (no envelope, no pagination; an empty visible set is `200 []` never null); a regular user gets the subset of repositories they can `read` or `manage`; anonymous 401. Naming an unknown repository and naming one without permission silently omit the same way. `?repos=` picks a named set; `?include=counts` attaches `nodeCount`/`updatedAt` (nodeCount counts file nodes only; updatedAt = time of the repository configuration change); unknown values 400 |
+| GET | `/binflow/api/v1/audit` | Audit log query (admin / readonly_admin) — parameters below |
+| POST | `/binflow/api/v1/system/gc` | Trigger GC (admin only; readonly_admin 403 including dry-run). No GET route — query past runs through the audit `gc.run` events. Body below |
+| GET | `/binflow/api/v1/system/settings` | Echoes the **resolved** runtime knobs (YAML + env + defaults merged). Knob-scoped by design — behavioral knobs only, never secrets/DSNs/paths; read-only; the knobs themselves take effect on restart |
+| GET/POST/DELETE | `/binflow/api/v1/system/query_rate_limiter/config` | Query rate limiter configuration: read / merge-write / reset to factory defaults. While the limiter is **disabled, all three verbs return 400 plain text** `Query rate limiter is disabled` (except a POST carrying an explicit mode). The configuration lives for the process lifetime — a restart returns to factory defaults. Rate limiting only delays, never rejects |
+
+```bash
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/storage/usage
+# [{"repo":"g-local","usedBytes":10,"quotaBytes":0}, ...]
+
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/storage/usage?repos=g-local,no-such"   # unknown names silently omitted
+# [{"repo":"g-local","usedBytes":10,"quotaBytes":0}]
+
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/storage/usage?include=counts"
+# rows gain {"nodeCount":1,"updatedAt":"2026-08-24T20:37:26Z"}
+
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/system/settings
+# {"folder_download":{"enabled":false,"enabled_for_anonymous":false,
+#   "max_download_size_mb":1024,"max_files":5000,"max_concurrent_requests":10,
+#   "enabled_empty_directories":false},
+#  "trashcan":{"retention_days":14}}
+```
+
+Audit query parameters (`GET /api/v1/audit`):
+
+| Parameter | Type | Semantics |
+|---|---|---|
+| `repo` | string | Filter by repository (exact match) |
+| `actor` | string | Filter by actor (exact match) |
+| `action` | string | Filter by action (exact match; see the audit vocabulary) |
+| `since` | RFC3339 | Start time (inclusive) |
+| `until` | RFC3339 | End time (exclusive) |
+| `limit` | int | Default 100, cap 1000 (over → 400) |
+| `cursor` | string | Cursor pagination (opaque; pass `nextCursor` back) |
 
 ```json
 {
@@ -854,20 +561,14 @@ Docker-Distribution-Api-Version: registry/2.0
 }
 ```
 
-结果按 **时间倒序**（最新在前）。`detail` 为可选的附加上下文对象（如 `quota.exceeded` 的 `{used, quota}`）。
+Results are in **reverse chronological order** (newest first); `detail` is an optional context object (e.g. `{used, quota}` for `quota.exceeded`). The action vocabulary and console face: [governance guide](admin/governance.md).
 
----
+GC trigger body (`POST /api/v1/system/gc`):
 
-## GC 触发参数
-
-`POST /binflow/api/v1/system/gc`（admin only）：
-
-| 字段 | 类型 | 默认 | 说明 |
+| Field | Type | Default | Semantics |
 |---|---|---|---|
-| `apply` | bool | false | false=dry-run（只报告不删除）；true=实际执行 |
-| `graceHours` | number | 配置值（默认24） | 宽限期；0=无宽限；负值或 >876000 → 400 |
-
-响应：
+| `apply` | bool | false | false = dry-run (report only); true = execute |
+| `graceHours` | number | configured (default 24) | Grace window; 0 = no grace; negative or >876000 → 400 |
 
 ```json
 // dry-run
@@ -877,11 +578,159 @@ Docker-Distribution-Api-Version: registry/2.0
 {"candidateCount":5,"candidateBytes":204800,"deletedCount":3}
 ```
 
+### License and add-ons
+
+The license path is **singular**; the plural `/api/system/licenses` is 404 (the HA multi-license semantics are not adopted). Slots, tiers and the community gate behavior: [License and add-ons guide](admin/license.md).
+
+| Method | Path | Semantics |
+|---|---|---|
+| GET | `/binflow/api/system/license` | License status (admin / readonly_admin; the body never contains the certificate text/signature) |
+| POST | `/binflow/api/system/license` | Install (body = the certificate text; success **201**; a failed signature check **400** with wire code `LICENSE_EXPIRED`/`LICENSE_INVALID`, the current certificate untouched) |
+| DELETE | `/binflow/api/system/license` | Uninstall (idempotent **200 plain text** `License removed successfully.`; a downgrade does not hold data hostage) |
+| GET | `/binflow/api/v1/addons` | Add-on slot list, evaluated live — bare array of `id`/`kind`/`minTier`/`enabled`/`reason`/`displayName`/`description`; **no write surface** (other verbs 404) |
+
+### Cleanup
+
+The unused-cleanup engine reclaims remote cache artifacts with no download activity inside the policy window. The policy source is the remote repository's `unusedArtifactsCleanupPeriodHours` (hours; 0 = off); an hourly cron applies rounds.
+
+| Method | Path | Semantics |
+|---|---|---|
+| POST | `/binflow/api/v1/system/cleanup` | Manual trigger (admin only). Body `{"apply":bool,"repo":string?}` — **dry-run by default**; runs synchronously and returns a CleanupReport |
+| GET | `/binflow/api/v1/system/cleanup` | Status face (system:read) — cron cadence, cumulative counters, the last report, per-remote-repository policy rows |
+
+Engine notes:
+
+- Three legs under one maintenance lock (mutually exclusive with gc/export/import): expired upload-session sweep → policy deletion (remote cache file nodes with no download event inside the window; the in-use oracle is audit download trails plus downloads through virtual repositories that count the member) → GCSweep.
+- When `audit.enabled=false` the policy leg refuses to run — without download traces there is no honest "unused", so nothing is deleted; the session/gc legs still run.
+- Report fields: `trigger/apply/repos[{repo,periodHours,cutoff,keptByUse,candidates,deleted,bytes}]/gracePending/gcDeleted/sessionsSwept/objectsCleaned/bytesReclaimed/ok`; audited as `cleanup.run`; metrics `binflow_cleanup_objects` / `binflow_cleanup_bytes` (gauges).
+
+### Maintenance and scheduled backups
+
+The cron scheduling domains — expression subset, validation family and the audit vocabulary: [scheduled tasks guide](admin/cron-scheduling.md).
+
+| Method | Path | Semantics |
+|---|---|---|
+| GET/PUT | `/binflow/api/v1/system/maintenance` | The three maintenance cron slots `gc` / `cleanup-unused-cache` / `cleanup-virtual`: GET projects all three (no row = unscheduled, rendered default shape); PUT writes slot by slot — each slot optional (absent = unchanged), an empty-string `cronExp` = delete the schedule row (the only way to clear), `enabled` defaults to true. All arms are validated before anything is persisted; a bad expression 400 `Invalid cronExp <expr> for <slot>: <reason>`. The manual face stays `POST /api/v1/system/gc` and `/cleanup`. Reads system:read; writes admin only |
+| PUT/GET/DELETE | `/binflow/api/v1/system/backups` (+ `/{key}`) | **Scheduled backup CRUD** — the official PUT form carries `backupKey` in the body (when a path key and a body key coexist, the path wins); `exportPath` is required (server-side absolute path, no `..` segments); `nextBackupTime` is the writable first-run moment (a past value 400s); an empty-string `cronExp` is legal = keep the row, do not schedule; DELETE removes the payload row and the schedule row together (**204**). Scheduled backups only — restore stays CLI-only |
+| GET | `/binflow/api/v1/system/schedules` | Read-only projection of the three scheduling domains (`maintenance` / `backup` / `replication`); `?domain=` filters over the closed set, unknown values 400 `domain must be one of maintenance, backup, replication (or omitted for every domain)`. Writes exist only on the three configuration faces |
+
+### Multipart uploads
+
+The Artifactory-shaped MPU family for very large files (used by JFrog CLI). **Data endpoints require a pure S3 backend** — filestore/dual-write instances return **501 plain text**, not 404.
+
+| Method | Path | Semantics |
+|---|---|---|
+| POST | `/binflow/api/v1/uploads/create?repoKey=&repoPath=&partSizeMB=` | Open a session (query parameters, not a JSON body; authentication + the admin/user role + `w` on the target repository; virtual repositories fall back to `defaultDeploymentRepo`; any package type). **200 `{"token": …}`** — the session capability credential. Sessions survive restarts |
+| GET | `/binflow/api/v1/uploads/config` | Capability probe — **200 `{"supported": bool}`** (true on the S3 stack / false on filestore; the probe never returns 501); gated by the jfrog-cli-go UA version (below 2.62.2 returns false) |
+| POST | `/binflow/api/v1/uploads/urlPart?partNumber=N` | The part-N upload URL (Bearer session token); the URL's query string carries the `?token=` capability, so the PUT may omit Authorization |
+| PUT | `/binflow/api/v1/uploads/part/{id}/{n}?token=` | Upload a part (the urlPart target); **200** in S3 PutObject shape; parts may arrive out of order (a bounded reorder buffer holds them); the server relays into S3 multipart |
+| POST | `/binflow/api/v1/uploads/status` | Async job progress (Bearer): `{status, error, progress, checksumToken}`; status ∈ PARTS / PROCESSING / **FINISHED** (progress 100 + checksumToken) / NON_RETRYABLE_ERROR |
+| POST | `/binflow/api/v1/uploads/complete?sha1=` | Submit for assembly (Bearer; **sha1**, 40 hex, required) → **202 accepted**, the job is asynchronous; a mismatch surfaces through status as NON_RETRYABLE_ERROR |
+| POST | `/binflow/api/v1/uploads/abort` | Abort a session (Bearer) → 204 |
+
+Flow: `create` returns a token → `urlPart` + PUT parts (concurrent, out of order is fine) → `complete?sha1=` 202 → poll `status` to **FINISHED** and take the `checksumToken` → use it for a zero-transfer `X-Checksum-Deploy` PUT that lands the node. The client lands the node; the server only assembles and registers the blob.
+
+### Replication
+
+Push replication — configuration CRUD (writes: admin only), Replicate Now, connectivity probes and the global block. Engine behavior and field validation: [governance guide](admin/governance.md).
+
+| Method | Path | Semantics |
+|---|---|---|
+| GET | `/binflow/api/v1/replications` | Configuration list (bare array, readable by readonly_admin); credential fields are never echoed |
+| POST | `/binflow/api/v1/replications` | Create — **201** echoes the configuration row; `enabled` defaults to true; `cronExp` schedules full syncs (empty = event-driven only); duplicate names 409; unknown source repositories 400 naming the key |
+| PUT | `/binflow/api/v1/replications/{id}` | Enable/disable / reschedule. `{id}` = the **numeric id** heading the list row (the immutable key; DELETE goes by name — both addressing forms coexist). Body: `enabled` **or** `cron_exp`, at least one (empty body 400 `enabled or cron_exp is required; no other field is editable on this face`); other fields are parsed but ignored. `cron_exp` empty string = clear the schedule (pure event track); `enabled:false` = park (schedule kept, `next_schedule_sync` cleared, event track paused). **200** echoes the updated row (`updated_at` refreshed, sealed credentials kept as-is). After disabling, new artifacts stop enqueueing and in-flight tasks run to their conclusion; on re-enable the backlog drains on the next sweep — no restart needed. Errors: anonymous 401 / non-admin 403 / unknown id 404 `replication config not found: <id>` / non-numeric id 400 |
+| DELETE | `/binflow/api/v1/replications/{name}` | Delete by name (the task ledger cascades clean); **204**; deleting again 404 |
+| GET | `/binflow/api/v1/replication/status` | Dashboard payload: `targets[]` (per-configuration task counts) + `events[]` (recent tasks merged across configurations; `?limit=` 1..500, default 50) |
+| POST | `/binflow/api/v1/replications/{id}/run` | **Replicate Now** — seeds one reconciliation run from the stored configuration; returns upon scheduling, does not wait for replication. 200 `{"info":"The replication tasks was successfully scheduled to run","id","name","scheduled","capped"}` — `scheduled` = tasks seeded this round (an empty source repository = 0), `capped` = truncated by `max_items_per_push` (run again for the next slice). Repeated triggers are not deduplicated (the target side converges idempotently by sha256); a disabled configuration → **409** (run `PUT enabled=true` first); push blocked → **409** (anchored `Push replication is blocked, skipping replication` + unlock pointers); unknown id 404 |
+| POST | `/binflow/api/v1/replications/{id}/test` | Probe a **stored** configuration's target connectivity (`GET {target_url}/binflow/api/storage/{target_repo}`, sealed credentials attached); optional body `{target_url/target_repo/target_username/target_password}` overrides field by field (a changed URL/username without a password probes anonymously — the old secret is never sent). Verdict body: pass 200 `{"ok":true,"status_code":200,"message":"Push replication target url '<url>' tested successfully"}`; failure is the **same shape with 400** (`ok:false` + the target status/reason inline). Zero side effects; ignores the block state |
+| POST | `/binflow/api/v1/replications/test` | **Draft face without an id** — test a candidate before saving. Body required (`{target_url,target_repo,target_username?,target_password?}`); a target on the same instance → `ok:false` (`Cannot replicate to the same instance: …`); a target ending in `-cache` → `Replication to remote cache repositories are not allowed.` |
+| GET | `/binflow/api/v1/system/replications` | Global block state, official key shape `{"blockPullReplications":bool,"blockPushReplications":bool}` |
+| POST | `/binflow/api/v1/system/replications/block` / `unblock` | **Emergency brake**: `push`/`pull` query parameters pick directions (omitted = the direction's action; **any string other than `"true"` = no-op for this call**); responses are **text/plain** with the official messages (`Successfully blocked all replications, no replication will be triggered.` / single-direction variants / both no-op `No action taken.`). Idempotent, persisted on write (survives restarts); **does not gate the configuration face** — CRUD, enable/disable and listing work as usual while blocked |
+
+> **`target_url` shape**: the engine pushes to `{target_url}/binflow/{target_repo}/{path}` — set `target_url` to the target instance's **bare origin** (e.g. `http://target.example:8080`), **without** the `/binflow` suffix (including it produces `/binflow/binflow/…`).
+
+The block covers the event track (new artifacts enqueue zero), the claim track (in-flight sends stop, retry counters kept), manual triggers (run 409) and the pull side (`blockPull` on: remote repositories touch no upstream — fresh cache entries still HIT, stale copies downgrade to STALE, misses 404 naming the block; lifting the block restores immediately). The same switches live in `binflow.yaml` (`replication.block_push` / `replication.block_pull`, default false) and the governance console.
+
+```bash
+# Replicate Now: 5 artifacts scheduled; the target converges path by path (sha256 idempotent)
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/1/run
+# 200 {"info":"The replication tasks was successfully scheduled to run","id":1,"name":"push-b",
+#      "scheduled":5,"capped":false}
+
+# Park a configuration — no restart needed to resume
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/v1/replications/1 \
+  -H 'Content-Type: application/json' -d '{"enabled":false}'
+# 200 {"id":1,"name":"push-prod",…,"enabled":false,…,"updated_at":"<refreshed>"}
+
+# Global block roundtrip
+curl -su admin:$ADMIN_PW -X POST "$BASE/binflow/api/v1/system/replications/block?push=true"
+# Successfully blocked all replications, no replication will be triggered.
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/1/run
+# 409 ... "Push replication is blocked, skipping replication (config push-b; POST /api/v1/system/replications/unblock to resume)"
+curl -su admin:$ADMIN_PW -X POST "$BASE/binflow/api/v1/system/replications/unblock?push=true"
+# Successfully unblocked all replications.
+```
+
+Audit actions: `replication.run` (the run control face), `replication.config.test`, `replication.block.update` — kept separate from the engine execution layer's `replication.push`.
+
+### Webhooks
+
+The subscription family lives at `/binflow/event/api/v1/**` — note it is **not** under `/binflow/api`. The read face is open to readonly_admin; write verbs sit behind the `webhook` pro slot (community instances get 403 + `X-Binflow-License-Required: webhook`). Full semantics: [Webhooks guide](admin/webhooks.md).
+
+| Method | Path | Semantics |
+|---|---|---|
+| GET | `/binflow/event/api/v1/subscriptions` | Subscription list (bare array) |
+| POST | `/binflow/event/api/v1/subscriptions` | Create — **201** echoes a SubscriptionView (`secret` always masked `********`) |
+| GET | `/binflow/event/api/v1/subscriptions/{key}` | Get one; a miss is **404 `Subscription not found`** |
+| PUT | `/binflow/event/api/v1/subscriptions/{key}` | Full update — **204 no body**; the key cannot be changed |
+| DELETE | `/binflow/event/api/v1/subscriptions/{key}` | Delete (delivery rows cascade); **204**; deleting again 404 |
+| POST | `/binflow/event/api/v1/subscriptions/test` | **Test-send a draft** (consumes a full subscription body, not a key reference); a synchronous single send that does not enter the queue; 200 TestOutcome (`ok`/`attempt{status_code,elapsed_millis,error}`) — **failures also return 200, inspect the body** |
+| GET | `/binflow/event/api/v1/troubleshooting` | Troubleshooting record ring (query: `subscription`/`target`/`start`/`end`/`count`); failures are always recorded, successes too when `debug:true`; an in-process ring of 10,000 entries pruned every 30s — history is lost on restart |
+
+Request body (one shape for create/update/test): `key` (`^[A-Za-z][A-Za-z0-9_-]+$`, ≤500) / `project_key` / `description` / `enabled` (**default false**) / `event_filter{domain,event_types[],criteria}` (strict — unknown keys 400) / `handlers[]` (**exactly one**; type `webhook` or `custom-webhook`) / `debug`.
+
+Delivery: HMAC-SHA256 hex in `X-JFrog-Event-Auth` (with `use_secret_for_signing=false` the secret is sent as plaintext); retries **5 including the first attempt / fixed 10s spacing / 30s per-attempt timeout / only on send failure or ≥500** (4xx is a one-step terminal state); dead letters are audited as `webhook.dead_letter` plus the `binflow_webhook_*` metric family. SSRF protection: targets on loopback/private networks are rejected by default; `webhook.allow_private_target` (default false, effective on restart) permits them.
+
+### Reindex
+
+Index rebuild endpoints for the signed/indexed package types — see each client guide ([Conan](integrations/conan.md), [Helm](integrations/helm-charts.md), [RPM](integrations/rpm.md), [Debian](integrations/debian.md)).
+
+| Endpoint | Semantics |
+|---|---|
+| `POST /binflow/api/conan/reindex[?repoKey=]` · `POST /binflow/api/conan/{repoKey}/reindex` | conan recipe index rebuild (local repositories only; synchronous) |
+| `POST /binflow/api/helm/{repoKey}/reindex` · `…/reindex/{path}` | helm `index.yaml` recomputation (whole repository async / partial synchronous) |
+| `POST /binflow/api/deb/reindex/{repoKey}?async=0\|1` | debian index recomputation (virtual/remote classes 400) |
+| `POST /binflow/api/yum/{repoKey}?path=&async=0\|1` | rpm repodata recomputation; on virtual repositories 200/202 triggers an aggregate re-merge (`path` gets `/repodata` appended automatically); a synchronous request against an auto-async repository gets 409 |
+
+### Console session
+
+| Method | Path | Semantics |
+|---|---|---|
+| POST | `/binflow/api/v1/session` | Log in (JSON or form; no authentication) — the response sets the session cookie and echoes `adminRole` and `source` |
+| GET | `/binflow/api/v1/session` | Whoami (current session info) |
+| DELETE | `/binflow/api/v1/session` | Log out (the session is revoked server-side) |
+
 ---
 
-## 下一步
+## Intentionally unrouted paths
 
-- 各协议接入指南：[Docker](docker-registry.md) · [Maven](integrations/maven.md) · [npm](integrations/npm.md) · [PyPI](integrations/pypi.md) · [Go](integrations/golang.md) · [NuGet](integrations/nuget.md) · [Cargo](integrations/cargo.md) · [Conan](integrations/conan.md) · [Helm](integrations/helm-charts.md) · [RPM](integrations/rpm.md) · [Debian](integrations/debian.md)
-- 搜索：[AQL 搜索指南](aql.md)（语言子集 / 错误文案族 / Artifactory 迁移对照）· [属性系统](properties.md)
-- 管理操作：[治理指南](admin/governance.md) · [权限管理](admin/groups-permissions.md) · [RBAC 角色与仓库级管理员](admin/rbac-roles.md) · [Token 铸造 step-up](admin/token-step-up.md) · [备份恢复](admin/backup-restore.md) · [License 与 Add-ons](admin/license.md) · [属性系统](properties.md) · [认证配置](admin/auth-config.md) · [存储配置](admin/storage-config.md) · [Webhook 使用指南](admin/webhooks.md)
-- 常见问题与排障：[FAQ](faq.md)
+These paths are intentionally unrouted (404) — the supported alternatives are named:
+
+| Path | Status | Use instead |
+|---|---|---|
+| `/binflow/api/v2/**` | 404 | The Artifactory v2 permissions API is not implemented — use `/api/v1/permissions`. The one exception: the repository key-pair association face `/api/v2/repositories/{key}/keyPairs` |
+| `/binflow/api/export/**`, `/binflow/api/import/**` | 404 | Backup/restore is CLI-only |
+| `/binflow/api/system/storage/prune/**` | 404 | Space reclamation goes through GC |
+| `/binflow/v2/**` | 404 | Docker endpoints do not live under the `/binflow` prefix — use the root-level `/v2` plane |
+| `/binflow/api/system/licenses` (plural) | 404 | The HA multi-license semantics are not adopted — use the singular `/api/system/license` |
+| `/binflow/api/search/props\|users\|artifactory\|badge` | 404 | `prop` is the official singular spelling; the plural `props` is 404 |
+| `/binflow/api/flat/copy\|move` | 404 | Use `/api/copy` / `/api/move` |
+
+---
+
+## Next steps
+
+- Client integration guides: [Docker](docker-registry.md) · [Maven](integrations/maven.md) · [npm](integrations/npm.md) · [PyPI](integrations/pypi.md) · [Go](integrations/golang.md) · [NuGet](integrations/nuget.md) · [Cargo](integrations/cargo.md) · [Conan](integrations/conan.md) · [Helm](integrations/helm-charts.md) · [RPM](integrations/rpm.md) · [Debian](integrations/debian.md)
+- Search: [AQL search guide](aql.md) (language subset / error family / Artifactory migration mapping) · [properties](properties.md)
+- Administration: [governance](admin/governance.md) · [groups and permissions](admin/groups-permissions.md) · [RBAC roles and repository-level admins](admin/rbac-roles.md) · [token step-up](admin/token-step-up.md) · [backup and restore](admin/backup-restore.md) · [license and add-ons](admin/license.md) · [authentication configuration](admin/auth-config.md) · [storage configuration](admin/storage-config.md) · [webhooks](admin/webhooks.md)
+- FAQ and troubleshooting: [FAQ](faq.md)

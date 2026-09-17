@@ -205,4 +205,4 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/v1/admin/security/saml/config/
 ## 下一步
 
 - 文件配置全链：[OIDC 单点登录](../guides/oidc-config.md) · [LDAP 目录认证](../guides/ldap-config.md)
-- API 端点总表：[API 参考](../api-reference.md)
+- API 端点总表：[API Reference](../api-reference.md)

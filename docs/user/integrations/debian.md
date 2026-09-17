@@ -83,7 +83,7 @@ curl -su admin:$ADMIN_PW -X POST "$BASE/binflow/api/deb/reindex/deb-local?async=
 
 ## Release 签名（InRelease / Release.gpg + signed-by）
 
-配 keypair 后每次重算（debPUT 自动链或 reindex）产出 `InRelease`（clearsign）+ `Release.gpg`（detached armor）。管理端点族见 [API 参考 · M11 增补速览](../api-reference.md#m11-增补速览t-328)：
+配 keypair 后每次重算（debPUT 自动链或 reindex）产出 `InRelease`（clearsign）+ `Release.gpg`（detached armor）。管理端点族见 [API Reference · Key pairs](../api-reference.md#key-pairs)：
 
 ```bash
 # 1) 生成 keypair 并关联（local debian 仓接受 keyPairName）
@@ -167,5 +167,5 @@ apt-get update && apt-get install -y <成员包>      # local/remote 成员混�
 ## 下一步
 
 - 三类仓型通用语义：[remote / virtual 仓库管理](../admin/remote-virtual.md)
-- keypair 管理端点族：[API 参考 · M11 增补](../api-reference.md#m11-增补速览t-328)
+- keypair 管理端点族：[API Reference · Key pairs](../api-reference.md#key-pairs)
 - 同族 OS 包型：[RPM（Yum/DNF）接入](rpm.md)

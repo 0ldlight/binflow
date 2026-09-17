@@ -81,6 +81,14 @@
 #   不挡翻绿，pending-rulings v2.7 R-25a/R-25b/R-25c 呈批 28→31 席）；④ summary 同步 compatible 83→88/
 #   absent 68→63/high 137→140/medium 63→60/contract_ref 26→31/last_difftest 39→44（置信三行 R07/R08/R12
 #   medium→high——双端活体终轮）。195 冻结行集不增删（本批零新行、零重分类）。
+# L027-2（LOOP 027，2026-09-17，D08 契约固化票）：① 新契约首文件 contracts/release-bundle.yaml（域首，7 条目
+#   全 IMPLEMENTED/high——assemble/transaction-errors/store/query-family/config-and-artifacts/v2-read-face/
+#   any-distribution-face；证据=l026a-wire 64 件单端锚〔p01-p63+p48b，A=pro 7.161.15〕+L026-6 实现单测钉，
+#   差分未跑不标 VERIFIED；wire 未覆盖分支〔store 三态/事务成功形/license 门臂等九项 U 清单〕不立断言，
+#   候裁面 C1-C8 文件头登记待 L027-1 差分输入）；② D08-R01..R06 六行落 contract_ref 指针（条目号锚
+#   contracts/release-bundle.yaml#<entry-id>——R05 双条目：config-and-artifacts + v2-read-face 伴随面；
+#   行 capability 未含 v2 面=勘误候选 M1 归 conductor）；③ summary 同步 contract_ref 31→37。行态
+#   六行 absent 不动（翻绿归 L027-1 差分+落账）；last_difftest 不动；195 冻结行集不增删（本批零新行）。
 
 ---
 schema: 1
@@ -222,7 +230,7 @@ summary:
     D14:
       rows: 1
       not_applicable: 1
-  contract_ref_non_null: 31  # L025-10 同步：前置 26（L024-7 收官后）+ 本批 D02-R06/R07/R08/R09/R12 五行 → 实计 31（逐行 ruby 对账通过）
+  contract_ref_non_null: 37  # L027-2 同步：前置 31（L025-10 收官后）+ 本批 D08-R01..R06 六行 → 实计 37（逐行 ruby 对账通过；指向 contracts/release-bundle.yaml 条目号锚）
   golden_ref_non_null: 1     # D12-R01（empty-blob-synthetic / pull-sequence）——storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 / L024-4 §5 提金候选（l023d-wire/a/、l024d-wire/a/）在册待采，本批零金样变更
   last_difftest_non_null: 44 # L025-10 同步：前置 39（L024 收官尾单）+ 本批 D02 五行 → 实计 44（逐行 ruby 对账通过）
 rows:
@@ -2268,72 +2276,91 @@ rows:
   capability: POST /api/release/bundle（AQL 装配清单）
   state: absent
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/release-bundle.yaml#release-bundle/assemble
+  golden_ref:
+  last_difftest:
   priority_class: P1
   layer: A
   source_row: "§9 行 1"
-  note: T-513/FR-153 最小面
+  note: >-
+    T-513/FR-153 最小面。L027-2 契约固化（2026-09-17）：条目 release-bundle/assemble（IMPLEMENTED——
+    l026a-wire p27-p37/p51/p56 单端锚 + L026-6 单测钉；差分未跑不标 VERIFIED，行态维持 absent 翻绿归
+    L027-1+落账）。
 - row_id: D08-R02
   domain: D08
   capability: 事务三段式（transaction/open、close ×2、async status）
   state: absent
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/release-bundle.yaml#release-bundle/transaction-errors
+  golden_ref:
+  last_difftest:
   priority_class: P1
   layer: A
   source_row: "§9 行 2"
-  note: M17 面外（v2 signing）
+  note: >-
+    M17 面外（v2 signing）。L027-2 契约固化（2026-09-17）：条目 release-bundle/transaction-errors
+    （IMPLEMENTED——错误臂 p38-p43/p54 wire 锚；成功形 201/字段集 UNKNOWN 不立断言〔spec §8.3〕；
+    差分未跑，行态维持 absent）。
 - row_id: D08-R03
   domain: D08
   capability: PUT /api/release/store（源 bundle 承接，202/200/409 三态）
   state: absent
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/release-bundle.yaml#release-bundle/store
+  golden_ref:
+  last_difftest:
   priority_class: P1
   layer: A
   source_row: "§9 行 3"
-  note: M17 面外（Distribution 推送对端）
+  note: >-
+    M17 面外（Distribution 推送对端）。L027-2 契约固化（2026-09-17）：条目 release-bundle/store
+    （IMPLEMENTED——七臂有序链 p11/p44-p49/p52/p58 wire 锚 + p48b 系统仓副作用；三态 202/200/409
+    需签名链未实证〔U1〕不立 wire 断言；差分未跑，行态维持 absent）。
 - row_id: D08-R04
   domain: D08
   capability: 查询族（GET /release/bundles[/{name}[/{version}[/status]]]、HEAD 校验和、DELETE 两行）
   state: absent
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/release-bundle.yaml#release-bundle/query-family
+  golden_ref:
+  last_difftest:
   priority_class: P1
   layer: A
   source_row: "§9 行 4"
+  note: >-
+    L027-2 契约固化（2026-09-17）：条目 release-bundle/query-family（IMPLEMENTED——空态/404 三消息族
+    p01-p12/p59 + 门 p50/p57 wire 锚；有记录成功形 UNKNOWN〔U9〕；差分未跑，行态维持 absent）。
 - row_id: D08-R05
   domain: D08
-  capability: GET/PUT /api/release/bundles/config + artifacts 清单 + fat_manifest
+  capability: GET/PUT /api/release/bundles/config + artifacts 清单 + fat_manifest + v2 伴随读面（/api/v2/release_bundle/*）
   state: absent
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/release-bundle.yaml#release-bundle/config-and-artifacts
+  golden_ref:
+  last_difftest:
   priority_class: P1
   layer: A
   source_row: "§9 行 5"
-  note: M17 面外（admin 深度面）
+  note: >-
+    M17 面外（admin 深度面）。L027-2 契约固化（2026-09-17）：条目 release-bundle/config-and-artifacts
+    （IMPLEMENTED——720 面 p06/artifacts p08/fat_manifest p47/admin 门 p53/p55 wire 锚；PUT 202 臂反编译
+    未实证不立逐字断言）+ v2 读面伴随条目 release-bundle/v2-read-face（IMPLEMENTED——p13-p26/p60；
+    行 capability 未含 v2 面=勘误候选 M1 归 conductor）；差分未跑，行态维持 absent。
 - row_id: D08-R06
   domain: D08
   capability: Any Distribution 权限桶（ANY DISTRIBUTION 预置）
   state: absent
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: contracts/release-bundle.yaml#release-bundle/any-distribution-face
+  golden_ref:
+  last_difftest:
   priority_class: P1
   layer: A/C
   source_row: "§9 行 6"
-  note: T-491/T-513（FR-156.2）
+  note: >-
+    T-491/T-513（FR-156.2）。L027-2 契约固化（2026-09-17）：条目 release-bundle/any-distribution-face
+    （IMPLEMENTED——非 REST 实体 p61/p62 + distribution rclass 拒建 p63 + 权限矩阵横切 p50-p58 wire 锚；
+    回退链内部语义非 REST 面不立断言；差分未跑，行态维持 absent）。
 - row_id: D08-R07
   domain: D08
   capability: Distribution 服务侧 v1/v2 族（≈60+ 操作）

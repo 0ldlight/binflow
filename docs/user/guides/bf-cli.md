@@ -66,7 +66,7 @@ bf repo create libs-generic --type local --package-type generic
 | `--package-type` | `generic` | `generic` / `docker` / `maven` / `npm` / `pypi` |
 | `--description` | 空 | 描述 |
 
-remote/virtual 的成员、上游地址等字段本命令不带——用 REST（`PUT /api/repositories/{key}`，见[API 参考](../api-reference.md)）配全。
+remote/virtual 的成员、上游地址等字段本命令不带——用 REST（`PUT /api/repositories/{key}`，见[API Reference](../api-reference.md)）配全。
 
 ### 2. artifact upload — 上传制品
 
@@ -144,6 +144,6 @@ curl -s $BF_BASE_URL/binflow/t-repo/v1/app.bin | shasum -a 256
 
 ## 下一步
 
-- REST 全量面：[API 参考](../api-reference.md)
+- REST 全量面：[API Reference](../api-reference.md)
 - 各协议客户端接入：[npm](../integrations/npm.md) / [Maven](../integrations/maven.md) / [PyPI](../integrations/pypi.md) / [Docker](../docker-registry.md)
 - Artifactory 整体搬迁：[迁移指南](migrate-artifactory.md)

@@ -5,7 +5,7 @@ sidebar_position: 60
 
 # 属性系统用法（矩阵参数与 `?properties`）
 
-> 适用版本：M10（属性系统随 M10 交付，**community 地板恒解锁**——无需 license；`addons.disabled` 含 `properties` 时除外，见 [License 与 Add-ons 管理](admin/license.md#addonsdisabled-熔断配置)）。REST 行见 [API 参考 · E 域](api-reference.md#e-通用制品域)；规格锚：`docs/design/architecture.md` §15.3。
+> 适用版本：M10（属性系统随 M10 交付，**community 地板恒解锁**——无需 license；`addons.disabled` 含 `properties` 时除外，见 [License 与 Add-ons 管理](admin/license.md#addonsdisabled-熔断配置)）。REST 行见 [API Reference · Artifacts and storage](api-reference.md#artifacts-and-storage)；规格锚：`docs/design/architecture.md` §15.3。
 
 给制品节点打键值标签的两个入口：
 
@@ -155,5 +155,5 @@ curl -s -H "Authorization: Bearer $REL_TOKEN" -X PUT \
 ## 下一步
 
 - 许可/槽位（properties 恒为 community 地板）：[License 与 Add-ons 管理](admin/license.md)
-- 端点契约：[API 参考](api-reference.md)
+- 端点契约：[API Reference](api-reference.md)
 - 审计查询：[治理指南](admin/governance.md)

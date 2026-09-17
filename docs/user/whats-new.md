@@ -37,7 +37,7 @@ curl -u admin:*** -X POST "$BASE/binflow/api/repositories/libs-release" \
 ```
 
 - upsert 形脚本改为两步：先 `GET` 探测（404 → `PUT` 建仓；200 → `POST` 更新）。
-- 动词语义表与逐字段合并细则见 [API 参考 · 仓库管理端点](api-reference.md)。
+- 动词语义表与逐字段合并细则见 [API Reference · 仓库管理端点](api-reference.md)。
 
 ## 协议语义对齐批次：客户端可见面
 
@@ -48,7 +48,7 @@ curl -u admin:*** -X POST "$BASE/binflow/api/repositories/libs-release" \
 - **npm**：dist-tags 族语义——`latest` **删不掉**（删除请求本身 200 空体，此后两读面读时重算为最高已发布版本）；集合面 PUT/POST 与单 tag POST 一律 405（npm CLI 只走单 tag 显式端点，不受影响）；dist-tags GET 带 60 秒缓存头（刚改完 tag 立查可能读到旧值，`--prefer-online` 或等 60 秒自愈）；重发同版本按 **tarball 路径占用**判定 403（版本不可变——packument 文档携带历史版本清单不触发，ghost 版本不入索引不劫持 `latest`）。见 [npm 接入](integrations/npm.md)。
 - **Conan**：v1 / v2 双协议面收口——幽灵 revision 的删除分叉、错误信封族、`q` 查询参数门。见 [Conan 接入](integrations/conan.md)。
 - **Docker / Go / Helm**：docker token 流与 `/v2` 根级面、Go Modules 的 sumdb 校验链、Helm chart 的 `index.yaml` 计算面与 digest 口径（`digest` = chart `.tgz` 的裸 sha256）对齐。
-- **存储管理面**：`?list` 清单族**七参数全量**（`deep` / `depth` / `listFolders` / `includeRootPath` + 元数据三参 `mdTimestamps` / `statsTimestamps` / `includePropertiesMd5`；参数出现但非整数值一律 400 `For input string: "<v>"`）；递归属性写**只对真实变更移动属性 mtime**（原值重写不再刷新时间戳）；**下载计数只计内容 GET**（`?stats` 等元数据读不计数）。见 [API 参考](api-reference.md) 与 [属性指南](properties.md)。
+- **存储管理面**：`?list` 清单族**七参数全量**（`deep` / `depth` / `listFolders` / `includeRootPath` + 元数据三参 `mdTimestamps` / `statsTimestamps` / `includePropertiesMd5`；参数出现但非整数值一律 400 `For input string: "<v>"`）；递归属性写**只对真实变更移动属性 mtime**（原值重写不再刷新时间戳）；**下载计数只计内容 GET**（`?stats` 等元数据读不计数）。见 [API Reference](api-reference.md) 与 [属性指南](properties.md)。
 
 ## 界面语言：中英双语可切换
 
@@ -132,6 +132,6 @@ curl -u admin:*** -X POST "$BASE/binflow/api/repositories/libs-release" \
 
 ## 下一步
 
-- 脚本迁移：[API 参考 · 仓库管理端点](api-reference.md)（PUT/POST 动词语义与合并细则）
+- 脚本迁移：[API Reference · 仓库管理端点](api-reference.md)（PUT/POST 动词语义与合并细则）
 - 新能力上手：[计划任务与定时备份](admin/cron-scheduling.md) · [远端浏览可选档](admin/remote-virtual.md#远端浏览可选档listremotefolderitems) · [界面语言](console.md#界面语言中英双语切换)
 - 从 Artifactory 迁移的逐任务对照：[操作路径对照表](artifactory-path-map.md)

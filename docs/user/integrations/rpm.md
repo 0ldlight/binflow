@@ -78,7 +78,7 @@ rpm -q binflow-e2e
 
 ## GPG 元数据签名（repomd 签名 + gpgcheck）
 
-为 repomd 配 keypair 后，reindex 产出两个固定名文件（keypair 生成/导入/关联的管理端点族见 [API 参考 · M11 增补速览](../api-reference.md#m11-增补速览t-328)）：
+为 repomd 配 keypair 后，reindex 产出两个固定名文件（keypair 生成/导入/关联的管理端点族见 [API Reference · Key pairs](../api-reference.md#key-pairs)）：
 
 ```bash
 # 1) 生成/导入 keypair 并关联到仓（local rpm 仓接受 keyPairName；virtual/remote 不接受）
@@ -164,5 +164,5 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/rpm-virt \
 ## 下一步
 
 - 三类仓型通用语义：[remote / virtual 仓库管理](../admin/remote-virtual.md)
-- keypair 管理端点族：[API 参考 · M11 增补](../api-reference.md#m11-增补速览t-328)
+- keypair 管理端点族：[API Reference · Key pairs](../api-reference.md#key-pairs)
 - 同族 OS 包型：[Debian（apt）接入](debian.md)

@@ -196,4 +196,4 @@ curl -u admin:password -X POST "$BASE/binflow/api/copy/src/a.bin?to=/dst/a.bin" 
 
 - 删除捕获与回收站（同一生命周期的下半程）：[Trash can 管理](trash-can.md)
 - 档位与门控语义：[License 与 Add-ons 管理](license.md)
-- 端点契约速览：[API 参考 · M12 增补速览](../api-reference.md#m12-增补速览t-347a)
+- 端点契约速览：[API Reference · Artifact operations](../api-reference.md#artifact-operations)
