@@ -836,6 +836,98 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case strings.HasPrefix(rest, "v2/repositories/") && strings.Contains(rest, "/keyPairs/") && r.Method == http.MethodDelete:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite}, s.routeKeypairDisassociate(rest))
 
+	// ---- /api/v2/release_bundle/* + /api/v2/audit (L026-6, D08-R05's v2
+	// companion face; release-bundle.md §10.1/§10.6, wire p13-p26/p60) ----
+	// The v2 Release Lifecycle read plane (underscore-singular prefix): an
+	// empty-state/error face on a source-only instance — every probed arm
+	// is its frozen envelope or 404/400 family, the populated shapes stay
+	// unimplemented. Route doors demand authentication only (read faces,
+	// D1); the family catch-all answers "Not Found" the way the reference's
+	// unmatched v2 subpaths do (p13). The audit family registers POST-only
+	// (p22: every other verb is the 405).
+	case rest == "v2/release_bundle/names" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true}, s.handleV2BundleNames)
+	case rest == "v2/release_bundle/received" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true}, s.handleV2BundleReceived)
+	case strings.HasPrefix(rest, "v2/release_bundle/received/"):
+		tail := strings.TrimPrefix(rest, "v2/release_bundle/received/")
+		segs, routed, err := splitV2Tail(tail)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "release bundle path segment could not be decoded: "+err.Error())
+			return
+		}
+		if routed {
+			switch {
+			case len(segs) == 1 && r.Method == http.MethodGet:
+				s.enforce(w, r, routeAuth{required: true}, s.handleV2BundleReceivedVersions)
+			case len(segs) == 2 && r.Method == http.MethodGet:
+				// p20/p23: 恒 400 — the face has no GET route on the
+				// reference either; the validator copy does not echo the
+				// name, so the segments never reach the handler.
+				s.enforce(w, r, routeAuth{required: true}, s.handleV2BundleReceivedGet)
+			case len(segs) == 2 && r.Method == http.MethodDelete:
+				name, version := segs[0], segs[1]
+				s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+					s.handleV2BundleReceivedDelete(w, r, name, version)
+				})
+			default:
+				writeError(w, http.StatusNotFound, msgV2NotFound)
+			}
+			return
+		}
+		writeError(w, http.StatusNotFound, msgV2NotFound)
+	case rest == "v2/release_bundle/records":
+		// p13: the bare records path has no route — the family 404.
+		writeError(w, http.StatusNotFound, msgV2NotFound)
+	case strings.HasPrefix(rest, "v2/release_bundle/records/"):
+		tail := strings.TrimPrefix(rest, "v2/release_bundle/records/")
+		segs, routed, err := splitV2Tail(tail)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "release bundle path segment could not be decoded: "+err.Error())
+			return
+		}
+		if routed {
+			switch {
+			case len(segs) == 1 && r.Method == http.MethodGet:
+				s.enforce(w, r, routeAuth{required: true}, s.handleV2BundleRecordsList)
+			case len(segs) == 2 && r.Method == http.MethodGet:
+				name, version := segs[0], segs[1]
+				s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+					s.handleV2BundleRecordsGet(w, r, name, version)
+				})
+			default:
+				writeError(w, http.StatusNotFound, msgV2NotFound)
+			}
+			return
+		}
+		writeError(w, http.StatusNotFound, msgV2NotFound)
+	case strings.HasPrefix(rest, "v2/release_bundle/statuses/"):
+		tail := strings.TrimPrefix(rest, "v2/release_bundle/statuses/")
+		segs, routed, err := splitV2Tail(tail)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "release bundle path segment could not be decoded: "+err.Error())
+			return
+		}
+		if routed && len(segs) == 2 && r.Method == http.MethodGet {
+			name, version := segs[0], segs[1]
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleV2BundleStatus(w, r, name, version)
+			})
+			return
+		}
+		writeError(w, http.StatusNotFound, msgV2NotFound)
+	case rest == "v2/audit" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleV2AuditPost)
+	case rest == "v2/audit" && r.Method != http.MethodPost:
+		// p22: the audit family registers POST-only — every other verb is
+		// the 405 (a routing fact, not a resource behavior: no auth door,
+		// no feature gate).
+		handleV2AuditMethodNotAllowed(w, r)
+	case strings.HasPrefix(rest, "v2/release_bundle/"):
+		// The family catch-all (p13's shape): an unrouted subpath answers
+		// the v2 plane's own "Not Found", not the E-26 copy.
+		writeError(w, http.StatusNotFound, msgV2NotFound)
+
 	// ---- /api/v1/auth/methods (T-179; anonymous capability discovery) ----
 	// The login page's entry-point map: which of password/oidc/ldap this
 	// instance offers. Anonymous by design (see auth_methods.go); every
@@ -928,21 +1020,23 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true}, s.handleRepoExistence)
 
 	// ---- /api/repositories (E-04..E-08) ----
-	// The list sits on repo:read (family 5, D2/C22b): readonly_admin sees
-	// the full inventory; a plain user must not (M1 has no per-repository
-	// read-ACL data plane to filter the listing by caller — the permission
-	// model is path-keyed; a filtered listing is M8+, §11.30). The
-	// single-repo family walks CanManageRepo (family 7); repo creation and
-	// deletion stay on the global repo:write gate (family 6) — the create
-	// arm of PUT splits inside the handler, which knows whether the key
-	// exists.
+	// L026-7 (the L026-5 spec ruling, rest/m-holder-repo-read-faces): the
+	// READ faces decouple from the permission model — any authenticated
+	// caller reaches the list (full, byte-identical to admin) and the
+	// single-repo detail (the non-admin partial projection, handler-side);
+	// the reference serves manage holders and zero-permission users the
+	// same shapes (wire a-holder-*/a-noperm-*). The WRITE verbs keep the
+	// family-6/7 posture verbatim: the single-repo family walks
+	// CanManageRepo (family 7); repo creation and deletion stay on the
+	// global repo:write gate (family 6) — the create arm of PUT splits
+	// inside the handler, which knows whether the key exists.
 	case rest == "repositories" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true, manage: auth.CapRepoRead}, s.handleRepoList)
+		s.enforce(w, r, routeAuth{required: true}, s.handleRepoList)
 	case strings.HasPrefix(rest, "repositories/"):
 		key, tail := splitAPIName(rest, "repositories/")
 		switch {
 		case tail == "" && r.Method == http.MethodGet:
-			s.enforce(w, r, routeAuth{required: true, repoManage: &repoManageGate{repo: key}},
+			s.enforce(w, r, routeAuth{required: true},
 				func(w http.ResponseWriter, r *http.Request) {
 					s.handleRepoGet(w, r, key)
 				})
@@ -1420,31 +1514,57 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			s.handleBuildGet(w, r, name, number)
 		})
 
-	// ---- /api/release/* (M17 T-513, FR-153.1 / ADR-0046 decision 2 +
-	// Errata ① E5, wire frozen by release-bundle.md §1) ----
-	// The release-bundle minimal face: the create POST /api/release/bundle
-	// (the AQL-assembly body degraded to the explicit-manifest subset,
-	// soft-seam ⑥) and the source-side query family — names, versions,
-	// the descriptor with its HEAD checksum probe and the status string.
-	// Route doors: create rides CapSystemWrite (decision 3's write gate),
-	// the read faces demand authentication only — their real decision is
-	// the path-dependent dual gate (CapSystemRead ∨ the Any Distribution
-	// channel over the bundle name), which the handlers own (the
-	// permissions family-4 precedent). The create's FEATURE gate is the
-	// handler's first line (RequireAddon — D4; reads never consult it,
-	// D1). UNROUTED on purpose: the transaction/store/config/fat_manifest
-	// families (v2 signing and the Distribution plane — exit ②) and DELETE
-	// (no minimal-face delete verb) — the E-26 404 answers each.
+	// ---- /api/release/* (L026-6, D08 release-bundle matrix rows R01-R06;
+	// wire frozen by release-bundle.md §1/§10) ----
+	// The v1 source-side family, now the full 18-endpoint face's reachable
+	// subset: the AQL assembly probe (R01), the v2-signing transaction
+	// ERROR face (R02 — no signing chain exists, every arm honestly
+	// refuses), the Distribution store arm chain with its OPTIONS
+	// preflight (R03), the query family with its three 404 message
+	// families and type projection (R04), the config/fat_manifest
+	// management face (R05). Route doors demand authentication only — the
+	// admin faces render the family's own BARE "Forbidden" envelope inside
+	// their handlers (§10.7 p52-p55: the platform manage-gate wording
+	// would be wrong), the read faces' real decision is the dual gate the
+	// handlers own, and the assembly face reaches its validation arm for
+	// every non-anonymous caller (p51). The v2 read plane rides the
+	// /api/v2 cases below.
 	case rest == "release/bundle" && r.Method == http.MethodPost:
-		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleBundleCreate)
-	case rest == "release/bundles/config":
-		// The official bundles-config face (GET/PUT incompleteCleanupPeriodHours)
-		// is face-out: the literal stays RESERVED so a client hitting the
-		// official path meets the honest E-26 404, not a "bundle named
-		// config" 404 that names the wrong missing thing (a bundle may
-		// legally be named "config"; its versions face is unreachable
-		// through this reserved URI — the official endpoint owns the path).
-		notImplemented(w, "/binflow/api/"+rest)
+		s.enforce(w, r, routeAuth{required: true}, s.handleBundleAssemble)
+	case rest == "release/bundle/transaction" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleBundleTransaction)
+	case rest == "release/bundle/transaction/open" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleBundleTransactionOpen)
+	case strings.HasPrefix(rest, "release/bundle/transaction/async/close/status/") && r.Method == http.MethodGet:
+		tail := strings.TrimPrefix(rest, "release/bundle/transaction/async/close/status/")
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleBundleTransactionCloseStatus(w, r, tail)
+		})
+	case strings.HasPrefix(rest, "release/bundle/transaction/async/close/") && r.Method == http.MethodPost:
+		tail := strings.TrimPrefix(rest, "release/bundle/transaction/async/close/")
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleBundleTransactionClose(w, r, tail)
+		})
+	case strings.HasPrefix(rest, "release/bundle/transaction/close/") && r.Method == http.MethodPost:
+		tail := strings.TrimPrefix(rest, "release/bundle/transaction/close/")
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleBundleTransactionClose(w, r, tail)
+		})
+	case rest == "release/store" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true}, s.handleBundleStore)
+	case rest == "release/store" && r.Method == http.MethodOptions:
+		// p11: the CORS preflight is unauthenticated by preflight
+		// semantics — browsers never attach credentials to it.
+		s.handleBundleStoreOptions(w, r)
+	case strings.HasPrefix(rest, "release/fat_manifest_content/") && r.Method == http.MethodGet:
+		path := strings.TrimPrefix(rest, "release/fat_manifest_content/")
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleBundleFatManifest(w, r, path)
+		})
+	case rest == "release/bundles/config" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true}, s.handleBundleConfigGet)
+	case rest == "release/bundles/config" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true}, s.handleBundleConfigPut)
 	case rest == "release/bundles" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true}, s.handleBundleList)
 	case strings.HasPrefix(rest, "release/bundles/"):
@@ -1473,10 +1593,25 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
 				s.handleBundleHead(w, r, name, version)
 			})
-		case len(segs) == 3 && r.Method == http.MethodGet:
+		case len(segs) == 2 && r.Method == http.MethodDelete:
+			name, version := segs[0], segs[1]
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleBundleDeleteTarget(w, r, name, version)
+			})
+		case len(segs) == 3 && segs[0] == "source" && r.Method == http.MethodDelete:
+			name, version := segs[1], segs[2]
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleBundleDeleteSource(w, r, name, version)
+			})
+		case len(segs) == 3 && segs[2] == "status" && r.Method == http.MethodGet:
 			name, version := segs[0], segs[1]
 			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
 				s.handleBundleStatus(w, r, name, version)
+			})
+		case len(segs) == 3 && segs[2] == "artifacts" && r.Method == http.MethodGet:
+			name, version := segs[0], segs[1]
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleBundleArtifacts(w, r, name, version)
 			})
 		default:
 			notImplemented(w, "/binflow/api/"+rest)

@@ -498,6 +498,11 @@ func writePlainError(w http.ResponseWriter, status int, message string) {
 // caller can see (M1: all of them — the read filter needs per-repo ACL data
 // M1 does not carry; the route itself already requires authentication),
 // ordered type-then-key, Cache-Control: no-store (rest-api.md section 2).
+// L026-7 (the L026-5 spec ruling, rest/m-holder-repo-read-faces): the
+// entries are byte-identical for EVERY authenticated caller — the
+// reference answers the full inventory to manage holders and
+// zero-permission users alike (wire a-holder-v1-repositories-list /
+// a-noperm-v1-repositories-list), so the route gate is authentication-only.
 // M3 (M04, FR-15-AC5) turns the ?type= and ?packageType= filters on: exact
 // column matches through ListReposFiltered, invalid values matching nothing
 // with an empty array rather than an error (rest-api.md section 2).
@@ -529,6 +534,12 @@ func (s *Server) handleRepoList(w http.ResponseWriter, r *http.Request) {
 	}
 	items := make([]repoListItem, 0, len(repos))
 	for _, row := range repos {
+		// L026-6 (D08-R03, wire p48b): the release-bundles system repository
+		// answers its single GET but never joins the LIST — the reference's
+		// list-hidden rule for the auto-provisioned system row.
+		if bundleRepoIsHidden(row) {
+			continue
+		}
 		items = append(items, s.repoListItemOf(r, row))
 	}
 	sort.SliceStable(items, func(i, j int) bool {
@@ -618,12 +629,13 @@ func contextURL(r *http.Request) string {
 // body — L025-6's measured per-class key face (local 61 / remote 102 /
 // virtual 50, no top-level url on local, no "configuration" echo; the
 // stored blob's fields ride the top level, the rest render the reference's
-// measured defaults, repo_config_render.go). Non-admin callers that pass
-// the route's manage gate get the partial projection instead (the rclass
-// dialect of the v2 non-admin view, L025-6 probe); the plain-user arm
-// stays behind the route gate (architecture family 7 — the reference
-// itself serves every authenticated user, registered for ruling). The
-// unknown-key answer is the reference's own quirk (L025-5 / diff G5,
+// measured defaults, repo_config_render.go). Every OTHER authenticated
+// caller gets the partial projection instead (the rclass dialect of the
+// v2 non-admin view, L025-6 probe) — L026-7 (the L026-5 spec ruling,
+// rest/m-holder-repo-read-faces): the reference serves every authenticated
+// user the same four-key projection regardless of permission coverage
+// (wire a-holder-*/a-noperm-*), so the route gate is authentication-only.
+// The unknown-key answer is the reference's own quirk (L025-5 / diff G5,
 // live): a 400 errors envelope carrying the BARE "Bad Request" — not a
 // 404, and not the plane's usual miss wording (the v2 read face keeps its
 // own 404 envelope, live-verified green).
@@ -686,6 +698,17 @@ func (s *Server) handleRepoPut(w http.ResponseWriter, r *http.Request, key strin
 	if body.Key != "" && body.Key != key {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf(
 			"repository key in body %q does not match the request path %q", body.Key, key))
+		return
+	}
+	// L026-6 (D08-R06, release-bundle.md §10.7 / wire p63): distribution is
+	// a real RepoType enum value that the reference's REST create face
+	// deliberately does NOT accept — the verbatim 400 (Any Distribution's
+	// rclass exists for the授权回退链, never for REST provisioning). The
+	// check rides ahead of the key-exists question; every other unknown
+	// rclass keeps the repo layer's own family wording.
+	if body.RClass == "distribution" {
+		writeError(w, http.StatusBadRequest,
+			"Unsupported repository type 'distribution' or media type 'application/json'")
 		return
 	}
 
