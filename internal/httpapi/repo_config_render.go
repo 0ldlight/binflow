@@ -11,6 +11,12 @@ package httpapi
 //	non-admin partial     {key,packageType,description} + rclass/type,
 //	                      plus url (remote) / repositories (virtual)
 //
+// The counts above are the GENERIC family's; a debian LOCAL row adds the
+// package-type-conditional seats (L026-5/L027-3 wire): v1 62 (+
+// optionalIndexCompressionFormats []), v2/configurations 21 (+
+// ddebSupported, debianTrivialLayout, optionalIndexCompressionFormats),
+// and enableDebianSupport defaults true (seatDefault).
+//
 // Every seat carries the reference's MEASURED default for repositories
 // whose stored config lacks the field (BinFlow's caller-owned local blob
 // keeps only what a PUT carried). Unmodeled keys (xrayIndex,
@@ -30,6 +36,41 @@ import (
 type cfgSeat struct {
 	key string
 	def any
+}
+
+// The debian local package-type-conditional seats (L026-5 wire + the
+// L027-3 live re-probe, pro 7.161.15, assets l026r-optdeb-* / l027x-*):
+// a debian LOCAL row alone adds these on top of the shared per-face
+// sets — v1 61→62 keys (+optionalIndexCompressionFormats, default [] --
+// an empty JSON array, never null), v2 and configurations 18→21 keys
+// (+ddebSupported, +debianTrivialLayout, +optionalIndexCompression
+// Formats). Generic (and every other package type) keeps the shared
+// measured faces untouched; remote/virtual debian rows are UNMEASURED
+// and deliberately ride the shared sets (no guessed keys).
+var debV1LocalSeats = []cfgSeat{
+	{"optionalIndexCompressionFormats", []any{}},
+}
+
+var debV2LocalSeats = []cfgSeat{
+	{"ddebSupported", false},
+	{"debianTrivialLayout", false},
+	{"optionalIndexCompressionFormats", []any{}},
+}
+
+// seatDefault resolves one seat's default for a row: every seat keeps
+// its measured class default except the one value-level package-type
+// divergence the wire pins — enableDebianSupport defaults TRUE on
+// debian local rows (61-key generic face: false; 62-key deb face: true;
+// the key is a v1-family seat only, so the override cannot reach the
+// narrower v2/configurations faces, which carry no such seat). A stored
+// blob value still wins (the renderer's blob-first rule); the reference
+// ignoring an explicit update-to-false is a write-plane behavior left
+// to its own ruling (L027-3 report).
+func seatDefault(row *metadata.Repo, s cfgSeat) any {
+	if row.Type == repo.TypeLocal && row.PackageType == "debian" && s.key == "enableDebianSupport" {
+		return true
+	}
+	return s.def
 }
 
 var v1LocalSeats = []cfgSeat{
@@ -340,7 +381,7 @@ func renderConfigSeats(row *metadata.Repo, blob map[string]any, seats []cfgSeat,
 			if v, ok := blob[s.key]; ok && v != nil {
 				m[s.key] = v
 			} else {
-				m[s.key] = s.def
+				m[s.key] = seatDefault(row, s)
 			}
 		}
 	}
@@ -364,12 +405,13 @@ func renderConfigSeats(row *metadata.Repo, blob map[string]any, seats []cfgSeat,
 // enforce pair, the conan auth switch, quotaBytes -- round-trip PUT→GET
 // without polluting the measured wire key sets: the echo fires only when
 // the caller actually set the key, so reference-probe repos (whose bodies
-// carry modeled keys only) keep the exact measured faces. The wire-key
-// members of these families stay OUT of the seat tables deliberately --
-// a seat would render a default on every repository of the class, which
-// the reference only does per package type (optionalIndexCompression
-// Formats defaults on debian rows alone); the package-type-conditional
-// seat needs an A-side probe to pin and is registered for ruling.
+// carry modeled keys only) keep the exact measured faces. The one wire
+// member of these families that the reference renders on EVERY debian
+// row — optionalIndexCompressionFormats (default []) — is pinned and
+// landed as the debian local conditional seats (debV1LocalSeats /
+// debV2LocalSeats, L026-5/L027-3); the rest (byHash, origin, label,
+// historyCycles, debianDefaultArchitectures ...) stay echo-only: the
+// reference renders no default for them, and neither does BinFlow.
 //
 // Excluded: keys already rendered (seat seats, row columns, the dialect
 // key), the deny set below, and nil values (absent, mirroring the seat
@@ -411,8 +453,11 @@ var blobEchoDenyKeys = map[string]bool{
 // configurations face shares the v2 set (same serializer family, the
 // spec's // 2.1.1/2.1.3 note); federated/release_bundle rows cannot
 // exist in BinFlow (CreateRepo refuses the rclass), so they fall to the
-// local list and stay unreachable.
-func configFaceSeats(face, rclass string) []cfgSeat {
+// local list and stay unreachable. A debian LOCAL row appends the
+// package-type-conditional seats (L026-5/L027-3 wire): v1 gains
+// optionalIndexCompressionFormats alone, v2/configurations gain the
+// ddeb pair with it.
+func configFaceSeats(face, rclass, packageType string) []cfgSeat {
 	// withEnvironments copies (never appends in place: the backing arrays
 	// of the package-level lists are shared across requests).
 	withEnvironments := func(seats []cfgSeat, extra ...cfgSeat) []cfgSeat {
@@ -427,12 +472,19 @@ func configFaceSeats(face, rclass string) []cfgSeat {
 		}
 		return withEnvironments(v2, extra...)
 	}
+	debLocal := rclass == repo.TypeLocal && packageType == "debian"
 	switch rclass {
 	case repo.TypeRemote:
 		return seats(v1RemoteSeats, v2RemoteSeats, remoteOnlySeats...)
 	case repo.TypeVirtual:
 		return seats(v1VirtualSeats, v2VirtualSeats)
 	default:
+		if debLocal {
+			if face == "v1" {
+				return withEnvironments(v1LocalSeats, debV1LocalSeats...)
+			}
+			return withEnvironments(v2LocalSeats, debV2LocalSeats...)
+		}
 		return seats(v1LocalSeats, v2LocalSeats)
 	}
 }

@@ -16,10 +16,12 @@ package deb
 //     four index contexts), parsing each body's control paragraph;
 //  2. render: per (component, architecture) the Packages body (plus the
 //     compression set: plain + .gz always, the optional formats default
-//     ["bz2"]), per component the Sources body when source packages
-//     exist; the forced architecture families (TL-4: i386,amd64 by
-//     default) generate EMPTY Packages too — the empty-index guarantee
-//     the board's final ruling pins;
+//     empty — the L026-5 runtime ruling: a fresh repository's
+//     optionalIndexCompressionFormats reads [], not the decompile-era
+//     ["bz2"]; see the field comment), per component the Sources body
+//     when source packages exist; the forced architecture families (TL-4:
+//     i386,amd64 by default) generate EMPTY Packages too — the
+//     empty-index guarantee the board's final ruling pins;
 //  3. write by-hash mirrors first, then the canonical files, then the
 //     Release (section 5's ordering: an apt mid-update reads either the
 //     old canonical name or the new by-hash address, never a torn one);
@@ -78,15 +80,20 @@ type RepoConfig struct {
 	// divergence register carries the note.
 	ByHash string `json:"byHash"`
 	// OptionalIndexCompressionFormats are the optional compression
-	// spellings beyond the mandatory plain + .gz (section 2.1: default
-	// ["bz2"]). T-314 restored the renderable subset: xz and lzma write
-	// through the ulikunitz/xz dependency already on the deb parse path.
+	// spellings beyond the mandatory plain + .gz (section 2.1). The
+	// DEFAULT is [] — the L026-5 runtime ruling (a fresh debian local
+	// repository's config face renders [], pro 7.161.15 live), replacing
+	// the decompile-only ["bz2"] claim (debian.md // 2.1 errata). T-314
+	// restored the renderable subset: xz and lzma write through the
+	// ulikunitz/xz dependency already on the deb parse path.
 	// DIVERGENCE (carried from T-310, still registered): bz2 has no writer
 	// in the dependency set and the network-isolated build cannot add one
 	// (dsnet/compress absent from the module cache) — a configured "bz2"
-	// degrades away with one WARN, and the default set (["bz2"]) therefore
-	// still renders plain + .gz only. apt needs any ONE index form (the
-	// format marks every compression optional).
+	// degrades away with one WARN, so the engine renders plain + .gz only
+	// for a default ([]) repository. Whether the reference's index engine
+	// emits Packages.bz2 for a default-config repository is unmeasured
+	// (the ruling covers the config face). apt needs any ONE index form
+	// (the format marks every compression optional).
 	OptionalIndexCompressionFormats []string `json:"optionalIndexCompressionFormats"`
 	// DefaultArchitectures is TL-4's forced architecture family set:
 	// these families' Packages files generate for every component even
@@ -129,8 +136,8 @@ func parseRepoConfig(config string) RepoConfig {
 // T-314); "bz2" still carries no writer in this dependency set and is
 // dropped here (the registered divergence, see the field comment) — a
 // name that parses but cannot render would produce broken companion
-// files, so the default ["bz2"] degrades to the mandatory plain + .gz
-// pair every apt accepts.
+// files, so the default [] (the L026-5 ruling) and any bz2-configured
+// set alike degrade to the mandatory plain + .gz pair every apt accepts.
 func (c RepoConfig) normalized() RepoConfig {
 	switch c.ByHash {
 	case byHashAll, byHashSHA256:

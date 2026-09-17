@@ -655,7 +655,7 @@ func (s *Server) handleRepoGet(w http.ResponseWriter, r *http.Request, key strin
 		writeJSONBody(w, http.StatusOK, partialConfigMap(row, blob, "rclass"))
 		return
 	}
-	writeJSONBody(w, http.StatusOK, renderConfigSeats(row, blob, configFaceSeats("v1", row.Type), "rclass"))
+	writeJSONBody(w, http.StatusOK, renderConfigSeats(row, blob, configFaceSeats("v1", row.Type, row.PackageType), "rclass"))
 }
 
 // canManage asks one management-plane capability of the injected authorizer
