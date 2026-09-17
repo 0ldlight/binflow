@@ -311,13 +311,10 @@ func TestClientAgainstRealServerStack(t *testing.T) {
 	}
 
 	ci := newTokenClient(ts, ciTok.Token)
-	if _, err := ci.ListRepos(ctx); err == nil {
-		t.Fatal("non-admin ListRepos must be denied")
-	} else {
-		var se *client.StatusError
-		if !errors.As(err, &se) || se.StatusCode != http.StatusForbidden {
-			t.Errorf("non-admin ListRepos error = %v, want 403 StatusError", err)
-		}
+	// m-holder ruling (L026-7): the repo list read face is open to every
+	// authenticated user, byte-identical to the admin response.
+	if _, err := ci.ListRepos(ctx); err != nil {
+		t.Fatalf("non-admin ListRepos: %v", err)
 	}
 
 	// T-190 model: a non-admin may mint for ITSELF with a finite TTL.
