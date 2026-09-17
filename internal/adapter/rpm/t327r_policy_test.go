@@ -41,19 +41,21 @@ func (s *stack) restPostRepo(t *testing.T, key, body string) (int, string) {
 }
 
 // restGetRepoConfig fetches the stored configuration map ({} when empty).
+// L026-3: the detail face is the measured FLAT key body (L025-6 dropped
+// the "configuration" wrapper the reference never had) -- the whole
+// response IS the config map, with the BinFlow-native policy keys riding
+// the top level through the unmodeled-key blob echo.
 func (s *stack) restGetRepoConfig(t *testing.T, key string) map[string]any {
 	t.Helper()
 	status, body, _ := s.do(http.MethodGet, "/binflow/api/repositories/"+key, adminUser, adminPass, nil, nil)
 	if status != http.StatusOK {
 		t.Fatalf("GET repository %s = %d (body %s)", key, status, body)
 	}
-	var doc struct {
-		Configuration map[string]any `json:"configuration"`
-	}
+	var doc map[string]any
 	if err := json.Unmarshal([]byte(body), &doc); err != nil {
 		t.Fatalf("GET repository %s body does not parse: %v\n%s", key, err, body)
 	}
-	return doc.Configuration
+	return doc
 }
 
 // TestRestPolicyKeysDriveReindexBranches: one REST-carried configuration

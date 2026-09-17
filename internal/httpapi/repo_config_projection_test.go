@@ -571,3 +571,84 @@ func TestRepoConfigFaceValueShapes(t *testing.T) {
 		t.Errorf("stages alias = %v, want environments [BOX]", v1("pstg")["environments"])
 	}
 }
+
+// TestRepoConfigUnmodeledKeyEcho (L026-3): stored keys the seat tables do
+// not claim ride the admin configuration faces verbatim — the BinFlow-native
+// policy family (the deb/rpm index-engine keys, quotaBytes) round-trips
+// PUT→GET on the top level of the measured flat body, while the measured
+// key-NAME sets stay exact for repositories that never carried them (the
+// echo fires only on a stored key; the deb keys ride a generic repository
+// because the transport stores the family package-type-agnostically). The
+// stages alias never leaks under its own spelling and the non-admin
+// partial projection stays narrow.
+func TestRepoConfigUnmodeledKeyEcho(t *testing.T) {
+	h := newHarness(t)
+	seedConfigFamilyRepo(t, h, "pecho", `{"rclass":"local","packageType":"generic",`+
+		`"byHash":"SHA256","origin":"o","label":"l","historyCycles":5,`+
+		`"optionalIndexCompressionFormats":["xz"],"debianDefaultArchitectures":"amd64,s390x",`+
+		`"yumGroupFileNames":"comps.xml","quotaBytes":123}`)
+
+	getMap := func(path string) map[string]any {
+		resp := h.do(http.MethodGet, path, adminUser, adminPass, nil, nil)
+		body := mustGet(t, resp)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s: status %d body=%s", path, resp.StatusCode, body)
+		}
+		return decodeJSONMap(t, body)
+	}
+	echoExtras := "byHash origin label historyCycles optionalIndexCompressionFormats " +
+		"debianDefaultArchitectures yumGroupFileNames quotaBytes"
+
+	v1 := getMap("/binflow/api/repositories/pecho")
+	for k, want := range map[string]any{
+		"byHash":                     "SHA256",
+		"origin":                     "o",
+		"label":                      "l",
+		"historyCycles":              float64(5),
+		"debianDefaultArchitectures": "amd64,s390x",
+		"yumGroupFileNames":          "comps.xml",
+		"quotaBytes":                 float64(123),
+	} {
+		if v1[k] != want {
+			t.Errorf("v1[%s] = %v, want %v", k, v1[k], want)
+		}
+	}
+	if fmt.Sprint(v1["optionalIndexCompressionFormats"]) != "[xz]" {
+		t.Errorf("v1[optionalIndexCompressionFormats] = %v, want [xz]", v1["optionalIndexCompressionFormats"])
+	}
+	// The echo adds EXACTLY the stored extras — the measured 61-key face
+	// plus the nine keys above, nothing else.
+	assertKeySetExact(t, "v1 echo face", v1, wantLocalFull+" rclass "+echoExtras)
+
+	// The shared renderer carries the echo onto the v2 and configurations
+	// faces (the same stored blob), each still its measured set + extras.
+	v2 := getMap("/binflow/api/v2/repositories/pecho")
+	if v2["byHash"] != "SHA256" {
+		t.Errorf("v2[byHash] = %v, want SHA256 (shared renderer)", v2["byHash"])
+	}
+	assertKeySetExact(t, "v2 echo face", v2, wantLocalCommon+" type "+echoExtras)
+	cfg := getMap("/binflow/api/repositories/configurations")
+	for _, e := range cfg["LOCAL"].([]any) {
+		row := e.(map[string]any)
+		if row["key"] == "pecho" {
+			assertKeySetExact(t, "configurations echo face", row, wantLocalCommon+" rclass "+echoExtras)
+		}
+	}
+
+	// The stages alias stays a storage spelling: its value rides the
+	// environments seat, never a top-level stages key.
+	seedConfigFamilyRepo(t, h, "pstg2", `{"rclass":"local","packageType":"generic","stages":["BOX"]}`)
+	if _, has := getMap("/binflow/api/repositories/pstg2")["stages"]; has {
+		t.Error("stages alias leaked onto the face under its own spelling")
+	}
+
+	// The non-admin partial projection stays the measured four keys — the
+	// echo widens no unauthenticated information face.
+	h2 := newHarnessCfg(t, nil, [][2]string{{"u2", "p2"}})
+	seedConfigFamilyRepo(t, h2, "pecho", `{"rclass":"local","packageType":"generic","byHash":"SHA256"}`)
+	resp := h2.do(http.MethodGet, "/binflow/api/v2/repositories/pecho", "u2", "p2", nil, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("non-admin v2 GET = %d", resp.StatusCode)
+	}
+	assertKeySetExact(t, "non-admin face", decodeJSONMap(t, mustGet(t, resp)), "description key packageType type")
+}

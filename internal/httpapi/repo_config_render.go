@@ -352,7 +352,59 @@ func renderConfigSeats(row *metadata.Repo, blob map[string]any, seats []cfgSeat,
 			m["repoLayoutRef"] = v
 		}
 	}
+	appendUnmodeledBlobKeys(m, blob)
 	return m
+}
+
+// appendUnmodeledBlobKeys is the unmodeled-key blob echo (L026-3): stored
+// keys the seat tables never claim ride the configuration faces verbatim.
+// BinFlow-native configuration keys -- the deb/rpm index-engine policy
+// family (byHash, origin, label, historyCycles, optionalIndexCompression
+// Formats, debianDefaultArchitectures, yumGroupFileNames ...), the helm
+// enforce pair, the conan auth switch, quotaBytes -- round-trip PUT→GET
+// without polluting the measured wire key sets: the echo fires only when
+// the caller actually set the key, so reference-probe repos (whose bodies
+// carry modeled keys only) keep the exact measured faces. The wire-key
+// members of these families stay OUT of the seat tables deliberately --
+// a seat would render a default on every repository of the class, which
+// the reference only does per package type (optionalIndexCompression
+// Formats defaults on debian rows alone); the package-type-conditional
+// seat needs an A-side probe to pin and is registered for ruling.
+//
+// Excluded: keys already rendered (seat seats, row columns, the dialect
+// key), the deny set below, and nil values (absent, mirroring the seat
+// rule).
+//
+// blobEchoDenyKeys never ride the echo: the stages alias (its value rides
+// the environments seat), password (NFR-S14 -- a credential never crosses
+// the read plane, even stored), and the BinFlow remote storage-form keys
+// repo.Service synthesizes into EVERY remote blob (allowPrivateUpstream,
+// socketTimeoutSecs, metadataRetrievalCachePeriodSecs, enableToken
+// Authentication, maxUniqueSnapshots) -- the faces carry their reference
+// spellings as v1-remote seats, but the measured v2/configurations remote
+// sets (46 keys) do not, and echoing the synthesized forms beside them
+// added keys to those faces (L025-8's four-layer key-face zero-diff must
+// hold); their absence from the narrower faces stays the registered
+// L025-6 drift (the FE reads them on the list face).
+func appendUnmodeledBlobKeys(m, blob map[string]any) {
+	for k, v := range blob {
+		if v == nil || blobEchoDenyKeys[k] {
+			continue
+		}
+		if _, rendered := m[k]; !rendered {
+			m[k] = v
+		}
+	}
+}
+
+var blobEchoDenyKeys = map[string]bool{
+	"stages":                           true,
+	"password":                         true,
+	"allowPrivateUpstream":             true,
+	"socketTimeoutSecs":                true,
+	"metadataRetrievalCachePeriodSecs": true,
+	"enableTokenAuthentication":        true,
+	"maxUniqueSnapshots":               true,
 }
 
 // configFaceSeats picks the seat list for one face and rclass. The
