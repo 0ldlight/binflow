@@ -100,8 +100,24 @@ docs-size:
 ## passes the same value explicitly.
 TEST_TIMEOUT ?= 20m
 
+# L026-4: packages whose tests assert WALL-CLOCK budgets get their own
+# sequential go test invocation, run FIRST, so the budget is never measured
+# while sibling packages compete for the same vCPUs (go test runs packages
+# concurrently; -p defaults to NumCPU). On the 2-vCPU shared CI runner that
+# co-tenancy reliably inflated t212's one-second migration bound past its
+# limit (GH runs #121/#122/#123: 1.76s/1.77s/1.44s; census in
+# reports/agents/L025-2.md, resolution in reports/agents/L026-4.md). The
+# sibling wall-clock bounds elsewhere (auth 1s, httpapi 1s, storage 2s,
+# search 5s) carried 10x+ work headroom and stayed green through the same
+# runs; if one of those ever trips the same way, move its package here —
+# do not pad its bound silently.
+BUDGET_PKGS := github.com/lzwzzy/binflow/internal/metadata
+BUDGET_HERE := $(filter $(BUDGET_PKGS),$(PKG))
+REST_PKGS   := $(filter-out $(BUDGET_PKGS),$(PKG))
+
 test:
-	CGO_ENABLED=1 $(GO) test -race -count=1 -timeout $(TEST_TIMEOUT) $(PKG)
+	$(if $(BUDGET_HERE),CGO_ENABLED=1 $(GO) test -race -count=1 -timeout $(TEST_TIMEOUT) $(BUDGET_HERE),@echo "test: no wall-clock-budget package in PKG - skipping the isolated invocation")
+	$(if $(REST_PKGS),CGO_ENABLED=1 $(GO) test -race -count=1 -timeout $(TEST_TIMEOUT) $(REST_PKGS),@echo "test: PKG fully covered by the budget invocation above")
 
 ## test-cov: run tests with a coverage profile (not part of `all`).
 test-cov:

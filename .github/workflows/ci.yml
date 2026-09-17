@@ -5,18 +5,36 @@
 # Go version here must match the `go` directive in go.mod (kept in sync by T-7).
 # Trigger policy (user directive 2026-08-28, synced with .circleci/config.yml):
 # main-branch pushes ONLY — pull_request events were removed so both CI
-# systems fire on exactly the same surface.
+# systems fire on exactly the same surface. workflow_dispatch (L026-4) is the
+# manual-only e2e surface: it never fires on a push, so the automatic surface
+# is unchanged; a dispatch run executes ONLY the e2e job (ci and
+# release-dryrun are push-gated), mirroring the CircleCI run_e2e parameter.
 name: ci
 
 on:
   push:
     branches: [main]
+  # L026-4 (2026-09-17): the e2e debt-family gate, GitHub face. Same posture
+  # as .circleci/config.yml's run_e2e parameter (default false): the e2e job
+  # below does NOT run on the main-push path until its known-red debt family
+  # is paid down — runs #121/#122/#123 all reddened/cancelled on it (45m
+  # timeout burn). To run it meanwhile: Actions tab -> ci -> Run workflow ->
+  # tick run_e2e. Reopen conditions below, at the e2e job's `if:`.
+  workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: "Run the e2e suite (known-red debt family — see the e2e job note)"
+        type: boolean
+        default: false
 
 env:
   GOPROXY: https://goproxy.cn,direct
 
 jobs:
   ci:
+    # L026-4: push-only — a workflow_dispatch run (the manual e2e surface)
+    # must not re-burn this 40-minute suite; see `on:` above.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Check out
@@ -114,12 +132,25 @@ jobs:
   # hardware keeps headroom in the axe-heavy legs' 300s budget; raise it
   # only with three consecutive green main runs as evidence.
   #
-  # Trigger posture: main-only, same as every job here (the 2026-08-28
-  # user directive — one CI surface). PR-granularity runs were considered
-  # and left out deliberately: the suite costs ~10+ runner-minutes and the
-  # existing PR-less policy already gates every merge through this job on
-  # the next main push.
+  # Trigger posture (L024-2 -> L026-4): GATED OFF the main-push path. The
+  # suite carries ~55 known-red legs at HEAD (the fe-rewrite spec debt —
+  # census in reports/agents/L025-2.md: bucket A 25 legs pinning the OLD
+  # console's implementation details, bucket B 8 legs on the develop-tail
+  # console drift, bucket C 18 pre-rewrite rot incl. data-dependent
+  # design-baseline goldens). Runs #121/#122/#123 all reddened on this job
+  # (the 45m timeout kills it mid-Playwright). Mirrors the CircleCI
+  # run_e2e parameter (default false since L024-2). PR-granularity runs
+  # remain deliberately out (the 2026-08-28 one-CI-surface directive).
+  #
+  # REOPEN (conductor decision, not a silent flip): when the L026-2 spec
+  # re-derivation ticket lands green AND the L025-2 census buckets A(25) +
+  # B(8) + C(18) are zeroed (conductor-confirmed), DELETE the `if:` line
+  # below — the job returns to always-on main-push. Same moment on the
+  # CircleCI face: flip the run_e2e default to true there (its parameters
+  # note carries the same conditions). Until then the job runs only via
+  # workflow_dispatch with run_e2e=true (the `on:` block above).
   e2e:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_e2e == true
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -212,6 +243,8 @@ jobs:
   # ls just makes the artifact list visible in the log. goreleaser installs
   # itself on demand, pinned in .tool-versions (same pattern as lint).
   release-dryrun:
+    # L026-4: push-only, same reason as the ci job above.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Check out
