@@ -1131,3 +1131,41 @@ entries:
   authority: { type: pending, ref: "产品裁（plain 用户 repo 读位：对齐 A 无门槛投影+全量列表 vs 维持 admin 门）——LOOP 026 goal 已排「m-holder 专键读位后端投影面」实现票，本条为其 A 侧规格输入" }
   review_gate: LOOP 026 限期升级（实现票派发时裁：两分歧面进票或维持 B+INTENTIONAL ADR；v1 覆盖外 403 与列表 403 可分裁）
   evidence: reports/compatibility/l026r-wire/（a-holder-* 六面 + a-noperm-* 四面 + a-admin-* 三面对照 + b-holder-* 六面）+ reports/agents/L026-5.md §任务三规格草案
+- id: d08/store-endpoint-race-family
+  surface: 'PUT /api/release/store 错误臂 A 侧竞态两形（c42——p49 同臂 404 vs 500 非确定）'
+  classification: UNKNOWN
+  rationale: >-
+    L027-1 差分发现（2026-09-17，A pro 7.161.15 × B dev〔L027-1 修复版〕）：同一 c42 臂（store
+    目标不存在族）A 侧跨轮呈现 404 与 500 两形非确定（参照侧时变行为——与 brute-force 锁定同属
+    A 侧不稳面，L027-1 Risks ①）；B 侧确定性锚 p49 形（404）。两案：案甲=维持 B 确定性 404
+    （client-blind——A 的 500 形属参照内部竞态泄漏，非契约行为）/ 案乙=对齐 A 双形（不可实现——
+    非确定形态无规格价值）。倾向案甲（B 形态落在 A 两形之一内）。不挡 D08-R03 翻绿（实质口径
+    SAME——B 形 ∈ A 观测形集）。
+  authority: { type: pending, ref: "产品/用户裁（A 竞态两形的归类：B 确定性 404 记 INTENTIONAL〔deterministic-subset〕vs 维持 UNKNOWN 待复跑）——候 pending-rulings v2.8 增席" }
+  review_gate: LOOP 028 限期升级（裁 INTENTIONAL→resolved；裁维持→下轮差分复跑观测 A 形态分布）
+  evidence: reports/compatibility/2026-09-17-d08-release-bundle.yaml（c42 verdict + r1-r8 轮间形态变化）+ reports/compatibility/l027q-wire/（c42 a/b 对）
+- id: d08/preset-synthetic-rest-face
+  surface: 'ANY REMOTE/ANYTHING 合成预置目标的 REST 呈现面（c53——安全域相邻：GET 单查/名单行）'
+  classification: UNKNOWN
+  rationale: >-
+    L027-1 差分发现（2026-09-17）：A 侧对 Any Remote/Anything 合成预置目标有 REST 呈现行（单查
+    200/名单可见），B 缺该呈现（单查 404/名单缺席）。本质面=ANY DISTRIBUTION 权限桶的兄弟族
+    （T-491 三桶+T-513 第 20 槽已落 ANY DISTRIBUTION——B 侧该桶族 REST 非实体双端一致成立）；
+    缺位仅影响以 REST 枚举预置目标的消费方（ terraform/审计脚本面）。路由=安全域（预置桶族
+    owner 面）。两案：案甲=补两合成目标 REST 呈现（只读面——单查 200 固定投影+名单行，零写面）/
+    案乙=维持缺席 INTENTIONAL（BinFlow 预置桶以权限通道消费，不做 REST 实体化）。
+  authority: { type: pending, ref: "产品裁（Any Remote/Anything 合成预置 REST 呈现：补只读面 vs 维持缺席）——安全域票面路由，候 pending-rulings v2.8 增席" }
+  review_gate: LOOP 028 限期升级（裁补齐→安全域小票+差分复验；裁维持→INTENTIONAL+ADR 登记）
+  evidence: reports/compatibility/2026-09-17-d08-release-bundle.yaml（c53 DIVERGENT 详单）+ reports/compatibility/l027q-wire/（c53 a/b 对）
+- id: d08/repo-delete-response-envelope
+  surface: 'DELETE /api/repositories/{key}（含 release-bundles 系统仓臂）响应体裁（c55——仓库管理域相邻）'
+  classification: UNKNOWN
+  rationale: >-
+    L027-1 差分发现（2026-09-17）：c55 臂 A 侧 repo DELETE 回 JSON 报告体、B 侧回 text/plain
+    纯文本（repositories.go:834 渲染点）。横切面=仓库管理域常规 DELETE 端点（非 D08 专属——
+    release-bundles 系统仓臂只是首个观测载体）。两案：案甲=对齐 A JSON 报告体（一处渲染点改写
+    +差分复验）/ 案乙=维持 B text（client-blind——成功态体裁差异多数客户端不敏感；但 terraform
+    等 JSON 解析方对 2xx 体做 unmarshal 时形态敏感）。
+  authority: { type: pending, ref: "产品裁（repo DELETE 成功体：JSON 报告体对齐 vs 维持纯文本）——仓库管理域票面路由，候 pending-rulings v2.8 增席" }
+  review_gate: LOOP 028 限期升级（裁对齐→repo 管理域微票+差分复验；裁维持→INTENTIONAL+注记 terraform 消费面）
+  evidence: reports/compatibility/2026-09-17-d08-release-bundle.yaml（c55 DIVERGENT 详单）+ reports/compatibility/l027q-wire/（c55 a/b 对）
