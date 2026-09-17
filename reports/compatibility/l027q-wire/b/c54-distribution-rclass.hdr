@@ -1,0 +1,6 @@
+HTTP 400
+Content-Type: application/json
+X-Request-Id: b90e9c364f43d906e15a68730e7b2dd9
+Date: Thu, 17 Sep 2026 08:04:15 GMT
+Content-Length: 150
+Connection: close

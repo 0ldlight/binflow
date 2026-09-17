@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 404,
+    "message" : "Release bundle not found"
+  } ]
+}

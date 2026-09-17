@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 404,
+      "message": "Record not found, repository: release-bundles-v2, name: l027q-rb, version: 1.0"
+    }
+  ]
+}

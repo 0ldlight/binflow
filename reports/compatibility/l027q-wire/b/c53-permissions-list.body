@@ -1,0 +1,94 @@
+[
+  {
+    "name": "m10-e2e-read",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/m10-e2e-read"
+  },
+  {
+    "name": "m8-e2e-read",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/m8-e2e-read"
+  },
+  {
+    "name": "m8usr-m8usr-mu1m93zy0i5s",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/m8usr-m8usr-mu1m93zy0i5s"
+  },
+  {
+    "name": "m8usr-m8usr-mu1mqhz4be20",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/m8usr-m8usr-mu1mqhz4be20"
+  },
+  {
+    "name": "m8usr-m8usr-mu1n4i944lh9",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/m8usr-m8usr-mu1n4i944lh9"
+  },
+  {
+    "name": "p2-user-read",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/p2-user-read"
+  },
+  {
+    "name": "qa.build-mu1n7abaoxwm",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/qa.build-mu1n7abaoxwm"
+  },
+  {
+    "name": "ro-t100b-mu1mzo1nq8zh",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/ro-t100b-mu1mzo1nq8zh"
+  },
+  {
+    "name": "ro-t104up403-mu1n7nchzv70",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/ro-t104up403-mu1n7nchzv70"
+  },
+  {
+    "name": "ro-t104up403-mu4uii1cagzc",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/ro-t104up403-mu4uii1cagzc"
+  },
+  {
+    "name": "t-app-mu1n6jak90bo",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/t-app-mu1n6jak90bo"
+  },
+  {
+    "name": "t-grp",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/t-grp"
+  },
+  {
+    "name": "t-in",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/t-in"
+  },
+  {
+    "name": "t-out",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/t-out"
+  },
+  {
+    "name": "t-u8-r",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/t-u8-r"
+  },
+  {
+    "name": "t240mg-mu4ugbu2dnlz",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/t240mg-mu4ugbu2dnlz"
+  },
+  {
+    "name": "tgt-mu1n2rj1z2ub",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/tgt-mu1n2rj1z2ub"
+  },
+  {
+    "name": "tgt-mu1n6iaj7b04",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/tgt-mu1n6iaj7b04"
+  },
+  {
+    "name": "tgt-mu1n74tcdvnz",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/tgt-mu1n74tcdvnz"
+  },
+  {
+    "name": "tgt-mu1n775y7o2x",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/tgt-mu1n775y7o2x"
+  },
+  {
+    "name": "tgt-mu1n79mgw1t0",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/tgt-mu1n79mgw1t0"
+  },
+  {
+    "name": "tgt-mu4uc21i42vh",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/tgt-mu4uc21i42vh"
+  },
+  {
+    "name": "tgt-mu4ylksfep2r",
+    "uri": "http://172.16.58.130:8083/binflow/api/security/permissions/tgt-mu4ylksfep2r"
+  }
+]

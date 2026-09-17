@@ -1,0 +1,8 @@
+HTTP 200
+Allow: OPTIONS,PUT
+Content-Type: text/plain; charset=utf-8
+X-Content-Type-Options: nosniff
+X-Request-Id: 046061c735cffc324d1574ce2ee76f36
+Date: Thu, 17 Sep 2026 08:03:52 GMT
+Content-Length: 12
+Connection: close

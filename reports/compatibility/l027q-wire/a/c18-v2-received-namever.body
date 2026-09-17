@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Bad request: [`Release Bundle name must begin with a {letter | _ | digit} and consist of {letters | _ | . | - | digits}`]"
+  } ]
+}
