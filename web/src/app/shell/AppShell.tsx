@@ -52,12 +52,15 @@ export function AppShell() {
       items: g.items.filter((i) => i.visibility === 'all' || canSeeAdmin),
     }))
     const q = adminMode ? adminFilter.trim().toLowerCase() : ''
-    // 无权限条目清空后整组退役（普通 user 不见空的安全/管理组标签）；
-    // 管理过滤词下清空 = admin-filter-empty 注记承载（Sidebar 渲染）
+    // 无权限/过滤清空后整组退役（普通 user 不见空的安全/管理组标签；过滤
+    // 下空组标签同样不驻留）；全组清空 = groups.length===0 → Sidebar 的
+    // admin-filter-empty 注记承载。
+    // L026-2 修复：此前 `g.items.length > 0 || q !== ''` 在过滤词在场时保留
+    // 全部组（空组标签驻留 + 无匹配注记永不触发——t459 过滤腿双红）
     const filtered = q
       ? visible.map((g) => ({ ...g, items: g.items.filter((i) => i.label.toLowerCase().includes(q)) }))
       : visible
-    return filtered.filter((g) => g.items.length > 0 || q !== '')
+    return filtered.filter((g) => g.items.length > 0)
   }, [canSeeAdmin, adminMode, adminFilter])
 
   // ---- About 弹窗（侧栏脚注 nav-about 与顶栏 help-about 同一入口） ----

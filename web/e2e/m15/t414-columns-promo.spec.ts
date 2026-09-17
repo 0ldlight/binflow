@@ -217,8 +217,14 @@ test('admin: search column selector — size/sha256 opt-in by default, persists;
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
 
   // T-449 断言反转②默认档：选择列（固定）+ 制品/路径/仓库/修改时间 = 5 表头；
-  // 大小/sha256 不默认在场（表无独立锚——以页根限定表头，不新增锚）
-  const th = page.locator('[data-testid="search-page"] table thead th')
+  // 大小/sha256 不默认在场。L026-2 重锚：fe-rewrite 后搜索表 = ARIA grid
+  // （role=grid，无 table/thead/td）——表头锚 = search-grid 内 columnheader，
+  // 行格锚 = 结果 0 所在行的 gridcell
+  const th = page.locator('[data-testid="search-grid"] [role="columnheader"]')
+  const rowCells = page
+    .getByRole('row')
+    .filter({ has: page.locator('[data-testid="search-result-0"]') })
+    .getByRole('gridcell')
   await expect(th).toHaveCount(5)
 
   // 开菜单：六列闭集（制品 name 为 T-449 新增项）+ 默认勾选态分流
@@ -242,7 +248,7 @@ test('admin: search column selector — size/sha256 opt-in by default, persists;
   await page.click('[data-testid="search-columns-item-size"]')
   await expect(m).toBeVisible()
   await expect(th).toHaveCount(6)
-  await expect(page.locator('[data-testid="search-result-0"] td')).toHaveCount(6)
+  await expect(rowCells).toHaveCount(6)
   expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-search'))).toBe('["sha256"]')
   await page.reload()
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })

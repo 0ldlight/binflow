@@ -173,6 +173,10 @@ export function TreePanel({
   emptyLabel: string
 }) {
   const rowH = compacted ? 24 : 28
+  // L026-2 修复：compacted 密度此前只改 estimateSize（滚动估算），行高仍由
+  // 内容（py-1）决定——单选钮无视觉效果。密度经行内边距落地（py-0.5），
+  // 行高 29→25，配合 rowH 估算即恢复「紧凑档行高收窄」AC
+  const densityCls = compacted ? 'py-0.5' : 'py-1'
   const scrollRef = useRef<HTMLDivElement>(null)
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -387,7 +391,7 @@ export function TreePanel({
                 >
                   {row.kind === 'trash' ? (
                     <div
-                      className="tree-node repo-node trash-node flex cursor-pointer items-center gap-1 rounded-sm px-1.5 py-1 hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-ring"
+                      className={`tree-node repo-node trash-node flex cursor-pointer items-center gap-1 rounded-sm px-1.5 ${densityCls} hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-ring`}
                       data-testid={row.testid}
                       data-tree-row=""
                       role="treeitem"
@@ -403,7 +407,7 @@ export function TreePanel({
                     </div>
                   ) : (
                     <div
-                      className={`tree-node relative flex cursor-pointer items-center gap-1 rounded-sm px-1.5 py-1 transition-colors duration-fast ease-standard ${
+                      className={`tree-node relative flex cursor-pointer items-center gap-1 rounded-sm px-1.5 ${densityCls} transition-colors duration-fast ease-standard ${
                         row.selected ? 'selected bg-primary/10 font-semibold' : row.onChain ? 'on-chain bg-surface-2' : ''
                       } hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-ring`}
                       data-testid={row.testid}

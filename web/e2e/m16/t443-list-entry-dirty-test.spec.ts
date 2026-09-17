@@ -38,6 +38,59 @@ import { m8Client, seedRepos, sessionApi } from '../m8/support/seed'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8080'
 
+// L026-2 远端 dev 实例（容器、无出网）：Test 探测由服务端发起——上游必须
+// 「服务端可达」。自备 seed bind 0.0.0.0，宣告主机沿用 remote-browse-tree
+// 的口径（E2E_UPSTREAM_HOST 覆盖；BASE 本机 → 127.0.0.1；远端 BASE → 同
+// 网段非内部 IPv4）。懒单例 + afterAll 关停。
+let testSeed: { url: string; close: () => Promise<void> } | null = null
+async function startTestSeed(): Promise<string> {
+  if (testSeed) return testSeed.url
+  const { createServer } = await import('node:http')
+  const { networkInterfaces } = await import('node:os')
+  const explicit = process.env.E2E_UPSTREAM_HOST
+  const host = explicit
+    ? explicit
+    : (() => {
+        const b = new URL(BASE).hostname
+        if (b === 'localhost' || b === '127.0.0.1') return '127.0.0.1'
+        for (const list of Object.values(networkInterfaces())) {
+          for (const ni of list ?? []) {
+            if (ni.family !== 'IPv4' || ni.internal) continue
+            if (b.startsWith(ni.address.split('.').slice(0, 3).join('.'))) return ni.address
+          }
+        }
+        return '127.0.0.1'
+      })()
+  const server = createServer((req, res) => {
+    if (req.url?.startsWith('/healthz')) {
+      res.writeHead(200)
+      res.end('ok')
+    } else if (req.url?.startsWith('/needs-auth')) {
+      res.writeHead(401)
+      res.end('nope')
+    } else {
+      res.writeHead(404)
+      res.end()
+    }
+  })
+  await new Promise<void>((resolve) => server.listen(0, '0.0.0.0', resolve))
+  const addr = server.address()
+  if (addr === null || typeof addr === 'string') throw new Error('test seed address unavailable')
+  testSeed = {
+    url: `http://${host}:${addr.port}`,
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => resolve())
+        server.closeAllConnections()
+      }),
+  }
+  return testSeed.url
+}
+
+test.afterAll(async () => {
+  await testSeed?.close()
+})
+
 test.beforeEach(async ({ request }) => {
   const probe = await request.get('/binflow/ui/')
   test.skip(probe.status() === 404, 'console segment not mounted by this binary yet')
@@ -62,6 +115,9 @@ test('entry: three-preset dropdown routes to split paths; /new compat maps; in-f
   page,
 }) => {
   await loginAs(page, 'admin')
+  // L026-2：pkg-grid 弹窗 720p 视口下高 863px——取消钮在文档外不可点
+  //（t383:202 同族缺陷面，票内登记）；本腿多步过弹窗，视口抬到 1280x960
+  await page.setViewportSize({ width: 1280, height: 960 })
 
   // 入口形态：下拉三预选（触发钮 repos-create 不变——锚沿 T-99）+ 三菜单项
   // 各带一句描述（7.161 形态：型名 + 一句描述行）
@@ -248,17 +304,19 @@ test('remote test: three arms inline (ok / creds-refused / unreachable), draft o
   page,
 }) => {
   const client = m8Client()
-  // 三臂夹具（全部自备 + 自指/本机上游——INC-1 纪律：只打自备实体）：
-  //  - ok：自指 /healthz（匿名 200——正确凭据=无需凭据的同源姿）
-  //  - 拒：上游 401（管理面匿名 401——凭据被拒族）
-  //  - 死：连接拒绝（127.0.0.1:1 —— 传输层不可达，status_code 0）
+  // 三臂夹具（全部自备——INC-1 纪律：只打自备实体）。L026-2 重锚：ok/拒
+  // 两臂原为「自指上游」（BASE 自身的 /healthz 与匿名 401 管理面）——远端
+  // dev 实例（容器、无出网）上 localhost 自指不可达且公网上游不可达，自备
+  // seed（0.0.0.0 bind + 宣告主机——remote-browse-tree 同款）承载两臂；
+  // 死臂维持 127.0.0.1:1（传输层拒绝从实例侧同样成立）
+  const seed = await startTestSeed()
   const okKey = uniq('t443ok')
   const authKey = uniq('t443auth')
   await client.request('PUT', `/binflow/api/repositories/${okKey}`, {
-    body: { rclass: 'remote', packageType: 'generic', url: `${BASE}/healthz`, allowPrivateUpstream: true },
+    body: { rclass: 'remote', packageType: 'generic', url: `${seed}/healthz`, allowPrivateUpstream: true },
   })
   await client.request('PUT', `/binflow/api/repositories/${authKey}`, {
-    body: { rclass: 'remote', packageType: 'generic', url: `${BASE}/binflow/api/repositories`, allowPrivateUpstream: true },
+    body: { rclass: 'remote', packageType: 'generic', url: `${seed}/needs-auth`, allowPrivateUpstream: true },
   })
 
   await loginAs(page, 'admin')
@@ -305,7 +363,7 @@ test('remote test: three arms inline (ok / creds-refused / unreachable), draft o
   const got = await sessionApi(page, 'GET', `/api/repositories/${okKey}`)
   expect(got.status).toBe(200)
   // L025-6 后详读面键平铺：url 顶层
-  expect((got.json as { url?: string }).url).toBe(`${BASE}/healthz`)
+  expect((got.json as { url?: string }).url).toBe(`${seed}/healthz`)
 
   // 建仓态无 Test（端点按已存 key 寻址——仓不存在则 404）：按钮不呈现，
   // 以 hint 如实说明（不造死按钮）
@@ -329,8 +387,9 @@ test('axe: list page, create dropdown open, remote edit with test result — cle
   test.setTimeout(300_000) // 3 面 × 双主题；axe 在默认并发下实测 30s+/面
   const client = m8Client()
   const okKey = uniq('t443ax')
+  const seed = await startTestSeed()
   await client.request('PUT', `/binflow/api/repositories/${okKey}`, {
-    body: { rclass: 'remote', packageType: 'generic', url: `${BASE}/healthz`, allowPrivateUpstream: true },
+    body: { rclass: 'remote', packageType: 'generic', url: `${seed}/healthz`, allowPrivateUpstream: true },
   })
 
   await loginAs(page, 'admin')

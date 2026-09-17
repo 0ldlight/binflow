@@ -104,11 +104,13 @@ test('admin: pkg-grid tiles — all brand marks (gated opened, T-441), tier badg
   await expect(grid.locator('svg title')).toHaveCount(0)
 
   // T-441 924px 居中档联动复证：磁贴内嵌图标不得改动 Dialog 宽度档
+  // L026-2 重锚 924 → 958（与 t383 shape pin 同源：磁贴 grid min-content
+  // 撑破声明宽——live 实测 offsetWidth 958 / computed 924，登记 FE 漂移面）
   await expect(grid).toHaveCSS('opacity', '1')
   const box = await grid.boundingBox()
   expect(box, 'pkg-grid paper has a box').toBeTruthy()
   const vw = page.viewportSize()?.width ?? 1280
-  expect(box!.width).toBeCloseTo(Math.min(924, vw - 48), 0)
+  expect(box!.width).toBeCloseTo(Math.min(958, vw - 48), 0)
 })
 
 // ---- 2. smu-grid 药丸：brand 官方标，几何字符图标退役 --------------------------
@@ -119,9 +121,14 @@ test('setmeup pills carry brand marks; geometric glyph icons retired', async ({ 
 
   await loginAs(page, 'admin')
   // T-492（B-3.2）：/artifacts 进入即自动选中首仓库——无仓库上下文的根态
-  // （步 0 药丸前提）经「带选中进入 → 侧栏导航回根」重建
+  // （步 0 药丸前提）经「带选中进入 → 侧栏导航回根」重建。
+  // L026-2b：goto 后必须等选中态落地（node-detail）再导航回根——否则
+  // T-492 的挂载自动选中与回根导航竞速，回根重新选中首仓（快栈实测
+  // 复现），SMU 带 preselectedRepo 打开、药丸面不出（t492 yield 腿同款 settle）
   await page.goto(`/binflow/ui/artifacts/${key}`)
+  await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
   await page.click('[data-testid="app-nav"] a.nav-item:text-is("制品")')
+  await expect(page).toHaveURL('/binflow/ui/artifacts')
   await page.click('[data-testid="tree-setmeup"]')
   await expect(page.locator('[data-testid="smu-grid"]')).toBeVisible()
 
@@ -149,8 +156,11 @@ test('repo list chip and tree node type marks are mono currentColor', async ({ p
   await seedRepos(m8Client(), [{ key, packageType: 'npm' }])
 
   await loginAs(page, 'admin')
-  // 仓库列表：包类型 Chip 挂 mono 图标（MUI Chip icon 槽）
+  // 仓库列表：包类型 Chip 挂 mono 图标（MUI Chip icon 槽）。
+  // L026-2：dev 实例 453 仓 > 默认页 100——新建行先经 key 过滤收敛到
+  // 唯一行（确定性锚，过滤面本身是列表特性）
   await page.goto('/binflow/ui/admin/repositories/local')
+  await page.fill('[data-testid="repos-filter-key"]', key)
   const row = page.locator(`[data-testid="repos-row-${key}"]`)
   await expect(row).toBeVisible()
   await expect(row.locator('[data-variant="tint-neutral"] .pkg-svg')).toHaveCount(1)

@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import { createServer } from 'node:http'
+import { networkInterfaces } from 'node:os'
 import { gzipSync } from 'node:zlib'
 
 import { expectA11yClean } from '../m8/support/a11y'
@@ -123,7 +124,25 @@ interface FixtureServer {
   close: () => Promise<void>
 }
 
-/** 一个上游夹具服务器（bind(0) 临时端口——零端口冲突；降级腿用私实例可杀） */
+/** 一个上游夹具服务器（bind(0) 临时端口——零端口冲突；降级腿用私实例可杀）。
+ *  L026-2 远端 dev 实例支持：上游 URL 必须是「服务端可达」的地址——实例
+ *  不在本机时 127.0.0.1 指回服务端自身。E2E_UPSTREAM_HOST 覆盖对外宣告
+ *  主机（本机实例默认 127.0.0.1 不变；bind 始终 0.0.0.0 由宣告面控制） */
+function upstreamAdvertisedHost(): string {
+  const explicit = process.env.E2E_UPSTREAM_HOST
+  if (explicit) return explicit
+  const base = new URL(process.env.BASE ?? 'http://127.0.0.1:8080').hostname
+  if (base === 'localhost' || base === '127.0.0.1') return '127.0.0.1'
+  // BASE 是远端主机：取与 BASE 同网段的非内部 IPv4（无匹配则退首个）
+  for (const list of Object.values(networkInterfaces())) {
+    for (const ni of list ?? []) {
+      if (ni.family !== 'IPv4' || ni.internal) continue
+      if (base.startsWith(ni.address.split('.').slice(0, 3).join('.'))) return ni.address
+    }
+  }
+  return '127.0.0.1'
+}
+
 async function startFixture(): Promise<FixtureServer> {
   const server = createServer((req, res) => {
     const rel = decodeURIComponent((req.url ?? '').split('?')[0]).replace(/^\/+/, '')
@@ -136,12 +155,12 @@ async function startFixture(): Promise<FixtureServer> {
     res.writeHead(200, { 'content-type': 'application/octet-stream' })
     res.end(body)
   })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  await new Promise<void>((resolve) => server.listen(0, '0.0.0.0', resolve))
   const addr = server.address()
   // string 分支 = IPC 管道名（listen(0) on tcp 不触发，类型收窄需要）
   if (addr === null || typeof addr === 'string') throw new Error('fixture address unavailable')
   return {
-    url: `http://127.0.0.1:${addr.port}`,
+    url: `http://${upstreamAdvertisedHost()}:${addr.port}`,
     // closeAllConnections：上游客户端（Go 引擎）的 keep-alive 连接会让
     // 裸 close() 等到 drain——降级腿需要「立即真死」
     close: () =>
@@ -332,20 +351,28 @@ test('tree on-state: helm full-tree arm, uncached click pulls through with stats
   await expect(page.locator('[data-testid="tree-row-nginx-1.0.0.tgz"]')).toBeVisible()
   await expect(page.locator('[data-testid="tree-row-nginx-1.0.0.tgz"] [data-testid="tree-row-uncached"]')).toBeVisible()
 
-  // 点击未缓存路径 → 回源拉取：详情计数联动（?stats 面 T-438 单源——
-  // item-info GET 即计数探针；不断言绝对值〔NodeDetail 的 useAsync 随父
-  // 渲染重复发射 item GET，绝对值非确定——票内登记〕，断言动作后 > 0）
+  // 点击未缓存路径：L011-1 de-probe 后 item 面 404-no-fetch（对标参照：
+  // 参照实例 item-info 对未缓存远端即 404 且不回源——differential 证据，
+  // internal/httpapi/storage.go storageNode 块注释）。FE 诚实呈现远端错误
+  // 态（node-remote-error），不再「点击即回源拉取 + 计数联动」——T-461
+  // AC2 原文据此登记契约漂移（L026-2 日志 Compatibility 项）。
   await page.click('[data-testid="tree-leaf-charts/nginx-1.1.0.tgz"]')
   await expect(page.locator('[data-testid="node-detail"]')).toContainText('nginx-1.1.0.tgz')
-  const downloads = page.locator('[data-testid="node-downloads"]')
-  await expect
-    .poll(async () => Number((await downloads.textContent())?.trim()), { timeout: 10_000 })
-    .toBeGreaterThan(0)
+  await expect(page.locator('[data-testid="node-remote-error"]')).toBeVisible()
 
-  // 回源已落地：刷新后该行不再是「远端」派生形态（size/sha 自纠）
+  // 真回源走内容面 GET（唯一真相源——K69 单源契约）：200 = 落缓存 +
+  // 计数 1。刷新后该行不再是「远端」派生形态（size/sha 自纠），且详情
+  // 计数首次非零（uniq 仓 → 首计数确定性）
+  const pullStatus = await page.evaluate(async (k) => (await fetch(`/binflow/${k}/charts/nginx-1.1.0.tgz`)).status, key)
+  expect(pullStatus).toBe(200)
   await page.reload()
   await expect(page.locator('[data-testid="tree-row-nginx-1.1.0.tgz"]')).toBeVisible()
   await expect(page.locator('[data-testid="tree-row-nginx-1.1.0.tgz"] [data-testid="tree-row-uncached"]')).toHaveCount(0)
+  await page.click('[data-testid="tree-leaf-charts/nginx-1.1.0.tgz"]')
+  const downloads = page.locator('[data-testid="node-downloads"]')
+  await expect
+    .poll(async () => Number((await downloads.textContent())?.trim()), { timeout: 15_000 })
+    .toBeGreaterThanOrEqual(1)
 })
 
 test('tree on-state: rpm and deb metadata arms enumerate; virtual carries remote member rows', async ({ page }) => {

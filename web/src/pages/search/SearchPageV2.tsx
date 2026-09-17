@@ -18,7 +18,7 @@
 //   search-row-select-* / search-result-* / search-result-link-* /
 //   search-columns(-menu|-item-*|-reset) / search-pager / search-aql-range
 //   / search-builds-results / search-builds-row-*。
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'
@@ -143,7 +143,11 @@ function ColumnsMenu({ cols }: { cols: ColumnPrefs }) {
             <span aria-hidden="true">▤</span> {t('列')} {cols.visibleCount}/{COLUMNS.length}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-56 p-1" align="end" data-testid="search-columns-menu">
+        {/* role="menu"：列选菜单的 menuitemcheckbox 需 menu 父角色（axe
+            aria-required-parent）——users/groups/audit 三页同款，L026-2
+            补上 fe-rewrite 漏传的这一枚（无 role 时 Popover 默认 dialog，
+            menuitemcheckbox 裸挂 + dialog 无名 = critical/serious 双违） */}
+        <PopoverContent className="w-56 p-1" align="end" role="menu" data-testid="search-columns-menu">
           {COLUMNS.map((c) => {
             const visible = cols.isVisible(c.id)
             const last = visible && cols.visibleCount === 1
@@ -166,9 +170,10 @@ function ColumnsMenu({ cols }: { cols: ColumnPrefs }) {
               </button>
             )
           })}
-          <div className="my-1 border-t border-border" />
+          <div role="separator" className="my-1 border-t border-border" />
           <button
             type="button"
+            role="menuitem"
             aria-disabled={atDefault || undefined}
             title={atDefault ? t('已是默认列集') : t('恢复默认列（大小/sha256 收回）')}
             data-testid="search-columns-reset"
@@ -407,6 +412,16 @@ function ResultsGrid({
     gridApiRef.current = e.api
   }
 
+  // L026-2 修复：快滤/翻页改写 rowData 时，getRowId 命中的行复用既有
+  // cellRenderer DOM（数据零变化 ⇒ 渲染器不重跑）——行位 testid
+  //（search-result-<i> / search-row-select-<i> 冻结锚族 = 显示序号）停留在
+  // 过滤前的模型序号：快滤收窄到非 0 行时 result-0 消失、幸存行仍带旧序号。
+  // shown 变更后强制刷可见单元格（React 函数渲染器无 refresh ⇒ 销毁重建），
+  // 以当前显示序号重钉。
+  useEffect(() => {
+    gridApiRef.current?.refreshCells({ force: true })
+  }, [shown])
+
   const columnDefs = useMemo<ColDef[]>(() => {
     const visible = columns.filter((c) => cols.isVisible(c.id))
     return [
@@ -458,19 +473,19 @@ function ResultsGrid({
             return (
               <span className="flex min-w-0 flex-col" data-testid={`search-result-${idx}`}>
                 {href ? (
-                  <a
-                    href={href}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      navigate(href)
-                    }}
+                  // L026-2 修复：此前裸 <a href={href}>（href 无 basename——
+                  // treeUrl 返回 router 相对路径）。href 属性是深链语义面
+                  //（新标签页打开/复制链接必须直达 /binflow/ui/artifacts/…），
+                  // 改走 Link（自动拼 UI_BASE basename，点击同优客户端导航）
+                  <Link
+                    to={href}
                     className="search-result-link row-link truncate font-mono font-medium text-primary dark:text-info hover:underline"
                     data-testid={`search-result-link-${idx}`}
                     lang="en"
                     title={t('在跨仓树中定位（路径段深链）')}
                   >
                     {r.name}
-                  </a>
+                  </Link>
                 ) : (
                   <span className="truncate font-mono" lang="en">{r.name || '—'}</span>
                 )}
@@ -683,12 +698,13 @@ function HeaderSortButton(props: {
         props.onClick()
       }}
       className="flex items-center gap-1 text-left text-dense font-medium hover:text-foreground"
-      aria-sort={props.active ? (props.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      // L026-2：aria-sort 只允许挂在 columnheader 本体——ag-grid 的表头
+      // 容器才是 columnheader，button 上挂属 aria-allowed-attr(critical)。
+      // 方向状态改由无障碍名承载：箭头字符不 aria-hidden（升序 ↑ / 降序 ↓），
+      // 查询文本 + 行序仍是状态的硬契约（e2e t419:177 同口径）。
     >
       {props.label}
-      <span aria-hidden="true" className={props.active ? '' : 'opacity-30'}>
-        {props.dir === 'desc' ? '↓' : '↑'}
-      </span>
+      <span className={props.active ? '' : 'opacity-30'}>{props.dir === 'desc' ? '↓' : '↑'}</span>
     </button>
   )
 }
@@ -775,7 +791,10 @@ function AqlPanel({ columns, cols, toolbar }: { columns: PrefColumnDef[]; cols: 
 
       {failed && (
         <div data-testid="search-aql-error" role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-dense">
-          <div className="font-medium text-destructive">{errorHeadline(failed)}</div>
+          {/* 标题不用 text-destructive：destructive 字在 destructive/10 底上
+              对比 4.09 < 4.5（axe serious）——对齐 form-error 同款（标题继承
+              foreground，红色身份由边框+底色承载，L026-2） */}
+          <div className="font-medium">{errorHeadline(failed)}</div>
           {failed.message && <div className="mt-1 break-all font-mono text-aux" lang="en">{failed.message}</div>}
           {errorHint(failed) && <div className="mt-1 text-aux text-muted-foreground">{errorHint(failed)}</div>}
         </div>

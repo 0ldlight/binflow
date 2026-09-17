@@ -74,11 +74,14 @@ async function topbarQuery(page: import('@playwright/test').Page, term: string) 
   await page.waitForSelector('[data-testid="tree-page"]') // 落地页内容（最终挂载帧）
   for (let attempt = 0; attempt < 3; attempt++) {
     await page.fill('[data-testid="topbar-search"]', term)
+    // L026-2：远端 dev（ssh 隧道）在 4 并发 + 同文件 axe 腿（300s 扫描）同
+    // 载时，AppShell 重挂回滚窗 >5s——poll 收敛窗放宽（断言语义不变：
+    // 「受控值最终钉住 term」）
     await expect
       .poll(async () => {
         if ((await input.inputValue()) !== term) await page.fill('[data-testid="topbar-search"]', term)
         return input.inputValue()
-      })
+      }, { timeout: 15_000 })
       .toBe(term)
     await page.press('[data-testid="topbar-search"]', 'Enter')
     if (await page.waitForURL(target, { timeout: 3_000 }).then(() => true, () => false)) return
@@ -98,8 +101,16 @@ test('admin: default column set = select|Artifact|Path|Repository|Modified; size
   await topbarQuery(page, marker)
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
 
-  // 默认列集（B-2.11 断言反转②）：选择列（checkbox 表头，无文本）+ 四数据列
-  const th = page.locator('[data-testid="search-grid"] thead th')
+  // 默认列集（B-2.11 断言反转②）：选择列（checkbox 表头，无文本）+ 四数据列。
+  // L026-2 重锚：fe-rewrite 后搜索表 = ARIA grid（role=grid，无 table/thead/td）
+  // ——表头锚 = search-grid 内 columnheader，行格锚 = 结果 0 所在行的 gridcell
+  //（t414:221 同族先例）
+  const th = page.locator('[data-testid="search-grid"] [role="columnheader"]')
+  const cells = (i: number) =>
+    page
+      .getByRole('row')
+      .filter({ has: page.locator(`[data-testid="search-result-${i}"]`) })
+      .getByRole('gridcell')
   await expect(th).toHaveCount(5)
   await expect(th.nth(0).locator('[data-testid="search-select-all"]')).toHaveCount(1)
   for (const label of ['制品', '路径', '仓库', '修改时间']) {
@@ -110,13 +121,13 @@ test('admin: default column set = select|Artifact|Path|Repository|Modified; size
   await expect(th.filter({ hasText: 'sha256' })).toHaveCount(0)
 
   // 行单元格与表头同步（选择列 + 四数据列 = 5 cells）
-  await expect(page.locator('[data-testid="search-result-0"] td')).toHaveCount(5)
-  await expect(page.locator('[data-testid="search-result-0"] td').nth(1)).toContainText(`${marker}-one.bin`)
-  await expect(page.locator('[data-testid="search-result-0"] td').nth(2)).toContainText('acme')
-  await expect(page.locator('[data-testid="search-result-0"] td').nth(3)).toContainText(repo)
+  await expect(cells(0)).toHaveCount(5)
+  await expect(cells(0).nth(1)).toContainText(`${marker}-one.bin`)
+  await expect(cells(0).nth(2)).toContainText('acme')
+  await expect(cells(0).nth(3)).toContainText(repo)
 
   // 日期格式（B-3.15）：dd-MM-yy HH:mm:ss +ZZZZ——正则含时区偏移
-  await expect(page.locator('[data-testid="search-result-0"] td').nth(4)).toHaveText(
+  await expect(cells(0).nth(4)).toHaveText(
     /\d{2}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4}/,
   )
 
@@ -165,8 +176,13 @@ test('admin: row body inert; only the name cell deep-links in path-segment form 
   await expect(link).toHaveAttribute('href', `/binflow/ui/artifacts/${repo}/acme/${marker}.bin`)
   await expect(link).not.toHaveAttribute('href', /focus=/)
 
-  // 行体 inert（B-3.14）：点路径单元格（非链接区）不导航
-  await page.locator('[data-testid="search-result-0"] td').nth(2).click()
+  // 行体 inert（B-3.14）：点路径单元格（非链接区）不导航——ARIA grid 锚
+  await page
+    .getByRole('row')
+    .filter({ has: page.locator('[data-testid="search-result-0"]') })
+    .getByRole('gridcell')
+    .nth(2)
+    .click()
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/search\\?q=${marker}$`))
 
   // 链接点击 → 跨仓树定位（T-236 深链消费）：路径段直达 + 详情面板
@@ -293,16 +309,20 @@ test('admin: AQL mode rides the converged column frame — name link, sort ancho
   // AQL 行复用锚（t419 族）：行锚 + 计数 + range 尾行 + 排序锚（modified 默认在场）
   await expect(page.locator('[data-testid="search-aql-range"]')).toContainText('start_pos 0')
   await expect(page.locator('[data-testid="search-aql-sort-modified"]')).toBeVisible()
-  // 列框架归一：选择列 + name 链接（AQL 投影行同样仅 name 深链）
-  await expect(page.locator('[data-testid="search-grid"] thead th')).toHaveCount(5)
+  // 列框架归一：选择列 + name 链接（AQL 投影行同样仅 name 深链）——ARIA grid 锚
+  await expect(page.locator('[data-testid="search-grid"] [role="columnheader"]')).toHaveCount(5)
   await expect(page.locator('[data-testid="search-result-link-0"]')).toHaveAttribute(
     'href',
     `/binflow/ui/artifacts/${repo}/sort/${marker}-a.bin`,
   )
   // 日期格式腿（AQL 行同形——formatStamp 单源）
-  await expect(page.locator('[data-testid="search-result-0"] td').nth(4)).toHaveText(
-    /\d{2}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4}/,
-  )
+  await expect(
+    page
+      .getByRole('row')
+      .filter({ has: page.locator('[data-testid="search-result-0"]') })
+      .getByRole('gridcell')
+      .nth(4),
+  ).toHaveText(/\d{2}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4}/)
 
   // 快滤正交（编辑器管服务端、快滤管已取回行）：窄化不清查询文本
   const editor = page.locator('[data-testid="search-aql-input"]')
@@ -348,6 +368,10 @@ test('axe: search stack — results, quick-filter active, AQL mode clean in both
     await page.fill('[data-testid="search-aql-input"]', `items.find({"repo":"${repo}"}).include("repo","path","name")`)
     await page.click('[data-testid="search-aql-run"]')
     await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
+    // L026-2：run 钮 hover（hover:bg-primary/90 = #2279cf）4.46 边际违例——
+    // 点击后 pointer 驻留即带入扫描；悬停非本扫考察态，鼠标移出（t419:352
+    // 同族先例，缺陷面已在 FE 漂移登记）
+    await page.mouse.move(4, 4)
     await expectA11yClean(page, testInfo)
   }
 })

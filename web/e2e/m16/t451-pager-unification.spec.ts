@@ -77,8 +77,13 @@ test('admin: search results page-window pager — jump, size options, boundary d
   await topbarSearchSubmit(page, marker)
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 15_000 })
 
-  // 第 1 页（100/页）：恰 100 行 + range 行 + 边界禁置
-  await expect(page.locator('[data-testid="search-result-99"]')).toBeVisible()
+  // 第 1 页（100/页）：恰 100 行 + range 行 + 边界禁置。
+  // L026-2 重锚：fe-rewrite 后搜索表 = AG Grid（行虚拟化——DOM 只挂视口
+  // 内 ~20 行，result-99 恒不在场）。页窗行数语义锚 = grid 的 aria-rowcount
+  //（数据行 + 表头 1）：100/页 → 101；越窗索引仍负断言
+  const gridCount = () =>
+    page.locator('[data-testid="search-grid"] [role="grid"]').getAttribute('aria-rowcount')
+  await expect.poll(gridCount).toBe('101')
   await expect(page.locator('[data-testid="search-result-100"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="search-pager"] [data-testid="pager-range"]')).toHaveText(
     '显示 1 – 100 / 共 210 项',
@@ -106,9 +111,10 @@ test('admin: search results page-window pager — jump, size options, boundary d
     '显示 201 – 210 / 共 210 项',
   )
 
-  // 每页行数：换档 50 → 回第 1 页、窗 50 行；档位枚举在场
+  // 每页行数：换档 50 → 回第 1 页、窗 50 行（aria-rowcount = 51——虚拟化
+  // 下 DOM 行数不是窗行数，同 :81 重锚口径）；档位枚举在场
   await page.selectOption('[data-testid="search-pager"] [data-testid="pager-size"]', '50')
-  await expect(page.locator('[data-testid="search-result-49"]')).toBeVisible()
+  await expect.poll(gridCount).toBe('51')
   await expect(page.locator('[data-testid="search-result-50"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="search-pager"] [data-testid="pager-range"]')).toHaveText(
     '显示 1 – 50 / 共 210 项',

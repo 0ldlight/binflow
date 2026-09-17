@@ -69,13 +69,15 @@ test('N2: first-level nav entries carry 16px mono icons (identity closed set, cu
     expect(await el.evaluate((n) => getComputedStyle(n).width)).toBe('16px')
   }
 
-  // mono currentColor：fill 的计算值 = 条目文字色（随文字色，含默认态）
+  // mono currentColor：L026-2 重锚——fe-rewrite 后图标族 = Lucide SVG
+  // （fill="none" + stroke="currentColor"，live 实测 dev.b79a2d51）；描边
+  // 计算值 = 条目文字色（随文字色，含默认态）
   const probe = nav.locator('a.nav-item:text-is("仓库") [data-testid="nav-icon"]')
-  const [fill, color] = await probe.evaluate((n) => {
+  const [stroke, color] = await probe.evaluate((n) => {
     const cs = getComputedStyle(n)
-    return [cs.fill, cs.color]
+    return [cs.stroke, cs.color]
   })
-  expect(fill, 'icon fill follows entry text color (currentColor)').toBe(color)
+  expect(stroke, 'icon stroke follows entry text color (currentColor)').toBe(color)
 
   // 档位反面：分组标签无图标（V5：仅一级条目——模式切换概念已随双模式退役）
   await expect(nav.locator('.nav-group-label [data-testid="nav-icon"]')).toHaveCount(0)

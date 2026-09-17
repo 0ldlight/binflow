@@ -18,11 +18,15 @@ import { RouterProvider } from 'react-router-dom'
 //     └ ConfirmProvider（深形危险确认层——FE-P4 Radix 化）
 //       └ RouterProvider（data router——AuthProvider 在根布局路由内）
 //
-// 引导顺序不变：consumeStepUpFragment（渲染前同步消费 OIDC 回跳
-// fragment）→ initI18n 闸 → 渲染（en 目录包注册先于模块级 t() 求值点）。
-import { AppProviders } from '@/app/providers'
-import { ConfirmProvider } from '@/components/ConfirmDialog'
-import { createAppRouter } from '@/app/router'
+// 引导顺序：consumeStepUpFragment（渲染前同步消费 OIDC 回跳
+// fragment）→ initI18n 闸 → 动态 import 应用树 → 渲染。
+//
+// 应用树必须动态 import（L026-2，修 t464 en 导航冻结）：ESM 静态 import
+// 在 main.tsx 求值前完成整图模块求值——nav-model 等常量模块的顶层 t()
+// 先于 initI18n 的 en 目录包注册执行，标签冻结 zh（i18n/index.ts 定案 3
+// 「reload 后按新 locale 重新求值」的前提即求值点在目录包注册之后）。
+// 页面模块本就懒载（router 内 dynamic import），这里把壳层三入口对齐到
+// 同一闸后；zh 引导零行为变化（initI18n 无异步段）。
 import { consumeStepUpFragment } from '@/lib/stepUpGrant'
 import { initI18n } from '@/i18n'
 
@@ -44,15 +48,21 @@ import './design-system/tailwind.css'
 // 时零副作用。
 consumeStepUpFragment()
 
-initI18n().then(() => {
-  const router = createAppRouter()
-  createRoot(document.getElementById('root')!).render(
-    <StrictMode>
-      <AppProviders>
-        <ConfirmProvider>
-          <RouterProvider router={router} />
-        </ConfirmProvider>
-      </AppProviders>
-    </StrictMode>,
-  )
-})
+initI18n()
+  .then(async () => {
+    const [{ AppProviders }, { ConfirmProvider }, { createAppRouter }] = await Promise.all([
+      import('@/app/providers'),
+      import('@/components/ConfirmDialog'),
+      import('@/app/router'),
+    ])
+    const router = createAppRouter()
+    createRoot(document.getElementById('root')!).render(
+      <StrictMode>
+        <AppProviders>
+          <ConfirmProvider>
+            <RouterProvider router={router} />
+          </ConfirmProvider>
+        </AppProviders>
+      </StrictMode>,
+    )
+  })

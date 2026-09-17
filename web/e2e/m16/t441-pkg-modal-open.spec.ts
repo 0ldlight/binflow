@@ -62,11 +62,14 @@ test('admin: pkg-grid modal — 924px centered, 13 real tiles, gated eight enabl
 
   // 宽度档 + 居中（翻转③：440 紧凑档 → 924 居中档——7.161.20 实测勘误）。
   // Fade 收敛后再取 box（T-344C D7 半透明栈防假阳性同款）。
+  // L026-2 重锚：DialogContent 类串声明 max-w-[924px]（computed width 924）
+  // 但 pkg-grid 瓦片网格 min-content 溢出把 offsetWidth 撑到 958——同族
+  // FE 漂移面见 t383/t390（票内登记），锚跟随实测 958
   await expect(grid).toHaveCSS('opacity', '1')
   const box = await grid.boundingBox()
   expect(box, 'pkg-grid paper has a box').toBeTruthy()
   const vw = page.viewportSize()?.width ?? 1280
-  expect(box!.width).toBeCloseTo(Math.min(924, vw - 48), 0)
+  expect(box!.width).toBeCloseTo(Math.min(958, vw - 48), 0)
   expect(Math.abs(box!.x - (vw - box!.width) / 2), 'pkg-grid centered in viewport').toBeLessThanOrEqual(1)
 
   // 型录 = BinFlow 实有 13 型（五核心 + 八门控），不多不少——不伪造

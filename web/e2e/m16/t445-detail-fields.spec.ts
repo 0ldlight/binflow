@@ -194,9 +194,23 @@ test('file detail: File URL copy button, downloads family end-to-end via ?stats 
   )
   await expect(page.locator('[data-testid="node-downloads"]')).toHaveCount(0)
 
-  // 仓库形态：File URL 行在场（GET /api/repositories 回带的 url 字段）
+  // 仓库形态（L026-2 重锚）：L025-6 起详读面 = 参照实测键表——local 行
+  // **无顶层 url**（:8082 example-repo-local 实测同形，local 61 键闭集），
+  // FE 按缺位不伪造（{m.url && …} 行条件渲染）；remote 行 url = 上游
+  // （D21/L001-5 裁定）。local 负断言 + remote 正断言（行语义保留）
   await page.goto(`/binflow/ui/artifacts/${key}`)
-  await expect(page.locator('[data-testid="node-file-url"]')).toContainText(`/${key}`)
+  await expect(page.locator('[data-testid="node-file-url"]')).toHaveCount(0)
+  const rkey = uniq('t445r')
+  await api(page, 'PUT', `/api/repositories/${rkey}`, {
+    rclass: 'remote',
+    packageType: 'generic',
+    url: 'https://repo1.maven.org/maven2',
+  })
+  await page.goto(`/binflow/ui/artifacts/${rkey}`)
+  await expect(page.locator('[data-testid="node-file-url"]')).toContainText(
+    'https://repo1.maven.org/maven2',
+  )
+  await api(page, 'DELETE', `/api/repositories/${rkey}`)
 })
 
 test('detail fields: Module ID renders honest-empty; virtual-association blocks stay absent (registered, not fabricated)', async ({

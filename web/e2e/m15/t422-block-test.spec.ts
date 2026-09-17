@@ -194,15 +194,17 @@ test('admin: global block card — both directions flip with anchored toasts; co
   await expect(pushSwitch).not.toBeChecked()
   await expect(pullSwitch).not.toBeChecked()
 
-  // push 方向：toast 即翻回（最小窗——并行纪律注记，文件头）
+  // push 方向：toast 即翻回（最小窗——并行纪律注记，文件头）。
+  // L026-2 重锚：toast 栈换 sonner 后最新条在 DOM 首（data-front）——
+  // 「最新 toast」锚 = .first()（旧 MUI Snackbar 栈底最新 = .last() 退役）
   await pushSwitch.click()
-  await expect(page.locator('[data-testid="toast"]').last()).toContainText(
+  await expect(page.locator('[data-testid="toast"]').first()).toContainText(
     'Successfully blocked all push replications, no push replication will be triggered.',
   )
   await expect(pushSwitch).toBeChecked()
   expect((await blockFlags()).push).toBe(true)
   await pushSwitch.click()
-  await expect(page.locator('[data-testid="toast"]').last()).toContainText(
+  await expect(page.locator('[data-testid="toast"]').first()).toContainText(
     'Successfully unblocked all push replications.',
   )
   await expect(pushSwitch).not.toBeChecked()
@@ -210,7 +212,7 @@ test('admin: global block card — both directions flip with anchored toasts; co
 
   // pull 方向：本窗内同时钉「封锁不拦配置面 + push run 不受 blockPull 门」
   await pullSwitch.click()
-  await expect(page.locator('[data-testid="toast"]').last()).toContainText(
+  await expect(page.locator('[data-testid="toast"]').first()).toContainText(
     'Successfully blocked all pull replications, no pull replication will be triggered.',
   )
   await expect(pullSwitch).toBeChecked()
@@ -227,7 +229,7 @@ test('admin: global block card — both directions flip with anchored toasts; co
   expect((JSON.parse(run.text) as Record<string, unknown>).scheduled).toBe(0)
 
   await pullSwitch.click()
-  await expect(page.locator('[data-testid="toast"]').last()).toContainText(
+  await expect(page.locator('[data-testid="toast"]').first()).toContainText(
     'Successfully unblocked all pull replications.',
   )
   expect((await blockFlags()).pull).toBe(false)
