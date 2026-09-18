@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 维护（GC）（console-m8 §6.14——P3 新栈重写；T-459 迁址 /admin/monitoring/gc）：
 // - 定时维护卡（T-462 / FR-145.7）：三 cron 槽（gc / cleanup 两族）+
 //   Cleanup Run Now——GET/PUT /api/v1/system/maintenance +
@@ -180,17 +181,17 @@ function MaintenanceCronCard({
       {view.status === 'error' && view.error && <ErrorCard error={view.error} onRetry={view.reload} />}
 
       {view.status === 'ok' && view.data && (
-        <table className="w-full text-dense" data-testid="gc-cron-table">
-          <thead>
-            <tr className="border-b border-border text-left text-aux text-muted-foreground">
-              <th scope="col" className="px-3 py-2 font-medium">{tt('作业')}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{tt('cron 表达式')}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{tt('下次运行')}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{tt('上次运行 / 结果')}</th>
-              <th scope="col" className="px-3 py-2 text-right font-medium">{tt('操作')}</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table className="w-full text-dense" data-testid="gc-cron-table">
+          <TableHeader>
+            <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+              <TableHead scope="col" className="px-3 py-2 font-medium">{tt('作业')}</TableHead>
+              <TableHead scope="col" className="px-3 py-2 font-medium">{tt('cron 表达式')}</TableHead>
+              <TableHead scope="col" className="px-3 py-2 font-medium">{tt('下次运行')}</TableHead>
+              <TableHead scope="col" className="px-3 py-2 font-medium">{tt('上次运行 / 结果')}</TableHead>
+              <TableHead scope="col" className="px-3 py-2 text-right font-medium">{tt('操作')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {MAINTENANCE_SLOTS.map((key) => {
               const slot = slotOf(key)
               if (!slot) return null
@@ -199,9 +200,9 @@ function MaintenanceCronCard({
               const dirty = draft !== slot.cronExp
               const err = rowErrors[key]
               return (
-                <tr key={key} data-testid={`gc-cron-row-${key}`} className="border-b border-border/60 hover:bg-accent">
-                  <td className="px-3 py-1.5">{SLOT_LABEL[key]}</td>
-                  <td className="px-3 py-1.5">
+                <TableRow key={key} data-testid={`gc-cron-row-${key}`} className="border-b border-border/60 hover:bg-accent">
+                  <TableCell className="px-3 py-1.5">{SLOT_LABEL[key]}</TableCell>
+                  <TableCell className="px-3 py-1.5">
                     <TextInput
                       mono
                       lang="en"
@@ -218,8 +219,8 @@ function MaintenanceCronCard({
                       </p>
                     )}
                     {!scheduled && !dirty && <span className="text-muted-foreground">{tt('未调度')}</span>}
-                  </td>
-                  <td className="px-3 py-1.5">
+                  </TableCell>
+                  <TableCell className="px-3 py-1.5">
                     {scheduled ? (
                       slot.enabled ? (
                         <span className="font-mono" lang="en" title={slot.nextRun} data-testid={`gc-cron-next-${key}`}>
@@ -231,8 +232,8 @@ function MaintenanceCronCard({
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
-                  </td>
-                  <td className="px-3 py-1.5">
+                  </TableCell>
+                  <TableCell className="px-3 py-1.5">
                     {slot.lastRun ? (
                       <span className="font-mono" lang="en" title={slot.lastError || undefined} data-testid={`gc-cron-last-${key}`}>
                         {fmtUTC(slot.lastRun)}
@@ -241,8 +242,8 @@ function MaintenanceCronCard({
                     ) : (
                       <span className="text-muted-foreground">{tt('未运行')}</span>
                     )}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-1.5 text-right">
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap px-3 py-1.5 text-right">
                     {key === 'gc' ? (
                       <Button
                         variant="outline"
@@ -289,12 +290,12 @@ function MaintenanceCronCard({
                     >
                       {tt('清除')}
                     </Button>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       )}
 
       {readOnly && (

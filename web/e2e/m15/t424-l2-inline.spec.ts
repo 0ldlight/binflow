@@ -1,3 +1,4 @@
+import { expectSelectValue } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { TestInfo } from '@playwright/test'
 
@@ -126,7 +127,7 @@ test('admin: row Set Me Up direct-open — same T-382 drawer (smu-* anchors), pr
   // 行内入口另造的平行实现锚。
   const drawer = page.locator('[data-testid="smu-dialog"]')
   await expect(drawer).toBeVisible()
-  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+  await expectSelectValue(page, '[data-testid="smu-repo"]', key)
   await expect(page.locator('[data-testid="smu-tab-configure"]')).toBeVisible()
   await expect(page.locator('[data-testid="smu-tab-deploy"]')).toBeVisible()
   await expect(page.locator('[data-testid="smu-tab-resolve"]')).toBeVisible()

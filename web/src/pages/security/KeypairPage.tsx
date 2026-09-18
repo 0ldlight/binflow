@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // GPG 签名密钥对管理页（P3 解锁面——capability matrix 未列域表 keypair 行：
 // 「API 10 op 全备，无 UI」→ 解锁）。契约 = internal/httpapi/keypair.go。
 //
@@ -20,15 +22,15 @@
 import { useState } from 'react'
 
 import { useAuth } from '@/app/AuthContext'
-import { Button } from '@/components/ui/button'
+
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AlertBox } from '@/components/layout/bits'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
-import { TextInput, TextArea, NativeSelect } from '@/components/layout/fields'
+import { TextInput, TextArea, SelectField } from '@/components/layout/fields'
 import { useConfirm } from '@/app/providers'
 import { toast } from '@/lib/toast'
-import { ApiError, errText, isReadOnlyAdmin, canAdminWrite } from '@/lib/api'
+import { ApiError, canAdminWrite, errText, getRepositories, isReadOnlyAdmin } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 import './security.css'
 import {
@@ -41,7 +43,7 @@ import {
   verifyKeypair,
 } from './keypair'
 import type { KeypairSummary } from './keypair'
-import { getRepositories } from '@/lib/api'
+
 import { tr } from '@/i18n'
 
 const t = tr('security')
@@ -190,29 +192,29 @@ export default function KeypairPage() {
           />
         ) : (
           <>
-            <table className="w-full text-dense" data-testid="keypair-table">
-              <thead>
-                <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-medium">{t('密钥对名')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">alias</th>
-                  <th scope="col" className="px-3 py-2 font-medium">type</th>
-                  <th scope="col" className="px-3 py-2 font-medium">algorithm</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('关联仓库')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('更新')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('操作')}</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-dense" data-testid="keypair-table">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('密钥对名')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">alias</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">type</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">algorithm</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('关联仓库')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('更新')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('操作')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {rows.map((r, i) => (
-                  <tr key={r.pairName} data-testid={`keypair-row-${i}`} className="border-b border-border/60 hover:bg-accent">
-                    <td className="px-3 py-1.5">
+                  <TableRow key={r.pairName} data-testid={`keypair-row-${i}`} className="border-b border-border/60 hover:bg-accent">
+                    <TableCell className="px-3 py-1.5">
                       <span className="font-mono" lang="en">{r.pairName}</span>{' '}
                       <CopyButton value={r.pairName} label={t('密钥对名 {v1}', { v1: r.pairName })} />
-                    </td>
-                    <td className="px-3 py-1.5"><span className="font-mono" lang="en">{r.alias || '—'}</span></td>
-                    <td className="px-3 py-1.5">{r.pairType || '—'}</td>
-                    <td className="px-3 py-1.5"><span className="font-mono" lang="en">{r.algorithm || '—'}</span></td>
-                    <td className="px-3 py-1.5">
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5"><span className="font-mono" lang="en">{r.alias || '—'}</span></TableCell>
+                    <TableCell className="px-3 py-1.5">{r.pairType || '—'}</TableCell>
+                    <TableCell className="px-3 py-1.5"><span className="font-mono" lang="en">{r.algorithm || '—'}</span></TableCell>
+                    <TableCell className="px-3 py-1.5">
                       {r.repositories.length === 0 ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (
@@ -221,26 +223,26 @@ export default function KeypairPage() {
                             <span key={repo} className="pattern-chip !mb-0">
                               <span className="val" lang="en">{repo}</span>
                               {admin && !readOnly && (
-                                <button
+                                <Button
                                   type="button"
                                   aria-label={t('解除 {repo} 关联', { repo: repo })}
                                   onClick={() => void doDisassociate(r.pairName, repo)}
                                   data-testid={`keypair-assoc-remove-${repo}`}
                                 >
                                   ✕
-                                </button>
+                                </Button>
                               )}
                             </span>
                           ))}
                         </span>
                       )}
-                    </td>
-                    <td className="px-3 py-1.5">
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5">
                       <span className="text-muted-foreground" title={`${r.updatedAt} · ${r.updatedBy}`}>
                         {r.updatedAt ? r.updatedAt.replace('T', ' ').slice(0, 19) : '—'}
                       </span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-1.5">
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap px-3 py-1.5">
                       <Button variant="outline" size="sm" className="h-7" onClick={() => setPublicKey(r)}>
                         {t('公钥')}
                       </Button>{' '}
@@ -265,11 +267,11 @@ export default function KeypairPage() {
                           {t('删除')}
                         </Button>
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
 
             {/* 仓库关联卡（POST /v2/repositories/{repoKey}/keyPairs——body 为 pair 名纯文本） */}
             {admin && !readOnly && (
@@ -279,7 +281,7 @@ export default function KeypairPage() {
                   {t('仓库关联后，该仓库的签名/校验使用此密钥对（Artifactory 7.19 关联面：仓库单槽——再关联即替换）。')}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
-                  <NativeSelect
+                  <SelectField
                     value={assocRepo}
                     onChange={(e) => setAssocRepo(e.target.value)}
                     className="w-[220px]"
@@ -287,7 +289,7 @@ export default function KeypairPage() {
                     options={repoOptions.map((r) => ({ value: r, label: r === '' ? t('选择仓库…') : r }))}
                     data-testid="keypair-assoc-repo"
                   />
-                  <NativeSelect
+                  <SelectField
                     value={assocPair}
                     onChange={(e) => setAssocPair(e.target.value)}
                     className="w-[220px]"
@@ -388,7 +390,7 @@ function GenerateDialog({ onClose, onDone }: { onClose: () => void; onDone: () =
           </div>
           <div className="field">
             <label htmlFor="kp-bits">{t('密钥长度')}</label>
-            <NativeSelect
+            <SelectField
               id="kp-bits"
               value={String(f.keyBits)}
               onChange={(e) => setF((p) => ({ ...p, keyBits: Number(e.target.value) }))}

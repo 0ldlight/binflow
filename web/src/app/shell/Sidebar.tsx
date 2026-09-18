@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button'
 // 侧栏（新壳——architecture §4 四分组 IA）。类钩与锚纪律：
 // - app-nav 锚 / .nav-item / .nav-group-label / .app-nav-brand /
 //   .app-nav-footer 类钩原样保留（spec 类钩纪律 §3.8；e2e 以
@@ -89,7 +90,7 @@ export function Sidebar({
             data-testid="nav-locale"
             className="ml-auto flex overflow-hidden rounded-sm border border-sidebar-border"
           >
-            <button
+            <Button
               type="button"
               data-testid="nav-locale-zh"
               aria-pressed={locale === 'zh'}
@@ -100,8 +101,8 @@ export function Sidebar({
               onClick={() => setLocale('zh' as Locale)}
             >
               {LOCALE_LABEL_ZH}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               data-testid="nav-locale-en"
               aria-pressed={locale === 'en'}
@@ -112,10 +113,10 @@ export function Sidebar({
               onClick={() => setLocale('en' as Locale)}
             >
               English
-            </button>
+            </Button>
           </div>
         </div>
-        <button
+        <Button
           type="button"
           className="app-nav-license nav-item flex items-center rounded-sm px-2 py-1 text-left text-aux text-sidebar-muted-foreground hover:bg-sidebar-hover"
           data-testid="nav-about"
@@ -125,7 +126,7 @@ export function Sidebar({
           <span>
             BinFlow <span data-testid="nav-version" lang="en">{version ? `v${version}` : '—'}</span> {t('· 单二进制制品仓库')}
           </span>
-        </button>
+        </Button>
       </div>
     </nav>
   )

@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // Release Bundles 页（T-514 / FR-153.3——P3 新栈重写 + 创建面解锁（capability
 // matrix 未列域 bundles 行：「POST create」））：
 // - 三视图一组件（URL 即状态）：/bundles（名单）→ /bundles/:name（版本单）
@@ -126,24 +127,24 @@ function BundleNamesView() {
       )}
       {names.status === 'ok' && (names.data?.bundles.length ?? 0) > 0 && (
         <section className="card section" data-testid="bundles-table">
-          <table className="w-full text-dense">
-            <thead>
-              <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-medium">{t('Bundle')}</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-dense">
+            <TableHeader>
+              <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('Bundle')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {(names.data?.bundles ?? []).map((b) => (
-                <tr key={b.name} className="border-b border-border/60 hover:bg-accent" data-testid={`bundles-row-${b.name}`}>
-                  <td className="px-3 py-1.5">
+                <TableRow key={b.name} className="border-b border-border/60 hover:bg-accent" data-testid={`bundles-row-${b.name}`}>
+                  <TableCell className="px-3 py-1.5">
                     <Link className="row-link font-mono text-primary hover:underline" lang="en" to={`/bundles/${encodeURIComponent(b.name)}`}>
                       {b.name}
                     </Link>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </section>
       )}
       {createOpen && (
@@ -194,18 +195,18 @@ function BundleVersionsView({ name }: { name: string }) {
       {notFound && <BundleNotFound name={name} />}
       {versions.status === 'ok' && (
         <section className="card section" data-testid="bundle-versions-table">
-          <table className="w-full text-dense">
-            <thead>
-              <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-medium">{t('版本')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{t('状态')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{t('创建时间')}</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-dense">
+            <TableHeader>
+              <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('版本')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('状态')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('创建时间')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {(versions.data?.versions ?? []).map((v: BundleVersionRow) => (
-                <tr key={v.version} className="border-b border-border/60 hover:bg-accent" data-testid={`bundle-version-row-${v.version}`}>
-                  <td className="px-3 py-1.5">
+                <TableRow key={v.version} className="border-b border-border/60 hover:bg-accent" data-testid={`bundle-version-row-${v.version}`}>
+                  <TableCell className="px-3 py-1.5">
                     <Link
                       className="row-link font-mono text-primary hover:underline"
                       lang="en"
@@ -213,15 +214,15 @@ function BundleVersionsView({ name }: { name: string }) {
                     >
                       {v.version}
                     </Link>
-                  </td>
-                  <td className="px-3 py-1.5">
+                  </TableCell>
+                  <TableCell className="px-3 py-1.5">
                     <StateBadge state={v.state} />
-                  </td>
-                  <td className="px-3 py-1.5 font-mono" lang="en">{fmtUTC(v.created)}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="px-3 py-1.5 font-mono" lang="en">{fmtUTC(v.created)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </section>
       )}
     </div>
@@ -321,21 +322,21 @@ function BundleDetailView({ name, version }: { name: string; version: string }) 
 
           <section className="card section" data-testid="bundle-artifacts">
             <h3 className="mb-2 text-dense font-semibold">{t('制品清单（{v1} 项）', { v1: artifacts.length })}</h3>
-            <table className="w-full text-dense">
-              <thead>
-                <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-medium">{t('仓库')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('路径')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">sha256</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('大小')}</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-dense">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('仓库')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('路径')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">sha256</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('大小')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {pageRows.map((a, i) => (
-                  <tr key={`${a.repo}/${a.path}`} className="border-b border-border/60 hover:bg-accent" data-testid={`bundle-artifact-row-${pager.from + i}`}>
-                    <td className="px-3 py-1.5 font-mono" lang="en">{a.repo}</td>
-                    <td className="px-3 py-1.5 font-mono" lang="en">{a.path}</td>
-                    <td className="px-3 py-1.5">
+                  <TableRow key={`${a.repo}/${a.path}`} className="border-b border-border/60 hover:bg-accent" data-testid={`bundle-artifact-row-${pager.from + i}`}>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{a.repo}</TableCell>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{a.path}</TableCell>
+                    <TableCell className="px-3 py-1.5">
                       {a.sha256 ? (
                         <>
                           <span className="font-mono" lang="en">{a.sha256.slice(0, 12)}…</span>
@@ -345,17 +346,17 @@ function BundleDetailView({ name, version }: { name: string; version: string }) 
                         // pending 行（sha256='' = 制品尚未快照）：如实 —
                         <span className="text-muted-foreground" title={t('清单引用的制品尚不在本实例（pending 行——bundle 因此 INPROGRESS）')}>—</span>
                       )}
-                    </td>
-                    <td className="px-3 py-1.5 font-mono" lang="en">{a.size > 0 ? formatBytes(a.size) : '—'}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{a.size > 0 ? formatBytes(a.size) : '—'}</TableCell>
+                  </TableRow>
                 ))}
                 {artifacts.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-3 py-2 text-muted-foreground">{t('（空清单）')}</td>
-                  </tr>
+                  <TableRow>
+                    <TableCell colSpan={4} className="px-3 py-2 text-muted-foreground">{t('（空清单）')}</TableCell>
+                  </TableRow>
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             {artifacts.length > 0 && (
               <Pager
                 page={pager.page}

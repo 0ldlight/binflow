@@ -1,3 +1,4 @@
+import { expectSelectValue, selectOptionValues } from '../support/shadcn'
 import { createHash } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -117,10 +118,8 @@ test('tokens: admin mint chain — one-time plaintext, ledger row, close+reload 
   const dialog = page.locator('[data-testid="token-dialog"]')
   await expect(dialog).toBeVisible()
   await expect(page.locator('[data-testid="token-form-subject"]')).toBeVisible()
-  await expect(page.locator('[data-testid="token-form-ttl"]')).toHaveValue('86400') // 默认 24h
-  const ttlOptions = await page.locator('[data-testid="token-form-ttl"] option').evaluateAll((els) =>
-    els.map((e) => (e as HTMLOptionElement).value),
-  )
+  await expectSelectValue(page, '[data-testid="token-form-ttl"]', '86400') // 默认 24h
+  const ttlOptions = await selectOptionValues(page, '[data-testid="token-form-ttl"]')
   expect(ttlOptions).toEqual(['3600', '86400', '604800', '2592000', '31536000', '0']) // 含永不过期（admin）
   await expect(dialog).toContainText('api:*') // scope 只读说明（非选项）
 

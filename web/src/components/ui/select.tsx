@@ -37,7 +37,7 @@ function SelectContent({ className, children, position = 'popper', ...props }: C
         data-slot="select-content"
         position={position}
         className={cn(
-          'relative z-[80] max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[8rem] overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-overlay',
+          'relative z-[100] max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[8rem] overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-overlay',
           position === 'popper' && 'data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
           className,
         )}

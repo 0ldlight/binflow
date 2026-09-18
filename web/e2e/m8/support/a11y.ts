@@ -43,7 +43,7 @@ export async function expectA11yClean(page: Page, testInfo: TestInfo, opts: A11y
         id: v.id,
         impact: v.impact,
         help: v.help,
-        nodes: v.nodes.slice(0, 5).map((n) => n.target),
+        nodes: v.nodes.slice(0, 5).map((n) => ({ target: n.target, html: n.html })),
       })),
       passes: results.passes.length,
       incomplete: results.incomplete.length,
@@ -52,6 +52,7 @@ export async function expectA11yClean(page: Page, testInfo: TestInfo, opts: A11y
     2,
   )
   await testInfo.attach('a11y-report', { body: report, contentType: 'application/json' })
+  if (failing.length) console.error('A11Y REPORT', report)
   expect(
     failing.map((v) => `${v.id}(${v.impact})`),
     'accessibility violations — full report in the a11y-report attachment',

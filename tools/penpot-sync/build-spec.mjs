@@ -396,7 +396,7 @@ fs.writeFileSync(OUT_SPEC, JSON.stringify(spec));
 fs.writeFileSync(OUT_CATALOG, JSON.stringify({
   meta: {
     rebuiltAt: new Date().toISOString(),
-    note: 'Phase B rebuild — manifest slug→route 全量 (crawl-manifest.json is the authority); capture status = PNG presence. Phase A screens-catalog.json only had 4 entries because the screens phase was chunked; this catalog restores the full mapping.',
+    note: 'Phase B rebuild — manifest slug→route 全量 (crawl-manifest.json is the authority); capture status = PNG presence. Chunked runs can leave screens-catalog.json partial, so this catalog restores the full mapping.',
     manifestScreens: screens.length,
     captured: captured.length,
     groupsWithCaptures: groupsWithCaptures.map(([g, m]) => `${g} (${m.length})`),

@@ -208,7 +208,8 @@ test('field domains: forceConanAuthentication live round-trip (conditional — c
   const body = JSON.parse((await posted).postData() ?? '{}') as Record<string, unknown>
   expect(body.forceConanAuthentication).toBe(false)
   const got = await sessionApi(page, 'GET', `/api/repositories/${key}`)
-  const cfg = ((got.json as { configuration?: Record<string, unknown> }).configuration ?? {})
+  const raw = got.json as Record<string, unknown> & { configuration?: Record<string, unknown> }
+  const cfg = raw.configuration ?? raw
   expect(cfg.forceConanAuthentication).toBe(false)
 
   await m8Client().request('DELETE', `/binflow/api/repositories/${key}?deleteContent=true`)
@@ -264,7 +265,8 @@ test('api round trip: PUT accepts the four B-1.5 fields (200) and the GET echo c
 
   const got = await sessionApi(page, 'GET', `/api/repositories/${key}`)
   expect(got.status).toBe(200)
-  const cfg = ((got.json as { configuration?: Record<string, unknown> }).configuration ?? {})
+  const raw = got.json as Record<string, unknown> & { configuration?: Record<string, unknown> }
+  const cfg = raw.configuration ?? raw
   // 对照组回显（机制证明——configJSON 转发链活着）
   expect(cfg.includesPattern).toBe('**/*.jar')
   // 四域回显（L006 7f6b5a32 落地，L025-2 按原漂移钉自带的升级路径翻正：

@@ -8,7 +8,7 @@
 // （aria-busy + disabled——防双击提交竞态）；link 变体无 loading。
 import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, Ref } from 'react'
 
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
@@ -40,6 +40,7 @@ const buttonVariants = cva(
 )
 
 function Button({
+  ref,
   className,
   variant,
   size,
@@ -47,9 +48,10 @@ function Button({
   disabled,
   children,
   ...props
-}: ComponentProps<'button'> & VariantProps<typeof buttonVariants> & { loading?: boolean }) {
+}: ComponentProps<'button'> & VariantProps<typeof buttonVariants> & { loading?: boolean; ref?: Ref<HTMLButtonElement> }) {
   return (
     <button
+      ref={ref}
       data-slot="button"
       aria-busy={loading || undefined}
       // loading = 真禁用（§4.2：防双击提交——不止视觉灰态）

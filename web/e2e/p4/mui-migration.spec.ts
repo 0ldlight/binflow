@@ -1,3 +1,4 @@
+import { expectSelectValue } from '../support/shadcn'
 import { test, expect } from '@playwright/test'
 
 import { loginAs } from '../m8/support/roles'
@@ -58,7 +59,7 @@ test('setmeup: Radix sheet opens from tree header, tabs keyboard-navigate, close
   await page.click('[data-testid="tree-setmeup"]')
   const dialog = page.locator('[data-testid="smu-dialog"]')
   await expect(dialog).toBeVisible()
-  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(`${marker}-local`)
+  await expectSelectValue(page, '[data-testid="smu-repo"]', `${marker}-local`)
   // 焦点圈进（Radix FocusScope——activeElement 落面板内）
   await expect
     .poll(() => page.evaluate(() => !!document.activeElement?.closest('[data-testid="smu-dialog"]')))
@@ -87,7 +88,7 @@ test('deploy: Radix dialog shows candidates and dropzone, axe clean', async ({ p
   await page.click('[data-testid="tree-deploy"]')
   const dialog = page.locator('[data-testid="deploy-dialog"]')
   await expect(dialog).toBeVisible()
-  await expect(page.locator('[data-testid="deploy-repo"]')).toHaveValue(`${marker}-local`)
+  await expectSelectValue(page, '[data-testid="deploy-repo"]', `${marker}-local`)
   await expect(page.locator('[data-testid="deploy-drop"]')).toBeVisible()
   await expectA11yClean(page, testInfo, { include: '[data-testid="deploy-dialog"]' })
 

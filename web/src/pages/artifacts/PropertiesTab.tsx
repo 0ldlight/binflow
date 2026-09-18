@@ -1,6 +1,8 @@
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useMemo, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
 import { useConfirm } from '../../components/ConfirmDialog'
 import { useToast } from '../../app/ToastContext'
 import { EmptyState, StateSkeleton } from '@/components/layout/states'
@@ -208,7 +210,7 @@ export default function PropertiesTab({
       <div className="flex flex-wrap items-start gap-2" style={{ marginBottom: 6 }}>
         <div className="field" style={{ width: 220, marginBottom: 0 }}>
           <label htmlFor="node-props-key-input">Property</label>
-          <input
+          <Input
             id="node-props-key-input"
             className="w-full"
             placeholder={PROPS_COPY.keyPlaceholder}
@@ -229,7 +231,7 @@ export default function PropertiesTab({
         </div>
         <div className="field" style={{ width: 280, marginBottom: 0 }}>
           <label htmlFor={`node-props-values-input-${valuesAnchorSuffix}`}>Value</label>
-          <input
+          <Input
             // 后缀 = 已敲键或 new（家族 node-props-values-input-<key>）——
             // 模板串内不得内联引号（对账器值类正则按引号截断，锚家族会
             // 从 src 侧隐形——T-447 复刻 T-291 教训，先算后拼）
@@ -268,7 +270,7 @@ export default function PropertiesTab({
         <span className="text-dense text-muted-foreground">{t('属性 ·')} {rows.length} {t('个键')}{search.trim() !== '' ? t('（匹配 {v1}）', { v1: filtered.length }) : ''}</span>
         {/* 网格搜索（B-2.9 解剖要素——键/值子串过滤；清空恢复全量） */}
         <div className="field" style={{ width: 220, marginBottom: 0 }}>
-          <input
+          <Input
             data-testid="node-props-search"
             className="w-full"
             aria-label={PROPS_COPY.searchLabel}
@@ -278,14 +280,14 @@ export default function PropertiesTab({
             autoComplete="off"
           />
           {search !== '' && (
-            <button
+            <Button
               type="button"
               aria-label={t('清除属性搜索')}
               onClick={() => setSearch('')}
               className="mt-0.5 self-start text-aux text-muted-foreground hover:text-foreground"
             >
               ✕
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -302,27 +304,27 @@ export default function PropertiesTab({
           <p className="text-dense text-muted-foreground" data-testid="node-props-search-empty">{t('没有匹配「')}{search.trim()}{t('」的属性')}</p>
         </div>
       ) : (
-        <table data-testid="node-props-table" aria-label={t('制品属性')} className="w-full border-collapse text-dense">
-          <thead>
-            <tr className="border-b border-border text-left text-aux text-muted-foreground">
-              <th className="w-[34%] px-2 py-1.5 font-medium">{t('键')}</th>
-              <th className="px-2 py-1.5 font-medium">{t('值（多值以逗号分隔）')}</th>
-              <th className="w-[72px] px-2 py-1.5 text-right font-medium">{t('操作')}</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table data-testid="node-props-table" aria-label={t('制品属性')} className="w-full border-collapse text-dense">
+          <TableHeader>
+            <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+              <TableHead className="w-[34%] px-2 py-1.5 font-medium">{t('键')}</TableHead>
+              <TableHead className="px-2 py-1.5 font-medium">{t('值（多值以逗号分隔）')}</TableHead>
+              <TableHead className="w-[72px] px-2 py-1.5 text-right font-medium">{t('操作')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {filtered.map(([key, values]) => (
-              <tr
+              <TableRow
                 key={key}
                 data-testid={`node-props-row-${key}`}
                 className="border-b border-border/60 transition-colors duration-fast ease-standard hover:bg-surface-2"
               >
-                <th scope="row" className="px-2 py-1.5 text-left font-mono font-normal">
+                <TableHead scope="row" className="px-2 py-1.5 text-left font-mono font-normal">
                   {key}
-                </th>
-                <td className="px-2 py-1.5 font-mono">{values.join(', ')}</td>
-                <td className="whitespace-nowrap px-2 py-1.5 text-right">
-                  <button
+                </TableHead>
+                <TableCell className="px-2 py-1.5 font-mono">{values.join(', ')}</TableCell>
+                <TableCell className="whitespace-nowrap px-2 py-1.5 text-right">
+                  <Button
                     type="button"
                     aria-label={t('删除属性 {key}', { key: key })}
                     data-testid={`node-props-delete-${key}`}
@@ -332,12 +334,12 @@ export default function PropertiesTab({
                     className="rounded-sm p-1 text-muted-foreground hover:bg-surface-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50"
                   >
                     <span aria-hidden="true">🗑</span>
-                  </button>
-                </td>
-              </tr>
+                  </Button>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       )}
 
       {opError && (
@@ -348,14 +350,14 @@ export default function PropertiesTab({
         >
           <div className="flex items-center justify-between gap-2">
             <span>{t('属性写入失败（HTTP')} {opError.status}{t('）：')}<span lang="en">{opError.message}</span></span>
-            <button
+            <Button
               type="button"
               aria-label={t('关闭错误提示')}
               onClick={() => setOpError(null)}
               className="rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
             >
               <span aria-hidden="true">✕</span>
-            </button>
+            </Button>
           </div>
           {opError.status === 403 && (
             <div>{t('当前会话没有该路径的写权限（write 动作）——权限按 permission target 的路径 pattern 授予，请联系管理员。')}</div>

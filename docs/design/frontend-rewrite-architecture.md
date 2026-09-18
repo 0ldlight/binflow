@@ -6,23 +6,24 @@
 ## 0. 不可变契约（重写全程红线，违反即停）
 
 1. **挂载**：`/binflow/ui/**`（SPA shell）+ `/binflow/assets/**`（共享指纹资产）；`vite base=/binflow/ui/` 与 `BrowserRouter basename=/binflow/ui` 双真值同步。
-2. **构建链五步语义**：assert-tokens → assert-i18n → vite build → relink-assets → wire-brand-assets——每步自校验语义等价保留（实现可换，语义不可降）。
+2. **构建链七步语义**：assert-penpot → assert-shadcn → assert-tokens → assert-i18n → vite build → relink-assets → wire-brand-assets——每步自校验语义等值保留（实现可换，语义不可降）。
 3. **入口名**：`npm run dev / build / typecheck / lint / e2e`；root `make console`（npm ci → build → 拷贝 → embed → console-size 5MB 警告）。
 4. **i18n 机制**：zh-as-key + common 路由 + en 懒 chunk + reload 切换 + assert-i18n 三道闸（零硬编码 CJK / 键集同构 / manifest 对账）。
 5. **URL 深链不猝死**：树页签段+文件末段、builds/bundles 三视图、search ?q/mode/scope、?started= 消歧、?section= 直落——新路由结构保持这些 URL 形态。
 6. **testid 锚制**：874 家族锚名原样迁入；四态缺省锚（skeleton/error-card+error-retry/empty-state/toast）与冻结锚（login-*/app-nav/session-user）不动。
 7. **Go 零改**：不改 API/DB/认证/协议（D 类契约漂移只回填 fern 文档侧）。
+8. **shadcn/ui 原生组件硬门**（执行细则见 [shadcn-ui-compliance.md](./shadcn-ui-compliance.md)）：生产 JSX 的 Button/Input/Textarea/Select/Radio/Checkbox/Switch/Dialog/Drawer/Table 等交互与表格原语必须消费 `web/src/components/ui/*`；业务层只能组合、密度化与语义封装，不得手写同类 HTML 控件冒充。`npm run lint/build` 前置 `assert-shadcn.mjs` 强制拦截。AG Grid 仅作为虚拟数据网格专用引擎保留（shadcn 无 data-grid primitive），外层操作与状态仍走 shadcn。
 
 ## 1. 技术栈集成决策（含授权/体积/兼容裁定）
 
 | 层 | 选型 | 裁定与理由 |
 |---|---|---|
 | 核心 | React 19 + TS + Vite + React Router（data router 模式 `createBrowserRouter`） | router 升 data 模式（loader/action 可选渐进用）；basename 契约不变 |
-| UI | shadcn/ui + Radix + Tailwind v4 + lucide-react | shadcn 源码进仓（components.json + CLI 生成），无运行时包锁定；**token 双主题迁移**（§3） |
+| UI | shadcn/ui + Radix + Tailwind v4 + lucide-react | shadcn 源码进仓（components.json + CLI 生成），无运行时包锁定；**生产原语硬门=components/ui/**，token 双主题迁移（§3） |
 | 状态 | Zustand | 仅 UI 态五仓（§6）；服务态一律 TanStack Query |
 | 服务态 | @tanstack/react-query | key 按域+cursor 建模（audit/outbox keyset、其余全量数组）；refetchInterval 复刻 10s/5s/7s 三轮询；全局 401 监听挂 QueryClient 层 |
 | 表单 | react-hook-form + zod | **验证规则迁移事实源=audit §4 表单盘点**（18 张表的现行手写规则逐条转 schema）；secret 哨兵三态语义保留 |
-| 表格 | ag-grid-community + 自研轻量 table | AG Grid **社区版特性集内**（无限行模型/虚拟滚动/列拖选——企业特性 server-side row model/区间选择禁用，规避授权）；Explorer/Audit/搜索结果用 AG Grid，Users/Groups/Webhooks/Settings 用轻量 table（§7） |
+| 表格 | AG Grid + shadcn/ui Table | AG Grid **社区版特性集内**（无限行模型/虚拟滚动/列拖选——企业特性 server-side row model/区间选择禁用，规避授权）；Explorer/Audit/搜索结果用 AG Grid，普通管理表格一律组合 `ui/table`（§7） |
 | 虚拟化 | @tanstack/react-virtual | 树虚拟化（替代 TREE_LEVEL_CAP=300+load-more）；AG Grid 自带行虚拟 |
 | 代码查看 | monaco-editor（动态 import 单路由 chunk） | **worker 资产风险裁定**：vite `worker.format:'es'`+worker 构建产物落 assets；relink-assets.mjs 扩展扫描 worker URL 面（新增自校验腿——不通过即红） |
 | 图表 | echarts（按需 echarts/core+用到的图） | Dashboard/Storage/监控面；按路由懒载 |

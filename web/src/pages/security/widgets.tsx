@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 安全域共享小件（P3 新栈重写——旧 MUI 实现随本批退役）：
 //   PermSummaryTable  只读权限矩阵（§6.9[5]/§6.10：r/a/w/d/m 五列，manage
 //                     头带「不隐含读写删」说明——§7.2）
@@ -13,8 +14,8 @@ import { toast } from '@/lib/toast'
 import { useConfirm } from '@/app/providers'
 import { Badge } from '@/components/ui/badge'
 import { ApiError, errText } from '@/lib/api'
-import { deleteUser } from './api'
-import { PERM_ACTIONS } from './api'
+import { deleteUser, PERM_ACTIONS } from './api'
+
 import type { PrincipalGrantRow } from './api'
 import { tr } from '@/i18n'
 
@@ -35,13 +36,13 @@ export function PermSummaryTable({
     return <p className="text-muted-foreground perm-summary-empty">{emptyHint}</p>
   }
   return (
-    <table className="perm-summary w-full text-dense" data-testid={`${rowTestidPrefix}-matrix`}>
-      <thead>
-        <tr className="border-b border-border text-left text-aux text-muted-foreground">
-          <th scope="col" className="px-3 py-2 font-medium">Permission Name</th>
-          <th scope="col" className="px-3 py-2 font-medium">{t('应用途径')}</th>
+    <Table className="perm-summary w-full text-dense" data-testid={`${rowTestidPrefix}-matrix`}>
+      <TableHeader>
+        <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+          <TableHead scope="col" className="px-3 py-2 font-medium">Permission Name</TableHead>
+          <TableHead scope="col" className="px-3 py-2 font-medium">{t('应用途径')}</TableHead>
           {PERM_ACTIONS.map((a) => (
-            <th
+            <TableHead
               key={a}
               scope="col"
               className="th-action px-3 py-2 text-center font-medium"
@@ -58,19 +59,19 @@ export function PermSummaryTable({
               }
             >
               {a}
-            </th>
+            </TableHead>
           ))}
-        </tr>
-      </thead>
-      <tbody>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {rows.map((r) => (
-          <tr key={r.target} className="border-b border-border/60 hover:bg-accent">
-            <td className="px-3 py-1.5">
+          <TableRow key={r.target} className="border-b border-border/60 hover:bg-accent">
+            <TableCell className="px-3 py-1.5">
               <Link className="row-link font-mono" to={`/admin/security/permissions/${encodeURIComponent(r.target)}`} lang="en">
                 {r.target}
               </Link>
-            </td>
-            <td className="px-3 py-1.5">
+            </TableCell>
+            <TableCell className="px-3 py-1.5">
               <span className="sec-chips">
                 {r.sources.map((s) =>
                   s === 'direct' ? (
@@ -80,9 +81,9 @@ export function PermSummaryTable({
                   ),
                 )}
               </span>
-            </td>
+            </TableCell>
             {PERM_ACTIONS.map((a) => (
-              <td key={a} className="td-mark px-3 py-1.5 text-center">
+              <TableCell key={a} className="td-mark px-3 py-1.5 text-center">
                 {r.actions.includes(a) ? (
                   <span className="mark-on text-success" aria-label={t('{a} 已授予', { a: a })}>
                     ✓
@@ -92,12 +93,12 @@ export function PermSummaryTable({
                     —
                   </span>
                 )}
-              </td>
+              </TableCell>
             ))}
-          </tr>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   )
 }
 

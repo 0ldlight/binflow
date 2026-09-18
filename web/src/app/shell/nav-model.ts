@@ -22,6 +22,7 @@ import {
   HardDrive,
   KeyRound,
   Lock,
+  Package,
   ScrollText,
   ShieldCheck,
   Trash2,
@@ -61,6 +62,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: t('核心'),
     items: [
       { id: 'dashboard', to: '/dashboard', icon: Gauge, visibility: 'all', label: t('仪表盘'), end: true },
+      { id: 'packages', to: '/packages', icon: Package, visibility: 'all', label: 'Packages' },
       { id: 'artifacts', to: '/artifacts', icon: FolderTree, visibility: 'all', label: t('制品') },
       { id: 'repositories', to: '/admin/repositories/local', icon: Boxes, visibility: 'admin-sight', label: t('仓库') },
       { id: 'search', to: '/search', icon: FileSearch, visibility: 'all', label: t('搜索'), end: true },

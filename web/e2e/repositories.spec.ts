@@ -1,3 +1,4 @@
+import { expectSelectValue, selectShadcn } from './support/shadcn'
 import { expect, test } from '@playwright/test'
 
 // T-99 探针：仓库创建 → 列表 → 详情 → 编辑（governance 字段往返）→
@@ -240,7 +241,7 @@ test('remote maven: url roundtrip, password never echoed, empty delete', async (
   })
   await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
   // 基本步（来源节）：allowPrivateUpstream 复选预填真值
-  await expect(page.locator('label:has-text("允许私网上游") > input')).toBeChecked()
+  await expect(page.locator('[data-testid="form-allow-private-upstream"]')).toBeChecked()
   await page.click('[data-testid="form-step-advanced"]')
   await expect(page.locator('[data-testid="form-socketTimeoutSecs"]')).toHaveValue('90')
   await page.click('[data-testid="form-step-basic"]')
@@ -320,7 +321,7 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   // 调序：把 m2 上移到首位
   await page.click('[data-testid="member-up-1"]')
   await expect(page.locator('[data-testid="form-member-order"] .chip-item').first()).toContainText(m2)
-  await page.selectOption('[data-testid="form-default-deploy"]', m1)
+  await selectShadcn(page, '[data-testid="form-default-deploy"]', m1)
   await page.click('[data-testid="form-submit"]')
 
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${vkey}$`))
@@ -346,9 +347,9 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   // review B2：取消 defaultDeploymentRepo 所指成员 → select 联动回「（未配置）」，提交不再吃 400
   await page.goto(`/binflow/ui/admin/repositories/${vkey}/edit`)
   await expect(page.locator(`[data-testid="form-member-${m1}"]`)).toBeChecked()
-  await expect(page.locator('[data-testid="form-default-deploy"]')).toHaveValue(m1)
+  await expectSelectValue(page, '[data-testid="form-default-deploy"]', m1)
   await page.uncheck(`[data-testid="form-member-${m1}"]`)
-  await expect(page.locator('[data-testid="form-default-deploy"]')).toHaveValue('')
+  await expectSelectValue(page, '[data-testid="form-default-deploy"]', '')
   await page.click('[data-testid="form-submit"]')
   await expect(page.locator('[data-testid="toast"]')).toContainText('update successfully')
   const after = await api(page, 'GET', `/api/repositories/${vkey}`)
@@ -406,7 +407,7 @@ test('L025-7: BinFlow-only keys survive an untouched-fields edit (read seat = v1
   await page.click('[data-testid="form-step-advanced"]')
   await expect(page.locator('[data-testid="form-quota"]')).toHaveValue('1048576')
   await expect(page.locator('[data-testid="form-includes"]')).toHaveValue('keep/**')
-  await expect(page.locator('label:has-text("priorityResolution") > input')).toBeChecked()
+  await expect(page.locator('[data-testid="form-priority-resolution"]')).toBeChecked()
   await page.click('[data-testid="form-step-basic"]')
   await page.fill('[data-testid="form-description"]', 'l025-7 untouched-fields save')
   await page.click('[data-testid="form-submit"]')

@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table'
 // 用户列表（console-m8 §6.9——P3 新栈重写：轻量 table + 列选器 + 客户端
 // 页窗；语义承接 audit §2.7 行为契约）：
 // - 列集：Name │ Email │ Groups（计数 | 明细，"1 | readers" 形态）│ Role
@@ -15,7 +17,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/app/AuthContext'
-import { Button } from '@/components/ui/button'
+
 import { CopyButton } from '@/components/layout/copy-button'
 import { Badge } from '@/components/ui/badge'
 import { StatusLabel } from '@/components/layout/bits'
@@ -142,7 +144,7 @@ export default function UsersPage() {
             const visible = cols.isVisible(c.id)
             const last = visible && cols.visibleCount === 1
             return (
-              <button
+              <Button
                 key={c.id}
                 type="button"
                 role="menuitemcheckbox"
@@ -157,11 +159,11 @@ export default function UsersPage() {
               >
                 <span aria-hidden="true" className="inline-block w-[1.25em] text-primary">{visible ? '☑' : '☐'}</span>
                 {c.label}
-              </button>
+              </Button>
             )
           })}
           <div role="separator" className="my-1 border-t border-border" />
-          <button
+          <Button
             type="button"
 role="menuitem"
             aria-disabled={cols.visibleCount === pageColumns.length || undefined}
@@ -171,7 +173,7 @@ role="menuitem"
             onClick={() => cols.reset()}
           >
             {t('全选列')}
-          </button>
+          </Button>
         </PopoverContent>
       </Popover>
         </span>
@@ -194,9 +196,9 @@ role="menuitem"
           )
         ) : (
           <>
-            <table className="w-full text-dense" data-testid="users-table">
-              <thead>
-                <tr className="border-b border-border text-left text-aux text-muted-foreground">
+            <Table className="w-full text-dense" data-testid="users-table">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
                   {cols.isVisible('name') && <SortTh label={t('用户名')} sortKey="name" sort={sort} onToggle={toggle} testid="users-sort-name" />}
                   {cols.isVisible('email') && <SortTh label="Email" sortKey="email" sort={sort} onToggle={toggle} />}
                   {cols.isVisible('groups') && <SortTh label={t('组')} sortKey="groups" sort={sort} onToggle={toggle} />}
@@ -204,9 +206,9 @@ role="menuitem"
                   {cols.isVisible('status') && <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} testid="users-sort-status" />}
                   {cols.isVisible('lastLogin') && <SortTh label={t('最近登录')} sortKey="lastLogin" sort={sort} onToggle={toggle} testid="users-sort-lastlogin" />}
                   {admin && cols.isVisible('actions') && <Th label={t('操作')} />}
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {pageRows.map((r) => {
                   // 自删/内置 admin：UI 预禁用（服务端 400 终裁；title 述因）
                   const self = session?.username === r.name
@@ -217,7 +219,7 @@ role="menuitem"
                       ? t('不能删除内置 admin 用户（服务端 400 护栏）')
                       : undefined
                   return (
-                    <tr
+                    <TableRow
                       key={r.name}
                       data-testid={`user-row-${r.name}`}
                       className="cursor-pointer border-b border-border/60 hover:bg-accent"
@@ -226,22 +228,22 @@ role="menuitem"
                       onKeyDown={(e) => onTableRowKeys(e, () => navigate(`/admin/security/users/${encodeURIComponent(r.name)}`))}
                     >
                       {cols.isVisible('name') && (
-                        <td className="px-3 py-1.5">
+                        <TableCell className="px-3 py-1.5">
                           <Link className="row-link font-mono text-primary hover:underline" to={`/admin/security/users/${encodeURIComponent(r.name)}`} lang="en" onClick={(e) => e.stopPropagation()}>
                             {r.name}
                           </Link>{' '}
                           <span onClick={(e) => e.stopPropagation()}>
                             <CopyButton value={r.name} label={t('用户名 {v1}', { v1: r.name })} />
                           </span>
-                        </td>
+                        </TableCell>
                       )}
                       {cols.isVisible('email') && (
-                        <td className="px-3 py-1.5">
+                        <TableCell className="px-3 py-1.5">
                           <span className="text-muted-foreground">{r.email}</span>
-                        </td>
+                        </TableCell>
                       )}
                       {cols.isVisible('groups') && (
-                        <td className="max-w-[360px] break-words px-3 py-1.5">
+                        <TableCell className="max-w-[360px] break-words px-3 py-1.5">
                           {r.groups.length === 0 ? (
                             <span className="text-muted-foreground">—</span>
                           ) : (
@@ -254,28 +256,28 @@ role="menuitem"
                               </span>
                             </span>
                           )}
-                        </td>
+                        </TableCell>
                       )}
-                      {cols.isVisible('role') && <td className="px-3 py-1.5">{roleBadge(r)}</td>}
+                      {cols.isVisible('role') && <TableCell className="px-3 py-1.5">{roleBadge(r)}</TableCell>}
                       {cols.isVisible('status') && (
-                        <td className="px-3 py-1.5">
+                        <TableCell className="px-3 py-1.5">
                           <span onClick={(e) => e.stopPropagation()}>
                             <StatusLabel enabled={r.enabled} name={r.name} />
                           </span>
-                        </td>
+                        </TableCell>
                       )}
                       {cols.isVisible('lastLogin') && (
-                        <td className="px-3 py-1.5 font-mono" title={r.lastLoggedIn || undefined}>
+                        <TableCell className="px-3 py-1.5 font-mono" title={r.lastLoggedIn || undefined}>
                           {r.lastLoggedIn ? (
                             r.lastLoggedIn.replace('T', ' ').slice(0, 19)
                           ) : (
                             // T-454 omitempty：整键缺席 = 从未登录——如实呈现
                             <span className="text-muted-foreground">{t('—（尚未登录）')}</span>
                           )}
-                        </td>
+                        </TableCell>
                       )}
                       {admin && cols.isVisible('actions') && (
-                        <td className="whitespace-nowrap px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                        <TableCell className="whitespace-nowrap px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                           <Button
                             variant="outline"
                             size="sm"
@@ -287,13 +289,13 @@ role="menuitem"
                           >
                             {t('删除')}
                           </Button>
-                        </td>
+                        </TableCell>
                       )}
-                    </tr>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             <div className="table-foot" data-testid="users-count">
               <Pager
                 page={pager.page}

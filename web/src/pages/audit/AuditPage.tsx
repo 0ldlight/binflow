@@ -1,3 +1,7 @@
+import { Button } from '@/components/ui/button'
+import { SelectField } from '@/components/layout/fields'
+import { Input } from '@/components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 审计日志（console-ux §4.10 / §5.3——P3 新栈重写：keyset 页窗游标链语义
 // 平移 + 原生轻量表格）：
 // - 过滤器：repo/actor（**精确匹配**——REST 契约 `repo_key = ?`，输入框配
@@ -19,8 +23,6 @@
 // audit-empty-filtered/audit-row-<i>/audit-pager。
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { Pager, PAGER_SIZE_DEFAULT } from '@/components/layout/pager'
@@ -232,21 +234,20 @@ export default function AuditPage() {
           aria-label={tt('按操作者过滤（精确匹配）')}
           data-testid="audit-filter-actor"
         />
-        <select
+        <SelectField
           value={action}
           onChange={(e) => setAction(e.target.value)}
           className="h-8 rounded-sm border border-input bg-surface-3 px-2 text-dense"
           aria-label={tt('按动作过滤')}
           data-testid="audit-filter-action"
-        >
-          <option value="">{tt('动作：全部')}</option>
-          {AUDIT_ACTIONS.map((a) => (
-            <option key={a} value={a} lang="en">{a}</option>
-          ))}
-        </select>
+          options={[
+            { value: '', label: tt('动作：全部') },
+            ...AUDIT_ACTIONS.map((a) => ({ value: a, label: a, itemProps: { lang: 'en' } })),
+          ]}
+        />
         <label className="flex items-center gap-1 whitespace-nowrap text-aux text-muted-foreground">
           <span>{tt('起（含）')}</span>
-          <input
+          <Input
             type="datetime-local"
             value={sinceLocal}
             onChange={(e) => setSinceLocal(e.target.value)}
@@ -257,7 +258,7 @@ export default function AuditPage() {
         </label>
         <label className="flex items-center gap-1 whitespace-nowrap text-aux text-muted-foreground">
           <span>{tt('止（不含）')}</span>
-          <input
+          <Input
             type="datetime-local"
             value={untilLocal}
             onChange={(e) => setUntilLocal(e.target.value)}
@@ -301,7 +302,7 @@ export default function AuditPage() {
                 const visible = cols.isVisible(c.id)
                 const last = visible && cols.visibleCount === 1
                 return (
-                  <button
+                  <Button
                     key={c.id}
                     type="button"
                     role="menuitemcheckbox"
@@ -316,11 +317,11 @@ export default function AuditPage() {
                   >
                     <span aria-hidden="true" className="inline-block w-[1.25em] text-primary">{visible ? '☑' : '☐'}</span>
                     {c.label}
-                  </button>
+                  </Button>
                 )
               })}
               <div role="separator" className="my-1 border-t border-border" />
-              <button
+              <Button
                 type="button"
 role="menuitem"
                 aria-disabled={cols.visibleCount === COLUMNS.length || undefined}
@@ -330,7 +331,7 @@ role="menuitem"
                 onClick={() => cols.reset()}
               >
                 {tt('全选列')}
-              </button>
+              </Button>
             </PopoverContent>
           </Popover>
           <Button
@@ -382,41 +383,41 @@ role="menuitem"
           )
         ) : (
           <>
-            <table className="w-full text-dense" data-testid="audit-table">
-              <thead>
-                <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                  {cols.isVisible('time') && <th scope="col" className="px-3 py-2 font-medium">{tt('时间')}</th>}
-                  {cols.isVisible('actor') && <th scope="col" className="px-3 py-2 font-medium">{tt('操作者')}</th>}
-                  {cols.isVisible('action') && <th scope="col" className="px-3 py-2 font-medium">{tt('动作')}</th>}
-                  {cols.isVisible('target') && <th scope="col" className="px-3 py-2 font-medium">{tt('对象')}</th>}
-                  {cols.isVisible('source') && <th scope="col" className="px-3 py-2 font-medium">{tt('来源')}</th>}
-                  {cols.isVisible('detail') && <th scope="col" className="px-3 py-2 font-medium">{tt('详情')}</th>}
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-dense" data-testid="audit-table">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                  {cols.isVisible('time') && <TableHead scope="col" className="px-3 py-2 font-medium">{tt('时间')}</TableHead>}
+                  {cols.isVisible('actor') && <TableHead scope="col" className="px-3 py-2 font-medium">{tt('操作者')}</TableHead>}
+                  {cols.isVisible('action') && <TableHead scope="col" className="px-3 py-2 font-medium">{tt('动作')}</TableHead>}
+                  {cols.isVisible('target') && <TableHead scope="col" className="px-3 py-2 font-medium">{tt('对象')}</TableHead>}
+                  {cols.isVisible('source') && <TableHead scope="col" className="px-3 py-2 font-medium">{tt('来源')}</TableHead>}
+                  {cols.isVisible('detail') && <TableHead scope="col" className="px-3 py-2 font-medium">{tt('详情')}</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {rows.map((ev, i) => {
                   const target = ev.repo ? `${ev.repo}/${ev.path}` : ev.path
                   const json = detailJSON(ev.detail)
                   const remote = detailRemoteAddr(ev.detail)
                   return (
-                    <tr key={ev.id} data-testid={`audit-row-${i}`} className="border-b border-border/60 hover:bg-accent">
+                    <TableRow key={ev.id} data-testid={`audit-row-${i}`} className="border-b border-border/60 hover:bg-accent">
                       {cols.isVisible('time') && (
-                        <td className="px-3 py-1.5 font-mono" title={ev.time}>{formatAuditTime(ev.time)}</td>
+                        <TableCell className="px-3 py-1.5 font-mono" title={ev.time}>{formatAuditTime(ev.time)}</TableCell>
                       )}
-                      {cols.isVisible('actor') && <td className="px-3 py-1.5">{ev.actor}</td>}
+                      {cols.isVisible('actor') && <TableCell className="px-3 py-1.5">{ev.actor}</TableCell>}
                       {cols.isVisible('action') && (
-                        <td className="px-3 py-1.5 font-mono" lang="en">{ev.action}</td>
+                        <TableCell className="px-3 py-1.5 font-mono" lang="en">{ev.action}</TableCell>
                       )}
                       {cols.isVisible('target') && (
-                        <td className="max-w-[360px] break-all px-3 py-1.5 font-mono" lang="en">
+                        <TableCell className="max-w-[360px] break-all px-3 py-1.5 font-mono" lang="en">
                           {target || '—'} {target && <CopyButton value={target} label={tt('审计对象 {target}', { target: target })} />}
-                        </td>
+                        </TableCell>
                       )}
                       {cols.isVisible('source') && (
-                        <td className="px-3 py-1.5 font-mono" lang="en">{remote || '—'}</td>
+                        <TableCell className="px-3 py-1.5 font-mono" lang="en">{remote || '—'}</TableCell>
                       )}
                       {cols.isVisible('detail') && (
-                        <td className="px-3 py-1.5">
+                        <TableCell className="px-3 py-1.5">
                           {json ? (
                             <details className="relative inline-block">
                               <summary className="cursor-pointer text-[length:var(--bf-fs-xs)] whitespace-nowrap text-primary">detail</summary>
@@ -425,13 +426,13 @@ role="menuitem"
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
-                        </td>
+                        </TableCell>
                       )}
-                    </tr>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             <div className="pager-row" data-testid="audit-pager">
               <Pager
                 page={page}

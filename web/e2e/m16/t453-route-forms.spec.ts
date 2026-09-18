@@ -1,3 +1,4 @@
+import { expectSelectValue, selectOptionValues } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { Page, TestInfo } from '@playwright/test'
 
@@ -83,9 +84,9 @@ test('admin: /users/new deep link — reserved capability flags, clean payload, 
 
   // 管理位候裁臂（④）：三值枚举下拉在场（ADR-0026 暂行）+ 双布尔差异
   // 附注锚在场（候裁挂附注——不建双布尔不伪造）
-  await expect(page.locator('[data-testid="user-form-role"]')).toHaveValue('user')
-  const roleOptions = page.locator('[data-testid="user-form-role"] option')
-  await expect(roleOptions).toHaveCount(3)
+  await expectSelectValue(page, '[data-testid="user-form-role"]', 'user')
+  const roleOptions = await selectOptionValues(page, '[data-testid="user-form-role"]')
+  expect(roleOptions).toEqual(['user', 'readonly_admin', 'admin'])
   await expect(page.locator('[data-testid="user-form-role-parity-note"]')).toBeVisible()
 
   // 创建（③ payload 净度：PUT 体零携带三域——预留位零提交的网络层对账）

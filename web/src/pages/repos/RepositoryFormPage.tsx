@@ -1,3 +1,7 @@
+import { Button, ButtonAsChild } from '@/components/ui/button'
+import { SelectField } from '@/components/layout/fields'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 // 建仓/编辑表单（console-ux §4.4/§6.7——P2 新栈重写：RHF + Zod）。
 //
 // 验证规则迁移事实源 = frontend-rewrite-audit §4 建仓行：
@@ -25,14 +29,14 @@
 // form-<policy 键> / form-step-* / form-error / form-submit /
 // repo-form-readonly-note / pkg-grid / pkg-grid-item-* / pkg-tier-* /
 // pkg-grid-cancel / form-reserved-* 族。
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
-import { Button, ButtonAsChild } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Dialog,
   DialogContent,
@@ -107,7 +111,6 @@ import {
 import { tr } from '@/i18n'
 // 仓库管理域样式（pages/repositories 支撑模块族共享——旧页面退役后由新页直挂）
 import '@/pages/repositories/repositories.css'
-import { lazy } from 'react'
 
 const t = tr('repositories')
 
@@ -243,7 +246,6 @@ function buildSchema(mode: 'create' | 'edit', f: FormState) {
     }
   })
 }
-
 
 function prefillFromDetail(d: {
   key: string
@@ -382,7 +384,7 @@ function ReservedTextField({ id, label, hint, anchor, multiline }: { id: string;
     <div className="field flex flex-col gap-1">
       <label htmlFor={id} className="text-dense text-muted-foreground">{label}</label>
       {multiline ? (
-        <textarea
+        <Textarea
           id={id}
           disabled
           placeholder={RESERVED_PLACEHOLDER}
@@ -403,7 +405,7 @@ function ReservedCheck({ label, hint, anchor }: { label: string; hint: string; a
   return (
     <div>
       <Label className="flex items-center gap-1.5 font-normal text-muted-foreground">
-        <input type="checkbox" className="size-3.5" disabled data-testid={anchor} /> {label}
+        <Checkbox className="size-3.5" disabled data-testid={anchor} /> {label}
       </Label>
       <p className="field-hint text-aux text-muted-foreground">{hint}</p>
     </div>
@@ -446,7 +448,7 @@ function PackageTypeGrid({ rclass, choices, onPick, onCancel }: { rclass: RClass
           {choices.map((c) => {
             const badgeTier = c.opt && c.opt.minTier !== 'community' ? c.opt.minTier : null
             return (
-              <button
+              <Button
                 type="button"
                 key={c.id}
                 role="radio"
@@ -474,7 +476,7 @@ function PackageTypeGrid({ rclass, choices, onPick, onCancel }: { rclass: RClass
                   )}
                 </span>
                 <span className="pkg-desc text-aux text-muted-foreground">{c.desc}</span>
-              </button>
+              </Button>
             )
           })}
         </div>
@@ -550,7 +552,6 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
   // 包型可选集（addons 注册表实时数据）
   const addons = useAsync(getAddons, [])
   const pkgChoices = useMemo(() => buildPkgChoices(packageTypeOptions(addons.data ?? [])), [addons.data])
-
 
   if (mode === 'create' && !admin) {
     return (
@@ -690,7 +691,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
   const checkRow = (label: string, checked: boolean, onChange: (v: boolean) => void, opts: { testid?: string; hint?: string } = {}) => (
     <div>
       <Label className="flex cursor-pointer items-center gap-1.5 font-normal">
-        <input type="checkbox" className="size-3.5" checked={checked} disabled={locked} onChange={(e) => onChange(e.target.checked)} data-testid={opts.testid} />
+        <Checkbox className="size-3.5" checked={checked} disabled={locked} onCheckedChange={(next) => onChange(next === true)} data-testid={opts.testid} />
         {label}
       </Label>
       {opts.hint && <p className="field-hint text-aux text-muted-foreground">{opts.hint}</p>}
@@ -702,7 +703,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
       <div className="page-header"><h2 className="text-lg font-semibold">{mode === 'create' ? t('新建 {v1} 仓库', { v1: RCLASS_LABEL[f.rclass] }) : t('编辑 {routeKey}', { routeKey })}</h2></div>
 
       {locked && (
-        <p className="page-note rounded-md border border-border bg-surface-2 px-3 py-2 text-dense text-muted-foreground" data-testid="repo-form-readonly-note">
+        <p className="page-note rounded-md border border-border bg-surface-2 px-3 py-2 text-dense text-foreground" data-testid="repo-form-readonly-note">
           {t('ⓘ 只读管理员（readonly_admin）视角：仓库配置只读——保存走单仓管理面写（CanManageRepo write），服务端 403 兜底。')}
         </p>
       )}
@@ -716,9 +717,10 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
               ['advanced', FORM_STEPS.advanced, 'Step 2 of 3: Advanced', 'form-step-advanced'],
               ...(replStepLive ? [['replications', FORM_STEPS.replications, 'Step 3 of 3: Replications', 'form-step-replications'] as const] : []),
             ] as [FormStep, string, string, string][]).map(([id, label, aria, testid]) => (
-              <button
+              <Button
                 key={id}
                 type="button"
+                variant="ghost"
                 role="tab"
                 aria-selected={activeStep === id}
                 aria-label={aria}
@@ -727,7 +729,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                 onClick={() => setStep(id)}
               >
                 {label}
-              </button>
+              </Button>
             ))}
           </div>
 
@@ -742,17 +744,13 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                 <p className="field-note mb-2 text-dense text-muted-foreground" data-testid="form-rclass-note">
                   {t('仓型：')}<b>{RCLASS_LABEL[f.rclass]}</b>——{RCLASS_ROUTE_NOTE}
                 </p>
-                <div className="radio-row flex flex-wrap gap-3" role="radiogroup" aria-label={t('包类型')}>
+                <RadioGroup className="radio-row flex flex-wrap gap-3" aria-label={t('包类型')} value={f.packageType} onValueChange={(next) => pickPackage(next as typeof f.packageType)}>
                   {pkgChoices.map((c) => {
                     const badgeTier = c.opt && c.opt.minTier !== 'community' ? c.opt.minTier : null
                     return (
-                      <Label key={c.id} className={`flex cursor-pointer items-center gap-1 font-normal ${mode === 'edit' ? 'opacity-60' : ''}`}>
-                        <input
-                          type="radio"
-                          name="packageType"
+                      <Label key={c.id} className={`flex cursor-pointer items-center gap-1 font-normal ${mode === 'edit' ? 'cursor-default' : ''}`}>
+                        <RadioGroupItem
                           className="size-3.5"
-                          checked={f.packageType === c.id}
-                          onChange={() => pickPackage(c.id)}
                           value={c.id}
                           disabled={mode === 'edit' || locked}
                           data-testid={`form-package-${c.id}`}
@@ -770,7 +768,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                       </Label>
                     )
                   })}
-                </div>
+                </RadioGroup>
                 {mode === 'edit' && <p className="field-note mt-1 text-aux text-muted-foreground">{t('包类型不可修改（变更会静默改变全部协议路由决策）。')}</p>}
                 {mode === 'create' ? (
                   <div className="field mt-2 flex flex-col gap-1">
@@ -792,7 +790,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                 )}
                 <div className="field mt-2 flex flex-col gap-1">
                   <label htmlFor="f-desc" className="text-dense">{t('描述')}</label>
-                  <textarea
+                  <Textarea
                     id="f-desc"
                     rows={2}
                     value={f.description}
@@ -848,7 +846,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                   ) : (
                     <p className="field-hint mt-2 text-aux text-muted-foreground" data-testid="form-test-create-note">{REMOTE_TEST_CREATE_HINT}</p>
                   )}
-                  <div className="mt-2">{checkRow(t('允许私网上游（allowPrivateUpstream）'), f.allowPrivateUpstream, (v) => set('allowPrivateUpstream', v))}</div>
+                  <div className="mt-2">{checkRow(t('允许私网上游（allowPrivateUpstream）'), f.allowPrivateUpstream, (v) => set('allowPrivateUpstream', v), { testid: 'form-allow-private-upstream' })}</div>
                   {f.allowPrivateUpstream && (
                     <div className="warn-box mt-2 rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-dense">{t('⚠ 已放行私网上游：SSRF 防线对该仓放宽，变更会记录审计（NFR-S14）。')}</div>
                   )}
@@ -867,13 +865,12 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                     <div className="member-pick mt-1 flex flex-col gap-1">
                       {memberOptions.map((o: RepoListItem) => (
                         <Label key={o.key} className="flex cursor-pointer items-center gap-1.5 font-normal">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             className="size-3.5"
                             checked={f.members.includes(o.key)}
                             disabled={locked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
+                            onCheckedChange={(next) => {
+                              if (next) {
                                 set('members', [...f.members, o.key])
                               } else {
                                 set('members', f.members.filter((m) => m !== o.key))
@@ -900,12 +897,12 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                             <span className="idx">{i + 1}</span>
                             <span className="font-mono" lang="en">{m}</span>
                             <span className="chip-btns flex">
-                              <button type="button" className="grid size-6 place-items-center rounded-sm hover:bg-accent disabled:opacity-40" aria-label={t('上移 {m}', { m })} disabled={i === 0 || locked} onClick={() => moveMember(i, -1)} data-testid={`member-up-${i}`}>
+                              <Button type="button" className="grid size-6 place-items-center rounded-sm hover:bg-accent disabled:opacity-40" aria-label={t('上移 {m}', { m })} disabled={i === 0 || locked} onClick={() => moveMember(i, -1)} data-testid={`member-up-${i}`}>
                                 <span aria-hidden="true">↑</span>
-                              </button>
-                              <button type="button" className="grid size-6 place-items-center rounded-sm hover:bg-accent disabled:opacity-40" aria-label={t('下移 {m}', { m })} disabled={i === f.members.length - 1 || locked} onClick={() => moveMember(i, 1)}>
+                              </Button>
+                              <Button type="button" className="grid size-6 place-items-center rounded-sm hover:bg-accent disabled:opacity-40" aria-label={t('下移 {m}', { m })} disabled={i === f.members.length - 1 || locked} onClick={() => moveMember(i, 1)}>
                                 <span aria-hidden="true">↓</span>
-                              </button>
+                              </Button>
                             </span>
                           </div>
                         ))}
@@ -914,19 +911,18 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                   )}
                   <div className="field mt-2 flex w-[300px] flex-col gap-1">
                     <label htmlFor="f-deploy" className="text-dense">{t('默认部署仓库（可选，仅 local 成员）')}</label>
-                    <select
+                    <SelectField
                       id="f-deploy"
                       value={f.defaultDeploymentRepo}
                       onChange={(e) => set('defaultDeploymentRepo', e.target.value)}
                       disabled={localMembers.length === 0 || locked}
                       data-testid="form-default-deploy"
                       className="h-8 rounded-sm border border-input bg-surface-1 px-2 text-dense"
-                    >
-                      <option value="">{t('（未配置——写操作将返回 405）')}</option>
-                      {localMembers.map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: '', label: t('（未配置——写操作将返回 405）') },
+                        ...localMembers.map((m) => ({ value: m, label: m, itemProps: { lang: 'en' } })),
+                      ]}
+                    />
                     {f.defaultDeploymentRepo && (
                       <p className="field-hint text-aux text-muted-foreground">{t('经此 virtual 仓的部署将写入')} {f.defaultDeploymentRepo}{t('。')}</p>
                     )}
@@ -943,18 +939,18 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                   {checkRow(t('接受 SNAPSHOT 部署（handleSnapshots）'), f.handleSnapshots, (v) => set('handleSnapshots', v))}
                   <div className="field mt-2 w-[420px]">
                     <label htmlFor="f-checksum" className="text-dense">{t('checksum 策略')}</label>
-                    <select id="f-checksum" value={f.checksumPolicyType} onChange={(e) => set('checksumPolicyType', e.target.value)} disabled={locked} className="mt-1 h-8 w-full rounded-sm border border-input bg-surface-1 px-2 text-dense">
-                      <option value="client-checksums">{t('client-checksums（客户端声明严格校验，默认）')}</option>
-                      <option value="server-generated-checksums">{t('server-generated-checksums（服务端实测覆盖）')}</option>
-                    </select>
+                    <SelectField id="f-checksum" value={f.checksumPolicyType} onChange={(e) => set('checksumPolicyType', e.target.value)} disabled={locked} className="mt-1 h-8 w-full rounded-sm border border-input bg-surface-1 px-2 text-dense" options={[
+                      { value: 'client-checksums', label: t('client-checksums（客户端声明严格校验，默认）'), itemProps: { lang: 'en' } },
+                      { value: 'server-generated-checksums', label: t('server-generated-checksums（服务端实测覆盖）'), itemProps: { lang: 'en' } },
+                    ]} />
                   </div>
                   <div className="field mt-2 w-[420px]">
                     <label htmlFor="f-snapshot" className="text-dense">{t('SNAPSHOT 行为')}</label>
-                    <select id="f-snapshot" value={f.snapshotVersionBehavior} onChange={(e) => set('snapshotVersionBehavior', e.target.value)} disabled={locked} className="mt-1 h-8 w-full rounded-sm border border-input bg-surface-1 px-2 text-dense">
-                      <option value="deployer">{t('deployer（按上传名存储，默认）')}</option>
-                      <option value="non-unique">non-unique</option>
-                      <option value="unique">{t('unique（unique 改写为 P2，行为同 deployer）')}</option>
-                    </select>
+                    <SelectField id="f-snapshot" value={f.snapshotVersionBehavior} onChange={(e) => set('snapshotVersionBehavior', e.target.value)} disabled={locked} className="mt-1 h-8 w-full rounded-sm border border-input bg-surface-1 px-2 text-dense" options={[
+                      { value: 'deployer', label: t('deployer（按上传名存储，默认）'), itemProps: { lang: 'en' } },
+                      { value: 'non-unique', label: 'non-unique', itemProps: { lang: 'en' } },
+                      { value: 'unique', label: t('unique（unique 改写为 P2，行为同 deployer）'), itemProps: { lang: 'en' } },
+                    ]} />
                   </div>
                   <div className="mt-2"><ReservedTextField id="f-max-unique-snapshots" label={t('Max Unique Snapshots（maxUniqueSnapshots）')} hint={RESERVED_MAX_UNIQUE_SNAPSHOTS_HINT} anchor="form-max-unique-snapshots" /></div>
                   <div className="mt-2"><ReservedCheck label={RESERVED_SUPPRESS_POM_LABEL} hint={RESERVED_SUPPRESS_POM_HINT} anchor="form-suppress-pom" /></div>
@@ -1017,7 +1013,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                     )}
                   </>
                 )}
-                {checkRow(t('优先解析（priorityResolution：作为 virtual 成员时优先桶标记）'), f.priorityResolution, (v) => set('priorityResolution', v))}
+                {checkRow(t('优先解析（priorityResolution：作为 virtual 成员时优先桶标记）'), f.priorityResolution, (v) => set('priorityResolution', v), { testid: 'form-priority-resolution' })}
                 {f.rclass === 'local' && f.packageType === 'conan' && (
                   <div className="mt-2">
                     {checkRow(FORCE_CONAN_AUTH_LABEL, f.forceConanAuthentication, (v) => set('forceConanAuthentication', v), { testid: 'form-force-auth', hint: FORCE_CONAN_AUTH_HINT })}
@@ -1042,18 +1038,15 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                         return (
                           <div className="field mb-2 w-[420px]" key={fd.wire}>
                             <label htmlFor={`f-policy-${fd.wire}`} className="text-dense">{fd.label}</label>
-                            <select
+                            <SelectField
                               id={`f-policy-${fd.wire}`}
                               value={String(f.policy[fd.wire] ?? '')}
                               onChange={(e) => setPolicy(fd.wire, e.target.value)}
                               disabled={locked}
                               data-testid={anchor}
                               className="mt-1 h-8 w-full rounded-sm border border-input bg-surface-1 px-2 text-dense"
-                            >
-                              {(fd.options ?? []).map((o) => (
-                                <option key={o} value={o} lang="en">{o}</option>
-                              ))}
-                            </select>
+                              options={(fd.options ?? []).map((o) => ({ value: o, label: o, itemProps: { lang: 'en' } }))}
+                            />
                             {fd.hint && <p className="field-hint text-aux text-muted-foreground">{fd.hint}</p>}
                           </div>
                         )

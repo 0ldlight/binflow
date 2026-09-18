@@ -1,3 +1,5 @@
+import { Input } from '@/components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 备份 / 恢复（T-102 AC③ → T-462 / FR-145.7 翻正承载——P3 新栈重写）。
 // 两卡：
 // ① 定时备份（New Backup / 列表 / cron / next-run）：GET/PUT/DELETE
@@ -226,24 +228,24 @@ function BackupCrudCard() {
       {list.status === 'ok' && backups.length > 0 && (
         <>
           <div className="overflow-x-auto">
-            <table className="w-full text-dense" data-testid="backup-table">
-              <thead>
-                <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-medium">Key</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('cron 表达式')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('下次备份')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('启用')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('上次运行 / 结果')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('导出路径')}</th>
-                  {adminWrite && <th scope="col" className="px-3 py-2 text-right font-medium">{t('操作')}</th>}
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-dense" data-testid="backup-table">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                  <TableHead scope="col" className="px-3 py-2 font-medium">Key</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('cron 表达式')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('下次备份')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('启用')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('上次运行 / 结果')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('导出路径')}</TableHead>
+                  {adminWrite && <TableHead scope="col" className="px-3 py-2 text-right font-medium">{t('操作')}</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {backups.map((b) => (
-                  <tr key={b.backupKey} data-testid={`backup-row-${b.backupKey}`} className="border-b border-border/60 hover:bg-accent">
-                    <td className="px-3 py-1.5 font-mono" lang="en">{b.backupKey}</td>
-                    <td className="px-3 py-1.5 font-mono" lang="en">{b.cronExp || <span className="text-muted-foreground">{t('未调度')}</span>}</td>
-                    <td className="px-3 py-1.5">
+                  <TableRow key={b.backupKey} data-testid={`backup-row-${b.backupKey}`} className="border-b border-border/60 hover:bg-accent">
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{b.backupKey}</TableCell>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{b.cronExp || <span className="text-muted-foreground">{t('未调度')}</span>}</TableCell>
+                    <TableCell className="px-3 py-1.5">
                       {b.cronExp === '' ? (
                         <span className="text-muted-foreground">—</span>
                       ) : b.enabled ? (
@@ -253,15 +255,15 @@ function BackupCrudCard() {
                       ) : (
                         <Badge variant="tint-neutral">{t('已停用')}</Badge>
                       )}
-                    </td>
-                    <td className="px-3 py-1.5">
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5">
                       {b.enabled ? (
                         <span className="status-pill status-on">{t('启用')}</span>
                       ) : (
                         <span className="status-pill status-off">{t('停用')}</span>
                       )}
-                    </td>
-                    <td className="px-3 py-1.5">
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5">
                       {b.lastRun ? (
                         <span className="font-mono" lang="en" title={b.lastError || undefined}>
                           {fmtUTC(b.lastRun)}
@@ -270,12 +272,12 @@ function BackupCrudCard() {
                       ) : (
                         <span className="text-muted-foreground">{t('未运行')}</span>
                       )}
-                    </td>
-                    <td className="max-w-[220px] break-all px-3 py-1.5 font-mono" lang="en">
+                    </TableCell>
+                    <TableCell className="max-w-[220px] break-all px-3 py-1.5 font-mono" lang="en">
                       {b.exportPath} <CopyButton value={b.exportPath} label={t('导出路径 {v1}', { v1: b.backupKey })} />
-                    </td>
+                    </TableCell>
                     {adminWrite && (
-                      <td className="whitespace-nowrap px-3 py-1.5 text-right">
+                      <TableCell className="whitespace-nowrap px-3 py-1.5 text-right">
                         <Button
                           variant="outline"
                           size="sm"
@@ -297,12 +299,12 @@ function BackupCrudCard() {
                         >
                           {t('删除')}
                         </Button>
-                      </td>
+                      </TableCell>
                     )}
-                  </tr>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
           {adminWrite && !editor && (
             <Button variant="outline" size="sm" className="mt-2" onClick={startCreate} data-testid="backup-new">
@@ -371,7 +373,7 @@ function BackupCrudCard() {
 
           <div className="field">
             <label htmlFor="backup-next">{t('Next Backup Time（可选——首跑时刻，须晚于当前）')}</label>
-            <input
+            <Input
               id="backup-next"
               type="datetime-local"
               value={editor.form.next}

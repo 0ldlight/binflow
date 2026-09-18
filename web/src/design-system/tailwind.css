@@ -52,6 +52,14 @@
   /* border-strong（悬停边/虚线拖拽区——批 5 deploy-drop 等价替换消费缝） */
   --color-border-strong: var(--bf-border-strong);
 
+  /* ---- Penpot Dashboard UI Kit 图表/装饰源色（不承载普通文字） ---- */
+  --color-chart-blue: var(--bf-chart-blue);
+  --color-chart-green: var(--bf-chart-green);
+  --color-chart-red: var(--bf-chart-red);
+  --color-chart-purple: var(--bf-chart-purple);
+  --color-chart-teal: var(--bf-chart-teal);
+  --color-chart-yellow: var(--bf-chart-yellow);
+
   /* ---- 状态色（BinFlow 自有：徽章/状态灯消费面）---- */
   --color-success: var(--bf-success);
   --color-success-foreground: var(--bf-surface-1);
@@ -72,13 +80,13 @@
    * 文字——T-244 对比度家族收口值）；与批 4 软底（*-surface）并存，
    * 收敛裁决留给批 6（design-system-plan §6）。tier 档复用 info/warning。 ---- */
   --color-badge-info: color-mix(in srgb, var(--bf-info) 78%, var(--bf-text));
-  --color-badge-info-soft: color-mix(in srgb, var(--bf-info) 15%, transparent);
+  --color-badge-info-soft: color-mix(in srgb, var(--bf-info) 15%, var(--bf-bg));
   --color-badge-success: color-mix(in srgb, var(--bf-success) 78%, var(--bf-text));
-  --color-badge-success-soft: color-mix(in srgb, var(--bf-success) 15%, transparent);
+  --color-badge-success-soft: color-mix(in srgb, var(--bf-success) 15%, var(--bf-bg));
   --color-badge-warning: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
-  --color-badge-warning-soft: color-mix(in srgb, var(--bf-warning) 18%, transparent);
+  --color-badge-warning-soft: color-mix(in srgb, var(--bf-warning) 18%, var(--bf-bg));
   --color-badge-danger: color-mix(in srgb, var(--bf-danger) 78%, var(--bf-text));
-  --color-badge-danger-soft: color-mix(in srgb, var(--bf-danger) 15%, transparent);
+  --color-badge-danger-soft: color-mix(in srgb, var(--bf-danger) 15%, var(--bf-bg));
   /* admin 徽章 outlined 描边（security.css 批 5 退役迁入——warning 62%） */
   --color-badge-warning-outline: color-mix(in srgb, var(--bf-warning) 62%, transparent);
 
@@ -120,6 +128,9 @@
   --radius-sm: var(--bf-r-sm);
   --radius-md: var(--bf-r-md);
   --radius-lg: var(--bf-r-lg);
+  --radius-xl: var(--bf-r-xl);
+  --radius-2xl: var(--bf-r-2xl);
+  --radius-3xl: var(--bf-r-3xl);
   --radius-full: var(--bf-r-full);
 
   /* ---- 阴影（浮层三档）---- */
@@ -139,6 +150,7 @@
    * 壳层不再出现 w-56 / h-12 / max-w-[1440px] 字面量（G4 清偿））---- */
   --spacing-sidebar: var(--bf-sidebar-w);
   --spacing-topbar: var(--bf-topbar-h);
+  --spacing-dashboard: var(--bf-sp-dashboard);
   --container-content: var(--bf-content-max);
 }
 

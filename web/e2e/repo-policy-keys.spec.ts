@@ -1,3 +1,4 @@
+import { expectSelectValue, selectOptionValues, selectShadcn } from './support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { existsSync } from 'node:fs'
@@ -146,7 +147,7 @@ test('deb editor: set policy keys and save — transport body matches the regist
   // T-463 i18n 外化后节题改拼写（「索引引擎策略键（仅 <pkg> 仓…」）——本 spec
   // 三处节题断言随本票顺车归位（straggler，与 T-439/T-441 步进归位同款）
   await expect(page.getByText('索引引擎策略键（仅 debian 仓')).toBeVisible()
-  await expect(page.locator('[data-testid="form-byHash"]')).toHaveValue('SHA256')
+  await expectSelectValue(page, '[data-testid="form-byHash"]', 'SHA256')
   await expect(page.locator('[data-testid="form-historyCycles"]')).toHaveValue('5')
   await expect(page.locator('[data-testid="form-optionalIndexCompressionFormats"]')).toHaveCount(1)
   await expect(page.locator('[data-testid="form-debianDefaultArchitectures"]')).toHaveCount(1)
@@ -154,7 +155,7 @@ test('deb editor: set policy keys and save — transport body matches the regist
   await expect(page.locator('[data-testid="form-label"]')).toHaveCount(1)
 
   // 改键: byHash=ALL / historyCycles=7 / origin 文本
-  await page.locator('[data-testid="form-byHash"]').selectOption('ALL')
+  await selectShadcn(page, '[data-testid="form-byHash"]', 'ALL')
   await page.locator('[data-testid="form-historyCycles"]').fill('7')
   await page.locator('[data-testid="form-origin"]').fill('BinFlow CI')
   await page.locator('[data-testid="form-submit"]').click()
@@ -188,8 +189,8 @@ test('deb editor round-trip: saved config echoes back on reopen', async ({ page 
 
   // 默认拼写: byHash 闭集首值 NONE, historyCycles 空(= 归默认 3)
   await gotoAdvanced(page)
-  await expect(page.locator('[data-testid="form-byHash"]')).toHaveValue('NONE')
-  await page.locator('[data-testid="form-byHash"]').selectOption('SHA256')
+  await expectSelectValue(page, '[data-testid="form-byHash"]', 'NONE')
+  await selectShadcn(page, '[data-testid="form-byHash"]', 'SHA256')
   await page.locator('[data-testid="form-historyCycles"]').fill('9')
   await page.locator('[data-testid="form-submit"]').click()
   expect(writes).toHaveLength(1)
@@ -198,7 +199,7 @@ test('deb editor round-trip: saved config echoes back on reopen', async ({ page 
   cfgByRev['deb-rt'] = repoDetail('deb-rt', 'debian', { byHash: 'SHA256', historyCycles: 9 })
   await page.goto('/binflow/ui/admin/repositories/deb-rt/edit')
   await gotoAdvanced(page)
-  await expect(page.locator('[data-testid="form-byHash"]')).toHaveValue('SHA256')
+  await expectSelectValue(page, '[data-testid="form-byHash"]', 'SHA256')
   await expect(page.locator('[data-testid="form-historyCycles"]')).toHaveValue('9')
 })
 
@@ -319,7 +320,8 @@ test('audit action picker carries the full vocabulary (54 T-346 + 9 scheduler ac
   const select = page.locator('[data-testid="audit-filter-action"]')
   await expect(select).toBeVisible()
   // 63 动作 + 1 个「动作：全部」占位
-  await expect(select.locator('option')).toHaveCount(64)
+  const actions = await selectOptionValues(page, '[data-testid="audit-filter-action"]')
+  expect(actions).toHaveLength(64)
   // 新词表抽查: T-346 的各族 + 补漏的 cleanup.run(值原样 mono, 不翻译)
   // + T-446/T-450 调度三域 set/run/fail 九词
   for (const action of [
@@ -345,6 +347,6 @@ test('audit action picker carries the full vocabulary (54 T-346 + 9 scheduler ac
     'replication.schedule.run',
     'replication.schedule.fail',
   ]) {
-    await expect(select.locator(`option[value="${action}"]`)).toHaveCount(1)
+    expect(actions).toContain(action)
   }
 })

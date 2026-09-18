@@ -1,4 +1,4 @@
-# Artifactory ↔ BinFlow 前端功能追踪清单 v1（FE 完整复刻总令 2026-09-18）
+# Artifactory ↔ BinFlow 前端功能追踪清单 v1.1（FE 完整复刻总令 2026-09-18）
 #
 # > 定位：总令交付物「功能对照矩阵」的**第一版（屏级 join）**。主键复用 screens.yaml 稳定 ID（稳定性纪律：
 # > 不另起 ID 系）。交互级（按钮/菜单/弹窗/表单字段/四态）枚举为 v2——输入源与阻塞面见 §D。
@@ -6,12 +6,12 @@
 # > 本清单是 evidence index + 实现对账，非行为规格本体（规格在 console-ui.md / console-artifactory-parity.md）。
 #
 # 证据源：
-#   screens = docs/reverse/frontend/screens.yaml（41 屏：26 走查 + 15 route-only）
+#   screens = docs/reverse/frontend/screens.yaml（41 屏历史种子：26 走查 + 15 route-only；2026-09-18 capture 将 14/15 升为已观察）
 #   routes  = docs/reverse/frontend/routes.yaml（MFE 路由 89+26，7.161.12/7.191.14）
 #   cap     = docs/design/frontend-capability-matrix.md（26 能力×三面+处置）
-#   capture = docs/reverse/frontend/parity-capture/（104 PNG + DOM + tokens + catalog 61/69）
+#   capture = docs/reverse/frontend/parity-capture/（112 PNG + DOM + tokens；2026-09-18 gapfill 后 catalog 69/69）
 #   decomp  = /Users/lzw/workspace/artifactory-decompiled/frontend/（661 文件，7.161.24——2026-09-18 挂载）
-#   binflow_routes = web/src/app/router/index.tsx（57 路由，develop@10dcb218）
+#   binflow_routes = web/src/app/router/index.tsx（57 路由，develop@4bf88a2d）
 #
 # 实现状态记号：
 #   ✅已实现  ≈形态分立（语义承接、IA/形态有差——候交互级对拍）
@@ -22,17 +22,17 @@
 # 验证分类：已观察(E4) / 源码推断(E1/E2) / 已联合验证(观察+源码+BinFlow e2e) / 未验证
 
 meta:
-  charter: "FE 完整复刻总令（2026-09-18，前端重构负责人程序）——功能/IA/交互完整复刻 + Penpot Dashboard UI Kit 视觉 + apple-design 审查门"
+  charter: "FE 完整复刻总令（2026-09-18，前端重构负责人程序）——功能/IA/交互完整复刻 + shadcn/ui 原生组件硬门 + Penpot Dashboard UI Kit 视觉 + apple-design 审查门"
   prior_charters_overlap: "2026-09-08 fe-rewrite 30 节（GitHub/Linear developer console 定调）与 2026-09-14 UI/UX 20 节（Artifactory UX 心智+Linear 打磨）——新总令口径更严（完整复刻 IA）；三宪章的方向协调差面见 §E"
-  reference: { decompiled: "7.161.24 (mounted 2026-09-18)", runtime_walked: "7.161.20 (parity-capture, LOOP 013/021)", legacy_walkthrough: "7.84.10 (console-ui.md, 偏斜旗)" }
-  blocking: { live_instance: "172.16.58.130:8082 失联中（2026-09-17 19:0x 起）——活体采集/四态补证阻塞", apple_design_skill: "未提供——审查门阻塞", penpot_mcp: "未连接——Dashboard UI Kit 定位/提取阻塞（既有 token 体系源自 2026-09-15 管线）" }
-  counts: { screens_total: 41, walked: 26, route_only: 15, binflow_routes: 57 }
+  reference: { decompiled: "7.161.24 (mounted 2026-09-18)", runtime_walked: "7.161.15 (2026-09-18 /api/system/version 复核；parity-capture 历史 7.161.20 记录保留)", legacy_walkthrough: "7.84.10 (console-ui.md, 偏斜旗)" }
+  blocking: { live_instance: "可访问（2026-09-18 /api/system.version=7.161.15）；屏级 69/69 已采，交互/四态仍需 v2 定向补证", apple_design_skill: "已读取并完成 Penpot token/代表性交互审查；token 层复审通过，最终全量实现复审未开始", penpot_mcp: "已连接并完成握手/high-level overview；官方 Dashboard UI Kit 源与 team 导入 file 已定位，源审计在 penpot-dashboard-ui-kit-audit.json" }
+  counts: { screens_total: 41, walked: 40, route_only: 1, manifest_screens_captured: "69/69", binflow_routes: 57 }
 
 # ── A. 走查覆盖 26 屏（screens.yaml walked_screens join BinFlow 路由）────────────────
 screens:
   - { id: login, ref: /ui/login/, bf: /login, status: ✅已实现, verify: 已联合验证, ev: "screens#login + cap#1（auth/methods 直消费，B1 消）", note: 登录三态/错误内联已 e2e（login/auth-shell） }
   - { id: onboarding, ref: /ui/admin/onboarding-page, bf: 无, status: ✗缺, verify: 已观察(E4-7.84.10), ev: "screens#onboarding", note: 首登向导（admin 首登→onboarding）。后端无等价状态位——复刻需后端配合或产品裁定豁免 }
-  - { id: packages, ref: /ui/packages, bf: "无（/dashboard 承接落地语义）", status: ≈形态分立, verify: 已观察(E4), ev: "screens#packages + capture（卡片流+排序）", note: Artifactory 落地页=包卡片流。完整复刻口径下需补 packages 页或用户裁定 dashboard 等价承接——§E 候裁① }
+  - { id: packages, ref: /ui/packages, bf: /packages, status: ◐部分, verify: 已联合验证, ev: "screens#packages + capture + e2e/packages.spec.ts", note: "2026-09-18 新增真实仓库目录页：All/Recent、搜索、清除、包类型卡、仓库跳转；latest/version/download/security 为包聚合 API 缺口，页面显式登记，不用假数据" }
   - { id: artifacts-tree, ref: "/ui/repos/tree/General[/<path>]", bf: "artifacts/:key/*（Explorer）", status: ✅已实现, verify: 已联合验证, ev: "screens#artifacts-tree + cap#8 + capture 树族", note: AG Grid+虚拟树+键盘/多选/右键全套；交互级对拍 v2 }
   - { id: artifact-search-results, ref: /ui/artifactSearchResults, bf: "search（驻留+结果）", status: ≈形态分立, verify: 已观察(E4), ev: "screens#artifact-search-results + cap#13", note: 独立结果页 vs 驻留式——语义等价度候交互级对拍 }
   - { id: repositories-list, ref: "/ui/admin/repositories/{local|remote|virtual}", bf: "admin/repositories{,/local,/remote,/virtual}", status: ✅已实现, verify: 已联合验证, ev: "cap#4 + m8/t443", note: 三 Tab vs 三子路由（IA 近似）；列表操作全集对拍 v2 }
@@ -57,23 +57,24 @@ screens:
   - { id: set-me-up-dialog, ref: dialog（树页页头）, bf: SetMeUpDialog, status: ✅已实现, verify: 已联合验证, ev: "cap#9 族 + m8-setmeup-deploy", note: 口令内联错误/token+Copy+Done 流已对齐 }
   - { id: deploy-dialog, ref: dialog（树页页头）, bf: DeployDialog, status: ✅已实现, verify: 已联合验证, ev: "cap#9（队列泵+XHR 进度+GAV+MPU 解锁评估）" }
 
-# ── B. route-only 15 屏（7.161 路由实证、屏内容零走查——活体恢复后补）──────────────
+# ── B. 2026-09-18 活体补采：14/15 由 route-only 转已观察；native-browser 仍源码推断 ──
+runtime_reclassified_screens:
+  - { id: retention-policies-family, ref: "/ui/admin/artifactory/services/retention/{policies,monitoring,cold_storage_monitoring}", bf: 无, status: ⏸面外候裁, verify: 已观察(E4), ev: "route-only-20260918/{retention-policies,retention-monitoring,cold-storage}.png", note: "Pro 清理策略/监控/冷存监控已见 Create Policy、Stop/Disable、Report 等入口；BinFlow retention 在 builds 域——IA 对位候裁" }
+  - { id: lifecycle, ref: /ui/artifactory/lifecycle, bf: 无, status: ⏸面外候裁, verify: 已观察(E4), ev: route-only-20260918/lifecycle.png, note: "0 Release Bundles 空态、Create Release Bundle、Name/Project/Versions/Latest 列已采" }
+  - { id: release-bundles-admin, ref: "/ui/{bundles/source,artifactory/release-bundles,artifactory/release-bundles/target,artifactory/release-bundles/target-history}", bf: "bundles（三视图；target-history 差面）", status: ◐部分, verify: 已观察(E4), ev: "route-only-20260918/{bundles-source,release-bundles,rb-target,rb-target-history}.png", note: "Distributable/Received、source/target/history 列与搜索已采；BinFlow 已有主列表/详情语义，target-history 管理差面保留" }
+  - { id: cold-storage-monitoring, ref: /ui/admin/artifactory/services/retention/cold_storage_monitoring, bf: 无, status: ⏸面外候裁, verify: 已观察(E4), ev: gapfill-20260918/cold-storage.png, note: "与 retention monitoring 同表族；Create Policy/Stop All Runs/Clear all/Report 入口已采" }
+  - { id: federation-status, ref: /ui/admin/monitoring/federation-status, bf: 无, status: ⏸面外候裁, verify: 已观察(E4-empty-shell), ev: route-only-20260918/federation.png, note: "本实例只渲染 Admin 空壳，无联邦业务内容——不能升格为功能语义证据" }
+  - { id: scim, ref: /ui/admin/configuration/security/scim, bf: 无, status: ⏸面外候裁, verify: 已观察(E4), ev: route-only-20260918/scim.png, note: "Generate Token 与 token 字段已采；enterprise 候裁在册" }
+  - { id: vault-integration, ref: "/ui/admin/configuration/security/{vault_integration,vaults}", bf: 无, status: ⏸面外候裁, verify: 已观察(E4-mixed), ev: "route-only-20260918/{vault-integration,vaults}.png", note: "vault_integration 在本实例返回 Page Not Found；vaults 列表可见 Add Connector、Name/URL——两路由分别记账，不合并成功" }
+  - { id: global-roles, ref: /ui/admin/management/global_roles, bf: 无, status: ✗缺, verify: 已观察(E4), ev: route-only-20260918/global-roles.png, note: "Create Global Role 与 Roles/Read/Write/Delete/Promote/Trigger 列已采；Projects 域候产品决策" }
+  - { id: http-sso, ref: /ui/admin/configuration/security/http_sso, bf: "AuthConfigPage 无 http-sso 协议腿", status: ✗缺, verify: 已观察(E4), ev: route-only-20260918/http-sso.png, note: "Reset/Save 表单已采；后端/API 支持面待 v2 映射" }
+  - { id: crowd-integration, ref: /ui/admin/configuration/security/crowd_integration, bf: 无, status: ⏸面外候裁, verify: 已观察(E4), ev: route-only-20260918/crowd.png, note: "directAuthentication/serverUrl/applicationName/password/sessionValidationInterval、Test/Reset/Save、组映射与同步表已采" }
+  - { id: mail-server, ref: /ui/admin/configuration/mail, bf: "monitoring/settings 待字段级核对", status: ◐待映射, verify: 已观察(E4), ev: route-only-20260918/mail.png, note: "Send Test Email/Reset/Save 与 host/port/from/To 已采；BinFlow 字段与 API 面待 v2" }
+  - { id: quick-setup, ref: /ui/quick-setup, bf: 无, status: ✗缺·参考路由未激活, verify: 已观察(E4-404), ev: route-only-20260918/quick-setup.png, note: "本实例已完成 onboarding，直接访问返回 Page Not Found；不能据 inactive 路由补功能" }
+  - { id: migration-tool, ref: /ui/admin/artifactory/migration_tool, bf: "无（bf-migrate 对位）", status: ⏸面外候裁, verify: 已观察(E4), ev: route-only-20260918/migration-tool.png, note: "Create Migration 与 Migrate NuGet repositories 入口已采；产品差异在册" }
+  - { id: config-descriptor, ref: /ui/admin/artifactory/advanced/config_descriptor, bf: 无, status: ✗UI缺·API候, verify: 已观察(E4), ev: route-only-20260918/config-descriptor.png, note: "Reset/Save 已采；descriptor 文本与后端往返能力需源码/API v2 对账" }
 route_only_screens:
-  - { id: retention-policies-family, bf: 无, status: ⏸面外候裁, note: "Pro；BinFlow retention 在 builds 域（API 已实现）——IA 对位候裁" }
-  - { id: lifecycle, bf: 无, status: ⏸面外候裁, note: Pro 许可屏 }
-  - { id: release-bundles-admin, bf: "bundles（三视图）", status: ◐部分, note: "M17 BundlesPage 已有；target/target-history 管理屏差面——活体补走查后定" }
-  - { id: cold-storage-monitoring, bf: 无, status: ⏸面外候裁, note: Pro }
-  - { id: federation-status, bf: 无, status: ⏸面外候裁, note: "Pro 联邦（D02-R11 候裁族在册）" }
-  - { id: scim, bf: 无, status: ⏸面外候裁, note: "enterprise 候裁三支在册（D04）" }
-  - { id: vault-integration, bf: 无, status: ⏸面外候裁, note: 同上 }
-  - { id: global-roles, bf: 无, status: ✗缺, note: "Projects 域（模型已规格化 rbac-model §2）——候产品决策" }
-  - { id: http-sso, bf: "未验证（AuthConfigPage 协议面待查）", status: 未验证, note: 活体+源码双补 }
-  - { id: crowd-integration, bf: 无, status: ⏸面外候裁, note: enterprise }
-  - { id: mail-server, bf: "未验证（BinFlow mail API 面待查）", status: 未验证, note: 同上 }
-  - { id: quick-setup, bf: 无, status: ✗缺, note: 向导类——候产品裁定 }
-  - { id: migration-tool, bf: "无（bf-migrate 对位）", status: ⏸面外候裁, note: 产品差异在册 }
-  - { id: config-descriptor, bf: 无, status: ✗UI缺·API候, note: "D06-R06 config.xml 往返候票（absent-roadmap 深水项）——补页依赖后端票" }
-  - { id: native-browser, ref: "native, native/:artifactPath+", bf: "artifacts/:key/*（语义近）", status: ≈形态分立候裁, note: "Artifactory 独立旧式浏览页——BinFlow Explorer 承接语义；是否补独立入口候裁" }
+  - { id: native-browser, ref: "native, native/:artifactPath+", bf: "artifacts/:key/*（语义近）", status: ≈形态分立候裁, verify: 源码推断(E2), ev: routes#native, note: "Artifactory 独立旧式浏览页——BinFlow Explorer 承接语义；是否补独立入口候裁" }
 
 # ── C. BinFlow 超集域（总令一.7：保留并纳入同一设计系统）────────────────────────
 binflow_superset:
@@ -92,4 +93,4 @@ interaction_v2_inputs:
   - { src: parity-capture/states-gaps.md, covers: "12 状态项：10 cleared/partial，2 open（dark-mode=BinFlow 自有 token 基线已裁定；sso-login-variants=实例内网认证未触发）" }
   - { src: decomp/artifactory-ui, covers: "Vue2 宿主+组件树（源码推断级——弹窗调用位/表单校验/i18n 文案提取）" }
   - { src: decomp/frontend-server, covers: "SSR 控制器×50+ 路由（API 面）" }
-interaction_v2_blocked_by: "活体实例（15 route-only 屏走查+四态补证+交互级对拍）——宿主恢复为前置"
+interaction_v2_next: "已生成 interaction-inventory.yaml：67/69 屏、817 个唯一可观察入口（shell 186 / welcome 120 / page 511）；下一步逐项映射 route/component/API/test 并定向补采弹窗与四态"

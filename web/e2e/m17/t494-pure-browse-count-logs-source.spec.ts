@@ -1,3 +1,4 @@
+import { selectShadcn } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
@@ -261,7 +262,7 @@ test('system logs: process-log source is primary — lines reconcile, filter nar
     if (url.includes('/api/v1/system/logs?') && url.includes('limit=200')) sawLimit = true
   }
   page.on('request', (req) => onLimit(req.url()))
-  await page.selectOption('[data-testid="logs-limit"]', '200')
+  await selectShadcn(page, '[data-testid="logs-limit"]', '200')
   await expect
     .poll(async () => sawLimit, { timeout: 10_000 })
     .toBe(true)

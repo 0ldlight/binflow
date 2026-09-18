@@ -7,9 +7,9 @@
  */
 
 :root {
-  --bf-shadow-1: 0 1px 2px rgb(0 0 0 / 35%); /* 卡片/下拉锚定 */
-  --bf-shadow-2: 0 4px 12px rgb(0 0 0 / 45%); /* 下拉/浮层/右键菜单 */
-  --bf-shadow-3: 0 12px 32px rgb(0 0 0 / 55%); /* modal/向导 */
+  --bf-shadow-1: 0 0.5px 0.5px rgb(0 0 0 / 10%); /* Penpot 贴面卡片 */
+  --bf-shadow-2: 0 2px 4px rgb(0 0 0 / 10%); /* Penpot 浮层 */
+  --bf-shadow-3: 0 12px 32px rgb(0 0 0 / 45%); /* modal/向导焦点隔离 */
 
   --bf-ring-width: 2px; /* 批 1 新槽位（只定义不消费） */
 }

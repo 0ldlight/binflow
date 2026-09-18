@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 回收站管理页（M12 T-352——P3 新栈重写）。三块：
 // - 门控卡：trashcan 槽（Q3 暂行 pro）锁定态呈现——照 License 页先例；
 //   addons 面失败/无注册表行 = 按未门控呈现（服务端 403 终裁纪律）。
@@ -18,7 +20,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import { useAuth } from '@/app/AuthContext'
-import { Button } from '@/components/ui/button'
+
 import { Badge } from '@/components/ui/badge'
 import { AlertBox } from '@/components/layout/bits'
 import { CopyButton } from '@/components/layout/copy-button'
@@ -279,26 +281,26 @@ export default function TrashPage() {
           <section aria-label={t('回收站内容')} className="mb-4 rounded-md border border-border bg-surface-1 px-3 pb-2 pt-3">
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
               <nav data-testid="trash-breadcrumb" aria-label={t('回收站路径')} className="flex flex-wrap items-center gap-1 text-dense">
-                <button
+                <Button
                   type="button"
                   lang="en"
                   className="font-mono text-primary hover:underline"
                   onClick={() => navigateInto('')}
                 >
                   {TRASH_REPO}
-                </button>
+                </Button>
                 {crumbs.map((c, i) =>
                   i < crumbs.length - 1 ? (
                     <span key={`${c}-${i}`} className="flex items-center gap-1">
                       <span aria-hidden="true">/</span>
-                      <button
+                      <Button
                         type="button"
                         lang="en"
                         className="font-mono text-primary hover:underline"
                         onClick={() => navigateInto(crumbs.slice(0, i + 1).join('/'))}
                       >
                         {c}
-                      </button>
+                      </Button>
                     </span>
                   ) : (
                     <span key={`${c}-${i}`} className="flex items-center gap-1">
@@ -342,27 +344,27 @@ export default function TrashPage() {
               />
             )}
             {listing.status === 'ok' && listing.data && listing.data.length > 0 && (
-              <table className="w-full text-dense" data-testid="trash-list">
-                <thead>
-                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-medium">{t('名称')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{t('类型')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{t('大小')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{t('修改时间')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{adminWrite && !readOnly ? t('操作') : ''}</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-dense" data-testid="trash-list">
+                <TableHeader>
+                  <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('名称')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('类型')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('大小')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('修改时间')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{adminWrite && !readOnly ? t('操作') : ''}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {listing.data.map((node) => (
-                    <tr
+                    <TableRow
                       key={node.path}
                       className={`cursor-pointer border-b border-border/60 hover:bg-accent${selected?.path === node.path ? ' bg-accent' : ''}`}
                       data-testid={`trash-row-${node.path}`}
                       onClick={() => setSelected(node)}
                     >
-                      <td className="px-3 py-1.5">
+                      <TableCell className="px-3 py-1.5">
                         {node.folder ? (
-                          <button
+                          <Button
                             type="button"
                             className="font-mono text-primary hover:underline"
                             lang="en"
@@ -373,18 +375,18 @@ export default function TrashPage() {
                             title={t('进入目录')}
                           >
                             ▸ {node.name}
-                          </button>
+                          </Button>
                         ) : (
                           <span className="font-mono" lang="en">{node.name}</span>
                         )}
                         <CopyButton value={`${TRASH_REPO}/${node.path}`} label={t('路径 {v1}', { v1: node.name })} />
-                      </td>
-                      <td className="px-3 py-1.5">
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5">
                         <Badge variant="tint-neutral">{node.folder ? t('目录') : t('文件')}</Badge>
-                      </td>
-                      <td className="px-3 py-1.5 font-mono">{node.size === null ? '—' : formatBytes(node.size)}</td>
-                      <td className="px-3 py-1.5 font-mono">{node.lastModified || '—'}</td>
-                      <td className="px-3 py-1.5">
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono">{node.size === null ? '—' : formatBytes(node.size)}</TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono">{node.lastModified || '—'}</TableCell>
+                      <TableCell className="px-3 py-1.5">
                         {adminWrite && !readOnly && (
                           <span className="inline-flex gap-1">
                             <Button
@@ -415,11 +417,11 @@ export default function TrashPage() {
                             </Button>
                           </span>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             )}
           </section>
 

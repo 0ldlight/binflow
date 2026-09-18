@@ -1,3 +1,4 @@
+import { expectSelectValue } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { Page, TestInfo } from '@playwright/test'
 
@@ -140,7 +141,7 @@ test('oidc step-up (mock): required -> re-auth guide (no password form); fragmen
   await page.goto('/binflow/ui/artifacts')
   await page.click(`[data-testid="tree-repo-${key}"]`)
   await page.click('[data-testid="tree-setmeup"]')
-  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+  await expectSelectValue(page, '[data-testid="smu-repo"]', key)
 
   // ④ 首次铸币 → 401 required → OIDC 腿：重认证引导（口令框绝不出现）
   await page.click('[data-testid="smu-generate"]')
@@ -374,7 +375,7 @@ test('oidc step-up (armed instance): live gate full chain via the mock IdP — r
   await page.goto('/binflow/ui/artifacts')
   await page.click(`[data-testid="tree-repo-${key}"]`)
   await page.click('[data-testid="tree-setmeup"]')
-  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+  await expectSelectValue(page, '[data-testid="smu-repo"]', key)
 
   // 401 required → OIDC 腿引导 → 真实 purpose=step_up 跳转（IdP 侧实证
   // prompt=login——T-219 的强制重认证参数）

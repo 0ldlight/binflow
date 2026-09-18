@@ -1,3 +1,4 @@
+import { selectShadcn } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
@@ -130,11 +131,11 @@ test('admin: two-step resource dialog full chain, four-action matrix, tester, ma
   await expect(page.locator('[data-testid="perm-pattern-verdict"]')).toContainText('不匹配')
 
   // —— 四动作矩阵：用户区块 r+w；组区块 r+d+m（四列全覆盖）——
-  await page.selectOption('[data-testid="perm-add-user"]', user)
+  await selectShadcn(page, '[data-testid="perm-add-user"]', user)
   await page.getByRole('button', { name: '添加用户' }).click()
   await page.check(`[data-testid="perm-matrix-cell-user-${user}-read"]`)
   await page.check(`[data-testid="perm-matrix-cell-user-${user}-write"]`)
-  await page.selectOption('[data-testid="perm-add-group"]', group)
+  await selectShadcn(page, '[data-testid="perm-add-group"]', group)
   await page.getByRole('button', { name: '添加组' }).click()
   await page.check(`[data-testid="perm-matrix-cell-group-${group}-read"]`)
   await page.check(`[data-testid="perm-matrix-cell-group-${group}-delete"]`)

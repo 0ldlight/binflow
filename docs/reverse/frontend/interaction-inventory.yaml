@@ -1,0 +1,4705 @@
+# Artifactory interaction inventory v2 (generated)
+#
+# Evidence-only inventory generated from the 2026-09-18 catalog-v2 DOM summaries.
+# Labels are observed accessibility/DOM text, not inferred behavior. A label being
+# listed here does not claim that BinFlow implements it; implementation remains
+# not-mapped until a route/component/API/test mapping is added.
+meta:
+  generated_from: tools/penpot-sync/capture/crawl-manifest.json
+  catalog_glob: docs/reverse/frontend/parity-capture/catalog-v2-20260918/*/screens-catalog.json
+  manifest_screens: 69
+  inventoried_screens: 67
+  excluded_screens: [login, onboarding]
+  unique_interactions: 817
+  by_kind: { buttons: 386, inputs: 214, tabs: 70, columns: 147 }
+  by_scope: { shell: 186, welcome_banner: 120, page: 511 }
+  implementation_coverage: { mapped: 0, total: 817 }
+screens:
+  - id: packages
+    route: /packages
+    seed_screen: packages
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/packages.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 2, tabs: 6, columns: 7, total: 21 }
+    interactions:
+      - id: packages.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: packages.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: packages.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: packages.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: packages.button.005
+        kind: button
+        scope: page
+        label: Clear all
+        implementation: not-mapped
+      - id: packages.button.006
+        kind: button
+        scope: page
+        label: Save New View
+        implementation: not-mapped
+      - id: packages.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: packages.input.008
+        kind: input
+        scope: page
+        label: Search Packages
+        implementation: not-mapped
+      - id: packages.tab.009
+        kind: tab
+        scope: page
+        label: 0 Recently Viewed
+        implementation: not-mapped
+      - id: packages.tab.010
+        kind: tab
+        scope: page
+        label: All Packages Create Custom View
+        implementation: not-mapped
+      - id: packages.tab.011
+        kind: tab
+        scope: page
+        label: Package Type
+        implementation: not-mapped
+      - id: packages.tab.012
+        kind: tab
+        scope: page
+        label: Package Name
+        implementation: not-mapped
+      - id: packages.tab.013
+        kind: tab
+        scope: page
+        label: Description
+        implementation: not-mapped
+      - id: packages.tab.014
+        kind: tab
+        scope: page
+        label: Created On
+        implementation: not-mapped
+      - id: packages.column.015
+        kind: column
+        scope: page
+        label: Package Type
+        implementation: not-mapped
+      - id: packages.column.016
+        kind: column
+        scope: page
+        label: Package Name
+        implementation: not-mapped
+      - id: packages.column.017
+        kind: column
+        scope: page
+        label: Latest Version
+        implementation: not-mapped
+      - id: packages.column.018
+        kind: column
+        scope: page
+        label: First Created
+        implementation: not-mapped
+      - id: packages.column.019
+        kind: column
+        scope: page
+        label: Versions
+        implementation: not-mapped
+      - id: packages.column.020
+        kind: column
+        scope: page
+        label: Downloads
+        implementation: not-mapped
+      - id: packages.column.021
+        kind: column
+        scope: page
+        label: Security
+        implementation: not-mapped
+  - id: tree-general
+    route: /repos/tree/General
+    seed_screen: artifacts-tree
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/tree-general.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 3, tabs: 4, columns: 0, total: 13 }
+    interactions:
+      - id: tree-general.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: tree-general.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: tree-general.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: tree-general.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: tree-general.button.005
+        kind: button
+        scope: page
+        label: Set Me Up
+        implementation: not-mapped
+      - id: tree-general.button.006
+        kind: button
+        scope: page
+        label: Clear
+        implementation: not-mapped
+      - id: tree-general.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: tree-general.input.008
+        kind: input
+        scope: page
+        label: Search Artifacts
+        implementation: not-mapped
+      - id: tree-general.input.009
+        kind: input
+        scope: page
+        label: Repository Name
+        implementation: not-mapped
+      - id: tree-general.tab.010
+        kind: tab
+        scope: page
+        label: General
+        implementation: not-mapped
+      - id: tree-general.tab.011
+        kind: tab
+        scope: page
+        label: Effective Permissions
+        implementation: not-mapped
+      - id: tree-general.tab.012
+        kind: tab
+        scope: page
+        label: Properties
+        implementation: not-mapped
+      - id: tree-general.tab.013
+        kind: tab
+        scope: page
+        label: Followers
+        implementation: not-mapped
+  - id: tree-empty-repo
+    route: /repos/tree/General/audit-probe-empty
+    seed_screen: artifacts-tree
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/tree-empty-repo.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 3, tabs: 4, columns: 0, total: 13 }
+    interactions:
+      - id: tree-empty-repo.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: tree-empty-repo.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: tree-empty-repo.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: tree-empty-repo.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: tree-empty-repo.button.005
+        kind: button
+        scope: page
+        label: Set Me Up
+        implementation: not-mapped
+      - id: tree-empty-repo.button.006
+        kind: button
+        scope: page
+        label: Clear
+        implementation: not-mapped
+      - id: tree-empty-repo.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: tree-empty-repo.input.008
+        kind: input
+        scope: page
+        label: Search Artifacts
+        implementation: not-mapped
+      - id: tree-empty-repo.input.009
+        kind: input
+        scope: page
+        label: Repository Name
+        implementation: not-mapped
+      - id: tree-empty-repo.tab.010
+        kind: tab
+        scope: page
+        label: General
+        implementation: not-mapped
+      - id: tree-empty-repo.tab.011
+        kind: tab
+        scope: page
+        label: Effective Permissions
+        implementation: not-mapped
+      - id: tree-empty-repo.tab.012
+        kind: tab
+        scope: page
+        label: Properties
+        implementation: not-mapped
+      - id: tree-empty-repo.tab.013
+        kind: tab
+        scope: page
+        label: Followers
+        implementation: not-mapped
+  - id: artifact-search-results
+    route: /artifactSearchResults
+    seed_screen: artifact-search-results
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/artifact-search-results.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 4, inputs: 3, tabs: 0, columns: 0, total: 7 }
+    interactions:
+      - id: artifact-search-results.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: artifact-search-results.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: artifact-search-results.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: artifact-search-results.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: artifact-search-results.input.005
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: artifact-search-results.input.006
+        kind: input
+        scope: page
+        label: Search Artifacts
+        implementation: not-mapped
+      - id: artifact-search-results.input.007
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+  - id: repos-local
+    route: /admin/repositories/local
+    seed_screen: repositories-list
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/repos-local.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 3, tabs: 6, columns: 5, total: 20 }
+    interactions:
+      - id: repos-local.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: repos-local.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: repos-local.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: repos-local.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: repos-local.button.005
+        kind: button
+        scope: page
+        label: Create a Repository
+        implementation: not-mapped
+      - id: repos-local.button.006
+        kind: button
+        scope: page
+        label: Clear all
+        implementation: not-mapped
+      - id: repos-local.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: repos-local.input.008
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: repos-local.input.009
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: repos-local.tab.010
+        kind: tab
+        scope: page
+        label: Repository Type
+        implementation: not-mapped
+      - id: repos-local.tab.011
+        kind: tab
+        scope: page
+        label: Package Type
+        implementation: not-mapped
+      - id: repos-local.tab.012
+        kind: tab
+        scope: page
+        label: URL
+        implementation: not-mapped
+      - id: repos-local.tab.013
+        kind: tab
+        scope: page
+        label: Project
+        implementation: not-mapped
+      - id: repos-local.tab.014
+        kind: tab
+        scope: page
+        label: Stage
+        implementation: not-mapped
+      - id: repos-local.tab.015
+        kind: tab
+        scope: page
+        label: Other
+        implementation: not-mapped
+      - id: repos-local.column.016
+        kind: column
+        scope: page
+        label: Repository Key
+        implementation: not-mapped
+      - id: repos-local.column.017
+        kind: column
+        scope: page
+        label: Repository Type
+        implementation: not-mapped
+      - id: repos-local.column.018
+        kind: column
+        scope: page
+        label: Package Type
+        implementation: not-mapped
+      - id: repos-local.column.019
+        kind: column
+        scope: page
+        label: Last Activity
+        implementation: not-mapped
+      - id: repos-local.column.020
+        kind: column
+        scope: page
+        label: Project
+        implementation: not-mapped
+  - id: repos-remote
+    route: /admin/repositories/remote
+    seed_screen: repositories-list
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/repos-remote.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 3, tabs: 6, columns: 5, total: 20 }
+    interactions:
+      - id: repos-remote.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: repos-remote.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: repos-remote.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: repos-remote.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: repos-remote.button.005
+        kind: button
+        scope: page
+        label: Create a Repository
+        implementation: not-mapped
+      - id: repos-remote.button.006
+        kind: button
+        scope: page
+        label: Clear all
+        implementation: not-mapped
+      - id: repos-remote.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: repos-remote.input.008
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: repos-remote.input.009
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: repos-remote.tab.010
+        kind: tab
+        scope: page
+        label: Repository Type
+        implementation: not-mapped
+      - id: repos-remote.tab.011
+        kind: tab
+        scope: page
+        label: Package Type
+        implementation: not-mapped
+      - id: repos-remote.tab.012
+        kind: tab
+        scope: page
+        label: URL
+        implementation: not-mapped
+      - id: repos-remote.tab.013
+        kind: tab
+        scope: page
+        label: Project
+        implementation: not-mapped
+      - id: repos-remote.tab.014
+        kind: tab
+        scope: page
+        label: Stage
+        implementation: not-mapped
+      - id: repos-remote.tab.015
+        kind: tab
+        scope: page
+        label: Other
+        implementation: not-mapped
+      - id: repos-remote.column.016
+        kind: column
+        scope: page
+        label: Repository Key
+        implementation: not-mapped
+      - id: repos-remote.column.017
+        kind: column
+        scope: page
+        label: Repository Type
+        implementation: not-mapped
+      - id: repos-remote.column.018
+        kind: column
+        scope: page
+        label: Package Type
+        implementation: not-mapped
+      - id: repos-remote.column.019
+        kind: column
+        scope: page
+        label: Last Activity
+        implementation: not-mapped
+      - id: repos-remote.column.020
+        kind: column
+        scope: page
+        label: Project
+        implementation: not-mapped
+  - id: repos-virtual
+    route: /admin/repositories/virtual
+    seed_screen: repositories-list
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/repos-virtual.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 3, tabs: 6, columns: 5, total: 20 }
+    interactions:
+      - id: repos-virtual.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: repos-virtual.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: repos-virtual.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: repos-virtual.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: repos-virtual.button.005
+        kind: button
+        scope: page
+        label: Create a Repository
+        implementation: not-mapped
+      - id: repos-virtual.button.006
+        kind: button
+        scope: page
+        label: Clear all
+        implementation: not-mapped
+      - id: repos-virtual.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: repos-virtual.input.008
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: repos-virtual.input.009
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: repos-virtual.tab.010
+        kind: tab
+        scope: page
+        label: Repository Type
+        implementation: not-mapped
+      - id: repos-virtual.tab.011
+        kind: tab
+        scope: page
+        label: Package Type
+        implementation: not-mapped
+      - id: repos-virtual.tab.012
+        kind: tab
+        scope: page
+        label: URL
+        implementation: not-mapped
+      - id: repos-virtual.tab.013
+        kind: tab
+        scope: page
+        label: Project
+        implementation: not-mapped
+      - id: repos-virtual.tab.014
+        kind: tab
+        scope: page
+        label: Stage
+        implementation: not-mapped
+      - id: repos-virtual.tab.015
+        kind: tab
+        scope: page
+        label: Other
+        implementation: not-mapped
+      - id: repos-virtual.column.016
+        kind: column
+        scope: page
+        label: Repository Key
+        implementation: not-mapped
+      - id: repos-virtual.column.017
+        kind: column
+        scope: page
+        label: Repository Type
+        implementation: not-mapped
+      - id: repos-virtual.column.018
+        kind: column
+        scope: page
+        label: Package Type
+        implementation: not-mapped
+      - id: repos-virtual.column.019
+        kind: column
+        scope: page
+        label: Last Activity
+        implementation: not-mapped
+      - id: repos-virtual.column.020
+        kind: column
+        scope: page
+        label: Project
+        implementation: not-mapped
+  - id: repo-form-new-local
+    route: /admin/repositories/local/new
+    seed_screen: repository-form
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/repo-form-new-local.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 30, inputs: 7, tabs: 0, columns: 0, total: 37 }
+    interactions:
+      - id: repo-form-new-local.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: repo-form-new-local.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: repo-form-new-local.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: repo-form-new-local.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: repo-form-new-local.button.005
+        kind: button
+        scope: page
+        label: Basic
+        implementation: not-mapped
+      - id: repo-form-new-local.button.006
+        kind: button
+        scope: page
+        label: Advanced
+        implementation: not-mapped
+      - id: repo-form-new-local.button.007
+        kind: button
+        scope: page
+        label: Replications
+        implementation: not-mapped
+      - id: repo-form-new-local.button.008
+        kind: button
+        scope: page
+        label: Package Type
+        implementation: not-mapped
+      - id: repo-form-new-local.button.009
+        kind: button
+        scope: page
+        label: Cancel
+        implementation: not-mapped
+      - id: repo-form-new-local.button.010
+        kind: button
+        scope: page
+        label: Create Local Repository
+        implementation: not-mapped
+      - id: repo-form-new-local.button.011
+        kind: button
+        scope: page
+        label: Docker
+        implementation: not-mapped
+      - id: repo-form-new-local.button.012
+        kind: button
+        scope: page
+        label: npm
+        implementation: not-mapped
+      - id: repo-form-new-local.button.013
+        kind: button
+        scope: page
+        label: Maven
+        implementation: not-mapped
+      - id: repo-form-new-local.button.014
+        kind: button
+        scope: page
+        label: PyPI
+        implementation: not-mapped
+      - id: repo-form-new-local.button.015
+        kind: button
+        scope: page
+        label: Hugging Face
+        implementation: not-mapped
+      - id: repo-form-new-local.button.016
+        kind: button
+        scope: page
+        label: Gradle
+        implementation: not-mapped
+      - id: repo-form-new-local.button.017
+        kind: button
+        scope: page
+        label: Go
+        implementation: not-mapped
+      - id: repo-form-new-local.button.018
+        kind: button
+        scope: page
+        label: Debian
+        implementation: not-mapped
+      - id: repo-form-new-local.button.019
+        kind: button
+        scope: page
+        label: RPM
+        implementation: not-mapped
+      - id: repo-form-new-local.button.020
+        kind: button
+        scope: page
+        label: Swift
+        implementation: not-mapped
+      - id: repo-form-new-local.button.021
+        kind: button
+        scope: page
+        label: Terraform / OpenTofu
+        implementation: not-mapped
+      - id: repo-form-new-local.button.022
+        kind: button
+        scope: page
+        label: Terraform Backend
+        implementation: not-mapped
+      - id: repo-form-new-local.button.023
+        kind: button
+        scope: page
+        label: Agent Packages
+        implementation: not-mapped
+      - id: repo-form-new-local.button.024
+        kind: button
+        scope: page
+        label: Agent Plugins
+        implementation: not-mapped
+      - id: repo-form-new-local.button.025
+        kind: button
+        scope: page
+        label: Alpine
+        implementation: not-mapped
+      - id: repo-form-new-local.button.026
+        kind: button
+        scope: page
+        label: Ansible
+        implementation: not-mapped
+      - id: repo-form-new-local.button.027
+        kind: button
+        scope: page
+        label: Bower
+        implementation: not-mapped
+      - id: repo-form-new-local.button.028
+        kind: button
+        scope: page
+        label: Cargo
+        implementation: not-mapped
+      - id: repo-form-new-local.button.029
+        kind: button
+        scope: page
+        label: Chef
+        implementation: not-mapped
+      - id: repo-form-new-local.button.030
+        kind: button
+        scope: page
+        label: CocoaPods
+        implementation: not-mapped
+      - id: repo-form-new-local.input.031
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: repo-form-new-local.input.032
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: repo-form-new-local.input.033
+        kind: input
+        scope: page
+        label: Select Layout
+        implementation: not-mapped
+      - id: repo-form-new-local.input.034
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+      - id: repo-form-new-local.input.035
+        kind: input
+        scope: page
+        label: New Pattern
+        implementation: not-mapped
+      - id: repo-form-new-local.input.036
+        kind: input
+        scope: page
+        label: Select Stages
+        implementation: not-mapped
+      - id: repo-form-new-local.input.037
+        kind: input
+        scope: page
+        label: Search by package type
+        implementation: not-mapped
+  - id: repo-form-edit-probe
+    route: /admin/repositories/local/audit-probe-empty/edit
+    seed_screen: repository-form
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/repo-form-edit-probe.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 4, inputs: 2, tabs: 0, columns: 0, total: 6 }
+    interactions:
+      - id: repo-form-edit-probe.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: repo-form-edit-probe.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: repo-form-edit-probe.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: repo-form-edit-probe.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: repo-form-edit-probe.input.005
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: repo-form-edit-probe.input.006
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+  - id: users
+    route: /admin/management/users
+    seed_screen: users-list
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/users.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 3, tabs: 3, columns: 7, total: 19 }
+    interactions:
+      - id: users.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: users.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: users.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: users.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: users.button.005
+        kind: button
+        scope: page
+        label: New user
+        implementation: not-mapped
+      - id: users.button.006
+        kind: button
+        scope: page
+        label: Clear all
+        implementation: not-mapped
+      - id: users.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: users.input.008
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: users.input.009
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: users.tab.010
+        kind: tab
+        scope: page
+        label: Admin
+        implementation: not-mapped
+      - id: users.tab.011
+        kind: tab
+        scope: page
+        label: Status
+        implementation: not-mapped
+      - id: users.tab.012
+        kind: tab
+        scope: page
+        label: Realm
+        implementation: not-mapped
+      - id: users.column.013
+        kind: column
+        scope: page
+        label: Name
+        implementation: not-mapped
+      - id: users.column.014
+        kind: column
+        scope: page
+        label: Email
+        implementation: not-mapped
+      - id: users.column.015
+        kind: column
+        scope: page
+        label: Realm
+        implementation: not-mapped
+      - id: users.column.016
+        kind: column
+        scope: page
+        label: Groups
+        implementation: not-mapped
+      - id: users.column.017
+        kind: column
+        scope: page
+        label: Admin
+        implementation: not-mapped
+      - id: users.column.018
+        kind: column
+        scope: page
+        label: Status
+        implementation: not-mapped
+      - id: users.column.019
+        kind: column
+        scope: page
+        label: Last Login
+        implementation: not-mapped
+  - id: user-new
+    route: /admin/management/users/new
+    seed_screen: user-form
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/user-new.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 8, inputs: 5, tabs: 5, columns: 9, total: 27 }
+    interactions:
+      - id: user-new.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: user-new.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: user-new.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: user-new.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: user-new.button.005
+        kind: button
+        scope: page
+        label: Reset Google MFA Enrollment
+        implementation: not-mapped
+      - id: user-new.button.006
+        kind: button
+        scope: page
+        label: Cancel
+        implementation: not-mapped
+      - id: user-new.button.007
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: user-new.button.008
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: user-new.input.009
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: user-new.input.010
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: user-new.input.011
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+      - id: user-new.input.012
+        kind: input
+        scope: page
+        label: password
+        implementation: not-mapped
+      - id: user-new.input.013
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: user-new.tab.014
+        kind: tab
+        scope: page
+        label: All
+        implementation: not-mapped
+      - id: user-new.tab.015
+        kind: tab
+        scope: page
+        label: Selected (1)
+        implementation: not-mapped
+      - id: user-new.tab.016
+        kind: tab
+        scope: page
+        label: Repositories
+        implementation: not-mapped
+      - id: user-new.tab.017
+        kind: tab
+        scope: page
+        label: Builds
+        implementation: not-mapped
+      - id: user-new.tab.018
+        kind: tab
+        scope: page
+        label: Release Bundles
+        implementation: not-mapped
+      - id: user-new.column.019
+        kind: column
+        scope: page
+        label: Group Name
+        implementation: not-mapped
+      - id: user-new.column.020
+        kind: column
+        scope: page
+        label: Permission Name
+        implementation: not-mapped
+      - id: user-new.column.021
+        kind: column
+        scope: page
+        label: Applied To
+        implementation: not-mapped
+      - id: user-new.column.022
+        kind: column
+        scope: page
+        label: Repositories
+        implementation: not-mapped
+      - id: user-new.column.023
+        kind: column
+        scope: page
+        label: Read
+        implementation: not-mapped
+      - id: user-new.column.024
+        kind: column
+        scope: page
+        label: Deploy/Cache
+        implementation: not-mapped
+      - id: user-new.column.025
+        kind: column
+        scope: page
+        label: Delete
+        implementation: not-mapped
+      - id: user-new.column.026
+        kind: column
+        scope: page
+        label: Annotate
+        implementation: not-mapped
+      - id: user-new.column.027
+        kind: column
+        scope: page
+        label: Manage
+        implementation: not-mapped
+  - id: user-edit-probe
+    route: /admin/management/users/audit-probe-user/edit
+    seed_screen: user-form
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/user-edit-probe.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 3, tabs: 3, columns: 7, total: 19 }
+    interactions:
+      - id: user-edit-probe.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: user-edit-probe.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: user-edit-probe.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: user-edit-probe.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: user-edit-probe.button.005
+        kind: button
+        scope: page
+        label: New user
+        implementation: not-mapped
+      - id: user-edit-probe.button.006
+        kind: button
+        scope: page
+        label: Clear all
+        implementation: not-mapped
+      - id: user-edit-probe.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: user-edit-probe.input.008
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: user-edit-probe.input.009
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: user-edit-probe.tab.010
+        kind: tab
+        scope: page
+        label: Admin
+        implementation: not-mapped
+      - id: user-edit-probe.tab.011
+        kind: tab
+        scope: page
+        label: Status
+        implementation: not-mapped
+      - id: user-edit-probe.tab.012
+        kind: tab
+        scope: page
+        label: Realm
+        implementation: not-mapped
+      - id: user-edit-probe.column.013
+        kind: column
+        scope: page
+        label: Name
+        implementation: not-mapped
+      - id: user-edit-probe.column.014
+        kind: column
+        scope: page
+        label: Email
+        implementation: not-mapped
+      - id: user-edit-probe.column.015
+        kind: column
+        scope: page
+        label: Realm
+        implementation: not-mapped
+      - id: user-edit-probe.column.016
+        kind: column
+        scope: page
+        label: Groups
+        implementation: not-mapped
+      - id: user-edit-probe.column.017
+        kind: column
+        scope: page
+        label: Admin
+        implementation: not-mapped
+      - id: user-edit-probe.column.018
+        kind: column
+        scope: page
+        label: Status
+        implementation: not-mapped
+      - id: user-edit-probe.column.019
+        kind: column
+        scope: page
+        label: Last Login
+        implementation: not-mapped
+  - id: groups
+    route: /admin/management/groups
+    seed_screen: groups-list
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/groups.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 3, tabs: 3, columns: 5, total: 17 }
+    interactions:
+      - id: groups.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: groups.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: groups.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: groups.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: groups.button.005
+        kind: button
+        scope: page
+        label: New Group
+        implementation: not-mapped
+      - id: groups.button.006
+        kind: button
+        scope: page
+        label: Clear all
+        implementation: not-mapped
+      - id: groups.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: groups.input.008
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: groups.input.009
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: groups.tab.010
+        kind: tab
+        scope: page
+        label: Admin
+        implementation: not-mapped
+      - id: groups.tab.011
+        kind: tab
+        scope: page
+        label: Auto Join
+        implementation: not-mapped
+      - id: groups.tab.012
+        kind: tab
+        scope: page
+        label: External
+        implementation: not-mapped
+      - id: groups.column.013
+        kind: column
+        scope: page
+        label: Name
+        implementation: not-mapped
+      - id: groups.column.014
+        kind: column
+        scope: page
+        label: Permissions
+        implementation: not-mapped
+      - id: groups.column.015
+        kind: column
+        scope: page
+        label: External
+        implementation: not-mapped
+      - id: groups.column.016
+        kind: column
+        scope: page
+        label: Admin
+        implementation: not-mapped
+      - id: groups.column.017
+        kind: column
+        scope: page
+        label: Auto Join
+        implementation: not-mapped
+  - id: group-new
+    route: /admin/management/groups/new
+    seed_screen: group-form
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/group-new.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 7, inputs: 4, tabs: 0, columns: 0, total: 11 }
+    interactions:
+      - id: group-new.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: group-new.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: group-new.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: group-new.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: group-new.button.005
+        kind: button
+        scope: page
+        label: Cancel
+        implementation: not-mapped
+      - id: group-new.button.006
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: group-new.button.007
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: group-new.input.008
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: group-new.input.009
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: group-new.input.010
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+      - id: group-new.input.011
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+  - id: group-edit-probe
+    route: /admin/management/groups/audit-probe-group/edit
+    seed_screen: group-form
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/group-edit-probe.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 7, inputs: 4, tabs: 3, columns: 7, total: 21 }
+    interactions:
+      - id: group-edit-probe.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: group-edit-probe.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: group-edit-probe.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: group-edit-probe.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: group-edit-probe.button.005
+        kind: button
+        scope: page
+        label: Cancel
+        implementation: not-mapped
+      - id: group-edit-probe.button.006
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: group-edit-probe.button.007
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: group-edit-probe.input.008
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: group-edit-probe.input.009
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: group-edit-probe.input.010
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+      - id: group-edit-probe.input.011
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: group-edit-probe.tab.012
+        kind: tab
+        scope: page
+        label: Repositories
+        implementation: not-mapped
+      - id: group-edit-probe.tab.013
+        kind: tab
+        scope: page
+        label: Builds
+        implementation: not-mapped
+      - id: group-edit-probe.tab.014
+        kind: tab
+        scope: page
+        label: Release Bundles
+        implementation: not-mapped
+      - id: group-edit-probe.column.015
+        kind: column
+        scope: page
+        label: Permission Name
+        implementation: not-mapped
+      - id: group-edit-probe.column.016
+        kind: column
+        scope: page
+        label: Repositories
+        implementation: not-mapped
+      - id: group-edit-probe.column.017
+        kind: column
+        scope: page
+        label: Read
+        implementation: not-mapped
+      - id: group-edit-probe.column.018
+        kind: column
+        scope: page
+        label: Deploy/Cache
+        implementation: not-mapped
+      - id: group-edit-probe.column.019
+        kind: column
+        scope: page
+        label: Delete
+        implementation: not-mapped
+      - id: group-edit-probe.column.020
+        kind: column
+        scope: page
+        label: Annotate
+        implementation: not-mapped
+      - id: group-edit-probe.column.021
+        kind: column
+        scope: page
+        label: Manage
+        implementation: not-mapped
+  - id: permissions
+    route: /admin/management/permissions
+    seed_screen: permissions-list
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/permissions.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 5, inputs: 3, tabs: 0, columns: 3, total: 11 }
+    interactions:
+      - id: permissions.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: permissions.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: permissions.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: permissions.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: permissions.button.005
+        kind: button
+        scope: page
+        label: New Permission
+        implementation: not-mapped
+      - id: permissions.input.006
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: permissions.input.007
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: permissions.input.008
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: permissions.column.009
+        kind: column
+        scope: page
+        label: Permission Name
+        implementation: not-mapped
+      - id: permissions.column.010
+        kind: column
+        scope: page
+        label: Users
+        implementation: not-mapped
+      - id: permissions.column.011
+        kind: column
+        scope: page
+        label: Groups
+        implementation: not-mapped
+  - id: permission-new
+    route: /admin/management/permissions/new
+    seed_screen: permission-editor
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/permission-new.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 4, inputs: 2, tabs: 0, columns: 0, total: 6 }
+    interactions:
+      - id: permission-new.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: permission-new.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: permission-new.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: permission-new.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: permission-new.input.005
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: permission-new.input.006
+        kind: input
+        scope: page
+        label: Search Packages
+        implementation: not-mapped
+  - id: global-roles
+    route: /admin/management/global_roles
+    seed_screen: global-roles
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/global-roles.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 5, inputs: 3, tabs: 0, columns: 7, total: 15 }
+    interactions:
+      - id: global-roles.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: global-roles.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: global-roles.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: global-roles.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: global-roles.button.005
+        kind: button
+        scope: page
+        label: Create Global Role
+        implementation: not-mapped
+      - id: global-roles.input.006
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: global-roles.input.007
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: global-roles.input.008
+        kind: input
+        scope: page
+        label: radio
+        implementation: not-mapped
+      - id: global-roles.column.009
+        kind: column
+        scope: page
+        label: Roles
+        implementation: not-mapped
+      - id: global-roles.column.010
+        kind: column
+        scope: page
+        label: Read Artifact
+        implementation: not-mapped
+      - id: global-roles.column.011
+        kind: column
+        scope: page
+        label: Write Artifact
+        implementation: not-mapped
+      - id: global-roles.column.012
+        kind: column
+        scope: page
+        label: Delete Artifact
+        implementation: not-mapped
+      - id: global-roles.column.013
+        kind: column
+        scope: page
+        label: Delete Build
+        implementation: not-mapped
+      - id: global-roles.column.014
+        kind: column
+        scope: page
+        label: Promote Release Bundle
+        implementation: not-mapped
+      - id: global-roles.column.015
+        kind: column
+        scope: page
+        label: Trigger Pipeline
+        implementation: not-mapped
+  - id: security-general-access
+    route: /admin/configuration/security/general
+    seed_screen: none
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/security-general-access.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 10, inputs: 11, tabs: 0, columns: 0, total: 21 }
+    interactions:
+      - id: security-general-access.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: security-general-access.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: security-general-access.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: security-general-access.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: security-general-access.button.005
+        kind: button
+        scope: page
+        label: Unlock
+        implementation: not-mapped
+      - id: security-general-access.button.006
+        kind: button
+        scope: page
+        label: Unlock All Users
+        implementation: not-mapped
+      - id: security-general-access.button.007
+        kind: button
+        scope: page
+        label: Force Password Expiration For All Users
+        implementation: not-mapped
+      - id: security-general-access.button.008
+        kind: button
+        scope: page
+        label: Unexpire Expired Passwords For All Users
+        implementation: not-mapped
+      - id: security-general-access.button.009
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: security-general-access.button.010
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: security-general-access.input.011
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: security-general-access.input.012
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: security-general-access.input.013
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+      - id: security-general-access.input.014
+        kind: input
+        scope: page
+        label: number
+        implementation: not-mapped
+      - id: security-general-access.input.015
+        kind: input
+        scope: page
+        label: password
+        implementation: not-mapped
+      - id: security-general-access.input.016
+        kind: input
+        scope: page
+        label: Suspension Attempts
+        implementation: not-mapped
+      - id: security-general-access.input.017
+        kind: input
+        scope: page
+        label: Suspension Time
+        implementation: not-mapped
+      - id: security-general-access.input.018
+        kind: input
+        scope: page
+        label: "Set '0' to disable a 'Max Failed Login Attempts'"
+        implementation: not-mapped
+      - id: security-general-access.input.019
+        kind: input
+        scope: page
+        label: "Default expiry is not forced if set to '0'"
+        implementation: not-mapped
+      - id: security-general-access.input.020
+        kind: input
+        scope: page
+        label: 0 = unlimited
+        implementation: not-mapped
+      - id: security-general-access.input.021
+        kind: input
+        scope: page
+        label: Select time
+        implementation: not-mapped
+  - id: access-tokens
+    route: /admin/configuration/security/access_tokens
+    seed_screen: access-tokens
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/access-tokens.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 5, inputs: 3, tabs: 0, columns: 8, total: 16 }
+    interactions:
+      - id: access-tokens.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: access-tokens.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: access-tokens.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: access-tokens.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: access-tokens.button.005
+        kind: button
+        scope: page
+        label: Generate Token
+        implementation: not-mapped
+      - id: access-tokens.input.006
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: access-tokens.input.007
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: access-tokens.input.008
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: access-tokens.column.009
+        kind: column
+        scope: page
+        label: Description
+        implementation: not-mapped
+      - id: access-tokens.column.010
+        kind: column
+        scope: page
+        label: Subject
+        implementation: not-mapped
+      - id: access-tokens.column.011
+        kind: column
+        scope: page
+        label: Project Key
+        implementation: not-mapped
+      - id: access-tokens.column.012
+        kind: column
+        scope: page
+        label: Token ID
+        implementation: not-mapped
+      - id: access-tokens.column.013
+        kind: column
+        scope: page
+        label: Issued At
+        implementation: not-mapped
+      - id: access-tokens.column.014
+        kind: column
+        scope: page
+        label: Expiry Date
+        implementation: not-mapped
+      - id: access-tokens.column.015
+        kind: column
+        scope: page
+        label: Refreshable
+        implementation: not-mapped
+      - id: access-tokens.column.016
+        kind: column
+        scope: page
+        label: Scope
+        implementation: not-mapped
+  - id: ldap
+    route: /admin/configuration/security/ldap
+    seed_screen: ldap-config
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/ldap.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 3, tabs: 0, columns: 4, total: 13 }
+    interactions:
+      - id: ldap.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: ldap.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: ldap.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: ldap.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: ldap.button.005
+        kind: button
+        scope: page
+        label: Add Settings
+        implementation: not-mapped
+      - id: ldap.button.006
+        kind: button
+        scope: page
+        label: Add Group
+        implementation: not-mapped
+      - id: ldap.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: ldap.input.008
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: ldap.input.009
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: ldap.column.010
+        kind: column
+        scope: page
+        label: Settings Name
+        implementation: not-mapped
+      - id: ldap.column.011
+        kind: column
+        scope: page
+        label: LDAP Url
+        implementation: not-mapped
+      - id: ldap.column.012
+        kind: column
+        scope: page
+        label: LDAP Settings
+        implementation: not-mapped
+      - id: ldap.column.013
+        kind: column
+        scope: page
+        label: Strategy
+        implementation: not-mapped
+  - id: oauth
+    route: /admin/configuration/security/oauth
+    seed_screen: none
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/oauth.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 5, inputs: 2, tabs: 0, columns: 0, total: 7 }
+    interactions:
+      - id: oauth.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: oauth.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: oauth.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: oauth.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: oauth.button.005
+        kind: button
+        scope: page
+        label: Create New Provider
+        implementation: not-mapped
+      - id: oauth.input.006
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: oauth.input.007
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+  - id: oauth-new-provider
+    route: /admin/configuration/security/oauth/new_provider
+    seed_screen: none
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/oauth-new-provider.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 7, tabs: 0, columns: 0, total: 13 }
+    interactions:
+      - id: oauth-new-provider.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: oauth-new-provider.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: oauth-new-provider.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: oauth-new-provider.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: oauth-new-provider.button.005
+        kind: button
+        scope: page
+        label: Cancel
+        implementation: not-mapped
+      - id: oauth-new-provider.button.006
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: oauth-new-provider.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: oauth-new-provider.input.008
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: oauth-new-provider.input.009
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+      - id: oauth-new-provider.input.010
+        kind: input
+        scope: page
+        label: "***************************************"
+        implementation: not-mapped
+      - id: oauth-new-provider.input.011
+        kind: input
+        scope: page
+        label: <base_url>/login/oauth/authorize
+        implementation: not-mapped
+      - id: oauth-new-provider.input.012
+        kind: input
+        scope: page
+        label: <base_url>/api/v3/user
+        implementation: not-mapped
+      - id: oauth-new-provider.input.013
+        kind: input
+        scope: page
+        label: <base_url>/login/oauth/access_token
+        implementation: not-mapped
+  - id: saml
+    route: /admin/configuration/security/saml
+    seed_screen: none
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/saml.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 4, inputs: 2, tabs: 0, columns: 0, total: 6 }
+    interactions:
+      - id: saml.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: saml.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: saml.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: saml.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: saml.input.005
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: saml.input.006
+        kind: input
+        scope: page
+        label: Search Packages
+        implementation: not-mapped
+  - id: http-sso
+    route: /admin/configuration/security/http_sso
+    seed_screen: http-sso
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/http-sso.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 3, tabs: 0, columns: 0, total: 9 }
+    interactions:
+      - id: http-sso.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: http-sso.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: http-sso.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: http-sso.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: http-sso.button.005
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: http-sso.button.006
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: http-sso.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: http-sso.input.008
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: http-sso.input.009
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+  - id: crowd
+    route: /admin/configuration/security/crowd_integration
+    seed_screen: crowd-integration
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/crowd.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 7, inputs: 9, tabs: 0, columns: 3, total: 19 }
+    interactions:
+      - id: crowd.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: crowd.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: crowd.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: crowd.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: crowd.button.005
+        kind: button
+        scope: page
+        label: Test
+        implementation: not-mapped
+      - id: crowd.button.006
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: crowd.button.007
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: crowd.input.008
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: crowd.input.009
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: crowd.input.010
+        kind: input
+        scope: page
+        label: directAuthentication
+        implementation: not-mapped
+      - id: crowd.input.011
+        kind: input
+        scope: page
+        label: serverUrl
+        implementation: not-mapped
+      - id: crowd.input.012
+        kind: input
+        scope: page
+        label: applicationName
+        implementation: not-mapped
+      - id: crowd.input.013
+        kind: input
+        scope: page
+        label: password
+        implementation: not-mapped
+      - id: crowd.input.014
+        kind: input
+        scope: page
+        label: sessionValidationInterval
+        implementation: not-mapped
+      - id: crowd.input.015
+        kind: input
+        scope: page
+        label: "Search Group by Username (leave blank for *)"
+        implementation: not-mapped
+      - id: crowd.input.016
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: crowd.column.017
+        kind: column
+        scope: page
+        label: Group name
+        implementation: not-mapped
+      - id: crowd.column.018
+        kind: column
+        scope: page
+        label: Description
+        implementation: not-mapped
+      - id: crowd.column.019
+        kind: column
+        scope: page
+        label: Synced
+        implementation: not-mapped
+  - id: scim
+    route: /admin/configuration/security/scim
+    seed_screen: scim
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/scim.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 5, inputs: 4, tabs: 0, columns: 0, total: 9 }
+    interactions:
+      - id: scim.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: scim.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: scim.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: scim.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: scim.button.005
+        kind: button
+        scope: page
+        label: Generate Token
+        implementation: not-mapped
+      - id: scim.input.006
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: scim.input.007
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: scim.input.008
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+      - id: scim.input.009
+        kind: input
+        scope: page
+        label: e.g., automation-service-account
+        implementation: not-mapped
+  - id: vault-integration
+    route: /admin/configuration/security/vault_integration
+    seed_screen: vault-integration
+    effort: best
+    evidence:
+      screenshot: duplicate-of:permission-new
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 4, inputs: 2, tabs: 0, columns: 0, total: 6 }
+    interactions:
+      - id: vault-integration.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: vault-integration.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: vault-integration.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: vault-integration.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: vault-integration.input.005
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: vault-integration.input.006
+        kind: input
+        scope: page
+        label: Search Packages
+        implementation: not-mapped
+  - id: vaults
+    route: /admin/configuration/security/vaults
+    seed_screen: vault-integration
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/vaults.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 5, inputs: 3, tabs: 0, columns: 2, total: 10 }
+    interactions:
+      - id: vaults.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: vaults.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: vaults.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: vaults.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: vaults.button.005
+        kind: button
+        scope: page
+        label: Add Connector
+        implementation: not-mapped
+      - id: vaults.input.006
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: vaults.input.007
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: vaults.input.008
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: vaults.column.009
+        kind: column
+        scope: page
+        label: Name
+        implementation: not-mapped
+      - id: vaults.column.010
+        kind: column
+        scope: page
+        label: URL
+        implementation: not-mapped
+  - id: integration-central
+    route: /admin/integration/central
+    seed_screen: none
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/integration-central.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 2, tabs: 0, columns: 0, total: 8 }
+    interactions:
+      - id: integration-central.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: integration-central.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: integration-central.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: integration-central.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: integration-central.button.005
+        kind: button
+        scope: page
+        label: Cancel
+        implementation: not-mapped
+      - id: integration-central.button.006
+        kind: button
+        scope: page
+        label: Allow
+        implementation: not-mapped
+      - id: integration-central.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: integration-central.input.008
+        kind: input
+        scope: page
+        label: Search Packages
+        implementation: not-mapped
+  - id: mail
+    route: /admin/configuration/mail
+    seed_screen: mail-server
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/mail.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 7, inputs: 6, tabs: 0, columns: 0, total: 13 }
+    interactions:
+      - id: mail.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: mail.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: mail.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: mail.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: mail.button.005
+        kind: button
+        scope: page
+        label: Send Test Email
+        implementation: not-mapped
+      - id: mail.button.006
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: mail.button.007
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: mail.input.008
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: mail.input.009
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: mail.input.010
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+      - id: mail.input.011
+        kind: input
+        scope: page
+        label: "***************************************"
+        implementation: not-mapped
+      - id: mail.input.012
+        kind: input
+        scope: page
+        label: email
+        implementation: not-mapped
+      - id: mail.input.013
+        kind: input
+        scope: page
+        label: email@exampe.com
+        implementation: not-mapped
+  - id: general-config
+    route: /admin/configuration/general
+    seed_screen: general-settings
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/general-config.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 7, inputs: 6, tabs: 0, columns: 0, total: 13 }
+    interactions:
+      - id: general-config.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: general-config.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: general-config.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: general-config.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: general-config.button.005
+        kind: button
+        scope: page
+        label: Clear
+        implementation: not-mapped
+      - id: general-config.button.006
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: general-config.button.007
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: general-config.input.008
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: general-config.input.009
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: general-config.input.010
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+      - id: general-config.input.011
+        kind: input
+        scope: page
+        label: number
+        implementation: not-mapped
+      - id: general-config.input.012
+        kind: input
+        scope: page
+        label: el-p-id-4854-84
+        implementation: not-mapped
+      - id: general-config.input.013
+        kind: input
+        scope: page
+        label: el-p-id-4854-95
+        implementation: not-mapped
+  - id: layouts
+    route: /admin/repositories/layouts
+    seed_screen: repository-layouts
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/layouts.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 5, inputs: 3, tabs: 0, columns: 2, total: 10 }
+    interactions:
+      - id: layouts.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: layouts.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: layouts.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: layouts.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: layouts.button.005
+        kind: button
+        scope: page
+        label: New Repository Layout
+        implementation: not-mapped
+      - id: layouts.input.006
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: layouts.input.007
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: layouts.input.008
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: layouts.column.009
+        kind: column
+        scope: page
+        label: Name
+        implementation: not-mapped
+      - id: layouts.column.010
+        kind: column
+        scope: page
+        label: Artifact Path Pattern
+        implementation: not-mapped
+  - id: storage-summary
+    route: /admin/monitoring/storage-summary
+    seed_screen: storage-summary
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/storage-summary.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 5, inputs: 3, tabs: 0, columns: 8, total: 16 }
+    interactions:
+      - id: storage-summary.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: storage-summary.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: storage-summary.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: storage-summary.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: storage-summary.button.005
+        kind: button
+        scope: page
+        label: Refresh
+        implementation: not-mapped
+      - id: storage-summary.input.006
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: storage-summary.input.007
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: storage-summary.input.008
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: storage-summary.column.009
+        kind: column
+        scope: page
+        label: Repository Key
+        implementation: not-mapped
+      - id: storage-summary.column.010
+        kind: column
+        scope: page
+        label: Repository Type
+        implementation: not-mapped
+      - id: storage-summary.column.011
+        kind: column
+        scope: page
+        label: Package Type
+        implementation: not-mapped
+      - id: storage-summary.column.012
+        kind: column
+        scope: page
+        label: Percentage
+        implementation: not-mapped
+      - id: storage-summary.column.013
+        kind: column
+        scope: page
+        label: Artifacts Size
+        implementation: not-mapped
+      - id: storage-summary.column.014
+        kind: column
+        scope: page
+        label: Files
+        implementation: not-mapped
+      - id: storage-summary.column.015
+        kind: column
+        scope: page
+        label: Folders
+        implementation: not-mapped
+      - id: storage-summary.column.016
+        kind: column
+        scope: page
+        label: Items
+        implementation: not-mapped
+  - id: federation
+    route: /admin/monitoring/federation-status
+    seed_screen: federation-status
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/federation.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 4, inputs: 2, tabs: 0, columns: 0, total: 6 }
+    interactions:
+      - id: federation.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: federation.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: federation.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: federation.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: federation.input.005
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: federation.input.006
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+  - id: system-logs-monitoring
+    route: /admin/monitoring/system_logs
+    seed_screen: system-logs-viewer
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/system-logs-monitoring.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 4, inputs: 3, tabs: 0, columns: 0, total: 7 }
+    interactions:
+      - id: system-logs-monitoring.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: system-logs-monitoring.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: system-logs-monitoring.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: system-logs-monitoring.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: system-logs-monitoring.input.005
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: system-logs-monitoring.input.006
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: system-logs-monitoring.input.007
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+  - id: af-general-settings
+    route: /admin/artifactory/configuration/artifactory_general
+    seed_screen: none
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/af-general-settings.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 7, inputs: 3, tabs: 0, columns: 0, total: 10 }
+    interactions:
+      - id: af-general-settings.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: af-general-settings.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: af-general-settings.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: af-general-settings.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: af-general-settings.button.005
+        kind: button
+        scope: page
+        label: Empty Trash Can
+        implementation: not-mapped
+      - id: af-general-settings.button.006
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: af-general-settings.button.007
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: af-general-settings.input.008
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: af-general-settings.input.009
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: af-general-settings.input.010
+        kind: input
+        scope: page
+        label: number
+        implementation: not-mapped
+  - id: property-sets
+    route: /admin/artifactory/configuration/property_sets
+    seed_screen: none
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/property-sets.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 5, inputs: 3, tabs: 0, columns: 2, total: 10 }
+    interactions:
+      - id: property-sets.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: property-sets.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: property-sets.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: property-sets.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: property-sets.button.005
+        kind: button
+        scope: page
+        label: New Property Set
+        implementation: not-mapped
+      - id: property-sets.input.006
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: property-sets.input.007
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: property-sets.input.008
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: property-sets.column.009
+        kind: column
+        scope: page
+        label: Property Set Name
+        implementation: not-mapped
+      - id: property-sets.column.010
+        kind: column
+        scope: page
+        label: Properties Count
+        implementation: not-mapped
+  - id: reverse-proxy
+    route: /admin/artifactory/configuration/reverse_proxy
+    seed_screen: none
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/reverse-proxy.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 5, tabs: 0, columns: 0, total: 11 }
+    interactions:
+      - id: reverse-proxy.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: reverse-proxy.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: reverse-proxy.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: reverse-proxy.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: reverse-proxy.button.005
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: reverse-proxy.button.006
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: reverse-proxy.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: reverse-proxy.input.008
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: reverse-proxy.input.009
+        kind: input
+        scope: page
+        label: Select
+        implementation: not-mapped
+      - id: reverse-proxy.input.010
+        kind: input
+        scope: page
+        label: e.g myserver.org
+        implementation: not-mapped
+      - id: reverse-proxy.input.011
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+  - id: user-plugins
+    route: /admin/artifactory/configuration/user_plugins
+    seed_screen: none
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/user-plugins.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 4, inputs: 2, tabs: 0, columns: 0, total: 6 }
+    interactions:
+      - id: user-plugins.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: user-plugins.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: user-plugins.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: user-plugins.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: user-plugins.input.005
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: user-plugins.input.006
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+  - id: backups
+    route: /admin/artifactory/services/backups
+    seed_screen: backups-list
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/backups.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 5, inputs: 3, tabs: 0, columns: 6, total: 14 }
+    interactions:
+      - id: backups.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: backups.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: backups.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: backups.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: backups.button.005
+        kind: button
+        scope: page
+        label: New Backup
+        implementation: not-mapped
+      - id: backups.input.006
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: backups.input.007
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: backups.input.008
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: backups.column.009
+        kind: column
+        scope: page
+        label: Key
+        implementation: not-mapped
+      - id: backups.column.010
+        kind: column
+        scope: page
+        label: Repositories
+        implementation: not-mapped
+      - id: backups.column.011
+        kind: column
+        scope: page
+        label: Cron Expression
+        implementation: not-mapped
+      - id: backups.column.012
+        kind: column
+        scope: page
+        label: Next Schedule Backup
+        implementation: not-mapped
+      - id: backups.column.013
+        kind: column
+        scope: page
+        label: Enabled
+        implementation: not-mapped
+      - id: backups.column.014
+        kind: column
+        scope: page
+        label: Actions
+        implementation: not-mapped
+  - id: backup-new
+    route: /admin/artifactory/services/backups/new
+    seed_screen: backup-form
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/backup-new.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 7, inputs: 7, tabs: 0, columns: 0, total: 14 }
+    interactions:
+      - id: backup-new.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: backup-new.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: backup-new.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: backup-new.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: backup-new.button.005
+        kind: button
+        scope: page
+        label: Browse
+        implementation: not-mapped
+      - id: backup-new.button.006
+        kind: button
+        scope: page
+        label: Cancel
+        implementation: not-mapped
+      - id: backup-new.button.007
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: backup-new.input.008
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: backup-new.input.009
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: backup-new.input.010
+        kind: input
+        scope: page
+        label: backupKeyInputField
+        implementation: not-mapped
+      - id: backup-new.input.011
+        kind: input
+        scope: page
+        label: cronExp
+        implementation: not-mapped
+      - id: backup-new.input.012
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+      - id: backup-new.input.013
+        kind: input
+        scope: page
+        label: number
+        implementation: not-mapped
+      - id: backup-new.input.014
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+  - id: indexer
+    route: /admin/artifactory/services/indexer
+    seed_screen: none
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/indexer.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 7, inputs: 4, tabs: 0, columns: 0, total: 11 }
+    interactions:
+      - id: indexer.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: indexer.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: indexer.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: indexer.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: indexer.button.005
+        kind: button
+        scope: page
+        label: Run Indexing Now
+        implementation: not-mapped
+      - id: indexer.button.006
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: indexer.button.007
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: indexer.input.008
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: indexer.input.009
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: indexer.input.010
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+      - id: indexer.input.011
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+  - id: retention-policies
+    route: /admin/artifactory/services/retention/policies
+    seed_screen: retention-policies-family
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/retention-policies.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 4, tabs: 1, columns: 7, total: 18 }
+    interactions:
+      - id: retention-policies.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: retention-policies.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: retention-policies.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: retention-policies.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: retention-policies.button.005
+        kind: button
+        scope: page
+        label: Create Policy
+        implementation: not-mapped
+      - id: retention-policies.button.006
+        kind: button
+        scope: page
+        label: Global Stop/Disable
+        implementation: not-mapped
+      - id: retention-policies.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: retention-policies.input.008
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: retention-policies.input.009
+        kind: input
+        scope: page
+        label: radio
+        implementation: not-mapped
+      - id: retention-policies.input.010
+        kind: input
+        scope: page
+        label: Filter By Policy Name
+        implementation: not-mapped
+      - id: retention-policies.tab.011
+        kind: tab
+        scope: page
+        label: Cleanup
+        implementation: not-mapped
+      - id: retention-policies.column.012
+        kind: column
+        scope: page
+        label: Name
+        implementation: not-mapped
+      - id: retention-policies.column.013
+        kind: column
+        scope: page
+        label: Object Type
+        implementation: not-mapped
+      - id: retention-policies.column.014
+        kind: column
+        scope: page
+        label: Project
+        implementation: not-mapped
+      - id: retention-policies.column.015
+        kind: column
+        scope: page
+        label: Last Run Status
+        implementation: not-mapped
+      - id: retention-policies.column.016
+        kind: column
+        scope: page
+        label: Last Run
+        implementation: not-mapped
+      - id: retention-policies.column.017
+        kind: column
+        scope: page
+        label: Next Run
+        implementation: not-mapped
+      - id: retention-policies.column.018
+        kind: column
+        scope: page
+        label: Active
+        implementation: not-mapped
+  - id: retention-monitoring
+    route: /admin/artifactory/services/retention/monitoring
+    seed_screen: retention-policies-family
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/retention-monitoring.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 7, inputs: 3, tabs: 7, columns: 7, total: 24 }
+    interactions:
+      - id: retention-monitoring.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: retention-monitoring.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: retention-monitoring.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: retention-monitoring.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: retention-monitoring.button.005
+        kind: button
+        scope: page
+        label: Create Policy
+        implementation: not-mapped
+      - id: retention-monitoring.button.006
+        kind: button
+        scope: page
+        label: Stop All Runs
+        implementation: not-mapped
+      - id: retention-monitoring.button.007
+        kind: button
+        scope: page
+        label: Clear all
+        implementation: not-mapped
+      - id: retention-monitoring.input.008
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: retention-monitoring.input.009
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: retention-monitoring.input.010
+        kind: input
+        scope: page
+        label: radio
+        implementation: not-mapped
+      - id: retention-monitoring.tab.011
+        kind: tab
+        scope: page
+        label: Cleanup
+        implementation: not-mapped
+      - id: retention-monitoring.tab.012
+        kind: tab
+        scope: page
+        label: Policy Name
+        implementation: not-mapped
+      - id: retention-monitoring.tab.013
+        kind: tab
+        scope: page
+        label: Project
+        implementation: not-mapped
+      - id: retention-monitoring.tab.014
+        kind: tab
+        scope: page
+        label: Start Time
+        implementation: not-mapped
+      - id: retention-monitoring.tab.015
+        kind: tab
+        scope: page
+        label: Status
+        implementation: not-mapped
+      - id: retention-monitoring.tab.016
+        kind: tab
+        scope: page
+        label: Object Type
+        implementation: not-mapped
+      - id: retention-monitoring.tab.017
+        kind: tab
+        scope: page
+        label: Other
+        implementation: not-mapped
+      - id: retention-monitoring.column.018
+        kind: column
+        scope: page
+        label: Policy Name
+        implementation: not-mapped
+      - id: retention-monitoring.column.019
+        kind: column
+        scope: page
+        label: Project
+        implementation: not-mapped
+      - id: retention-monitoring.column.020
+        kind: column
+        scope: page
+        label: Object Type
+        implementation: not-mapped
+      - id: retention-monitoring.column.021
+        kind: column
+        scope: page
+        label: Start Time
+        implementation: not-mapped
+      - id: retention-monitoring.column.022
+        kind: column
+        scope: page
+        label: Cleaned Items (Physical Size)
+        implementation: not-mapped
+      - id: retention-monitoring.column.023
+        kind: column
+        scope: page
+        label: Status
+        implementation: not-mapped
+      - id: retention-monitoring.column.024
+        kind: column
+        scope: page
+        label: Report
+        implementation: not-mapped
+  - id: cold-storage
+    route: /admin/artifactory/services/retention/cold_storage_monitoring
+    seed_screen: cold-storage-monitoring
+    effort: best
+    evidence:
+      screenshot: duplicate-of:retention-monitoring
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 7, inputs: 3, tabs: 7, columns: 7, total: 24 }
+    interactions:
+      - id: cold-storage.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: cold-storage.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: cold-storage.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: cold-storage.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: cold-storage.button.005
+        kind: button
+        scope: page
+        label: Create Policy
+        implementation: not-mapped
+      - id: cold-storage.button.006
+        kind: button
+        scope: page
+        label: Stop All Runs
+        implementation: not-mapped
+      - id: cold-storage.button.007
+        kind: button
+        scope: page
+        label: Clear all
+        implementation: not-mapped
+      - id: cold-storage.input.008
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: cold-storage.input.009
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: cold-storage.input.010
+        kind: input
+        scope: page
+        label: radio
+        implementation: not-mapped
+      - id: cold-storage.tab.011
+        kind: tab
+        scope: page
+        label: Cleanup
+        implementation: not-mapped
+      - id: cold-storage.tab.012
+        kind: tab
+        scope: page
+        label: Policy Name
+        implementation: not-mapped
+      - id: cold-storage.tab.013
+        kind: tab
+        scope: page
+        label: Project
+        implementation: not-mapped
+      - id: cold-storage.tab.014
+        kind: tab
+        scope: page
+        label: Start Time
+        implementation: not-mapped
+      - id: cold-storage.tab.015
+        kind: tab
+        scope: page
+        label: Status
+        implementation: not-mapped
+      - id: cold-storage.tab.016
+        kind: tab
+        scope: page
+        label: Object Type
+        implementation: not-mapped
+      - id: cold-storage.tab.017
+        kind: tab
+        scope: page
+        label: Other
+        implementation: not-mapped
+      - id: cold-storage.column.018
+        kind: column
+        scope: page
+        label: Policy Name
+        implementation: not-mapped
+      - id: cold-storage.column.019
+        kind: column
+        scope: page
+        label: Project
+        implementation: not-mapped
+      - id: cold-storage.column.020
+        kind: column
+        scope: page
+        label: Object Type
+        implementation: not-mapped
+      - id: cold-storage.column.021
+        kind: column
+        scope: page
+        label: Start Time
+        implementation: not-mapped
+      - id: cold-storage.column.022
+        kind: column
+        scope: page
+        label: Cleaned Items (Physical Size)
+        implementation: not-mapped
+      - id: cold-storage.column.023
+        kind: column
+        scope: page
+        label: Status
+        implementation: not-mapped
+      - id: cold-storage.column.024
+        kind: column
+        scope: page
+        label: Report
+        implementation: not-mapped
+  - id: import-export
+    route: /admin/artifactory/import_export
+    seed_screen: import-export
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/import-export.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 8, inputs: 4, tabs: 0, columns: 0, total: 12 }
+    interactions:
+      - id: import-export.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: import-export.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: import-export.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: import-export.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: import-export.button.005
+        kind: button
+        scope: page
+        label: Browse
+        implementation: not-mapped
+      - id: import-export.button.006
+        kind: button
+        scope: page
+        label: Export
+        implementation: not-mapped
+      - id: import-export.button.007
+        kind: button
+        scope: page
+        label: Import
+        implementation: not-mapped
+      - id: import-export.button.008
+        kind: button
+        scope: page
+        label: Upload
+        implementation: not-mapped
+      - id: import-export.input.009
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: import-export.input.010
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: import-export.input.011
+        kind: input
+        scope: page
+        label: Select Repository
+        implementation: not-mapped
+      - id: import-export.input.012
+        kind: input
+        scope: page
+        label: path
+        implementation: not-mapped
+  - id: ie-repositories
+    route: /admin/artifactory/import_export/repositories
+    seed_screen: import-export
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/ie-repositories.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 8, inputs: 4, tabs: 0, columns: 0, total: 12 }
+    interactions:
+      - id: ie-repositories.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: ie-repositories.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: ie-repositories.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: ie-repositories.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: ie-repositories.button.005
+        kind: button
+        scope: page
+        label: Browse
+        implementation: not-mapped
+      - id: ie-repositories.button.006
+        kind: button
+        scope: page
+        label: Export
+        implementation: not-mapped
+      - id: ie-repositories.button.007
+        kind: button
+        scope: page
+        label: Import
+        implementation: not-mapped
+      - id: ie-repositories.button.008
+        kind: button
+        scope: page
+        label: Upload
+        implementation: not-mapped
+      - id: ie-repositories.input.009
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: ie-repositories.input.010
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: ie-repositories.input.011
+        kind: input
+        scope: page
+        label: Select Repository
+        implementation: not-mapped
+      - id: ie-repositories.input.012
+        kind: input
+        scope: page
+        label: path
+        implementation: not-mapped
+  - id: security-general-af
+    route: /admin/artifactory/security/general
+    seed_screen: none
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/security-general-af.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 8, inputs: 2, tabs: 0, columns: 0, total: 10 }
+    interactions:
+      - id: security-general-af.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: security-general-af.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: security-general-af.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: security-general-af.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: security-general-af.button.005
+        kind: button
+        scope: page
+        label: Revoke API Keys For All Users
+        implementation: not-mapped
+      - id: security-general-af.button.006
+        kind: button
+        scope: page
+        label: Cancel
+        implementation: not-mapped
+      - id: security-general-af.button.007
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: security-general-af.button.008
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: security-general-af.input.009
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: security-general-af.input.010
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+  - id: certificates
+    route: /admin/artifactory/security/certificates
+    seed_screen: none
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/certificates.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 5, inputs: 3, tabs: 0, columns: 5, total: 13 }
+    interactions:
+      - id: certificates.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: certificates.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: certificates.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: certificates.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: certificates.button.005
+        kind: button
+        scope: page
+        label: New Certificate
+        implementation: not-mapped
+      - id: certificates.input.006
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: certificates.input.007
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: certificates.input.008
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: certificates.column.009
+        kind: column
+        scope: page
+        label: Alias
+        implementation: not-mapped
+      - id: certificates.column.010
+        kind: column
+        scope: page
+        label: Issued By
+        implementation: not-mapped
+      - id: certificates.column.011
+        kind: column
+        scope: page
+        label: Issued To
+        implementation: not-mapped
+      - id: certificates.column.012
+        kind: column
+        scope: page
+        label: Valid Until
+        implementation: not-mapped
+      - id: certificates.column.013
+        kind: column
+        scope: page
+        label: Fingerprint
+        implementation: not-mapped
+  - id: keys-management
+    route: /admin/artifactory/security/keys_management
+    seed_screen: none
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/keys-management.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 5, inputs: 3, tabs: 4, columns: 6, total: 18 }
+    interactions:
+      - id: keys-management.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: keys-management.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: keys-management.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: keys-management.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: keys-management.button.005
+        kind: button
+        scope: page
+        label: Add Keys
+        implementation: not-mapped
+      - id: keys-management.input.006
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: keys-management.input.007
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: keys-management.input.008
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: keys-management.tab.009
+        kind: tab
+        scope: page
+        label: Signing Keys
+        implementation: not-mapped
+      - id: keys-management.tab.010
+        kind: tab
+        scope: page
+        label: Java KeyStore
+        implementation: not-mapped
+      - id: keys-management.tab.011
+        kind: tab
+        scope: page
+        label: Public Keys
+        implementation: not-mapped
+      - id: keys-management.tab.012
+        kind: tab
+        scope: page
+        label: SSH Keys
+        implementation: not-mapped
+      - id: keys-management.column.013
+        kind: column
+        scope: page
+        label: Type
+        implementation: not-mapped
+      - id: keys-management.column.014
+        kind: column
+        scope: page
+        label: Name
+        implementation: not-mapped
+      - id: keys-management.column.015
+        kind: column
+        scope: page
+        label: Alias
+        implementation: not-mapped
+      - id: keys-management.column.016
+        kind: column
+        scope: page
+        label: Resources (Primary)
+        implementation: not-mapped
+      - id: keys-management.column.017
+        kind: column
+        scope: page
+        label: Resources (Secondary)
+        implementation: not-mapped
+      - id: keys-management.column.018
+        kind: column
+        scope: page
+        label: Source
+        implementation: not-mapped
+  - id: log-analytics
+    route: /admin/artifactory/advanced/log_analytics
+    seed_screen: none
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/log-analytics.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 5, inputs: 5, tabs: 0, columns: 0, total: 10 }
+    interactions:
+      - id: log-analytics.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: log-analytics.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: log-analytics.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: log-analytics.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: log-analytics.button.005
+        kind: button
+        scope: page
+        label: Access Dashboard
+        implementation: not-mapped
+      - id: log-analytics.input.006
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: log-analytics.input.007
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: log-analytics.input.008
+        kind: input
+        scope: page
+        label: radio
+        implementation: not-mapped
+      - id: log-analytics.input.009
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+      - id: log-analytics.input.010
+        kind: input
+        scope: page
+        label: Select Proxy
+        implementation: not-mapped
+  - id: system-logs-af
+    route: /admin/artifactory/advanced/system_logs
+    seed_screen: system-logs-viewer
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/system-logs-af.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 7, inputs: 3, tabs: 0, columns: 0, total: 10 }
+    interactions:
+      - id: system-logs-af.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: system-logs-af.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: system-logs-af.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: system-logs-af.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: system-logs-af.button.005
+        kind: button
+        scope: page
+        label: Pause
+        implementation: not-mapped
+      - id: system-logs-af.button.006
+        kind: button
+        scope: page
+        label: Refresh now
+        implementation: not-mapped
+      - id: system-logs-af.button.007
+        kind: button
+        scope: page
+        label: Download (37 KB)
+        implementation: not-mapped
+      - id: system-logs-af.input.008
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: system-logs-af.input.009
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: system-logs-af.input.010
+        kind: input
+        scope: page
+        label: Select
+        implementation: not-mapped
+  - id: maintenance
+    route: /admin/artifactory/advanced/maintenance
+    seed_screen: maintenance
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/maintenance.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 11, inputs: 3, tabs: 0, columns: 0, total: 14 }
+    interactions:
+      - id: maintenance.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: maintenance.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: maintenance.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: maintenance.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: maintenance.button.005
+        kind: button
+        scope: page
+        label: Run Now
+        implementation: not-mapped
+      - id: maintenance.button.006
+        kind: button
+        scope: page
+        label: Cleanup Unused Cached Artifacts Now
+        implementation: not-mapped
+      - id: maintenance.button.007
+        kind: button
+        scope: page
+        label: Cleanup Virtual Repositories Now
+        implementation: not-mapped
+      - id: maintenance.button.008
+        kind: button
+        scope: page
+        label: Compress the Internal Database
+        implementation: not-mapped
+      - id: maintenance.button.009
+        kind: button
+        scope: page
+        label: Prune Unreferenced Data
+        implementation: not-mapped
+      - id: maintenance.button.010
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: maintenance.button.011
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: maintenance.input.012
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: maintenance.input.013
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: maintenance.input.014
+        kind: input
+        scope: page
+        label: text
+        implementation: not-mapped
+  - id: config-descriptor
+    route: /admin/artifactory/advanced/config_descriptor
+    seed_screen: config-descriptor
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/config-descriptor.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 2, tabs: 0, columns: 0, total: 8 }
+    interactions:
+      - id: config-descriptor.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: config-descriptor.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: config-descriptor.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: config-descriptor.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: config-descriptor.button.005
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: config-descriptor.button.006
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: config-descriptor.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: config-descriptor.input.008
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+  - id: security-descriptor
+    route: /admin/artifactory/advanced/security_descriptor
+    seed_screen: none
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/security-descriptor.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 4, inputs: 2, tabs: 0, columns: 0, total: 6 }
+    interactions:
+      - id: security-descriptor.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: security-descriptor.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: security-descriptor.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: security-descriptor.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: security-descriptor.input.005
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: security-descriptor.input.006
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+  - id: config-packages
+    route: /admin/artifactory/config_packages
+    seed_screen: none
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/config-packages.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 4, inputs: 2, tabs: 0, columns: 0, total: 6 }
+    interactions:
+      - id: config-packages.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: config-packages.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: config-packages.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: config-packages.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: config-packages.input.005
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: config-packages.input.006
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+  - id: migration-tool
+    route: /admin/artifactory/migration_tool
+    seed_screen: migration-tool
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/migration-tool.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 6, inputs: 3, tabs: 2, columns: 7, total: 18 }
+    interactions:
+      - id: migration-tool.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: migration-tool.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: migration-tool.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: migration-tool.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: migration-tool.button.005
+        kind: button
+        scope: page
+        label: Create Migration
+        implementation: not-mapped
+      - id: migration-tool.button.006
+        kind: button
+        scope: page
+        label: Clear all
+        implementation: not-mapped
+      - id: migration-tool.input.007
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: migration-tool.input.008
+        kind: input
+        scope: page
+        label: Search Admin Resources
+        implementation: not-mapped
+      - id: migration-tool.input.009
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: migration-tool.tab.010
+        kind: tab
+        scope: page
+        label: Repository Type
+        implementation: not-mapped
+      - id: migration-tool.tab.011
+        kind: tab
+        scope: page
+        label: Last Run Status
+        implementation: not-mapped
+      - id: migration-tool.column.012
+        kind: column
+        scope: page
+        label: Migration Type
+        implementation: not-mapped
+      - id: migration-tool.column.013
+        kind: column
+        scope: page
+        label: Repository Name
+        implementation: not-mapped
+      - id: migration-tool.column.014
+        kind: column
+        scope: page
+        label: Repository Type
+        implementation: not-mapped
+      - id: migration-tool.column.015
+        kind: column
+        scope: page
+        label: Last Run Status
+        implementation: not-mapped
+      - id: migration-tool.column.016
+        kind: column
+        scope: page
+        label: Last Run
+        implementation: not-mapped
+      - id: migration-tool.column.017
+        kind: column
+        scope: page
+        label: Non-Compliant Package Repository
+        implementation: not-mapped
+      - id: migration-tool.column.018
+        kind: column
+        scope: page
+        label: Actions
+        implementation: not-mapped
+  - id: quick-setup
+    route: /quick-setup
+    seed_screen: quick-setup
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/quick-setup.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 3, inputs: 1, tabs: 0, columns: 0, total: 4 }
+    interactions:
+      - id: quick-setup.button.001
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: quick-setup.button.002
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: quick-setup.button.003
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: quick-setup.input.004
+        kind: input
+        scope: page
+        label: Search Packages
+        implementation: not-mapped
+  - id: builds
+    route: /builds
+    seed_screen: none
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/builds.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 0, inputs: 0, tabs: 0, columns: 0, total: 0 }
+    interactions: []
+  - id: bundles-source
+    route: /bundles/source
+    seed_screen: release-bundles-admin
+    effort: best
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/bundles-source.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 3, inputs: 1, tabs: 0, columns: 0, total: 4 }
+    interactions:
+      - id: bundles-source.button.001
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: bundles-source.button.002
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: bundles-source.button.003
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: bundles-source.input.004
+        kind: input
+        scope: page
+        label: Search Packages
+        implementation: not-mapped
+  - id: lifecycle
+    route: /artifactory/lifecycle
+    seed_screen: lifecycle
+    effort: best
+    evidence:
+      screenshot: duplicate-of:builds
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 0, inputs: 0, tabs: 0, columns: 0, total: 0 }
+    interactions: []
+  - id: release-bundles
+    route: /artifactory/release-bundles
+    seed_screen: release-bundles-admin
+    effort: best
+    evidence:
+      screenshot: duplicate-of:builds
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 0, inputs: 0, tabs: 0, columns: 0, total: 0 }
+    interactions: []
+  - id: rb-target
+    route: /artifactory/release-bundles/target
+    seed_screen: release-bundles-admin
+    effort: best
+    evidence:
+      screenshot: duplicate-of:builds
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 0, inputs: 0, tabs: 0, columns: 0, total: 0 }
+    interactions: []
+  - id: rb-target-history
+    route: /artifactory/release-bundles/target-history
+    seed_screen: release-bundles-admin
+    effort: best
+    evidence:
+      screenshot: duplicate-of:builds
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/remaining-18/screens-catalog.json
+    observed_counts: { buttons: 0, inputs: 0, tabs: 0, columns: 0, total: 0 }
+    interactions: []
+  - id: user-profile
+    route: /user_profile
+    seed_screen: user-profile
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/user-profile.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 9, inputs: 4, tabs: 0, columns: 6, total: 19 }
+    interactions:
+      - id: user-profile.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: user-profile.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: user-profile.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: user-profile.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: user-profile.button.005
+        kind: button
+        scope: page
+        label: Unlock
+        implementation: not-mapped
+      - id: user-profile.button.006
+        kind: button
+        scope: page
+        label: Generate an Identity Token
+        implementation: not-mapped
+      - id: user-profile.button.007
+        kind: button
+        scope: page
+        label: Add New SSH Key
+        implementation: not-mapped
+      - id: user-profile.button.008
+        kind: button
+        scope: page
+        label: Reset
+        implementation: not-mapped
+      - id: user-profile.button.009
+        kind: button
+        scope: page
+        label: Save
+        implementation: not-mapped
+      - id: user-profile.input.010
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: user-profile.input.011
+        kind: input
+        scope: page
+        label: Search Packages
+        implementation: not-mapped
+      - id: user-profile.input.012
+        kind: input
+        scope: page
+        label: password
+        implementation: not-mapped
+      - id: user-profile.input.013
+        kind: input
+        scope: page
+        label: Search
+        implementation: not-mapped
+      - id: user-profile.column.014
+        kind: column
+        scope: page
+        label: Description
+        implementation: not-mapped
+      - id: user-profile.column.015
+        kind: column
+        scope: page
+        label: Token ID
+        implementation: not-mapped
+      - id: user-profile.column.016
+        kind: column
+        scope: page
+        label: Issued At
+        implementation: not-mapped
+      - id: user-profile.column.017
+        kind: column
+        scope: page
+        label: Expiry Date
+        implementation: not-mapped
+      - id: user-profile.column.018
+        kind: column
+        scope: page
+        label: Key Alias
+        implementation: not-mapped
+      - id: user-profile.column.019
+        kind: column
+        scope: page
+        label: Key Signature
+        implementation: not-mapped
+  - id: notfound-404
+    route: /__penpot_404_probe__
+    seed_screen: none
+    effort: core
+    evidence:
+      screenshot: docs/reverse/frontend/parity-capture/screenshots/screens/notfound-404.png
+      dom_catalog: docs/reverse/frontend/parity-capture/catalog-v2-20260918/chunk-0 15-/screens-catalog.json
+    observed_counts: { buttons: 4, inputs: 2, tabs: 0, columns: 0, total: 6 }
+    interactions:
+      - id: notfound-404.button.001
+        kind: button
+        scope: welcome-banner
+        label: Get Started
+        implementation: not-mapped
+      - id: notfound-404.button.002
+        kind: button
+        scope: shell
+        label: Platform
+        implementation: not-mapped
+      - id: notfound-404.button.003
+        kind: button
+        scope: shell
+        label: Administration
+        implementation: not-mapped
+      - id: notfound-404.button.004
+        kind: button
+        scope: shell
+        label: A
+        implementation: not-mapped
+      - id: notfound-404.input.005
+        kind: input
+        scope: welcome-banner
+        label: checkbox
+        implementation: not-mapped
+      - id: notfound-404.input.006
+        kind: input
+        scope: page
+        label: Search Packages
+        implementation: not-mapped

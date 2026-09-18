@@ -1,3 +1,4 @@
+import { selectOptionValues, selectShadcn } from './support/shadcn'
 import { execSync } from 'node:child_process'
 import { expect, test } from '@playwright/test'
 
@@ -117,7 +118,7 @@ test('W10: UI form creates docker-ui-local (local+docker); REST packageType reco
   await expect(page.locator('[data-testid="tree-commands"]')).toBeVisible()
   await page.click('[data-testid="tree-deploy"]')
   await expect(page.locator('[data-testid="deploy-dialog"]')).toBeVisible()
-  await expect(page.locator(`[data-testid="deploy-repo"] option[value="${DOCKER_REPO}"]`)).toHaveCount(0)
+  expect(await selectOptionValues(page, '[data-testid="deploy-repo"]')).not.toContain(DOCKER_REPO)
   await page.keyboard.press('Escape')
   await expect(page.locator('[data-testid="deploy-dialog"]')).toHaveCount(0)
   expect(errors).toEqual([])
@@ -310,14 +311,14 @@ test('W23b UI leg: audit page DOM carries no token plaintext / password literal'
   // UI：审计页按 action 收窄到 auth.failed（行确实被渲染，脱敏断言不空转；
   // 词汇对齐 T-187：服务端自 M6 起认证失败只发 auth.failed 一词）
   await page.goto('/binflow/ui/admin/governance/audit')
-  await page.selectOption('[data-testid="audit-filter-action"]', 'auth.failed')
+  await selectShadcn(page, '[data-testid="audit-filter-action"]', 'auth.failed')
   await page.waitForTimeout(700)
   await expect(page.locator('[data-testid="audit-table"] tbody tr').first()).toContainText('auth.failed')
   const loginDom = await page.locator('[data-testid="audit-page"]').innerText()
   expect(loginDom).not.toContain(wrongPw)
 
   // 未过滤首屏（最近 100 行）：token 明文与错误口令字面量均零命中
-  await page.selectOption('[data-testid="audit-filter-action"]', '')
+  await selectShadcn(page, '[data-testid="audit-filter-action"]', '')
   await page.waitForTimeout(700)
   await expect(page.locator('[data-testid="audit-table"] tbody tr').first()).toBeVisible()
   const fullDom = await page.locator('[data-testid="audit-page"]').innerText()

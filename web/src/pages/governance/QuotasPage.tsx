@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 配额页（console-ux §4.11 / §5.3——P3 新栈重写）：
 // - 每仓一行：key（mono 链接）/ 类型 / 已用 / 配额 / 水位条（≥80% 黄、
 //   ≥100% 红——water-bar 样式与仓库详情页同源）/ 行内编辑 + 跳转仓库设置。
@@ -17,9 +18,9 @@ import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { TextInput } from '@/components/layout/fields'
 import { toast } from '@/lib/toast'
-import { getRepositories, isReadOnlyAdmin } from '@/lib/api'
+import { errText, getRepositories, isReadOnlyAdmin } from '@/lib/api'
 import type { RepoListItem } from '@/lib/api'
-import { errText } from '@/lib/api'
+
 import { formatBytes } from '@/lib/format'
 import { buildLocalQuotaBody, cfgNum, getRepoDetail, getRepoUsage, updateRepo } from '@/lib/repos'
 import type { RepoUsage } from '@/lib/repos'
@@ -106,17 +107,17 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
   }
 
   return (
-    <tr data-testid={`quota-row-${repo.key}`} className="border-b border-border/60 hover:bg-accent">
-      <td className="px-3 py-1.5">
+    <TableRow data-testid={`quota-row-${repo.key}`} className="border-b border-border/60 hover:bg-accent">
+      <TableCell className="px-3 py-1.5">
         <Link className="row-link font-mono text-primary hover:underline" to={`/admin/repositories/${repo.key}`} lang="en">
           {repo.key}
         </Link>{' '}
         <CopyButton value={repo.key} label={tt('仓库 key {v1}', { v1: repo.key })} />
-      </td>
-      <td className="px-3 py-1.5">
+      </TableCell>
+      <TableCell className="px-3 py-1.5">
         <Badge variant="tint-neutral" mono lang="en">{repo.type}</Badge>
-      </td>
-      <td className="px-3 py-1.5">
+      </TableCell>
+      <TableCell className="px-3 py-1.5">
         {repo.type === 'virtual' ? (
           <span className="text-muted-foreground">{tt('—（聚合视图，无自身内容）')}</span>
         ) : usage.status === 'loading' ? (
@@ -126,8 +127,8 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
         ) : (
           <span className="text-muted-foreground" title={usage.error?.message ?? tt('用量不可用')}>—</span>
         )}
-      </td>
-      <td className="px-3 py-1.5">
+      </TableCell>
+      <TableCell className="px-3 py-1.5">
         {editing ? (
           <>
             <TextInput
@@ -150,11 +151,11 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
         ) : (
           <span className="text-muted-foreground">{tt('—（仅 local 仓支持）')}</span>
         )}
-      </td>
-      <td className="w-[240px] px-3 py-1.5">
+      </TableCell>
+      <TableCell className="w-[240px] px-3 py-1.5">
         {usage.status === 'ok' && u ? <WaterBar usage={u} /> : <span className="text-muted-foreground">—</span>}
-      </td>
-      <td className="whitespace-nowrap px-3 py-1.5">
+      </TableCell>
+      <TableCell className="whitespace-nowrap px-3 py-1.5">
         {editing ? (
           <>
             <Button variant="outline" size="sm" className="h-7" disabled={saving} onClick={() => void save()} data-testid={`quota-save-${repo.key}`}>
@@ -185,8 +186,8 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
             <Link className="text-aux text-muted-foreground hover:underline" to={`/admin/repositories/${repo.key}/edit`}>{tt('仓库设置 →')}</Link>
           </>
         )}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   )
 }
 
@@ -229,23 +230,23 @@ export default function QuotasPage() {
             }
           />
         ) : (
-          <table className="w-full text-dense">
-            <thead>
-              <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-medium">{tt('仓库')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{tt('类型')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{tt('已用')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{tt('配额')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{tt('水位')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{tt('操作')}</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-dense">
+            <TableHeader>
+              <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                <TableHead scope="col" className="px-3 py-2 font-medium">{tt('仓库')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{tt('类型')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{tt('已用')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{tt('配额')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{tt('水位')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{tt('操作')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {list.map((r) => (
                 <QuotaRow key={r.key} repo={r} onChanged={repos.reload} />
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         ))}
       <p className="field-hint mt-3">{tt('计量为 repo_usage.logical_bytes（与节点写入同事务）；quotaBytes 仅 local 仓生效， 超限写入原子拒绝（413 + quota.exceeded 审计）。')}</p>
     </div>

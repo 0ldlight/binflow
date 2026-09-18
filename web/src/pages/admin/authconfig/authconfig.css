@@ -7,7 +7,7 @@
 /* 页级常驻注记（「保存即生效」/ readonly 注记——repositories.css 同款语义，
  * 本域自持：页面 css 随路由分片懒加载，不跨页依赖） */
 .page-note {
-  color: var(--bf-text-muted);
+  color: var(--bf-text);
   font-size: var(--bf-fs-xs);
   margin: var(--bf-sp-2) 0;
 }

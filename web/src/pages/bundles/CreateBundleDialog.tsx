@@ -1,3 +1,4 @@
+import { Button, ButtonAsChild } from '@/components/ui/button'
 // Release Bundle 创建对话框（P3 解锁面——POST /api/release/bundle 显式清单
 // 形的控制台承载；契约 = internal/httpapi bundle.go bundleWireRequest）。
 // - 字段：name / version / artifacts[]（repo/path 行编辑；sha256 可选钉——
@@ -13,7 +14,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { Button, ButtonAsChild } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AlertBox } from '@/components/layout/bits'
 import { TextInput } from '@/components/layout/fields'
@@ -152,7 +152,7 @@ export default function CreateBundleDialog({
                       aria-label={t('第 {v1} 行 sha256', { v1: i + 1 })}
                       data-testid={`bundle-create-sha-${i}`}
                     />
-                    <button
+                    <Button
                       type="button"
                       className="grid size-7 place-items-center rounded-sm border border-border text-muted-foreground hover:text-destructive disabled:opacity-40"
                       aria-label={t('移除第 {v1} 行', { v1: i + 1 })}
@@ -161,7 +161,7 @@ export default function CreateBundleDialog({
                       data-testid={`bundle-create-remove-${i}`}
                     >
                       ✕
-                    </button>
+                    </Button>
                   </div>
                 ))}
                 <div>

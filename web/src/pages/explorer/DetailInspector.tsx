@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button'
 // Artifact Detail（inspector 形态——总令 §十二；P2 六域之一）。
 // 语义平移自旧 NodeDetail（audit §2.2）：
 // - 三形态：仓库 / 目录 / 文件；三页签 General → 有效权限（admin）→
@@ -19,7 +20,6 @@ import { Suspense, lazy, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
-import { Button } from '@/components/ui/button'
 import {
   Popover,
   PopoverContent,
@@ -27,8 +27,8 @@ import {
 } from '@/components/ui/popover'
 import { useAuth } from '@/app/AuthContext'
 import { CopyButton } from '@/components/layout/copy-button'
-import { EmptyState } from '@/components/layout/states'
-import { StateSkeleton } from '@/components/layout/states'
+import { EmptyState, StateSkeleton } from '@/components/layout/states'
+
 import { getNodeProperties } from '@/lib/api'
 import { formatBytes } from '@/lib/format'
 import { getRepoDetail } from '@/lib/repos'
@@ -154,7 +154,7 @@ export function DetailInspector({
         {tabs
           .filter((t) => t.visible)
           .map((t) => (
-            <button
+            <Button
               key={t.id}
               type="button"
               role="tab"
@@ -179,7 +179,7 @@ export function DetailInspector({
               }}
             >
               {t.label}
-            </button>
+            </Button>
           ))}
       </div>
 
@@ -247,7 +247,7 @@ function FileDownloadActions({
       </a>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <button
+          <Button
             type="button"
             data-testid="node-download-menu"
             aria-label={DOWNLOAD_COPY.menuLabel}
@@ -257,7 +257,7 @@ function FileDownloadActions({
             className="grid size-6 place-items-center rounded-sm hover:bg-accent"
           >
             <span aria-hidden="true" className="text-xs">▾</span>
-          </button>
+          </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[380px] p-3" align="end" data-testid="node-download-panel" aria-label={tt('下载与校验')}>
           <div className="flex flex-col gap-2">
@@ -341,7 +341,7 @@ function ChecksumValue({ value }: { value: string }) {
   const [full, setFull] = useState(false)
   if (value.length <= 24) return <>{value}</>
   return (
-    <button
+    <Button
       type="button"
       data-testid="checksum-reveal"
       aria-expanded={full}
@@ -353,7 +353,7 @@ function ChecksumValue({ value }: { value: string }) {
       className="rounded-xs underline decoration-border-strong decoration-dotted underline-offset-2 hover:decoration-primary"
     >
       {full ? value : `${value.slice(0, 20)}…${value.slice(-8)}`}
-    </button>
+    </Button>
   )
 }
 

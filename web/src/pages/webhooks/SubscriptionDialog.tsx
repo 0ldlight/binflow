@@ -1,3 +1,4 @@
+import { Checkbox } from '@/components/ui/checkbox'
 // 新建/编辑订阅对话框（M13 T-366——P3 新栈重写：shadcn Dialog md 档；
 // 交互形态 = console-artifactory-parity M3/M4：居中 Dialog、动作右下
 // Cancel 左主按钮右、Esc/遮罩关闭）。
@@ -20,7 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { AlertBox, CheckRow } from '@/components/layout/bits'
-import { TextInput, NativeSelect } from '@/components/layout/fields'
+import { TextInput, SelectField } from '@/components/layout/fields'
 import { toast } from '@/lib/toast'
 import { ApiError, errText } from '@/lib/api'
 import {
@@ -268,7 +269,7 @@ export default function SubscriptionDialog({
           <div className="grid grid-cols-1 items-center gap-4 sm:grid-cols-2">
             <div className="field">
               <label htmlFor="wh-domain">{tt('事件域（13 域闭集）')}</label>
-              <NativeSelect
+              <SelectField
                 id="wh-domain"
                 value={draft.domain}
                 onChange={(e) => setDraft((d) => ({ ...d, domain: e.target.value, types: [] }))}
@@ -285,10 +286,9 @@ export default function SubscriptionDialog({
           <div className="flex max-h-[168px] flex-wrap gap-1 overflow-y-auto rounded-sm border border-border p-2">
             {domainTypes.map((t) => (
               <label key={t.name} className="flex w-full items-center gap-1.5 text-dense sm:w-1/3">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={draft.types.includes(t.name)}
-                  onChange={() => toggleType(t.name)}
+                  onCheckedChange={() => toggleType(t.name)}
                   disabled={readOnly}
                   data-testid={`wh-form-type-${t.name}`}
                 />

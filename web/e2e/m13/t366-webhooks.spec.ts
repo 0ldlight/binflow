@@ -1,3 +1,4 @@
+import { selectShadcn } from '../support/shadcn'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -325,13 +326,13 @@ test('wh: domain closed set — dormant marks, unmanaged criteria note, empty-sc
 
   // 切到 curation 域：事件型是官方标题拼写（非 snake）+ 休眠标注；
   // criteria 五键不在该域 → 说明行呈现
-  await page.selectOption('[data-testid="wh-form-domain"]', 'curation')
+  await selectShadcn(page, '[data-testid="wh-form-domain"]', 'curation')
   await expect(page.locator('[data-testid="wh-form-type-Package was blocked by Curation"]')).toBeVisible()
   await expect(page.locator('[data-testid="wh-dialog"]')).toContainText('（休眠）')
   await expect(page.locator('[data-testid="wh-form-criteria-note"]')).toBeVisible()
 
   // 回 artifact 域：勾掉 anyLocal 且 repoKeys 为空 → 空范围警示（合法但不命中）
-  await page.selectOption('[data-testid="wh-form-domain"]', 'artifact')
+  await selectShadcn(page, '[data-testid="wh-form-domain"]', 'artifact')
   await page.uncheck('[data-testid="wh-form-any-local"]')
   await expect(page.locator('[data-testid="wh-form-scope-warn"]')).toBeVisible()
   // 休眠域也允许创建（服务端校验绿——注册休眠语义）；放弃不提交

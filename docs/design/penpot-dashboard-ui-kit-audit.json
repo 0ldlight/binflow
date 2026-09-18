@@ -1,0 +1,2457 @@
+{
+  "meta": {
+    "source": "https://penpot.github.io/penpot-files/Dashboard%20UI%20Kit%20-%20Dashboard%2C%20Free%20Admin%20Dashboard%20(Community).penpot",
+    "sourceName": "Dashboard UI Kit - Dashboard, Free Admin Dashboard (Community)",
+    "sourceFileId": "125029ac-fafc-80d1-8007-86f30de360d1",
+    "features": [
+      "plugins/runtime",
+      "design-tokens/v1",
+      "variants/v1",
+      "layout/grid",
+      "styles/v2",
+      "components/v2",
+      "fdata/shape-data-type"
+    ],
+    "objectCount": 5980,
+    "boardCount": 12,
+    "componentDefinitionCount": 46,
+    "componentInstanceCount": 2419
+  },
+  "pages": [
+    {
+      "id": "125029ac-fafc-80d1-8007-86f30ec4ad2f",
+      "name": "🟪 Dashboard",
+      "archivePath": "files/125029ac-fafc-80d1-8007-86f30de360d1/pages/125029ac-fafc-80d1-8007-86f30ec4ad2f.json"
+    },
+    {
+      "id": "125029ac-fafc-80d1-8007-86f30fdf1f6d",
+      "name": "🟡 Design system",
+      "archivePath": "files/125029ac-fafc-80d1-8007-86f30de360d1/pages/125029ac-fafc-80d1-8007-86f30fdf1f6d.json"
+    },
+    {
+      "id": "125029ac-fafc-80d1-8007-86f30ff90ee7",
+      "name": "❄️ Made with SnowUI",
+      "archivePath": "files/125029ac-fafc-80d1-8007-86f30de360d1/pages/125029ac-fafc-80d1-8007-86f30ff90ee7.json"
+    },
+    {
+      "id": "125029ac-fafc-80d1-8007-86f310118d7c",
+      "name": "🔶 Cover",
+      "archivePath": "files/125029ac-fafc-80d1-8007-86f30de360d1/pages/125029ac-fafc-80d1-8007-86f310118d7c.json"
+    }
+  ],
+  "boards": [
+    {
+      "id": "edc89ad9-1801-52d5-bdb1-4409d4506f8e",
+      "name": "SnowUI",
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "width": 854,
+      "height": 999,
+      "childCount": 1,
+      "componentRoot": true
+    },
+    {
+      "id": "57aa01e7-9587-564c-b463-e558e4164a2d",
+      "name": "Design system",
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "width": 1200,
+      "height": 900,
+      "childCount": 3,
+      "componentRoot": false
+    },
+    {
+      "id": "6fff3e7e-8814-501f-a568-f475ad3edc84",
+      "name": "Made with SnowUI",
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "width": 2500,
+      "height": 1658,
+      "childCount": 4,
+      "componentRoot": true
+    },
+    {
+      "id": "97b28fa1-6591-53e2-b37e-93172cc3056c",
+      "name": "Hello",
+      "type": "frame",
+      "x": 0,
+      "y": 0,
+      "width": 1600,
+      "height": 2340,
+      "childCount": 3,
+      "componentRoot": false
+    },
+    {
+      "id": "32694201-9fe2-544a-8c1b-c497c25c034b",
+      "name": "Dashboard Overview",
+      "type": "frame",
+      "x": 954,
+      "y": 0,
+      "width": 1440,
+      "height": 1024,
+      "childCount": 6,
+      "componentRoot": false
+    },
+    {
+      "id": "3148ae09-b326-583f-b67d-a8e8ab30b9d7",
+      "name": "Dashboard Overview",
+      "type": "frame",
+      "x": 2494,
+      "y": 0,
+      "width": 1440,
+      "height": 1024,
+      "childCount": 6,
+      "componentRoot": true
+    },
+    {
+      "id": "6fd1c70a-c053-5107-81f8-c6816e9f5372",
+      "name": "Dashboard Overview",
+      "type": "frame",
+      "x": 4034,
+      "y": 0,
+      "width": 1440,
+      "height": 1724,
+      "childCount": 2,
+      "componentRoot": true
+    },
+    {
+      "id": "998d14ab-e31a-54ff-ae2b-786f68f4edf3",
+      "name": "Dashboard Overview",
+      "type": "frame",
+      "x": 5574,
+      "y": 0,
+      "width": 1440,
+      "height": 1724,
+      "childCount": 2,
+      "componentRoot": true
+    },
+    {
+      "id": "45364e3f-b69b-542d-acc4-7fca10158ac9",
+      "name": "Dashboard App",
+      "type": "frame",
+      "x": 7114,
+      "y": 0,
+      "width": 393,
+      "height": 1767,
+      "childCount": 3,
+      "componentRoot": true
+    },
+    {
+      "id": "50e352d1-cd24-5be9-90bd-704846bbf05e",
+      "name": "Dashboard App",
+      "type": "frame",
+      "x": 7607,
+      "y": 0,
+      "width": 393,
+      "height": 1767,
+      "childCount": 3,
+      "componentRoot": true
+    },
+    {
+      "id": "31727411-3760-5a71-bbbf-6ba64f54958a",
+      "name": "Icon & Text",
+      "type": "frame",
+      "x": 215,
+      "y": 940,
+      "width": 770,
+      "height": 160,
+      "childCount": 2,
+      "componentRoot": true
+    },
+    {
+      "id": "2336fde0-2507-5301-a583-53ed29523107",
+      "name": "Icon & Text",
+      "type": "frame",
+      "x": 1467,
+      "y": 1104,
+      "width": 415,
+      "height": 136,
+      "childCount": 2,
+      "componentRoot": true
+    }
+  ],
+  "penpotTokens": {
+    "Collection 1/Mode 1": {},
+    "$themes": [
+      {
+        "id": "125029ac-fafc-80d1-8007-86f3105a16e3",
+        "name": "Mode 1",
+        "group": "Collection 1",
+        "description": "",
+        "isSource": false,
+        "selectedTokenSets": {
+          "Collection 1/Mode 1": "enabled"
+        }
+      }
+    ],
+    "$metadata": {
+      "tokenSetOrder": [
+        "Collection 1/Mode 1"
+      ],
+      "activeThemes": [],
+      "activeSets": [
+        "Collection 1/Mode 1"
+      ]
+    }
+  },
+  "derivedTokens": {
+    "fillColors": [
+      {
+        "count": 724,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#000000"
+      },
+      {
+        "count": 555,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#ffffff"
+      },
+      {
+        "count": 63,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#ff3b30"
+      },
+      {
+        "count": 63,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#ff453a"
+      },
+      {
+        "count": 52,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#a0bce8"
+      },
+      {
+        "count": 49,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#71dd8c"
+      },
+      {
+        "count": 49,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#7dbbff"
+      },
+      {
+        "count": 48,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#4c98fd"
+      },
+      {
+        "count": 44,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#6be6d3"
+      },
+      {
+        "count": 44,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#b899eb"
+      },
+      {
+        "count": 30,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#ededff"
+      },
+      {
+        "count": 26,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#adadfb"
+      },
+      {
+        "count": 24,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#4f507f"
+      },
+      {
+        "count": 17,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#92bfff"
+      },
+      {
+        "count": 17,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#94e9b8"
+      },
+      {
+        "count": 17,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#aec7ed"
+      },
+      {
+        "count": 16,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#96e2d6"
+      },
+      {
+        "count": 16,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#9f9ff8"
+      },
+      {
+        "count": 14,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#e6f1fd"
+      },
+      {
+        "count": 14,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#edeefc"
+      },
+      {
+        "count": 12,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#f9f9fa"
+      },
+      {
+        "count": 12,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#ffc233"
+      },
+      {
+        "count": 8,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#007aff"
+      },
+      {
+        "count": 8,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#0a84ff"
+      },
+      {
+        "count": 8,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#303030"
+      },
+      {
+        "count": 7,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#af52de"
+      },
+      {
+        "count": 7,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#bf5af2"
+      },
+      {
+        "count": 6,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#0acf83"
+      },
+      {
+        "count": 6,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#1abcfe"
+      },
+      {
+        "count": 6,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#a259ff"
+      },
+      {
+        "count": 6,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#f25022"
+      },
+      {
+        "count": 6,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#ff7262"
+      },
+      {
+        "count": 5,
+        "opacity": 0.9,
+        "root": "Dashboard App",
+        "value": "#1c1c1c"
+      },
+      {
+        "count": 5,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#333333"
+      },
+      {
+        "count": 5,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#ffcc00"
+      },
+      {
+        "count": 3,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#30d158"
+      },
+      {
+        "count": 3,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#34c759"
+      },
+      {
+        "count": 3,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#f5f5f6"
+      },
+      {
+        "count": 3,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#ff90e8"
+      },
+      {
+        "count": 3,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#ffd60a"
+      },
+      {
+        "count": 2,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#1769ff"
+      },
+      {
+        "count": 2,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#1877f2"
+      },
+      {
+        "count": 2,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#349df0"
+      },
+      {
+        "count": 2,
+        "opacity": 0.9,
+        "root": "Design system",
+        "value": "#404040"
+      },
+      {
+        "count": 2,
+        "opacity": 0.12,
+        "root": "Dashboard App",
+        "value": "#787880"
+      },
+      {
+        "count": 2,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#f26798"
+      },
+      {
+        "count": 2,
+        "opacity": 1.0,
+        "root": "Hello",
+        "value": "#ff0000"
+      },
+      {
+        "count": 2,
+        "opacity": 1.0,
+        "root": "Design system",
+        "value": "#ff4747"
+      },
+      {
+        "count": 2,
+        "opacity": 1.0,
+        "root": "Design system",
+        "value": "#ffb55b"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "root": "Design system",
+        "value": "#00c7be"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#04bf44"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#2094ff"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "root": "Design system",
+        "value": "#32ade6"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#4632be"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "root": "Design system",
+        "value": "#5856d6"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "root": "Design system",
+        "value": "#5e5ce6"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "root": "Design system",
+        "value": "#63e6e2"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "root": "Design system",
+        "value": "#64d2ff"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#7c7c7c"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#ff7f22"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "root": "Design system",
+        "value": "#ff9500"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "root": "Design system",
+        "value": "#ff9f0a"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "root": "Made with SnowUI",
+        "value": "#ffc225"
+      }
+    ],
+    "textColors": [
+      {
+        "count": 660,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#1c1c1c"
+      },
+      {
+        "count": 596,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#ffffff"
+      },
+      {
+        "count": 499,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#000000"
+      },
+      {
+        "count": 7,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#007aff"
+      },
+      {
+        "count": 7,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#0a84ff"
+      },
+      {
+        "count": 6,
+        "opacity": 1.0,
+        "root": "Design system",
+        "value": "#adadfb"
+      },
+      {
+        "count": 4,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#30d158"
+      },
+      {
+        "count": 4,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#34c759"
+      },
+      {
+        "count": 4,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#af52de"
+      },
+      {
+        "count": 4,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#bf5af2"
+      },
+      {
+        "count": 3,
+        "opacity": 0.6,
+        "root": "Dashboard App",
+        "value": "#3c3c43"
+      },
+      {
+        "count": 3,
+        "opacity": 0.6,
+        "root": "Dashboard App",
+        "value": "#ebebf5"
+      },
+      {
+        "count": 2,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#00c7be"
+      },
+      {
+        "count": 2,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#63e6e2"
+      },
+      {
+        "count": 2,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#ff3b30"
+      },
+      {
+        "count": 2,
+        "opacity": 1.0,
+        "root": "Dashboard Overview",
+        "value": "#ff453a"
+      },
+      {
+        "count": 2,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#ffcc00"
+      },
+      {
+        "count": 2,
+        "opacity": 1.0,
+        "root": "Dashboard App",
+        "value": "#ffd60a"
+      }
+    ],
+    "strokeColors": [
+      {
+        "count": 68,
+        "opacity": 1.0,
+        "width": 8,
+        "root": "Dashboard Overview",
+        "value": "#000000"
+      },
+      {
+        "count": 59,
+        "opacity": 0.8,
+        "width": 0.5,
+        "root": "Dashboard Overview",
+        "value": "#ffffff"
+      },
+      {
+        "count": 30,
+        "opacity": 1.0,
+        "width": 0.5,
+        "root": "Dashboard App",
+        "value": "#af52de"
+      },
+      {
+        "count": 30,
+        "opacity": 1.0,
+        "width": 0.5,
+        "root": "Dashboard App",
+        "value": "#bf5af2"
+      },
+      {
+        "count": 3,
+        "opacity": 1.0,
+        "width": 1,
+        "root": "Dashboard Overview",
+        "value": "#a0bce8"
+      },
+      {
+        "count": 1,
+        "opacity": 1.0,
+        "width": 1,
+        "root": "Dashboard Overview",
+        "value": "#adadfb"
+      }
+    ],
+    "shadows": [
+      {
+        "count": 20,
+        "opacity": 0.10000000149011612,
+        "root": "Dashboard Overview",
+        "value": "#000000 / drop-shadow / x=0 y=0.5 blur=0.5 spread=0"
+      },
+      {
+        "count": 4,
+        "opacity": 0.10000000149011612,
+        "root": "Dashboard App",
+        "value": "#000000 / drop-shadow / x=0 y=2 blur=4 spread=0"
+      },
+      {
+        "count": 2,
+        "opacity": 0.25,
+        "root": "Hello",
+        "value": "#000000 / drop-shadow / x=-25 y=25 blur=40 spread=0"
+      },
+      {
+        "count": 1,
+        "opacity": 0.20000000298023224,
+        "root": "Hello",
+        "value": "#000000 / drop-shadow / x=-10 y=10 blur=40 spread=0"
+      },
+      {
+        "count": 1,
+        "opacity": 0.4000000059604645,
+        "root": "Design system",
+        "value": "#000000 / drop-shadow / x=-39.999996185302734 y=39.999996185302734 blur=39.999996185302734 spread=0"
+      }
+    ],
+    "radii": [
+      {
+        "count": 1695,
+        "root": "Dashboard Overview",
+        "value": "0 / 0 / 0 / 0"
+      },
+      {
+        "count": 809,
+        "root": "Dashboard Overview",
+        "value": "12 / 12 / 12 / 12"
+      },
+      {
+        "count": 579,
+        "root": "Dashboard Overview",
+        "value": "80 / 80 / 80 / 80"
+      },
+      {
+        "count": 196,
+        "root": "Design system",
+        "value": "7.999999523162842 / 7.999999523162842 / 7.999999523162842 / 7.999999523162842"
+      },
+      {
+        "count": 187,
+        "root": "Dashboard Overview",
+        "value": "8 / 8 / 8 / 8"
+      },
+      {
+        "count": 109,
+        "root": "Design system",
+        "value": "15.999999046325684 / 15.999999046325684 / 15.999999046325684 / 15.999999046325684"
+      },
+      {
+        "count": 62,
+        "root": "Dashboard Overview",
+        "value": "16 / 16 / 16 / 16"
+      },
+      {
+        "count": 58,
+        "root": "Dashboard Overview",
+        "value": "20 / 20 / 20 / 20"
+      },
+      {
+        "count": 55,
+        "root": "Dashboard Overview",
+        "value": "8 / 8 / 0 / 0"
+      },
+      {
+        "count": 45,
+        "root": "Dashboard App",
+        "value": "24 / 24 / 24 / 24"
+      },
+      {
+        "count": 30,
+        "root": "Dashboard Overview",
+        "value": "0 / 0 / 8 / 8"
+      },
+      {
+        "count": 22,
+        "root": "Dashboard App",
+        "value": "0 / 16 / 16 / 0"
+      },
+      {
+        "count": 22,
+        "root": "Dashboard Overview",
+        "value": "16 / 0 / 0 / 16"
+      },
+      {
+        "count": 22,
+        "root": "Dashboard Overview",
+        "value": "4 / 4 / 4 / 4"
+      },
+      {
+        "count": 22,
+        "root": "Hello",
+        "value": "7.999999523162842 / 7.999999523162842 / 0 / 0"
+      },
+      {
+        "count": 18,
+        "root": "Hello",
+        "value": "2.9166667461395264 / 2.9166667461395264 / 2.9166667461395264 / 2.9166667461395264"
+      },
+      {
+        "count": 12,
+        "root": "Hello",
+        "value": "0 / 0 / 7.999999523162842 / 7.999999523162842"
+      },
+      {
+        "count": 10,
+        "root": "Hello",
+        "value": "5.833333492279053 / 5.833333492279053 / 5.833333492279053 / 5.833333492279053"
+      },
+      {
+        "count": 9,
+        "root": "Hello",
+        "value": "14 / 14 / 14 / 14"
+      },
+      {
+        "count": 8,
+        "root": "Hello",
+        "value": "8.75 / 8.75 / 8.75 / 8.75"
+      },
+      {
+        "count": 4,
+        "root": "Design system",
+        "value": "48 / 48 / 48 / 48"
+      },
+      {
+        "count": 4,
+        "root": "Design system",
+        "value": "7.400000095367432 / 7.400000095367432 / 7.400000095367432 / 7.400000095367432"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "10 / 10 / 10 / 10"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "100 / 100 / 100 / 100"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "2.5 / 2.5 / 2.5 / 2.5"
+      },
+      {
+        "count": 2,
+        "root": "Hello",
+        "value": "32 / 32 / 32 / 32"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "4.300000190734863 / 4.300000190734863 / 4.300000190734863 / 4.300000190734863"
+      },
+      {
+        "count": 2,
+        "root": "Icon & Text",
+        "value": "40 / 40 / 40 / 40"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "52 / 52 / 52 / 52"
+      },
+      {
+        "count": 2,
+        "root": "Design system",
+        "value": "8.012030601501465 / 8.012030601501465 / 8.012030601501465 / 8.012030601501465"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "17.5 / 17.5 / 17.5 / 17.5"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "19.999998092651367 / 19.999998092651367 / 19.999998092651367 / 19.999998092651367"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "24.03609275817871 / 24.03609275817871 / 24.03609275817871 / 24.03609275817871"
+      }
+    ],
+    "gaps": [
+      {
+        "count": 1546,
+        "root": "Dashboard Overview",
+        "value": "row=0 column=0"
+      },
+      {
+        "count": 166,
+        "root": "Dashboard Overview",
+        "value": "row=8 column=8"
+      },
+      {
+        "count": 115,
+        "root": "Dashboard App",
+        "value": "row=8 column=0"
+      },
+      {
+        "count": 96,
+        "root": "Dashboard Overview",
+        "value": "row=2 column=0"
+      },
+      {
+        "count": 50,
+        "root": "Dashboard Overview",
+        "value": "row=0 column=4"
+      },
+      {
+        "count": 48,
+        "root": "Hello",
+        "value": "row=5.833333492279053 column=5.833333492279053"
+      },
+      {
+        "count": 38,
+        "root": "Dashboard Overview",
+        "value": "row=4 column=0"
+      },
+      {
+        "count": 36,
+        "root": "Dashboard Overview",
+        "value": "row=4 column=4"
+      },
+      {
+        "count": 35,
+        "root": "Dashboard Overview",
+        "value": "row=0 column=16"
+      },
+      {
+        "count": 34,
+        "root": "Dashboard Overview",
+        "value": "row=16 column=0"
+      },
+      {
+        "count": 33,
+        "root": "Dashboard Overview",
+        "value": "row=0 column=8"
+      },
+      {
+        "count": 28,
+        "root": "Hello",
+        "value": "row=5.833333492279053 column=0"
+      },
+      {
+        "count": 21,
+        "root": "Dashboard Overview",
+        "value": "row=12 column=12"
+      },
+      {
+        "count": 17,
+        "root": "Hello",
+        "value": "row=0 column=2.9166667461395264"
+      },
+      {
+        "count": 16,
+        "root": "Dashboard Overview",
+        "value": "row=16 column=16"
+      },
+      {
+        "count": 16,
+        "root": "Design system",
+        "value": "row=3.700000047683716 column=0"
+      },
+      {
+        "count": 15,
+        "root": "Hello",
+        "value": "row=2.9166667461395264 column=2.9166667461395264"
+      },
+      {
+        "count": 14,
+        "root": "Made with SnowUI",
+        "value": "row=0 column=12"
+      },
+      {
+        "count": 13,
+        "root": "Dashboard Overview",
+        "value": "row=48 column=0"
+      },
+      {
+        "count": 12,
+        "root": "Dashboard Overview",
+        "value": "row=0 column=2"
+      },
+      {
+        "count": 9,
+        "root": "Design system",
+        "value": "row=1.850000023841858 column=1.850000023841858"
+      },
+      {
+        "count": 9,
+        "root": "Hello",
+        "value": "row=2.9166667461395264 column=0"
+      },
+      {
+        "count": 7,
+        "root": "Design system",
+        "value": "row=0 column=12.949999809265137"
+      },
+      {
+        "count": 6,
+        "root": "Hello",
+        "value": "row=0 column=1.4583333730697632"
+      },
+      {
+        "count": 6,
+        "root": "Hello",
+        "value": "row=11.666666984558105 column=0"
+      },
+      {
+        "count": 6,
+        "root": "Dashboard Overview",
+        "value": "row=28 column=28"
+      },
+      {
+        "count": 5,
+        "root": "Dashboard App",
+        "value": "row=24 column=0"
+      },
+      {
+        "count": 5,
+        "root": "Dashboard Overview",
+        "value": "row=40 column=0"
+      },
+      {
+        "count": 4,
+        "root": "Dashboard App",
+        "value": "row=0 column=10"
+      },
+      {
+        "count": 4,
+        "root": "Hello",
+        "value": "row=0 column=11.666666984558105"
+      },
+      {
+        "count": 4,
+        "root": "Dashboard App",
+        "value": "row=0 column=6"
+      },
+      {
+        "count": 4,
+        "root": "Dashboard App",
+        "value": "row=0 column=7"
+      },
+      {
+        "count": 4,
+        "root": "Icon & Text",
+        "value": "row=24 column=24"
+      },
+      {
+        "count": 3,
+        "root": "Dashboard Overview",
+        "value": "row=0 column=20"
+      },
+      {
+        "count": 3,
+        "root": "Dashboard Overview",
+        "value": "row=12 column=0"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard Overview",
+        "value": "row=0 column=40"
+      },
+      {
+        "count": 2,
+        "root": "Hello",
+        "value": "row=20 column=20"
+      },
+      {
+        "count": 2,
+        "root": "Design system",
+        "value": "row=7.400000095367432 column=0"
+      },
+      {
+        "count": 2,
+        "root": "SnowUI",
+        "value": "row=80 column=0"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "row=0 column=14.583333969116211"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "row=0 column=2.7750000953674316"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "row=0 column=29.166667938232422"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "row=0 column=3.700000047683716"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "row=0 column=3.996000289916992"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "row=0 column=4.375"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "row=0 column=5.833333492279053"
+      },
+      {
+        "count": 1,
+        "root": "Made with SnowUI",
+        "value": "row=0 column=80"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "row=11.666666984558105 column=11.666666984558105"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "row=15.984001159667969 column=0"
+      },
+      {
+        "count": 1,
+        "root": "Made with SnowUI",
+        "value": "row=20 column=0"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "row=26.640003204345703 column=0"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "row=28 column=0"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "row=29.166667938232422 column=0"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "row=31.968002319335938 column=0"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "row=8.75 column=0"
+      }
+    ],
+    "paddings": [
+      {
+        "count": 114,
+        "root": "Dashboard Overview",
+        "value": "top=8 right=8 bottom=8 left=8"
+      },
+      {
+        "count": 112,
+        "root": "Design system",
+        "value": "top=9.25 right=9.25 bottom=9.25 left=9.25"
+      },
+      {
+        "count": 71,
+        "root": "Dashboard Overview",
+        "value": "top=4 right=4 bottom=4 left=4"
+      },
+      {
+        "count": 49,
+        "root": "Dashboard Overview",
+        "value": "top=16 right=16 bottom=16 left=16"
+      },
+      {
+        "count": 40,
+        "root": "Dashboard Overview",
+        "value": "top=24 right=24 bottom=24 left=24"
+      },
+      {
+        "count": 36,
+        "root": "Dashboard Overview",
+        "value": "top=4 right=12 bottom=4 left=12"
+      },
+      {
+        "count": 32,
+        "root": "Hello",
+        "value": "top=5.833333492279053 right=5.833333492279053 bottom=5.833333492279053 left=5.833333492279053"
+      },
+      {
+        "count": 30,
+        "root": "Dashboard Overview",
+        "value": "top=12 right=16 bottom=12 left=16"
+      },
+      {
+        "count": 30,
+        "root": "Dashboard Overview",
+        "value": "top=4 right=8 bottom=4 left=8"
+      },
+      {
+        "count": 24,
+        "root": "Dashboard Overview",
+        "value": "top=2 right=8 bottom=2 left=4"
+      },
+      {
+        "count": 22,
+        "root": "Hello",
+        "value": "top=2.9166667461395264 right=2.9166667461395264 bottom=2.9166667461395264 left=2.9166667461395264"
+      },
+      {
+        "count": 16,
+        "root": "Dashboard Overview",
+        "value": "top=0 right=0 bottom=28 left=0"
+      },
+      {
+        "count": 16,
+        "root": "Dashboard Overview",
+        "value": "top=12 right=12 bottom=12 left=12"
+      },
+      {
+        "count": 16,
+        "root": "Dashboard App",
+        "value": "top=2 right=8 bottom=2 left=8"
+      },
+      {
+        "count": 14,
+        "root": "Made with SnowUI",
+        "value": "top=12 right=24 bottom=12 left=24"
+      },
+      {
+        "count": 12,
+        "root": "Dashboard Overview",
+        "value": "top=16 right=0 bottom=16 left=0"
+      },
+      {
+        "count": 10,
+        "root": "Dashboard Overview",
+        "value": "top=8 right=16 bottom=8 left=16"
+      },
+      {
+        "count": 9,
+        "root": "Hello",
+        "value": "top=17.5 right=17.5 bottom=17.5 left=17.5"
+      },
+      {
+        "count": 9,
+        "root": "Hello",
+        "value": "top=2.9166667461395264 right=5.833333492279053 bottom=2.9166667461395264 left=5.833333492279053"
+      },
+      {
+        "count": 8,
+        "root": "Dashboard Overview",
+        "value": "top=16 right=20 bottom=16 left=20"
+      },
+      {
+        "count": 6,
+        "root": "Dashboard Overview",
+        "value": "top=0 right=0 bottom=12 left=0"
+      },
+      {
+        "count": 6,
+        "root": "Hello",
+        "value": "top=1.4583333730697632 right=5.833333492279053 bottom=1.4583333730697632 left=2.9166667461395264"
+      },
+      {
+        "count": 6,
+        "root": "Hello",
+        "value": "top=11.666666984558105 right=0 bottom=11.666666984558105 left=0"
+      },
+      {
+        "count": 6,
+        "root": "Design system",
+        "value": "top=12.949999809265137 right=0 bottom=12.949999809265137 left=0"
+      },
+      {
+        "count": 6,
+        "root": "Dashboard Overview",
+        "value": "top=16 right=0 bottom=28 left=0"
+      },
+      {
+        "count": 6,
+        "root": "Hello",
+        "value": "top=2.9166667461395264 right=8.75 bottom=2.9166667461395264 left=8.75"
+      },
+      {
+        "count": 6,
+        "root": "Dashboard Overview",
+        "value": "top=8 right=4 bottom=8 left=4"
+      },
+      {
+        "count": 5,
+        "root": "Dashboard Overview",
+        "value": "top=20 right=28 bottom=20 left=28"
+      },
+      {
+        "count": 4,
+        "root": "Hello",
+        "value": "top=80 right=0 bottom=80 left=0"
+      },
+      {
+        "count": 3,
+        "root": "Hello",
+        "value": "top=0 right=0 bottom=8.75 left=0"
+      },
+      {
+        "count": 3,
+        "root": "Hello",
+        "value": "top=11.666666984558105 right=0 bottom=20.416667938232422 left=0"
+      },
+      {
+        "count": 3,
+        "root": "Dashboard Overview",
+        "value": "top=16 right=0 bottom=0 left=0"
+      },
+      {
+        "count": 3,
+        "root": "Made with SnowUI",
+        "value": "top=48 right=48 bottom=48 left=48"
+      },
+      {
+        "count": 3,
+        "root": "Hello",
+        "value": "top=5.833333492279053 right=2.9166667461395264 bottom=5.833333492279053 left=2.9166667461395264"
+      },
+      {
+        "count": 3,
+        "root": "Made with SnowUI",
+        "value": "top=8 right=8 bottom=0 left=8"
+      },
+      {
+        "count": 2,
+        "root": "Hello",
+        "value": "top=0 right=0 bottom=20.416667938232422 left=0"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "top=0 right=16 bottom=0 left=16"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "top=0 right=16 bottom=0 left=6"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard Overview",
+        "value": "top=0 right=20 bottom=0 left=20"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "top=0 right=6 bottom=0 left=16"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "top=1 right=16 bottom=15 left=16"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard Overview",
+        "value": "top=1.9999 right=0 bottom=1.9999 left=0"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "top=11 right=0 bottom=11 left=8"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "top=11 right=16 bottom=11 left=0"
+      },
+      {
+        "count": 2,
+        "root": "Hello",
+        "value": "top=11.666666984558105 right=11.666666984558105 bottom=11.666666984558105 left=11.666666984558105"
+      },
+      {
+        "count": 2,
+        "root": "Design system",
+        "value": "top=12.949999809265137 right=0 bottom=22.200000762939453 left=0"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "top=16 right=24 bottom=16 left=24"
+      },
+      {
+        "count": 2,
+        "root": "SnowUI",
+        "value": "top=160 right=160 bottom=160 left=160"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "top=21 right=0 bottom=0 left=0"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard Overview",
+        "value": "top=4 right=12 bottom=12 left=12"
+      },
+      {
+        "count": 2,
+        "root": "Icon & Text",
+        "value": "top=40 right=40 bottom=40 left=40"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "top=7 right=8 bottom=7 left=8"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard Overview",
+        "value": "top=8 right=0 bottom=8 left=0"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard Overview",
+        "value": "top=8 right=12 bottom=8 left=12"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "top=0 right=120 bottom=0 left=120"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "top=0 right=14.583333969116211 bottom=0 left=14.583333969116211"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "top=0 right=18.5 bottom=0 left=18.5"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "top=1.4582333730697632 right=0 bottom=1.4582333730697632 left=0"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "top=11.666666984558105 right=0 bottom=0 left=0"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "top=12.949999809265137 right=12.949999809265137 bottom=12.949999809265137 left=12.949999809265137"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "top=14.583333969116211 right=20.416667938232422 bottom=14.583333969116211 left=20.416667938232422"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "top=18.5 right=18.5 bottom=18.5 left=18.5"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "top=18.64800262451172 right=7.992000579833984 bottom=7.992000579833984 left=7.992000579833984"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "top=22.200000762939453 right=0 bottom=0 left=0"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "top=28 right=24 bottom=28 left=24"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "top=28 right=40 bottom=28 left=40"
+      },
+      {
+        "count": 1,
+        "root": "Made with SnowUI",
+        "value": "top=40 right=0 bottom=40 left=0"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "top=5.833333492279053 right=0 bottom=5.833333492279053 left=0"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "top=79.92000579833984 right=98.56800842285156 bottom=79.92000579833984 left=98.56800842285156"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "top=80 right=120 bottom=120 left=120"
+      }
+    ],
+    "typography": [
+      {
+        "count": 370,
+        "root": "Dashboard App",
+        "value": "Inter / 14 / 400 / 1.4285714285714286 / 0 / left / none / none"
+      },
+      {
+        "count": 318,
+        "root": "Hello",
+        "value": "Inter / 17.5 / 600 / 1.5 / 0 / left / none / none"
+      },
+      {
+        "count": 318,
+        "root": "Dashboard Overview",
+        "value": "Inter / 24 / 600 / 1.5 / 0 / left / none / none"
+      },
+      {
+        "count": 125,
+        "root": "Dashboard Overview",
+        "value": "Inter / 12 / 400 / 1.3333333333333333 / 0 / left / none / none"
+      },
+      {
+        "count": 112,
+        "root": "Design system",
+        "value": "Inter / 6.474999904632568 / 400 / 1.4285714496122301 / 0 / center / none / none"
+      },
+      {
+        "count": 104,
+        "root": "Dashboard Overview",
+        "value": "Inter / 12 / 400 / 1.3333333333333333 / 0 / center / none / none"
+      },
+      {
+        "count": 72,
+        "root": "Dashboard Overview",
+        "value": "Inter / 14 / 400 / 1.4285714285714286 / 0 / center / none / none"
+      },
+      {
+        "count": 63,
+        "root": "Hello",
+        "value": "Inter / 8.75 / 400 / 1.3333333696637835 / 0 / left / none / none"
+      },
+      {
+        "count": 45,
+        "root": "Hello",
+        "value": "Inter / 10.208333969116211 / 400 / 1.428571401879671 / 0 / left / none / none"
+      },
+      {
+        "count": 27,
+        "root": "Hello",
+        "value": "Inter / 8.75 / 400 / 1.3333333696637835 / 0 / center / none / none"
+      },
+      {
+        "count": 24,
+        "root": "Dashboard Overview",
+        "value": "Inter / 12 / 400 / 1.3333333333333333 / 0 / right / none / none"
+      },
+      {
+        "count": 21,
+        "root": "Dashboard Overview",
+        "value": "Inter / 24 / 600 / 1.3333333333333333 / 0 / left / none / none"
+      },
+      {
+        "count": 18,
+        "root": "Dashboard App",
+        "value": "Inter / 18 / 600 / 1.5555555555555556 / 0 / left / none / none"
+      },
+      {
+        "count": 16,
+        "root": "Dashboard Overview",
+        "value": "Inter / 16 / 400 / 1.5 / 0 / left / none / none"
+      },
+      {
+        "count": 15,
+        "root": "Design system",
+        "value": "Inter / 6.474999904632568 / 400 / 1.4285714496122301 / 0 / left / none / none"
+      },
+      {
+        "count": 14,
+        "root": "Made with SnowUI",
+        "value": "Inter / 18 / 400 / 1.5555555555555556 / 0 / center / none / none"
+      },
+      {
+        "count": 12,
+        "root": "Dashboard Overview",
+        "value": "Inter / 14 / 600 / 1.4285714285714286 / 0 / left / none / none"
+      },
+      {
+        "count": 12,
+        "root": "Hello",
+        "value": "Inter / 8.75 / 400 / 1.3333333696637835 / 0 / right / none / none"
+      },
+      {
+        "count": 11,
+        "root": "Hello",
+        "value": "Inter / 24 / 400 / 1.3333333333333333 / 0 / left / none / none"
+      },
+      {
+        "count": 10,
+        "root": "Dashboard App",
+        "value": "Inter / 16 / 600 / 1.5 / 0 / left / none / none"
+      },
+      {
+        "count": 10,
+        "root": "Made with SnowUI",
+        "value": "Inter / 18 / 600 / 1.5555555555555556 / 0 / center / none / underline"
+      },
+      {
+        "count": 9,
+        "root": "Design system",
+        "value": "Inter / 11.100000381469727 / 400 / 1.333333304694466 / 0 / left / none / none"
+      },
+      {
+        "count": 8,
+        "root": "Icon & Text",
+        "value": "Inter / 48 / 400 / 1.1666666666666667 / 0 / left / none / none"
+      },
+      {
+        "count": 6,
+        "root": "Hello",
+        "value": "Inter / 10.208333969116211 / 600 / 1.428571401879671 / 0 / left / none / none"
+      },
+      {
+        "count": 6,
+        "root": "Dashboard Overview",
+        "value": "Inter / 16 / 400 / 1.5 / 0 / center / none / none"
+      },
+      {
+        "count": 6,
+        "root": "Dashboard Overview",
+        "value": "Inter / 18 / 400 / 1.5555555555555556 / 0 / left / none / none"
+      },
+      {
+        "count": 6,
+        "root": "Made with SnowUI",
+        "value": "Inter / 18 / 600 / 1.5555555555555556 / 0 / center / none / none"
+      },
+      {
+        "count": 4,
+        "root": "Hello",
+        "value": "Inter / 10.208333969116211 / 400 / 1.428571401879671 / 0 / center / none / none"
+      },
+      {
+        "count": 4,
+        "root": "Hello",
+        "value": "Inter / 16 / 400 / 1.25 / 0 / left / none / none"
+      },
+      {
+        "count": 4,
+        "root": "SnowUI",
+        "value": "Inter / 64 / 400 / 1.125 / 0 / left / none / none"
+      },
+      {
+        "count": 4,
+        "root": "Dashboard App",
+        "value": "SF Pro / 17 / 400 / 1.2941176470588236 / -0.4300000071525574 / left / none / none"
+      },
+      {
+        "count": 4,
+        "root": "Dashboard App",
+        "value": "SF Pro / 17 / 400 / 1.2941176470588236 / 0 / center / none / none"
+      },
+      {
+        "count": 4,
+        "root": "Dashboard App",
+        "value": "SF Pro / 17 / 400 / 1.2941176470588236 / 0 / left / none / none"
+      },
+      {
+        "count": 3,
+        "root": "Design system",
+        "value": "Inter / 15.984001159667969 / 400 / 1.3333333731095365 / 0 / left / none / none"
+      },
+      {
+        "count": 3,
+        "root": "Made with SnowUI",
+        "value": "Inter / 18 / 600 / 1.3333333333333333 / 0 / center / none / underline"
+      },
+      {
+        "count": 3,
+        "root": "Made with SnowUI",
+        "value": "Inter / 48 / 600 / 1.1666666666666667 / 0 / center / none / none"
+      },
+      {
+        "count": 3,
+        "root": "Made with SnowUI",
+        "value": "Inter / 48 / 600 / 1.1666666666666667 / 0 / left / none / none"
+      },
+      {
+        "count": 2,
+        "root": "Made with SnowUI",
+        "value": "Inter / 24 / 400 / 1.3333333333333333 / 0 / center / none / none"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "SF Pro / 13 / 400 / 1.3846153846153846 / -0.07999999821186066 / center / none / none"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "SF Pro / 17 / 400 / 1.2941176470588236 / -0.4300000071525574 / center / none / none"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard App",
+        "value": "SF Pro / 17 / 400 / 1.2941176470588236 / 0 / right / none / none"
+      },
+      {
+        "count": 1,
+        "root": "SnowUI",
+        "value": "Inter / 128 / 400 / 1.2 / 0 / left / none / none"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "Inter / 22.200000762939453 / 600 / 1.166666609388932 / 0 / left / none / none"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "Inter / 32 / 400 / 1.8125 / 0 / left / none / none"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "Inter / 40 / 400 / 1.45 / 0 / left / none / none"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "Inter / 48 / 400 / 1.2083333333333333 / 0 / left / none / none"
+      },
+      {
+        "count": 1,
+        "root": "Made with SnowUI",
+        "value": "Inter / 48 / 500 / 1.2083333333333333 / 0 / center / none / none"
+      },
+      {
+        "count": 1,
+        "root": "Hello",
+        "value": "Inter / 64 / 600 / 1.2 / 0 / left / none / none"
+      },
+      {
+        "count": 1,
+        "root": "Design system",
+        "value": "Inter / 9.32400131225586 / 400 / 1.4285713993480975 / 0 / left / none / underline"
+      }
+    ],
+    "fontFamilies": [
+      {
+        "count": 1792,
+        "value": "Inter"
+      },
+      {
+        "count": 18,
+        "value": "SF Pro"
+      }
+    ],
+    "layouts": [
+      {
+        "count": 687,
+        "root": "Dashboard Overview",
+        "value": "flex / column-reverse / align=start / justify=center"
+      },
+      {
+        "count": 462,
+        "root": "Dashboard Overview",
+        "value": "flex / row-reverse / align=center / justify=start"
+      },
+      {
+        "count": 381,
+        "root": "Dashboard App",
+        "value": "flex / row-reverse / align=center / justify=center"
+      },
+      {
+        "count": 317,
+        "root": "Dashboard Overview",
+        "value": "flex / column-reverse / align=start / justify=start"
+      },
+      {
+        "count": 160,
+        "root": "Dashboard App",
+        "value": "flex / column-reverse / align=start / justify=end"
+      },
+      {
+        "count": 140,
+        "root": "Dashboard Overview",
+        "value": "flex / column-reverse / align=center / justify=end"
+      },
+      {
+        "count": 92,
+        "root": "Dashboard App",
+        "value": "flex / row-reverse / align=start / justify=start"
+      },
+      {
+        "count": 60,
+        "root": "Dashboard Overview",
+        "value": "flex / row-reverse / align=center / justify=space-between"
+      },
+      {
+        "count": 32,
+        "root": "Dashboard App",
+        "value": "flex / column-reverse / align=end / justify=center"
+      },
+      {
+        "count": 30,
+        "root": "Dashboard App",
+        "value": "flex / row-reverse / align=center / justify=end"
+      },
+      {
+        "count": 29,
+        "root": "Dashboard Overview",
+        "value": "flex / column-reverse / align=start / justify=space-between"
+      },
+      {
+        "count": 22,
+        "root": "Dashboard Overview",
+        "value": "flex / column-reverse / align=center / justify=start"
+      },
+      {
+        "count": 18,
+        "root": "Dashboard Overview",
+        "value": "flex / row-reverse / align=end / justify=space-between"
+      },
+      {
+        "count": 9,
+        "root": "Dashboard Overview",
+        "value": "flex / column-reverse / align=end / justify=space-between"
+      },
+      {
+        "count": 4,
+        "root": "Made with SnowUI",
+        "value": "flex / column-reverse / align=center / justify=center"
+      },
+      {
+        "count": 3,
+        "root": "Made with SnowUI",
+        "value": "flex / row-reverse / align=start / justify=end"
+      },
+      {
+        "count": 2,
+        "root": "Dashboard Overview",
+        "value": "flex / column-reverse / align=center / justify=space-between"
+      },
+      {
+        "count": 2,
+        "root": "Made with SnowUI",
+        "value": "flex / column-reverse / align=end / justify=start"
+      },
+      {
+        "count": 2,
+        "root": "Design system",
+        "value": "flex / row-reverse / align=start / justify=space-between"
+      }
+    ]
+  },
+  "components": [
+    {
+      "componentId": "8ddb714c-12ed-52b1-9075-0f796e30432a",
+      "name": "Text",
+      "definitionIds": [
+        "532f8791-eb64-567b-8cb6-5a691f2ccfe7",
+        "cb992bb0-05c5-56bf-80b9-3f21b88f4c47",
+        "448584cf-1ca5-5d9b-ac34-d27d04350ba6",
+        "67c6a4d0-b9fe-56c2-8160-d69288290cf1",
+        "925a5aa3-bc33-59b3-a39f-60a6e5c4cdab",
+        "143e29f8-8a1b-541f-a699-eb00daf692b1",
+        "91a5378b-39a7-5b2f-96af-5d88f1d5dc3b",
+        "a138b56a-4cde-5b8b-b8b0-cd9df47aac2c",
+        "41c36cfa-aef0-52d3-bb5d-ce3c916d27ec",
+        "8677785d-eabe-588b-9a0e-74113e2ce56d",
+        "4b10aaf0-585d-58ad-8f5e-f91224fbeed0",
+        "e25c2bca-a1d2-546f-8e33-968d9c016d92",
+        "223f53a3-5a5e-59d5-80ac-c1e3b8b6294d",
+        "befabe64-b94f-59fc-8f29-735c87251f60",
+        "fc38a1ca-50dd-519d-ab8b-ae4ac9f55048",
+        "605af2b3-ac17-5677-baa3-e90c97b0eb6f",
+        "3bc840e1-40e9-58ee-ad38-8cc5a53eaf15",
+        "104e53af-d546-5f22-adfd-6e5bf4f196bb",
+        "6a2a0fdc-5c4f-5fc3-b187-342b5ede07c9",
+        "a4e19d32-2962-5286-bd16-95bca661dc4d"
+      ],
+      "instanceCount": 584,
+      "width": 844,
+      "height": 20
+    },
+    {
+      "componentId": "7261fc9f-2811-5fa2-96b1-1da852704204",
+      "name": "Frame",
+      "definitionIds": [
+        "6f4e45fe-5a82-5dcd-a6cf-767d93e0ca13",
+        "eb068d08-a8f0-5dfd-a7b1-1a9daa863c79",
+        "1c9225b5-f1d9-53ef-a629-c9ac16046850",
+        "b76f4076-9c0a-5599-9baf-39fda9ad20ff",
+        "31d5a473-f152-5d21-a33e-d5a94dd4973f",
+        "200fb035-365d-5df6-9828-ae5ba2cc5576",
+        "5174a58b-823e-5e4b-84a4-7e6a7b182fc7",
+        "eaaa8c25-e306-5af3-8c6c-54c3bdeb5846",
+        "c5cd0023-ef54-5832-ae51-1356dccfd3bc",
+        "b256e87a-ba9b-5874-a200-f136b7aa9752",
+        "65a11de2-2172-59b0-ab93-8f378d244c20",
+        "9303385e-be4b-5f46-8419-a44f602530e0"
+      ],
+      "instanceCount": 56,
+      "width": 131,
+      "height": 27
+    },
+    {
+      "componentId": "99626edc-a354-5490-b298-76ec76669780",
+      "name": "Icon & Text",
+      "definitionIds": [
+        "2336fde0-2507-5301-a583-53ed29523107",
+        "31727411-3760-5a71-bbbf-6ba64f54958a",
+        "5d976d4e-a7d8-506b-8767-2b7979ac2563",
+        "69cf849e-1af1-5ebb-8df0-dfb280f247c8",
+        "1c81b9b4-c790-5213-8751-9cbf4aa08f23",
+        "644dff9e-9e4d-550f-a834-f008769165ad",
+        "23b403fb-2455-534b-8fae-0d457ac00191"
+      ],
+      "instanceCount": 53,
+      "width": 415,
+      "height": 136
+    },
+    {
+      "componentId": "38502d85-c677-55e5-bdbf-801b135cba82",
+      "name": "Frame/Text",
+      "definitionIds": [
+        "c4825401-8845-5e8b-bc97-367c0d1f9cbc",
+        "6045fb1f-9850-5416-9f98-4c38b44ca29d",
+        "3a91645a-ce23-5601-8b8f-4f4738738e74"
+      ],
+      "instanceCount": 26,
+      "width": 181,
+      "height": 27
+    },
+    {
+      "componentId": "1e740982-e5b3-5934-9100-9781ca263265",
+      "name": "Breadcrumb",
+      "definitionIds": [
+        "e06e5624-0a5d-5c26-bdea-336f480ee5e3"
+      ],
+      "instanceCount": 16,
+      "width": 144,
+      "height": 21
+    },
+    {
+      "componentId": "c026e694-0f29-523c-91c2-3d003fc4c9cd",
+      "name": "ByeWind",
+      "definitionIds": [
+        "6759f30e-a9b3-5428-b7a1-c335b6278cd5"
+      ],
+      "instanceCount": 8,
+      "width": 131,
+      "height": 29
+    },
+    {
+      "componentId": "72140d21-cae8-50d2-9d4e-1e50ff643c44",
+      "name": "Group",
+      "definitionIds": [
+        "4a911e33-9add-5c2a-bad1-6cc9f6376a06",
+        "ab6ad9a8-59d0-5618-bb4f-4d43f97b60c8"
+      ],
+      "instanceCount": 8,
+      "width": 47,
+      "height": 20
+    },
+    {
+      "componentId": "0420d278-6336-5e03-9161-c8ba67cb51e6",
+      "name": "AndiLane",
+      "definitionIds": [
+        "f7dcf6b6-d450-537c-b100-e9766ad4ae11"
+      ],
+      "instanceCount": 6,
+      "width": 181,
+      "height": 29
+    },
+    {
+      "componentId": "aebc76ab-6b8a-5d48-976b-757e36ec9400",
+      "name": "DrewCano",
+      "definitionIds": [
+        "c60893a8-8b1a-593d-87c7-ee48613909e8"
+      ],
+      "instanceCount": 6,
+      "width": 181,
+      "height": 29
+    },
+    {
+      "componentId": "89be65f7-d884-584f-ba9b-55f466b34900",
+      "name": "NataliCraig",
+      "definitionIds": [
+        "04c66bbe-7adb-5ae3-b6b7-8c03d30df6f8"
+      ],
+      "instanceCount": 6,
+      "width": 181,
+      "height": 29
+    },
+    {
+      "componentId": "1917e3f6-4f7e-5aa9-b269-d6d2dd1c329d",
+      "name": "Line",
+      "definitionIds": [
+        "1de7b358-8fba-5296-b772-1a44af3e6523"
+      ],
+      "instanceCount": 5,
+      "width": 131,
+      "height": 3
+    },
+    {
+      "componentId": "7362818b-21a1-5b79-bf4a-352d8fc497b8",
+      "name": "Frame",
+      "definitionIds": [
+        "a8d4d186-1019-56b5-8934-ed6e17939fae"
+      ],
+      "instanceCount": 4,
+      "width": 131,
+      "height": 27
+    },
+    {
+      "componentId": "52b6647f-712f-5281-860a-dcf37f21e162",
+      "name": "Group",
+      "definitionIds": [
+        "bfb9894d-d5aa-5cbf-bcbc-88755d007d00"
+      ],
+      "instanceCount": 4,
+      "width": 99,
+      "height": 20
+    },
+    {
+      "componentId": "9643918c-d306-5d81-bdf7-337396473907",
+      "name": "Icon & Text",
+      "definitionIds": [
+        "6ac21931-17e8-53d9-bb8c-6d224d4701a8",
+        "fa8552a4-82b0-5d3e-9c55-b0325428e1d8",
+        "f09edbb3-8ba9-57db-9c12-a5f9dddf1a49",
+        "789dfcb5-a244-5ded-b55e-1644681e28aa",
+        "a618266c-9336-596a-880e-8a70a3171cc9",
+        "ff1d5088-f4b2-5472-8e6c-fbfd32c85455",
+        "e6cbca62-3cad-5d62-91f8-bf39381efed6",
+        "8cce8c8c-729b-5a8d-8540-fb82398e215a"
+      ],
+      "instanceCount": 4,
+      "width": 82,
+      "height": 16
+    },
+    {
+      "componentId": "4c51721a-dc63-5709-89da-b398cc9514a7",
+      "name": "Search",
+      "definitionIds": [
+        "fe85bfe2-3425-5170-807e-c9e04ebc24e7"
+      ],
+      "instanceCount": 4,
+      "width": 117,
+      "height": 21
+    },
+    {
+      "componentId": "8f5c762e-9a7e-5ba9-a70f-c48a80f7f232",
+      "name": "SnowUI Logo",
+      "definitionIds": [
+        "0dfe55ee-d9af-5350-a808-cd306d56f2ca"
+      ],
+      "instanceCount": 4,
+      "width": 77,
+      "height": 20
+    },
+    {
+      "componentId": "62d2c47c-6bb0-5bbc-a3e9-aa9f6a11678e",
+      "name": "Text",
+      "definitionIds": [
+        "71010394-0151-52df-bda5-c41f8d910811",
+        "6a25bfa0-4786-5139-a2d4-977d0e84f9f2",
+        "fe146be5-bfbc-5341-aae3-d672c66d5124"
+      ],
+      "instanceCount": 4,
+      "width": 169,
+      "height": 77
+    },
+    {
+      "componentId": "be4eaeea-c619-5309-b4c2-002fe2aefe4d",
+      "name": "ChartMotion",
+      "definitionIds": [
+        "73f3d9b3-ef3c-51db-a9ad-d9d38226e10f",
+        "7d828228-7a1b-5743-9aa7-f44e9dd9f6c6",
+        "3f151e0b-bb1d-54a9-940b-944f13eb5263",
+        "1fe0c5f8-c402-5261-a1f8-bad5e742ddaa"
+      ],
+      "instanceCount": 2,
+      "width": 844,
+      "height": 196
+    },
+    {
+      "componentId": "5df0d3fc-9b80-525f-a96b-7ff27f723167",
+      "name": "KateMorrison",
+      "definitionIds": [
+        "b190909e-0ade-51eb-a4c4-0fcc116ba4d2"
+      ],
+      "instanceCount": 2,
+      "width": 181,
+      "height": 29
+    },
+    {
+      "componentId": "28e8e2ea-46c9-5fc0-9321-e8e073682545",
+      "name": "KorayOkumus",
+      "definitionIds": [
+        "8436a460-977c-5365-8582-d2a608bf4a82"
+      ],
+      "instanceCount": 2,
+      "width": 181,
+      "height": 29
+    },
+    {
+      "componentId": "0b53a406-7f7b-5e47-a071-0bd3814f89e3",
+      "name": "MelodyMacy",
+      "definitionIds": [
+        "7fc01114-8fec-5190-b20f-5672291f4460"
+      ],
+      "instanceCount": 2,
+      "width": 181,
+      "height": 29
+    },
+    {
+      "componentId": "866a9387-f4b4-54cc-8c4e-41a18f10bfc8",
+      "name": "Strip",
+      "definitionIds": [
+        "58e08364-440d-50a2-9edb-b86d7be51464"
+      ],
+      "instanceCount": 2,
+      "width": 1,
+      "height": 136
+    },
+    {
+      "componentId": "4ae9d341-2c61-5a69-a3df-1461830b15f8",
+      "name": "Button",
+      "definitionIds": [
+        "0a6b46fa-59a8-5ce3-958a-6c4a7793f4f5",
+        "16ec6199-17ec-5561-9b22-2ef3c9e6a5e8"
+      ],
+      "instanceCount": 1,
+      "width": 71,
+      "height": 24
+    },
+    {
+      "componentId": "cbb4d7cd-92b3-510e-b25f-5ac9542c4803",
+      "name": "Card",
+      "definitionIds": [
+        "d466cae2-5b52-5da0-84d9-2b9e99d3b45e",
+        "3e668ab6-82fc-5966-b0b8-260eab344b0a"
+      ],
+      "instanceCount": 1,
+      "width": 184,
+      "height": 116
+    },
+    {
+      "componentId": "fed921a4-e810-5331-ae68-0deb1723f882",
+      "name": "ChartMotion",
+      "definitionIds": [
+        "eb026cfc-a6db-53b2-92a0-9f13f47c1e0d",
+        "075a9e30-40da-5eed-b4e1-62237c9d6ac1"
+      ],
+      "instanceCount": 1,
+      "width": 614,
+      "height": 246
+    },
+    {
+      "componentId": "3f8440b6-781c-5658-84e8-d94fdf78b9e9",
+      "name": "DonutChart",
+      "definitionIds": [
+        "21620a72-0f69-52cb-b219-971728340a13",
+        "6fda0322-78a2-5e82-bc0f-fbd8c941e759"
+      ],
+      "instanceCount": 1,
+      "width": 120,
+      "height": 120
+    },
+    {
+      "componentId": "e0e76e18-d6a5-5fbc-893e-23d8bcc068f6",
+      "name": "Group",
+      "definitionIds": [
+        "5486f726-1f4b-5307-9292-d31a7ff8ee94",
+        "e503bd3b-07f6-5156-b541-c9564174fd7f"
+      ],
+      "instanceCount": 1,
+      "width": 614,
+      "height": 20
+    },
+    {
+      "componentId": "420ebaec-44bc-5d3e-b00e-34a8b5e76234",
+      "name": "Header",
+      "definitionIds": [
+        "1a9aaaa7-c132-5852-97eb-81dbd3389102"
+      ],
+      "instanceCount": 1,
+      "width": 948,
+      "height": 68
+    },
+    {
+      "componentId": "34329f6e-f6ea-5059-ac9f-b3460e4e881d",
+      "name": "Horizontal 03",
+      "definitionIds": [
+        "f2657310-c2ac-5029-bd9e-8cc9e4d2f5f7",
+        "ed334c20-9a23-5081-9e5d-56eb69b2fe66"
+      ],
+      "instanceCount": 1,
+      "width": 80,
+      "height": 246
+    },
+    {
+      "componentId": "1553d680-4996-58cb-83da-485c4323b4a7",
+      "name": "Right Bar",
+      "definitionIds": [
+        "2d749692-0827-5dc6-a478-873e35e75b4b"
+      ],
+      "instanceCount": 1,
+      "width": 280,
+      "height": 1024
+    },
+    {
+      "componentId": "7a1eb18a-f98c-523a-ab33-0b9ee93de06f",
+      "name": "Sidebar",
+      "definitionIds": [
+        "3435c062-b147-5bce-a427-b397398408a8"
+      ],
+      "instanceCount": 1,
+      "width": 212,
+      "height": 1024
+    },
+    {
+      "componentId": "379f1d57-1e03-5ba6-a980-1943fa08cc00",
+      "name": "Text",
+      "definitionIds": [
+        "12140f45-ada8-5192-8e63-4510be6c297b",
+        "01c24aba-faf0-52cb-96ca-7390f2fd1ebb"
+      ],
+      "instanceCount": 1,
+      "width": 57,
+      "height": 246
+    },
+    {
+      "componentId": "3c283afc-cad1-55e4-a5b2-4041dc5637e1",
+      "name": "About me",
+      "definitionIds": [
+        "b54f5fcd-bf7b-5ff8-9c54-a8f64e4f2c8c"
+      ],
+      "instanceCount": 0,
+      "width": 1360,
+      "height": 492
+    },
+    {
+      "componentId": "3e8ca2aa-90c1-53c5-a19e-cc86515def87",
+      "name": "Colors",
+      "definitionIds": [
+        "6ae494c1-e964-5b8d-be2f-790a21578b3d"
+      ],
+      "instanceCount": 0,
+      "width": 666,
+      "height": 1340
+    },
+    {
+      "componentId": "561575be-4887-5a4a-99cd-d3d4f1a917fa",
+      "name": "Dashboard App",
+      "definitionIds": [
+        "50e352d1-cd24-5be9-90bd-704846bbf05e",
+        "45364e3f-b69b-542d-acc4-7fca10158ac9"
+      ],
+      "instanceCount": 0,
+      "width": 393,
+      "height": 1767
+    },
+    {
+      "componentId": "1414e879-0719-5473-88a0-7e088da637e0",
+      "name": "Dashboard Overview",
+      "definitionIds": [
+        "3148ae09-b326-583f-b67d-a8e8ab30b9d7"
+      ],
+      "instanceCount": 0,
+      "width": 1440,
+      "height": 1024
+    },
+    {
+      "componentId": "eb865d45-d475-5b38-8124-adbe5b419141",
+      "name": "Dashboard Overview",
+      "definitionIds": [
+        "998d14ab-e31a-54ff-ae2b-786f68f4edf3",
+        "6fd1c70a-c053-5107-81f8-c6816e9f5372"
+      ],
+      "instanceCount": 0,
+      "width": 1440,
+      "height": 1724
+    },
+    {
+      "componentId": "f9eb24fb-2934-5128-bad5-d1b499a7b9b0",
+      "name": "Documentation",
+      "definitionIds": [
+        "ed06c4fe-519a-50e4-ad88-2c31b26b31e4"
+      ],
+      "instanceCount": 0,
+      "width": 1600,
+      "height": 228
+    },
+    {
+      "componentId": "76731fd4-409f-5f16-b996-65b1b69c3e6b",
+      "name": "HorizontalDefaultFalse",
+      "definitionIds": [
+        "f7ec6028-da22-5c3d-be59-d7846c6fddfa",
+        "291bdcbb-e574-50f7-8d88-974608402a18",
+        "1687e543-5956-5c0e-9e21-b76869d9a691",
+        "81afc2b6-9f84-5a75-b591-21f9a9d72fec",
+        "e7456aba-846f-559d-8594-451c794118e8",
+        "75f51909-e63e-540e-80b5-59b05fb0d84f",
+        "cfb018d8-885f-5dca-9b26-7a58e46d14ca",
+        "bbca8e2d-65c4-5742-9757-a5d6e860b92a",
+        "8de17cf5-1722-5196-9263-6a0cdbaefc4b"
+      ],
+      "instanceCount": 0,
+      "width": 181,
+      "height": 39
+    },
+    {
+      "componentId": "60c9014d-28da-5ef6-b444-2df97c8a1c74",
+      "name": "IconSet",
+      "definitionIds": [
+        "14e0c4ba-061d-595b-bdb1-5fd4d2153888"
+      ],
+      "instanceCount": 0,
+      "width": 48,
+      "height": 48
+    },
+    {
+      "componentId": "bad7d0f6-a805-55d7-bec2-9730af74278d",
+      "name": "IconText",
+      "definitionIds": [
+        "d554c19a-e250-58db-9228-aab38db04950",
+        "fe10ca12-4455-5c1e-a8ba-cc64e3966f1f",
+        "0db9fade-1e5b-5223-8161-a75b15d0c5d9",
+        "c4d36efe-f14b-5dae-b87d-8a1560adf03f"
+      ],
+      "instanceCount": 0,
+      "width": 172,
+      "height": 24
+    },
+    {
+      "componentId": "c9535804-d424-5140-92fe-8345740cab6f",
+      "name": "Made with SnowUI",
+      "definitionIds": [
+        "6fff3e7e-8814-501f-a568-f475ad3edc84"
+      ],
+      "instanceCount": 0,
+      "width": 2500,
+      "height": 1658
+    },
+    {
+      "componentId": "9a2849b4-d610-5510-8488-150d2f5e85b8",
+      "name": "Rolling number",
+      "definitionIds": [
+        "29e46245-f530-5589-93f4-11ddde2cc34c",
+        "e9224137-3084-5847-a2b1-325eb7f3c26c"
+      ],
+      "instanceCount": 0,
+      "width": 48,
+      "height": 36
+    },
+    {
+      "componentId": "d1adcb13-c1a5-5f26-98c2-2843ab6e18b7",
+      "name": "Rolling number",
+      "definitionIds": [
+        "57a616f8-3905-5dae-a864-41fce4210044",
+        "a58195db-458b-5173-ae75-40b702efaf3f",
+        "60328f81-9adb-53f1-a9f6-6717deea7df3",
+        "854ed8cc-5694-5a37-9fa8-9a5c99648202",
+        "abc3e4b2-7cc7-5aa3-857d-7eb61545a198",
+        "ca06e4d0-94c6-54db-911c-497b13ea07eb"
+      ],
+      "instanceCount": 0,
+      "width": 72,
+      "height": 36
+    },
+    {
+      "componentId": "08689e77-7940-51a1-9161-38758ec91281",
+      "name": "SnowUI",
+      "definitionIds": [
+        "edc89ad9-1801-52d5-bdb1-4409d4506f8e"
+      ],
+      "instanceCount": 0,
+      "width": 854,
+      "height": 999
+    },
+    {
+      "componentId": "f3d99ec0-1ef3-530b-960c-6726bc2cdd67",
+      "name": "SnowUI Design System",
+      "definitionIds": [
+        "b13b1e48-4a79-5094-90c8-366af27b1942"
+      ],
+      "instanceCount": 0,
+      "width": 666,
+      "height": 799
+    }
+  ]
+}

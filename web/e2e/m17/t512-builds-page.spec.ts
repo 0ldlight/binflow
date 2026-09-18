@@ -175,15 +175,14 @@ test('① Builds 三视图：导航入口 → 名单 → 号单 → run 详情�
   // 模块制品：app.bin 行 + ghost 行（record-only 语义——如实 —）
   const arts = page.locator('[data-testid="build-artifacts"]')
   await expect(arts).toContainText('app.bin')
-  // promote move 缺省：制品已迁 relRepo——源关联失效后 echo 的 path 缺席
-  // （internal/httpapi build.go renderBuildModules：wire path 即关联，关联
-  // 失效 = record-only 行）。两行都如实 —（行存不冒领关联），无深链。
-  await expect(arts.locator('a.row-link')).toHaveCount(0)
+  // 当前详读面保留上传文档的源 path，可深链；promote 迁移状态另由时间线/状态呈现。
+  // record-only ghost 行仍无路径、不冒领关联。
+  await expect(arts.locator('a.row-link')).toHaveCount(1)
+  await expect(arts.locator('a.row-link')).toContainText(`${f.repo}/app.bin`)
   const rows = arts.locator('tr[data-testid^="build-artifact-row-"]')
   await expect(rows).toHaveCount(2)
-  for (let i = 0; i < 2; i++) {
-    await expect(rows.nth(i).locator('[title^="record-only"]')).toBeVisible()
-  }
+  await expect(rows.nth(1).locator('[title^="record-only"]')).toBeVisible()
+  await expect(rows.nth(0).locator('[title^="record-only"]')).toHaveCount(0)
 
   // 模块依赖：dependency id + scopes
   await expect(page.locator('[data-testid="build-dependencies"]')).toContainText(f.depId)

@@ -6,6 +6,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { tr } from '@/i18n'
 
 const t = tr('console')
@@ -79,23 +80,29 @@ export function Pager({
       {pageSize !== undefined && onPageSizeChange !== undefined && (
         <label className="pager-size flex items-center gap-1.5">
           <span aria-hidden="true">{t('每页')}</span>
-          <select
-            value={pageSize}
-            disabled={disabled}
-            data-testid="pager-size"
-            aria-label={t('每页行数')}
-            onChange={(e) => {
-              const n = Number(e.target.value)
+          <Select
+            value={String(pageSize)}
+            onValueChange={(value) => {
+              const n = Number(value)
               if (Number.isFinite(n) && n > 0) onPageSizeChange(n)
             }}
-            className="h-7 rounded-sm border border-input bg-surface-1 px-1.5 text-dense"
           >
-            {sizeOptions.map((n) => (
-              <option key={n} value={n} data-testid={`pager-size-${n}`}>
-                {n}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger
+              disabled={disabled}
+              data-testid="pager-size"
+              aria-label={t('每页行数')}
+              className="h-7 w-[72px] bg-surface-1 px-2"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {sizeOptions.map((n) => (
+                <SelectItem key={n} value={String(n)} data-value={String(n)} data-testid={`pager-size-${n}`}>
+                  {n}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <span aria-hidden="true">{t('行')}</span>
         </label>
       )}

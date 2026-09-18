@@ -5,6 +5,7 @@
 // （tint-* 变体承载旧 .badge 配方），本文件不再导出。
 import type { ReactNode } from 'react'
 
+import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import { tr } from '@/i18n'
 
@@ -76,11 +77,10 @@ export function CheckRow({
 }) {
   return (
     <label className={cn('check-row', className)}>
-      <input
-        type="checkbox"
+      <Checkbox
         checked={checked}
         disabled={disabled}
-        onChange={(e) => onChange?.(e.target.checked)}
+        onCheckedChange={(next) => onChange?.(next === true)}
         {...(testid ? { 'data-testid': testid } : {})}
       />
       <span>{label}</span>

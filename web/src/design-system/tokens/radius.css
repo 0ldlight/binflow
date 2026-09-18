@@ -1,14 +1,17 @@
 /*
  * 族 4 — Radius（design-system-plan §3.4；5 变量）。
  *
- * 控制台密度维持小圆角（不追画布工具的大圆角语态）。xs/full 为批 1
- * 新槽位（tag/kbd 微圆角、pill 徽章/toggle）——只定义不消费。
+ * 2026-09-18 对齐 Penpot Dashboard UI Kit：控件 8、卡片 12/16、展示容器
+ * 20/24。密集表格与输入区不使用 20/24（apple-design-penpot-review A3）。
  */
 
 :root {
-  --bf-r-xs: 2px; /* 批 1 新槽位：tag/kbd 微圆角（只定义不消费） */
-  --bf-r-sm: 4px; /* 输入/badge */
-  --bf-r-md: 6px; /* 按钮/卡片 */
-  --bf-r-lg: 8px; /* modal/drop zone */
-  --bf-r-full: 9999px; /* 批 1 新槽位：pill 徽章/toggle（只定义不消费） */
+  --bf-r-xs: 4px; /* tag/kbd 微圆角 */
+  --bf-r-sm: 8px; /* 输入/badge/按钮控件 */
+  --bf-r-md: 8px; /* shadcn button 默认语义 */
+  --bf-r-lg: 12px; /* 卡片/下拉 */
+  --bf-r-xl: 16px; /* 大卡片/移动式面板 */
+  --bf-r-2xl: 20px; /* dashboard hero/图表卡 */
+  --bf-r-3xl: 24px; /* 空态/展示容器 */
+  --bf-r-full: 9999px; /* pill 徽章/toggle */
 }

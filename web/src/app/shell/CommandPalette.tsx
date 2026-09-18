@@ -21,11 +21,10 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useAuth } from '@/app/AuthContext'
 import { isReadOnlyAdmin } from '@/lib/api'
 import { deriveAiContext } from '@/lib/ai/context'
-import { getLocale, setLocale } from '@/i18n'
+import { getLocale, setLocale, tr } from '@/i18n'
 import { useTheme } from '@/app/providers'
 import { useAiStore } from '@/stores/ai-store'
 import { useCommandPaletteStore } from '@/stores/command-palette-store'
-import { tr } from '@/i18n'
 
 import { NAV_GROUPS } from './nav-model'
 

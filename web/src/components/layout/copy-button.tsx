@@ -3,6 +3,7 @@
 // clipboard API + execCommand 降级（非安全上下文）。
 import { useCallback, useRef, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { tr } from '@/i18n'
 
@@ -40,23 +41,19 @@ export function CopyButton({
   )
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon"
       className={cn('copy-btn', className)}
       aria-label={t('复制 {label}', { label })}
       title={copied ? t('已复制') : t('复制 {label}', { label })}
       onClick={copy}
-      onKeyDown={(e) => {
-        if (e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault()
-          copy(e)
-        }
-      }}
     >
       <span aria-hidden="true" className="font-mono text-[12px]">
         {copied ? '✓' : '⧉'}
       </span>
-    </button>
+    </Button>
   )
 }
 

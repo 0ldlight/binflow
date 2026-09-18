@@ -159,6 +159,7 @@ const domSummaryFn = () => {
     columns: all('th, .ag-header-cell-text, [role="columnheader"]').map(txt).filter(Boolean).slice(0, 40),
     selected: all('[class*="active"], [class*="selected"], [aria-selected="true"]').map(txt).filter(Boolean).slice(0, 10),
     inputs: all('input').map((i) => i.placeholder || i.name || i.type).filter(Boolean).slice(0, 15),
+    body: (document.body.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 1200),
   };
 };
 
@@ -167,7 +168,7 @@ async function summarize(page) {
 }
 
 function fingerprint(summary) {
-  return [summary.title, (summary.tabs || []).join('|'), (summary.columns || []).join('|'), (summary.headings || []).join('|')].join('::').slice(0, 400);
+  return [summary.title, (summary.tabs || []).join('|'), (summary.columns || []).join('|'), (summary.headings || []).join('|'), (summary.buttons || []).join('|'), (summary.inputs || []).join('|'), String(summary.body || '')].join('::').slice(0, 1800);
 }
 
 async function captureScreen(page, entry) {

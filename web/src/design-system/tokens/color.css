@@ -2,7 +2,8 @@
  * 族 1 — Color（design-system-plan §3.1，亮暗双谱）。
  *
  * G2 清偿（批 1）：旧 tw 层两文件 + 旧 styles 层同名变量收编至本目录，
- * 值零改动（截图差分≈0 的批 1 验收前提）。机制保持：
+ * 2026-09-18 起以官方 Penpot Dashboard UI Kit 直接观测值为视觉事实源
+ *（apple-design-penpot-review A1–A7）；交互文字色保留 AA 修正。机制保持：
  *   - 亮色默认挂 :root（ADR-0029 Q2 终裁），暗色经 [data-theme='dark']
  *     整组覆盖——ThemeProvider 切的是 document.documentElement 的
  *     data-theme 属性；
@@ -19,34 +20,42 @@
  */
 
 :root {
-  /* ---------- 侧栏（三阶最暗层；亮色主题下同为深底，配套自有 fg） ---------- */
-  --bf-sidebar: #1b2430;
-  --bf-sidebar-2: #242f3e; /* 侧栏悬停行 */
-  --bf-sidebar-3: #2c3949; /* 侧栏 active 行 */
-  --bf-sidebar-border: #293545; /* 侧栏分隔线/右缘 */
-  --bf-sidebar-text: #eef2f7; /* 侧栏文字（深底） */
-  --bf-sidebar-text-2: #a3b1c2; /* 侧栏次要文字 */
+  /* ---------- 侧栏（Penpot 亮色壳：白底 + 10% black 分隔） ---------- */
+  --bf-sidebar: #ffffff;
+  --bf-sidebar-2: #f9f9fa; /* 侧栏悬停行 */
+  --bf-sidebar-3: #f0f0f2; /* 侧栏 active 行 */
+  --bf-sidebar-border: #0000001a; /* 侧栏分隔线/右缘 */
+  --bf-sidebar-text: #1c1c1c; /* 侧栏文字 */
+  --bf-sidebar-text-2: #6b6b70; /* 侧栏次要文字（AA 修正） */
 
   /* ---------- 内容底 / 面 / 边 ---------- */
-  --bf-bg: #f3f5f7; /* 内容底 */
-  --bf-surface-1: #ffffff; /* 卡片/表格（三阶最亮） */
-  --bf-surface-2: #e9edf1; /* 悬停行/次级面板 */
-  --bf-surface-3: #dfe5ec; /* 输入框/drop zone */
-  --bf-border: #d3dae2; /* 分隔线/表格线 */
-  --bf-border-strong: #9aa6b4; /* 悬停边框 */
+  --bf-bg: #f5f5f6; /* 内容底（模板扩展桌面板） */
+  --bf-surface-1: #ffffff; /* 卡片/表格 */
+  --bf-surface-2: #f9f9fa; /* 悬停行/次级面板 */
+  --bf-surface-3: #f0f0f2; /* 输入框/drop zone */
+  --bf-border: #0000001a; /* 分隔线/表格线（1px 等值） */
+  --bf-border-strong: #8a8a90; /* 悬停边框 */
 
   /* ---------- 文字 ---------- */
-  --bf-text: #1d232c; /* 正文（≥12:1） */
-  --bf-text-2: #55606e; /* 次要（≥4.5:1） */
-  /* 弱化（时间戳等）。取值随 T-234 对比度上调（bg 4.7 / surface-1 5.1）。 */
-  --bf-text-muted: #646f7b;
+  --bf-text: #1c1c1c; /* 模板主文字 */
+  --bf-text-2: #55555c; /* 次要（AA 修正） */
+  /* 弱化（时间戳等）：模板 #3c3c43@60% 经可访问修正。 */
+  --bf-text-muted: #6b6b70;
 
-  /* ---------- 主色（品牌槽位：机制冻结，字面值待 B-1 终裁；禁 JFrog 橙族） ---------- */
-  --bf-accent: #0b6bcb; /* 主操作/链接/焦点 */
+  /* ---------- 主色：模板 #007aff 的 AA 交互修正（A1） ---------- */
+  --bf-accent: #0064cc; /* 主操作/链接/焦点 */
   --bf-accent-fg: #ffffff; /* accent 上文字 */
 
-  /* ---------- 焦点环（批 1 新槽位，只定义不消费——批 2+ 接管 focus-visible） ---------- */
-  --bf-ring: #0b6bcb; /* 现值 = accent（值同源，接管零视觉变更） */
+  /* ---------- 焦点环 ---------- */
+  --bf-ring: #0064cc; /* 现值 = accent */
+
+  /* ---------- 图表/装饰源色（不承载普通文字） ---------- */
+  --bf-chart-blue: #007aff;
+  --bf-chart-green: #34c759;
+  --bf-chart-red: #ff3b30;
+  --bf-chart-purple: #af52de;
+  --bf-chart-teal: #00c7be;
+  --bf-chart-yellow: #ffcc00;
 
   /* ---------- 状态四色 ---------- */
   --bf-success: #157f3d;
@@ -55,7 +64,7 @@
   --bf-warning-fg: #ffffff; /* 批 1 新槽位，只定义不消费 */
   --bf-danger: #c9372f;
   --bf-danger-fg: #ffffff; /* danger 实底按钮上文字 */
-  --bf-info: #0b6bcb;
+  --bf-info: #0064cc;
   --bf-info-fg: #ffffff; /* 批 1 新槽位，只定义不消费 */
 
   /* ---------- 状态软底（批 1 新槽位，只定义不消费——批 4 软底徽章/alert/toast 底） ---------- */
@@ -65,42 +74,49 @@
   --bf-info-surface: #e8f1fc;
 
   /* ---------- 遮罩 ---------- */
-  --bf-scrim: rgb(9 14 20 / 45%); /* modal 背板 */
+  --bf-scrim: rgb(0 0 0 / 45%); /* modal 背板 */
 
   color-scheme: light;
 }
 
-/* ---------- 暗色（§5.1 右列取值整组换入，纯换值） ---------- */
+/* ---------- 暗色（Penpot #333 壳 + white 4% card / 15% border） ---------- */
 
 [data-theme='dark'] {
-  --bf-sidebar: #0b0e13;
-  --bf-sidebar-2: #151b25;
-  --bf-sidebar-3: #1d2532;
-  --bf-sidebar-border: #1e2634;
-  --bf-sidebar-text: #e9edf3;
-  --bf-sidebar-text-2: #9aa4b2;
+  --bf-sidebar: #333333;
+  --bf-sidebar-2: #3b3b3b;
+  --bf-sidebar-3: #414141;
+  --bf-sidebar-border: #ffffff26;
+  --bf-sidebar-text: #ffffff;
+  --bf-sidebar-text-2: #c7c7cc;
 
-  --bf-bg: #12161d;
-  --bf-surface-1: #1a202a;
-  --bf-surface-2: #202834;
-  --bf-surface-3: #262f3d;
-  --bf-border: #2b3442;
-  --bf-border-strong: #414c5e;
-  --bf-text: #e9edf3;
-  --bf-text-2: #9aa4b2;
-  /* 弱化：同亮色调理由，上调至 surface-1 4.8:1 / bg 5.2:1。 */
-  --bf-text-muted: #7f8a99;
+  --bf-bg: #333333;
+  --bf-surface-1: #3b3b3b; /* #ffffff @4% over #333 */
+  --bf-surface-2: #414141; /* hover / secondary panel */
+  --bf-surface-3: #474747; /* input / drop zone */
+  --bf-border: #ffffff26;
+  --bf-border-strong: #6b6b70;
+  --bf-text: #ffffff;
+  --bf-text-2: #c7c7cc;
+  /* 弱化：模板 #ebebf5@60% 经可访问修正。 */
+  --bf-text-muted: #b0b0b5;
 
-  --bf-accent: #4aa3ff;
+  --bf-accent: #6cb2ff; /* 暗色链接/按钮文字可访问档 */
   --bf-accent-fg: #0b0e13;
 
-  --bf-ring: #4aa3ff;
+  --bf-ring: #6cb2ff;
+
+  --bf-chart-blue: #0a84ff;
+  --bf-chart-green: #30d158;
+  --bf-chart-red: #ff453a;
+  --bf-chart-purple: #bf5af2;
+  --bf-chart-teal: #63e6e2;
+  --bf-chart-yellow: #ffd60a;
 
   --bf-success: #3fbf6f;
   --bf-success-fg: #0b0e13;
   --bf-warning: #d9a23a;
   --bf-warning-fg: #0b0e13;
-  --bf-danger: #f0605d;
+  --bf-danger: #ff8a84; /* 暗色文字可访问档 */
   --bf-danger-fg: #0b0e13;
   --bf-info: #6cb2ff;
   --bf-info-fg: #0b0e13;

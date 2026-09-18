@@ -347,13 +347,14 @@ test('m-holder: covered repo editable (quota inline + editor), uncovered converg
     ).status,
   ).toBe(201)
 
-  // 列表：CapRepoRead 403 → L2（普通 user 无全量清单）
+  // 列表：manage 授权投影出 covered 可见集，other 不泄漏。
   await page.goto('/binflow/ui/admin/repositories/local')
   await expect(page.locator('[data-testid="repos-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="repos-empty-filtered"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="repos-table"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="repos-table"]')).toBeVisible()
+  await expect(page.locator(`[data-testid="repos-row-${covered}"]`)).toBeVisible()
+  await expect(page.locator(`[data-testid="repos-row-${other}"]`)).toHaveCount(0)
   await expect(page.locator('[data-testid="repos-create"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="empty-state"]').first()).toContainText('无权限')
 
   // 覆盖集内详情：可达（GET 走 CanManageRepo 读臂）+ 身份注记 + quota 可编辑
   await page.goto(`/binflow/ui/admin/repositories/${covered}`)

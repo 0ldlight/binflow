@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 订阅详情 / 最近投递记录抽屉（M13 T-366——P3 新栈重写：shadcn Sheet 右滑
 // 480 档；形态 = console-artifactory-parity 抽屉族通用规格）。
 // 「最近投递记录」= GET /event/api/v1/troubleshooting?subscription=<key>
@@ -13,7 +15,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { Button } from '@/components/ui/button'
+
 import { Badge } from '@/components/ui/badge'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
@@ -92,7 +94,7 @@ export default function SubscriptionDrawer({
             <span className="flex-1" />
             <Badge variant={sub.enabled ? 'tint-success' : 'tint-neutral'}>{sub.enabled ? tt('启用') : tt('停用')}</Badge>
             {sub.debug && <Badge variant="tint-neutral" mono lang="en">debug</Badge>}
-            <button
+            <Button
               type="button"
               aria-label={tt('关闭')}
               onClick={onClose}
@@ -100,7 +102,7 @@ export default function SubscriptionDrawer({
               className="grid size-7 place-items-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               ✕
-            </button>
+            </Button>
           </SheetTitle>
         </SheetHeader>
 
@@ -163,40 +165,40 @@ export default function SubscriptionDrawer({
           )}
           {phase.kind === 'ok' && phase.records.length > 0 && (
             <>
-              <table className="w-full text-dense" data-testid="wh-records-table">
-                <thead>
-                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                    <th scope="col" className="px-2 py-1.5 font-medium">{tt('时间')}</th>
-                    <th scope="col" className="px-2 py-1.5 font-medium">{tt('状态')}</th>
-                    <th scope="col" className="px-2 py-1.5 font-medium">{tt('事件')}</th>
-                    <th scope="col" className="px-2 py-1.5 text-right font-medium">{tt('耗时')}</th>
-                    <th scope="col" className="px-2 py-1.5 text-right font-medium">{tt('重试')}</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-dense" data-testid="wh-records-table">
+                <TableHeader>
+                  <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                    <TableHead scope="col" className="px-2 py-1.5 font-medium">{tt('时间')}</TableHead>
+                    <TableHead scope="col" className="px-2 py-1.5 font-medium">{tt('状态')}</TableHead>
+                    <TableHead scope="col" className="px-2 py-1.5 font-medium">{tt('事件')}</TableHead>
+                    <TableHead scope="col" className="px-2 py-1.5 text-right font-medium">{tt('耗时')}</TableHead>
+                    <TableHead scope="col" className="px-2 py-1.5 text-right font-medium">{tt('重试')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {phase.records.map((rec, i) => {
                     const st = recordStatus(rec)
                     return (
-                      <tr
+                      <TableRow
                         key={`${rec.timestamp}-${i}`}
                         data-testid={`wh-record-${i}`}
                         className="cursor-pointer border-b border-border/60 hover:bg-accent"
                         onClick={() => setExpanded(expanded === i ? null : i)}
                       >
-                        <td className="whitespace-nowrap px-2 py-1.5 font-mono text-aux" title={String(rec.timestamp)}>
+                        <TableCell className="whitespace-nowrap px-2 py-1.5 font-mono text-aux" title={String(rec.timestamp)}>
                           {formatMillis(rec.timestamp)}
-                        </td>
-                        <td className="px-2 py-1.5">
+                        </TableCell>
+                        <TableCell className="px-2 py-1.5">
                           <Badge variant={st.color}>{st.label}</Badge>
-                        </td>
-                        <td className="px-2 py-1.5 font-mono" lang="en">{rec.event.event_type}</td>
-                        <td className="px-2 py-1.5 text-right font-mono" lang="en">{rec.elapsed_millis}ms</td>
-                        <td className="px-2 py-1.5 text-right font-mono" lang="en">{rec.request.retries_attempted}</td>
-                      </tr>
+                        </TableCell>
+                        <TableCell className="px-2 py-1.5 font-mono" lang="en">{rec.event.event_type}</TableCell>
+                        <TableCell className="px-2 py-1.5 text-right font-mono" lang="en">{rec.elapsed_millis}ms</TableCell>
+                        <TableCell className="px-2 py-1.5 text-right font-mono" lang="en">{rec.request.retries_attempted}</TableCell>
+                      </TableRow>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
               {expanded !== null && phase.records[expanded] && (
                 <div className="rounded-md border border-border p-2" data-testid={`wh-record-payload-${expanded}`}>
                   <div className="mb-1 flex items-center gap-2">

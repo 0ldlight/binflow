@@ -1,3 +1,4 @@
+import { selectOptionValues } from '../support/shadcn'
 // P3 解锁面主干 spec（frontend-rewrite Phase 3——capability matrix 未列域
 // + #24/#25 解锁项的 e2e 对账）：
 // - keypair 页（新设）：列表四态（空态）、生成对话框字段集 + vault 拒答面
@@ -89,9 +90,7 @@ test.describe('P3 unlocked faces', () => {
     await expect(page.locator('[data-testid="outbox-filter-subscription"]')).toBeVisible()
     await expect(page.locator('[data-testid="outbox-filter-status"]')).toBeVisible()
     await expect(page.locator('[data-testid="outbox-filter-event-type"]')).toBeVisible()
-    const opts = await page.locator('[data-testid="outbox-filter-status"] option').evaluateAll((els) =>
-      (els as HTMLOptionElement[]).map((e) => e.value),
-    )
+    const opts = await selectOptionValues(page, '[data-testid="outbox-filter-status"]')
     expect(opts).toEqual(['', 'pending', 'delivering', 'delivered', 'dead'])
     // 净实例空态（重放语义注记挂在数据分支内——空态时不渲染，改由
     // 重放按钮门语义承载：空表零 outbox-replay-* 按钮）

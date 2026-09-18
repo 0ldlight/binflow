@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
 import { scanA11y } from './m8/support/a11y'
 
@@ -28,6 +29,7 @@ const ROUTES: Array<{
   name: string
   path: string
   ready?: string
+  prepare?: (page: Page) => Promise<void>
   mask?: string[]
   maxDiffPixels?: number
 }> = [
@@ -39,6 +41,7 @@ const ROUTES: Array<{
     // 实例卡存储字节计数随测试活动单调增长（数字位漂移非布局）
     maxDiffPixels: 12_000,
   },
+  { name: 'packages', path: '/binflow/ui/packages', ready: '[data-testid="packages-page"]' },
   { name: 'explorer', path: '/binflow/ui/artifacts', ready: '[data-testid="tree-page"]' },
   { name: 'search', path: '/binflow/ui/search' },
   { name: 'builds', path: '/binflow/ui/builds' },
@@ -52,7 +55,17 @@ const ROUTES: Array<{
   { name: 'groups', path: '/binflow/ui/admin/security/groups' },
   { name: 'permissions', path: '/binflow/ui/admin/security/permissions' },
   // 审计页顶行 = 本 spec 两次登录的滚动新事件（~2 行位移），预算容纳
-  { name: 'audit', path: '/binflow/ui/admin/governance/audit', maxDiffPixels: 4000 },
+  // 审计是 append-only 动态数据：基线钉住一个不存在仓库的空结果，保留
+  // 页头/过滤器/空态/表格骨架，遮蔽数据漂移而不放弃整页视觉。
+  {
+    name: 'audit',
+    path: '/binflow/ui/admin/governance/audit',
+    prepare: async (page) => {
+      await page.fill('[data-testid="audit-filter-repo"]', '__visual_baseline_no_such__')
+      await page.waitForTimeout(600)
+      await page.waitForLoadState('networkidle')
+    },
+  },
   // 存储页字节计数器随测试活动滚动（~40px 数字位）
   { name: 'storage', path: '/binflow/ui/admin/monitoring/storage', maxDiffPixels: 2_000 },
   // 服务状态页活体指标（uptime/内存）随实例重启与时间滚动
@@ -78,6 +91,8 @@ test('login page baseline (logged out)', async ({ page }) => {
 
 for (const theme of THEMES) {
   test(`app baseline (${theme})`, async ({ page, request }) => {
+  // 15 屏 × networkidle + 截图 + axe 双主题在冷启动时可能超过默认 180s。
+  test.setTimeout(300_000)
     // 会话走 API 直登（cookie 注入），UI 表单腿归 login/auth-shell 族——
     // 本 spec 只管像素与 axe，不重复交互断言。
     const res = await request.post('/binflow/api/v1/session', {
@@ -96,6 +111,7 @@ for (const theme of THEMES) {
       await page.goto(r.path)
       if (r.ready) await page.locator(r.ready).first().waitFor({ timeout: 15_000 })
       else await page.waitForLoadState('networkidle')
+      if (r.prepare) await r.prepare(page)
       await page.waitForTimeout(300) // 字体/过渡沉降
 
       await expect(page).toHaveScreenshot(`${r.name}-${theme}.png`, {

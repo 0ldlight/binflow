@@ -51,7 +51,7 @@ function DialogContent({ className, children, ...props }: ComponentProps<typeof 
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          'fixed top-1/2 left-1/2 z-[90] grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-surface-1 p-4 shadow-modal data-[state=open]:anim-fade-in data-[state=closed]:anim-fade-out',
+          'fixed top-1/2 left-1/2 z-[90] grid max-h-[calc(100vh-96px)] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-lg border border-border bg-surface-1 p-4 shadow-modal data-[state=open]:anim-fade-in data-[state=closed]:anim-fade-out',
           className,
         )}
         {...props}

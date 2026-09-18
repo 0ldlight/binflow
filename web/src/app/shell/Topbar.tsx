@@ -1,3 +1,6 @@
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 // 顶栏（新壳——architecture §4：面包屑/标题 · 全局搜索（驻留查询+最近词
 // +FE-P4 快速结果下拉）· 帮助 · 主题 · 用户菜单（Quick 动作仅全量 admin））。
 //
@@ -23,7 +26,6 @@ import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
-import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -38,8 +40,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/app/AuthContext'
-import { useTheme } from '@/app/providers'
-import { useConfirm } from '@/app/providers'
+import { useConfirm, useTheme } from '@/app/providers'
+
 import { BrandMark } from '@/components/BrandLogo'
 import { errText, isReadOnlyAdmin, quickArtifactSearch } from '@/lib/api'
 import type { QuickSearchHit } from '@/lib/api'
@@ -268,7 +270,7 @@ export function Topbar({
       {adminMode ? (
         <div className="search-entry relative flex min-w-[220px] max-w-[360px] items-center gap-2 rounded-md border border-input px-3 text-muted-foreground focus-within:border-ring hover:border-muted-foreground/50">
           <span aria-hidden="true">⌕</span>
-          <input
+          <Input
             ref={adminFilterRef}
             type="search"
             placeholder="Search Admin Resources…"
@@ -290,7 +292,7 @@ export function Topbar({
       ) : (
         <div className="search-entry relative flex min-w-[220px] max-w-[360px] items-center gap-2 rounded-md border border-input px-3 text-muted-foreground focus-within:border-ring hover:border-muted-foreground/50">
           <span aria-hidden="true">⌕</span>
-          <input
+          <Input
             ref={topbarSearchRef}
             type="search"
             placeholder={t('搜索制品…')}
@@ -320,7 +322,7 @@ export function Topbar({
                   <ul aria-label={t('快速结果')}>
                     {quickHits.map((hit, i) => (
                       <li key={`${hit.repo}/${hit.path}`}>
-                        <button
+                        <Button
                           type="button"
                           className="flex w-full items-baseline gap-2 rounded-sm px-2 py-1 text-left hover:bg-accent"
                           data-testid={`topbar-search-quick-item-${i}`}
@@ -336,7 +338,7 @@ export function Topbar({
                             <span className="text-muted-foreground">{hit.repo}/</span>
                             {hit.path}
                           </span>
-                        </button>
+                        </Button>
                       </li>
                     ))}
                   </ul>
@@ -345,7 +347,7 @@ export function Topbar({
               <div className="search-recent-head mb-1 flex items-center justify-between text-aux">
                 <span>{t('最近搜索')}</span>
                 {recent.length > 0 && (
-                  <button
+                  <Button
                     type="button"
                     className="copy-btn text-primary hover:underline"
                     data-testid="topbar-search-recent-clear"
@@ -362,14 +364,14 @@ export function Topbar({
                     }}
                   >
                     {t('清除历史')}
-                  </button>
+                  </Button>
                 )}
               </div>
               {recentList.length > 0 ? (
                 <ul className="search-recent-list" aria-label={t('最近搜索')}>
                   {recentList.map((q, i) => (
                     <li key={q}>
-                      <button
+                      <Button
                         type="button"
                         className={`w-full rounded-sm px-2 py-1 text-left font-mono text-dense hover:bg-accent ${i === recentActive ? 'active bg-accent' : ''}`}
                         data-testid={`topbar-search-recent-item-${i}`}
@@ -378,7 +380,7 @@ export function Topbar({
                         onClick={() => submitTopbarSearch(q)}
                       >
                         {q}
-                      </button>
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -446,7 +448,7 @@ export function Topbar({
       {/* 用户菜单（Quick 动作仅全量 admin） */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
+          <Button
             ref={sessionToggleRef}
             type="button"
             className="flex items-center gap-1.5 rounded-sm px-2 py-1 text-dense hover:bg-accent"
@@ -457,19 +459,20 @@ export function Topbar({
               {session?.username ?? ''}
             </span>
             {admin && !readOnlyAdmin && (
-              <span className="rounded-sm bg-secondary px-1.5 py-px text-[11px]">admin</span>
+              <Badge variant="tint-neutral" className="px-1.5 py-px">admin</Badge>
             )}
             {readOnlyAdmin && (
-              <span
-                className="rounded-sm bg-secondary px-1.5 py-px text-[11px]"
+              <Badge
+                variant="tint-neutral"
+                className="px-1.5 py-px"
                 data-testid="session-readonly-badge"
                 title={t('readonly_admin：管理面只读（服务端 403 兜底）')}
               >
                 {t('只读')}
-              </span>
+              </Badge>
             )}
             <span aria-hidden="true">▾</span>
-          </button>
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-[220px]">
           {admin && !readOnlyAdmin && (

@@ -1,3 +1,8 @@
+import { Button } from '@/components/ui/button'
+import { SelectField } from '@/components/layout/fields'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 // Explorer 左树（TanStack Virtual 虚拟化——architecture §7：TREE_LEVEL_CAP
 // +load-more 升级为真虚拟滚动；懒单层加载语义保留）。
 //
@@ -21,8 +26,6 @@ import { useRef } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { PkgIcon } from '@/components/PkgIcon'
@@ -283,11 +286,10 @@ export function TreePanel({
               ) : (
                 pkgTypes.map((t) => (
                   <Label key={t} className="flex cursor-pointer items-center gap-1.5 py-0.5 font-normal">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       className="size-3.5"
                       checked={pkgFacets.has(t)}
-                      onChange={() => onTogglePkg(t)}
+                      onCheckedChange={() => onTogglePkg(t)}
                       data-testid={`tree-facet-pkg-${t}`}
                     />
                     <span lang="en">{t}</span>
@@ -303,11 +305,10 @@ export function TreePanel({
           </Popover>
           {(['local', 'remote', 'virtual'] as const).map((rc) => (
             <Label key={rc} className="flex cursor-pointer items-center gap-1 font-normal" title={tt('仓库类型 {v1} 过滤（空选 = 不过滤）', { v1: rc })}>
-              <input
-                type="checkbox"
+              <Checkbox
                 className="size-3.5"
                 checked={rclassFacets.has(rc)}
-                onChange={() => onToggleRclass(rc)}
+                onCheckedChange={() => onToggleRclass(rc)}
                 data-testid={`tree-facet-rclass-${rc}`}
               />
               <span lang="en">{rc}</span>
@@ -315,41 +316,28 @@ export function TreePanel({
           ))}
         </div>
         <div className="toolband-row mt-1.5 flex flex-wrap items-center gap-2">
-          <select
+          <SelectField
             value={sortBy}
             onChange={(e) => onSort(e.target.value as TreeSort)}
             aria-label={tt('树排序（Sort by）')}
             data-testid="tree-sort-by"
             className="h-7 w-[128px] rounded-sm border border-input bg-surface-1 px-2 text-dense"
-          >
-            <option value="name">{tt('名称')}</option>
-            <option value="pkg">{tt('包类型')}</option>
-            <option value="rclass">{tt('仓库类型')}</option>
-          </select>
-          <div className="flex items-center gap-2" role="radiogroup" aria-label={tt('树视图密度（Tree View）')}>
+            options={[
+              { value: 'name', label: tt('名称') },
+              { value: 'pkg', label: tt('包类型') },
+              { value: 'rclass', label: tt('仓库类型') },
+            ]}
+          />
+          <RadioGroup className="flex items-center gap-2" aria-label={tt('树视图密度（Tree View）')} value={compacted ? 'compacted' : 'normal'} onValueChange={(next) => onCompacted(next === 'compacted')}>
             <Label className="flex cursor-pointer items-center gap-1 font-normal">
-              <input
-                type="radio"
-                name="tree-view-density"
-                className="size-3.5"
-                checked={compacted}
-                onChange={() => onCompacted(true)}
-                data-testid="tree-view-compacted"
-              />
+              <RadioGroupItem className="size-3.5" value="compacted" data-testid="tree-view-compacted" />
               <span title={tt('紧凑行高（Compacted）')}>{tt('紧凑')}</span>
             </Label>
             <Label className="flex cursor-pointer items-center gap-1 font-normal">
-              <input
-                type="radio"
-                name="tree-view-density"
-                className="size-3.5"
-                checked={!compacted}
-                onChange={() => onCompacted(false)}
-                data-testid="tree-view-normal"
-              />
+              <RadioGroupItem className="size-3.5" value="normal" data-testid="tree-view-normal" />
               <span title={tt('标准行高（Non-Compacted）')}>{tt('标准')}</span>
             </Label>
-          </div>
+          </RadioGroup>
         </div>
       </div>
 
@@ -359,9 +347,9 @@ export function TreePanel({
         {error && !forbidden && (
           <div className="px-3 py-2">
             <TreeDenied label={`${tt('加载失败（HTTP')} ${error.status}${tt('）')}`} title={error.message} />
-            <button type="button" className="mt-1 text-aux text-primary hover:underline" onClick={onRetry}>
+            <Button type="button" className="mt-1 text-aux text-primary hover:underline" onClick={onRetry}>
               {tt('重试')}
-            </button>
+            </Button>
           </div>
         )}
         {/* 403 优先于错误卡（t372/t492 家族契约：L2 收敛「⃠ 无权限列出

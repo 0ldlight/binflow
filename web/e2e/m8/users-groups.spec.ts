@@ -1,3 +1,4 @@
+import { expectSelectValue, selectShadcn } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
@@ -75,7 +76,7 @@ test('admin: create user with transfer membership, edit partitions, role dropdow
   // —— 编辑器：分区（用户设置/选项/口令/相关组）+ 角色 + 穿梭移出 ——
   await page.goto(`/binflow/ui/admin/security/users/${user}`)
   await expect(page.locator('[data-testid="user-form-email"]')).toHaveValue(`${user}@example.com`)
-  await expect(page.locator('[data-testid="user-form-role"]')).toHaveValue('user')
+  await expectSelectValue(page, '[data-testid="user-form-role"]', 'user')
   await expect(page.locator(`[data-testid="user-form-group-${group}"]`)).toBeChecked()
   // 无授权 → 空态文案（不是空表）
   await expect(page.locator('[data-testid="user-perm-matrix"]')).toHaveCount(0)
@@ -83,7 +84,7 @@ test('admin: create user with transfer membership, edit partitions, role dropdow
 
   await page.uncheck(`[data-testid="user-form-group-${group}"]`)
   await expect(page.locator('[data-testid="user-form-groups"] [data-testid="transfer-selected"]')).not.toContainText(group)
-  await page.selectOption('[data-testid="user-form-role"]', 'readonly_admin')
+  await selectShadcn(page, '[data-testid="user-form-role"]', 'readonly_admin')
   await page.click('[data-testid="user-form-submit"]')
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: `用户 ${user} 已更新` }).last()).toBeVisible({ timeout: 8000 })
   const got = await sessionApi(page, 'GET', `/api/security/users/${user}`)
@@ -217,7 +218,7 @@ test('readonly_admin: users/groups read-only walk, write replay stays 403 server
 
   // 用户编辑器：全编辑面禁用（角色下拉/启用/口令/穿梭/保存）
   await page.goto(`/binflow/ui/admin/security/users/${self}`)
-  await expect(page.locator('[data-testid="user-form-role"]')).toHaveValue('readonly_admin')
+  await expectSelectValue(page, '[data-testid="user-form-role"]', 'readonly_admin')
   await expect(page.locator('[data-testid="user-form-role"]')).toBeDisabled()
   await expect(page.locator('[data-testid="user-form-enabled"]')).toBeDisabled()
   await expect(page.locator('[data-testid="user-form-password"]')).toBeDisabled()

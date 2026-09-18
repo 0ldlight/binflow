@@ -1,3 +1,4 @@
+import { selectShadcn } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { Page, TestInfo } from '@playwright/test'
 
@@ -161,7 +162,7 @@ test('admin: used column hydrates from ONE usage batch — whole-page cap <= 3, 
   // 默认序把 m9 行推出第 1 页（>100 键在前）、desc 序让 t* 遗留独占第 1 页
   // （零 m9 行）——全量行序断言必须在完整窗口上做。页大小是纯客户端态
   // （本 spec 自己的论题），不触发任何请求、不影响下方 re-fire 计数。
-  await page.selectOption('[data-testid="repos-pager"] [data-testid="pager-size"]', '1000')
+  await selectShadcn(page, '[data-testid="repos-pager"] [data-testid="pager-size"]', '1000')
 
   // Every seeded row hydrated non-"—" (50 rows on the seed fixture).
   const cells = await usageCells(page)

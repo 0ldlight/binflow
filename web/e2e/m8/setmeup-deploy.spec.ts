@@ -1,3 +1,4 @@
+import { expectSelectValue, selectOptionValues, selectShadcn } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
@@ -82,7 +83,7 @@ test('setmeup: repo context opens the client drawer directly; mint + token-embed
   const dialog = page.locator('[data-testid="smu-dialog"]')
   await expect(dialog).toBeVisible()
   await expect(page.locator('[data-testid="smu-grid"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+  await expectSelectValue(page, '[data-testid="smu-repo"]', key)
   await expect(dialog).toContainText('配置 Generic 客户端')
 
   // T-382 抽屉形态：右侧 50vw 档 + 全高（v1.1 实测收口）
@@ -179,15 +180,13 @@ test('setmeup grid: package types = union of existing repos; back link returns t
   // 选 npm → 主面板；下拉只列 npm 仓
   await page.click('[data-testid="smu-grid-item-npm"]')
   await expect(page.locator('[data-testid="smu-repo"]')).toBeVisible()
-  const picked = await page.locator('[data-testid="smu-repo"]').inputValue()
+  const picked = await page.locator('[data-testid="smu-repo"]').getAttribute('data-value')
   const npmKeys = (await sessionApi(page, 'GET', '/api/repositories?packageType=npm'))
   expect(npmKeys.status).toBe(200)
   const npmKeyList = (npmKeys.json as { key: string }[]).map((r) => r.key)
   expect(npmKeyList.length).toBeGreaterThan(0)
   expect(npmKeyList).toContain(picked)
-  for (const opt of await page.locator('[data-testid="smu-repo"] option').evaluateAll((els) =>
-    els.map((e) => (e as HTMLOptionElement).value),
-  )) {
+  for (const opt of await selectOptionValues(page, '[data-testid="smu-repo"]')) {
     expect(npmKeyList).toContain(opt)
   }
 
@@ -212,7 +211,7 @@ test('setmeup step-up: 401 step_up_required -> inline password form; invalid -> 
   await page.goto('/binflow/ui/artifacts')
   await page.click(`[data-testid="tree-repo-${key}"]`)
   await page.click('[data-testid="tree-setmeup"]')
-  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+  await expectSelectValue(page, '[data-testid="smu-repo"]', key)
 
   // 拦截铸币端点：① 401 step_up_required（ADR 逐字）② 错口令 401
   // step_up_invalid（ADR 逐字）③ 放行到真实服务端（默认实例 step-up 关闭
@@ -282,7 +281,7 @@ test('setmeup step-up (real armed instance): full chain against the live gate', 
   await page.goto('/binflow/ui/artifacts')
   await page.click(`[data-testid="tree-repo-${key}"]`)
   await page.click('[data-testid="tree-setmeup"]')
-  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+  await expectSelectValue(page, '[data-testid="smu-repo"]', key)
 
   await page.click('[data-testid="smu-generate"]')
   await expect(page.locator('[data-testid="smu-stepup"]')).toBeVisible()
@@ -316,7 +315,7 @@ test('deploy dialog: drag-drop upload with special-char filenames; encoded echo;
   const dialog = page.locator('[data-testid="deploy-dialog"]')
   await expect(dialog).toBeVisible()
   await expect(dialog).toContainText('部署 Deploy')
-  await page.selectOption('[data-testid="deploy-repo"]', key)
+  await selectShadcn(page, '[data-testid="deploy-repo"]', key)
   // 包类型只读回显（§4.2 字段序）
   await expect(dialog).toContainText('Generic')
 
@@ -369,7 +368,7 @@ test('entry points: repositories list row and repo detail header open both dialo
   await page.goto('/binflow/ui/admin/repositories/local')
   await page.click(`[data-testid="repos-setmeup-${key}"]`)
   await expect(page.locator('[data-testid="smu-dialog"]')).toBeVisible()
-  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+  await expectSelectValue(page, '[data-testid="smu-repo"]', key)
   await expect(page).toHaveURL(/\/admin\/repositories\/local$/) // 未跳详情页
   // 遮罩关闭（抽屉族通用规格）：点抽屉外左侧遮罩 + 回焦启动元素（L02）
   const vw = page.viewportSize()?.width ?? 1280
@@ -381,7 +380,7 @@ test('entry points: repositories list row and repo detail header open both dialo
   // 仓库列表行：部署（generic local 行有 Deploy 入口）
   await page.click(`[data-testid="repos-deploy-${key}"]`)
   await expect(page.locator('[data-testid="deploy-dialog"]')).toBeVisible()
-  await expect(page.locator('[data-testid="deploy-repo"]')).toHaveValue(key)
+  await expectSelectValue(page, '[data-testid="deploy-repo"]', key)
   await page.keyboard.press('Escape')
   await expect(page.locator('[data-testid="deploy-dialog"]')).toHaveCount(0)
 
@@ -389,11 +388,11 @@ test('entry points: repositories list row and repo detail header open both dialo
   await page.goto(`/binflow/ui/admin/repositories/${key}`)
   await page.click('[data-testid="repo-setmeup"]')
   await expect(page.locator('[data-testid="smu-dialog"]')).toBeVisible()
-  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+  await expectSelectValue(page, '[data-testid="smu-repo"]', key)
   await page.keyboard.press('Escape')
   await page.click('[data-testid="repo-deploy"]')
   await expect(page.locator('[data-testid="deploy-dialog"]')).toBeVisible()
-  await expect(page.locator('[data-testid="deploy-repo"]')).toHaveValue(key)
+  await expectSelectValue(page, '[data-testid="deploy-repo"]', key)
   await page.keyboard.press('Escape')
   await expect(page.locator('[data-testid="deploy-dialog"]')).toHaveCount(0)
 })
@@ -439,7 +438,7 @@ test('axe: setmeup drawer (pills + main) clean in both themes; deploy dialog cle
     await page.goto(`/binflow/ui/artifacts/${key}`)
     await page.click(`[data-testid="tree-repo-${key}"]`)
     await page.click('[data-testid="tree-setmeup"]')
-    await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+    await expectSelectValue(page, '[data-testid="smu-repo"]', key)
     await page.click('[data-testid="smu-tab-resolve"]')
     await expect(page.locator('[data-testid="smu-pane-resolve"]')).toBeVisible()
     await settleDialog(page, '[data-testid="smu-dialog"]')

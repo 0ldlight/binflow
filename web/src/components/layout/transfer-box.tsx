@@ -9,6 +9,8 @@
 // （m9/users-groups 的 transfer-selected .transfer-item 选择器）。
 import type { ReactNode } from 'react'
 
+import { Checkbox } from '@/components/ui/checkbox'
+
 import { tr } from '@/i18n'
 
 const t = tr('security')
@@ -54,11 +56,10 @@ export function TransferBox({
       key={item.name}
       className="transfer-item flex min-h-7 cursor-pointer items-center gap-2 text-dense has-[input:disabled]:cursor-default has-[input:disabled]:opacity-70"
     >
-      <input
-        type="checkbox"
+      <Checkbox
         checked={checked}
         disabled={disabled}
-        onChange={(e) => onToggle(item.name, e.target.checked)}
+        onCheckedChange={(next) => onToggle(item.name, next === true)}
         {...(itemTestid?.(item.name) ? { 'data-testid': itemTestid(item.name) } : {})}
       />
       <span className="font-mono text-[0.95em]" lang="en">
