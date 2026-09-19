@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-09-19T14:53:22.503Z",
+  "capturedAt": "2026-09-19T23:28:23.481Z",
   "theme": "light",
   "pages": [
     {
@@ -51,8 +51,8 @@
       "incomplete": 1
     },
     {
-      "route": "repos-local",
-      "url": "http://127.0.0.1:5173/binflow/ui/admin/repositories/local",
+      "route": "repos",
+      "url": "http://127.0.0.1:5173/binflow/ui/admin/repositories",
       "violations": [
         {
           "id": "page-has-heading-one",
@@ -61,7 +61,7 @@
           "nodes": 1
         }
       ],
-      "passes": 43,
+      "passes": 46,
       "incomplete": 1
     },
     {
@@ -75,7 +75,7 @@
           "nodes": 1
         }
       ],
-      "passes": 38,
+      "passes": 41,
       "incomplete": 1
     },
     {
@@ -89,7 +89,7 @@
           "nodes": 1
         }
       ],
-      "passes": 38,
+      "passes": 41,
       "incomplete": 1
     },
     {

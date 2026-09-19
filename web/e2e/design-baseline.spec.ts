@@ -45,9 +45,30 @@ const ROUTES: Array<{
   { name: 'explorer', path: '/binflow/ui/artifacts', ready: '[data-testid="tree-page"]' },
   { name: 'search', path: '/binflow/ui/search' },
   { name: 'builds', path: '/binflow/ui/builds' },
-  { name: 'repos-local', path: '/binflow/ui/admin/repositories/local' },
-  { name: 'repos-remote', path: '/binflow/ui/admin/repositories/remote' },
-  { name: 'repos-virtual', path: '/binflow/ui/admin/repositories/virtual' },
+  {
+    name: 'repos',
+    path: '/binflow/ui/admin/repositories',
+    prepare: async (page) => {
+      await page.fill('[data-testid="repos-filter-key"]', 'm8-perf-local')
+      await page.waitForTimeout(300)
+    },
+  },
+  {
+    name: 'repos-remote',
+    path: '/binflow/ui/admin/repositories/remote',
+    prepare: async (page) => {
+      await page.fill('[data-testid="repos-filter-key"]', '__visual_baseline_no_such__')
+      await page.waitForTimeout(300)
+    },
+  },
+  {
+    name: 'repos-virtual',
+    path: '/binflow/ui/admin/repositories/virtual',
+    prepare: async (page) => {
+      await page.fill('[data-testid="repos-filter-key"]', '__visual_baseline_no_such__')
+      await page.waitForTimeout(300)
+    },
+  },
   { name: 'repo-new-local', path: '/binflow/ui/admin/repositories/local/new' },
   { name: 'repo-detail', path: '/binflow/ui/admin/repositories/demo-local' },
   // admin 行 lastLogin 秒级时间戳随本 spec 登录滚动——mask 该单元格

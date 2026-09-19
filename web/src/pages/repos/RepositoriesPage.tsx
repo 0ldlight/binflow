@@ -22,6 +22,8 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAuth } from '@/app/AuthContext'
 import { toast } from '@/lib/toast'
@@ -61,7 +63,10 @@ const PKG_LABEL: Record<string, string> = {
   pypi: 'PyPI',
 }
 
-const TABS: { id: RClass; label: string }[] = [
+type RepoFilter = RClass | 'all'
+
+const TABS: { id: RepoFilter; label: string }[] = [
+  { id: 'all', label: 'All Repositories' },
   { id: 'local', label: 'Local' },
   { id: 'remote', label: 'Remote' },
   { id: 'virtual', label: 'Virtual' },
@@ -69,7 +74,8 @@ const TABS: { id: RClass; label: string }[] = [
 
 const COLUMNS: ColumnDef[] = [
   { id: 'key', label: 'Repository Key', anchor: 'repos-columns-item-key' },
-  { id: 'package', label: tt('包类型'), anchor: 'repos-columns-item-package' },
+  { id: 'type', label: 'Repository Type', anchor: 'repos-columns-item-type' },
+  { id: 'package', label: 'Package Type', anchor: 'repos-columns-item-package' },
   { id: 'replications', label: 'Replications', anchor: 'repos-columns-item-replications' },
   { id: 'upstream', label: tt('上游 / 成员'), anchor: 'repos-columns-item-upstream' },
   { id: 'usage', label: tt('已用'), anchor: 'repos-columns-item-usage' },
@@ -77,11 +83,12 @@ const COLUMNS: ColumnDef[] = [
   { id: 'actions', label: tt('操作'), anchor: 'repos-columns-item-actions' },
 ]
 const COLUMN_IDS = COLUMNS.map((c) => c.id)
+const CREATE_TYPES: RClass[] = ['local', 'remote', 'virtual']
 const COLS_KEY = 'binflow-console-cols-repos'
 
-function tabFromPath(pathname: string): RClass {
+function repoFilterFromPath(pathname: string): RepoFilter {
   const seg = pathname.split('/').filter(Boolean).pop() ?? ''
-  return seg === 'remote' || seg === 'virtual' ? (seg as RClass) : 'local'
+  return seg === 'local' || seg === 'remote' || seg === 'virtual' ? (seg as RClass) : 'all'
 }
 
 function truncate(s: string, max = 36): string {
@@ -219,19 +226,20 @@ export default function RepositoriesPage() {
   const readOnly = isReadOnlyAdmin(session)
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  const tab = tabFromPath(pathname)
+  const repoFilter = repoFilterFromPath(pathname)
+  const [packageFilter, setPackageFilter] = useState('all')
 
   const [createOpen, setCreateOpen] = useState(false)
   const [keyQuery, setKeyQuery] = useState('')
-  const state = useAsync(() => getRepositoriesFiltered(tab, ''), [tab])
+  const state = useAsync(() => getRepositoriesFiltered(repoFilter === 'all' ? '' : repoFilter, packageFilter === 'all' ? '' : packageFilter), [repoFilter, packageFilter])
   const reload = state.reload
   const usage = useUsageBatch(state.status === 'ok')
   const repls = useAsync(
     () =>
-      (tab === 'local' || tab === 'remote') && state.status === 'ok'
+      (repoFilter === 'all' || repoFilter === 'local' || repoFilter === 'remote') && state.status === 'ok'
         ? listReplicationConfigs()
         : Promise.resolve(null),
-    [tab, state.status],
+    [repoFilter, state.status],
   )
   const replIndex = useMemo(() => {
     const m = new Map<string, ReplicationConfig[]>()
@@ -289,7 +297,11 @@ export default function RepositoriesPage() {
   }
 
   const q = keyQuery.trim().toLowerCase()
-  const rows = (state.data ?? []).filter((r) => (q ? r.key.toLowerCase().includes(q) : true))
+  const packageOptions = useMemo(
+    () => [...new Set((state.data ?? []).map((r) => r.packageType).filter(Boolean))].sort(),
+    [state.data],
+  )
+  const rows = (state.data ?? []).filter((r) => (repoFilter === 'all' || r.type === repoFilter) && (q ? r.key.toLowerCase().includes(q) : true))
   const sorted = [...rows].sort((a, b) => {
     if (!sortKey) return 0
     const va = sortKey === 'key' ? a.key : a.packageType
@@ -297,44 +309,44 @@ export default function RepositoriesPage() {
     if (va === vb) return 0
     return ((va < vb ? -1 : 1) * (sortDir === 'asc' ? 1 : -1)) as number
   })
-  const pageEpoch = `${state.status}|${sorted.length}|${q}|${sortKey ?? ''}|${sortDir}`
+  const pageEpoch = `${state.status}|${sorted.length}|${q}|${packageFilter}|${sortKey ?? ''}|${sortDir}`
   const pager = useClientPager(sorted.length, pageEpoch)
   const pageRows = pager.slice(sorted)
 
   return (
     <div data-testid="repos-page" className="flex flex-col gap-3">
       <div className="page-header flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold">{tt('仓库')}</h2>
+        <h2 className="text-lg font-semibold">Repositories</h2>
         <div className="repos-head-actions ml-auto flex items-center gap-2">
           <span className="repos-head-count text-aux text-muted-foreground" data-testid="repos-count">
-            {state.status === 'ok' ? tt('{v1} 个仓库', { v1: rows.length }) : '…'}
+            {state.status === 'ok' ? `${state.data?.length ?? 0} repositories` : '…'}
           </span>
           {admin && (
             <Popover open={createOpen} onOpenChange={setCreateOpen}>
               <PopoverTrigger asChild>
                 <Button size="sm" aria-haspopup="menu" aria-expanded={createOpen} title={tt('新建仓库——选择仓型后进入对应建仓表单')} data-testid="repos-create">
-                  {tt('＋ 新建仓库')}
+                  Create a Repository
                 </Button>
               </PopoverTrigger>
               {/* role="menu"：触发钮已声明 aria-haspopup="menu"——Radix
                   Popover 默认 role=dialog 且无名（axe aria-dialog-name），
                   三导航项补 menuitem（menu 子角色义务），L026-2 */}
               <PopoverContent className="w-64 p-1" align="end" role="menu" data-testid="repos-create-menu">
-                {TABS.map((t) => (
+                {CREATE_TYPES.map((id) => (
                   <Button
-                    key={t.id}
+                    key={id}
                     type="button"
                     role="menuitem"
-                    data-testid={`repos-create-${t.id}`}
+                    data-testid={`repos-create-${id}`}
                     className="block w-full rounded-sm px-2 py-2 text-left text-dense hover:bg-accent"
                     onClick={() => {
                       setCreateOpen(false)
-                      navigate(`/admin/repositories/${t.id}/new`)
+                      navigate(`/admin/repositories/${id}/new`)
                     }}
                   >
-                    <b>{REPO_CREATE_ENTRY[t.id].label}</b>
+                    <b>{REPO_CREATE_ENTRY[id].label}</b>
                     <br />
-                    <span className="text-aux text-muted-foreground">{REPO_CREATE_ENTRY[t.id].desc}</span>
+                    <span className="text-aux text-muted-foreground">{REPO_CREATE_ENTRY[id].desc}</span>
                   </Button>
                 ))}
               </PopoverContent>
@@ -349,36 +361,63 @@ export default function RepositoriesPage() {
         </p>
       )}
 
-      {/* Tab 条（子路由形态——Link 承载） */}
-      <div className="flex gap-1 border-b border-border">
-        {TABS.map((t) => (
-          <Link
-            key={t.id}
-            to={`/admin/repositories/${t.id}`}
-            aria-current={tab === t.id ? 'page' : undefined}
-            data-testid={`repos-tab-${t.id}`}
-            className={`-mb-px rounded-t-sm border-b-2 px-3 py-1.5 text-dense ${tab === t.id ? 'border-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-          >
-            {t.label}
-          </Link>
-        ))}
-      </div>
-
+      {/* Repository Type filter: URL keeps the existing local/remote/virtual
+          deep links while the Artifactory landing shows all repositories. */}
+      <Tabs
+        value={repoFilter}
+        onValueChange={(value) => {
+          const next = value as RepoFilter
+          navigate(next === 'all' ? '/admin/repositories' : `/admin/repositories/${next}`)
+        }}
+      >
+        <TabsList className="w-fit">
+          {TABS.map((t) => (
+            <TabsTrigger key={t.id} value={t.id} data-testid={`repos-tab-${t.id}`}>
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {TABS.map((t) => <TabsContent key={t.id} value={t.id} />)}
+      </Tabs>
       <div className="flex flex-wrap items-center gap-2 py-3">
         <Input
           type="search"
-          placeholder={tt('搜索 {v1} 仓 key…', { v1: TYPE_LABEL[tab] })}
+          placeholder="Search"
           value={keyQuery}
           onChange={(e) => setKeyQuery(e.target.value)}
-          className="w-[260px] font-mono"
+          className="w-[240px] font-mono"
           data-testid="repos-filter-key"
-          aria-label={tt('搜索仓库 key')}
+          aria-label="Search repository key"
         />
+        <Select value={packageFilter} onValueChange={setPackageFilter}>
+          <SelectTrigger className="w-[170px]" data-testid="repos-filter-package" aria-label="Package Type">
+            <SelectValue placeholder="Package Type" />
+          </SelectTrigger>
+          <SelectContent data-testid="repos-filter-package-menu">
+            <SelectItem value="all">All Package Types</SelectItem>
+            {packageOptions.map((type) => (
+              <SelectItem key={type} value={type}>{PKG_LABEL[type] ?? type}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {(keyQuery !== '' || packageFilter !== 'all') && (
+          <Button
+            variant="ghost"
+            size="sm"
+            data-testid="repos-filter-clear"
+            onClick={() => {
+              setKeyQuery('')
+              setPackageFilter('all')
+            }}
+          >
+            Clear all
+          </Button>
+        )}
         <span className="ml-auto flex items-center gap-1.5">
           <Popover open={colsOpen} onOpenChange={setColsOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" aria-haspopup="menu" aria-expanded={colsOpen} data-testid="repos-columns" title={tt('自定义显示列（偏好保存在本浏览器）')}>
-                <span aria-hidden="true">▤</span> {tt('列')} {cols.visibleCount}/{COLUMNS.length}
+                <span aria-hidden="true">▤</span> Columns {cols.visibleCount}/{COLUMNS.length}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-1" align="end" role="menu" data-testid="repos-columns-menu">
@@ -447,13 +486,20 @@ role="menuitem"
       )}
       {state.status === 'ok' &&
         (rows.length === 0 ? (
-          q !== '' ? (
+          q !== '' || packageFilter !== 'all' ? (
             <EmptyState
               illustration
-              message={tt('无匹配的仓库（「{keyQuery}」）', { keyQuery })}
+              message={tt('无匹配的仓库')}
               action={
-                <Button variant="outline" size="sm" onClick={() => setKeyQuery('')}>
-                  {tt('清除过滤')}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setKeyQuery('')
+                    setPackageFilter('all')
+                  }}
+                >
+                  Clear all
                 </Button>
               }
               testid="repos-empty-filtered"
@@ -461,22 +507,30 @@ role="menuitem"
           ) : admin ? (
             <EmptyState
               illustration
-              message={tt('还没有 {v1} 仓库', { v1: TYPE_LABEL[tab] })}
+              message={repoFilter === 'all' ? tt('还没有仓库') : tt('还没有 {v1} 仓库', { v1: TYPE_LABEL[repoFilter] })}
               action={
                 <ButtonAsChild size="sm">
-                  <Link to={`/admin/repositories/${tab}/new`}>{tt('创建第一个')}{TYPE_LABEL[tab]}{tt('仓库')}</Link>
+                  <Link to={repoFilter === 'all' ? '/admin/repositories/local/new' : `/admin/repositories/${repoFilter}/new`}>
+                    Create a Repository
+                  </Link>
                 </ButtonAsChild>
               }
               hint={
-                tab === 'local'
-                  ? tt('建议从 generic 起步（适配任意文件；协议仓按客户端接入文档选型）')
-                  : tab === 'remote'
-                    ? tt('Remote 仓代理上游（如 repo1.maven.org），制品按需缓存')
-                    : tt('Virtual 仓聚合多个 local/remote 成员，统一团队出口')
+                repoFilter === 'all'
+                  ? tt('建议从 generic Local 仓起步；Remote 代理上游，Virtual 聚合成员。')
+                  : repoFilter === 'local'
+                    ? tt('建议从 generic 起步（适配任意文件；协议仓按客户端接入文档选型）')
+                    : repoFilter === 'remote'
+                      ? tt('Remote 仓代理上游（如 repo1.maven.org），制品按需缓存')
+                      : tt('Virtual 仓聚合多个 local/remote 成员，统一团队出口')
               }
             />
           ) : (
-            <EmptyState illustration message={tt('还没有 {v1} 仓库', { v1: TYPE_LABEL[tab] })} hint={tt('仓库由管理员创建')} />
+            <EmptyState
+              illustration
+              message={repoFilter === 'all' ? tt('还没有仓库') : tt('还没有 {v1} 仓库', { v1: TYPE_LABEL[repoFilter] })}
+              hint={tt('仓库由管理员创建')}
+            />
           )
         ) : (
           <>
@@ -484,20 +538,21 @@ role="menuitem"
               <TableHeader>
                 <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
                   {cols.isVisible('key') && <SortTh label="Repository Key" k="key" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} testid="repos-sort-key" />}
-                  {cols.isVisible('package') && <SortTh label={tt('包类型')} k="package" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />}
-                  {(tab === 'local' || tab === 'remote') && cols.isVisible('replications') && (
+                  {cols.isVisible('type') && <TableHead scope="col" className="px-3 py-2 font-medium">Repository Type</TableHead>}
+                  {cols.isVisible('package') && <SortTh label="Package Type" k="package" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />}
+                  {(repoFilter === 'all' || repoFilter === 'local' || repoFilter === 'remote') && cols.isVisible('replications') && (
                     <TableHead
                       scope="col"
                       className="whitespace-nowrap px-3 py-2 font-medium"
-                      title={tab === 'remote' ? tt('push 复制配置（以该仓为源）——BinFlow 无 pull 复制（remote 缓存是另一能力域，ADR-0021/parity R10）') : tt('push 复制配置（以该仓为源）')}
+                      title={repoFilter === 'remote' ? tt('push 复制配置（以该仓为源）——BinFlow 无 pull 复制（remote 缓存是另一能力域，ADR-0021/parity R10）') : tt('push 复制配置（以该仓为源）')}
                     >
                       Replications
                     </TableHead>
                   )}
-                  {cols.isVisible('upstream') && <TableHead scope="col" className="px-3 py-2 font-medium">{tt('上游 / 成员')}</TableHead>}
-                  {cols.isVisible('usage') && <TableHead scope="col" className="px-3 py-2 font-medium">{tt('已用')}</TableHead>}
-                  {cols.isVisible('description') && <TableHead scope="col" className="px-3 py-2 font-medium">{tt('描述')}</TableHead>}
-                  {cols.isVisible('actions') && <TableHead scope="col" className="px-3 py-2 font-medium">{tt('操作')}</TableHead>}
+                  {cols.isVisible('upstream') && <TableHead scope="col" className="px-3 py-2 font-medium">Upstream / Members</TableHead>}
+                  {cols.isVisible('usage') && <TableHead scope="col" className="px-3 py-2 font-medium">Used</TableHead>}
+                  {cols.isVisible('description') && <TableHead scope="col" className="px-3 py-2 font-medium">Description</TableHead>}
+                  {cols.isVisible('actions') && <TableHead scope="col" className="px-3 py-2 font-medium">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -525,6 +580,9 @@ role="menuitem"
                         </span>
                       </TableCell>
                     )}
+                    {cols.isVisible('type') && (
+                      <TableCell className="px-3 py-1.5">{TYPE_LABEL[repo.type] ?? repo.type}</TableCell>
+                    )}
                     {cols.isVisible('package') && (
                       <TableCell className="px-3 py-1.5">
                         <span data-variant="tint-neutral" className="inline-flex items-center gap-1 rounded-sm bg-secondary px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-muted-foreground">
@@ -533,7 +591,7 @@ role="menuitem"
                         </span>
                       </TableCell>
                     )}
-                    {(tab === 'local' || tab === 'remote') && cols.isVisible('replications') && (
+                    {(repoFilter === 'all' || repoFilter === 'local' || repoFilter === 'remote') && cols.isVisible('replications') && (
                       <TableCell className="px-3 py-1.5">
                         <ReplicationsCell
                           repoKey={repo.key}

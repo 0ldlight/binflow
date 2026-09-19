@@ -45,7 +45,7 @@ administration_tree:
   top_level:
     - { ref: 1, label: All Projects Overview, children: [], bf_route: /dashboard, status: "semantic-adapter (BinFlow dashboard; Projects aggregate API gap)" }
     - { ref: 2, label: Stages & Lifecycle, children: [], bf_route: /bundles, status: "semantic-adapter (Release Bundle storage)" }
-    - { ref: 3, label: Repositories, children: [Repositories], bf_route: /admin/repositories/local, status: "implemented (reference all-repositories landing remains internal tab redirect)" }
+    - { ref: 3, label: Repositories, children: [Repositories], bf_route: /admin/repositories, status: "implemented (all-repositories landing, package-type filter, and direct type deep links)" }
     - ref: 4
       label: User Management
       children:
@@ -112,7 +112,7 @@ administration_tree:
         - { label: HTTP Settings, bf_route: null, status: disabled }
         - { label: Repository Imp/Exp, bf_route: null, status: disabled }
         - { label: System Imp/Exp, bf_route: null, status: disabled }
-        - { label: Repositories, bf_route: /admin/repositories/local, status: implemented }
+        - { label: Repositories, bf_route: /admin/repositories, status: implemented }
         - { label: Layouts, bf_route: null, status: disabled }
         - { label: Migration Tool, bf_route: null, status: disabled }
         - { label: Property Sets, bf_route: null, status: disabled }

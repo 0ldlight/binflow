@@ -171,7 +171,7 @@ test('entry: three-preset dropdown routes to split paths; /new compat maps; in-f
 // ② 列表列集：类型列收敛 + Replications 两 Tab + Project 缺位 + 行操作超集 --
 // ---------------------------------------------------------------------------
 
-test('columns: redundant type column collapsed; Replications on local+remote tabs (push-only); Project absent; row-action superset intact', async ({
+test('columns: Repository Type visible; Replications on local+remote tabs (push-only); Project absent; row-action superset intact', async ({
   page,
 }) => {
   const client = m8Client()
@@ -197,18 +197,15 @@ test('columns: redundant type column collapsed; Replications on local+remote tab
   await page.fill('[data-testid="repos-filter-key"]', local)
   await expect(page.locator(`[data-testid="repos-row-${local}"]`)).toBeVisible({ timeout: 30_000 })
 
-  // 类型列收敛（Q9）：7 列闭集、无「类型」表头；列选菜单项同步退役；
-  // Project 列缺位负断言（不伪造——B-3.9/§9A-S8）
+  // Artifactory all-repositories landing keeps Repository Type directly
+  // visible; Project remains absent because BinFlow has no Projects API field.
   const th = page.locator('[data-testid="repos-table"] thead th')
-  await expect(th).toHaveCount(7)
+  await expect(th).toHaveCount(8)
   // 「类型」列收敛：精确整格匹配（「包类型」列含「类型」子串——子串负断言会假红）
-  await expect(th.filter({ hasText: /^类型$/ })).toHaveCount(0)
+  await expect(th.filter({ hasText: 'Repository Type' })).toHaveCount(1)
   await expect(th.filter({ hasText: /^Project$/ })).toHaveCount(0)
   await page.click('[data-testid="repos-columns"]')
-  // 列选项「类型」退役（文案级负断言——锚已随列退役，不以退役锚反断言）
-  await expect(
-    page.locator('[data-testid="repos-columns-menu"]').getByText(/^类型$/, { exact: true }),
-  ).toHaveCount(0)
+  await expect(page.getByTestId('repos-columns-item-type')).toBeVisible()
   await page.keyboard.press('Escape')
 
   // 行操作超集维持（L2/E1 豁免零倒退）：Set Me Up / 部署（local × generic）/

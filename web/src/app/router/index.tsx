@@ -217,7 +217,7 @@ export const appRoutes: RouteObject[] = [
 
           // —— 仓库域（P2 新实现）——
           { path: 'admin', element: <Navigate to="/admin/repositories" replace /> },
-          { path: 'admin/repositories', element: <Navigate to="/admin/repositories/local" replace /> },
+          { path: 'admin/repositories', element: lazyEl(RepositoriesPage) },
           { path: 'admin/repositories/local', element: lazyEl(RepositoriesPage) },
           { path: 'admin/repositories/remote', element: lazyEl(RepositoriesPage) },
           { path: 'admin/repositories/virtual', element: lazyEl(RepositoriesPage) },

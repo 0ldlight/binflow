@@ -56,7 +56,7 @@ test('Artifactory-aligned shell remains directly usable', async ({ page }) => {
   expect(await texts(nav.locator('.app-nav-items a.nav-item'))).toEqual(APP_ORDER)
 
   await page.click('[data-testid="nav-mode-administration"]')
-  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local/)
+  await expect(page).toHaveURL('/binflow/ui/admin/repositories')
   await expect(nav).toHaveAttribute('data-mode', 'administration')
   await expect(page.locator('[data-testid="nav-mode-administration"]')).toHaveAttribute('aria-current', 'page')
   expect(await texts(nav.locator('.app-nav-items .nav-group-label'))).toEqual(ADMIN_SECTIONS)

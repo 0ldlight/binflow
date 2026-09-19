@@ -74,7 +74,7 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     id: 'repositories',
     label: 'Repositories',
-    items: [item('repositories', 'Repositories', '/admin/repositories/local', Boxes, 'admin-sight')],
+    items: [item('repositories', 'Repositories', '/admin/repositories', Boxes, 'admin-sight')],
   },
   {
     id: 'user-management',
