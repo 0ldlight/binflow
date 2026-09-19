@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-09-18T07:44:31.976Z",
+  "capturedAt": "2026-09-19T04:33:13.143Z",
   "theme": "light",
   "pages": [
     {
@@ -18,8 +18,14 @@
     },
     {
       "route": "explorer",
-      "url": "http://127.0.0.1:5173/binflow/ui/artifacts/m8-perf-local",
+      "url": "http://127.0.0.1:5173/binflow/ui/artifacts/a11y-mu7vun7kv181",
       "violations": [
+        {
+          "id": "empty-table-header",
+          "impact": "minor",
+          "help": "Table header text should not be empty",
+          "nodes": 1
+        },
         {
           "id": "heading-order",
           "impact": "moderate",
@@ -27,7 +33,7 @@
           "nodes": 1
         }
       ],
-      "passes": 45,
+      "passes": 46,
       "incomplete": 1
     },
     {

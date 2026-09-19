@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Penpot Dashboard UI Kit token gate：锁定 2026-09-18 Apple Design 复审通过的关键值。
+// Design token gate：Penpot structure + BinFlow black-and-white monochrome.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -11,18 +11,15 @@ const radius = read('tokens/radius.css')
 const spacing = read('tokens/spacing.css')
 const shadow = read('tokens/shadow.css')
 const bridge = read('tailwind.css')
+const pkgIcon = fs.readFileSync(path.join(root, '../components/pkg-icon.css'), 'utf8')
 const expected = [
-  [color, '--bf-bg: #f5f5f6', 'light canvas'],
+  [color, '--bf-bg: #f5f5f5', 'light canvas'],
   [color, '--bf-sidebar: #ffffff', 'light sidebar'],
-  [color, '--bf-border: #0000001a', 'light border'],
-  [color, '--bf-accent: #0064cc', 'accessible light interactive blue'],
+  [color, '--bf-accent: #171717', 'black light interactive accent'],
   [color, "[data-theme='dark']", 'dark theme'],
-  [color, '--bf-bg: #333333', 'dark canvas'],
-  [color, '--bf-surface-1: #3b3b3b', 'dark surface'],
-  [color, '--bf-border: #ffffff26', 'dark border'],
-  [color, '--bf-accent: #6cb2ff', 'accessible dark interactive blue'],
-  [color, '--bf-danger: #ff8a84', 'accessible dark danger text'],
-  [color, '--bf-chart-blue: #007aff', 'source chart blue'],
+  [color, '--bf-bg: #0a0a0a', 'dark canvas'],
+  [color, '--bf-surface-1: #171717', 'dark surface'],
+  [color, '--bf-accent: #ffffff', 'white dark interactive accent'],
   [radius, '--bf-r-sm: 8px', 'control radius'],
   [radius, '--bf-r-lg: 12px', 'card radius'],
   [radius, '--bf-r-xl: 16px', 'large-card radius'],
@@ -33,10 +30,17 @@ const expected = [
   [bridge, '--color-chart-blue: var(--bf-chart-blue)', 'chart bridge'],
   [bridge, '--radius-xl: var(--bf-r-xl)', 'radius bridge'],
   [bridge, '--spacing-dashboard: var(--bf-sp-dashboard)', 'spacing bridge'],
+  [pkgIcon, "filter: grayscale(1)", 'grayscale package icons'],
 ]
-const failures = expected.filter(([source, needle]) => !source.includes(needle)).map(([, , name]) => name)
+const failures = expected.filter(([source, needle]) => !source.includes(needle)).map(([, name]) => name)
+const hexes = [...color.matchAll(/#[0-9a-f]{6}/gi)].map((m) => m[0])
+const colored = hexes.filter((hex) => {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16)
+  return Math.max(r, g, b) - Math.min(r, g, b) > 2
+})
+if (colored.length) failures.push(`non-grayscale token literal: ${colored.join(', ')}`)
 if (failures.length) {
-  console.error(`assert-penpot: FAIL\n${failures.join('\n')}`)
+  console.error(`assert-design: FAIL\n${failures.join('\n')}`)
   process.exit(1)
 }
-console.log('assert-penpot: OK — Dashboard UI Kit token contract is intact')
+console.log('assert-design: OK — Penpot structure + black-and-white token contract is intact')

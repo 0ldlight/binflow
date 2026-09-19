@@ -6,7 +6,7 @@
 ## 0. 不可变契约（重写全程红线，违反即停）
 
 1. **挂载**：`/binflow/ui/**`（SPA shell）+ `/binflow/assets/**`（共享指纹资产）；`vite base=/binflow/ui/` 与 `BrowserRouter basename=/binflow/ui` 双真值同步。
-2. **构建链七步语义**：assert-penpot → assert-shadcn → assert-tokens → assert-i18n → vite build → relink-assets → wire-brand-assets——每步自校验语义等值保留（实现可换，语义不可降）。
+2. **构建链七步语义**：assert-design → assert-shadcn → assert-tokens → assert-i18n → vite build → relink-assets → wire-brand-assets——每步自校验语义等值保留（实现可换，语义不可降）。
 3. **入口名**：`npm run dev / build / typecheck / lint / e2e`；root `make console`（npm ci → build → 拷贝 → embed → console-size 5MB 警告）。
 4. **i18n 机制**：zh-as-key + common 路由 + en 懒 chunk + reload 切换 + assert-i18n 三道闸（零硬编码 CJK / 键集同构 / manifest 对账）。
 5. **URL 深链不猝死**：树页签段+文件末段、builds/bundles 三视图、search ?q/mode/scope、?started= 消歧、?section= 直落——新路由结构保持这些 URL 形态。

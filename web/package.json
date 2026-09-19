@@ -6,17 +6,17 @@
   "description": "BinFlow web console (vite + React + TS, ADR-0014 decision 4). Built by `make console` and embedded into the single binary via internal/console/dist.",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/assert-penpot.mjs && node scripts/assert-shadcn.mjs && node scripts/assert-tokens.mjs && node scripts/assert-i18n.mjs && vite build && node scripts/relink-assets.mjs && node scripts/wire-brand-assets.mjs",
-    "build:styleguide": "node scripts/assert-penpot.mjs && node scripts/assert-shadcn.mjs && node scripts/assert-tokens.mjs && node scripts/assert-i18n.mjs && vite build --mode styleguide && node scripts/relink-assets.mjs && node scripts/wire-brand-assets.mjs",
+    "build": "node scripts/assert-design.mjs && node scripts/assert-shadcn.mjs && node scripts/assert-tokens.mjs && node scripts/assert-i18n.mjs && vite build && node scripts/relink-assets.mjs && node scripts/wire-brand-assets.mjs",
+    "build:styleguide": "node scripts/assert-design.mjs && node scripts/assert-shadcn.mjs && node scripts/assert-tokens.mjs && node scripts/assert-i18n.mjs && vite build --mode styleguide && node scripts/relink-assets.mjs && node scripts/wire-brand-assets.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test:unit": "node --test src/lib/utils/cn.test.ts",
-    "lint": "eslint . && node scripts/assert-penpot.mjs && node scripts/assert-shadcn.mjs && node scripts/assert-i18n.mjs",
+    "lint": "eslint . && node scripts/assert-design.mjs && node scripts/assert-shadcn.mjs && node scripts/assert-i18n.mjs",
     "assert:tokens": "node scripts/assert-tokens.mjs",
     "e2e": "playwright test",
     "assert:i18n": "node scripts/assert-i18n.mjs",
     "assert:shadcn": "node scripts/assert-shadcn.mjs",
-    "assert:penpot": "node scripts/assert-penpot.mjs"
+    "assert:design": "node scripts/assert-design.mjs"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.18",

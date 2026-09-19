@@ -76,6 +76,16 @@
 - 源文件包含 ChartMotion 组件，但静态导出不含运动参数。
 - 修正：不猜测弹簧参数。已有 Dialog/Drawer/Toast token 动效保持 120–240ms fade/pop/slide；图表进入只做 opacity/小幅 translate，\`prefers-reduced-motion\` 全部 1ms。
 
+## 2026-09-19 Monochrome 复审
+
+用户终裁整体配色为黑白。修正如下：
+
+- Penpot 结构、密度、圆角、间距、阴影继续生效。
+- 交互色改为亮色黑 / 暗色白，全部满足 AA。
+- 状态、包型、图表全部黑白灰；语义必须同时由文案、图标、形状或位置表达。
+- `assert-design.mjs` 拒绝任何非灰阶 token literal。
+- 本节取代 2026-09-18 复审中的彩色交互映射；源模板色彩仅保留在审计证据中。
+
 ## 实现复审（2026-09-18）
 
 Token patch 已按 A1–A7 落地：

@@ -32,5 +32,5 @@ node web/scripts/assert-shadcn.mjs
 - `npm run typecheck`：通过。
 - `npm run lint`：0 error（存量 React hooks warnings 46 条，非本迁移引入；assert-shadcn/assert-i18n 通过）。
 - `npm run test:unit`：7/7 通过。
-- `npm run build` / `make console`：通过，构建链先执行 assert-penpot 与 assert-shadcn。
+- `npm run build` / `make console`：通过，构建链先执行 assert-design 与 assert-shadcn。
 - Playwright 生产二进制目标通过：styleguide、shell/a11y sweep、repositories、permissions、users/groups、tree、search pager、governance、repo policy、Set Me Up/Deploy、Webhooks、keyboard/focus trap 等关键族。

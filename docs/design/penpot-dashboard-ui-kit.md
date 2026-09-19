@@ -1,5 +1,9 @@
 # Penpot Dashboard UI Kit 源规格与 BinFlow 映射
 
+## 0. 2026-09-19 色彩终裁
+
+用户裁定 **BinFlow 整体配色为黑白**。本文保留官方模板色彩观测作为事实源，但其中“BinFlow 映射决策”里的彩色映射已由 [monochrome-ui-compliance.md](./monochrome-ui-compliance.md) 取代：结构、密度、圆角、间距与阴影仍对齐 Dashboard UI Kit，色彩统一为黑白灰，状态语义不得依赖颜色。
+
 ## 1. 事实源
 
 - 官方源文件：[Dashboard UI Kit - Dashboard, Free Admin Dashboard (Community)](https://penpot.github.io/penpot-files/Dashboard%20UI%20Kit%20-%20Dashboard%2C%20Free%20Admin%20Dashboard%20(Community).penpot)
