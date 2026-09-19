@@ -225,37 +225,23 @@ test('system logs: plain user 403 -> L2 card and tail auto-pauses', async ({ pag
 // ③ 导航分组（B-2.18）：监控组六页 + Webhooks 常规组 + 旧深链折入
 // ---------------------------------------------------------------------------
 
-test('Artifactory tree: monitoring and settings pages remain reachable; legacy URLs fold', async ({ page }) => {
+test('Artifactory-aligned sections remain directly reachable; legacy URLs fold', async ({ page }) => {
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/admin/monitoring/storage')
   await expect(page.locator('[data-testid="storage-page"]')).toBeVisible()
 
-  // 7.161 tree: Monitoring and Artifactory Settings are ordered parent
-  // flyouts. BinFlow implements the in-scope service faces; unavailable
-  // enterprise faces stay explicit disabled gaps.
-  await page.hover('[data-testid="nav-entry-monitoring"]')
-  const monitoring = page.getByTestId('nav-menu-monitoring')
-  await expect(monitoring.getByTestId('nav-entry-service-status')).toBeVisible()
-  await expect(monitoring.getByTestId('nav-entry-storage')).toBeVisible()
-  await expect(monitoring.getByTestId('nav-entry-system-logs')).toBeVisible()
-  await expect(monitoring.getByTestId('nav-gap-log-analytics')).toBeDisabled()
-  await expect(monitoring.getByTestId('nav-gap-federation-status')).toBeDisabled()
+  // Artifactory section order is retained, while all implemented BinFlow faces
+  // stay direct links. Reference-only enterprise faces do not pollute the nav.
+  for (const id of ['service-status', 'storage', 'system-logs', 'system-info']) {
+    await expect(page.getByTestId(`nav-entry-${id}`)).toBeVisible()
+  }
+  for (const id of ['maintenance', 'backups']) {
+    await expect(page.getByTestId(`nav-entry-${id}`)).toBeVisible()
+  }
+  await expect(page.locator('[data-testid^="nav-gap-"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid^="nav-menu-"]')).toHaveCount(0)
 
-  // Bring the lower reference parent into the sidebar scroll window via the
-  // top-bar filter; its implemented child remains under the ordered parent.
-  const filterBox = page.locator('[data-testid="admin-filter"]')
-  await filterBox.fill('Maintenance')
-  await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveCount(1)
-  await page.hover('[data-testid="nav-entry-artifactory-settings"]')
-  const settings = page.getByTestId('nav-menu-artifactory-settings')
-  await expect(settings.getByTestId('nav-entry-maintenance')).toBeVisible()
-  await filterBox.fill('')
-  await expect(settings.getByTestId('nav-entry-backups')).toBeVisible()
-  await expect(settings.getByTestId('nav-gap-config-descriptor')).toBeDisabled()
-  await expect(page.locator('[data-testid="wh-page"]')).toHaveCount(0) // extension entry is visible before navigation
-  // 四条旧深链 replace 折入新址（T-434 ?focus= 同款一轮兼容窗）。
-  // L026-2 重锚：general/settings 自 P3 起折 /admin/monitoring/settings
-  //（Settings 真身新设页——旧兼容期曾折 system-info，router 归位留痕）
+  // Four legacy deep links retain their compatibility folds.
   const folds: [string, string][] = [
     ['/admin/general/settings', '/admin/monitoring/settings'],
     ['/admin/governance/gc', '/admin/monitoring/gc'],
@@ -267,7 +253,6 @@ test('Artifactory tree: monitoring and settings pages remain reachable; legacy U
     await expect(page).toHaveURL(`/binflow/ui${to}`, { timeout: 10_000 })
   }
 
-  // 新路由页锚逐页到达
   await page.goto('/binflow/ui/admin/monitoring/status')
   await expect(page.locator('[data-testid="status-page"]')).toBeVisible()
   await page.goto('/binflow/ui/admin/monitoring/logs')
@@ -275,6 +260,7 @@ test('Artifactory tree: monitoring and settings pages remain reachable; legacy U
   await page.goto('/binflow/ui/admin/monitoring/system-info')
   await expect(page.locator('[data-testid="settings"]')).toBeVisible()
 })
+
 
 // ---------------------------------------------------------------------------
 // ④ 侧栏 Search Admin Resources 过滤框（B-2.18——7.161 活体：管理态顶栏）
@@ -295,18 +281,18 @@ test('admin filter: filters sidebar entries, hides empty groups, Esc clears', as
   // disappear without reordering the tree.
   await box.fill('Backups')
   await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveCount(1)
-  await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveText(/Artifactory Settings/)
+  await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveText('Backups')
   await expect(page.locator('[data-testid="app-nav"] .nav-group-label')).toHaveCount(1)
-  await expect(page.locator('[data-testid="app-nav"] .nav-group-label')).toHaveText('Administration')
+  await expect(page.locator('[data-testid="app-nav"] .nav-group-label')).toHaveText('Artifactory Settings')
 
   // 无匹配：注记 + 空侧栏如实反馈
   await box.fill('zzz-none')
   await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveCount(0)
   await expect(page.locator('[data-testid="admin-filter-empty"]')).toBeVisible()
 
-  // Esc restores all 18 link-bearing admin/extension entries; disabled reference gaps remain buttons.
+  // Esc restores all 20 direct administration/extension destinations.
   await box.press('Escape')
-  await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveCount(13)
+  await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveCount(20)
   await expect(page.locator('[data-testid="admin-filter-empty"]')).toHaveCount(0)
 
   // ⌘K = 命令面板（FE-P4 A1——CommandPalette 独占）；`/` 聚焦当前模式的框

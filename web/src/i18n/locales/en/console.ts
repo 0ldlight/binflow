@@ -215,7 +215,6 @@ registerEn('console', {
   "version 不能是裸 -SNAPSHOT": "version must not be a bare -SNAPSHOT",
   "version 不能为空": "version is required",
   "xray_scan_status（Xray，Non-goal）": "xray_scan_status (Xray, non-goal)",
-  "Artifactory 入口在册；BinFlow 对应页面/API 尚缺": "Artifactory entry is registered; the matching BinFlow page/API is not available yet",
   "平台模式": "Platform mode",
   "Packages": "Packages",
   "按包类型浏览真实仓库目录": "Browse the real repository catalog by package type",

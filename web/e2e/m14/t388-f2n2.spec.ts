@@ -29,16 +29,16 @@ test.beforeEach(async ({ request }) => {
 
 // ---- 1. N2 侧栏一级条目图标（身份表 + mono currentColor） ----------------------
 
-test('N2: ordered nav entries carry 16px mono icons (currentColor)', async ({ page }) => {
+test('N2: direct nav entries carry 16px mono icons (currentColor)', async ({ page }) => {
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/admin/repositories/local')
   const nav = page.locator('[data-testid="app-nav"]')
 
-  // Administration exposes 12 reference top-level links plus the terminal
-  // BinFlow extension group. Five reference gaps are disabled buttons, not links.
-  await expect(nav.locator('a.nav-item')).toHaveCount(13)
-  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(13)
-  const visibleIcons = ['repositories', 'user-management', 'authentication', 'security', 'general-management', 'monitoring', 'artifactory-settings', 'quotas', 'replication', 'trash', 'audit-log', 'webhooks', 'license-addons']
+  // Every visible administration destination is a real link; reference-only
+  // gaps are intentionally kept in nav-parity.yaml, not rendered as dead UI.
+  await expect(nav.locator('a.nav-item')).toHaveCount(20)
+  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(20)
+  const visibleIcons = ['repositories', 'users', 'groups', 'permissions', 'access-tokens', 'ldap', 'signing-keys', 'general-settings', 'service-status', 'storage', 'system-logs', 'system-info', 'maintenance', 'backups', 'quotas', 'replication', 'trash', 'audit-log', 'webhooks', 'license-addons']
   for (const icon of visibleIcons) {
     await expect(nav.locator(`[data-testid="nav-entry-${icon}"] [data-testid="nav-icon"]`)).toHaveAttribute('data-icon', icon)
   }
@@ -51,20 +51,14 @@ test('N2: ordered nav entries carry 16px mono icons (currentColor)', async ({ pa
   expect(stroke, 'icon stroke follows entry text color (currentColor)').toBe(color)
   await expect(probe).toHaveAttribute('aria-hidden', 'true')
   expect(await probe.evaluate((n) => getComputedStyle(n).width)).toBe('16px')
-
-  // Child flyout items keep the same icon slot and identity contract.
-  await page.hover('[data-testid="nav-entry-user-management"]')
-  const menu = page.getByTestId('nav-menu-user-management')
-  await expect(menu.locator('[data-testid="nav-icon"]')).toHaveCount(5)
-  await expect(menu.locator('[data-testid="nav-icon"][data-icon="users"]')).toHaveAttribute('data-icon', 'users')
-
   await expect(nav.locator('.nav-group-label [data-testid="nav-icon"]')).toHaveCount(0)
+
   await page.click('[data-testid="nav-entry-audit-log"]')
   await expect(page.locator('[data-testid="audit-page"]')).toBeVisible()
   await expect(nav.locator('a.nav-item.active [data-testid="nav-icon"][data-icon="audit-log"]')).toBeVisible()
 
   await page.click('[data-testid="nav-mode-platform"]')
-  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(4)
+  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(5)
   await expect(nav.locator('[data-testid="nav-icon"][data-icon="packages"]')).toBeVisible()
   await expect(nav.locator('[data-testid="nav-icon"][data-icon="artifacts"]')).toBeVisible()
 })

@@ -67,7 +67,7 @@ export function CommandPalette() {
     ...group,
     items: flattenNavItems(group.items).filter((item) => {
       if (item.visibility !== 'all' && !canSeeAdmin) return false
-      return !!item.to && !item.disabled
+      return true
     }),
   })).filter((group) => group.items.length > 0)
 

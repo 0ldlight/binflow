@@ -1,9 +1,7 @@
-import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 
 import { BrandMark } from '@/components/BrandLogo'
 import { Button, ButtonAsChild } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { getLocale, setLocale, tr } from '@/i18n'
 import type { Locale } from '@/i18n'
@@ -16,65 +14,18 @@ const LOCALE_LABEL_ZH = '中文' // i18n-allow
 const navLinkClass =
   'nav-item flex h-8 items-center gap-2.5 rounded-sm border-l-2 border-transparent px-2.5 text-dense text-sidebar-foreground/80 transition-colors hover:bg-sidebar-hover hover:text-sidebar-foreground [&.active]:border-l-primary [&.active]:bg-sidebar-active [&.active]:font-medium [&.active]:text-sidebar-foreground'
 
-function DisabledNavEntry({ entry }: { entry: NavItem }) {
+function NavEntry({ entry }: { entry: NavItem }) {
   return (
-    <Button
-      type="button"
-      disabled
-      aria-disabled="true"
-      className={cn(navLinkClass, 'w-full justify-start border-l-transparent px-2.5 font-normal text-sidebar-muted-foreground')}
-      data-testid={`nav-gap-${entry.id}`}
-      title={t('Artifactory 入口在册；BinFlow 对应页面/API 尚缺')}
-    >
-      <entry.icon className="nav-icon size-4 shrink-0" aria-hidden="true" data-testid="nav-icon" data-icon={entry.id} />
-      {entry.label}
-    </Button>
-  )
-}
-
-function NavEntry({ entry, onOpen, openId }: { entry: NavItem; onOpen: (id: string | null) => void; openId: string | null }) {
-  if (entry.disabled || !entry.to) return <DisabledNavEntry entry={entry} />
-
-  const link = (
     <NavLink
       to={entry.to}
       end={entry.end}
       className={navLinkClass}
       title={entry.label}
       data-testid={`nav-entry-${entry.id}`}
-      onMouseEnter={() => entry.children?.length && onOpen(entry.id)}
-      onFocusCapture={() => entry.children?.length && onOpen(entry.id)}
-      onBlurCapture={() => onOpen(null)}
-      onKeyDown={(event) => {
-        if (entry.children?.length && (event.key === 'ArrowRight' || event.key === 'ArrowDown')) {
-          event.preventDefault()
-          onOpen(entry.id)
-        }
-      }}
-      aria-expanded={entry.children?.length ? openId === entry.id : undefined}
     >
       <entry.icon className="nav-icon size-4 shrink-0" aria-hidden="true" data-testid="nav-icon" data-icon={entry.id} />
       <span className="min-w-0 flex-1 truncate">{entry.label}</span>
-      {entry.children?.length ? <span aria-hidden="true" className="text-sidebar-muted-foreground">›</span> : null}
     </NavLink>
-  )
-  if (!entry.children?.length) return link
-  return (
-    <Popover open={openId === entry.id} onOpenChange={(open) => onOpen(open ? entry.id : null)}>
-      <PopoverTrigger asChild>{link}</PopoverTrigger>
-      <PopoverContent
-        side="right"
-        align="start"
-        sideOffset={4}
-        className="w-64 p-1"
-        data-testid={`nav-menu-${entry.id}`}
-        onMouseEnter={() => onOpen(entry.id)}
-        onMouseLeave={() => onOpen(null)}
-        onBlur={() => onOpen(null)}
-      >
-        {entry.children.map((child) => <NavEntry key={child.id} entry={child} onOpen={onOpen} openId={openId} />)}
-      </PopoverContent>
-    </Popover>
   )
 }
 
@@ -94,7 +45,6 @@ export function Sidebar({
   adminFilter?: string
 }) {
   const locale = getLocale()
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const platformActive = mode === 'platform'
 
   return (
@@ -157,7 +107,7 @@ export function Sidebar({
               {group.label}
             </div>
             {group.items.map((entry) => (
-              <NavEntry key={entry.id} entry={entry} onOpen={setOpenMenuId} openId={openMenuId} />
+              <NavEntry key={entry.id} entry={entry} />
             ))}
           </div>
         ))}

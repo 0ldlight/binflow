@@ -22,7 +22,7 @@ test.beforeEach(async ({ request }) => {
 })
 
 /** Artifactory 7.161 application menu order (normative English labels). */
-const APP_ENTRIES = ['packages', 'builds', 'artifacts', 'release-lifecycle'] as const
+const APP_ENTRIES = ['packages', 'builds', 'artifacts', 'release-lifecycle', 'dashboard'] as const
 
 /** Existing BinFlow admin capabilities remain route-reachable after IA alignment. */
 const ADMIN_ROUTE_ANCHORS: [string, string][] = [
@@ -85,7 +85,6 @@ test('readonly_admin: sees ordered admin tree, readonly badge, no quick-create w
   await page.goto('/binflow/ui/admin/governance/audit')
   await expect(page.locator('[data-testid="audit-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="app-nav"]')).toHaveAttribute('data-mode', 'administration')
-  await expect(page.getByTestId('nav-gap-proxies')).toBeDisabled()
 
   await page.click('[data-testid="session-toggle"]')
   await expect(page.locator('[data-testid="quick-set-me-up"]')).toHaveCount(0)

@@ -1,25 +1,43 @@
 import { expect, test } from '@playwright/test'
 import { loginAs, provisionRoles } from './m8/support/roles'
 
-const APP_ORDER = ['Packages', 'Builds', 'Artifacts', 'Release Lifecycle']
-const ADMIN_ORDER = [
-  'All Projects Overview',
-  'Stages & Lifecycle',
+const ARTIFACTORY_APP_ORDER = ['Packages', 'Builds', 'Artifacts', 'Release Lifecycle']
+const APP_ORDER = [...ARTIFACTORY_APP_ORDER, 'Dashboard']
+const ADMIN_SECTIONS = [
   'Repositories',
   'User Management',
-  'Proxies',
   'Authentication',
   'Security',
   'General Management',
   'Monitoring',
-  'Topology',
-  'Support Zone',
   'Artifactory Settings',
+  'BinFlow Extensions',
 ]
-const USER_MANAGEMENT_ORDER = ['Users', 'Groups', 'Permissions', 'Global Roles', 'Access Tokens']
+const ADMIN_ITEMS = [
+  'Repositories',
+  'Users',
+  'Groups',
+  'Permissions',
+  'Access Tokens',
+  'LDAP',
+  'Signing Keys',
+  'Settings',
+  'Service Status',
+  'Storage',
+  'System Logs',
+  'System Info',
+  'Maintenance',
+  'Backups',
+  'Quotas',
+  'Replication',
+  'Trash',
+  'Audit Log',
+  'Webhooks',
+  'License & Add-ons',
+]
 
 async function texts(locator: import('@playwright/test').Locator): Promise<string[]> {
-  return (await locator.allTextContents()).map((value) => value.trim().replace(/\s*›$/, ''))
+  return (await locator.allTextContents()).map((value) => value.trim())
 }
 
 test.beforeEach(async ({ request }) => {
@@ -28,7 +46,7 @@ test.beforeEach(async ({ request }) => {
   await provisionRoles()
 })
 
-test('Artifactory shell: exact app order, mode switch, admin tree, hover/focus flyout', async ({ page }) => {
+test('Artifactory-aligned shell remains directly usable', async ({ page }) => {
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/packages')
   const nav = page.locator('[data-testid="app-nav"]')
@@ -41,33 +59,17 @@ test('Artifactory shell: exact app order, mode switch, admin tree, hover/focus f
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local/)
   await expect(nav).toHaveAttribute('data-mode', 'administration')
   await expect(page.locator('[data-testid="nav-mode-administration"]')).toHaveAttribute('aria-current', 'page')
-  const adminItems = await texts(nav.locator('.app-nav-items .nav-item'))
-  expect(adminItems.slice(0, ADMIN_ORDER.length)).toEqual(ADMIN_ORDER)
-  // Superset capabilities stay terminal and clearly labeled, never interleaved.
-  expect(adminItems.slice(ADMIN_ORDER.length)).toEqual(['Quotas', 'Replication', 'Trash', 'Audit Log', 'Webhooks', 'License & Add-ons'])
-  await expect(page.getByTestId('nav-gap-proxies')).toBeDisabled()
+  expect(await texts(nav.locator('.app-nav-items .nav-group-label'))).toEqual(ADMIN_SECTIONS)
+  expect(await texts(nav.locator('.app-nav-items a.nav-item'))).toEqual(ADMIN_ITEMS)
+  await expect(page.locator('[data-testid^="nav-gap-"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid^="nav-menu-"]')).toHaveCount(0)
+  await expect(page.getByTestId('nav-entry-trash')).toBeVisible()
 
-  // Parent focus opens the same ordered flyout as hover; Global Roles remains
-  // an explicit disabled reference gap rather than a fake route.
-  // Keyboard traversal opens the same flyout: Administration → All Projects
-  // Overview → Stages → Repositories → User Management.
-  await page.evaluate(() => {
-    document.querySelector('[data-testid="nav-entry-user-management"]')?.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }),
-    )
-  })
-  const menu = page.getByTestId('nav-menu-user-management')
-  await expect(menu).toBeVisible()
-  expect(await texts(menu.locator('.nav-item'))).toEqual(USER_MANAGEMENT_ORDER)
-  await expect(menu.getByTestId('nav-gap-global-roles')).toBeDisabled()
-
-  // Administration filtering preserves reference order and removes non-matches.
+  // Filtering finds a direct destination and keeps its Artifactory section.
   await page.fill('[data-testid="admin-filter"]', 'Backups')
   await expect(page.locator('[data-testid="admin-filter-empty"]')).toHaveCount(0)
-  expect(await texts(nav.locator('.app-nav-items .nav-item'))).toEqual(['Artifactory Settings'])
-  await page.hover('[data-testid="nav-entry-artifactory-settings"]')
-  await expect(page.getByTestId('nav-menu-artifactory-settings')).toBeVisible()
-  expect(await texts(page.getByTestId('nav-menu-artifactory-settings').locator('.nav-item'))).toEqual(['Backups'])
+  expect(await texts(nav.locator('.app-nav-items .nav-group-label'))).toEqual(['Artifactory Settings'])
+  expect(await texts(nav.locator('.app-nav-items a.nav-item'))).toEqual(['Backups'])
 
   await page.fill('[data-testid="admin-filter"]', '')
   await page.click('[data-testid="nav-mode-platform"]')
@@ -75,7 +77,7 @@ test('Artifactory shell: exact app order, mode switch, admin tree, hover/focus f
   await expect(nav).toHaveAttribute('data-mode', 'platform')
 })
 
-test('plain user sees only the Artifactory app menu and cannot enter Administration', async ({ page }) => {
+test('plain user sees usable app entries and cannot enter Administration', async ({ page }) => {
   await loginAs(page, 'user')
   await page.goto('/binflow/ui/packages')
   const nav = page.locator('[data-testid="app-nav"]')
