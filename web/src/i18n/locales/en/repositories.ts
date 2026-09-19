@@ -423,4 +423,5 @@ registerEn('repositories', {
   "virtual 仓至少需要一个成员": "A virtual repository needs at least one member",
   "yumGroupFileNames（comps 组文件清单）": "yumGroupFileNames (comps group file list)",
   "yumRootDepth（repodata 根深度）": "yumRootDepth (repodata root depth)",
+  "新建仓库": "New Repository",
 })

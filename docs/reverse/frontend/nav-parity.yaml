@@ -1,0 +1,146 @@
+# Artifactory 7.161 main-menu / administration-tree parity matrix
+#
+# Scope decision (2026-09-19): visual palette remains BinFlow monochrome; information
+# architecture, menu order, labels, and mode interaction follow Artifactory. This matrix
+# deliberately does not import the JFrog platform product entries outside Artifactory.
+#
+# Evidence:
+#   E4-DOM  docs/reverse/frontend/parity-capture/dom-snapshots/sidebar.html
+#   E4-CAT  docs/reverse/frontend/parity-capture/**/screens-catalog.json (body/selected)
+#   E4-OCR  parity-capture/screenshots/screens/{packages,builds,migration-tool}.png
+#           (local Vision OCR; used only to corroborate DOM order)
+#   E2      docs/reverse/frontend/routes.yaml
+# Runtime versions remain separately recorded in feat-inventory.yaml; do not collapse them.
+
+meta:
+  reference_modes:
+    platform_app: "Platform mode / Artifactory application menu"
+    administration: "Administration mode / Artifactory-scoped platform administration tree"
+  implementation_rule:
+    - "Exact Artifactory label and sibling order are normative."
+    - "BinFlow-only capabilities remain available in a terminal BinFlow Extensions group, not interleaved with reference entries."
+    - "A reference entry with no BinFlow route/API renders disabled and keeps its reference label; it never links to an unrelated capability."
+    - "Server permissions remain authoritative; presentation filtering never replaces authorization."
+
+app_menu:
+  mode_entry: Platform
+  product: Artifactory
+  order:
+    - { ref: 1, label: Packages, ref_route: /ui/packages, bf_route: /packages, status: implemented }
+    - { ref: 2, label: Builds, ref_route: /ui/builds, bf_route: /builds, status: implemented }
+    - { ref: 3, label: Artifacts, ref_route: /ui/repos/tree/General, bf_route: /artifacts, status: "implemented (internal path alias)" }
+    - { ref: 4, label: Release Lifecycle, ref_route: /ui/artifactory/release-lifecycle, bf_route: /bundles, status: "partial (release-bundle capability present; aggregate lifecycle fields/API remain backend-gap)" }
+  excluded_platform_products:
+    - { label: Xray, reason: outside Artifactory-only scope }
+    - { label: Distribution, reason: outside Artifactory-only scope; Release Lifecycle is the in-scope Artifactory entry }
+    - { label: AI/ML, reason: outside scope }
+    - { label: Pipelines, reason: outside scope }
+    - { label: Integrations, reason: outside scope unless separately authorized }
+
+administration_tree:
+  mode_entry: Administration
+  # Top-level order is exactly the E4 admin sidebar body order.
+  top_level:
+    - { ref: 1, label: All Projects Overview, children: [], bf_route: /dashboard, status: "semantic-adapter (BinFlow dashboard; Projects aggregate API gap)" }
+    - { ref: 2, label: Stages & Lifecycle, children: [], bf_route: /bundles, status: "semantic-adapter (Release Bundle storage)" }
+    - { ref: 3, label: Repositories, children: [Repositories], bf_route: /admin/repositories/local, status: "implemented (reference all-repositories landing remains internal tab redirect)" }
+    - ref: 4
+      label: User Management
+      children:
+        - { label: Users, bf_route: /admin/security/users, status: implemented }
+        - { label: Groups, bf_route: /admin/security/groups, status: implemented }
+        - { label: Permissions, bf_route: /admin/security/permissions, status: implemented }
+        - { label: Global Roles, bf_route: null, status: "disabled (Projects API/UI gap)" }
+        - { label: Access Tokens, bf_route: /admin/security/tokens, status: implemented }
+      bf_route: /admin/security/users
+      status: partial
+    - ref: 5
+      label: Proxies
+      children: []
+      bf_route: null
+      status: disabled
+    - ref: 6
+      label: Authentication
+      children:
+        - { label: LDAP, bf_route: /admin/security/auth/ldap, status: implemented }
+        - { label: OAuth SSO, bf_route: null, status: disabled }
+        - { label: SAML SSO, bf_route: null, status: disabled }
+        - { label: HTTP SSO, bf_route: null, status: disabled }
+        - { label: Crowd / JIRA, bf_route: null, status: disabled }
+        - { label: SCIM, bf_route: null, status: disabled }
+      bf_route: /admin/security/auth/ldap
+      status: partial
+    - ref: 7
+      label: Security
+      children:
+        - { label: General, bf_route: null, status: disabled }
+        - { label: Keys Management, bf_route: null, status: disabled }
+        - { label: Signing Keys, bf_route: /admin/security/keypair, status: implemented }
+        - { label: Trusted Keys, bf_route: null, status: disabled }
+        - { label: Certificates, bf_route: null, status: disabled }
+        - { label: Vault, bf_route: null, status: disabled }
+      bf_route: /admin/security/keypair
+      status: partial
+    - ref: 8
+      label: General Management
+      children:
+        - { label: Settings, bf_route: /admin/monitoring/settings, status: "semantic-adapter" }
+        - { label: Mail Server, bf_route: null, status: disabled }
+      bf_route: /admin/monitoring/settings
+      status: partial
+    - ref: 9
+      label: Monitoring
+      children:
+        - { label: Service Status, bf_route: /admin/monitoring/status, status: implemented }
+        - { label: Storage, bf_route: /admin/monitoring/storage, status: implemented }
+        - { label: System Logs, bf_route: /admin/monitoring/logs, status: implemented }
+        - { label: Log Analytics, bf_route: null, status: disabled }
+        - { label: Artifactory Logs, bf_route: null, status: "disabled (same process-log API, reference-specific face gap)" }
+        - { label: Federation Status, bf_route: null, status: disabled }
+      bf_route: /admin/monitoring/storage
+      status: partial
+    - { ref: 10, label: Topology, children: [], bf_route: null, status: disabled }
+    - { ref: 11, label: Support Zone, children: [], bf_route: null, status: disabled }
+    - ref: 12
+      label: Artifactory Settings
+      children:
+        - { label: General Settings, bf_route: /admin/monitoring/settings, status: "semantic-adapter" }
+        - { label: Artifactory Security, bf_route: null, status: disabled }
+        - { label: Packages Settings, bf_route: null, status: disabled }
+        - { label: HTTP Settings, bf_route: null, status: disabled }
+        - { label: Repository Imp/Exp, bf_route: null, status: disabled }
+        - { label: System Imp/Exp, bf_route: null, status: disabled }
+        - { label: Repositories, bf_route: /admin/repositories/local, status: implemented }
+        - { label: Layouts, bf_route: null, status: disabled }
+        - { label: Migration Tool, bf_route: null, status: disabled }
+        - { label: Property Sets, bf_route: null, status: disabled }
+        - { label: Maven Indexer, bf_route: null, status: disabled }
+        - { label: Config Descriptor, bf_route: null, status: disabled }
+        - { label: Security Descriptor, bf_route: null, status: disabled }
+        - { label: Maintenance, bf_route: /admin/monitoring/gc, status: implemented }
+        - { label: Backups, bf_route: /admin/monitoring/backup, status: implemented }
+        - { label: Retention Policies, bf_route: null, status: disabled }
+        - { label: User Plugins, bf_route: null, status: disabled }
+      bf_route: /admin/monitoring/settings
+      status: partial
+
+binflow_extensions:
+  rationale: "Preserve BinFlow-only capabilities without perturbing the reference sibling order."
+  order:
+    - { label: Quotas, bf_route: /admin/governance/quotas }
+    - { label: Replication, bf_route: /admin/governance/replication }
+    - { label: Trash, bf_route: /admin/governance/trash }
+    - { label: Audit Log, bf_route: /admin/governance/audit }
+    - { label: Webhooks, bf_route: /admin/general/webhooks }
+    - { label: License & Add-ons, bf_route: /admin/general/license }
+
+mode_interaction:
+  - { action: Show Platform, behavior: "select Platform mode and navigate to Artifactory Packages", bf_test: artifactory-shell.spec.ts }
+  - { action: Show Administration, behavior: "select Administration mode and expose the ordered administration tree", bf_test: artifactory-shell.spec.ts }
+  - { action: Open parent flyout, behavior: "hover/focus a parent with children; child labels/order must match this matrix; gaps stay disabled", bf_test: artifactory-shell.spec.ts }
+  - { action: Filter administration resources, behavior: "top-bar search filters visible administration tree entries and preserves reference order", bf_test: artifactory-shell.spec.ts }
+
+known_divergences:
+  - route_names: "BinFlow keeps existing stable internal routes in this shell batch; reference-shaped route aliases are a separate compatibility decision."
+  - projects_plane: "All Projects Overview and Global Routes have no BinFlow Projects backend and remain explicit gaps."
+  - pro_enterprise_faces: "Pro/enterprise-only faces remain disabled rather than being faked."

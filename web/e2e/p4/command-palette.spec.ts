@@ -59,9 +59,9 @@ test('palette: filter narrows nav groups, Enter navigates', async ({ page }) => 
   await expect(page.locator('[data-testid="palette-root"]')).toBeVisible()
 
   // 过滤词收窄：审计日志（Administration 面——admin 资源过滤语义并入的可见性证据）
-  await page.keyboard.type('审计')
-  await expect(page.locator('[data-testid="palette-item-nav-audit"]')).toBeVisible()
-  await expect(page.locator('[data-testid="palette-item-nav-dashboard"]')).toHaveCount(0)
+  await page.keyboard.type('Audit')
+  await expect(page.locator('[data-testid="palette-item-nav-audit-log"]')).toBeVisible()
+  await expect(page.locator('[data-testid="palette-item-nav-all-projects-overview"]')).toHaveCount(0)
 
   // Enter 键盘激活 → URL 落位
   await page.keyboard.press('Enter')
@@ -90,7 +90,7 @@ test('palette: actions navigate, theme item toggles, AI entry disabled', async (
   const before = await page.evaluate(() => document.documentElement.dataset.theme)
   await page.keyboard.press('Control+k')
   await page.keyboard.type('主题')
-  await page.locator('[data-testid="palette-item-theme"]').click()
+  await page.keyboard.press('Enter')
   await expect(page.locator('[data-testid="palette-root"]')).toHaveCount(0)
   const after = await page.evaluate(() => document.documentElement.dataset.theme)
   expect(after).not.toBe(before)
@@ -118,7 +118,7 @@ test('palette: plain user sees no admin nav/actions; axe clean both themes', asy
   await expect(page.locator('[data-testid="palette-item-new-repo-local"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="palette-item-nav-users"]')).toHaveCount(0)
   // 应用域导航在场
-  await expect(page.locator('[data-testid="palette-item-nav-dashboard"]')).toBeVisible()
+  await expect(page.locator('[data-testid="palette-item-nav-packages"]')).toBeVisible()
   await expectA11yClean(page, testInfo, { include: '[data-testid="palette-root"]' })
 
   // 暗色复扫
@@ -127,6 +127,8 @@ test('palette: plain user sees no admin nav/actions; axe clean both themes', asy
     localStorage.setItem('binflow-console-theme', 'dark')
   })
   await page.reload()
+  await expect(page.locator('[data-testid="topbar-search"]')).toBeVisible()
+  await page.locator('[data-testid="topbar-search"]').focus()
   await page.keyboard.press('Control+k')
   await expect(page.locator('[data-testid="palette-root"]')).toBeVisible()
   await expectA11yClean(page, testInfo, { include: '[data-testid="palette-root"]' })

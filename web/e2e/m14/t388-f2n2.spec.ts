@@ -29,74 +29,46 @@ test.beforeEach(async ({ request }) => {
 
 // ---- 1. N2 侧栏一级条目图标（身份表 + mono currentColor） ----------------------
 
-/** 一级条目 → 图标身份闭集（FE-Rewrite P2 nav-model NAV_GROUPS 接线表——
- *  Lucide 图标族，身份属性 = 条目 id；旧 MUI material 名表随 NavIcons 退役） */
-const ADMIN_ICON: [string, string][] = [
-  ['仓库', 'repositories'],
-  ['用户', 'users'],
-  ['组', 'groups'],
-  ['权限', 'permissions'],
-  ['Access Tokens', 'tokens'],
-  ['签名密钥', 'keypair'],
-  ['认证配置', 'auth'],
-  ['审计日志', 'audit'],
-  ['维护（GC）', 'gc'],
-  ['配额', 'quotas'],
-  ['复制', 'replication'],
-  ['备份 / 恢复', 'backup'],
-  ['回收站', 'trash'],
-  ['Webhooks', 'webhooks'],
-  ['存储', 'storage'],
-  ['系统信息', 'system-info'],
-  ['License & Add-ons', 'license'],
-]
-
-test('N2: first-level nav entries carry 16px mono icons (identity closed set, currentColor)', async ({
-  page,
-}) => {
+test('N2: ordered nav entries carry 16px mono icons (currentColor)', async ({ page }) => {
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/admin/repositories/local')
   const nav = page.locator('[data-testid="app-nav"]')
 
-  // 16/16 身份逐一钉死（接线表闭集——错一枚即红）
-  for (const [label, icon] of ADMIN_ICON) {
-    const entry = nav.locator(`a.nav-item:text-is("${label}")`)
-    const el = entry.locator('[data-testid="nav-icon"]')
-    await expect(el, `${label} icon`).toHaveCount(1)
-    await expect(el).toHaveAttribute('data-icon', icon)
-    await expect(el).toHaveAttribute('aria-hidden', 'true')
-    // 槽位 16px
-    expect(await el.evaluate((n) => getComputedStyle(n).width)).toBe('16px')
+  // Administration exposes 12 reference top-level links plus the terminal
+  // BinFlow extension group. Five reference gaps are disabled buttons, not links.
+  await expect(nav.locator('a.nav-item')).toHaveCount(13)
+  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(13)
+  const visibleIcons = ['repositories', 'user-management', 'authentication', 'security', 'general-management', 'monitoring', 'artifactory-settings', 'quotas', 'replication', 'trash', 'audit-log', 'webhooks', 'license-addons']
+  for (const icon of visibleIcons) {
+    await expect(nav.locator(`[data-testid="nav-entry-${icon}"] [data-testid="nav-icon"]`)).toHaveAttribute('data-icon', icon)
   }
 
-  // mono currentColor：L026-2 重锚——fe-rewrite 后图标族 = Lucide SVG
-  // （fill="none" + stroke="currentColor"，live 实测 dev.b79a2d51）；描边
-  // 计算值 = 条目文字色（随文字色，含默认态）
-  const probe = nav.locator('a.nav-item:text-is("仓库") [data-testid="nav-icon"]')
+  const probe = nav.locator('[data-testid="nav-entry-repositories"] [data-testid="nav-icon"]')
   const [stroke, color] = await probe.evaluate((n) => {
     const cs = getComputedStyle(n)
     return [cs.stroke, cs.color]
   })
   expect(stroke, 'icon stroke follows entry text color (currentColor)').toBe(color)
+  await expect(probe).toHaveAttribute('aria-hidden', 'true')
+  expect(await probe.evaluate((n) => getComputedStyle(n).width)).toBe('16px')
 
-  // 档位反面：分组标签无图标（V5：仅一级条目——模式切换概念已随双模式退役）
+  // Child flyout items keep the same icon slot and identity contract.
+  await page.hover('[data-testid="nav-entry-user-management"]')
+  const menu = page.getByTestId('nav-menu-user-management')
+  await expect(menu.locator('[data-testid="nav-icon"]')).toHaveCount(5)
+  await expect(menu.locator('[data-testid="nav-icon"][data-icon="users"]')).toHaveAttribute('data-icon', 'users')
+
   await expect(nav.locator('.nav-group-label [data-testid="nav-icon"]')).toHaveCount(0)
-
-  // active 行图标在场（高亮不改图标档——结构断言，不断言视觉）
-  await page.click('a.nav-item:text-is("审计日志")')
+  await page.click('[data-testid="nav-entry-audit-log"]')
   await expect(page.locator('[data-testid="audit-page"]')).toBeVisible()
-  await expect(
-    page.locator('a.nav-item.active [data-testid="nav-icon"][data-icon="audit"]'),
-  ).toBeVisible()
+  await expect(nav.locator('a.nav-item.active [data-testid="nav-icon"][data-icon="audit-log"]')).toBeVisible()
 
-  // 核心组条目同档（dashboard / artifacts；T-492 B-3.2 前缀断言）；四分组
-  // 壳下全景 26 图标（admin 视野全表）
-  await page.click('a.nav-item:text-is("制品")')
-  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
-  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(26)
-  await expect(nav.locator('[data-testid="nav-icon"][data-icon="dashboard"]')).toBeVisible()
+  await page.click('[data-testid="nav-mode-platform"]')
+  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(4)
+  await expect(nav.locator('[data-testid="nav-icon"][data-icon="packages"]')).toBeVisible()
   await expect(nav.locator('[data-testid="nav-icon"][data-icon="artifacts"]')).toBeVisible()
 })
+
 
 // ---- 2. F2 插画槽形态（尺寸/位置/CTA 关系 + 双空形态） ------------------------
 

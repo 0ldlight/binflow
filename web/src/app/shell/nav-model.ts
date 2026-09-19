@@ -1,22 +1,13 @@
-// 侧栏 IA 模型（frontend-rewrite-architecture §4：四分组 + 权限可见性）
-// ——页面路由全部保持现 URL（IA 重组=侧栏分组重组非路由重组）。
-//
-// 分组重排裁定（architecture §4）：应用⇄管理双模式概念并入四分组——
-// Core / Operations / Security / Administration；去掉模式切换（分组即
-// 模式，权限门控可见性替代 nav-mode-switch）。条目标签保持旧侧栏的
-// 逐字文案（e2e 以 text-is 断言导航——m8/setmeup-deploy 等 spec 的
-// `a.nav-item:text-is("制品")` 链路不因重排断链）。
-//
-// 锚纪律：.nav-item / .nav-group-label / .app-nav 类钩与 app-nav 锚
-// 原样保留（§10.5 换栈零锚改名先例）；nav-mode-switch 锚随双模式概念
-// 退役（登记 console-ux §10.6 退役表——P2 批）。
+// Artifactory-strict navigation model (7.161 E4 evidence).
+// Visual style remains BinFlow monochrome; this model owns order, labels,
+// hierarchy, mode semantics, and honest capability gaps.
+// Evidence matrix: docs/reverse/frontend/nav-parity.yaml
 import type { LucideIcon } from 'lucide-react'
 import {
   Activity,
   BadgeCheck,
   Boxes,
   ClipboardCopy,
-  FileSearch,
   FolderTree,
   Gauge,
   HardDrive,
@@ -25,28 +16,24 @@ import {
   Package,
   ScrollText,
   ShieldCheck,
-  Trash2,
   Users,
   Webhook,
 } from 'lucide-react'
 
-import { tr } from '@/i18n'
 
-const t = tr('console')
-
-/** 条目可见位（权限门控——服务端是唯一守门，这里只驱动呈现） */
 export type NavVisibility = 'all' | 'admin-sight'
 
 export interface NavItem {
   id: string
-  /** 目标路由（保持现 URL 形态） */
-  to: string
+  /** Stable BinFlow route. Reference-only gaps deliberately omit a destination. */
+  to?: string
   icon: LucideIcon
   visibility: NavVisibility
-  /** 导航条目标签（e2e text-is 契约——与旧侧栏逐字一致） */
   label: string
-  /** 仅精确匹配算 active（无子路由的叶子；默认前缀匹配覆盖子路径） */
   end?: boolean
+  children?: NavItem[]
+  /** A disabled reference entry stays visible for IA parity but cannot fake a capability. */
+  disabled?: boolean
 }
 
 export interface NavGroup {
@@ -55,56 +42,156 @@ export interface NavGroup {
   items: NavItem[]
 }
 
-/** 四分组全条目（Core / Operations / Security / Administration——§4 IA） */
-export const NAV_GROUPS: NavGroup[] = [
+const item = (
+  id: string,
+  label: string,
+  to: string | undefined,
+  icon: LucideIcon,
+  visibility: NavVisibility,
+  extra: Partial<NavItem> = {},
+): NavItem => ({ id, label, to, icon, visibility, ...extra })
+
+const gap = (id: string, label: string, icon: LucideIcon): NavItem =>
+  item(id, label, undefined, icon, 'admin-sight', { disabled: true })
+
+/** Platform mode / Artifactory application submenu. Exact sibling order is normative. */
+export const APP_NAV_GROUPS: NavGroup[] = [
   {
-    id: 'core',
-    label: t('核心'),
+    id: 'artifactory',
+    label: 'Artifactory',
     items: [
-      { id: 'dashboard', to: '/dashboard', icon: Gauge, visibility: 'all', label: t('仪表盘'), end: true },
-      { id: 'packages', to: '/packages', icon: Package, visibility: 'all', label: 'Packages' },
-      { id: 'artifacts', to: '/artifacts', icon: FolderTree, visibility: 'all', label: t('制品') },
-      { id: 'repositories', to: '/admin/repositories/local', icon: Boxes, visibility: 'admin-sight', label: t('仓库') },
-      { id: 'search', to: '/search', icon: FileSearch, visibility: 'all', label: t('搜索'), end: true },
-    ],
-  },
-  {
-    id: 'operations',
-    label: t('运营'),
-    items: [
-      { id: 'builds', to: '/builds', icon: Activity, visibility: 'all', label: 'Builds' },
-      { id: 'bundles', to: '/bundles', icon: BadgeCheck, visibility: 'all', label: 'Release Bundles' },
-      { id: 'replication', to: '/admin/governance/replication', icon: ClipboardCopy, visibility: 'admin-sight', label: t('复制') },
-      { id: 'webhooks', to: '/admin/general/webhooks', icon: Webhook, visibility: 'admin-sight', label: 'Webhooks' },
-      { id: 'trash', to: '/admin/governance/trash', icon: Trash2, visibility: 'admin-sight', label: t('回收站') },
-    ],
-  },
-  {
-    id: 'security',
-    label: t('安全'),
-    items: [
-      { id: 'users', to: '/admin/security/users', icon: Users, visibility: 'admin-sight', label: t('用户') },
-      { id: 'groups', to: '/admin/security/groups', icon: Users, visibility: 'admin-sight', label: t('组') },
-      { id: 'permissions', to: '/admin/security/permissions', icon: Lock, visibility: 'admin-sight', label: t('权限') },
-      { id: 'tokens', to: '/admin/security/tokens', icon: KeyRound, visibility: 'admin-sight', label: 'Access Tokens' },
-      { id: 'keypair', to: '/admin/security/keypair', icon: KeyRound, visibility: 'admin-sight', label: t('签名密钥') },
-      { id: 'auth', to: '/admin/security/auth/ldap', icon: ShieldCheck, visibility: 'admin-sight', label: t('认证配置') },
-      { id: 'audit', to: '/admin/governance/audit', icon: ScrollText, visibility: 'admin-sight', label: t('审计日志') },
-    ],
-  },
-  {
-    id: 'administration',
-    label: t('管理'),
-    items: [
-      { id: 'quotas', to: '/admin/governance/quotas', icon: Gauge, visibility: 'admin-sight', label: t('配额') },
-      { id: 'storage', to: '/admin/monitoring/storage', icon: HardDrive, visibility: 'admin-sight', label: t('存储') },
-      { id: 'status', to: '/admin/monitoring/status', icon: Activity, visibility: 'admin-sight', label: t('服务状态') },
-      { id: 'logs', to: '/admin/monitoring/logs', icon: ScrollText, visibility: 'admin-sight', label: t('系统日志') },
-      { id: 'gc', to: '/admin/monitoring/gc', icon: Trash2, visibility: 'admin-sight', label: t('维护（GC）') },
-      { id: 'backup', to: '/admin/monitoring/backup', icon: HardDrive, visibility: 'admin-sight', label: t('备份 / 恢复') },
-      { id: 'system-info', to: '/admin/monitoring/system-info', icon: Gauge, visibility: 'admin-sight', label: t('系统信息') },
-      { id: 'settings', to: '/admin/monitoring/settings', icon: Gauge, visibility: 'admin-sight', label: t('设置'), end: true },
-      { id: 'license', to: '/admin/general/license', icon: BadgeCheck, visibility: 'admin-sight', label: 'License & Add-ons' },
+      item('packages', 'Packages', '/packages', Package, 'all'),
+      item('builds', 'Builds', '/builds', Activity, 'all'),
+      item('artifacts', 'Artifacts', '/artifacts', FolderTree, 'all'),
+      item('release-lifecycle', 'Release Lifecycle', '/bundles', BadgeCheck, 'all'),
     ],
   },
 ]
+
+/** Administration mode top-level order is the 7.161 E4 sidebar body order. */
+export const ADMIN_NAV_GROUPS: NavGroup[] = [
+  {
+    id: 'administration',
+    label: 'Administration',
+    items: [
+      gap('all-projects-overview', 'All Projects Overview', Gauge),
+      gap('stages-lifecycle', 'Stages & Lifecycle', BadgeCheck),
+      item(
+        'repositories',
+        'Repositories',
+        '/admin/repositories/local',
+        Boxes,
+        'admin-sight',
+        {
+          children: [item('repositories-all', 'Repositories', '/admin/repositories/local', Boxes, 'admin-sight')],
+        },
+      ),
+      item('user-management', 'User Management', '/admin/security/users', Users, 'admin-sight', {
+        children: [
+          item('users', 'Users', '/admin/security/users', Users, 'admin-sight'),
+          item('groups', 'Groups', '/admin/security/groups', Users, 'admin-sight'),
+          item('permissions', 'Permissions', '/admin/security/permissions', Lock, 'admin-sight'),
+          gap('global-roles', 'Global Roles', Users),
+          item('access-tokens', 'Access Tokens', '/admin/security/tokens', KeyRound, 'admin-sight'),
+        ],
+      }),
+      gap('proxies', 'Proxies', Boxes),
+      item('authentication', 'Authentication', '/admin/security/auth/ldap', ShieldCheck, 'admin-sight', {
+        children: [
+          item('ldap', 'LDAP', '/admin/security/auth/ldap', ShieldCheck, 'admin-sight'),
+          gap('oauth-sso', 'OAuth SSO', KeyRound),
+          gap('saml-sso', 'SAML SSO', KeyRound),
+          gap('http-sso', 'HTTP SSO', KeyRound),
+          gap('crowd-jira', 'Crowd / JIRA', Users),
+          gap('scim', 'SCIM', Users),
+        ],
+      }),
+      item('security', 'Security', '/admin/security/keypair', Lock, 'admin-sight', {
+        children: [
+          gap('security-general', 'General', ShieldCheck),
+          gap('keys-management', 'Keys Management', KeyRound),
+          item('signing-keys', 'Signing Keys', '/admin/security/keypair', KeyRound, 'admin-sight'),
+          gap('trusted-keys', 'Trusted Keys', KeyRound),
+          gap('certificates', 'Certificates', ShieldCheck),
+          gap('vault', 'Vault', Lock),
+        ],
+      }),
+      item('general-management', 'General Management', '/admin/monitoring/settings', Gauge, 'admin-sight', {
+        children: [
+          item('general-settings', 'Settings', '/admin/monitoring/settings', Gauge, 'admin-sight'),
+          gap('mail-server', 'Mail Server', ScrollText),
+        ],
+      }),
+      item('monitoring', 'Monitoring', '/admin/monitoring/storage', Activity, 'admin-sight', {
+        children: [
+          item('service-status', 'Service Status', '/admin/monitoring/status', Activity, 'admin-sight'),
+          item('storage', 'Storage', '/admin/monitoring/storage', HardDrive, 'admin-sight'),
+          item('system-logs', 'System Logs', '/admin/monitoring/logs', ScrollText, 'admin-sight'),
+          gap('log-analytics', 'Log Analytics', ScrollText),
+          gap('artifactory-logs', 'Artifactory Logs', ScrollText),
+          gap('federation-status', 'Federation Status', Activity),
+        ],
+      }),
+      gap('topology', 'Topology', Boxes),
+      gap('support-zone', 'Support Zone', ShieldCheck),
+      item('artifactory-settings', 'Artifactory Settings', '/admin/monitoring/settings', Boxes, 'admin-sight', {
+        children: [
+          item('artifactory-general-settings', 'General Settings', '/admin/monitoring/settings', Gauge, 'admin-sight'),
+          gap('artifactory-security', 'Artifactory Security', Lock),
+          gap('packages-settings', 'Packages Settings', Package),
+          gap('http-settings', 'HTTP Settings', Boxes),
+          gap('repository-imp-exp', 'Repository Imp/Exp', ClipboardCopy),
+          gap('system-imp-exp', 'System Imp/Exp', ClipboardCopy),
+          item('artifactory-repositories', 'Repositories', '/admin/repositories/local', Boxes, 'admin-sight'),
+          gap('layouts', 'Layouts', FolderTree),
+          gap('migration-tool', 'Migration Tool', Activity),
+          gap('property-sets', 'Property Sets', ScrollText),
+          gap('maven-indexer', 'Maven Indexer', Package),
+          gap('config-descriptor', 'Config Descriptor', ScrollText),
+          gap('security-descriptor', 'Security Descriptor', ScrollText),
+          item('maintenance', 'Maintenance', '/admin/monitoring/gc', HardDrive, 'admin-sight'),
+          item('backups', 'Backups', '/admin/monitoring/backup', HardDrive, 'admin-sight'),
+          gap('retention-policies', 'Retention Policies', ScrollText),
+          gap('user-plugins', 'User Plugins', Webhook),
+        ],
+      }),
+    ],
+  },
+]
+
+/** Terminal group: preserve BinFlow-only capabilities without perturbing reference order. */
+export const BINFLOW_NAV_GROUPS: NavGroup[] = [
+  {
+    id: 'binflow-extensions',
+    label: 'BinFlow Extensions',
+    items: [
+      item('quotas', 'Quotas', '/admin/governance/quotas', Gauge, 'admin-sight'),
+      item('replication', 'Replication', '/admin/governance/replication', ClipboardCopy, 'admin-sight'),
+      item('trash', 'Trash', '/admin/governance/trash', HardDrive, 'admin-sight'),
+      item('audit-log', 'Audit Log', '/admin/governance/audit', ScrollText, 'admin-sight'),
+      item('webhooks', 'Webhooks', '/admin/general/webhooks', Webhook, 'admin-sight'),
+      item('license-addons', 'License & Add-ons', '/admin/general/license', BadgeCheck, 'admin-sight'),
+    ],
+  },
+]
+
+/** Backward-compatible complete model for the command palette and older consumers. */
+export const NAV_GROUPS: NavGroup[] = [...APP_NAV_GROUPS, ...ADMIN_NAV_GROUPS, ...BINFLOW_NAV_GROUPS]
+
+export function flattenNavItems(items: NavItem[]): NavItem[] {
+  return items.flatMap((entry) => [entry, ...flattenNavItems(entry.children ?? [])])
+}
+
+export function filterNavGroups(groups: NavGroup[], query: string): NavGroup[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return groups
+  const matches = (entry: NavItem): boolean =>
+    entry.label.toLowerCase().includes(q) || (entry.children ?? []).some(matches)
+  const retain = (entry: NavItem): NavItem => {
+    if (entry.label.toLowerCase().includes(q) || (entry.children ?? []).length === 0) return entry
+    return { ...entry, children: (entry.children ?? []).filter(matches) }
+  }
+  return groups
+    .map((group) => ({ ...group, items: group.items.filter(matches).map(retain) }))
+    .filter((group) => group.items.length > 0)
+}

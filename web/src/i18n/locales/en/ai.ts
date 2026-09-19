@@ -54,4 +54,5 @@ registerEn('ai', {
   "正在查询存储占用…": "Querying storage usage…",
   "正在生成": "Generating",
   "AI 输入框": "AI input",
+  "安全": "Security",
 })

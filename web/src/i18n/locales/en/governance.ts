@@ -318,4 +318,6 @@ registerEn('governance', {
   "local 仓删除先捕获进内置仓": "Local repository deletions are captured first into the built-in repository",
   "Next Backup Time（可选——首跑时刻，须晚于当前）": "Next Backup Time (optional — the first run time; must be later than now)",
   "Server Path For Backup *（服务器绝对路径）": "Server Path For Backup * (absolute server path)",
+  "备份 / 恢复": "Backup / Restore",
+  "审计日志": "Audit Log",
 })

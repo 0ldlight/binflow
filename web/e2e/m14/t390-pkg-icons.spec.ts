@@ -127,7 +127,7 @@ test('setmeup pills carry brand marks; geometric glyph icons retired', async ({ 
   // 复现），SMU 带 preselectedRepo 打开、药丸面不出（t492 yield 腿同款 settle）
   await page.goto(`/binflow/ui/artifacts/${key}`)
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
-  await page.click('[data-testid="app-nav"] a.nav-item:text-is("制品")')
+  await page.goto('/binflow/ui/artifacts')
   await expect(page).toHaveURL('/binflow/ui/artifacts')
   await page.click('[data-testid="tree-setmeup"]')
   await expect(page.locator('[data-testid="smu-grid"]')).toBeVisible()

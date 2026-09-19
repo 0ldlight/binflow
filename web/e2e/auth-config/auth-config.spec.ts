@@ -539,7 +539,7 @@ test('CFG6: readonly_admin disabled-everything + PUT 403; plain user navigation-
   await loginAs(ro, 'readonly_admin')
   await ro.goto('/binflow/ui/admin/security/auth/ldap')
   await expect(ro.locator('[data-testid="authcfg-page"]')).toBeVisible()
-  await expect(ro.locator('[data-testid="app-nav"] .nav-item', { hasText: '认证配置' })).toBeVisible()
+  await expect(ro.locator('[data-testid="app-nav"] .nav-item', { hasText: 'Authentication' })).toBeVisible()
   await expect(ro.locator('[data-testid="authcfg-readonly-note"]')).toBeVisible()
   for (const anchor of [
     'authcfg-ldap-url',
@@ -571,7 +571,7 @@ test('CFG6: readonly_admin disabled-everything + PUT 403; plain user navigation-
   // —— 普通 user：导航不可达 + 直链 L2 无权限卡（无表单）——
   const user = await (await browser.newContext()).newPage()
   await loginAs(user, 'user')
-  await expect(user.locator('[data-testid="app-nav"] .nav-item', { hasText: '认证配置' })).toHaveCount(0)
+  await expect(user.locator('[data-testid="app-nav"] .nav-item', { hasText: 'Authentication' })).toHaveCount(0)
   await user.goto('/binflow/ui/admin/security/auth/ldap')
   await expect(user.locator('[data-testid="authcfg-page"]')).toBeVisible()
   await expect(user.locator('[data-testid="authcfg-page"] [data-testid="empty-state"]')).toBeVisible()

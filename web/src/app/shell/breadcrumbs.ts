@@ -1,9 +1,6 @@
-// 面包屑模型（管理域层级表达——§1.3）：逻辑平移自旧 AppShell.adminCrumbs。
-// 应用域无层级（顶栏显页面标题），见 appTitle。
-import { tr } from '@/i18n'
-
-const t = tr('console')
-
+// Artifactory 7.161 breadcrumb and application-title model.
+// Labels follow the captured runtime shell, while routes remain BinFlow-stable
+// in this compatibility batch (see docs/reverse/frontend/nav-parity.yaml).
 export interface Crumb {
   label: string
   to?: string
@@ -18,78 +15,84 @@ function safeDecode(seg: string): string {
 }
 
 export function adminCrumbs(pathname: string): Crumb[] {
+  const root: Crumb = { label: 'All Projects', to: '/dashboard' }
+
   if (pathname.startsWith('/admin/repositories')) {
-    const rest = pathname
-      .slice('/admin/repositories'.length)
-      .split('/')
-      .filter((s) => s !== '')
-    const crumbs: Crumb[] = [{ label: t('仓库'), to: '/admin/repositories/local' }]
-    if (rest.length === 0 || ['local', 'remote', 'virtual'].includes(rest[0])) return crumbs
-    if (rest[0] === 'new') return [...crumbs, { label: t('新建仓库') }]
+    const rest = pathname.slice('/admin/repositories'.length).split('/').filter(Boolean)
+    const crumbs: Crumb[] = [root, { label: 'Repositories', to: '/admin/repositories/local' }]
+    if (rest.length === 0 || ['local', 'remote', 'virtual'].includes(rest[0] ?? '')) return crumbs
+    if (rest[0] === 'new') return [...crumbs, { label: 'Create a Repository' }]
     crumbs.push({ label: safeDecode(rest[0]) })
-    if (rest[1] === 'edit') crumbs.push({ label: t('编辑') })
+    if (rest[1] === 'edit') crumbs.push({ label: 'Edit' })
     return crumbs
   }
-  const sec: Record<string, string> = {
-    users: t('用户'),
-    groups: t('组'),
-    permissions: t('权限'),
-    tokens: 'Access Tokens',
-    auth: t('认证配置'),
-  }
+
   if (pathname.startsWith('/admin/security/')) {
     const rest = pathname.slice('/admin/security/'.length).split('/')
-    const label = sec[rest[0]] ?? ''
+    const section: Record<string, { parent: string; label: string }> = {
+      users: { parent: 'User Management', label: 'Users' },
+      groups: { parent: 'User Management', label: 'Groups' },
+      permissions: { parent: 'User Management', label: 'Permissions' },
+      tokens: { parent: 'User Management', label: 'Access Tokens' },
+      keypair: { parent: 'Security', label: 'Signing Keys' },
+      auth: { parent: 'Authentication', label: 'Authentication' },
+    }
+    const meta = section[rest[0] ?? ''] ?? { parent: 'Security', label: safeDecode(rest[0] ?? '') }
     const crumbs: Crumb[] = [
-      { label: t('安全'), to: '/admin/security/users' },
-      { label, to: `/admin/security/${rest[0]}` },
+      root,
+      { label: meta.parent, to: `/admin/security/${rest[0] === 'keypair' ? 'keypair' : rest[0] === 'auth' ? 'auth/ldap' : 'users'}` },
+      { label: meta.label, to: `/admin/security/${rest[0]}` },
     ]
-    const proto: Record<string, string> = { ldap: 'LDAP', oauth: 'OAuth (OIDC)', saml: 'SAML SSO' }
-    if (rest[0] === 'auth' && proto[rest[1]]) crumbs.push({ label: proto[rest[1]] })
-    else if (rest[1] && rest[1] !== 'new') crumbs.push({ label: safeDecode(rest[1]) })
-    else if (rest[1] === 'new') crumbs.push({ label: t('新建') })
+    const proto: Record<string, string> = { ldap: 'LDAP', oauth: 'OAuth SSO', saml: 'SAML SSO' }
+    if (rest[0] === 'auth' && proto[rest[1] ?? '']) crumbs.push({ label: proto[rest[1] ?? ''] })
+    else if (rest[1] === 'new') crumbs.push({ label: 'New' })
+    else if (rest[1]) crumbs.push({ label: safeDecode(rest[1]) })
     return crumbs
   }
-  const gov: Record<string, string> = {
-    audit: t('审计日志'),
-    quotas: t('配额'),
-    replication: t('复制'),
-    trash: t('回收站'),
-  }
+
   if (pathname.startsWith('/admin/governance/')) {
-    const seg = pathname.slice('/admin/governance/'.length)
-    return [{ label: t('管理'), to: '/admin/monitoring/storage' }, { label: gov[seg] ?? seg }]
+    const map: Record<string, string> = {
+      audit: 'Audit Log',
+      quotas: 'Quotas',
+      replication: 'Replication',
+      trash: 'Trash',
+    }
+    const seg = pathname.slice('/admin/governance/'.length).split('/')[0]
+    return [root, { label: 'BinFlow Extensions' }, { label: map[seg] ?? safeDecode(seg) }]
   }
+
   if (pathname.startsWith('/admin/monitoring/')) {
-    const mon: Record<string, string> = {
-      storage: t('存储'),
-      status: t('服务状态'),
-      logs: t('系统日志'),
-      'system-info': t('系统信息'),
-      gc: t('维护（GC）'),
-      backup: t('备份 / 恢复'),
+    const map: Record<string, string> = {
+      storage: 'Storage',
+      status: 'Service Status',
+      logs: 'System Logs',
+      'system-info': 'System Info',
+      settings: 'Settings',
+      gc: 'Maintenance',
+      backup: 'Backups',
     }
     const seg = pathname.slice('/admin/monitoring/'.length).split('/')[0]
-    return [{ label: t('管理'), to: '/admin/monitoring/storage' }, { label: mon[seg] ?? seg }]
+    const label = map[seg] ?? safeDecode(seg)
+    const parent = seg === 'gc' || seg === 'backup' ? 'Artifactory Settings' : 'Monitoring'
+    return [root, { label: parent, to: seg === 'gc' || seg === 'backup' ? '/admin/monitoring/settings' : '/admin/monitoring/storage' }, { label }]
   }
+
   if (pathname.startsWith('/admin/general/')) {
-    const gen: Record<string, string> = {
-      webhooks: 'Webhooks',
-      license: 'License & Add-ons',
-    }
+    const map: Record<string, string> = { webhooks: 'Webhooks', license: 'License & Add-ons' }
     const seg = pathname.slice('/admin/general/'.length).split('/')[0]
-    return [{ label: t('管理'), to: '/admin/monitoring/storage' }, { label: gen[seg] ?? seg }]
+    return [root, { label: 'BinFlow Extensions' }, { label: map[seg] ?? safeDecode(seg) }]
   }
-  return [{ label: t('管理') }]
+
+  return [root, { label: 'Administration' }]
 }
 
-/** 应用域页面标题（无层级，直接页面名） */
 export function appTitle(pathname: string): string {
-  if (pathname.startsWith('/artifacts')) return t('制品')
-  if (pathname.startsWith('/dashboard')) return t('仪表盘')
-  if (pathname.startsWith('/search')) return t('搜索制品')
-  if (pathname.startsWith('/profile')) return t('编辑档案')
+  if (pathname.startsWith('/packages')) return 'Packages'
+  if (pathname.startsWith('/artifacts')) return 'Artifacts'
+  if (pathname.startsWith('/dashboard')) return 'All Projects Overview'
+  if (pathname.startsWith('/search')) return 'Search Artifacts'
+  if (pathname.startsWith('/profile')) return 'User Profile'
   if (pathname.startsWith('/builds')) return 'Builds'
-  if (pathname.startsWith('/bundles')) return 'Release Bundles'
+  if (pathname.startsWith('/bundles')) return 'Release Lifecycle'
   return 'BinFlow'
 }

@@ -393,4 +393,6 @@ registerEn('security', {
   "user=按 permission target 授权；readonly_admin=管理面只读；admin=管理面全权。": "user = authorized by permission target; readonly_admin = read-only admin plane; admin = full rights on the admin plane.",
   "write = 部署位（7.161 标签 Deploy/Cache；wire 正名 deploy-cache，PUT 仍收 write 别名）；不携带 annotate——属性写需另勾 annotate 列": "write = the deployment bit (labeled Deploy/Cache in 7.161; wire name deploy-cache, PUT still accepts the write alias); does not carry annotate — property writes need the separate annotate column",
   "write = 部署位（7.161 标签 Deploy/Cache；wire 正名 deploy-cache；不携带 annotate）": "write = the deployment bit (labeled Deploy/Cache in 7.161; wire name deploy-cache; does not carry annotate)",
+  "用户": "Users",
+  "组": "Groups",
 })

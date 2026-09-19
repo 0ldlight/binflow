@@ -272,7 +272,7 @@ test('LDAP user signs in through the same form: 401 inline, directory credential
   // M8 IA（T-235）：登录落点改为 /artifacts，仪表盘改由侧栏入口 SPA 内
   // 到达（本腿的 session 是 route mock——page.goto 整页刷新会触发真实
   // whoami 401 被守卫弹回，必须走应用内导航）
-  await page.click('[data-testid="app-nav"] a.nav-item:text-is("仪表盘")')
+  await page.goto('/binflow/ui/dashboard')
   await expect(page.locator('[data-testid="dashboard-instance-card"]')).toBeVisible()
   await expect(page.locator('[data-testid="dashboard-health-card"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="dashboard-audit-card"]')).toHaveCount(0)

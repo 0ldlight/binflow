@@ -17,7 +17,7 @@ import { tr } from '@/i18n'
 import { useAiStore } from '@/stores/ai-store'
 
 import { adminCrumbs, appTitle } from './breadcrumbs'
-import { NAV_GROUPS } from './nav-model'
+import { ADMIN_NAV_GROUPS, APP_NAV_GROUPS, BINFLOW_NAV_GROUPS, filterNavGroups } from './nav-model'
 import { CommandPalette } from './CommandPalette'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
@@ -47,22 +47,15 @@ export function AppShell() {
   const adminMode = inAdminArea && canSeeAdmin
 
   const groups = useMemo(() => {
-    const visible = NAV_GROUPS.map((g) => ({
-      ...g,
-      items: g.items.filter((i) => i.visibility === 'all' || canSeeAdmin),
+    const source = adminMode ? [...ADMIN_NAV_GROUPS, ...BINFLOW_NAV_GROUPS] : APP_NAV_GROUPS
+    const visible = source.map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.visibility === 'all' || canSeeAdmin),
     }))
-    const q = adminMode ? adminFilter.trim().toLowerCase() : ''
-    // 无权限/过滤清空后整组退役（普通 user 不见空的安全/管理组标签；过滤
-    // 下空组标签同样不驻留）；全组清空 = groups.length===0 → Sidebar 的
-    // admin-filter-empty 注记承载。
-    // L026-2 修复：此前 `g.items.length > 0 || q !== ''` 在过滤词在场时保留
-    // 全部组（空组标签驻留 + 无匹配注记永不触发——t459 过滤腿双红）
-    const filtered = q
-      ? visible.map((g) => ({ ...g, items: g.items.filter((i) => i.label.toLowerCase().includes(q)) }))
-      : visible
-    return filtered.filter((g) => g.items.length > 0)
+    // The Artifactory admin tree keeps its reference sibling order. Filtering only
+    // removes non-matching leaves; it never reorders or substitutes a neighboring page.
+    return filterNavGroups(visible, adminMode ? adminFilter : '').filter((group) => group.items.length > 0)
   }, [canSeeAdmin, adminMode, adminFilter])
-
   // ---- About 弹窗（侧栏脚注 nav-about 与顶栏 help-about 同一入口） ----
   const [aboutOpen, setAboutOpen] = useState(false)
 
@@ -128,6 +121,8 @@ export function AppShell() {
       <aside className="w-sidebar shrink-0 overflow-y-auto bg-sidebar text-sidebar-foreground">
         <Sidebar
           groups={groups}
+          mode={adminMode ? 'administration' : 'platform'}
+          canSeeAdmin={canSeeAdmin}
           version={version ? version.version : null}
           onAbout={() => setAboutOpen(true)}
           adminFilter={adminFilter}

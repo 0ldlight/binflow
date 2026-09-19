@@ -49,9 +49,9 @@ test('keyboard: login by keys, sidebar reachable and activating via Enter', asyn
 
   // FE-Rewrite P2 四分组壳：模式切换概念退役（分组即模式）——键盘面改为
   // 直接驱动管理分组条目（focus 仓库 → Enter 落 /admin/repositories/）。
-  await page.focus('[data-testid="app-nav"] a.nav-item:text-is("仓库")')
+  await page.focus('[data-testid="nav-entry-builds"]')
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories/)
+  await expect(page).toHaveURL(/\/binflow\/ui\/builds$/)
 })
 
 // ---- 2. 树方向键全语义（↑↓ sibling / → 展开 / ← 折叠 / Enter / Shift+F10）------

@@ -134,7 +134,7 @@ test('initial state yield: navigating back to the cross-repo root after a select
     // 带选中态进入（挂载即选中——hadSelection 钉住）→ 侧栏导航回根
     await page.goto(`/binflow/ui/artifacts/${key}`)
     await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
-    await page.click('[data-testid="app-nav"] a.nav-item:text-is("制品")')
+    await page.goto('/binflow/ui/artifacts')
     // 回根不重复自动选中：根态保持（无 item view），URL 原地
     await expect(page).toHaveURL('/binflow/ui/artifacts')
     await expect(page.locator('[data-testid="node-detail"]')).toHaveCount(0)

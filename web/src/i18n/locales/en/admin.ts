@@ -154,4 +154,5 @@ registerEn('admin', {
   "User DN Pattern（直接绑定模板）": "User DN Pattern (direct bind template)",
   "userDnPattern 留空时按 Search Filter + Search Base 定位用户 DN 再绑定验密；Manager DN 留空 = 匿名只读绑定。": "When userDnPattern is empty, the user DN is located via Search Filter + Search Base and then bound for password verification; an empty Manager DN means an anonymous read-only bind.",
   "Verify Audience Restriction（受众校验，默认开）": "Verify Audience Restriction (audience check, on by default)",
+  "认证配置": "Authentication Configuration",
 })
