@@ -61,7 +61,7 @@ screens:
 runtime_reclassified_screens:
   - { id: retention-policies-family, ref: "/ui/admin/artifactory/services/retention/{policies,monitoring,cold_storage_monitoring}", bf: 无, status: ⏸面外候裁, verify: 已观察(E4), ev: "route-only-20260918/{retention-policies,retention-monitoring,cold-storage}.png", note: "Pro 清理策略/监控/冷存监控已见 Create Policy、Stop/Disable、Report 等入口；BinFlow retention 在 builds 域——IA 对位候裁" }
   - { id: lifecycle, ref: /ui/artifactory/lifecycle, bf: 无, status: ⏸面外候裁, verify: 已观察(E4), ev: route-only-20260918/lifecycle.png, note: "0 Release Bundles 空态、Create Release Bundle、Name/Project/Versions/Latest 列已采" }
-  - { id: release-bundles-admin, ref: "/ui/{bundles/source,artifactory/release-bundles,artifactory/release-bundles/target,artifactory/release-bundles/target-history}", bf: "bundles（三视图；target-history 差面）", status: ◐部分, verify: 已观察(E4), ev: "route-only-20260918/{bundles-source,release-bundles,rb-target,rb-target-history}.png", note: "Distributable/Received、source/target/history 列与搜索已采；BinFlow 已有主列表/详情语义，target-history 管理差面保留" }
+  - { id: release-bundles-admin, ref: "/ui/{bundles/source,artifactory/release-bundles,artifactory/release-bundles/target,artifactory/release-bundles/target-history}", bf: "bundles/{source,target,target/:name,target/:name/:version}（URL 即状态）", status: ≈形态分立, verify: 已联合验证, ev: "route-only-20260918/{bundles-source,release-bundles,rb-target,rb-target-history}.png + e2e/bundles-target.spec.ts", note: "Distributable/Received、source/target/history 入口已接 v2 received/records/statuses；BinFlow source-only 实例如实空/404，不伪造 Distribution 事件。IA/route 命名仍待 Artifactory 严格对齐批次" }
   - { id: cold-storage-monitoring, ref: /ui/admin/artifactory/services/retention/cold_storage_monitoring, bf: 无, status: ⏸面外候裁, verify: 已观察(E4), ev: gapfill-20260918/cold-storage.png, note: "与 retention monitoring 同表族；Create Policy/Stop All Runs/Clear all/Report 入口已采" }
   - { id: federation-status, ref: /ui/admin/monitoring/federation-status, bf: 无, status: ⏸面外候裁, verify: 已观察(E4-empty-shell), ev: route-only-20260918/federation.png, note: "本实例只渲染 Admin 空壳，无联邦业务内容——不能升格为功能语义证据" }
   - { id: scim, ref: /ui/admin/configuration/security/scim, bf: 无, status: ⏸面外候裁, verify: 已观察(E4), ev: route-only-20260918/scim.png, note: "Generate Token 与 token 字段已采；enterprise 候裁在册" }
@@ -79,7 +79,7 @@ route_only_screens:
 # ── C. BinFlow 超集域（总令一.7：保留并纳入同一设计系统）────────────────────────
 binflow_superset:
   - { domain: builds, bf: "builds 三视图+搜索档", ev: "M17 主轴（matrix §2）", note: Artifactory 有 builds 屏（Pro）——BinFlow 已实现且经差分 }
-  - { domain: bundles, bf: bundles 三视图, ev: "M17+D08 六行翻绿（LOOP 027）" }
+  - { domain: bundles, bf: "bundles source/target/history 四面", ev: "M17+D08 六行翻绿（LOOP 027）+ bundles-target.spec.ts" }
   - { domain: trash, bf: admin/governance/trash, note: Artifactory OSS 无 trash UI——超集保留 }
   - { domain: quotas, bf: admin/governance/quotas, note: 超集保留 }
   - { domain: keypair, bf: admin/security/keypair, note: "API 10 op 全备（P3 落地）" }

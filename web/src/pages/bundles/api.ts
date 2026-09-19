@@ -122,3 +122,61 @@ export function createBundle(
     body: { name, version, artifacts },
   })
 }
+
+
+// ---- Release Lifecycle v2 target/history companion faces (D08/L026-6) ----
+// BinFlow is source-only: these authenticated read faces return the reference
+// empty envelopes, or a 404 for a missing target record. The UI must preserve
+// that truth and never synthesize target/history rows.
+
+export interface V2BundleSummary {
+  name?: string
+  project_key?: string
+  release_bundle_version?: string
+  version?: string
+  created?: string
+  received_at?: string
+}
+
+export interface V2TargetListResponse {
+  release_bundles: V2BundleSummary[]
+  total: number
+}
+
+export interface V2TargetRecordsResponse extends V2TargetListResponse {
+  limit: number
+  offset: number
+}
+
+export interface V2TargetVersionsResponse {
+  versions: V2BundleSummary[]
+  total: number
+}
+
+export interface V2TargetRecordResponse {
+  release_bundle?: V2BundleSummary
+  status?: string
+}
+
+export function listTargetBundles(): Promise<V2TargetListResponse> {
+  return apiJSON<V2TargetListResponse>('/v2/release_bundle/received')
+}
+
+export function listTargetBundleVersions(name: string): Promise<V2TargetVersionsResponse> {
+  return apiJSON<V2TargetVersionsResponse>(`/v2/release_bundle/received/${encodeURIComponent(name)}`)
+}
+
+export function getTargetBundleRecord(
+  name: string,
+  version: string,
+): Promise<V2TargetRecordResponse> {
+  return apiJSON<V2TargetRecordResponse>(
+    `/v2/release_bundle/records/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
+  )
+}
+
+export function getTargetBundleStatus(name: string, version: string): Promise<{ status?: string }> {
+  return apiJSON<{ status?: string }>(
+    `/v2/release_bundle/statuses/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
+  )
+}
