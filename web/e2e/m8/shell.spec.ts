@@ -63,7 +63,7 @@ test('admin: Artifactory app order, administration switch, and capability routes
   // Keyboard navigation remains real link activation, not a custom menu shim.
   await page.focus('[data-testid="nav-entry-release-lifecycle"]')
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(/\/binflow\/ui\/bundles$/)
+  await expect(page).toHaveURL('/binflow/ui/artifactory/release-lifecycle')
   await expect(page.locator('[data-testid="bundles-page"]')).toBeVisible()
 
   await page.click('[data-testid="nav-mode-administration"]')

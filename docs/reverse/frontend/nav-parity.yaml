@@ -29,7 +29,7 @@ app_menu:
     - { ref: 1, label: Packages, ref_route: /ui/packages, bf_route: /packages, status: implemented }
     - { ref: 2, label: Builds, ref_route: /ui/builds, bf_route: /builds, status: implemented }
     - { ref: 3, label: Artifacts, ref_route: /ui/repos/tree/General, bf_route: /artifacts, status: "implemented (internal path alias)" }
-    - { ref: 4, label: Release Lifecycle, ref_route: /ui/artifactory/release-lifecycle, bf_route: /bundles, status: "partial (Artifactory face/search/columns/create label implemented; Project/version-count/latest aggregation APIs remain honest gaps)" }
+    - { ref: 4, label: Release Lifecycle, ref_route: /ui/artifactory/release-lifecycle, bf_route: /artifactory/release-lifecycle, status: "partial (Artifactory route/face/search/columns/create label implemented; Project/version-count/latest aggregation APIs remain honest gaps)" }
   excluded_platform_products:
     - { label: Xray, reason: outside Artifactory-only scope }
     - { label: Distribution, reason: outside Artifactory-only scope; Release Lifecycle is the in-scope Artifactory entry }
@@ -141,6 +141,6 @@ mode_interaction:
   - { action: Filter administration resources, behavior: "top-bar search filters visible administration tree entries and preserves reference order", bf_test: artifactory-shell.spec.ts }
 
 known_divergences:
-  - route_names: "BinFlow keeps existing stable internal routes in this shell batch; reference-shaped route aliases are a separate compatibility decision."
+  - route_names: "Artifactory-shaped Release Lifecycle routes are primary; the former /bundles family remains a compatibility deep-link window."
   - projects_plane: "All Projects Overview and Global Routes have no BinFlow Projects backend and remain explicit gaps."
   - pro_enterprise_faces: "Pro/enterprise-only faces remain disabled rather than being faked."

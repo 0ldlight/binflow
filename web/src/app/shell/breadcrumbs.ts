@@ -93,6 +93,6 @@ export function appTitle(pathname: string): string {
   if (pathname.startsWith('/search')) return 'Search Artifacts'
   if (pathname.startsWith('/profile')) return 'User Profile'
   if (pathname.startsWith('/builds')) return 'Builds'
-  if (pathname.startsWith('/bundles')) return 'Release Lifecycle'
+  if (pathname.startsWith('/bundles') || pathname.startsWith('/artifactory/release-')) return 'Release Lifecycle'
   return 'BinFlow'
 }

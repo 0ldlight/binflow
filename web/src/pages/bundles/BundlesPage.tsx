@@ -71,7 +71,7 @@ function BundleNotFound({ name }: { name?: string }) {
       hint={t('名单面按会话可见集过滤（空集如实）；版本/描述符面对无读门会话是明确的 403。读门 = 系统读权限 ∨ Any Distribution 通道（按 bundle 名授予）。')}
       action={
         <ButtonAsChild variant="outline" size="sm">
-          <Link to="/bundles">{t('← 返回 bundle 列表')}</Link>
+          <Link to="/artifactory/release-bundles">{t('← 返回 bundle 列表')}</Link>
         </ButtonAsChild>
       }
     />
@@ -87,7 +87,7 @@ function BundleDenied({ backTo }: { backTo?: string }) {
       hint={t('读门 = 系统读权限 ∨ Any Distribution 通道（按 bundle 名授予）——403 即读门拒绝（拒绝即答案，不与不存在混同）。')}
       action={
         <ButtonAsChild variant="outline" size="sm">
-          <Link to={backTo ?? '/bundles'}>{backTo ? t('← 返回版本列表') : t('← 返回 bundle 列表')}</Link>
+          <Link to={backTo ?? '/artifactory/release-bundles'}>{backTo ? t('← 返回版本列表') : t('← 返回 bundle 列表')}</Link>
         </ButtonAsChild>
       }
     />
@@ -174,7 +174,7 @@ function BundleNamesView() {
               {rows.map((row) => (
                 <TableRow key={row.name} className="border-b border-border/60 hover:bg-accent" data-testid={`bundles-row-${row.name}`}>
                   <TableCell className="px-3 py-1.5">
-                    <Link className="row-link font-mono text-primary hover:underline" lang="en" to={`/bundles/${encodeURIComponent(row.name)}`}>
+                    <Link className="row-link font-mono text-primary hover:underline" lang="en" to={`/artifactory/release-bundles/${encodeURIComponent(row.name)}`}>
                       {row.name}
                     </Link>
                   </TableCell>
@@ -209,7 +209,7 @@ function BundleVersionsView({ name }: { name: string }) {
             Release Bundles / <span className="font-mono" lang="en">{name}</span>
           </h2>
           <ButtonAsChild variant="outline" size="sm" className="ml-auto">
-            <Link to="/bundles">{t('← 返回 bundle 列表')}</Link>
+            <Link to="/artifactory/release-bundles">{t('← 返回 bundle 列表')}</Link>
           </ButtonAsChild>
         </div>
         <BundleDenied />
@@ -224,7 +224,7 @@ function BundleVersionsView({ name }: { name: string }) {
           Release Bundles / <span className="font-mono" lang="en">{name}</span>
         </h2>
         <ButtonAsChild variant="outline" size="sm" className="ml-auto">
-          <Link to="/bundles">{t('← 返回 bundle 列表')}</Link>
+          <Link to="/artifactory/release-bundles">{t('← 返回 bundle 列表')}</Link>
         </ButtonAsChild>
       </div>
 
@@ -251,7 +251,7 @@ function BundleVersionsView({ name }: { name: string }) {
                     <Link
                       className="row-link font-mono text-primary hover:underline"
                       lang="en"
-                      to={`/bundles/${encodeURIComponent(name)}/${encodeURIComponent(v.version)}`}
+                      to={`/artifactory/release-bundles/${encodeURIComponent(name)}/${encodeURIComponent(v.version)}`}
                     >
                       {v.version}
                     </Link>
@@ -261,7 +261,7 @@ function BundleVersionsView({ name }: { name: string }) {
                   </TableCell>
                   <TableCell className="px-3 py-1.5 font-mono" lang="en">{fmtUTC(v.created)}</TableCell>
                   <TableCell className="px-3 py-1.5">
-                    <Link className="row-link" lang="en" to={'/bundles/target/' + encodeURIComponent(name) + '/' + encodeURIComponent(v.version)} data-testid={'bundle-history-' + v.version}>
+                    <Link className="row-link" lang="en" to={'/artifactory/release-bundles/target/' + encodeURIComponent(name) + '/' + encodeURIComponent(v.version)} data-testid={'bundle-history-' + v.version}>
                       {t('查看 target 历史')}
                     </Link>
                   </TableCell>
@@ -309,10 +309,10 @@ function BundleDetailView({ name, version }: { name: string; version: string }) 
             <span className="font-mono" lang="en">{version}</span>
           </h2>
           <ButtonAsChild variant="outline" size="sm" className="ml-auto">
-            <Link to={`/bundles/${encodeURIComponent(name)}`}>{t('← 返回版本列表')}</Link>
+            <Link to={`/artifactory/release-bundles/${encodeURIComponent(name)}`}>{t('← 返回版本列表')}</Link>
           </ButtonAsChild>
         </div>
-        <BundleDenied backTo={`/bundles/${encodeURIComponent(name)}`} />
+        <BundleDenied backTo={`/artifactory/release-bundles/${encodeURIComponent(name)}`} />
       </div>
     )
   }
@@ -325,7 +325,7 @@ function BundleDetailView({ name, version }: { name: string; version: string }) 
           <span className="font-mono" lang="en">{version}</span>
         </h2>
         <ButtonAsChild variant="outline" size="sm" className="ml-auto">
-          <Link to={`/bundles/${encodeURIComponent(name)}`}>{t('← 返回版本列表')}</Link>
+          <Link to={`/artifactory/release-bundles/${encodeURIComponent(name)}`}>{t('← 返回版本列表')}</Link>
         </ButtonAsChild>
       </div>
 
@@ -439,7 +439,7 @@ function TargetBundlesView() {
 
       {targets.status === 'loading' && <StateSkeleton lines={5} />}
       {targets.status === 'error' && targets.error && <ErrorCard error={targets.error} onRetry={targets.reload} />}
-      {targets.status === 'forbidden' && <BundleDenied backTo="/bundles" />}
+      {targets.status === 'forbidden' && <BundleDenied backTo="/artifactory/release-bundles" />}
       {targets.status === 'ok' && rows.length === 0 && (
         <EmptyState
           testid="target-bundles-empty"
@@ -467,7 +467,7 @@ function TargetBundlesView() {
                 return (
                   <TableRow key={name} data-testid={'target-bundle-row-' + name}>
                     <TableCell className="px-3 py-1.5">
-                      <Link className="row-link font-mono" lang="en" to={'/bundles/target/' + encodeURIComponent(name)}>{name}</Link>
+                      <Link className="row-link font-mono" lang="en" to={'/artifactory/release-bundles/target/' + encodeURIComponent(name)}>{name}</Link>
                     </TableCell>
                     <TableCell className="px-3 py-1.5 font-mono" lang="en">{row.project_key ?? '—'}</TableCell>
                     <TableCell className="px-3 py-1.5">{targets.data?.total ?? rows.length}</TableCell>
@@ -494,13 +494,13 @@ function TargetBundleVersionsView({ name }: { name: string }) {
       <div className="page-header flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-semibold">{t('Target /')} <span className="font-mono" lang="en">{name}</span></h2>
         <ButtonAsChild variant="outline" size="sm" className="ml-auto">
-          <Link to="/bundles/target">{t('← 返回 Target 列表')}</Link>
+          <Link to="/artifactory/release-bundles/target">{t('← 返回 Target 列表')}</Link>
         </ButtonAsChild>
       </div>
 
       {versions.status === 'loading' && <StateSkeleton lines={4} />}
       {versions.status === 'error' && versions.error && <ErrorCard error={versions.error} onRetry={versions.reload} />}
-      {versions.status === 'forbidden' && <BundleDenied backTo="/bundles/target" />}
+      {versions.status === 'forbidden' && <BundleDenied backTo="/artifactory/release-bundles/target" />}
       {versions.status === 'ok' && rows.length === 0 && (
         <EmptyState
           testid="target-versions-empty"
@@ -524,7 +524,7 @@ function TargetBundleVersionsView({ name }: { name: string }) {
                 return (
                   <TableRow key={version} data-testid={'target-version-row-' + version}>
                     <TableCell className="px-3 py-1.5">
-                      <Link className="row-link font-mono" lang="en" to={'/bundles/target/' + encodeURIComponent(name) + '/' + encodeURIComponent(version)}>{version}</Link>
+                      <Link className="row-link font-mono" lang="en" to={'/artifactory/release-bundles/target/' + encodeURIComponent(name) + '/' + encodeURIComponent(version)}>{version}</Link>
                     </TableCell>
                     <TableCell className="px-3 py-1.5 font-mono" lang="en">{fmtUTC(row.received_at ?? row.created ?? '')}</TableCell>
                   </TableRow>
@@ -552,7 +552,7 @@ function TargetHistoryView({ name, version }: { name: string; version: string })
           {t('Target 历史 /')} <span className="font-mono" lang="en">{name}</span> / <span className="font-mono" lang="en">{version}</span>
         </h2>
         <ButtonAsChild variant="outline" size="sm" className="ml-auto">
-          <Link to={'/bundles/target/' + encodeURIComponent(name)}>{t('← 返回版本列表')}</Link>
+          <Link to={'/artifactory/release-bundles/target/' + encodeURIComponent(name)}>{t('← 返回版本列表')}</Link>
         </ButtonAsChild>
       </div>
 
@@ -580,10 +580,10 @@ function TargetHistoryView({ name, version }: { name: string; version: string })
 export default function BundlesPage() {
   const { name, version } = useParams<{ name?: string; version?: string }>()
   const { pathname } = useLocation()
-  const isTarget = pathname.startsWith('/bundles/target')
+  const isTarget = pathname.startsWith('/bundles/target') || pathname.startsWith('/artifactory/release-bundles/target')
 
-  if (isTarget) {
-    if (name === undefined) return <TargetBundlesView />
+  if (isTarget || pathname.endsWith('/artifactory/release-bundles/target-history')) {
+    if (name === undefined || pathname.endsWith('/target-history')) return <TargetBundlesView />
     if (version === undefined) return <TargetBundleVersionsView name={name} />
     return <TargetHistoryView name={name} version={version} />
   }

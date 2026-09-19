@@ -196,6 +196,16 @@ export const appRoutes: RouteObject[] = [
           { path: 'builds', element: lazyEl(BuildsPage) },
           { path: 'builds/:name', element: lazyEl(BuildsPage) },
           { path: 'builds/:name/:number', element: lazyEl(BuildsPage) },
+          // Artifactory reference-shaped Release Lifecycle routes. The legacy
+          // /bundles family below remains a compatibility deep-link window.
+          { path: 'artifactory/release-lifecycle', element: lazyEl(BundlesPage) },
+          { path: 'artifactory/release-bundles', element: lazyEl(BundlesPage) },
+          { path: 'artifactory/release-bundles/target', element: lazyEl(BundlesPage) },
+          { path: 'artifactory/release-bundles/target-history', element: lazyEl(BundlesPage) },
+          { path: 'artifactory/release-bundles/target/:name', element: lazyEl(BundlesPage) },
+          { path: 'artifactory/release-bundles/target/:name/:version', element: lazyEl(BundlesPage) },
+          { path: 'artifactory/release-bundles/:name', element: lazyEl(BundlesPage) },
+          { path: 'artifactory/release-bundles/:name/:version', element: lazyEl(BundlesPage) },
           { path: 'bundles', element: lazyEl(BundlesPage) },
           { path: 'bundles/source', element: lazyEl(BundlesPage) },
           { path: 'bundles/target', element: lazyEl(BundlesPage) },

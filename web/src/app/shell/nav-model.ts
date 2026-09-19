@@ -63,7 +63,7 @@ export const APP_NAV_GROUPS: NavGroup[] = [
       item('packages', 'Packages', '/packages', Package, 'all'),
       item('builds', 'Builds', '/builds', Activity, 'all'),
       item('artifacts', 'Artifacts', '/artifacts', FolderTree, 'all'),
-      item('release-lifecycle', 'Release Lifecycle', '/bundles', BadgeCheck, 'all'),
+      item('release-lifecycle', 'Release Lifecycle', '/artifactory/release-lifecycle', BadgeCheck, 'all'),
     ],
   },
 ]

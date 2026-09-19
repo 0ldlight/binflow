@@ -15,7 +15,8 @@ async function login(page: import('@playwright/test').Page) {
 test('release bundles: source/target route split and honest v2 target empty/history faces', async ({ page }, testInfo) => {
   await login(page)
 
-  await page.goto('/binflow/ui/bundles')
+  await page.click('[data-testid="nav-entry-release-lifecycle"]')
+  await expect(page).toHaveURL('/binflow/ui/artifactory/release-lifecycle')
   await expect(page.locator('[data-testid="bundles-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="bundles-page"] h2')).toHaveText('Release Lifecycle')
   await expect(page.locator('[data-testid="bundles-search"]')).toHaveAttribute('placeholder', 'Search Release Bundles')
@@ -32,21 +33,27 @@ test('release bundles: source/target route split and honest v2 target empty/hist
     })
   })
   await page.reload()
+  await expect(page.locator('[data-testid="bundles-row-demo"] a')).toHaveAttribute('href', '/binflow/ui/artifactory/release-bundles/demo')
   await expect(page.locator('[data-testid="bundles-table"] th').nth(0)).toHaveText('Release Bundle Name')
   await expect(page.locator('[data-testid="bundles-table"] th').nth(1)).toHaveText('Project')
   await expect(page.locator('[data-testid="bundles-table"] th').nth(2)).toHaveText('Number of Versions')
   await expect(page.locator('[data-testid="bundles-table"] th').nth(3)).toHaveText('Latest Version')
   await page.unroute('**/binflow/api/release/bundles')
 
-  await page.goto('/binflow/ui/bundles/target')
+  await page.goto('/binflow/ui/artifactory/release-bundles/target')
   await expect(page.locator('[data-testid="target-bundles-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="target-bundles-empty"]')).toBeVisible()
   await expect(page.locator('[data-testid="target-bundles-empty"]')).toContainText('暂无 Received Release Bundle')
 
-  await page.goto('/binflow/ui/bundles/target/audit-probe/1.0')
+  await page.goto('/binflow/ui/artifactory/release-bundles/target/audit-probe/1.0')
   await expect(page.locator('[data-testid="target-history-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="target-history-empty"]')).toBeVisible()
   await expect(page.locator('[data-testid="target-history-empty"]')).toContainText('没有 target 历史记录')
+
+  // Legacy deep links remain a compatibility window while all shell navigation
+  // and in-page links use the Artifactory-shaped route family.
+  await page.goto('/binflow/ui/bundles/target/audit-probe/1.0')
+  await expect(page.locator('[data-testid="target-history-page"]')).toBeVisible()
 
   await expectA11yClean(page, testInfo, { include: '[data-testid="target-history-page"]' })
 })
