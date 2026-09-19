@@ -29,7 +29,7 @@ app_menu:
     - { ref: 1, label: Packages, ref_route: /ui/packages, bf_route: /packages, status: implemented }
     - { ref: 2, label: Builds, ref_route: /ui/builds, bf_route: /builds, status: implemented }
     - { ref: 3, label: Artifacts, ref_route: /ui/repos/tree/General, bf_route: /artifacts, status: "implemented (internal path alias)" }
-    - { ref: 4, label: Release Lifecycle, ref_route: /ui/artifactory/release-lifecycle, bf_route: /bundles, status: "partial (release-bundle capability present; aggregate lifecycle fields/API remain backend-gap)" }
+    - { ref: 4, label: Release Lifecycle, ref_route: /ui/artifactory/release-lifecycle, bf_route: /bundles, status: "partial (Artifactory face/search/columns/create label implemented; Project/version-count/latest aggregation APIs remain honest gaps)" }
   excluded_platform_products:
     - { label: Xray, reason: outside Artifactory-only scope }
     - { label: Distribution, reason: outside Artifactory-only scope; Release Lifecycle is the in-scope Artifactory entry }

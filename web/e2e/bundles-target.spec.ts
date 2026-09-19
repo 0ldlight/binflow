@@ -15,12 +15,30 @@ async function login(page: import('@playwright/test').Page) {
 test('release bundles: source/target route split and honest v2 target empty/history faces', async ({ page }, testInfo) => {
   await login(page)
 
-  await page.goto('/binflow/ui/bundles/source')
+  await page.goto('/binflow/ui/bundles')
   await expect(page.locator('[data-testid="bundles-page"]')).toBeVisible()
-  await expect(page.locator('[data-testid="bundle-tab-source"]')).toBeVisible()
+  await expect(page.locator('[data-testid="bundles-page"] h2')).toHaveText('Release Lifecycle')
+  await expect(page.locator('[data-testid="bundles-search"]')).toHaveAttribute('placeholder', 'Search Release Bundles')
+  await expect(page.locator('[data-testid="bundles-empty"]')).toBeVisible()
+  await expect(page.locator('[data-testid="bundle-mode-tabs"]')).toHaveCount(0)
 
-  await page.click('[data-testid="bundle-tab-target"]')
-  await expect(page).toHaveURL(/\/binflow\/ui\/bundles\/target$/)
+  // Structural header check with one deterministic row; the unmocked empty face
+  // above remains the real integration assertion.
+  await page.route('**/binflow/api/release/bundles', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ bundles: { demo: { uri: '/demo', name: 'demo' } } }),
+    })
+  })
+  await page.reload()
+  await expect(page.locator('[data-testid="bundles-table"] th').nth(0)).toHaveText('Release Bundle Name')
+  await expect(page.locator('[data-testid="bundles-table"] th').nth(1)).toHaveText('Project')
+  await expect(page.locator('[data-testid="bundles-table"] th').nth(2)).toHaveText('Number of Versions')
+  await expect(page.locator('[data-testid="bundles-table"] th').nth(3)).toHaveText('Latest Version')
+  await page.unroute('**/binflow/api/release/bundles')
+
+  await page.goto('/binflow/ui/bundles/target')
   await expect(page.locator('[data-testid="target-bundles-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="target-bundles-empty"]')).toBeVisible()
   await expect(page.locator('[data-testid="target-bundles-empty"]')).toContainText('暂无 Received Release Bundle')

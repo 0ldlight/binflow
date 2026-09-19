@@ -24,6 +24,7 @@ import { Link, useLocation, useParams } from 'react-router-dom'
 import { useAuth } from '@/app/AuthContext'
 import { Badge } from '@/components/ui/badge'
 import { Button, ButtonAsChild } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { Pager, useClientPager } from '@/components/layout/pager'
@@ -41,7 +42,7 @@ import {
   listTargetBundleVersions,
   listTargetBundles,
 } from './api'
-import type { BundleVersionRow } from './api'
+import type { BundleNameRow, BundleVersionRow } from './api'
 
 const t = tr('bundles')
 
@@ -100,23 +101,43 @@ function BundleNamesView() {
   const adminWrite = session?.admin === true
   const names = useAsync(listBundleNames, [])
   const [createOpen, setCreateOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const allRows = names.status === 'ok' ? (Object.values(names.data?.bundles ?? {}) as BundleNameRow[]) : []
+  const rows = allRows.filter((row) => row.name.toLowerCase().includes(query.trim().toLowerCase()))
 
   return (
     <div data-testid="bundles-page">
       <div className="page-header flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold">Release Bundles</h2>
-        <span className="text-aux text-muted-foreground">{t('版本化发布记录（名 → 版本 → 描述符 + 创建面）')}</span>
+        <h2 className="text-lg font-semibold">Release Lifecycle</h2>
+        <span className="text-aux text-muted-foreground">
+          {t('版本化发布记录；Project / 版本聚合 / Latest Version 后端字段缺失时如实留空。')}
+        </span>
         {adminWrite && (
           <Button size="sm" className="ml-auto" data-testid="bundle-create" onClick={() => setCreateOpen(true)}>
-            {t('＋ 创建 Bundle')}
+            Create Release Bundle
           </Button>
         )}
       </div>
-      <BundleModeTabs mode="source" />
+
+      <div className="flex max-w-md items-center gap-2">
+        <Input
+          type="search"
+          value={query}
+          placeholder="Search Release Bundles"
+          aria-label="Search Release Bundles"
+          data-testid="bundles-search"
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        {query && (
+          <Button variant="outline" size="sm" data-testid="bundles-search-clear" onClick={() => setQuery('')}>
+            Clear
+          </Button>
+        )}
+      </div>
 
       {names.status === 'loading' && <StateSkeleton lines={5} />}
       {names.status === 'error' && names.error && <ErrorCard error={names.error} onRetry={names.reload} />}
-      {names.status === 'ok' && (names.data?.bundles.length ?? 0) === 0 && (
+      {names.status === 'ok' && allRows.length === 0 && (
         <EmptyState
           testid="bundles-empty"
           illustration
@@ -125,28 +146,41 @@ function BundleNamesView() {
           action={
             adminWrite ? (
               <Button size="sm" data-testid="bundle-create-empty" onClick={() => setCreateOpen(true)}>
-                {t('创建第一个 Bundle')}
+                Create Release Bundle
               </Button>
             ) : undefined
           }
         />
       )}
-      {names.status === 'ok' && (names.data?.bundles.length ?? 0) > 0 && (
+      {names.status === 'ok' && allRows.length > 0 && rows.length === 0 && (
+        <EmptyState
+          testid="bundles-empty-filtered"
+          message={t('没有匹配的 Release Bundle')}
+          hint={t('搜索仅作用于当前名单面的 Bundle 名称。')}
+        />
+      )}
+      {names.status === 'ok' && rows.length > 0 && (
         <section className="card section" data-testid="bundles-table">
           <Table className="w-full text-dense">
             <TableHeader>
               <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
-                <TableHead scope="col" className="px-3 py-2 font-medium">{t('Bundle')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">Release Bundle Name</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">Project</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">Number of Versions</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">Latest Version</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(names.data?.bundles ?? []).map((b) => (
-                <TableRow key={b.name} className="border-b border-border/60 hover:bg-accent" data-testid={`bundles-row-${b.name}`}>
+              {rows.map((row) => (
+                <TableRow key={row.name} className="border-b border-border/60 hover:bg-accent" data-testid={`bundles-row-${row.name}`}>
                   <TableCell className="px-3 py-1.5">
-                    <Link className="row-link font-mono text-primary hover:underline" lang="en" to={`/bundles/${encodeURIComponent(b.name)}`}>
-                      {b.name}
+                    <Link className="row-link font-mono text-primary hover:underline" lang="en" to={`/bundles/${encodeURIComponent(row.name)}`}>
+                      {row.name}
                     </Link>
                   </TableCell>
+                  <TableCell className="px-3 py-1.5" title={t('Project 字段需要 release bundle 聚合 API 投影；当前名单端点只返回 name。')}>—</TableCell>
+                  <TableCell className="px-3 py-1.5" title={t('版本数需要逐 bundle 版本聚合 API；当前不逐名补请求，也不用假数。')}>—</TableCell>
+                  <TableCell className="px-3 py-1.5" title={t('Latest Version 需要服务端排序聚合；当前端点无该字段。')}>—</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -193,7 +227,6 @@ function BundleVersionsView({ name }: { name: string }) {
           <Link to="/bundles">{t('← 返回 bundle 列表')}</Link>
         </ButtonAsChild>
       </div>
-      <BundleModeTabs mode="source" />
 
       {versions.status === 'loading' && <StateSkeleton lines={5} />}
       {versions.status === 'error' && versions.error && !notFound && (
@@ -393,19 +426,6 @@ function BundleDetailView({ name, version }: { name: string; version: string }) 
 
 // ---- Release Lifecycle target/history companion views ------------------------
 
-function BundleModeTabs({ mode }: { mode: 'source' | 'target' }) {
-  return (
-    <nav className="flex flex-wrap items-center gap-1" aria-label={t('Release Bundle 视图')} data-testid="bundle-mode-tabs">
-      <ButtonAsChild variant={mode === 'source' ? 'secondary' : 'ghost'} size="sm">
-        <Link to="/bundles" data-testid="bundle-tab-source">{t('Source')}</Link>
-      </ButtonAsChild>
-      <ButtonAsChild variant={mode === 'target' ? 'secondary' : 'ghost'} size="sm">
-        <Link to="/bundles/target" data-testid="bundle-tab-target">{t('Target')}</Link>
-      </ButtonAsChild>
-    </nav>
-  )
-}
-
 function TargetBundlesView() {
   const targets = useAsync(listTargetBundles, [])
   const rows = targets.data?.release_bundles ?? []
@@ -416,7 +436,6 @@ function TargetBundlesView() {
         <h2 className="text-lg font-semibold">{t('Release Bundles · Target')}</h2>
         <span className="text-aux text-muted-foreground">{t('Distribution received 面（v2 只读）')}</span>
       </div>
-      <BundleModeTabs mode="target" />
 
       {targets.status === 'loading' && <StateSkeleton lines={5} />}
       {targets.status === 'error' && targets.error && <ErrorCard error={targets.error} onRetry={targets.reload} />}
@@ -478,7 +497,6 @@ function TargetBundleVersionsView({ name }: { name: string }) {
           <Link to="/bundles/target">{t('← 返回 Target 列表')}</Link>
         </ButtonAsChild>
       </div>
-      <BundleModeTabs mode="target" />
 
       {versions.status === 'loading' && <StateSkeleton lines={4} />}
       {versions.status === 'error' && versions.error && <ErrorCard error={versions.error} onRetry={versions.reload} />}
@@ -537,7 +555,6 @@ function TargetHistoryView({ name, version }: { name: string; version: string })
           <Link to={'/bundles/target/' + encodeURIComponent(name)}>{t('← 返回版本列表')}</Link>
         </ButtonAsChild>
       </div>
-      <BundleModeTabs mode="target" />
 
       {record.status === 'loading' && <StateSkeleton lines={5} />}
       {!missing && record.status === 'error' && record.error && <ErrorCard error={record.error} onRetry={record.reload} />}
