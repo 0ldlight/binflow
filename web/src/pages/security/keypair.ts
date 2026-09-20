@@ -1,6 +1,6 @@
 // GPG 签名密钥对面（M11 T-319 后端 / P3 FE 解锁——capability matrix
 // 未列域表「keypair：API 10 op 全备，无 UI」的解锁承载）。
-// 契约源 internal/httpapi/keypair.go（Artifactory 兼容 /api/security/keypair
+// 契约源 internal/httpapi/keypair.go（同类控制台 兼容 /api/security/keypair
 // 族 + BinFlow-native generate + /api/v2/repositories/{repoKey}/keyPairs
 // 关联面）。私钥与口令永不出现在任何响应（ADR-0038 决策 3）。
 import { apiJSON, apiText } from '@/lib/api'
@@ -77,7 +77,7 @@ export function generateKeypair(body: KeypairGenerateBody): Promise<KeypairSumma
   return apiJSON<KeypairSummary>('/v1/admin/security/keypair/generate', { method: 'POST', body })
 }
 
-/** 关联（body = pair name 纯文本——Artifactory 7.19 关联面） */
+/** 关联（body = pair name 纯文本——同类控制台 7.19 关联面） */
 export function associateKeypair(repoKey: string, pairName: string): Promise<string> {
   return apiText(`/v2/repositories/${encodeURIComponent(repoKey)}/keyPairs`, {
     method: 'POST',

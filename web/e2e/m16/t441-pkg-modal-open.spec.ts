@@ -12,7 +12,7 @@ import { m8Client, sessionApi } from '../m8/support/seed'
 //   ① **modal 924px 居中**（7.161 实测 924×760 居中 el-dialog；7.84 审计锚
 //      880px 勘误——reports/agents/m16-baseline-refresh.md §A3-7）：宽度
 //      min(924, vw-48) + 视口居中（boundingBox 几何断言，T-382 体例）。
-//   ② **tiles 维持 BinFlow 实有 13 型**（五核心 + 八门控，不伪造 Artifactory
+//   ② **tiles 维持 BinFlow 实有 13 型**（五核心 + 八门控，不伪造 同类控制台
 //      41 型——型录吃 addons 注册表实时数据）+ **八型去禁用态**（门控
 //      三件套退役：disabled/mono/opacity 0.4 → enabled/brand/1；档位徽章
 //      pkg-tier-* 保留 = D5 可见性口径不变）。
@@ -73,7 +73,7 @@ test('admin: pkg-grid modal — 924px centered, 13 real tiles, gated eight enabl
   expect(Math.abs(box!.x - (vw - box!.width) / 2), 'pkg-grid centered in viewport').toBeLessThanOrEqual(1)
 
   // 型录 = BinFlow 实有 13 型（五核心 + 八门控），不多不少——不伪造
-  // Artifactory 7.161 的 41 型（Hugging Face/Terraform 族不在注册表）。
+  // 同类控制台 7.161 的 41 型（Hugging Face/Terraform 族不在注册表）。
   const tiles = grid.locator('[data-testid^="pkg-grid-item-"]')
   await expect(tiles).toHaveCount(CORE_PKG.length + GATED_PKG.length)
 

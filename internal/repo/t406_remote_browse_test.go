@@ -16,6 +16,7 @@ package repo_test
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -96,5 +97,47 @@ func TestT406VirtualAggregateFaceOpened(t *testing.T) {
 	}
 	if len(nodes) != 0 {
 		t.Fatalf("List(virtual root) = %d rows, want 0 (both members empty)", len(nodes))
+	}
+}
+
+// TestT406RemotePyPIProjectIndexOverridesFolderMarker: UAT carries folder
+// markers under pypi remote /simple/<project>/ from the pre-protocol cache
+// face. Those paths are upstream HTML resources, not browsable folders, so
+// the pypi adapter must still be able to fetch through the stale marker.
+func TestT406RemotePyPIProjectIndexOverridesFolderMarker(t *testing.T) {
+	ctx := context.Background()
+	up, hits := countingUpstream(t, map[string]string{"/simple/six/": "<html>six</html>"})
+	e := newEnv(t)
+	if _, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
+		RepoKey: "pypi-remote", Type: repo.TypeRemote, PackageType: repo.PackagePypi,
+		Config: `{"url":"` + up.URL + `","allowPrivateUpstream":true}`,
+	}); err != nil {
+		t.Fatalf("CreateRepo(pypi-remote): %v", err)
+	}
+	if err := e.md.Blobs().Put(ctx, &metadata.Blob{
+		Sha256: metadata.FolderMarkerSHA, Sha1: "folder", Md5: "folder", Size: 0,
+	}); err != nil {
+		t.Fatalf("seed folder blob: %v", err)
+	}
+	if err := e.md.Nodes().Put(ctx, &metadata.Node{
+		RepoKey: "pypi-remote", Path: "simple/six/", Sha256: metadata.FolderMarkerSHA,
+	}); err != nil {
+		t.Fatalf("seed stale folder marker: %v", err)
+	}
+
+	rc, node, err := e.svc.Get(ctx, admin(), "pypi-remote", "simple/six/")
+	if err != nil {
+		t.Fatalf("Get(pypi simple page through stale marker): %v", err)
+	}
+	defer rc.Close() //nolint:errcheck // test cleanup best effort; Get already returned the body
+	body, rerr := io.ReadAll(rc)
+	if rerr != nil {
+		t.Fatalf("read upstream page: %v", rerr)
+	}
+	if string(body) != "<html>six</html>" || node.Sha256 == metadata.FolderMarkerSHA {
+		t.Fatalf("Get body/node = %q / %+v; want the upstream page and a file node", body, node)
+	}
+	if got := hits.Load(); got != 1 {
+		t.Fatalf("upstream hits = %d, want 1", got)
 	}
 }

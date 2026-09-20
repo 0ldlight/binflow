@@ -1,39 +1,39 @@
 import { expect, test } from '@playwright/test'
 import { loginAs, provisionRoles } from './m8/support/roles'
 
-const ARTIFACTORY_APP_ORDER = ['Packages', 'Builds', 'Artifacts', 'Release Lifecycle']
-const APP_ORDER = [...ARTIFACTORY_APP_ORDER, 'Dashboard']
+const CONSOLE_APP_ORDER = ['软件包', '构建', '制品', '发布生命周期']
+const APP_ORDER = [...CONSOLE_APP_ORDER, '仪表盘']
 const ADMIN_SECTIONS = [
-  'Repositories',
-  'User Management',
-  'Authentication',
-  'Security',
-  'General Management',
-  'Monitoring',
-  'Artifactory Settings',
-  'BinFlow Extensions',
+  '仓库',
+  '用户管理',
+  '认证',
+  '安全',
+  '通用管理',
+  '监控',
+  '仓库设置',
+  'BinFlow 扩展',
 ]
 const ADMIN_ITEMS = [
-  'Repositories',
-  'Users',
-  'Groups',
-  'Permissions',
-  'Access Tokens',
+  '仓库',
+  '用户',
+  '组',
+  '权限',
+  '访问令牌',
   'LDAP',
-  'Signing Keys',
-  'Settings',
-  'Service Status',
-  'Storage',
-  'System Logs',
-  'System Info',
-  'Maintenance',
-  'Backups',
-  'Quotas',
-  'Replication',
-  'Trash',
-  'Audit Log',
+  '签名密钥',
+  '设置',
+  '服务状态',
+  '存储',
+  '系统日志',
+  '系统信息',
+  '维护',
+  '备份',
+  '配额',
+  '复制',
+  '回收站',
+  '审计日志',
   'Webhooks',
-  'License & Add-ons',
+  '许可与扩展',
 ]
 
 async function texts(locator: import('@playwright/test').Locator): Promise<string[]> {
@@ -46,7 +46,7 @@ test.beforeEach(async ({ request }) => {
   await provisionRoles()
 })
 
-test('Artifactory-aligned shell remains directly usable', async ({ page }) => {
+test('同类控制台-aligned shell remains directly usable', async ({ page }) => {
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/packages')
   const nav = page.locator('[data-testid="app-nav"]')
@@ -56,7 +56,7 @@ test('Artifactory-aligned shell remains directly usable', async ({ page }) => {
   expect(await texts(nav.locator('.app-nav-items a.nav-item'))).toEqual(APP_ORDER)
 
   await page.click('[data-testid="nav-mode-administration"]')
-  await expect(page).toHaveURL('/binflow/ui/admin/repositories')
+  await expect(page).toHaveURL('/binflow/ui/admin/repositories/local')
   await expect(nav).toHaveAttribute('data-mode', 'administration')
   await expect(page.locator('[data-testid="nav-mode-administration"]')).toHaveAttribute('aria-current', 'page')
   expect(await texts(nav.locator('.app-nav-items .nav-group-label'))).toEqual(ADMIN_SECTIONS)
@@ -65,11 +65,11 @@ test('Artifactory-aligned shell remains directly usable', async ({ page }) => {
   await expect(page.locator('[data-testid^="nav-menu-"]')).toHaveCount(0)
   await expect(page.getByTestId('nav-entry-trash')).toBeVisible()
 
-  // Filtering finds a direct destination and keeps its Artifactory section.
-  await page.fill('[data-testid="admin-filter"]', 'Backups')
+  // Filtering finds a direct destination and keeps its 同类控制台 section.
+  await page.fill('[data-testid="admin-filter"]', '备份')
   await expect(page.locator('[data-testid="admin-filter-empty"]')).toHaveCount(0)
-  expect(await texts(nav.locator('.app-nav-items .nav-group-label'))).toEqual(['Artifactory Settings'])
-  expect(await texts(nav.locator('.app-nav-items a.nav-item'))).toEqual(['Backups'])
+  expect(await texts(nav.locator('.app-nav-items .nav-group-label'))).toEqual(['仓库设置'])
+  expect(await texts(nav.locator('.app-nav-items a.nav-item'))).toEqual(['备份'])
 
   await page.fill('[data-testid="admin-filter"]', '')
   await page.click('[data-testid="nav-mode-platform"]')

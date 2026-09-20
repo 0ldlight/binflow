@@ -224,7 +224,7 @@ test('url model: tab is a path segment, file is the last segment, legacy ?focus=
   await expect(page.locator('[data-testid="node-perms"]')).toBeVisible()
   await expect(page.locator('[data-testid="node-detail"] h3 .font-mono')).toHaveText('docs/guide.md')
 
-  // 页签段深链直达（Artifactory /tree/<TAB>/… 对位形态）
+  // 页签段深链直达（同类控制台 /tree/<TAB>/… 对位形态）
   await page.goto(`/binflow/ui/artifacts/properties/${key}/docs/guide.md`)
   await expect(page.locator('[data-testid="node-tab-props"]')).toHaveAttribute('aria-selected', 'true')
   await expect(page.locator('[data-testid="node-props"]')).toBeVisible()

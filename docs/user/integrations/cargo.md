@@ -157,7 +157,7 @@ curl -s "$REG_REMOTE/index/config.json"
 # 上游 config.json 原文缓存在仓根 config.original.json（排障可直取比对）
 ```
 
-- **上游语法前提**：上游须为**单主机 sparse wire 语法**（其 `config.json` 的 dl/api 指向同主机路径——BinFlow / Artifactory cargo 面 / 自建兼容源均属此类）。crates.io 直连（index/dl 双主机形态）不支持；需要 crates.io 制品时以上游为兼容源级联，或待后续版本扩展。
+- **上游语法前提**：上游须为**单主机 sparse wire 语法**（其 `config.json` 的 dl/api 指向同主机路径——BinFlow / 参考仓库 cargo 面 / 自建兼容源均属此类）。crates.io 直连（index/dl 双主机形态）不支持；需要 crates.io 制品时以上游为兼容源级联，或待后续版本扩展。
 - 内网上游（如同机/内网 BinFlow 实例）需 `"allowPrivateUpstream": true`——SSRF 守卫默认拒绝私网/环回目标（`upstream target refused — private or suppressed upstream`），见 [remote/virtual 管理](../admin/remote-virtual.md#ssrf-防护与-allowprivateupstream-放行指引)。
 
 ### 2. 客户端接入与行为
@@ -187,7 +187,7 @@ search 响应有 TTL 缓存：窗口内上游新发布的 crate 暂不可见于 
 
 ## virtual 仓（聚合入口）
 
-把 local 成员与 remote 成员缝成单一 registry 入口。索引面做**行级归并去重**——同一 (name, version) 多成员持有时只保留首见成员的行（Artifactory 裸拼接会产出重复行、违反官方唯一性约束，BinFlow 不采纳）。
+把 local 成员与 remote 成员缝成单一 registry 入口。索引面做**行级归并去重**——同一 (name, version) 多成员持有时只保留首见成员的行（参考仓库 裸拼接会产出重复行、违反官方唯一性约束，BinFlow 不采纳）。
 
 ### 1. 建仓（写路由指向 local 成员）
 
@@ -219,7 +219,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/cargo-virtual \
 
 | 项 | 行为 |
 |---|---|
-| crates.io 直连上游（index/dl 双主机形态） | 不支持——remote 上游须为单主机 sparse wire 语法（BinFlow / Artifactory cargo 面 / 自建兼容源），见 [remote 仓](#remote-仓pull-through-代理缓存) 一节 |
+| crates.io 直连上游（index/dl 双主机形态） | 不支持——remote 上游须为单主机 sparse wire 语法（BinFlow / 参考仓库 cargo 面 / 自建兼容源），见 [remote 仓](#remote-仓pull-through-代理缓存) 一节 |
 | git 索引协议（`info/refs` / `git-upload-pack`） | 不做（官方已弃用 sparse 之外的 git 索引），按未知路径 404 + 弃用文案 |
 | owners 四端点 | 不做（无用户-所有权模型），按未知路径 404 |
 | 手写索引/侧车（bare PUT/DELETE 到 `index/**`、`.cargo/**`） | M11 起接受（PUT 201 / DELETE 204）并触发**索引收敛**：有存储事实的 crate 手写行立即被重算覆盖（cksum 对账闭环由重算保证），无事实的（外部导入形态）手写行保留；`index/config.json` 写仍 **403**（请求时合成面，无落点） |
@@ -234,7 +234,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/cargo-virtual \
 | publish/yank 403 + 响应头 `X-Binflow-License-Required: cargo` | license 过期/卸载后的写门（D2）；**下载/索引读不受影响** | 重装 license |
 | publish 401 | 未配 token / token 失效 | `cargo login --registry binflow` 或设 `CARGO_REGISTRIES_BINFLOW_TOKEN` |
 | `crate mycrate@0.1.0 already exists on ... index`（cargo 1.98 本地拒绝，PUT 未发） | 客户端预检索引发现重复——**服务端已无 409 冲突臂**（M11 翻转）：可删权限者 PUT 同版本为覆盖上传，但现代 cargo 不发 PUT | **删后重发**（两步、对持有成员仓直接操作——经虚仓 DELETE 恒 405）：`curl -su admin:$ADMIN_PW -X DELETE "$REG/crates/mycrate/mycrate-0.1.0.crate"` 删存储件（204），再 `curl -su admin:$ADMIN_PW -X DELETE "$REG/index/my/cr/mycrate"` 删索引行（204；**顺序勿倒**——有存储事实时索引文件删除会被重算回填）。随后照常 `cargo publish`。或升 `vers` / yank 旧版 |
-| publish 命令回 200 但输出 `Failed to publish with error '...'` 警告、随后 `registry may have a backlog` 等索引等待超时 | **CG-2 双轨的 200 臂**：IOException 族失败（元数据/SemVer 校验、帧体截断、落盘、副作用面）答 **200 + `warnings.other` 载荷、无顶层 `errors` 键**——crate 实际未落地（Artifactory 兼容 wire；响应带 `errors` 键 cargo 即判失败，故失败细节走 warnings） | 看 `warnings.other` 里的错误原文处置（如 `version "0.2.0.abc" is not valid SemVer 2.0`），修正后重发 |
+| publish 命令回 200 但输出 `Failed to publish with error '...'` 警告、随后 `registry may have a backlog` 等索引等待超时 | **CG-2 双轨的 200 臂**：IOException 族失败（元数据/SemVer 校验、帧体截断、落盘、副作用面）答 **200 + `warnings.other` 载荷、无顶层 `errors` 键**——crate 实际未落地（参考仓库 兼容 wire；响应带 `errors` 键 cargo 即判失败，故失败细节走 warnings） | 看 `warnings.other` 里的错误原文处置（如 `version "0.2.0.abc" is not valid SemVer 2.0`），修正后重发 |
 | publish 500（`errors` 信封） | 帧形状违例：声明长度超 1MiB 上界 / 空 crate 帧 / 尾随字节 | 用 cargo 客户端发布（勿手拼 wire）；核对 `Cargo.toml` |
 | publish 403 `permission denied`（`errors` 信封） | 实名无写权限（含重复版本且调用方不可删的覆盖臂） | 核对权限/换 admin 凭据，或走删后重发 |
 | `error: failed to parse manifest ... registry not listed` | `~/.cargo/config.toml` 缺 `[registries.binflow]` 或 `sparse+` 前缀漏写 | 按第 2 步补全配置 |

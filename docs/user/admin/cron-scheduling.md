@@ -78,7 +78,7 @@ BinFlow 使用 **Quartz 形态的 6 或 7 域表达式**（空格分隔）——
 |---|---|
 | `gc` | GC 全量回收（与 REST/CLI 同一内核，apply 语义 + 配置宽限） |
 | `cleanup-unused-cache` | unused 缓存清理全量 pass（`POST /system/cleanup {apply:true}` 同载体） |
-| `cleanup-virtual` | 同上——BinFlow 的两族清理共用全量 pass（virtual 聚合不单独缓存，两槽到点执行等价任务，保留双槽与 Artifactory 键名对齐） |
+| `cleanup-virtual` | 同上——BinFlow 的两族清理共用全量 pass（virtual 聚合不单独缓存，两槽到点执行等价任务，保留双槽与 参考仓库 键名对齐） |
 
 **零预置**：首配前三槽全空（无表达式 = 不调度，单态）。`GET` 恒返回三槽投影：
 
@@ -144,7 +144,7 @@ fire 行为：
 - 每次触发在 `<exportPath>/<backupKey>-<UTC 时间戳>` 子目录产出一套完整 export 产物（同秒重复触发以纳秒后缀防混合）；恢复仍走 [import CLI](backup-restore.md#import停机恢复)。
 - 触发撞上维护锁（手动 GC/export 在跑）→ `lastStatus: failed` + `lastError` 点名锁冲突，**下轮再试**——排程时与 GC 错峰。
 - 删除条目联动清调度行；台账行丢失时 runner 到点自愈（tombstone）。
-- **零预置**：实例不自带任何备份条目（与 Artifactory 出厂的 backup-daily/weekly 有意不同——首配即明确）。
+- **零预置**：实例不自带任何备份条目（与 参考仓库 出厂的 backup-daily/weekly 有意不同——首配即明确）。
 - 审计：布防/清除落 `backup.schedule.set`（detail 含 key/cronExp/exportPath/next_run 或 `action: cleared/deleted`）；fire 双层——`backup.schedule.run`（actor=scheduler）+ 载体 `export.run`。
 
 控制台对应：**监控 → 备份 / 恢复**页的「定时备份」卡（列表：Key / cron / 下次备份 / 启用 / 上次运行 / 路径；New Backup 表单含 key 预检、服务端权威的 cron 校验、绝对路径门、`nextBackupTime` 本地时区输入；E1 输入 key 强确认删除）。页内另有 CLI 引导卡——**import 恢复仍是带外 CLI 操作，不做 UI**。

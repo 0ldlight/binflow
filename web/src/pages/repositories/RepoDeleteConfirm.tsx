@@ -16,7 +16,7 @@ const t = tr('repositories')
 // 详情危险区共用）：
 //
 // - 文案基线：「将永久删除 `<key>` 仓库及其全部制品。」+ □ 同时删除内容
-//   （deleteContent）+ **输入 key 确认**（P5 强确认形态——Artifactory 无
+//   （deleteContent）+ **输入 key 确认**（P5 强确认形态——同类控制台 无
 //   输入确认，BinFlow 有意增强）。
 // - 非空仓不勾 deleteContent 直接确认 → 服务端 400（原因含「holds N
 //   node(s)」）被带回对话框原样呈现并预勾选——用户看见影响面再决定，

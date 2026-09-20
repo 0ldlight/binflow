@@ -102,7 +102,7 @@ curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/trash/clean/vlibs/com | jq 
 ## 保留期
 
 - 默认 **14 天**；小时级 cron（`TrashEngine`）按 `trash.time`（epoch ms）判龄；捕获后、打标前崩溃的裸行降级回退 `updated_at` 判龄（保守删除而非永久滞留）。
-- **保留期旋钮（M13 起）**：`trashcan.retention_days`（YAML）/ `BINFLOW_TRASHCAN__RETENTION_DAYS`（env；env 只收正整数，`0` 只能 YAML 拼写——语义为「回退默认 14」哨兵）。**重启生效**（非热更新——Artifactory 的 reload 即时生效为已登记分歧）；负值拒启。生效值可经 `GET /api/v1/system/settings` 回显核对（实测：配 7 → `"trashcan":{"retention_days":7}`；缺省 → 14）：
+- **保留期旋钮（M13 起）**：`trashcan.retention_days`（YAML）/ `BINFLOW_TRASHCAN__RETENTION_DAYS`（env；env 只收正整数，`0` 只能 YAML 拼写——语义为「回退默认 14」哨兵）。**重启生效**（非热更新——参考仓库 的 reload 即时生效为已登记分歧）；负值拒启。生效值可经 `GET /api/v1/system/settings` 回显核对（实测：配 7 → `"trashcan":{"retention_days":7}`；缺省 → 14）：
 
 ```yaml
 # binflow.yaml
@@ -126,7 +126,7 @@ curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/system/settings
 |---|---|---|
 | 保留期旋钮 | **已落地（M13 T-368）**：`trashcan.retention_days`（默认 14 不变，重启生效） | — |
 | 捕获开关 | `trashcan.enabled` **不是配置键**——strict schema 拒绝该键；捕获开关走 trashcan license 槽（community 即不捕获） | 维持（票面口径：enabled 不旋钮化） |
-| 档位 | pro 暂行；Q3 终裁建议 community（clean-room 取证：Artifactory OSS 发行即携带 trash 基座，无 addon 门证） | conductor/PM 终裁；翻转点 = slots.go 一行 + 四处测试断言 |
+| 档位 | pro 暂行；Q3 终裁建议 community（clean-room 取证：参考仓库 OSS 发行即携带 trash 基座，无 addon 门证） | conductor/PM 终裁；翻转点 = slots.go 一行 + 四处测试断言 |
 | docker manifest 删除 | 不入站（恢复需索引随行） | 独立票 |
 | 覆盖入站（`send.overwrites.to.trashcan`） | 未实现——PUT 覆盖同名文件不进 can | 后续票候选 |
 

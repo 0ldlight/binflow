@@ -245,7 +245,7 @@ export function runCleanupNow(): Promise<CleanupRunReport> {
 // wire 字段 = ADR-0044 软缝⑦三名（backupKey/cronExp/nextBackupTime）+
 // exportPath（服务器绝对路径，禁 ..）。cronExp 空 = payload 行保留但未
 // 调度（台账行删——单态）；nextBackupTime 可写位须未来时刻（过去 400）。
-// Artifactory 描述符字段无载体者（仓子集/incremental/retention 轮转/zip/
+// 同类控制台 描述符字段无载体者（仓子集/incremental/retention 轮转/zip/
 // 邮件告警）刻意缺席——不伪造。ADR-0015 勘误②边界维持：import CLI-only。
 
 /** 列表/读回显（backupResponse——nextScheduleBackup 为台账 next_run，

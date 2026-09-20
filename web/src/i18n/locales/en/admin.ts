@@ -1,5 +1,5 @@
 // T-463 键集 / T-464 填充：admin 域 en 目录包——键 = zh 文案原文
-// （zh-as-key），值 = 逐义对译 en（术语对齐 Artifactory：repo key / node /
+// （zh-as-key），值 = 逐义对译 en（术语对齐 reference console：repo key / node /
 // checksum / Deploy / Set Me Up 等英文术语原样保留）。
 import { registerEn } from '../../index'
 
@@ -113,8 +113,8 @@ registerEn('admin', {
   "Auto Create System Users（首次登录自动建用户）": "Auto Create System Users (create the user automatically on first login)",
   "Auto Create System Users（persistUsers 对应位，全局摊平语义）": "Auto Create System Users (the persistUsers bit, globally flattened semantics)",
   "Auto Create Users（wire = noAutoUserCreation，反语义：勾选 = 自动创建，默认不创建）": "Auto Create Users (wire = noAutoUserCreation, inverted semantics: checked = auto-create, default is no creation)",
-  "BinFlow 为 issuer 发现式模型：填 IdP 的 issuer URL，端点经 discovery 文档解析（Artifactory 的多 provider / authUrl / tokenUrl 面无对应，defaultNpm 不承载）。": "BinFlow uses an issuer-discovery model: enter the IdP's issuer URL and the endpoints are resolved from the discovery document (Artifactory's multi-provider / authUrl / tokenUrl surface has no counterpart; defaultNpm is not carried).",
-  "BinFlow 运行时扩展（无 Artifactory 对应项）": "BinFlow runtime extension (no Artifactory counterpart)",
+  "BinFlow 为 issuer 发现式模型：填 IdP 的 issuer URL，端点经 discovery 文档解析（同类控制台 的多 provider / authUrl / tokenUrl 面无对应，defaultNpm 不承载）。": "BinFlow uses an issuer-discovery model: enter the IdP's issuer URL and the endpoints are resolved from the discovery document (reference console's multi-provider / authUrl / tokenUrl surface has no counterpart; defaultNpm is not carried).",
+  "BinFlow 运行时扩展（无 同类控制台 对应项）": "BinFlow runtime extension (no reference console counterpart)",
   "community 地板": "community floor",
   "community 地板：无 license 也解锁": "community floor: unlocked even without a license",
   "Enable OAuth（启用 OIDC SSO）": "Enable OAuth (enable OIDC SSO)",

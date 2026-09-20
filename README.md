@@ -3,9 +3,10 @@
 **English** | [简体中文](README.zh-CN.md)
 
 BinFlow is a cloud-native artifact repository written from scratch in Go,
-with an architecture and concept model aligned to JFrog Artifactory —
-repositories, storage, permissions and REST semantics map one-to-one, so an
-Artifactory shop can migrate without relearning the vocabulary. One static
+with an architecture and concept model aligned to mainstream artifact
+repositories — repository, storage, permissions and REST semantics map
+one-to-one, so existing repository users can migrate without relearning the
+vocabulary. One static
 binary, zero external dependencies, an embedded web console, **thirteen
 package ecosystems** natively served — each across **local / remote
 (pull-through proxy cache) / virtual (aggregating)** repository types.
@@ -106,7 +107,7 @@ sha256-content-addressed and deduplicated across every path and repo.
 - **Storage** — disk or S3 (AWS/MinIO), online dual-write migration, `binstore.yaml` provider chain: [S3](docs/user/guides/s3-config.md) · [storage config](docs/user/admin/storage-config.md)
 - **Replication** — event-driven one-way push, on-demand full resync, global block brake: [governance](docs/user/admin/governance.md)
 - **Search** — AQL (`items.find({...})`) plus gavc/prop/pattern endpoints, and the properties system: [AQL](docs/user/aql.md) · [properties](docs/user/properties.md)
-- **REST API** — Artifactory-compatible semantics on the management face: repo
+- **REST API** — compatible repository semantics on the management face: repo
   config verbs (PUT create-only / POST merge-update: omitted fields keep,
   `null` clears), recursive property writes (only real mutations move the
   per-node property mtime), the seven-parameter `?list` file listing
@@ -118,7 +119,7 @@ sha256-content-addressed and deduplicated across every path and repo.
 - **Artifact lifecycle** — copy/move/zip/`archive!`/explode and a trash can with restore + retention: [operations](docs/user/admin/artifact-operations.md) · [trash can](docs/user/admin/trash-can.md)
 - **Webhooks** — HMAC-SHA256 signed delivery with retry semantics: [`docs/user/admin/webhooks.md`](docs/user/admin/webhooks.md)
 - **Operations & observability** — concurrency-safe GC, online export/import backup, audit, quotas, Prometheus `/metrics`: [backup](docs/user/admin/backup-restore.md) · [governance](docs/user/admin/governance.md) · [metrics](docs/user/metrics/prometheus-reference.md)
-- **Tools** — `bf` CLI and `bf-migrate` (Artifactory export): [bf CLI](docs/user/guides/bf-cli.md) · [migration](docs/user/guides/migrate-artifactory.md)
+- **Tools** — `bf` CLI and `bf-migrate` (compatible repository export): [bf CLI](docs/user/guides/bf-cli.md) · [migration](docs/user/guides/migration-guide.md)
 
 ## Deployment
 
@@ -195,8 +196,8 @@ over the `internal/` packages; CI runs the same Makefile targets.
 | What | Where |
 |---|---|
 | Documentation site (install / integrations / admin / API / FAQ) | [binflow.docs.buildwithfern.com](https://binflow.docs.buildwithfern.com) · source [`docs/user/`](docs/user/README.md) |
-| API reference (Artifactory-compatible subset + `/api/v1`) | [`docs/user/api-reference.md`](docs/user/api-reference.md) |
-| FAQ & troubleshooting, Artifactory→BinFlow mapping | [`docs/user/faq.md`](docs/user/faq.md) |
+| API reference (compatibility subset + `/api/v1`) | [`docs/user/api-reference.md`](docs/user/api-reference.md) |
+| FAQ, troubleshooting, and migration mapping | [`docs/user/faq.md`](docs/user/faq.md) |
 | Product vision & scope | [`PRODUCT.md`](PRODUCT.md) |
 | Architecture spec | [`docs/design/architecture.md`](docs/design/architecture.md) |
 | Decision log (ADR) | [`DECISIONS.md`](DECISIONS.md) |

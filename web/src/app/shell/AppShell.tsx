@@ -17,7 +17,7 @@ import { tr } from '@/i18n'
 import { useAiStore } from '@/stores/ai-store'
 
 import { adminCrumbs, appTitle } from './breadcrumbs'
-import { ADMIN_NAV_GROUPS, APP_NAV_GROUPS, BINFLOW_NAV_GROUPS, filterNavGroups } from './nav-model'
+import { ADMIN_NAV_GROUPS, APP_NAV_GROUPS, BINFLOW_NAV_GROUPS, filterNavGroups, localizeNavGroups } from './nav-model'
 import { CommandPalette } from './CommandPalette'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
@@ -48,11 +48,13 @@ export function AppShell() {
 
   const groups = useMemo(() => {
     const source = adminMode ? [...ADMIN_NAV_GROUPS, ...BINFLOW_NAV_GROUPS] : APP_NAV_GROUPS
-    const visible = source.map((group) => ({
-      ...group,
-      items: group.items.filter((item) => item.visibility === 'all' || canSeeAdmin),
-    }))
-    // The Artifactory admin tree keeps its reference sibling order. Filtering only
+    const visible = localizeNavGroups(
+      source.map((group) => ({
+        ...group,
+        items: group.items.filter((item) => item.visibility === 'all' || canSeeAdmin),
+      })),
+    )
+    // The 同类控制台 admin tree keeps its reference sibling order. Filtering only
     // removes non-matching leaves; it never reorders or substitutes a neighboring page.
     return filterNavGroups(visible, adminMode ? adminFilter : '').filter((group) => group.items.length > 0)
   }, [canSeeAdmin, adminMode, adminFilter])

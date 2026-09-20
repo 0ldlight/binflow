@@ -10,7 +10,7 @@ sidebar_position: 41
 
 M4 起权限模型支持**组**：permission target 的 principals 双栏（users + groups），用户的有效权限 = 直接授予 ∪ 所属各组授予，逐请求现算——**移出组下一次请求即生效**，无重启无窗口。
 
-模型与 Artifactory 一致（术语不变）：permission target = `{name, repos[], includePatterns[], excludePatterns[], principals{users, groups}}`，动作 read / deploy-cache / annotate / delete / **manage**（五值闭集——`write` 拆分为 `deploy-cache` 与 `annotate` 两个正交位，manage 是仓库级管理员派生位，不是内容读写，见[下文](#动作动词read--deploy-cache--annotate--delete--manage)）；**excludes 优先**；admin 隐式拥有全部权限（不进矩阵）。
+模型与 参考仓库 一致（术语不变）：permission target = `{name, repos[], includePatterns[], excludePatterns[], principals{users, groups}}`，动作 read / deploy-cache / annotate / delete / **manage**（五值闭集——`write` 拆分为 `deploy-cache` 与 `annotate` 两个正交位，manage 是仓库级管理员派生位，不是内容读写，见[下文](#动作动词read--deploy-cache--annotate--delete--manage)）；**excludes 优先**；admin 隐式拥有全部权限（不进矩阵）。
 
 ## 三步授权流（组 → 用户入组 → target）
 
@@ -189,9 +189,9 @@ virtual / remote 仓请求 → 400（`only supported on local repositories`）�
 | 项 | BinFlow 行为 | 说明 |
 |---|---|---|
 | **组无 admin 位** | 组**不能**授予 admin 或角色（`adminRole` 仅在用户行，M7 起同样不可经组授予）；admin 组成员的非 admin 用户对管理面（用户/组/权限/审计/GC/token）仍是 **403** | BinFlow 有意不兼容（admin/角色是用户属性不是可授予权限；防「建个组把自己提权」） |
-| `PUT groups` 已存在 → 200 | Artifactory 习惯为 201 | M4 定案（创建 201 / 更新 200 分态）；自动化脚本请以状态码区分而非假设恒 201 |
+| `PUT groups` 已存在 → 200 | 参考仓库 习惯为 201 | M4 定案（创建 201 / 更新 200 分态）；自动化脚本请以状态码区分而非假设恒 201 |
 | `PUT users` 已存在 → 201（create-or-replace） | — | replace 覆盖 email/password/admin/groups；未提供的字段不保留旧值 |
-| `/api/v2/security/permissions/**` | **404** | BinFlow 权限面是 `/api/v1/permissions`；Artifactory 的 v2 权限 API 不承诺 |
+| `/api/v2/security/permissions/**` | **404** | BinFlow 权限面是 `/api/v1/permissions`；参考仓库 的 v2 权限 API 不承诺 |
 
 ## 常见报错对照
 
@@ -211,5 +211,5 @@ virtual / remote 仓请求 → 400（`only supported on local repositories`）�
 
 - 角色（user/readonly_admin/admin）与 `manage` 派生的仓库级管理员：[RBAC 角色与仓库级管理员](rbac-roles.md)
 - 仓库级治理字段与配额：[治理指南](governance.md)
-- 控制台安全页走查：[Web 控制台使用指南](../console.md)；Artifactory 操作路径对照：[对照表](../artifactory-path-map.md)
-- 权限语义总览与 Artifactory 对照：[FAQ](../faq.md)
+- 控制台安全页走查：[Web 控制台使用指南](../console.md)；参考仓库 操作路径对照：[对照表](../compatibility-path-map.md)
+- 权限语义总览与 参考仓库 对照：[FAQ](../faq.md)

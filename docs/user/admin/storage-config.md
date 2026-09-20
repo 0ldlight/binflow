@@ -8,7 +8,7 @@ sidebar_position: 49
 > 适用版本：M11（T-306 交付；设计依据 ADR-0036，行为基准 `docs/reverse/config-formats.md` §1 复核版）+ **M12 增补**（T-338：dual-write 停机窗 **fail-open**——ADR-0040；证据取 T-338 真 MinIO docker stop/start 全链实测）。本文的启动 INFO/WARN 与四类拒启报错均在 HEAD 构建二进制上真实 boot 实测（2026-08-28）；`[s3]` / `[filestore, s3]` 双写链的 roundtrip 证据取自 T-306 的 MinIO 容器栈实测（`reports/agents/T-306.md` §自测）。
 > 与 [S3 指南](../guides/s3-config.md)的分工：S3 指南讲内嵌 `storage.s3` 段与在线迁移操作流（M6 交付、继续有效）；本文讲 M11 的**独立存储链配置文件**——新部署建议直接用 binstore.yaml。
 
-`binstore.yaml` 把 blob 存储链从主配置里解耦出来（对标 Artifactory 的 `binarystore.xml`，YAML 载体为 BinFlow 自有拼写）：
+`binstore.yaml` 把 blob 存储链从主配置里解耦出来（对标 参考仓库 的 `binarystore.xml`，YAML 载体为 BinFlow 自有拼写）：
 
 - **位置**：与**实际生效的主配置文件同目录**（跟随 `-c` 解析序：`./binflow.yaml` → `$BINFLOW_HOME/binflow.yaml`；默认部署下即 `$BINFLOW_HOME/binstore.yaml`）。无新 flag、无新 env。
 - **文件缺席 = 零行为变化**：存量实例升级后什么都不用做。

@@ -1,6 +1,6 @@
 import { Checkbox } from '@/components/ui/checkbox'
 // 新建/编辑订阅对话框（M13 T-366——P3 新栈重写：shadcn Dialog md 档；
-// 交互形态 = console-artifactory-parity M3/M4：居中 Dialog、动作右下
+// 交互形态 = console-parity M3/M4：居中 Dialog、动作右下
 // Cancel 左主按钮右、Esc/遮罩关闭）。
 // wire 语义（webhook.md §1/§2——行为契约逐条）：
 // - key 创建后不可改（编辑态锁定展示）；^[A-Za-z][A-Za-z0-9_-]+$；

@@ -1,5 +1,5 @@
 // T-463 键集 / T-464 填充：common 域 en 目录包——键 = zh 文案原文
-// （zh-as-key），值 = 逐义对译 en（术语对齐 Artifactory：repo key / node /
+// （zh-as-key），值 = 逐义对译 en（术语对齐 reference console：repo key / node /
 // checksum / Deploy / Set Me Up 等英文术语原样保留）。
 import { registerEn } from '../../index'
 
@@ -164,4 +164,18 @@ registerEn('common', {
   "AI 助手": "AI assistant",
   "run 号": "Run number",
   "SSO（OIDC）会话签发令牌需到身份提供方重新认证一次。完整的「跳转 IdP 重认证 → 自动续铸」链在 Set Me Up 接入向导内：从制品树任意仓库的 Set Me Up 进入并生成 （上下文会被记住，完成后自动续铸）；或联系管理员评估 auth.token_step_up 配置。": "SSO (OIDC) sessions must re-authenticate with the identity provider once before a token can be minted. The full “redirect to IdP re-authentication → automatic resume” flow lives in the Set Me Up wizard: open Set Me Up from any repository in the artifact tree and generate there (the context is remembered and minting resumes automatically on completion); alternatively, ask an administrator to review the auth.token_step_up configuration.",
+
+  "构建": "Builds",
+  "用户": "Users",
+  "组": "Groups",
+  "设置": "Settings",
+  "系统日志": "System Logs",
+  "系统信息": "System Info",
+  "备份": "Backups",
+  "审计日志": "Audit Log",
+  "安全": "Security",
+  "监控": "Monitoring",
+  "新建仓库": "Create a Repository",
+
+  "仓库类型": "Repository Type",
 })

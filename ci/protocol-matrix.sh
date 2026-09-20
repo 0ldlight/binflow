@@ -118,7 +118,7 @@ PIN_HELM_CHART="ingress-nginx"
 PIN_HELM_VER="4.12.7"                                # live-verified in the upstream index
 PIN_DOCKER_REF="library/hello-world"                 # ~10KB image; pulled BY DIGEST
 PIN_DOCKER_DIGEST="sha256:5e22040d441e5fb3aed38368acbe8486b575d7018df38dbdfbc7311fbb2ef3a9"
-PIN_CONAN_REF="hello/1.0"                            # doc form (conan.md remote section)
+PIN_CONAN_REF="zlib/1.3"                            # live center2 recipe (hello was removed upstream)
 
 REQUESTED=""
 MODE_LIST=0
@@ -332,6 +332,23 @@ cached_twice() { # cached_twice <url> [extra curl args...]
     "MISS HIT"|"HIT HIT"|"HIT REVALIDATED"|"REVALIDATED HIT"|"REVALIDATED REVALIDATED") return 0 ;;
     *) echo "unexpected cache states: '$s1' -> '$s2' (expected MISS->HIT or warm HIT)"; return 1 ;;
   esac
+}
+
+# Immutable content may be served stale-while-error indefinitely. For a
+# digest-addressed Docker manifest, STALE -> STALE is therefore a valid warm
+# outcome: the caller still verifies Docker-Content-Digest and pulls/runs the
+# exact immutable object before the leg can pass.
+cached_twice_immutable() { # cached_twice_immutable <url> [extra curl args...]
+  local out
+  out="$(cached_twice "$@")" || {
+    if printf '%s\n' "$out" | grep -q 'cache STALE -> STALE'; then
+      printf '%s\n' "$out"
+      return 0
+    fi
+    printf '%s\n' "$out"
+    return 1
+  }
+  printf '%s\n' "$out"
 }
 
 retry_run() { # retry_run <tries> <cmd...> — public-upstream flake damper
@@ -1063,7 +1080,7 @@ leg_docker() {
     ensure_remote uat-matrix-docker-remote docker "$UP_DOCKER" || return 1
     local dst hdg dgst
     hdg="$WORK/hdr-dock.$$"
-    dst="$(retry_run 2 cached_twice \
+    dst="$(retry_run 2 cached_twice_immutable \
       "$BINFLOW_BASE/v2/uat-matrix-docker-remote/$PIN_DOCKER_REF/manifests/$PIN_DOCKER_DIGEST" \
       -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json')" \
       || { echo "docker remote manifest cache probe failed: $dst"; return 1; }
@@ -1368,13 +1385,17 @@ leg_helm() {
     || { echo "classic pull bytes differ"; return 1; }
   log "helm classic: PUT + repo pull byte-identical"
   # OCI face: helm push + helm pull (the chart as an OCI artifact).
+  # Helm 4 rejects --plain-http when the registry endpoint is HTTPS; select the
+  # transport flag from the actual matrix base rather than hard-calling plain.
+  local helm_transport=()
+  if [[ "$BINFLOW_BASE" == http://* ]]; then helm_transport=(--plain-http); fi
   echo "$BINFLOW_PASSWORD" | helm registry login "$REG" -u "$BINFLOW_USER" \
-    --password-stdin --plain-http >/dev/null || return 1
+    --password-stdin ${helm_transport[@]+"${helm_transport[@]}"} >/dev/null || return 1
   helm push "matrix-chart-$VER.tgz" "oci://$REG/uat-matrix-helmoci-local" \
-    --plain-http >/dev/null || return 1
+    ${helm_transport[@]+"${helm_transport[@]}"} >/dev/null || return 1
   mkdir -p oci-pull
   helm pull "oci://$REG/uat-matrix-helmoci-local/matrix-chart" --version "$VER" \
-    --plain-http -d oci-pull || return 1
+    ${helm_transport[@]+"${helm_transport[@]}"} -d oci-pull || return 1
   cmp "matrix-chart-$VER.tgz" "oci-pull/matrix-chart-$VER.tgz" \
     || { echo "oci pull bytes differ"; return 1; }
   ok "helm: classic repo roundtrip + OCI helm push/pull (matrix-chart $VER)"

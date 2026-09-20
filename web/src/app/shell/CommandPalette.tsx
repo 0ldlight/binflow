@@ -26,7 +26,7 @@ import { useTheme } from '@/app/providers'
 import { useAiStore } from '@/stores/ai-store'
 import { useCommandPaletteStore } from '@/stores/command-palette-store'
 
-import { flattenNavItems, NAV_GROUPS } from './nav-model'
+import { flattenNavItems, localizeNavGroups, NAV_GROUPS } from './nav-model'
 
 const t = tr('console')
 
@@ -63,13 +63,15 @@ export function CommandPalette() {
     navigate(to)
   }
 
-  const visibleGroups = NAV_GROUPS.map((group) => ({
-    ...group,
-    items: flattenNavItems(group.items).filter((item) => {
-      if (item.visibility !== 'all' && !canSeeAdmin) return false
-      return true
-    }),
-  })).filter((group) => group.items.length > 0)
+  const visibleGroups = localizeNavGroups(
+    NAV_GROUPS.map((group) => ({
+      ...group,
+      items: flattenNavItems(group.items).filter((item) => {
+        if (item.visibility !== 'all' && !canSeeAdmin) return false
+        return true
+      }),
+    })),
+  ).filter((group) => group.items.length > 0)
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(o) => { if (!o) closePalette() }}>

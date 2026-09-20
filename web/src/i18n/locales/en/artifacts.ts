@@ -1,5 +1,5 @@
 // T-463 键集 / T-464 填充：artifacts 域 en 目录包——键 = zh 文案原文
-// （zh-as-key），值 = 逐义对译 en（术语对齐 Artifactory：repo key / node /
+// （zh-as-key），值 = 逐义对译 en（术语对齐 reference console：repo key / node /
 // checksum / Deploy / Set Me Up 等英文术语原样保留）。
 import { registerEn } from '../../index'
 
@@ -40,7 +40,6 @@ registerEn('artifacts', {
   "部署时以矩阵参数（PUT …;key=value）附带，或用上方表单添加；属性用于检索与治理。": "Attach at deploy time via matrix parameters (PUT …;key=value), or add with the form above; properties power search and governance.",
   "部署者": "Deployed by",
   "仓库创建时间暂无 API 面（后端 CreatedAt 未投影）——登记待后端承接": "Repository creation time has no API surface yet (backend CreatedAt is not projected) — registered for backend pickup",
-  "仓库类型": "Repository type",
   "仓库类型 {v1} 过滤（空选 = 不过滤）": "Repository type {v1} filter (empty selection = no filter)",
   "仓库路径": "Repository path",
   "仓库元数据为管理员视图（HTTP 403）——树按 generic 语义呈现；上传/删除权限由内容面按路径 ACL 判定，操作被拒时原因会在此原样呈现。": "Repository metadata is an admin view (HTTP 403) — the tree renders with generic semantics; upload/delete permission is decided by the content plane per path ACL, and rejection reasons are surfaced here verbatim when an action is denied.",

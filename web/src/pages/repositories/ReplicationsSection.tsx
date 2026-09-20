@@ -42,7 +42,7 @@ const tt = tr('repositories')
 //   · BinFlow 实字段：name/源仓（锁定）/目标 URL/目标仓/凭据/带宽节流/
 //     批量上限/enabled/**cron_exp（定时全量同步——T-450 起真字段）**——
 //     全量进 payload；
-//   · Artifactory 对齐**预留位**（enableEventReplication/pathPrefix/sync
+//   · 同类控制台 对齐**预留位**（enableEventReplication/pathPrefix/sync
 //     三开关）：引擎无对位——如实标注「预留位（当前无效）」、控件恒禁用、
 //     **绝不进 payload**（不伪造语义）。
 // - 编辑语义（REST 无字段级 PUT 的票内定案）：保存 = **删除 + 重建**
@@ -149,11 +149,11 @@ function ToggleSwitch({
 }
 
 /** 预留位组（R3 缺口的如实呈现——cronExp 已于 T-462 转正出组）：恒禁用、
- *  零提交——视觉对齐 Artifactory 字段族，语义上不发明引擎不存在的行为。 */
+ *  零提交——视觉对齐 同类控制台 字段族，语义上不发明引擎不存在的行为。 */
 function ReservedFields() {
   return (
     <div className="field" data-testid="repl-form-reserved">
-      <p className="mb-2 text-dense text-muted-foreground">{tt('Artifactory 对齐字段（预留位——当前无效，不提交、不存储）')}</p>
+      <p className="mb-2 text-dense text-muted-foreground">{tt('同类控制台 对齐字段（预留位——当前无效，不提交、不存储）')}</p>
       <label className="check-row">
         <Checkbox checked disabled data-testid="repl-form-event" className="size-4" />
         {tt('事件复制（enableEventReplication）——BinFlow 引擎即事件驱动（上传即入队推送），语义恒真')}
@@ -589,7 +589,7 @@ export default function ReplicationsSection({
                 {urlErr}
               </p>
             ) : (
-              <p className="field-hint">{tt('目标 BinFlow/Artifactory 实例基址（绝对 http/https）；私网地址合法。')}</p>
+              <p className="field-hint">{tt('目标 BinFlow/同类控制台 实例基址（绝对 http/https）；私网地址合法。')}</p>
             )}
           </div>
 
@@ -649,7 +649,7 @@ export default function ReplicationsSection({
               style={{ maxWidth: 300 }}
               aria-invalid={!isNonNegInt(f.bandwidth)}
             />
-            <p className="field-hint">{tt('0 = 不限（BinFlow 超集字段——Artifactory 无）。')}</p>
+            <p className="field-hint">{tt('0 = 不限（BinFlow 超集字段——同类控制台 无）。')}</p>
           </div>
           <div className="field">
             <label htmlFor="repl-items">{tt('单次批量上限 max_items_per_push')}</label>

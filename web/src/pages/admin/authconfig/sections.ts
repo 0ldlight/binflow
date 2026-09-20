@@ -2,7 +2,7 @@
 //
 // 字段名/wire 名/分组/顺序对齐 docs/reverse/auth-integration.md v2（§6 页面
 // 形态表 + §1.1/§1.2/§3.1 字段表）；OAuth(OIDC) 段是 T-305 落地的 BinFlow
-// C 级 issuer 发现式 wire（snake_case），非 Artifactory 多 provider 模型
+// C 级 issuer 发现式 wire（snake_case），非 同类控制台 多 provider 模型
 // （漂移随 T-305 登记，FE 按契约实态渲染）。
 //
 // 数据驱动单渲染器消费本册：PUT 是**全量替换**（服务端 canonicalize 时缺省
@@ -94,7 +94,7 @@ const LDAP: SectionDef = {
       ],
     },
     {
-      title: t('BinFlow 运行时扩展（无 Artifactory 对应项）'),
+      title: t('BinFlow 运行时扩展（无 同类控制台 对应项）'),
       hint: t('T-305 C 级增补：连接姿态与组/角色映射，随本面一起保存。'),
       fields: [
         { anchor: 'authcfg-ldap-starttls', label: t('StartTLS（明文端口上升级 TLS）'), wire: 'startTls', kind: 'check' },
@@ -120,7 +120,7 @@ const OAUTH: SectionDef = {
   groups: [
     {
       title: t('常规'),
-      hint: t('BinFlow 为 issuer 发现式模型：填 IdP 的 issuer URL，端点经 discovery 文档解析（Artifactory 的多 provider / authUrl / tokenUrl 面无对应，defaultNpm 不承载）。'),
+      hint: t('BinFlow 为 issuer 发现式模型：填 IdP 的 issuer URL，端点经 discovery 文档解析（同类控制台 的多 provider / authUrl / tokenUrl 面无对应，defaultNpm 不承载）。'),
       fields: [
         { anchor: 'authcfg-oauth-enabled', label: t('Enable OAuth（启用 OIDC SSO）'), wire: 'enabled', kind: 'check' },
         { anchor: 'authcfg-oauth-issuer', label: 'Issuer URL', wire: 'issuer_url', kind: 'text', mono: true, full: true, placeholder: 'https://idp.example.com/realms/main', hint: t('启用时保存前会做真实 discovery 探测（写路径验证）——不可达的 issuer 会被拒绝。') },

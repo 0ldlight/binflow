@@ -1,5 +1,5 @@
 // T-463 键集 / T-464 填充：monitoring 域 en 目录包——键 = zh 文案原文
-// （zh-as-key），值 = 逐义对译 en（术语对齐 Artifactory：repo key / node /
+// （zh-as-key），值 = 逐义对译 en（术语对齐 reference console：repo key / node /
 // checksum / Deploy / Set Me Up 等英文术语原样保留）。
 import { registerEn } from '../../index'
 
@@ -18,9 +18,7 @@ registerEn('monitoring', {
   "{countdown} 秒后自动刷新": "Auto-refreshes in {countdown}s",
   "「{v1}」未命中当前尾随窗口——过滤在服务端对最近窗口做子串匹配；更长历史可调大窗口行数。": "“{v1}” not found in the current tail window — filtering is a server-side substring match over the latest window; widen the window lines for longer history.",
   "「{v1}」未命中最近 {v2} 行——过滤只作用于已加载窗口；更大范围的精过滤走审计日志页。": "“{v1}” not found in the latest {v2} lines — filtering applies only to the loaded window; for broader precise filtering use the Audit Log page.",
-  "设置": "Settings",
   "保存限流配置": "Save limiter configuration",
-  "备份": "Backups",
   "表内合计来自逐仓": "Table totals come from per-repository",
   "并发上限（max_concurrent_requests）": "Concurrency cap (max_concurrent_requests)",
   "不限": "Unlimited",
@@ -127,8 +125,6 @@ registerEn('monitoring', {
   "GET /api/v1/system/settings 回显解析配置（YAML + env + 缺省）——与执行行为同源，不可能与实况相左。这些是文件级 restart-effective 旋钮：REST 面只读（写端点不设），变更经实例 YAML 后重启生效。": "GET /api/v1/system/settings echoes the resolved configuration (YAML + env + defaults) — the same source as the enforced behavior, so the echo cannot disagree with reality. These are file-level restart-effective knobs: the REST face is read-only (no write endpoint); changes go through the instance YAML and take effect on restart.",
   "GET /api/v1/system/settings 为管理员视图（system:read——admin / readonly_admin）。": "GET /api/v1/system/settings is an admin view (system:read — admin / readonly_admin).",
   "mode 经 POST 体的 BinFlow 承载位写入（disabled / enabled / simulation——进程生命周期态，重启回出厂 disabled）。桶数值不变（合并语义）。": "The mode rides the POST body's BinFlow carrier field (disabled / enabled / simulation — process-lifetime state; a restart returns to factory disabled). Bucket values are untouched (merge semantics).",
-  "mode 是 BinFlow 的 POST 承载位（disabled / enabled / simulation——Artifactory 走 system.properties，BinFlow 无 properties 面）；文档为进程生命周期态，重启回出厂（DB 持久化是已登记缺口）。": "The mode is BinFlow's POST carrier field (disabled / enabled / simulation — Artifactory uses system.properties, which BinFlow lacks); the document is process-lifetime state, reset to factory on restart (DB persistence is a registered gap).",
+  "mode 是 BinFlow 的 POST 承载位（disabled / enabled / simulation——同类控制台 走 system.properties，BinFlow 无 properties 面）；文档为进程生命周期态，重启回出厂（DB 持久化是已登记缺口）。": "The mode is BinFlow's POST carrier field (disabled / enabled / simulation — reference console uses system.properties, which BinFlow lacks); the document is process-lifetime state, reset to factory on restart (DB persistence is a registered gap).",
   "Server Name / Base URL / 匿名读开关 / 数据目录 / 日志级别无查询端点（契约冻结）， 不展示、不伪造；控制台不含配置写入口（Logo / Custom Message 不建）。": "Server Name / Base URL / anonymous-read toggle / data directory / log level have no query endpoint (contract frozen) — not shown, not fabricated; the console has no configuration write entry (Logo / Custom Message are not built).",
-  "系统日志": "System Logs",
-  "系统信息": "System Info",
 })

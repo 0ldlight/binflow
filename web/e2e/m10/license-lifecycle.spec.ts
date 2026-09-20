@@ -13,7 +13,7 @@ import { test } from '@playwright/test'
 //   L02 install/query/uninstall closed loop + audit license.install/delete
 //      (fills with the license REST ticket)
 //   L03 anti-forgery: tampered doc 400 / test-key doc 400 under the default
-//      verify key / Artifactory path /api/system/licenses honest 400-404 (LC-02)
+//      verify key / 同类控制台 path /api/system/licenses honest 400-404 (LC-02)
 //   L04 no-license default: GET answers the community/none posture, five
 //      package types smoke-green (the invariant this skeleton gates elsewhere)
 //   L05 expiry: past-grace doc degrades to community while reads stay 200;

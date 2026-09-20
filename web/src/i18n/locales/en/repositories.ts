@@ -1,5 +1,5 @@
 // T-463 键集 / T-464 填充：repositories 域 en 目录包——键 = zh 文案原文
-// （zh-as-key），值 = 逐义对译 en（术语对齐 Artifactory：repo key / node /
+// （zh-as-key），值 = 逐义对译 en（术语对齐 reference console：repo key / node /
 // checksum / Deploy / Set Me Up 等英文术语原样保留）。
 import { registerEn } from '../../index'
 
@@ -58,7 +58,7 @@ registerEn('repositories', {
   "⚠ 已放行私网上游：SSRF 防线对该仓放宽，变更会记录审计（NFR-S14）。": "⚠ Private upstream allowed: the SSRF guard is relaxed for this repository and changes are recorded in the audit log (NFR-S14).",
   "⚠ 已放行私网上游（allowPrivateUpstream）——SSRF 防线对该仓放宽。": "⚠ Private upstream allowed (allowPrivateUpstream) — the SSRF guard is relaxed for this repository.",
   "✓ 可用": "✓ Reachable",
-  "0 = 不限（BinFlow 超集字段——Artifactory 无）。": "0 = unlimited (a BinFlow superset field — not in Artifactory).",
+  "0 = 不限（BinFlow 超集字段——同类控制台 无）。": "0 = unlimited (a BinFlow superset field — not in reference console).",
   "0 = 缺省 1000（BinFlow 超集字段）。": "0 = default 1000 (a BinFlow superset field).",
   "1~64 字符，字母/数字/./_/-，首字符字母数字；全局唯一（409 终裁）。": "1–64 characters, letters/digits/./_/-, first character a letter or digit; globally unique (409 is the final say).",
   "安装侧：pip.conf": "Install side: pip.conf",
@@ -195,7 +195,7 @@ registerEn('repositories', {
   "默认部署仓库": "Default deployment repository",
   "默认部署仓库（可选，仅 local 成员）": "Default deployment repository (optional, local members only)",
   "默认关闭（普通内容 ACL）。开启后匿名 conan 端点请求收到 401（客户端引导挑战）——仅 conan 本地仓。": "Off by default (ordinary content ACLs). When on, anonymous conan endpoint requests get 401 (client-guided challenge) — conan local repositories only.",
-  "目标 BinFlow/Artifactory 实例基址（绝对 http/https）；私网地址合法。": "The target BinFlow/Artifactory instance base URL (absolute http/https); private addresses are legal.",
+  "目标 BinFlow/同类控制台 实例基址（绝对 http/https）；私网地址合法。": "The target BinFlow/reference console instance base URL (absolute http/https); private addresses are legal.",
   "目标（实例 / 仓）": "Target (instance / repository)",
   "目标仓 key *": "Target repository key *",
   "目标仓 key 未填": "Target repository key is required",
@@ -312,7 +312,7 @@ registerEn('repositories', {
   "预留位：引擎尚不支持路径前缀过滤（R3 缺口——后端模型扩展后启用）。": "Reserved: the engine does not support path-prefix filtering yet (R3 gap — enabled once the backend model is extended).",
   "预留位：BinFlow 布局由协议固定（maven 即 maven-2 形），repoLayoutRef 暂无引擎承接（K70）——字段不提交。": "Reserved: BinFlow layouts are fixed by protocol (maven is the maven-2 form); repoLayoutRef has no engine backing yet (K70) — the field is not submitted.",
   "预留位：BinFlow 归档内浏览恒开放、无引擎开关（回显/行为均无）——字段不提交。": "Reserved: archive browsing in BinFlow is always on with no engine switch (no echo, no behavior) — the field is not submitted.",
-  "预留位：BinFlow 无环境段模型（Artifactory 7.161 已由 Environments 更名 Stage）——字段不提交。": "Reserved: BinFlow has no environments model (renamed from Environments to Stage in Artifactory 7.161) — the field is not submitted.",
+  "预留位：BinFlow 无环境段模型（reference console 已由 Environments 更名 Stage）——字段不提交。": "Reserved: BinFlow has no environments model (renamed from Environments to Stage in reference console) — the field is not submitted.",
   "预留位：POM 一致性校验 BinFlow 无对位引擎行为——字段不提交。": "Reserved: POM consistency checks have no counterpart engine behavior in BinFlow — the field is not submitted.",
   "预留位：PUT 解码后即丢弃（回显/行为均无）——true 拒写语义随后端承接票落地。": "Reserved: discarded right after PUT decoding (no echo, no behavior) — the true reject-writes semantics land with the backend pickup ticket.",
   "预留位：PUT 解码后即丢弃（快照去重上限行为无引擎承接）——字段不提交。": "Reserved: discarded right after PUT decoding (no engine backing for the snapshot dedup cap behavior) — the field is not submitted.",
@@ -338,11 +338,11 @@ registerEn('repositories', {
   "重索引失败（HTTP {v1}）：{v2}": "Reindex failed (HTTP {v1}): {v2}",
   "重新拉取仓库清单与用量": "Re-fetch the repository list and usage",
   "字段级修改走": "Field-level changes go through the",
-  "archiveBrowsingEnabled（Artifactory：Allow Artifact Content Browsing）": "archiveBrowsingEnabled (Artifactory: Allow Artifact Content Browsing)",
-  "Artifactory 对齐复选项（预留位——当前无效，不提交、不存储）": "Artifactory alignment checkbox (reserved — currently inert, not submitted, not stored)",
-  "Artifactory 对齐字段（预留位——当前无效，不提交、不存储）": "Artifactory alignment field (reserved — currently inert, not submitted, not stored)",
+  "archiveBrowsingEnabled（同类控制台：Allow Artifact Content Browsing）": "archiveBrowsingEnabled (reference console: Allow Artifact Content Browsing)",
+  "同类控制台 对齐复选项（预留位——当前无效，不提交、不存储）": "reference console alignment checkbox (reserved — currently inert, not submitted, not stored)",
+  "同类控制台 对齐字段（预留位——当前无效，不提交、不存储）": "reference console alignment field (reserved — currently inert, not submitted, not stored)",
   "assumed-offline 静默期": "assumed-offline quiet period",
-  "blackedOut（Artifactory：Disable Artifact Resolution in Repository）": "blackedOut (Artifactory: Disable Artifact Resolution in Repository)",
+  "blackedOut（同类控制台：Disable Artifact Resolution in Repository）": "blackedOut (reference console: Disable Artifact Resolution in Repository)",
   "by-hash 索引保留的世代数；非负整数，默认 3。": "Generations of by-hash indices to keep; a non-negative integer, default 3.",
   "byHash（by-hash 索引策略）": "byHash (by-hash index policy)",
   "calculateYumMetadata（RP-2 显式开启）": "calculateYumMetadata (explicitly on per RP-2)",
@@ -417,7 +417,17 @@ registerEn('repositories', {
   "virtual 仓至少需要一个成员": "A virtual repository needs at least one member",
   "yumGroupFileNames（comps 组文件清单）": "yumGroupFileNames (comps group file list)",
   "yumRootDepth（repodata 根深度）": "yumRootDepth (repodata root depth)",
-  "新建仓库": "New Repository",
   "无匹配的仓库": "No matching repositories",
   "建议从 generic Local 仓起步；Remote 代理上游，Virtual 聚合成员。": "Start with a generic Local repository; Remote proxies upstreams and Virtual aggregates members.",
+
+  "本地": "Local",
+  "远程": "Remote",
+  "虚拟": "Virtual",
+  "全部仓库": "All Repositories",
+  "仓库 Key": "Repository Key",
+  "复制配置": "Replications",
+  "{v1} 个仓库": "{v1} repositories",
+  "搜索仓库 Key": "Search repository key",
+  "全部包类型": "All Package Types",
+  "全部清除": "Clear all",
 })

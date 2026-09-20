@@ -28,7 +28,7 @@ import { tr } from '../i18n'
 
 const t = tr('console')
 
-// Deploy 对话框（T-242，console-m8 §4.2 / reverse §4.2——Artifactory Deploy
+// Deploy 对话框（T-242，console-m8 §4.2 / reverse §4.2——同类控制台 Deploy
 // 操作流的自有皮肤对齐面）。字段序：目标仓库（下拉）→ 包类型（只读回显）→
 // 部署模式（单个/多个）→ 拖拽区（`拖拽文件到此处` / `选择文件`）→ 目标路径
 // （mono 可编辑 + Copy）→ `部署`。
@@ -46,7 +46,7 @@ const t = tr('console')
 // putArtifact 的逐段 encodeURIComponent。
 //
 // 队列模型（UploadDialog 同款纪律）：行一次只跑一个（hash → PUT 串行）；
-// 「部署」按钮启泵（对齐 Artifactory 的显式 Deploy 提交步）；关闭 = 落闸 +
+// 「部署」按钮启泵（对齐 同类控制台 的显式 Deploy 提交步）；关闭 = 落闸 +
 // abort 在飞 XHR（排队文件不再上传）。
 //
 // FE-P4 MUI 清场：MUI Dialog/Button/Chip/Table/LinearProgress → Radix

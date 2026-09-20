@@ -21,7 +21,7 @@ test.beforeEach(async ({ request }) => {
   await provisionRoles()
 })
 
-/** Artifactory 7.161 application menu order (normative English labels). */
+/** 同类控制台 7.161 application menu order (normative English labels). */
 const APP_ENTRIES = ['packages', 'builds', 'artifacts', 'release-lifecycle', 'dashboard'] as const
 
 /** Existing BinFlow admin capabilities remain route-reachable after IA alignment. */
@@ -48,7 +48,7 @@ const ADMIN_ROUTE_ANCHORS: [string, string][] = [
   ['/admin/general/license', 'license-page'],
 ]
 
-test('admin: Artifactory app order, administration switch, and capability routes', async ({ page }) => {
+test('admin: 同类控制台 app order, administration switch, and capability routes', async ({ page }) => {
   await seedRepos(m8Client(), [{ key: REPO }])
   await loginAs(page, 'admin')
   await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
@@ -63,7 +63,7 @@ test('admin: Artifactory app order, administration switch, and capability routes
   // Keyboard navigation remains real link activation, not a custom menu shim.
   await page.focus('[data-testid="nav-entry-release-lifecycle"]')
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL('/binflow/ui/artifactory/release-lifecycle')
+  await expect(page).toHaveURL('/binflow/ui/release-lifecycle')
   await expect(page.locator('[data-testid="bundles-page"]')).toBeVisible()
 
   await page.click('[data-testid="nav-mode-administration"]')
@@ -74,7 +74,7 @@ test('admin: Artifactory app order, administration switch, and capability routes
   }
 
   await page.goto('/binflow/ui/admin/repositories/local')
-  await expect(page.locator('[data-testid="topbar-breadcrumb"]')).toContainText('Repositories')
+  await expect(page.locator('[data-testid="topbar-breadcrumb"]')).toContainText('仓库')
 })
 
 test('readonly_admin: sees ordered admin tree, readonly badge, no quick-create write entries', async ({
@@ -95,7 +95,7 @@ test('readonly_admin: sees ordered admin tree, readonly badge, no quick-create w
   await expect(page.locator('[data-testid="menu-edit-profile"]')).toHaveCount(0)
 })
 
-test('plain user: only Artifactory app entries; /admin/** deep link keeps shell + L2 convergence', async ({
+test('plain user: only 同类控制台 app entries; /admin/** deep link keeps shell + L2 convergence', async ({
   page,
 }) => {
   await loginAs(page, 'user')

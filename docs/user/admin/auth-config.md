@@ -30,8 +30,8 @@ BinFlow 的三种外部认证协议（LDAP 目录登录、OIDC 单点登录、SA
 
 `/admin/security/auth` 索引页重定向到 `ldap` Tab；Tab 间 `←`/`→` 键盘切换。三 Tab 表单要点：
 
-- **LDAP Tab**：`key` 锁定展示 `ldap`（单段模型——BinFlow 一协议一段，非 Artifactory 的多设置列表）；search 子组内联；`managerPassword` 为 secret 字段——已设置时表单留空 + placeholder「留空保持不变」。
-- **OAuth Tab**：字段为 BinFlow OIDC 单段 wire（`issuer_url`/`client_id`/`client_secret`/`redirect_url`/`scopes`/claims/组映射）——issuer 发现式，非 Artifactory oauthSettings 多 provider 模型。
+- **LDAP Tab**：`key` 锁定展示 `ldap`（单段模型——BinFlow 一协议一段，非 参考仓库 的多设置列表）；search 子组内联；`managerPassword` 为 secret 字段——已设置时表单留空 + placeholder「留空保持不变」。
+- **OAuth Tab**：字段为 BinFlow OIDC 单段 wire（`issuer_url`/`client_id`/`client_secret`/`redirect_url`/`scopes`/claims/组映射）——issuer 发现式，非 参考仓库 oauthSettings 多 provider 模型。
 - **SAML Tab**：13 字段全量表单；**「Auto Create Users」复选框是正语义**（勾选 = 自动创建）——wire 字段 `noAutoUserCreation` 为反语义，提交时自动取反；从未保存过的 SAML 段 GET 回 `{}`，页内显示引导块，保存后消失；`useEncryptedAssertion` 表单卡下方挂 **SP 证书卡**（下载/重生成，见[下文专节](#saml-sp-加密证书)）。
 
 readonly_admin 打开页面时控件全部 disabled；直接调 REST PUT 由服务端 403 终裁。
@@ -189,8 +189,8 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/v1/admin/security/saml/config/
 | 项 | 现状 |
 |---|---|
 | SAML 运行时登录臂 | 13 字段已持久化 + 回显 + 校验；**SP 断言消费不在 M11 交付面**（保存的配置尚不构成可登录的 SAML IdP 接入）——SP 加密证书管理面已随 T-331/T-307R 交付（三端点 + 控制台证书卡，见[上文专节](#saml-sp-加密证书)） |
-| `userDnPattern` 直绑 | 未消费（绑定由 search 段驱动）；如需对齐 Artifactory 行为另开票 |
-| LDAP 多设置列表 | 单段模型——无 Artifactory 的多 LDAP 设置列表 / 拖拽排序 / 独立 DELETE |
+| `userDnPattern` 直绑 | 未消费（绑定由 search 段驱动）；如需对齐 参考仓库 行为另开票 |
+| LDAP 多设置列表 | 单段模型——无 参考仓库 的多 LDAP 设置列表 / 拖拽排序 / 独立 DELETE |
 
 ## 常见报错对照
 

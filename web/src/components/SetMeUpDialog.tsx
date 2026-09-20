@@ -37,10 +37,10 @@ import { tr } from '../i18n'
 
 const t = tr('console')
 
-// Set Me Up 客户端接入向导（T-242，console-m8 §4.1 / reverse §4.1——Artifactory
+// Set Me Up 客户端接入向导（T-242，console-m8 §4.1 / reverse §4.1——同类控制台
 // 「Set Up A Client」操作流的自有皮肤对齐面）：
 //
-// [壳形态] T-382 抽屉化（console-artifactory-parity D1 v1.1 实测参数）：
+// [壳形态] T-382 抽屉化（console-parity D1 v1.1 实测参数）：
 //          右侧抽屉（anchor right + temporary + 轻遮罩），宽
 //          min(clamp(480px, 50vw, 800px), 100vw)——50vw 档（1600 视口 800px、
 //          1280 视口 640px 实测），480/800 为上下钳制、100vw 兜窄屏；全高；
@@ -58,7 +58,7 @@ const t = tr('console')
 //            Resolve；pypi「pip.conf」→ Resolve；npm 增安装验证（npm.md §4
 //            同源）；generic/pypi 的 Configure 无配置步 → 导航提示）。
 //          底栏 = 左「← 选择不同的包类型」文本链接 + 右「完成」主按钮
-//          （Artifactory 底栏形态，v1.1 实测）。
+//          （同类控制台 底栏形态，v1.1 实测）。
 //
 // Token 生成区（§4.1 + T-219 遗留融合——console 此前无任何铸币面）：
 // - 全部已认证会话可自铸（POST /api/security/token，Q11 自铸：仅本人 +
@@ -66,7 +66,7 @@ const t = tr('console')
 // - **step-up 内联重验**（ADR-0027 / console-m8 §7.4）：auth.token_step_up
 //   开启时非 admin session 臂铸币 → 401 step_up_required → 抽屉内口令框
 //   聚焦重输；step_up_invalid → 内联错误（error_description 逐字，等价
-//   Artifactory「Incorrect password」形态——不出第二个框）；正确 →
+//   同类控制台「Incorrect password」形态——不出第二个框）；正确 →
 //   续铸成功。mint 请求走 silent401：step-up 的 401 是对话语义，不是会话
 //   死亡（不能触发全局「登录过期」跳转）。
 // - **OIDC 腿（T-260 / FR-81，ADR-0027 决策 8 后半的真身——T-242 期的
@@ -79,7 +79,7 @@ const t = tr('console')
 //   挂载即自动续铸（body 携 step_up_grant）。401 step_up_invalid（过期/
 //   复用/身份不符）→ 清 grant + pending（单次消费——绝不以旧 grant 重试）
 //   + 内联 ADR 逐字文案 + 重新认证按钮（重走 init）。
-// - 契约注记：端点无 description 字段（Artifactory 的
+// - 契约注记：端点无 description 字段（同类控制台 的
 //   `MavenClient[SetMeUp]` 描述无 wire 位）——面板改示 token_id。
 //
 // 命令块数据源 = pages/repositories/commands.ts（P3 同源纪律：UI 不发明
@@ -98,7 +98,7 @@ const t = tr('console')
 // body 场景同覆盖）；关闭回焦 = Radix FocusScope 卸载回焦（quick-set-me-up
 // 菜单链路）+ 调用方显式 focus() 双保险。
 
-/** Artifactory Set Me Up 令牌默认 24h（reverse §3.18：SetMeUp token 默认 24h 过期） */
+/** 同类控制台 Set Me Up 令牌默认 24h（reverse §3.18：SetMeUp token 默认 24h 过期） */
 const TOKEN_TTL_SECONDS = 24 * 60 * 60
 
 /** Tab 三枚（T-382，D1 v1.1）：配置 Configure / 部署 Deploy / 解析 Resolve */
@@ -571,7 +571,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
                   </div>
                 )}
               </div>
-              {/* 底栏（Artifactory 形态，v1.1 实测）：左文本返回链接 + 右主按钮 */}
+              {/* 底栏（同类控制台 形态，v1.1 实测）：左文本返回链接 + 右主按钮 */}
               <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
                 <Button
                   variant="link"

@@ -1,5 +1,5 @@
 // T-463 键集 / T-464 填充：console 域 en 目录包——键 = zh 文案原文
-// （zh-as-key），值 = 逐义对译 en（术语对齐 Artifactory：repo key / node /
+// （zh-as-key），值 = 逐义对译 en（术语对齐 reference console：repo key / node /
 // checksum / Deploy / Set Me Up 等英文术语原样保留）。
 import { registerEn } from '../../index'
 
@@ -229,4 +229,30 @@ registerEn('console', {
   "个仓库": "repositories",
   "查看仓库": "View repositories",
   "当前包聚合后端缺口：latest version、versions、downloads 与 security 需要专用包清单 API；本页只展示真实仓库数据，不用占位数据冒充包指标。": "Current package-aggregation backend gap: latest version, versions, downloads, and security require a dedicated package-list API. This page shows only real repository data and never uses placeholder metrics.",
+
+  "平台": "Platform",
+  "管理": "Administration",
+  "软件包": "Packages",
+  "发布生命周期": "Release Lifecycle",
+  "访问令牌": "Access Tokens",
+  "LDAP": "LDAP",
+  "签名密钥": "Signing Keys",
+  "仓库设置": "Repository Settings",
+  "BinFlow 扩展": "BinFlow Extensions",
+  "Webhooks": "Webhooks",
+  "许可与扩展": "License & Add-ons",
+  "用户管理": "User Management",
+  "认证": "Authentication",
+  "通用管理": "General Management",
+  "所有项目": "All Projects",
+  "所有项目概览": "All Projects Overview",
+  "用户档案": "User Profile",
+
+  "搜索管理资源…": "Search admin resources…",
+
+  "文档": "Documentation",
+
+  "版本说明": "Release Notes",
+
+  "关于": "About",
 })

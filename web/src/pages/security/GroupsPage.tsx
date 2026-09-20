@@ -320,7 +320,7 @@ role="menuitem"
                                 mono
                                 lang="en"
                                 data-testid={`group-manage-badge-${r.group.name}`}
-                                title={tt('组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）')}
+                                title={tt('组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 同类控制台 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）')}
                               >
                                 manage
                               </Badge>

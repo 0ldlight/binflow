@@ -1,6 +1,6 @@
 # AQL 搜索
 
-AQL（Artifactory Query Language）是 Artifactory 的制品查询语言：一段查询文本描述「查什么、输出哪些字段、怎么排序翻页」，服务端返回流式 JSON。BinFlow 以 `items.find(...)` 为唯一入口，覆盖日常的「按仓库/路径/属性/checksum/时间窗找制品」场景。老搜索端点（gavc/prop/pattern）见 [API 参考](/api-参考/binflow-api)。
+AQL（参考仓库 Query Language）是 参考仓库 的制品查询语言：一段查询文本描述「查什么、输出哪些字段、怎么排序翻页」，服务端返回流式 JSON。BinFlow 以 `items.find(...)` 为唯一入口，覆盖日常的「按仓库/路径/属性/checksum/时间窗找制品」场景。老搜索端点（gavc/prop/pattern）见 [API 参考](/api-参考/binflow-api)。
 
 ## 请求形态
 
@@ -42,9 +42,9 @@ curl -su $AU -X POST $BASE/binflow/api/search/aql \
 
 ### 域：只有 items
 
-查询入口域只有一个：`items`。其余 Artifactory 域一律 **400 点名拒绝**（message 直接说该域为什么不行——宁可拒绝也不伪空集）：
+查询入口域只有一个：`items`。其余 参考仓库 域一律 **400 点名拒绝**（message 直接说该域为什么不行——宁可拒绝也不伪空集）：
 
-| 域（Artifactory） | BinFlow |
+| 域（参考仓库） | BinFlow |
 |---|---|
 | `items` | **支持**（唯一入口；`stat.*` 统计字段嵌于 items 查询，见[下文](#statistics-域下载统计字段)） |
 | `properties` | 400——属性走 items 的 `@key` 条件 |
@@ -87,7 +87,7 @@ curl -su $AU -X POST $BASE/binflow/api/search/aql \
 | `.sort({"$asc\|"$desc":["<field>",...]})` | 排序字段**必须在输出字段集内**；字段不可重复 |
 | `.offset(<n>)` / `.limit(<n>)` | 翻页（仅显式声明 limit 时 range 才有 `limit` 键） |
 
-**链序固定**：`include → sort → offset → limit`。乱序 → 400 语法错（文案与 Artifactory 逐字一致）。不收录的动词：`.distinct()`、`.transitive`、`.delete()/update()/dryRun`（**AQL 只读**）。
+**链序固定**：`include → sort → offset → limit`。乱序 → 400 语法错（文案与 参考仓库 逐字一致）。不收录的动词：`.distinct()`、`.transitive`、`.delete()/update()/dryRun`（**AQL 只读**）。
 
 ## virtual 仓语义
 
@@ -194,9 +194,9 @@ curl -su $AU "$BASE/binflow/api/search/usage?notUsedSince=$CUTOFF&createdBefore=
 - **行级过滤**：结果按调用者 read 权限过滤（admin 全见）；身份字段（`created_by` / `stat.downloaded_by`）对非 admin 脱敏为 `unknown`。
 - **资源门**：同实例并发上限 4（超限 **429** + `Retry-After: 1`）；执行超时 **10s**（**408**）；>5s 服务端 WARN。
 
-## 从 Artifactory AQL 迁移对照表
+## 从 参考仓库 AQL 迁移对照表
 
-| Artifactory 行为 | BinFlow | 迁移动作 |
+| 参考仓库 行为 | BinFlow | 迁移动作 |
 |---|---|---|
 | build 系域 / `modified_by` / `original_*` | 400 点名拒绝 | build 系查询改走外部 CI；脚本删字段 |
 | `stat.downloads` 统计字段 | **支持**（条件/include/sort；`stat.id` 仍 400） | `stat.*` 查询可直接迁入；`statistics.find(...)` 入口域写法改为 items 嵌字段 |
@@ -219,4 +219,4 @@ curl -su $AU -X POST $BASE/binflow/api/search/aql --data-binary 'items.find({"re
 
 ## 下一步
 
-- [属性系统](/search/properties) · [bf-migrate 迁移指南](/tools/migrate-artifactory) · [API 参考](/api-参考/binflow-api)
+- [属性系统](/search/properties) · [bf-migrate 迁移指南](/tools/migration-guide) · [API 参考](/api-参考/binflow-api)

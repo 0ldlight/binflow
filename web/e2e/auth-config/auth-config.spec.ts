@@ -310,7 +310,7 @@ test('CFG2: sentinel echo-back PUT is refused (anchored message), live config in
   await page.goto('/binflow/ui/admin/security/auth/ldap')
   await expect(page.locator('[data-testid="authcfg-ldap-url"]')).toBeVisible()
 
-  // 服务端红线（用户裁定照 Artifactory）：哨兵回传 = 400 + 锚定文案
+  // 服务端红线（用户裁定照 同类控制台）：哨兵回传 = 400 + 锚定文案
   const before = await page.evaluate(async () => {
     const res = await fetch('/binflow/api/v1/admin/security/ldap')
     return { status: res.status, body: await res.json() }
@@ -673,7 +673,7 @@ test('CFG8: saml sp certificate — empty state, regenerate via danger confirm, 
   expect(after).not.toBe(before)
   await expect(download).toBeEnabled()
 
-  // 下载即得 PEM（Artifactory 姿态）：文件名 + 内容与 GET byte 级一致
+  // 下载即得 PEM（同类控制台 姿态）：文件名 + 内容与 GET byte 级一致
   //（regenerate 只服务新证书——下载到的就是最新一份）
   const dlPromise = page.waitForEvent('download')
   await page.click('[data-testid="authcfg-saml-spkey-download"]')

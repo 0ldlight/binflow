@@ -22,7 +22,7 @@ import { m8Client } from '../m8/support/seed'
 //      lastLoggedIn，RFC3339 UTC，omitempty 从未登录整键缺席）：admin 行
 //      （本腿 UI 登录刷新投影）渲染截断到秒的本地形 + title 全值；API 直建
 //      的从未登录用户行如实呈现「—（尚未登录）」（不伪造 Never 以外语义）。
-//      列序对位 Artifactory（Status 之后）。列头排序 = 前端列头排序族
+//      列序对位 同类控制台（Status 之后）。列头排序 = 前端列头排序族
 //      （RFC3339 字典序 = 时间序；缺席 '' 沉首/沉底）。
 //   ②-列选器（columnPrefs，T-387/T-414 共享层）：新列进闭集（7 列）——
 //      弃「最近登录」→ 表头/单元格同步退场；localStorage per-page 持久
@@ -161,7 +161,7 @@ test('users last login column: projection renders, never-login honest, column or
     await page.goto('/binflow/ui/admin/security/users')
     await expect(page.locator('[data-testid="users-table"]')).toBeVisible()
 
-    // 列头在场 + 列序对位 Artifactory（Status 之后、操作之前）
+    // 列头在场 + 列序对位 同类控制台（Status 之后、操作之前）
     const th = page.locator('[data-testid="users-table"] thead th')
     await expect(page.locator('[data-testid="users-sort-lastlogin"]')).toBeVisible()
     // L026-2 重锚：SortTh 列头文本 = 标签 + 方向箭头字形（「Status ↑」）

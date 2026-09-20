@@ -8,7 +8,7 @@ import { m8Client, seedRepos, sessionApi } from '../m8/support/seed'
 // T-439（M16 批次② 首票，FR-143.1/.2——表单三段结构 + 字段域补齐）：
 //
 //   ① 三段步进（B-2.5）：Basic | Advanced | Replications 步进条
-//      （Artifactory 7.161.20 活体实测形态——jf-steps 三步条；7.84 审计
+//      （同类控制台 7.161.20 活体实测形态——jf-steps 三步条；7.84 审计
 //      材料同构）。编辑态 × local 三段；建仓态两段（仓尚不存在，复制配置
 //      无载体——POST /v1/replications 的 source_repo 前置校验必 400）。
 //      非活跃步整步卸载（house 口径：锚计数 0，非 CSS 隐藏）。

@@ -160,7 +160,7 @@ test('admin: E1 no-regression — no row-end action menu; delete affordance only
   await expect(row).toBeVisible({ timeout: 30_000 })
 
   // 缺席断言①：行内无 ⋮ 动作菜单形态（aria-haspopup=0——T-385 撤旗后
-  // T-400 注册口径：MoreVert 全树 grep=0；Artifactory 行尾亦无此形态）
+  // T-400 注册口径：MoreVert 全树 grep=0；同类控制台 行尾亦无此形态）
   await expect(row.locator('button[aria-haspopup]')).toHaveCount(0)
 
   // 行内删除唯一形态 = admin 文本钮（可发现性优于 icon-only 直删——E1

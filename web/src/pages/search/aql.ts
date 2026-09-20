@@ -93,11 +93,11 @@ export function semanticOf(path: string): string | null {
 //
 // 结果表三件套归一到本支持库（两模式同一张网格——「列框架收敛」）：
 
-/** ISO 时间 → 结果表时间列。zh = `dd-MM-yy HH:mm:ss +ZZZZ`（Artifactory
+/** ISO 时间 → 结果表时间列。zh = `dd-MM-yy HH:mm:ss +ZZZZ`（同类控制台
  *  结果表对位——parity B-3.15：浏览器本地时区 + 显式偏移后缀，如
  *  `02-09-26 08:37:57 +0800`）；en = T-464（FR-149.4）en 变体
  *  `MMM d, yyyy h:mm:ss AM/PM +ZZZZ`（同款本地时区 + 显式偏移，12 小时
- *  制——Artifactory en 形态）。不可解析值如实返回 null 由调用方呈现 —。 */
+ *  制——同类控制台 en 形态）。不可解析值如实返回 null 由调用方呈现 —。 */
 const MON_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
 
 export function formatStamp(iso: string | null | undefined): string | null {

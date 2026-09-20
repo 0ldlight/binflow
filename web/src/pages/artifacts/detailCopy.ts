@@ -7,7 +7,7 @@ const t = tr('artifacts')
 // 部署者/Created/修改时间/子项〕维持原位不churn，多出字段的去留候 Q9）。
 //
 // 标签语言跟随面板既有混合口径（Repository Path / File URL / Created 用
-// 英文，名称/类型用中文）——Artifactory 字段族名保留英文原文，parity
+// 英文，名称/类型用中文）——同类控制台 字段族名保留英文原文，parity
 // 收口审计（T-460）按字段名逐一对拍。字段序 = reverse §3.2 + 7.161.20
 // 活体（m16-baseline-refresh §A2-7）：Name → Repository Path → File URL
 // →（Module ID 不建）→ Deployed By → Size → Created → Last Modified →
@@ -68,7 +68,7 @@ export const REMOTE_COPY = {
 } as const
 
 /**
- * 属性页签文案（M16 T-447 / FR-144.4，B-2.9 翻正——Artifactory 属性编辑
+ * 属性页签文案（M16 T-447 / FR-144.4，B-2.9 翻正——同类控制台 属性编辑
  * 解剖：常显 Property/Value 输入 + Add + 网格搜索；7.161.20 活体实证
  * placeholder 逐字 = "Property name" / "Property value"）。
  */
@@ -97,7 +97,7 @@ export const PROPS_COPY = {
  * 图标钮（直接下载）+ 伴随菜单承载校验能力与 checksum/mimeType 信息）。
  */
 export const DOWNLOAD_COPY = {
-  /** 单图标钮（直接下载——浏览器原生落盘，Artifactory 单 24px 图标对位） */
+  /** 单图标钮（直接下载——浏览器原生落盘，同类控制台 单 24px 图标对位） */
   iconLabel: t('下载'),
   iconTitle: t('下载（浏览器直接落盘）'),
   /** 伴随菜单触发（校验能力 + checksum/mimeType 的家——Q9「收进伴随形态」） */

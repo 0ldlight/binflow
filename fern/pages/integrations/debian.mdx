@@ -20,7 +20,7 @@ curl -su admin:$ADMIN_PW -T binflow-e2e_1.0-1_amd64.deb \
 ```
 
 - **三坐标必带**（`deb.distribution` / `deb.component` / `deb.architecture`）——缺失 400（文案附矩阵参数示例），拒绝件不落库。
-- 坐标即声明：一个 `.deb` 属于哪个 suite/component/arch 由**上传者**指定（Artifactory 语义）；`pool/…` 路径自由布局。
+- 坐标即声明：一个 `.deb` 属于哪个 suite/component/arch 由**上传者**指定（参考仓库 语义）；`pool/…` 路径自由布局。
 - `.dsc`（源码包）缺必填段落 → 400；`.deb` 解析失败则存而不引。
 - 上传后**后台增量重算**索引（不阻塞 201）。
 

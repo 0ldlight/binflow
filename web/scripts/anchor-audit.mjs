@@ -257,7 +257,7 @@ const STOP = new Set([
   // v1.17（T-372 行文假阳性）：树尾入口批的 spec 文件名段，非 testid 锚
   't372-trash-node', 'artifacts-tree',
   // v1.18（T-382 行文假阳性）：抽屉化批引用的上游规范文件名段，非 testid 锚
-  'console-artifactory-parity',
+  'console-parity',
   // v1.21（T-389 行文假阳性）：品牌位批的标识符引用——CSS 类钩子（app-nav-brand，
   // 结构钩子非 testid）/ token 名（bf-bg）/ 资产文件名段（mark-dark、
   // lockup-horizontal、lockup-dark）/ 目录与脚本 spec 文件名段（docs-site、
@@ -278,7 +278,7 @@ const STOP = new Set([
   'data-icon', 'pache-2', 't388-f2n2',
   // v1.25（T-404 行文假阳性）：复制 CRUD 批的标识符引用——ConfirmDialog
   // 的 prop 名（confirm-disabled，语义描述非锚）/ 深链聚焦属性（data-active，
-  // data 属性非 testid）/ R5 锚定引用的 Artifactory CSS 类名（icon-run）/
+  // data 属性非 testid）/ R5 锚定引用的 同类控制台 CSS 类名（icon-run）/
   // 措辞连词（flip-off）/ `repo-repl-*` 星号速记的截断残段（族内实名
   // repo-repl-card 等均在册）/ spec 文件名段（t404-replication-crud、
   // repositories-admin——m8 迁移腿所在文件），均非锚
@@ -292,7 +292,7 @@ const STOP = new Set([
   'member-pop', 'row-link', 'color-mix',
   'binflow-console-cols-users', 'binflow-console-cols-groups', 'binflow-console-cols-search',
   't414-columns-promo',
-  // v1.33（T-439 行文假阳性）：三段步进批的标识符引用——Artifactory 侧
+  // v1.33（T-439 行文假阳性）：三段步进批的标识符引用——同类控制台 侧
   // CSS 类名（jf-steps，活体形态描述非锚）/ 措辞连词（as-built——
   // 「翻正 · 已落」行的 as-built 注定语、decode-only——transport 只解码
   // 不转发的两档定档用词），均非 testid 锚
@@ -367,7 +367,7 @@ const STOP = new Set([
   // v1.45（T-462 行文假阳性）：cron 消费批的标识符引用——wire 槽键裸名
   // （cleanup-unused-cache / cleanup-virtual——gc-cron-row-<slot> 族段值，
   // 族内实名经 <slot> 展开在册）、退役表族名的散文引用（backup-cmd——
-  // 「维持退役不复活」句）、Artifactory 出厂预置名（backup-daily——
+  // 「维持退役不复活」句）、同类控制台 出厂预置名（backup-daily——
   // 有意差异注记）、规格文件名段（console-ui——docs/reverse/console-ui.md）
   // + 机制/形态术语（datetime-local——input type、dry-run——手动面姿态、
   // virtual-only——无载体注记）+ 本票 spec/evidence 文件名段

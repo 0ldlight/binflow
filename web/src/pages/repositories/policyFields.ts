@@ -10,7 +10,7 @@ const tt = tr('repositories')
 // sections.ts 的字段册先例），呈现位在仓库表单「高级」分区（local × 对应
 // 包类型才渲染）。
 //
-// wire 键 = adapter 探针的 Artifactory 扁平拼写（无子对象）。存储是
+// wire 键 = adapter 探针的 同类控制台 扁平拼写（无子对象）。存储是
 // package-type-agnostic 的（debian 键存进 rpm 仓也只是被忽略——caller-owned
 // blob 姿态），但读取方只有对应 adapter——表单按包类型收窄呈现，不提供假入口。
 //

@@ -8,7 +8,7 @@ sidebar_position: 30
 > 适用版本：M8（新信息架构：双模式壳 / 跨仓制品树 / 管理域五分组 / Set Me Up 与 Deploy 对话框族；设计规格 `docs/design/console-m8.md`）；**M9 增补**：Set Me Up 的 OIDC 重认证腿（T-260）、用户/组页的 Status 真值与删除面（T-257）、旧路径重定向窗口全量移除（T-263，见[旧路径 → 新路径](#旧路径--新路径m9-起不再重定向)）；**M15 增补**：搜索页 AQL 模式（T-419）、virtual 仓聚合浏览（T-416）、复制 ▶ Replicate Now 与 Test 连接/全局封锁（T-420/T-422）；**近期增补**：监控组扩为服务节点组六页（服务状态/系统日志新页 + 三页归位迁址）、remote 仓**远端浏览可选档**、GC/备份/复制的**计划任务（cron）消费面**、**界面双语切换**——逐项变化与翻案说明见[用户可见变化公告](whats-new.md)。
 > 本篇全部 UI 路径与对话框行为在 HEAD（`89b27ce` 构建，含内嵌控制台）的 scratch 实例（127.0.0.1:18091，七仓种子覆盖全部五种包类型）上以 Playwright 走查验证（11/11 通过：双模式导航、树深链、对话框族、管理域路由、10 条旧路径重定向〔M8 兼容窗口；M9 起已移除，见下节〕）；登录/会话/CSRF 段沿用 M4 QA 基线（T-103/T-105，报告 `reports/agents/T-103-qa.md` / `T-105-qa.md`），M8 未改动服务端会话语义。浏览器矩阵依据 T-104 与 T-120 修复后的跨引擎复核。M9 增补面在 HEAD 构建的自起 scratch/armed 栈（2026-08-25）复验：shell 旧路径 19 条 404 断言、users-groups 6 腿、oidc-stepup 4 腿全绿。
 
-M4 起单二进制自带 Web 控制台（go:embed，零外部依赖、断网可用）。**M8 起控制台的信息架构与操作流对齐 Artifactory**（同一个动作在同样的位置、走同样的步骤——从 Artifactory 迁移的用户零学习成本；逐任务的操作路径对照见 [Artifactory → BinFlow 操作路径对照表](artifactory-path-map.md)）。控制台仍是**管理面**——CI 与脚本继续走 REST/token，两者同一 API、同一权限模型。
+M4 起单二进制自带 Web 控制台（go:embed，零外部依赖、断网可用）。**M8 起控制台的信息架构与操作流对齐 参考仓库**（同一个动作在同样的位置、走同样的步骤——从 参考仓库 迁移的用户零学习成本；逐任务的操作路径对照见 [参考仓库 → BinFlow 操作路径对照表](compatibility-path-map.md)）。控制台仍是**管理面**——CI 与脚本继续走 REST/token，两者同一 API、同一权限模型。
 
 ## 前置条件
 
@@ -65,7 +65,7 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 
 ## 双模式导航（M8 新信息架构）
 
-控制台侧栏按上下文切换**两种模式**（对齐 Artifactory 的应用/管理双侧栏）：
+控制台侧栏按上下文切换**两种模式**（对齐 参考仓库 的应用/管理双侧栏）：
 
 | 模式 | 路由前缀 | 侧栏分组 | 落地页 |
 |---|---|---|---|
@@ -118,7 +118,7 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 |---|---|
 | 过滤仓库 | 输入框前端过滤已加载的仓库清单（原页头工具栏位迁入），`清除` 复位 |
 | 包类型 facet | 复选组，选项集 = 已加载仓库的**实有**包类型——勾选仅显示命中仓 |
-| 仓型复选 | Local / Remote / Virtual 三复选（BinFlow 实有三态；Artifactory 的 Cache 位是 remote 缓存子集视图，不单列） |
+| 仓型复选 | Local / Remote / Virtual 三复选（BinFlow 实有三态；参考仓库 的 Cache 位是 remote 缓存子集视图，不单列） |
 | Sort-by | 名称 / 包类型 / 仓库类型三序 |
 | Compacted | Compacted / Non-Compacted 单选——紧凑档收窄行高（大树密度场景） |
 | My Favorites | 仅显示收藏仓（浏览器 localStorage 持久）；**收藏标记入口 = 仓库节点右键菜单** |
@@ -185,7 +185,7 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
   - 页脚 `Cancel` + `Create`（无重置钮）；非活跃步整步卸载。
   - key 规则 `[a-z][a-z0-9-]{1,62}` 前端预检、服务端终裁（400 行内回显）。**保留字 `api` / `v2` / `docs` / `console` / `ui` / `assets` 建仓即 400**。
 - **仓库详情** `/admin/repositories/:key`：概要（remote 仓含**远端浏览开关态回显行**——开启/关闭 + 语义注记）/ 接入命令（与接入文档同源）/ 统计（配额水位条）/ 配置（配额行内编辑 + patterns；**manage 持有者**亦可编辑本仓配置——见 [RBAC 指南](admin/rbac-roles.md)）/ Replications（M14：本仓复制配置摘要卡 + 深链编辑节 + 全局复制页入口）Tab + 危险区（删仓仅全量 admin 可见）。
-- **编辑** `/admin/repositories/:key/edit`：rclass/包类型锁定，其余字段同建仓表单（三段步进同形）。**dirty-gating**：进入时 Save 禁置，表单与打开时回显**逐字段深度比对**——有实质变更才解禁（改回原值重新禁置；密码字段输入即视为变更）；干净态点不动、零写请求。**remote 仓「测试连接」钮**（仅编辑态在场——探测端点按已存仓 key 寻址，建仓态给说明行不给死按钮）：草稿探测按表单与已存配置的 diff 决定凭据形态——**带了密码 = 用表单明文凭据探测**；只改了 URL/用户名没填密码 = 按匿名探测（已存密封密钥**绝不**静默发往改动后的候选主机）；零改动 = 探已存配置。判定内联呈现（绿/红 + 上游状态码；连接层失败 = 「未触达上游」）；探测零副作用（不写任何配置）。**编辑态 local 仓另有 Replications 节**（push 复制配置：列表 + 新建/编辑表单 + 行内启停开关 + 输入 name 强确认删除；表单带「测试连接」按钮——创建态测草稿、编辑态未改动时探已存配置；Artifactory 的 cron/sync 等字段为预留位恒禁用——如实标注引擎尚不支持）；编辑保存 = 删除 + 重建（未决任务级联清空、目标口令不回显需重输——留空即匿名目标）。remote/virtual 仓不适用（push 源是 local）。REST 语义见[治理指南 · 复制](admin/governance.md#复制push-replication)。
+- **编辑** `/admin/repositories/:key/edit`：rclass/包类型锁定，其余字段同建仓表单（三段步进同形）。**dirty-gating**：进入时 Save 禁置，表单与打开时回显**逐字段深度比对**——有实质变更才解禁（改回原值重新禁置；密码字段输入即视为变更）；干净态点不动、零写请求。**remote 仓「测试连接」钮**（仅编辑态在场——探测端点按已存仓 key 寻址，建仓态给说明行不给死按钮）：草稿探测按表单与已存配置的 diff 决定凭据形态——**带了密码 = 用表单明文凭据探测**；只改了 URL/用户名没填密码 = 按匿名探测（已存密封密钥**绝不**静默发往改动后的候选主机）；零改动 = 探已存配置。判定内联呈现（绿/红 + 上游状态码；连接层失败 = 「未触达上游」）；探测零副作用（不写任何配置）。**编辑态 local 仓另有 Replications 节**（push 复制配置：列表 + 新建/编辑表单 + 行内启停开关 + 输入 name 强确认删除；表单带「测试连接」按钮——创建态测草稿、编辑态未改动时探已存配置；参考仓库 的 cron/sync 等字段为预留位恒禁用——如实标注引擎尚不支持）；编辑保存 = 删除 + 重建（未决任务级联清空、目标口令不回显需重输——留空即匿名目标）。remote/virtual 仓不适用（push 源是 local）。REST 语义见[治理指南 · 复制](admin/governance.md#复制push-replication)。
 - **删除**：两段强确认——非空仓必须勾选 `同时删除内容` + **输入 repo key 确认**（不勾选直接删非空仓会被服务端 400 拒绝）。
 - 治理字段（仅 local 仓）：`quotaBytes` 与 `includesPattern` / `excludesPattern`（详见[治理指南](admin/governance.md)）。
 
@@ -275,7 +275,7 @@ M8 路由重排曾为 M7 及以前的控制台路径提供**自动客户端重�
 控制台内置**中英双语资源包**，默认中文：
 
 - **切换器**在侧栏底部脚注（模式切换与版本行之间，「语言」caption + `中文` / `English` 两档单选）——应用与管理两侧栏同脚注常驻，任一模式可达；当前语言呈选中态。
-- 点选即 `setLocale`：**选择持久化在浏览器 `localStorage`（键 `binflow-console-locale`）+ 整页重载**后按新语言渲染（模块级文案求值点按新语言重算——与 Artifactory 的切换姿态一致）；不可用时回落中文。
+- 点选即 `setLocale`：**选择持久化在浏览器 `localStorage`（键 `binflow-console-locale`）+ 整页重载**后按新语言渲染（模块级文案求值点按新语言重算——与 参考仓库 的切换姿态一致）；不可用时回落中文。
 - **英文为全量覆盖**：控制台全部页面域（仪表盘/制品/搜索/仓库/安全/治理/监控/Webhooks/Profile 等）与全部对话框/表单文案；语言名走母语名（`中文` 两态恒显，语言自称不随界面语言翻译）。
 - **术语两包保真**：repo key / node / checksum / Deploy / Set Me Up / cron / readonly_admin 等英文术语在两种语言下原样。
 - **日期与数字随语言**：英文界面下结果表 `modified` 与审计时间列为 `MMM d, yyyy h:mm:ss AM/PM` 12 小时形态（中文维持 `dd-MM-yy HH:mm:ss` 24 小时形态）；数字千位分组随语言取义。
@@ -302,7 +302,7 @@ GC / 缓存清理（维护三槽）、**定时备份**与**复制调度**（cron
 
 - 本轮交付的用户可见变化与翻案清单：[用户可见变化公告](whats-new.md)
 - 计划任务（cron 调度）与定时备份：[专篇指南](admin/cron-scheduling.md)
-- 从 Artifactory 迁移的逐任务操作路径：[Artifactory → BinFlow 操作路径对照表](artifactory-path-map.md)；真实源实例迁移实录与差异清单：[附录 V28](admin/real-env-appendix.md)
+- 从 参考仓库 迁移的逐任务操作路径：[参考仓库 → BinFlow 操作路径对照表](compatibility-path-map.md)；真实源实例迁移实录与差异清单：[附录 V28](admin/real-env-appendix.md)
 - 授权三步流与组语义：[用户组与权限管理](admin/groups-permissions.md)；角色模型：[RBAC 角色与仓库级管理员](admin/rbac-roles.md)
 - 审计 / GC / 配额：[治理指南](admin/governance.md)；备份恢复：[备份与恢复手册](admin/backup-restore.md)
 - CI 与脚本不走控制台，走 [API Token](faq.md#高频场景高-qps-请用-access-token) 与各协议[接入指南](README.md)

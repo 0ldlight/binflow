@@ -1,4 +1,4 @@
-// Packages landing (Artifactory /packages parity slice).
+// Packages landing (同类控制台 /packages parity slice).
 //
 // Honest data contract: BinFlow currently exposes the repository inventory but
 // has no package aggregate endpoint for latest version, version count,

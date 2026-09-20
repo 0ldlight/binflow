@@ -322,9 +322,9 @@ cat /tmp/chunk1 /tmp/chunk2 | cmp - /tmp/got.bin && echo IDENTICAL
 
 ## 有意不兼容与差异清单
 
-与 Artifactory 对接过的用户注意以下差异（前四条为 BinFlow 有意设计，来源 PRD/ADR）：
+与 参考仓库 对接过的用户注意以下差异（前四条为 BinFlow 有意设计，来源 PRD/ADR）：
 
-| 行为 | BinFlow | Artifactory | 依据 |
+| 行为 | BinFlow | 参考仓库 | 依据 |
 |---|---|---|---|
 | `DELETE /v2/<name>/blobs/<digest>` | **405 `UNSUPPORTED`**——blob 物理删除唯一入口是 GC | 支持 blob 删除 | DE-14；存储安全底线 |
 | `DELETE /v2/<name>/manifests/<tag>` | **405 `UNSUPPORTED`**——官方 spec 禁止 by-tag 删除；tag 的「删除」由覆盖 push 或 by-digest 删除级联实现 | 支持 by-tag 删除 | FR-9-AC7 / DE-10 |
@@ -402,4 +402,4 @@ http:
 
 - 部署形态与端口/持久化调整：[Docker 运行](install/docker.md)、[docker-compose 部署](install/compose.md)（开发/评估用 compose 形态另见仓库内 `deploy/dev/README.md`，非文档站页面）
 - 管理面 API（建仓/用户/token 吊销）：[API Reference](api-reference.md)
-- 从 Artifactory 迁移的概念对照：[faq.md](faq.md)
+- 从 参考仓库 迁移的概念对照：[faq.md](faq.md)

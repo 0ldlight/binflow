@@ -177,8 +177,8 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 
 	if !strings.HasPrefix(path, prefix) {
 		// E-26①: no root mirror. Everything outside /binflow is a 404; the
-		// message carries the /binflow prefix hint so /artifactory
-		// migrants see the fix in the error body.
+		// message carries the /binflow prefix hint so migrants from legacy
+		// deployments see the fix in the error body.
 		notFoundPrefixHint(w, path)
 		return
 	}

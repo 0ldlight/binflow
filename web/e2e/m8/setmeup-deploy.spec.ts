@@ -11,7 +11,7 @@ import { m8Client, seedRepos, sessionApi } from './support/seed'
 // + §8 T-231 债券）。断言口径 = e2e/m8/README §2：锚断言 + 操作流对照 +
 // sessionApi 对账；错误文案断言 ADR-0027 决策 5 逐字（error_description）。
 //
-// T-382 迁移（D1 抽屉化，console-artifactory-parity v1.1 实测参数）：Set Me Up
+// T-382 迁移（D1 抽屉化，console-parity v1.1 实测参数）：Set Me Up
 // 壳 = 居中 Dialog → 右侧 Drawer（anchor right + temporary），宽 50vw 档
 // （clamp 480~800，1280 视口 = 640px——非旧票 480 固定档）、全高、右上 X +
 // Esc/遮罩关闭；Tab = Configure/Deploy/Resolve 三枚；底栏 = 左返回链接 +

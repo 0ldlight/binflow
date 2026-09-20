@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 
-// T-387（FR-125.2 L1）：列表列显隐偏好——console-artifactory-parity L1
+// T-387（FR-125.2 L1）：列表列显隐偏好——console-parity L1
 // （列选器）两载体页（RepositoriesPage / AuditPage）共享的持久层。
 //
 // - 存储：localStorage per-page（键由调用方传，如 'binflow-console-cols-
@@ -13,7 +13,7 @@ import { useCallback, useMemo, useState } from 'react'
 // - 不可用（隐私模式等）：try/catch 双向，退化为会话内不持久
 //   （SearchPage recentSearches 同款姿态）。
 // - T-449（FR-144.6 断言反转②）：defaultHidden 第三参——列集不再全显为
-//   缺省（Artifactory 对位：大小/sha256 是列选器可选项不默认在场）。
+//   缺省（同类控制台 对位：大小/sha256 是列选器可选项不默认在场）。
 //   缺省 = []（既有调用方 repos/audit/users/groups 语义零变化）；存储
 //   缺席/腐化/全隐回落均回落 defaultHidden 而非全显，「恢复默认」同值。
 

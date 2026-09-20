@@ -115,8 +115,8 @@ navigation:
         contents:
           - page: bf CLI
             path: pages/tools/bf-cli.mdx
-          - page: 从 Artifactory 迁移（bf-migrate）
-            path: pages/tools/migrate-artifactory.mdx
+          - page: 迁移指南（bf-migrate）
+            path: pages/tools/migration-guide.mdx
       - page: FAQ 与故障排查
         path: pages/faq.mdx
         icon: circle-help

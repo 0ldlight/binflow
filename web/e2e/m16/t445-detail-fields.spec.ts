@@ -116,7 +116,7 @@ test('detail tabs: General → Effective Permissions → Properties at every lev
   await api(page, 'PUT', `/${key}/docs/guide.md`, 'g')
 
   // 仓库级：常规 → 有效权限（属性页签缺席 = 仓根无节点行契约，缺位登记
-  // 不伪造——Artifactory 仓级有 Properties，BinFlow 无仓级属性面）
+  // 不伪造——同类控制台 仓级有 Properties，BinFlow 无仓级属性面）
   await page.goto(`/binflow/ui/artifacts/${key}`)
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
   expect(await tabOrder(page)).toEqual(['常规', '有效权限'])
@@ -187,7 +187,7 @@ test('file detail: File URL copy button, downloads family end-to-end via ?stats 
   await expect(page.locator('[data-testid="node-remote-downloads"]')).toHaveText(/^\d+$/)
 
   // 目录形态：File URL 补齐（B-2.4——尾斜杠拼写）；无下载统计族
-  // （folder 结构性零值不渲染，Artifactory folder item view 同为无下载族）
+  // （folder 结构性零值不渲染，同类控制台 folder item view 同为无下载族）
   await page.goto(`/binflow/ui/artifacts/${key}/docs`)
   await expect(page.locator('[data-testid="node-file-url"]')).toContainText(
     `/binflow/${key}/docs/`,
@@ -346,7 +346,7 @@ test('repo view: Description echoes, Repository Layout and Created render "—" 
   await expect(page.locator('[data-testid="node-repo-created"]')).toHaveText('—')
 
   // Artifact Count（usage counts 面 nodeCount = FILE 节点数，folder 哨兵
-  // 行排除——2 个文件）；大小行同源在场（Artifactory 的 Size: Show 懒展开
+  // 行排除——2 个文件）；大小行同源在场（同类控制台 的 Size: Show 懒展开
   // 不建：usage 面廉价直接渲染，形态简化留痕）
   await expect(page.locator('[data-testid="node-repo-artifact-count"]')).toHaveText('2')
   await expect(page.locator('[data-testid="node-detail"]')).toContainText('大小')

@@ -149,7 +149,7 @@ CI 账号的 permission target 该授什么？按操作分臂（T-249 转换感�
 
 - **remote 仓**（代理上游）：`.npmrc` 的 registry 指向 `$BASE/binflow/api/npm/npm-remote/`，packument 与 tarball 经 BinFlow 回源缓存；上游不回显、二次安装零上游流量。
 - **virtual 仓**（聚合）：registry 指向 `$BASE/binflow/api/npm/npm-virtual/`，本地包与上游包一次 `npm install demo-pkg up-pkg` 装齐。
-- **重要边界（M3）**：`registry.npmjs.org` 的 packument 不在 BinFlow/Artifactory 的 `<name>/packument.json` 布局路径上，**npmjs 真上游暂不可代理**（`npm install lodash` → 404 `Package 'lodash' not found`，T-75 真机复核）。remote 仓适用于布局兼容的上游（内网 Nexus/Artifactory 等）；npmjs 代理归 M4。Maven Central 与 pypi.org 的真上游代理均已可用，见[管理指南](../admin/remote-virtual.md#上游兼容性速查)。
+- **重要边界（M3）**：`registry.npmjs.org` 的 packument 不在 BinFlow/参考仓库 的 `<name>/packument.json` 布局路径上，**npmjs 真上游暂不可代理**（`npm install lodash` → 404 `Package 'lodash' not found`，T-75 真机复核）。remote 仓适用于布局兼容的上游（内网 Nexus/参考仓库 等）；npmjs 代理归 M4。Maven Central 与 pypi.org 的真上游代理均已可用，见[管理指南](../admin/remote-virtual.md#上游兼容性速查)。
 - 代理仓的上游日志里会看到 npm 客户端对 `npm` 自身 packument 的自检探测（版本检查），属正常噪音，上游 miss 后进负缓存。
 
 ## 匿名与凭据
@@ -167,7 +167,7 @@ CI 账号的 permission target 该授什么？按操作分臂（T-249 转换感�
 | 行为 | BinFlow | 依据 |
 |---|---|---|
 | 同版本重复 publish | **403** `Cannot modify pre-existing version '<v>', aborting upload for: '<name>'`（npm CLI 报 E403） | PRD v1.2 定案（409→403） |
-| `integrity`（sha512）与 tarball 实测不一致 | **400** 拒绝（Artifactory 默认不强制；BinFlow 有意从严） | NE-01 决策 |
+| `integrity`（sha512）与 tarball 实测不一致 | **400** 拒绝（参考仓库 默认不强制；BinFlow 有意从严） | NE-01 决策 |
 | `npm search`（`/-/v1/search`）、audit（`/-/npm/v1/security`） | **404**——搜索/审计端点不做 | §2.2 |
 | tarball 裸 PUT（内容路径直传） | **405**——npm 域发布仅认 packument PUT 十步链 | T-76 注记 |
 | packument `_attachments` | GET 面不返回 | NPM-API 惯例 |
@@ -191,4 +191,4 @@ CI 账号的 permission target 该授什么？按操作分臂（T-249 转换感�
 
 - remote/virtual 仓的创建与缓存管理：[remote/virtual 管理指南](../admin/remote-virtual.md)
 - Maven / PyPI 接入：[maven](maven.md) · [pypi](pypi.md)
-- 从 Artifactory 迁移的概念对照：[faq.md](../faq.md)
+- 从 参考仓库 迁移的概念对照：[faq.md](../faq.md)

@@ -38,7 +38,7 @@
 // - 仍预留缺位（不伪造）：enableEventReplication（BinFlow 事件轨恒真无
 //   开关）/ pathPrefix / sync 三开关——引擎无对位，恒禁用、零提交。
 // - BinFlow 超集字段：max_bandwidth_bytes_per_sec（带宽节流）/
-//   max_items_per_push（单次批量上限）——Artifactory 无，保留呈现。
+//   max_items_per_push（单次批量上限）——同类控制台 无，保留呈现。
 // - 编辑语义：PUT /{id} 只裁启停与 cron_exp（T-450 扩臂）——其余字段修改
 //   的唯一可跑通路径 = 删除 + 重建（DELETE+POST），配置 id 变化、未决
 //   任务级联清空、台账行联动删；表单内明示后果（repl-recreate-note）。

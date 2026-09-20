@@ -62,7 +62,7 @@ curl -su admin:$ADMIN_PW \
   "$BASE/binflow/api/storage/generic-local/app/app.bin?properties=build,env*" | jq
 ```
 
-- **无命中 = 200 `{"properties":{}}`**（BinFlow 自有裁定，非 Artifactory 的 404）；节点不存在才是 404。
+- **无命中 = 200 `{"properties":{}}`**（BinFlow 自有裁定，非 参考仓库 的 404）；节点不存在才是 404。
 - `properties=*` 列全部键（等价无过滤）。
 - `atomic=true`：任一**字面**过滤键缺失 → 404 `Property '<key>' was not found on '<repo>/<path>'.`（通配键永不触发——通配只能匹配不能 miss）。适合「核对齐了再放行」的发布门。
 

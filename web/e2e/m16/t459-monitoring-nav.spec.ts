@@ -225,12 +225,12 @@ test('system logs: plain user 403 -> L2 card and tail auto-pauses', async ({ pag
 // ③ 导航分组（B-2.18）：监控组六页 + Webhooks 常规组 + 旧深链折入
 // ---------------------------------------------------------------------------
 
-test('Artifactory-aligned sections remain directly reachable; legacy URLs fold', async ({ page }) => {
+test('同类控制台-aligned sections remain directly reachable; legacy URLs fold', async ({ page }) => {
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/admin/monitoring/storage')
   await expect(page.locator('[data-testid="storage-page"]')).toBeVisible()
 
-  // Artifactory section order is retained, while all implemented BinFlow faces
+  // 同类控制台 section order is retained, while all implemented BinFlow faces
   // stay direct links. Reference-only enterprise faces do not pollute the nav.
   for (const id of ['service-status', 'storage', 'system-logs', 'system-info']) {
     await expect(page.getByTestId(`nav-entry-${id}`)).toBeVisible()
@@ -274,16 +274,16 @@ test('admin filter: filters sidebar entries, hides empty groups, Esc clears', as
   // 管理态顶栏 = 管理资源过滤框（制品搜索让位）；placeholder 逐字对位活体
   const box = page.locator('[data-testid="admin-filter"]')
   await expect(box).toBeVisible()
-  await expect(box).toHaveAttribute('placeholder', 'Search Admin Resources…')
+  await expect(box).toHaveAttribute('placeholder', '搜索管理资源…')
   await expect(page.locator('[data-testid="topbar-search"]')).toHaveCount(0)
 
-  // Artifactory child hit retains its ordered parent; other top-level entries
+  // 同类控制台 child hit retains its ordered parent; other top-level entries
   // disappear without reordering the tree.
-  await box.fill('Backups')
+  await box.fill('备份')
   await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveCount(1)
-  await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveText('Backups')
+  await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveText('备份')
   await expect(page.locator('[data-testid="app-nav"] .nav-group-label')).toHaveCount(1)
-  await expect(page.locator('[data-testid="app-nav"] .nav-group-label')).toHaveText('Artifactory Settings')
+  await expect(page.locator('[data-testid="app-nav"] .nav-group-label')).toHaveText('仓库设置')
 
   // 无匹配：注记 + 空侧栏如实反馈
   await box.fill('zzz-none')

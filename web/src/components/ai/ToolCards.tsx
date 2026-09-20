@@ -142,7 +142,7 @@ export function ToolResultCard({ result, isError, className }: { result: unknown
   )
 }
 
-/** 双钮动作钮（ConfirmCard 专用——形态对齐 Artifactory 确认对话） */
+/** 双钮动作钮（ConfirmCard 专用——形态对齐 同类控制台 确认对话） */
 function ActionButton({ variant, ...props }: ComponentPropsWithoutRef<'button'> & { variant: 'primary' | 'ghost' }) {
   return (
     <Button

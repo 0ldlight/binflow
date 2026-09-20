@@ -25,7 +25,7 @@
   --bf-ctl-lg: 36px;
 
   /* ---------- 布局尺寸（批 1 新槽位：宪章 §13 值；只定义不消费——批 2 壳收编） ---------- */
-  --bf-sidebar-w: 240px; /* BinFlow 自选值（Artifactory 260px 不翻拍） */
+  --bf-sidebar-w: 240px; /* BinFlow 自选值（同类控制台 260px 不翻拍） */
   --bf-topbar-h: 64px;
   --bf-content-max: 1440px; /* 现 max-w-[1440px] 字面量的收编位 */
 }

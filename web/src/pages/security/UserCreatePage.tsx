@@ -1,5 +1,5 @@
 // 用户创建路由页（T-453 / FR-145.1——P3 新栈重写）：
-// /admin/security/users/new 深链整页表单，对位 Artifactory 7.161.20
+// /admin/security/users/new 深链整页表单，对位 reference console.20
 // /ui/admin/management/users/new：页脚 Cancel | Reset（初始禁置）| Save
 // （初始禁置）；字段序 = User Name / Email Address / 角色（三值枚举）/
 // Password / Retype Password / 相关组穿梭。
@@ -61,7 +61,7 @@ function ReservedCapChecks() {
       <div>
         <CheckRow checked disabled label={t('Can Update Profile（可更新档案）')} testid="user-form-profile-updatable" />
         <p className="field-hint">
-          {t('预留位——后端创建/更新端点未承接该域（GET 回显恒 true、零行为联动），恒禁用、零提交；Artifactory 语义 = 取消勾选后用户不能自助修改档案。承接落地时解禁（漂移钉见 t453 spec）。')}
+          {t('预留位——后端创建/更新端点未承接该域（GET 回显恒 true、零行为联动），恒禁用、零提交；同类控制台 语义 = 取消勾选后用户不能自助修改档案。承接落地时解禁（漂移钉见 t453 spec）。')}
         </p>
       </div>
       <div>
@@ -194,7 +194,7 @@ export default function UserCreatePage() {
             />
             <p className="field-hint">{t('user=按 permission target 授权；readonly_admin=管理面只读；admin=管理面全权。')}</p>
             <p className="field-hint" data-testid="user-form-role-parity-note">
-              {t('候裁臂：Artifactory 7.161 此处为 Administer Platform + Manage Resources 双布尔（另有 Platform Auditor / Manage Webhook）；BinFlow 按 ADR-0026 暂行维持三值枚举（readonly_admin 无双布尔对位），差异登记候裁——双布尔不建不伪造。')}
+              {t('候裁臂：reference console 此处为 Administer Platform + Manage Resources 双布尔（另有 Platform Auditor / Manage Webhook）；BinFlow 按 ADR-0026 暂行维持三值枚举（readonly_admin 无双布尔对位），差异登记候裁——双布尔不建不伪造。')}
             </p>
           </div>
         </div>

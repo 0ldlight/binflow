@@ -5,7 +5,7 @@ import { loginAs } from '../m8/support/roles'
 import { m8Client, seedRepos } from '../m8/support/seed'
 
 // T-387（M14 B8 FE，FR-125.2 L1）——列表工具栏列选器 + 刷新（parity
-// console-artifactory-parity §5 L1：搜索框 / 过滤下拉 / **列选择器** /
+// console-parity §5 L1：搜索框 / 过滤下拉 / **列选择器** /
 // **刷新按钮**；计数在工具栏尾部或右下——两页既有 count 已满足）。载体 =
 // RepositoriesPage / AuditPage（BOARD 票面指名两页；「列多者受益」）。
 //
@@ -67,7 +67,7 @@ test('admin: repos column selector — open/close, hide/show, guard, reset, per-
   await page.goto('/binflow/ui/admin/repositories/local')
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toBeVisible()
 
-  // 默认全显（8 列闭集：Artifactory landing 需要直接呈现 Repository Type）
+  // 默认全显（8 列闭集：同类控制台 landing 需要直接呈现 Repository Type）
   const th = page.locator('[data-testid="repos-table"] thead th')
   await expect(th).toHaveCount(8)
 

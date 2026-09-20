@@ -17,14 +17,14 @@ export const FORM_STEPS = {
 } as const
 
 export const RESERVED_GROUP_BASIC_TITLE =
-  t('Artifactory 对齐字段（预留位——当前无效，不提交、不存储）')
+  t('同类控制台 对齐字段（预留位——当前无效，不提交、不存储）')
 
 export const RESERVED_GROUP_ADVANCED_TITLE =
-  t('Artifactory 对齐复选项（预留位——当前无效，不提交、不存储）')
+  t('同类控制台 对齐复选项（预留位——当前无效，不提交、不存储）')
 
 export const RESERVED_PLACEHOLDER = t('（预留位）')
 
-/** repoLayoutRef：Artifactory 7.161 Basic 步在场的 Repository Layout。
+/** repoLayoutRef：reference console Basic 步在场的 Repository Layout。
  *  BinFlow 布局由各协议 adapter 固定（maven = maven-2 形路径探测），无
  *  repoLayoutRef 消费方（grep internal/ 零读点）——后端承接落地后启用（K70）。 */
 export const RESERVED_REPO_LAYOUT_HINT =
@@ -33,31 +33,31 @@ export const RESERVED_REPO_LAYOUT_HINT =
 /** Environments：7.84 审计名为 Environments，7.161.20 实测已更名 Stage
  *  （Stages & Lifecycle 域）——预留位按新名标注，双名留痕。 */
 export const RESERVED_ENVIRONMENTS_HINT =
-  t('预留位：BinFlow 无环境段模型（Artifactory 7.161 已由 Environments 更名 Stage）——字段不提交。')
+  t('预留位：BinFlow 无环境段模型（reference console 已由 Environments 更名 Stage）——字段不提交。')
 
 /** notes（Internal Description）：transport 侧 repoConfig.Notes 有解码位但
  *  configJSON 不转发（decode-only，与 blackedOut 同类）——预留位。 */
 export const RESERVED_INTERNAL_DESCRIPTION_HINT =
   t('预留位：后端 config 传输层未承接 notes（公开描述即上方「描述」字段）——字段不提交。')
 
-/** blackedOut：Artifactory 7.161 标签「Disable Artifact Resolution in
+/** blackedOut：reference console 标签「Disable Artifact Resolution in
  *  Repository」；拒写行为联动随 BE 承接票（票内登记）。 */
-export const RESERVED_BLACKED_OUT_LABEL = t('blackedOut（Artifactory：Disable Artifact Resolution in Repository）')
+export const RESERVED_BLACKED_OUT_LABEL = t('blackedOut（同类控制台：Disable Artifact Resolution in Repository）')
 export const RESERVED_BLACKED_OUT_HINT =
   t('预留位：PUT 解码后即丢弃（回显/行为均无）——true 拒写语义随后端承接票落地。')
 
-/** archiveBrowsingEnabled：Artifactory 7.161 标签「Allow Artifact Content
+/** archiveBrowsingEnabled：reference console 标签「Allow Artifact Content
  *  Browsing」；BinFlow 归档内浏览自 M1 起默认开放、无开关位。 */
-export const RESERVED_ARCHIVE_BROWSING_LABEL = t('archiveBrowsingEnabled（Artifactory：Allow Artifact Content Browsing）')
+export const RESERVED_ARCHIVE_BROWSING_LABEL = t('archiveBrowsingEnabled（同类控制台：Allow Artifact Content Browsing）')
 export const RESERVED_ARCHIVE_BROWSING_HINT =
   t('预留位：BinFlow 归档内浏览恒开放、无引擎开关（回显/行为均无）——字段不提交。')
 
-/** maxUniqueSnapshots（maven）：Artifactory 7.161 Advanced 步「Max Unique
+/** maxUniqueSnapshots（maven）：reference console Advanced 步「Max Unique
  *  Snapshots」；transport 解码位存在但 configJSON 不转发。 */
 export const RESERVED_MAX_UNIQUE_SNAPSHOTS_HINT =
   t('预留位：PUT 解码后即丢弃（快照去重上限行为无引擎承接）——字段不提交。')
 
-/** suppressPomConsistencyChecks（maven）：Artifactory 7.161「Suppress POM
+/** suppressPomConsistencyChecks（maven）：reference console「Suppress POM
  *  Consistency Checks」；transport 无该字段（非 decode-only，直接未知键）。 */
 export const RESERVED_SUPPRESS_POM_LABEL = t('Suppress POM Consistency Checks（suppressPomConsistencyChecks）')
 export const RESERVED_SUPPRESS_POM_HINT =
@@ -74,7 +74,7 @@ export const FORCE_CONAN_AUTH_HINT =
 // ---------------------------------------------------------------------------
 
 /** 入口下拉（列表页 Create a Repository 对位）：三预选各带一句描述
- *  （Artifactory 7.161.20 活体形态——el-dropdown 五型带描述行，BinFlow
+ *  （reference console.20 活体形态——el-dropdown 五型带描述行，BinFlow
  *  三型实有口径〔federated/release-bundle 为 A1 非目标域，不伪造〕）。
  *  描述语义对齐 7.161 原文：Local "Upload and resolve your own packages" /
  *  Remote "Proxy and cache packages hosted remotely" / Virtual "Access
@@ -106,11 +106,11 @@ export const REMOTE_TEST_UNREACHED_NOTE = t('未触达上游——连接层失�
 
 /** 批 1 支持远端枚举的包型（engine BrowseSupported 同集——helm classic
  *  index.yaml 全树 + debian/rpm 元数据臂；true 于其它包型服务端按名 400，
- *  表单只对批 1 型呈现控件——Artifactory 官方开放面 deb/generic/maven/
+ *  表单只对批 1 型呈现控件——同类控制台 官方开放面 deb/generic/maven/
  *  Opkg/rpm 与 BinFlow 引擎面不同，generic/maven 不建不伪造）。 */
 export const REMOTE_BROWSE_PKG_TYPES: readonly string[] = ['helm', 'debian', 'rpm']
 
-/** 可选档标签（Artifactory 官方 UI 名 "List Remote Folder Items" /
+/** 可选档标签（同类控制台 官方 UI 名 "List Remote Folder Items" /
  *  "List Remote Artifacts" 两种拼写并用——remote-browsing.md §1）。 */
 export const LIST_REMOTE_FOLDER_ITEMS_LABEL = t('列出远端目录条目（listRemoteFolderItems）')
 export const LIST_REMOTE_FOLDER_ITEMS_HINT =

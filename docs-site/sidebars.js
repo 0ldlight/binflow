@@ -58,7 +58,7 @@ const sidebars = {
       },
       items: [
         'console',
-        'artifactory-path-map', // M8 (T-245): Artifactory → BinFlow operation-path map.
+        'compatibility-path-map', // M8 (T-245): compatibility operation-path map.
         'admin/remote-virtual',
         'admin/groups-permissions',
         'admin/governance',
@@ -85,7 +85,7 @@ const sidebars = {
       link: {
         type: 'generated-index',
         title: '专题指南',
-        description: '身份认证、存储后端、CLI 与 Artifactory 迁移的专题配置指南。',
+        description: '身份认证、存储后端、CLI 与 仓库迁移的专题配置指南。',
         slug: '/guides',
       },
       items: [
@@ -93,7 +93,7 @@ const sidebars = {
         'guides/ldap-config',
         'guides/s3-config',
         'guides/bf-cli',
-        'guides/migrate-artifactory',
+        'guides/migration-guide',
         'metrics/prometheus-reference',
       ],
     },
@@ -103,7 +103,7 @@ const sidebars = {
     'properties',
 
     // M15 (T-426): the AQL search guide (items-domain subset, error copy
-    // family, Artifactory AQL migration table).
+    // family, AQL migration table).
     'aql',
 
     'faq',

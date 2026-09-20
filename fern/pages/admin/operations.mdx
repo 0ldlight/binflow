@@ -29,7 +29,7 @@ curl -su admin:$ADMIN_PW -X POST \
   "$BASE/binflow/api/move/generic-local/acme?to=/archive/acme"
 ```
 
-- 响应 200 + `{"messages":[{"level","message"}]}`（Content-Type 为 Artifactory vendor 形）；HTTP 状态 = 最后一条 error 的码（无码 409 兜底）。
+- 响应 200 + `{"messages":[{"level","message"}]}`（Content-Type 为 参考仓库 vendor 形）；HTTP 状态 = 最后一条 error 的码（无码 409 兜底）。
 - 参数：`to`（必填，`/{targetRepo}[/{targetPath}]`）/ `dry`（0/1）；`failFast`、`suppressLayouts` 解析接受但行为等同默认。
 - `/api/flat/copy|move` 不实现（404）。
 - **校验链**（顺序即优先级）：目标 remote/virtual → 400；repo 不存在 → 400；源 == 目标 → 400；源读权限 → 403；目标模式 → 403；move 的源删除权限 → 403；目标已存在且无删权限 → **401**（override 特例）；目标写权限 → 403。目标仓配额逐项检查（超限逐文件 413 消息，不失败整请求）。

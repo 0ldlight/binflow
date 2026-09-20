@@ -8,7 +8,7 @@
 | **permission target 的 `manage` 动作** | target principals | 仓库级管理员——谁能管某个仓的配置与权限下放 |
 | **permission target 的 `read / deploy-cache / annotate / delete`** | target principals | 内容与元数据面——谁能读写删哪个仓的哪些路径 |
 
-模型与 Artifactory 一致（术语不变）：permission target = `{name, repos[], includePatterns[], excludePatterns[], principals{users, groups}}`，动作 `read / deploy-cache / annotate / delete / manage`；**excludes 优先**；admin 隐式拥有全部权限（不进矩阵）。
+模型与 参考仓库 一致（术语不变）：permission target = `{name, repos[], includePatterns[], excludePatterns[], principals{users, groups}}`，动作 `read / deploy-cache / annotate / delete / manage`；**excludes 优先**；admin 隐式拥有全部权限（不进矩阵）。
 
 ## 三步授权流（组 → 用户入组 → target）
 

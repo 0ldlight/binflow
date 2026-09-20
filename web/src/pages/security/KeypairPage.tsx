@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 // GPG 签名密钥对管理页（P3 解锁面——capability matrix 未列域表 keypair 行：
 // 「API 10 op 全备，无 UI」→ 解锁）。契约 = internal/httpapi/keypair.go。
 //
-// 页面形态（对位 Artifactory Security > Signing Keys）：
+// 页面形态（对位 同类控制台 Security > Signing Keys）：
 // - 密钥对列表：pairName / alias / pairType / algorithm / updatedAt /
 //   updatedBy / 关联仓库（chips + 解除）/ 操作（查看公钥 · 校验 · 删除）；
 // - 生成对话框（BinFlow-native 服务端 keygen：pairName/alias/passphrase/
@@ -278,7 +278,7 @@ export default function KeypairPage() {
               <section className="card mt-4" data-testid="keypair-assoc">
                 <h3>{t('关联到仓库')}</h3>
                 <p className="field-hint">
-                  {t('仓库关联后，该仓库的签名/校验使用此密钥对（Artifactory 7.19 关联面：仓库单槽——再关联即替换）。')}
+                  {t('仓库关联后，该仓库的签名/校验使用此密钥对（同类控制台 7.19 关联面：仓库单槽——再关联即替换）。')}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <SelectField
