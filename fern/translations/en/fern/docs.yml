@@ -1,61 +1,50 @@
-# Chinese is authoritative/default; English is a registered locale with
-# field-level fallback while translated pages are added incrementally.
-translations:
-  - lang: zh
-    default: true
-  - lang: en
-
-instances:
-  - url: binflow.docs.buildwithfern.com
-    custom-domain: docs.binflow.org
-
-title: BinFlow 文档
+title: BinFlow Documentation
 
 tabs:
-  文档:
-    display-name: 文档
+  Documentation:
+    display-name: Documentation
     icon: home
-  API 参考:
-    display-name: API 参考
+  API Reference:
+    display-name: API Reference
     icon: square-terminal
 
 navigation:
-  - tab: 文档
+  - tab: Documentation
     layout:
-      - page: BinFlow 简介
+      - page: BinFlow introduction
         path: pages/index.mdx
         icon: home
-      - page: 用户可见变化公告
+      - page: User-visible changes
         path: pages/whats-new.mdx
         icon: bell
-      - section: 快速开始
+      - section: Quick start
         contents:
-          - page: 五分钟快速开始
+          - page: Five-minute quick start
             path: pages/getting-started/quickstart.mdx
             icon: rocket
-      - section: 安装部署
+      - section: Installation and deployment
         contents:
-          - page: 单二进制安装
+          - page: Single-binary installation
             path: pages/install/binary.mdx
-          - page: Docker 运行
+          - page: Run with Docker
             path: pages/install/docker.mdx
-          - page: docker-compose 部署
+          - page: Docker Compose deployment
             path: pages/install/compose.mdx
-          - page: Helm Chart（Kubernetes）
+          - page: Helm charts (Kubernetes)
             path: pages/install/helm.mdx
-          - page: 原生 Kubernetes 清单
+          - page: Native Kubernetes manifests
             path: pages/install/kubernetes.mdx
-          - page: systemd 服务（裸机）
+          - page: systemd service (bare metal)
             path: pages/install/systemd.mdx
-          - page: 离线安装（air-gapped）
+          - page: Offline installation (air-gapped)
             path: pages/install/offline.mdx
-          - page: 升级
+          - page: Upgrade
             path: pages/install/upgrade.mdx
-      - section: 客户端接入
+      - section: Client integrations
         contents:
-          - page: Docker / OCI 镜像
+          - page: Docker / OCI images
             path: pages/integrations/docker.mdx
-          - page: Generic（任意文件）
+          - page: Generic (arbitrary files)
             path: pages/integrations/generic.mdx
           - page: Maven
             path: pages/integrations/maven.mdx
@@ -63,64 +52,64 @@ navigation:
             path: pages/integrations/npm.mdx
           - page: PyPI
             path: pages/integrations/pypi.mdx
-          - page: Go Modules
+          - page: Go modules
             path: pages/integrations/go.mdx
           - page: NuGet
             path: pages/integrations/nuget.mdx
-          - page: Cargo（Rust）
+          - page: Cargo (Rust)
             path: pages/integrations/cargo.mdx
-          - page: Conan（C/C++）
+          - page: Conan (C/C++)
             path: pages/integrations/conan.mdx
-          - page: Helm Chart 仓库
+          - page: Helm chart repositories
             path: pages/integrations/helm.mdx
-          - page: RPM（Yum/DNF）
+          - page: RPM (Yum/DNF)
             path: pages/integrations/rpm.mdx
-          - page: Debian（apt）
+          - page: Debian (apt)
             path: pages/integrations/debian.mdx
-      - section: 管理指南
+      - section: Administration
         contents:
-          - page: Web 控制台
+          - page: Web console
             path: pages/admin/console.mdx
-          - page: 仓库管理（local / remote / virtual）
+          - page: Repository management (local / remote / virtual)
             path: pages/admin/repositories.mdx
-          - page: 用户、组与权限
+          - page: Users, groups, and permissions
             path: pages/admin/permissions.mdx
-          - page: Token 与二次认证（step-up）
+          - page: Tokens and step-up authentication
             path: pages/admin/tokens.mdx
-          - page: 治理（审计 / GC / 配额 / 复制）
+          - page: Governance (audit / GC / quotas / replication)
             path: pages/admin/governance.mdx
-          - page: 计划任务（cron 调度）
+          - page: Scheduled jobs (cron)
             path: pages/admin/cron-scheduling.mdx
-          - page: 备份与恢复
+          - page: Backup and recovery
             path: pages/admin/backup.mdx
-          - page: 存储后端（磁盘 / S3 / 双写）
+          - page: Storage backends (disk / S3 / dual-write)
             path: pages/admin/storage.mdx
-          - page: 认证（LDAP / OIDC / SAML）
+          - page: Authentication (LDAP / OIDC / SAML)
             path: pages/admin/auth.mdx
-          - page: License 与 Add-ons
+          - page: License and add-ons
             path: pages/admin/license.mdx
-          - page: 制品操作与回收站
+          - page: Artifact operations and trash
             path: pages/admin/operations.mdx
           - page: Webhooks
             path: pages/admin/webhooks.mdx
-          - page: 监控指标（Prometheus）
+          - page: Monitoring metrics (Prometheus)
             path: pages/admin/monitoring.mdx
-      - section: 搜索与属性
+      - section: Search and properties
         contents:
-          - page: 属性系统
+          - page: Property system
             path: pages/search/properties.mdx
-          - page: AQL 搜索
+          - page: AQL search
             path: pages/search/aql.mdx
-      - section: 工具与迁移
+      - section: Tools and migration
         contents:
           - page: bf CLI
             path: pages/tools/bf-cli.mdx
-          - page: 从 Artifactory 迁移（bf-migrate）
+          - page: Migrate from Artifactory (bf-migrate)
             path: pages/tools/migrate-artifactory.mdx
-      - page: FAQ 与故障排查
+      - page: FAQ and troubleshooting
         path: pages/faq.mdx
         icon: circle-help
-  - tab: API 参考
+  - tab: API Reference
     layout:
       - api: openapi/binflow.json
         slug: binflow-api
