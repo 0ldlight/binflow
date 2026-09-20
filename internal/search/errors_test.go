@@ -139,8 +139,9 @@ func TestParseErrors(t *testing.T) {
 
 // SyntaxErrorArms pins the grammar-level rejections (E1 kind + segment
 // anchoring; the full copy is byte-asserted in TestParseErrorSyntaxVerbatim).
-// Lexer-stage failures carry no domain yet (domain "") — they fire before the
-// query domain is even read.
+// When the streaming-parity prefix parser has already read the domain, its
+// earlier grammar failure carries that domain; only failures before the first
+// identifier remain domain-less.
 func TestSyntaxErrorArms(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -149,7 +150,7 @@ func TestSyntaxErrorArms(t *testing.T) {
 		segment string // query[pos:] — the E1 residual
 	}{
 		{"missing-criteria", `items.find()`, "items", `)`},
-		{"unterminated-string", `items.find({"name":"x`, "", `"x`},
+		{"unterminated-string", `items.find({"name":"x`, "items", `"x`},
 		{"trailing-garbage", `items.find({}) .foo(`, "items", `foo(`},
 		{"double-comparator", `items.find({"size":{"$gt":1,"$lt":9}})`, "items", `,"$lt":9}})`},
 		{"wrong-method", `items.find({}).orderBy("name")`, "items", `orderBy("name")`},
