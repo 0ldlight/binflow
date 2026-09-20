@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // License & Add-ons 管理页（M10 T-288——P3 新栈重写）。两张卡：
 // - License 状态卡：档位徽章（三色）/ licensee / 有效期倒计时（负值 = 已
 //   过期 N 天）；未装 = community 地板说明。admin：文本域贴文档装载 +
@@ -249,27 +250,27 @@ function AddonTableRow({ row }: { row: AddonRow }) {
   const rowClass = row.enabled ? '' : disabledCfg ? 'is-disabled' : 'is-locked'
   const iconId = addonIconId(row)
   return (
-    <tr className={`${rowClass} border-b border-border/60 hover:bg-accent`} data-testid={`addons-row-${row.id}`}>
-      <td className="px-3 py-1.5 font-mono" lang="en">{row.id}</td>
-      <td className="px-3 py-1.5">
+    <TableRow className={`${rowClass} border-b border-border/60 hover:bg-accent`} data-testid={`addons-row-${row.id}`}>
+      <TableCell className="px-3 py-1.5 font-mono" lang="en">{row.id}</TableCell>
+      <TableCell className="px-3 py-1.5">
         {/* 包型身份位走 brand 版；锁定/禁用行的置灰由 .is-locked/
             .is-disabled 行级 opacity 承载（license.css 沿用） */}
         <span className="inline-flex items-center gap-1.5">
           {iconId && <PkgIcon id={iconId} variant="brand" size={18} />}
           {row.displayName}
         </span>
-      </td>
-      <td className="px-3 py-1.5">
+      </TableCell>
+      <TableCell className="px-3 py-1.5">
         <Badge variant="tint-neutral" mono lang="en">{row.kind}</Badge>
-      </td>
-      <td className="px-3 py-1.5" data-testid={`addons-tier-${row.id}`}>
+      </TableCell>
+      <TableCell className="px-3 py-1.5" data-testid={`addons-tier-${row.id}`}>
         {tier === 'community' ? (
           <span className="text-muted-foreground" title={t('community 地板：无 license 也解锁')}>—</span>
         ) : (
           <Badge variant={tierBadgeClass(tier)} lang="en">{tier}</Badge>
         )}
-      </td>
-      <td className="px-3 py-1.5" data-testid={`addons-state-${row.id}`}>
+      </TableCell>
+      <TableCell className="px-3 py-1.5" data-testid={`addons-state-${row.id}`}>
         {row.enabled ? (
           <>
             <span className="status-dot ok" aria-hidden="true" />{t('已解锁')}
@@ -285,8 +286,8 @@ function AddonTableRow({ row }: { row: AddonRow }) {
             <span className="ml-1.5 text-muted-foreground" title={row.reason ?? ''}>{t('需要')} {tier} {t('档')}</span>
           </>
         )}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   )
 }
 
@@ -336,22 +337,22 @@ export default function LicenseAddonsPage() {
         )}
         {addons.status === 'ok' && rows.length > 0 && (
           <>
-            <table className="addons-table w-full text-dense" data-testid="addons-table">
-              <thead>
-                <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-medium">ID</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('名称')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('类型')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('最低档位')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('状态')}</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="addons-table w-full text-dense" data-testid="addons-table">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                  <TableHead scope="col" className="px-3 py-2 font-medium">ID</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('名称')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('类型')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('最低档位')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('状态')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {rows.map((row) => (
                   <AddonTableRow key={row.id} row={row} />
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             <p className="field-hint" style={{ marginBottom: 0 }}>
               {t('Enabled 由 license 档位与 addons.disabled 配置决定，不可手动切换；锁定槽位在装对应档位 license 后即刻解锁。')}
             </p>

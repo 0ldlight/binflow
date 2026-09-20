@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 复制面板（T-159——P3 新栈重写：TanStack Query refetchInterval 复刻 10s
 // 轮询 + stale 保留语义）：
 // - GET /api/v1/replication/status 每 10s 轮询（Query 的轮询失败不清空
@@ -179,38 +180,38 @@ function ReplicationBody({
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-dense" data-testid="repl-targets-table">
-              <thead>
-                <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-medium">{tt('状态')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{tt('目标')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">URL</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{tt('仓库（源 → 目标）')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{tt('调度')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium" lang="en">pending</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{tt('进行中')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{tt('失败')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{tt('累计成功')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{tt('上次成功')}</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-dense" data-testid="repl-targets-table">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{tt('状态')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{tt('目标')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">URL</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{tt('仓库（源 → 目标）')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{tt('调度')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium" lang="en">pending</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{tt('进行中')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{tt('失败')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{tt('累计成功')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{tt('上次成功')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {data.targets.map((t, i) => {
                   const st = targetState(t)
                   const cron = cronOf?.get(t.id) ?? null
                   return (
-                    <tr key={t.id} data-testid={`repl-target-${i}`} className="border-b border-border/60 hover:bg-accent">
-                      <td className="px-3 py-1.5">
+                    <TableRow key={t.id} data-testid={`repl-target-${i}`} className="border-b border-border/60 hover:bg-accent">
+                      <TableCell className="px-3 py-1.5">
                         <span className={`status-dot ${st.dot}`} aria-hidden="true" /> {st.label}
-                      </td>
-                      <td className="px-3 py-1.5" lang="en">{t.name}</td>
-                      <td className="max-w-[240px] break-all px-3 py-1.5 font-mono" lang="en">
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5" lang="en">{t.name}</TableCell>
+                      <TableCell className="max-w-[240px] break-all px-3 py-1.5 font-mono" lang="en">
                         {t.target_url} <CopyButton value={t.target_url} label={tt('目标 URL {v1}', { v1: t.name })} />
-                      </td>
-                      <td className="px-3 py-1.5 font-mono" lang="en">
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">
                         {t.source_repo} → {t.target_repo}
-                      </td>
-                      <td className="px-3 py-1.5" data-testid={`repl-sched-${i}`}>
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5" data-testid={`repl-sched-${i}`}>
                         {cron === null ? (
                           <span className="text-muted-foreground">—</span>
                         ) : cron.cron_exp ? (
@@ -228,21 +229,21 @@ function ReplicationBody({
                         ) : (
                           <span className="text-muted-foreground">{tt('事件驱动')}</span>
                         )}
-                      </td>
-                      <td className="px-3 py-1.5 font-mono" lang="en">{formatCount(t.pending)}</td>
-                      <td className="px-3 py-1.5 font-mono" lang="en">{formatCount(t.in_progress)}</td>
-                      <td className={`px-3 py-1.5 font-mono${t.failed > 0 ? ' text-destructive' : ''}`} lang="en">
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{formatCount(t.pending)}</TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{formatCount(t.in_progress)}</TableCell>
+                      <TableCell className={`px-3 py-1.5 font-mono${t.failed > 0 ? ' text-destructive' : ''}`} lang="en">
                         {formatCount(t.failed)}
-                      </td>
-                      <td className="px-3 py-1.5 font-mono" lang="en">{formatCount(t.succeeded)}</td>
-                      <td className="px-3 py-1.5 font-mono" title={t.last_success_at || undefined}>
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{formatCount(t.succeeded)}</TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" title={t.last_success_at || undefined}>
                         {t.last_success_at ? formatAuditTime(t.last_success_at) : '—'}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
         {staleError && (
@@ -265,47 +266,47 @@ function ReplicationBody({
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-dense" data-testid="repl-events-table">
-              <thead>
-                <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-medium">{tt('时间')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{tt('状态')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{tt('制品')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">sha256</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{tt('尝试')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{tt('错误')}</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-dense" data-testid="repl-events-table">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{tt('时间')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{tt('状态')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{tt('制品')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">sha256</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{tt('尝试')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{tt('错误')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {data.events.map((ev, i) => {
                   const repo = repoOf.get(ev.replication_id)
                   const artifact = repo ? `${repo}/${ev.node_path}` : ev.node_path
                   return (
-                    <tr key={ev.id} data-testid={`repl-event-${i}`} className="border-b border-border/60 hover:bg-accent">
-                      <td className="px-3 py-1.5 font-mono whitespace-nowrap" title={ev.created_at}>
+                    <TableRow key={ev.id} data-testid={`repl-event-${i}`} className="border-b border-border/60 hover:bg-accent">
+                      <TableCell className="px-3 py-1.5 font-mono whitespace-nowrap" title={ev.created_at}>
                         {formatAuditTime(ev.created_at)}
-                      </td>
-                      <td className="px-3 py-1.5">
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5">
                         <Badge variant={(TASK_BADGE[ev.status] ?? 'tint-neutral') as 'tint-success' | 'tint-warning' | 'tint-danger' | 'tint-neutral'} mono lang="en">
                           {ev.status}
                         </Badge>
-                      </td>
-                      <td className="max-w-[320px] break-all px-3 py-1.5 font-mono" lang="en">
+                      </TableCell>
+                      <TableCell className="max-w-[320px] break-all px-3 py-1.5 font-mono" lang="en">
                         {artifact} <CopyButton value={artifact} label={tt('制品路径 {artifact}', { artifact: artifact })} />
-                      </td>
-                      <td className="px-3 py-1.5 font-mono" lang="en" title={ev.blob_sha256}>
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en" title={ev.blob_sha256}>
                         {shortSha(ev.blob_sha256)}{' '}
                         <CopyButton value={ev.blob_sha256} label={`sha256 ${ev.blob_sha256}`} />
-                      </td>
-                      <td className="px-3 py-1.5 font-mono" lang="en">{formatCount(ev.attempts)}</td>
-                      <td className="max-w-[320px] break-all px-3 py-1.5 font-mono">
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{formatCount(ev.attempts)}</TableCell>
+                      <TableCell className="max-w-[320px] break-all px-3 py-1.5 font-mono">
                         {ev.last_error || <span className="text-muted-foreground">—</span>}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
         <p className="field-hint mb-0">{tt('事件为最近的推送尝试（时间倒序，全目标合并）；排队 / 进行中为未决任务，失败行保留最近一次错误原因。')}</p>

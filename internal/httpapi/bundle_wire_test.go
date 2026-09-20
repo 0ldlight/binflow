@@ -211,13 +211,18 @@ func TestBundleWireQueryEmptyState(t *testing.T) {
 		})
 	}
 
-	// p07: the HEAD 404 is bodyless — no envelope bytes at all.
+	// p07: the HEAD 404 is bodyless — no envelope bytes at all — but the
+	// reference mirrors the GET face's media type on it (L027-1 c07: A
+	// sends Content-Type: application/json, no charset).
 	req := httptest.NewRequest(http.MethodHead, "/binflow/api/release/bundles/no-such-bundle-l026/1.0", nil)
 	req = req.WithContext(withPrincipal(req.Context(), admin))
 	rec := httptest.NewRecorder()
 	st.s.dispatchAPI(rec, req, "release/bundles/no-such-bundle-l026/1.0")
 	if rec.Code != http.StatusNotFound || rec.Body.Len() != 0 {
 		t.Fatalf("HEAD = %d %q, want bodyless 404", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("HEAD 404 Content-Type = %q, want application/json", ct)
 	}
 }
 

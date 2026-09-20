@@ -1,3 +1,4 @@
+import { Button, ButtonAsChild } from '@/components/ui/button'
 // Artifact Explorer（P2 第一优先——总令 §九全项；audit §2.2 语义承接）：
 //
 // - 左树 TanStack Virtual 虚拟化（懒单层加载语义保留——TREE_LEVEL_CAP
@@ -12,11 +13,10 @@
 // - 上传/接入 = DeployDialog / SetMeUpDialog 懒分片（FE-P4 新栈壳）；
 //   属性页签 = PropertiesTab 同款嵌挂。
 // - 页根锚 tree-page。
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Fragment } from 'react'
+import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
-import { Button, ButtonAsChild } from '@/components/ui/button'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -583,9 +583,9 @@ export default function ExplorerPage() {
                   <BreadcrumbList>
                     <BreadcrumbItem>
                       <BreadcrumbLink asChild>
-                        <button type="button" className="crumb cursor-pointer font-mono text-dense" onClick={() => goTo(repoKey, '')} lang="en">
+                        <Button type="button" className="crumb cursor-pointer font-mono text-dense" onClick={() => goTo(repoKey, '')} lang="en">
                           {repoKey}
-                        </button>
+                        </Button>
                       </BreadcrumbLink>
                     </BreadcrumbItem>
                     {dir !== '' &&
@@ -599,9 +599,9 @@ export default function ExplorerPage() {
                               </BreadcrumbPage>
                             ) : (
                               <BreadcrumbLink asChild>
-                                <button type="button" className="crumb cursor-pointer font-mono text-dense" onClick={() => goTo(repoKey, d)} lang="en">
+                                <Button type="button" className="crumb cursor-pointer font-mono text-dense" onClick={() => goTo(repoKey, d)} lang="en">
                                   {d.split('/').pop()}
-                                </button>
+                                </Button>
                               </BreadcrumbLink>
                             )}
                           </BreadcrumbItem>
@@ -1051,7 +1051,7 @@ function TreeContextMenu({
       style={{ left: menu.x, top: menu.y }}
     >
       {items.map((item) => (
-        <button
+        <Button
           key={item.id}
           type="button"
           role="menuitem"
@@ -1063,7 +1063,7 @@ function TreeContextMenu({
           onClick={item.run}
         >
           {item.label}
-        </button>
+        </Button>
       ))}
     </div>
   )

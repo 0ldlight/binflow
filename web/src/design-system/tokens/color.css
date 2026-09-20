@@ -1,130 +1,119 @@
 /*
- * 族 1 — Color（design-system-plan §3.1，亮暗双谱）。
+ * 族 1 — Color：BinFlow 黑白灰 monochrome（2026-09-19 用户终裁）。
  *
- * G2 清偿（批 1）：旧 tw 层两文件 + 旧 styles 层同名变量收编至本目录，
- * 值零改动（截图差分≈0 的批 1 验收前提）。机制保持：
- *   - 亮色默认挂 :root（ADR-0029 Q2 终裁），暗色经 [data-theme='dark']
- *     整组覆盖——ThemeProvider 切的是 document.documentElement 的
- *     data-theme 属性；
- *   - 三阶纵深（§5.1 灰阶节奏）：侧栏最暗（--bf-sidebar 系）< 内容底
- *     （--bf-bg）< 卡片/表格（--bf-surface-1）；亮色主题下侧栏仍是深底，
- *     侧栏内文字走 --bf-sidebar-text 系；
- *   - 组件层只消费语义名（经 ../tailwind.css @theme 桥接为 Tailwind
- *     工具类），禁止具体色值（scripts/assert-tokens.mjs 编译期断言——
- *     本目录为 token 定义层豁免）。
- *   - 悬停一律「色/90」（opacity 派生），不设独立 hover 变量。
- *
- * 批 1 新槽位（--bf-ring / 状态 -fg 补齐 / *-surface 软底）：只定义不
- * 消费——消费面在批 2+（软底徽章/alert/toast）与批 4（组件状态矩阵）。
+ * Penpot Dashboard UI Kit 继续提供结构、密度、圆角、间距与阴影层级；
+ * 色彩不再复刻模板色板。所有交互、状态、包型与图表呈现统一收敛为
+ * 黑白灰。业务语义不得依赖颜色单独区分，必须同时使用文案、图标、
+ * 形状或位置表达。
  */
-
 :root {
-  /* ---------- 侧栏（三阶最暗层；亮色主题下同为深底，配套自有 fg） ---------- */
-  --bf-sidebar: #1b2430;
-  --bf-sidebar-2: #242f3e; /* 侧栏悬停行 */
-  --bf-sidebar-3: #2c3949; /* 侧栏 active 行 */
-  --bf-sidebar-border: #293545; /* 侧栏分隔线/右缘 */
-  --bf-sidebar-text: #eef2f7; /* 侧栏文字（深底） */
-  --bf-sidebar-text-2: #a3b1c2; /* 侧栏次要文字 */
+  /* Shell */
+  --bf-sidebar: #ffffff;
+  --bf-sidebar-2: #f5f5f5;
+  --bf-sidebar-3: #ebebeb;
+  --bf-sidebar-border: #0000001a;
+  --bf-sidebar-text: #0a0a0a;
+  --bf-sidebar-text-2: #525252;
 
-  /* ---------- 内容底 / 面 / 边 ---------- */
-  --bf-bg: #f3f5f7; /* 内容底 */
-  --bf-surface-1: #ffffff; /* 卡片/表格（三阶最亮） */
-  --bf-surface-2: #e9edf1; /* 悬停行/次级面板 */
-  --bf-surface-3: #dfe5ec; /* 输入框/drop zone */
-  --bf-border: #d3dae2; /* 分隔线/表格线 */
-  --bf-border-strong: #9aa6b4; /* 悬停边框 */
+  /* Surfaces */
+  --bf-bg: #f5f5f5;
+  --bf-surface-1: #ffffff;
+  --bf-surface-2: #f5f5f5;
+  --bf-surface-3: #ebebeb;
+  --bf-border: #0000001a;
+  --bf-border-strong: #737373;
 
-  /* ---------- 文字 ---------- */
-  --bf-text: #1d232c; /* 正文（≥12:1） */
-  --bf-text-2: #55606e; /* 次要（≥4.5:1） */
-  /* 弱化（时间戳等）。取值随 T-234 对比度上调（bg 4.7 / surface-1 5.1）。 */
-  --bf-text-muted: #646f7b;
+  /* Text */
+  --bf-text: #0a0a0a;
+  --bf-text-2: #525252;
+  --bf-text-muted: #525252;
 
-  /* ---------- 主色（品牌槽位：机制冻结，字面值待 B-1 终裁；禁 JFrog 橙族） ---------- */
-  --bf-accent: #0b6bcb; /* 主操作/链接/焦点 */
-  --bf-accent-fg: #ffffff; /* accent 上文字 */
+  /* Interaction: black in light, white in dark. */
+  --bf-accent: #171717;
+  --bf-accent-fg: #ffffff;
+  --bf-ring: #171717;
 
-  /* ---------- 焦点环（批 1 新槽位，只定义不消费——批 2+ 接管 focus-visible） ---------- */
-  --bf-ring: #0b6bcb; /* 现值 = accent（值同源，接管零视觉变更） */
+  /* Chart ramp: grayscale only; series must also differ by label/pattern. */
+  --bf-chart-blue: #171717;
+  --bf-chart-green: #404040;
+  --bf-chart-red: #525252;
+  --bf-chart-purple: #737373;
+  --bf-chart-teal: #a3a3a3;
+  --bf-chart-yellow: #d4d4d4;
 
-  /* ---------- 状态四色 ---------- */
-  --bf-success: #157f3d;
-  --bf-success-fg: #ffffff; /* 批 1 新槽位（补齐 {,-fg} 对称），只定义不消费 */
-  --bf-warning: #946200;
-  --bf-warning-fg: #ffffff; /* 批 1 新槽位，只定义不消费 */
-  --bf-danger: #c9372f;
-  --bf-danger-fg: #ffffff; /* danger 实底按钮上文字 */
-  --bf-info: #0b6bcb;
-  --bf-info-fg: #ffffff; /* 批 1 新槽位，只定义不消费 */
+  /* Semantic slots are deliberately monochrome. */
+  --bf-success: #171717;
+  --bf-success-fg: #ffffff;
+  --bf-warning: #404040;
+  --bf-warning-fg: #ffffff;
+  --bf-danger: #171717;
+  --bf-danger-fg: #ffffff;
+  --bf-info: #171717;
+  --bf-info-fg: #ffffff;
+  --bf-success-surface: #f5f5f5;
+  --bf-warning-surface: #f5f5f5;
+  --bf-danger-surface: #f5f5f5;
+  --bf-info-surface: #f5f5f5;
 
-  /* ---------- 状态软底（批 1 新槽位，只定义不消费——批 4 软底徽章/alert/toast 底） ---------- */
-  --bf-success-surface: #e8f5ec;
-  --bf-warning-surface: #fdf3e0;
-  --bf-danger-surface: #fdeceb;
-  --bf-info-surface: #e8f1fc;
-
-  /* ---------- 遮罩 ---------- */
-  --bf-scrim: rgb(9 14 20 / 45%); /* modal 背板 */
-
+  --bf-scrim: rgb(0 0 0 / 45%);
   color-scheme: light;
 }
 
-/* ---------- 暗色（§5.1 右列取值整组换入，纯换值） ---------- */
-
 [data-theme='dark'] {
-  --bf-sidebar: #0b0e13;
-  --bf-sidebar-2: #151b25;
-  --bf-sidebar-3: #1d2532;
-  --bf-sidebar-border: #1e2634;
-  --bf-sidebar-text: #e9edf3;
-  --bf-sidebar-text-2: #9aa4b2;
+  --bf-sidebar: #0a0a0a;
+  --bf-sidebar-2: #171717;
+  --bf-sidebar-3: #1f1f1f;
+  --bf-sidebar-border: #ffffff26;
+  --bf-sidebar-text: #ffffff;
+  --bf-sidebar-text-2: #d4d4d4;
 
-  --bf-bg: #12161d;
-  --bf-surface-1: #1a202a;
-  --bf-surface-2: #202834;
-  --bf-surface-3: #262f3d;
-  --bf-border: #2b3442;
-  --bf-border-strong: #414c5e;
-  --bf-text: #e9edf3;
-  --bf-text-2: #9aa4b2;
-  /* 弱化：同亮色调理由，上调至 surface-1 4.8:1 / bg 5.2:1。 */
-  --bf-text-muted: #7f8a99;
+  --bf-bg: #0a0a0a;
+  --bf-surface-1: #171717;
+  --bf-surface-2: #1f1f1f;
+  --bf-surface-3: #262626;
+  --bf-border: #ffffff26;
+  --bf-border-strong: #a3a3a3;
+  --bf-text: #ffffff;
+  --bf-text-2: #d4d4d4;
+  --bf-text-muted: #a3a3a3;
 
-  --bf-accent: #4aa3ff;
-  --bf-accent-fg: #0b0e13;
+  --bf-accent: #ffffff;
+  --bf-accent-fg: #0a0a0a;
+  --bf-ring: #ffffff;
 
-  --bf-ring: #4aa3ff;
+  --bf-chart-blue: #ffffff;
+  --bf-chart-green: #d4d4d4;
+  --bf-chart-red: #a3a3a3;
+  --bf-chart-purple: #737373;
+  --bf-chart-teal: #525252;
+  --bf-chart-yellow: #404040;
 
-  --bf-success: #3fbf6f;
-  --bf-success-fg: #0b0e13;
-  --bf-warning: #d9a23a;
-  --bf-warning-fg: #0b0e13;
-  --bf-danger: #f0605d;
-  --bf-danger-fg: #0b0e13;
-  --bf-info: #6cb2ff;
-  --bf-info-fg: #0b0e13;
+  --bf-success: #ffffff;
+  --bf-success-fg: #0a0a0a;
+  --bf-warning: #d4d4d4;
+  --bf-warning-fg: #0a0a0a;
+  --bf-danger: #ffffff;
+  --bf-danger-fg: #0a0a0a;
+  --bf-info: #ffffff;
+  --bf-info-fg: #0a0a0a;
+  --bf-success-surface: #1f1f1f;
+  --bf-warning-surface: #1f1f1f;
+  --bf-danger-surface: #1f1f1f;
+  --bf-info-surface: #1f1f1f;
 
-  --bf-success-surface: #12241a;
-  --bf-warning-surface: #2a2214;
-  --bf-danger-surface: #2a1a19;
-  --bf-info-surface: #14202e;
+  --bf-scrim: rgb(0 0 0 / 65%);
 
-  --bf-scrim: rgb(0 0 0 / 60%);
-
-  /* 包型图标 brand 暗色档（T-390 / K61，登记 package-icons/README §4）：
-   * 11 个官方深色在 surface-1~3 上 <3:1，保色相抬明度（最差宿主 surface-3
-   * 实测 ≥3.4）——若重开资产级暗色版，本组整体退役。 */
-  --bf-pkgicon-deb: #f5226d;
-  --bf-pkgicon-docker-deep: #1481e5;
-  --bf-pkgicon-generic: #0d7ff2;
-  --bf-pkgicon-helm: #6b73ef;
-  --bf-pkgicon-helmoci: #118cae;
-  --bf-pkgicon-maven: #e2494f;
-  --bf-pkgicon-npm: #d35857;
-  --bf-pkgicon-nuget: #0083e9;
-  --bf-pkgicon-pypi: #3d85c1;
-  --bf-pkgicon-trashcan: #748294;
+  /* Compatibility slots for legacy brand-icon selectors; rendering is grayscale. */
+  --bf-pkgicon-deb: #ffffff;
+  --bf-pkgicon-docker-deep: #ffffff;
+  --bf-pkgicon-generic: #ffffff;
+  --bf-pkgicon-helm: #ffffff;
+  --bf-pkgicon-helmoci: #ffffff;
+  --bf-pkgicon-maven: #ffffff;
+  --bf-pkgicon-npm: #ffffff;
+  --bf-pkgicon-nuget: #ffffff;
+  --bf-pkgicon-pypi: #ffffff;
+  --bf-pkgicon-trashcan: #ffffff;
 
   color-scheme: dark;
 }

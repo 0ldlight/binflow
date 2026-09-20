@@ -1,0 +1,7 @@
+HTTP 400
+Content-Type: application/json
+X-Content-Type-Options: nosniff
+X-Request-Id: 5e329dc6192ac295a7d15a1a4f729797
+Date: Thu, 17 Sep 2026 08:03:55 GMT
+Content-Length: 138
+Connection: close

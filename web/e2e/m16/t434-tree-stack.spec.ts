@@ -1,3 +1,4 @@
+import { selectShadcn } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { Page, TestInfo } from '@playwright/test'
 
@@ -266,14 +267,14 @@ test('toolband: pkg-type facet, rclass group, sort-by, compacted radio, my favor
   expect(nameOrder.indexOf(`tree-repo-${aVirtual}`)).toBeLessThan(nameOrder.indexOf(`tree-repo-${zLocal}`))
 
   // Sort-by 切仓库类型：local（z、d）在 virtual（a）前
-  await page.selectOption('[data-testid="tree-sort-by"]', 'rclass')
+  await selectShadcn(page, '[data-testid="tree-sort-by"]', 'rclass')
   const rclassOrder = await page.evaluate(() =>
     Array.from(document.querySelectorAll<HTMLElement>('[data-tree-row]'))
       .map((el) => el.getAttribute('data-testid') ?? '')
       .filter((t) => t.startsWith('tree-repo-t434')),
   )
   expect(rclassOrder.indexOf(`tree-repo-${zLocal}`)).toBeLessThan(rclassOrder.indexOf(`tree-repo-${aVirtual}`))
-  await page.selectOption('[data-testid="tree-sort-by"]', 'name')
+  await selectShadcn(page, '[data-testid="tree-sort-by"]', 'name')
 
   // 包类型 facet：勾 docker → 树仅 docker 仓；清除复位
   await page.click('[data-testid="tree-facet-pkg"]')

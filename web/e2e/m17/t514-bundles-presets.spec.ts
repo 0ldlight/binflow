@@ -1,3 +1,4 @@
+import { selectShadcn } from '../support/shadcn'
 import { execFileSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 
@@ -177,7 +178,7 @@ test('① three preset buckets check together with a real repo; wire payload, ec
   await expect(page.locator('[data-testid="perm-repos"]')).toContainText(repo)
 
   // 授予 read → 保存（网络层断言 repos[] = 四条：桶字面 + 真仓键）
-  await page.selectOption('[data-testid="perm-add-user"]', user)
+  await selectShadcn(page, '[data-testid="perm-add-user"]', user)
   await page.getByRole('button', { name: '添加用户' }).click()
   await page.check(`[data-testid="perm-matrix-cell-user-${user}-read"]`)
   const postedRepos: string[] = []

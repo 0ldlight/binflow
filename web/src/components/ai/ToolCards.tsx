@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // AI 工具卡族（总令 §十五 消息渲染分层）：ToolCallCard（name+args 折叠）/
 // ToolResultCard（结果形态）/ ConfirmCard（结构化确认 UI——参数表 + 双钮
 // [取消][创建仓库]，确认动作回调抽象 = assistant-ui ToolCallMessagePartProps
@@ -20,20 +22,20 @@ const t = tr('ai')
 /** 参数键值表（ConfirmCard 参数区与 ToolResultCard 复用） */
 function ParamTable({ rows, testid }: { rows: Array<[string, string]>; testid?: string }) {
   return (
-    <table className="w-full border-collapse text-dense" data-testid={testid}>
-      <tbody>
+    <Table className="w-full border-collapse text-dense" data-testid={testid}>
+      <TableBody>
         {rows.map(([k, v]) => (
-          <tr key={k}>
-            <th scope="row" className="w-[38%] border-b border-border px-2 py-1 text-left font-medium text-muted-foreground">
+          <TableRow key={k}>
+            <TableHead scope="row" className="w-[38%] border-b border-border px-2 py-1 text-left font-medium text-muted-foreground">
               {k}
-            </th>
-            <td className="border-b border-border px-2 py-1 font-mono break-all" lang="en">
+            </TableHead>
+            <TableCell className="border-b border-border px-2 py-1 font-mono break-all" lang="en">
               {v}
-            </td>
-          </tr>
+            </TableCell>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   )
 }
 
@@ -102,28 +104,28 @@ export function ToolResultCard({ result, isError, className }: { result: unknown
       </div>
       {isTable ? (
         <div className="overflow-x-auto px-2.5 pb-2">
-          <table className="w-full border-collapse text-dense" data-testid="ai-tool-result-table">
-            <thead>
-              <tr>
+          <Table className="w-full border-collapse text-dense" data-testid="ai-tool-result-table">
+            <TableHeader>
+              <TableRow>
                 {(storage as StorageToolResult).columns.map((c) => (
-                  <th key={c} scope="col" className="border-b border-border px-2 py-1 text-left font-semibold" lang="en">
+                  <TableHead key={c} scope="col" className="border-b border-border px-2 py-1 text-left font-semibold" lang="en">
                     {c}
-                  </th>
+                  </TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {(storage as StorageToolResult).rows.map((row, i) => (
-                <tr key={i}>
+                <TableRow key={i}>
                   {row.map((cell, j) => (
-                    <td key={j} className="border-b border-border px-2 py-1 font-mono" lang="en">
+                    <TableCell key={j} className="border-b border-border px-2 py-1 font-mono" lang="en">
                       {cell}
-                    </td>
+                    </TableCell>
                   ))}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           <p className="mt-1.5 text-aux text-muted-foreground">{(storage as StorageToolResult).unit}</p>
         </div>
       ) : (
@@ -143,7 +145,7 @@ export function ToolResultCard({ result, isError, className }: { result: unknown
 /** 双钮动作钮（ConfirmCard 专用——形态对齐 Artifactory 确认对话） */
 function ActionButton({ variant, ...props }: ComponentPropsWithoutRef<'button'> & { variant: 'primary' | 'ghost' }) {
   return (
-    <button
+    <Button
       type="button"
       className={cn(
         'rounded-md px-3 py-1.5 text-dense font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring',

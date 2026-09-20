@@ -1,3 +1,4 @@
+import { expectSelectValue, selectOptionValues, selectShadcn } from './support/shadcn'
 import { expect, test } from '@playwright/test'
 
 // T-218 探针（PRD v1.1 FR-66，V12~V14）：控制台角色下拉 / manage 复选 /
@@ -87,11 +88,11 @@ test('V12: admin sets a user to readonly_admin in the UI; API echoes adminRole (
   await page.goto(`/binflow/ui/admin/security/users/${user}`)
   const role = page.locator('[data-testid="user-form-role"]')
   await expect(role).toBeVisible()
-  await expect(role).toHaveValue('user')
+  await expectSelectValue(page, '[data-testid="user-form-role"]', 'user')
   await expect(page.locator('[data-testid="user-facts-role"]')).toHaveText('user')
 
   // UI 改选 readonly_admin → 保存（走既有部分更新通道）
-  await role.selectOption('readonly_admin')
+  await selectShadcn(page, '[data-testid="user-form-role"]', 'readonly_admin')
   await page.click('[data-testid="user-form-submit"]')
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: `用户 ${user} 已更新` })).toBeVisible({ timeout: 8000 })
 
@@ -104,7 +105,7 @@ test('V12: admin sets a user to readonly_admin in the UI; API echoes adminRole (
 
   // UI 回显（reload 后下拉仍指 readonly_admin——GET 回显而非本地态）
   await page.reload()
-  await expect(page.locator('[data-testid="user-form-role"]')).toHaveValue('readonly_admin')
+  await expectSelectValue(page, '[data-testid="user-form-role"]', 'readonly_admin')
 
   // 角色变更落审计（FR-64-AC6 的控制台侧对账：action=user.role.change，detail 带目标用户）
   const trail = await api(page, 'GET', `/api/v1/audit?action=user.role.change&limit=20`)
@@ -177,7 +178,7 @@ test('V13: readonly_admin walk — admin pages visible, no write entry, replayed
 
   // 用户详情：GET 回显只读呈现——角色下拉禁用且值 = readonly_admin，保存禁用
   await ro.goto(`${origin}/binflow/ui/admin/security/users/${roName}`)
-  await expect(ro.locator('[data-testid="user-form-role"]')).toHaveValue('readonly_admin')
+  await expectSelectValue(ro, '[data-testid="user-form-role"]', 'readonly_admin')
   await expect(ro.locator('[data-testid="user-form-role"]')).toBeDisabled()
   await expect(ro.locator('[data-testid="user-form-submit"]')).toBeDisabled()
   await expect(ro.locator('[data-testid="user-form-readonly-note"]')).toBeVisible()
@@ -204,7 +205,7 @@ test('V13: readonly_admin walk — admin pages visible, no write entry, replayed
   // 审计页：可见（system:read）；词表含 user.role.change（T-215 移交项的前端镜像）
   await ro.goto(`${origin}/binflow/ui/admin/governance/audit`)
   await expect(ro.locator('[data-testid="audit-table"], [data-testid="empty-state"]').first()).toBeVisible()
-  await expect(ro.locator('[data-testid="audit-filter-action"] option[value="user.role.change"]')).toHaveCount(1)
+  expect(await selectOptionValues(ro, '[data-testid="audit-filter-action"]')).toContain('user.role.change')
 
   // 服务端兜底：同一会话直接重放写请求——403 原文（UI 只是呈现层，无绕过）
   const w1 = await api(ro, 'PUT', `/api/repositories/${uniq('nope')}`, { rclass: 'local', packageType: 'generic' })

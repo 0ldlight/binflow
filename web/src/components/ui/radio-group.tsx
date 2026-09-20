@@ -18,7 +18,7 @@ function RadioGroupItem({ className, ...props }: ComponentProps<typeof RadioGrou
         'aspect-square size-4 shrink-0 rounded-full border border-input bg-surface-3 transition-colors outline-none',
         'focus-visible:border-ring focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
         'disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive',
-        'data-[state=checked]:border-primary',
+        'data-[state=checked]:border-foreground',
         className,
       )}
       {...props}

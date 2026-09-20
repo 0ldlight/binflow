@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Request is invalid. AQL query should find artifacts (items)"
+  } ]
+}

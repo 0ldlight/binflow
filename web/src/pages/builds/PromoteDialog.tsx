@@ -13,7 +13,7 @@ import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AlertBox, CheckRow } from '@/components/layout/bits'
-import { TextInput, NativeSelect } from '@/components/layout/fields'
+import { TextInput, SelectField } from '@/components/layout/fields'
 import { toast } from '@/lib/toast'
 import { ApiError, errText, getRepositories } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
@@ -162,7 +162,7 @@ export default function PromoteDialog({
           </div>
           <div className="field">
             <label htmlFor="bp-target">{t('目标仓（targetRepo——留空 = status-only：只翻状态不迁制品）')}</label>
-            <NativeSelect
+            <SelectField
               id="bp-target"
               value={f.targetRepo}
               onChange={(e) => setF((p) => ({ ...p, targetRepo: e.target.value }))}

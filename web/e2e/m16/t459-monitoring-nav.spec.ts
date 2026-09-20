@@ -1,3 +1,4 @@
+import { selectShadcn } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { Page, Request, TestInfo } from '@playwright/test'
 
@@ -207,7 +208,7 @@ test('system logs: server-side filter narrows the tail window; download carries 
     if (req.url().includes('/api/v1/system/logs?') && req.url().includes('limit=200')) sawLimit = true
   }
   page.on('request', onReq)
-  await page.selectOption('[data-testid="logs-limit"]', '200')
+  await selectShadcn(page, '[data-testid="logs-limit"]', '200')
   await expect
     .poll(async () => sawLimit, { timeout: 10_000 })
     .toBe(true)
@@ -240,7 +241,7 @@ test('nav grouping: monitoring holds 6 service pages; webhooks in general; legac
   // 保持）。监控六页（存储/服务状态/系统日志/系统信息/维护/备份）归
   // 「管理」组；Webhooks 归「运营」组；治理四页拆入 安全（审计）/管理
   // （配额）/运营（复制、回收站）
-  expect(await groupEntries(page, '核心')).toEqual(['仪表盘', '制品', '仓库', '搜索'])
+  expect(await groupEntries(page, '核心')).toEqual(['仪表盘', 'Packages', '制品', '仓库', '搜索'])
   expect(await groupEntries(page, '运营')).toEqual([
     'Builds',
     'Release Bundles',
@@ -320,10 +321,10 @@ test('admin filter: filters sidebar entries, hides empty groups, Esc clears', as
   await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveCount(0)
   await expect(page.locator('[data-testid="admin-filter-empty"]')).toBeVisible()
 
-  // Esc 清词（两段 Esc 同款语义——直接清空）：四分组 25 条目全量复原
-  //（L026-2 重锚：四分组树 4+5+7+9——原 18 为 B-2.18 五分组口径）
+  // Esc 清词（两段 Esc 同款语义——直接清空）：四分组 26 条目全量复原
+  //（L026-2 重锚：四分组树 5+5+7+9——原 18 为 B-2.18 五分组口径）
   await box.press('Escape')
-  await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveCount(25)
+  await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveCount(26)
   await expect(page.locator('[data-testid="admin-filter-empty"]')).toHaveCount(0)
 
   // ⌘K = 命令面板（FE-P4 A1——CommandPalette 独占）；`/` 聚焦当前模式的框

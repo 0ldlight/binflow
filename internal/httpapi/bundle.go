@@ -277,7 +277,11 @@ func (s *Server) handleBundleHead(w http.ResponseWriter, r *http.Request, name, 
 	}
 	b, items, err := s.bundles.GetBundleWithItems(r.Context(), principalFrom(r.Context()), name, version)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound) // p07: bodyless by definition
+		// p07: bodyless by definition — but the reference still mirrors the
+		// GET face's media type on the bodiless answer (L027-1 c07: A's HEAD
+		// 404 carries Content-Type: application/json, no charset, no body).
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	doc, err := json.Marshal(renderBundleDescriptor(b, items))

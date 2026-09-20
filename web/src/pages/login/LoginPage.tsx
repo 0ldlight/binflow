@@ -208,7 +208,7 @@ export default function LoginPage() {
           target="_blank"
           rel="noopener noreferrer"
           data-testid="login-docs"
-          className="ml-2 underline underline-offset-2"
+          className="ml-2 text-info underline underline-offset-2"
         >
           {t('查看文档')}
         </a>

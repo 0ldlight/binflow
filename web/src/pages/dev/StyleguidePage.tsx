@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // Styleguide 页（design-system-plan §6 批 4 / §4.2）：P0 原语状态矩阵的
 // 可视化网格——七态（light/dark × hover/active/disabled/loading/error）
 // 逐组件陈列，双主题经页内 toggle（useTheme）即时切换。
@@ -24,7 +26,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
-import { Button } from '@/components/ui/button'
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -130,7 +132,7 @@ function ChecksumDemoRow({ algo, value }: { algo: string; value: string | null }
         {value ? (
           <>
             {value.length > 24 ? (
-              <button
+              <Button
                 type="button"
                 data-testid={`sg-checksum-reveal-${algo}`}
                 aria-expanded={full}
@@ -139,7 +141,7 @@ function ChecksumDemoRow({ algo, value }: { algo: string; value: string | null }
                 className="rounded-xs underline decoration-border-strong decoration-dotted underline-offset-2 hover:decoration-primary"
               >
                 {full ? value : `${value.slice(0, 20)}…${value.slice(-8)}`}
-              </button>
+              </Button>
             ) : (
               value
             )}
@@ -580,28 +582,28 @@ export default function StyleguidePage() {
       </Section>
 
       <Section id="properties" title="PropertiesTable" desc="Key mono / values mono; row hover surface-2; empty state via the unified EmptyState carrier">
-        <table aria-label="Properties demo" className="w-full max-w-md border-collapse text-dense">
-          <thead>
-            <tr className="border-b border-border text-left text-aux text-muted-foreground">
-              <th className="w-[34%] px-2 py-1.5 font-medium">Key</th>
-              <th className="px-2 py-1.5 font-medium">Values</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="border-b border-border/60 transition-colors duration-fast ease-standard hover:bg-surface-2">
-              <th scope="row" className="px-2 py-1.5 text-left font-mono font-normal">
+        <Table aria-label="Properties demo" className="w-full max-w-md border-collapse text-dense">
+          <TableHeader>
+            <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+              <TableHead className="w-[34%] px-2 py-1.5 font-medium">Key</TableHead>
+              <TableHead className="px-2 py-1.5 font-medium">Values</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow className="border-b border-border/60 transition-colors duration-fast ease-standard hover:bg-surface-2">
+              <TableHead scope="row" className="px-2 py-1.5 text-left font-mono font-normal">
                 license
-              </th>
-              <td className="px-2 py-1.5 font-mono">apache-2.0</td>
-            </tr>
-            <tr className="border-b border-border/60 transition-colors duration-fast ease-standard hover:bg-surface-2">
-              <th scope="row" className="px-2 py-1.5 text-left font-mono font-normal">
+              </TableHead>
+              <TableCell className="px-2 py-1.5 font-mono">apache-2.0</TableCell>
+            </TableRow>
+            <TableRow className="border-b border-border/60 transition-colors duration-fast ease-standard hover:bg-surface-2">
+              <TableHead scope="row" className="px-2 py-1.5 text-left font-mono font-normal">
                 build.name
-              </th>
-              <td className="px-2 py-1.5 font-mono">ci-release</td>
-            </tr>
-          </tbody>
-        </table>
+              </TableHead>
+              <TableCell className="px-2 py-1.5 font-mono">ci-release</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
         <EmptyState testid="sg-props-empty" className="w-64" message="No properties yet" hint="Add via the form above, or matrix params on deploy." illustration />
       </Section>
 

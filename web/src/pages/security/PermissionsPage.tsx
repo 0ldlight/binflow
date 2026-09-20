@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table'
 // 权限 target 列表（T-241 重排——P3 新栈重写）：Permission Name │ 仓库数 │
 // patterns ± │ 用户数 │ 组数（列头排序 + 底部计数行）。manage 徽章 = 任一
 // 主体行携带 manage。GET 回显无时间戳字段——更新时间列不呈现（登记漂移）。
@@ -128,19 +129,19 @@ export default function PermissionsPage() {
           )
         ) : (
           <>
-            <table className="w-full text-dense" data-testid="perms-table">
-              <thead>
-                <tr className="border-b border-border text-left text-aux text-muted-foreground">
+            <Table className="w-full text-dense" data-testid="perms-table">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
                   <SortTh label={tt('权限名')} sortKey="name" sort={sort} onToggle={toggle} testid="perms-sort-name" />
                   <SortTh label={tt('仓库数')} sortKey="repos" sort={sort} onToggle={toggle} />
                   <SortTh label="patterns" sortKey="patterns" sort={sort} onToggle={toggle} />
                   <SortTh label={tt('用户数')} sortKey="users" sort={sort} onToggle={toggle} />
                   <SortTh label={tt('组数')} sortKey="groups" sort={sort} onToggle={toggle} />
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {pageRows.map((t) => (
-                  <tr
+                  <TableRow
                     key={t.name}
                     data-testid={`perm-row-${t.name}`}
                     className="cursor-pointer border-b border-border/60 hover:bg-accent"
@@ -150,7 +151,7 @@ export default function PermissionsPage() {
                       onTableRowKeys(e, () => navigate(`/admin/security/permissions/${encodeURIComponent(t.name)}`))
                     }
                   >
-                    <td className="px-3 py-1.5">
+                    <TableCell className="px-3 py-1.5">
                       <span className="cell-inline">
                         <Link
                           className="row-link font-mono text-primary hover:underline"
@@ -175,24 +176,24 @@ export default function PermissionsPage() {
                           <CopyButton value={t.name} label={`target ${t.name}`} />
                         </span>
                       </span>
-                    </td>
-                    <td className="px-3 py-1.5">
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5">
                       <span className="text-muted-foreground" title={t.repos.join(', ')}>{t.repos.length}</span>
-                    </td>
-                    <td className="px-3 py-1.5">
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5">
                       <span
                         className="font-mono"
                         title={`include: ${t.includePatterns.join(', ') || tt('（空 = 全部）')}\nexclude: ${t.excludePatterns.join(', ') || tt('（无）')}`}
                       >
                         +{t.includePatterns.length} / −{t.excludePatterns.length}
                       </span>
-                    </td>
-                    <td className="px-3 py-1.5"><span className="text-muted-foreground">{Object.keys(t.principals.users).length}</span></td>
-                    <td className="px-3 py-1.5"><span className="text-muted-foreground">{Object.keys(t.principals.groups).length}</span></td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5"><span className="text-muted-foreground">{Object.keys(t.principals.users).length}</span></TableCell>
+                    <TableCell className="px-3 py-1.5"><span className="text-muted-foreground">{Object.keys(t.principals.groups).length}</span></TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             <div className="table-foot" data-testid="perms-count">
               <Pager
                 page={pager.page}

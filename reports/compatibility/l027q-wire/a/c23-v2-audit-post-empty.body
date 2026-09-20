@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Bad request: [`'event_status' must be non-null`, `'event_summary' must be non-null`, `'release_bundle_name' must be non-null`, `'created_by' must be non-null`, `'release_bundle_version' must be non-null`, `'subject_reference' must be non-null`, `'subject_type' must be non-null`]"
+  } ]
+}

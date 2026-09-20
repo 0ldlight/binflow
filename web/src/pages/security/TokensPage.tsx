@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // Access Tokens 页（M14 T-386——P3 新栈重写）。
 // [零新端点纪律] 消费面 = 既有 token REST 两端点：
 //   - POST /api/security/token（E-17，JSON 投影 + silent401）——mint/step-up
@@ -27,7 +28,7 @@ import { AlertBox } from '@/components/layout/bits'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState } from '@/components/layout/states'
 import { Pager, useClientPager } from '@/components/layout/pager'
-import { TextInput, NativeSelect } from '@/components/layout/fields'
+import { TextInput, SelectField } from '@/components/layout/fields'
 import { useConfirm } from '@/app/providers'
 import { toast } from '@/lib/toast'
 import { ApiError, apiJSON, apiText, canAdminWrite, errText, isReadOnlyAdmin } from '@/lib/api'
@@ -244,40 +245,40 @@ export default function TokensPage() {
         />
       ) : (
         <div className="overflow-x-auto rounded-md border border-border">
-          <table className="w-full text-dense" data-testid="token-table">
-            <thead>
-              <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-medium">token_id</th>
-                <th scope="col" className="px-3 py-2 font-medium">{t('指纹')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{t('主体')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{t('有效期')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{t('状态')}</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">{t('操作')}</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-dense" data-testid="token-table">
+            <TableHeader>
+              <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                <TableHead scope="col" className="px-3 py-2 font-medium">token_id</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('指纹')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('主体')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('有效期')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('状态')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 text-right font-medium">{t('操作')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {pageRows.map((row) => (
-                <tr key={row.tokenId} data-testid={`token-row-${row.tokenId}`} className="border-b border-border/60 hover:bg-accent">
-                  <td className="px-3 py-1.5 font-mono" lang="en">#{row.tokenId}</td>
-                  <td className="px-3 py-1.5 font-mono" lang="en" data-testid={`token-fingerprint-${row.tokenId}`}>
+                <TableRow key={row.tokenId} data-testid={`token-row-${row.tokenId}`} className="border-b border-border/60 hover:bg-accent">
+                  <TableCell className="px-3 py-1.5 font-mono" lang="en">#{row.tokenId}</TableCell>
+                  <TableCell className="px-3 py-1.5 font-mono" lang="en" data-testid={`token-fingerprint-${row.tokenId}`}>
                     {row.fingerprint || '—'}{' '}
                     {row.fingerprint && <CopyButton value={row.fingerprint} label={t('指纹 #{v1}', { v1: row.tokenId })} />}
-                  </td>
-                  <td className="px-3 py-1.5 font-mono" lang="en">{row.subject}</td>
-                  <td className="px-3 py-1.5">
+                  </TableCell>
+                  <TableCell className="px-3 py-1.5 font-mono" lang="en">{row.subject}</TableCell>
+                  <TableCell className="px-3 py-1.5">
                     {humanTtl(row.expiresIn)}
                     <div className="text-aux text-muted-foreground">
                       {new Date(row.mintedAt).toLocaleTimeString(getLocale() === 'en' ? 'en-US' : 'zh-CN')}
                     </div>
-                  </td>
-                  <td className="px-3 py-1.5">
+                  </TableCell>
+                  <TableCell className="px-3 py-1.5">
                     {row.revoked ? (
                       <span data-testid={`token-status-${row.tokenId}`}>{t('已吊销')}</span>
                     ) : (
                       <Badge variant="tint-success" data-testid={`token-status-${row.tokenId}`}>{t('有效')}</Badge>
                     )}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-1.5 text-right">
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap px-3 py-1.5 text-right">
                     <Button
                       size="sm"
                       variant="outline"
@@ -289,11 +290,11 @@ export default function TokensPage() {
                     >
                       {busyId === row.tokenId ? t('吊销中…') : t('吊销')}
                     </Button>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
       {rows.length > 0 && (
@@ -555,7 +556,7 @@ function CreateTokenDialog({
               )}
               <div className="field">
                 <label htmlFor="token-ttl">{t('有效期')}</label>
-                <NativeSelect
+                <SelectField
                   id="token-ttl"
                   value={String(ttl)}
                   onChange={(e) => setTtl(Number(e.target.value))}

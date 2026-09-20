@@ -1,3 +1,5 @@
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 // Explorer children 面（AG Grid 无限行模型——社区版特性集：无限滚动 +
 // 行虚拟化 + 多选；企业特性 server-side row model / 区间选择禁用，规避
 // 授权——architecture §1 表格行裁定）。
@@ -21,7 +23,7 @@ import { AgGridReact } from 'ag-grid-react'
 ModuleRegistry.registerModules([AllCommunityModule])
 
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+
 import { Label } from '@/components/ui/label'
 import { EmptyState } from '@/components/layout/states'
 import { agThemeBridge } from '@/features/aggrid/theme'
@@ -31,7 +33,6 @@ import { tr } from '@/i18n'
 
 import { BIG_DIR } from './model'
 import type { MenuTarget } from './model'
-
 
 const tt = tr('artifacts')
 
@@ -301,11 +302,10 @@ export function ChildrenGrid({
           aria-label={tt('过滤当前层')}
         />
         <Label className="check-row flex cursor-pointer items-center gap-1.5 font-normal">
-          <input
-            type="checkbox"
+          <Checkbox
             className="size-3.5"
             checked={filesOnly}
-            onChange={(e) => onFilesOnly(e.target.checked)}
+            onCheckedChange={(next) => onFilesOnly(next === true)}
           />
           {tt('只看文件')}
         </Label>

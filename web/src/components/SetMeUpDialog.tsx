@@ -1,9 +1,11 @@
+import { Button, ButtonAsChild } from '@/components/ui/button'
+import { SelectField } from '@/components/layout/fields'
+import { Input } from '@/components/ui/input'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 
-import { Button, ButtonAsChild } from '@/components/ui/button'
 import { useAuth } from '../app/AuthContext'
 import { PkgIcon } from './PkgIcon'
 import { CopyButton } from '@/components/layout/copy-button'
@@ -401,10 +403,10 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
         {CLIENT_PKG_META.filter((m) => availableTypes.includes(m.id)).map((m) => (
           // 药丸形态（T-382，D1 v1.1 实测：步 0 = 包型药丸横排）——desc 收进
           // title 提示（药丸面保持紧凑，信息不丢）
-          <button
+          <Button
             type="button"
             key={m.id}
-            className="inline-flex box-border items-center gap-2 cursor-pointer rounded-full border border-border bg-secondary px-4 py-2 [font-family:inherit] [font-weight:inherit] [font-size:inherit] [line-height:inherit] hover:border-ring hover:bg-surface-3 focus-visible:border-ring focus-visible:bg-surface-3 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            className="inline-flex box-border cursor-pointer items-center gap-2 rounded-full border border-border bg-secondary px-4 py-2 text-secondary-foreground hover:text-secondary-foreground [font-family:inherit] [font-weight:inherit] [font-size:inherit] [line-height:inherit] hover:border-ring hover:bg-surface-3 focus-visible:border-ring focus-visible:bg-surface-3 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             role="radio"
             aria-checked={false}
             title={m.desc}
@@ -421,7 +423,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
                 药丸内与包名同现 = 装饰位（aria-hidden 在 PkgIcon 内） */}
             <PkgIcon id={m.id} variant="brand" size={18} className="pkg-icon text-primary" />
             <span className="pkg-name font-semibold text-[length:var(--bf-fs-sm)]">{m.label}</span>
-          </button>
+          </Button>
         ))}
       </div>
     )
@@ -433,7 +435,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
       <DialogPrimitive.Title id="smu-dialog-title" className="text-h3 min-w-0 font-semibold">
         {title}
       </DialogPrimitive.Title>
-      <button
+      <Button
         type="button"
         aria-label={t('关闭')}
         data-testid="smu-close"
@@ -441,7 +443,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
         className="mt-0.5 rounded-sm p-1 text-muted-foreground hover:bg-surface-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
       >
         ✕
-      </button>
+      </Button>
     </div>
   )
 
@@ -479,48 +481,49 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
               <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
                 <div className="field">
                   <label htmlFor="smu-repo">{t('仓库')}</label>
-                  <select
+                  <SelectField
                     id="smu-repo"
                     className="w-full"
                     data-testid="smu-repo"
                     value={repoKey}
                     onChange={(e) => setRepoKey(e.target.value)}
-                  >
-                    {pkgRepos.map((r) => (
-                      <option key={r.key} value={r.key}>
-                        {r.key}
-                        {r.type !== 'local' ? t('（{v1}）', { v1: r.type }) : ''}
-                      </option>
-                    ))}
-                  </select>
+                    options={pkgRepos.map((r) => ({
+                      value: r.key,
+                      label: <>{r.key}{r.type !== 'local' ? t('（{v1}）', { v1: r.type }) : ''}</>,
+                      itemProps: { lang: 'en' },
+                    }))}
+                  />
                   <div className="field-hint">{t('下拉只列')} {pkgMeta?.label ?? pkg} {t('类型的仓库。')}</div>
                 </div>
 
                 <div className="flex gap-2 border-b border-border my-3" role="tablist" aria-label={t('接入指引')} ref={tabRef} onKeyDown={onTabKeys}>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     className="cursor-pointer border-b-2 border-transparent px-3 py-2 -mb-px text-[length:var(--bf-fs-md)] text-muted-foreground [font-family:inherit] [line-height:inherit] font-normal aria-selected:border-ring aria-selected:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
                     role="tab"
                     aria-selected={tab === 'configure'}
                     data-testid="smu-tab-configure"
                     onClick={() => setTab('configure')}
-                  >{t('配置 Configure')}</button>
-                  <button
+                  >{t('配置 Configure')}</Button>
+                  <Button
                     type="button"
+                    variant="ghost"
                     className="cursor-pointer border-b-2 border-transparent px-3 py-2 -mb-px text-[length:var(--bf-fs-md)] text-muted-foreground [font-family:inherit] [line-height:inherit] font-normal aria-selected:border-ring aria-selected:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
                     role="tab"
                     aria-selected={tab === 'deploy'}
                     data-testid="smu-tab-deploy"
                     onClick={() => setTab('deploy')}
-                  >{t('部署 Deploy')}</button>
-                  <button
+                  >{t('部署 Deploy')}</Button>
+                  <Button
                     type="button"
+                    variant="ghost"
                     className="cursor-pointer border-b-2 border-transparent px-3 py-2 -mb-px text-[length:var(--bf-fs-md)] text-muted-foreground [font-family:inherit] [line-height:inherit] font-normal aria-selected:border-ring aria-selected:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
                     role="tab"
                     aria-selected={tab === 'resolve'}
                     data-testid="smu-tab-resolve"
                     onClick={() => setTab('resolve')}
-                  >{t('解析 Resolve')}</button>
+                  >{t('解析 Resolve')}</Button>
                 </div>
 
                 {tab === 'configure' ? (
@@ -687,7 +690,7 @@ function TokenArea({
         <div className="rounded-md border border-warning bg-secondary p-3 my-3" data-testid="smu-stepup">
           <div className="field" style={{ marginBottom: 8 }}>
             <label htmlFor="smu-password">{t('服务端要求二次口令（step-up）——输入当前账号口令后继续铸币')}</label>
-            <input
+            <Input
               id="smu-password"
               ref={passwordRef}
               type="password"

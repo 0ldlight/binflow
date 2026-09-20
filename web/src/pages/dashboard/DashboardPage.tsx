@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 仪表盘（console-ux §6.2——P2 新栈重写：五卡 → 指标面板形态）。
 //
 // 语义承接（audit §2.1 dashboard 行）：
@@ -216,20 +217,20 @@ export default function DashboardPage() {
             (events.length === 0 ? (
               <EmptyState message={t('暂无审计事件')} hint={t('登录、建仓、上传等操作会记录在这里')} />
             ) : (
-              <table className="w-full text-dense">
-                <thead>
-                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                    <th scope="col" className="py-1.5 pr-3 font-medium">{t('时间')}</th>
-                    <th scope="col" className="py-1.5 pr-3 font-medium">{t('操作者')}</th>
-                    <th scope="col" className="py-1.5 pr-3 font-medium">{t('动作')}</th>
-                    <th scope="col" className="py-1.5 font-medium">{t('对象')}</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-dense">
+                <TableHeader>
+                  <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                    <TableHead scope="col" className="py-1.5 pr-3 font-medium">{t('时间')}</TableHead>
+                    <TableHead scope="col" className="py-1.5 pr-3 font-medium">{t('操作者')}</TableHead>
+                    <TableHead scope="col" className="py-1.5 pr-3 font-medium">{t('动作')}</TableHead>
+                    <TableHead scope="col" className="py-1.5 font-medium">{t('对象')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {events.map((ev, i) => {
                     const target = auditTarget(ev)
                     return (
-                      <tr
+                      <TableRow
                         key={ev.id}
                         className={`border-b border-border/60 ${target ? 'cursor-pointer hover:bg-accent' : ''}`}
                         data-testid={`dashboard-audit-row-${i}`}
@@ -243,15 +244,15 @@ export default function DashboardPage() {
                             : undefined
                         }
                       >
-                        <td className="whitespace-nowrap py-1.5 pr-3 font-mono">{formatAuditTime(ev.time)}</td>
-                        <td className="py-1.5 pr-3">{ev.actor}</td>
-                        <td className="whitespace-nowrap py-1.5 pr-3 font-mono" lang="en">{ev.action}</td>
-                        <td className="break-all py-1.5 font-mono" lang="en">{ev.repo ? `${ev.repo}/${ev.path}` : ev.path}</td>
-                      </tr>
+                        <TableCell className="whitespace-nowrap py-1.5 pr-3 font-mono">{formatAuditTime(ev.time)}</TableCell>
+                        <TableCell className="py-1.5 pr-3">{ev.actor}</TableCell>
+                        <TableCell className="whitespace-nowrap py-1.5 pr-3 font-mono" lang="en">{ev.action}</TableCell>
+                        <TableCell className="break-all py-1.5 font-mono" lang="en">{ev.repo ? `${ev.repo}/${ev.path}` : ev.path}</TableCell>
+                      </TableRow>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             ))}
         </section>
       )}

@@ -127,7 +127,7 @@ func (s *Server) handleRepoConfigurations(w http.ResponseWriter, r *http.Request
 			continue
 		}
 		blob := repoRowBlob(row)
-		entry := renderConfigSeats(row, blob, configFaceSeats("configurations", row.Type), "rclass")
+		entry := renderConfigSeats(row, blob, configFaceSeats("configurations", row.Type, row.PackageType), "rclass")
 		switch repoClassUpper(row.Type) {
 		case "LOCAL":
 			body.Local = append(body.Local, entry)
@@ -279,7 +279,7 @@ func v2ResponseCT(rclass string) string {
 // Jackson declaration order is not spec-pinned and the differential
 // normalizes key order, so encoding/json's sorted-map output stays.
 func v2ConfigMap(row *metadata.Repo, blob map[string]any) map[string]any {
-	return renderConfigSeats(row, blob, configFaceSeats("v2", row.Type), "type")
+	return renderConfigSeats(row, blob, configFaceSeats("v2", row.Type, row.PackageType), "type")
 }
 
 // handleRepoGetV2 serves GET /api/v2/repositories/{key} (spec 2.1.3).
@@ -352,7 +352,7 @@ func (s *Server) handleRepoBatchGet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if admin {
-			out[name] = renderConfigSeats(row, repoRowBlob(row), configFaceSeats("v1", row.Type), "rclass")
+			out[name] = renderConfigSeats(row, repoRowBlob(row), configFaceSeats("v1", row.Type, row.PackageType), "rclass")
 		} else {
 			out[name] = partialConfigMap(row, repoRowBlob(row), "rclass")
 		}

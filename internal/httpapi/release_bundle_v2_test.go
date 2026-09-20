@@ -103,9 +103,15 @@ func TestV2AuditFamily(t *testing.T) {
 		t.Fatalf("partial audit = %d %s, want only the five missing fields", code, body)
 	}
 
-	// p22: GET answers the 405 (the family registers POST-only).
-	if code, body, _ = st.do(t, http.MethodGet, "v2/audit?limit=1", "", admin); code != http.StatusMethodNotAllowed || !strings.Contains(body, "Method Not Allowed") {
+	// p22: GET answers the 405 (the family registers POST-only), with the
+	// Allow header riding along (L027-1 c22: reference sends Allow:
+	// POST,OPTIONS on the same answer).
+	code, body, hdr := st.do(t, http.MethodGet, "v2/audit?limit=1", "", admin)
+	if code != http.StatusMethodNotAllowed || !strings.Contains(body, "Method Not Allowed") {
 		t.Fatalf("audit GET = %d %s, want the 405", code, body)
+	}
+	if got := hdr.Get("Allow"); got != "POST,OPTIONS" {
+		t.Errorf("audit GET Allow = %q, want POST,OPTIONS", got)
 	}
 
 	// A complete body: the success shape was never captured — the honest

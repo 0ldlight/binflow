@@ -1,0 +1,9 @@
+HTTP 200
+Cache-Control: no-store
+Content-Type: application/vnd.org.jfrog.artifactory.repositories.LocalRepositoryConfiguration+json
+Date: Thu, 17 Sep 2026 08:03:57 GMT
+X-Artifactory-Id: e283103486ad66fe:-6dadc198:1a0a631e39e:-8000
+X-Artifactory-Node-Id: lzw
+X-Jfrog-Version: Artifactory/7.161.15 86115900
+Connection: close
+Transfer-Encoding: chunked

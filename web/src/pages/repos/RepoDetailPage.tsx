@@ -1,3 +1,5 @@
+import { Button, ButtonAsChild } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 仓库详情（console-ux §6.8——P2 新栈重写：三 Tab → 八 Tab 骨架，总令 §十
 // 形态：Overview / Artifacts / Configuration / Storage / Permissions /
 // Replication / Webhooks / Activity）。
@@ -22,7 +24,6 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
-import { Button, ButtonAsChild } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/app/AuthContext'
 import { toast } from '@/lib/toast'
@@ -47,10 +48,10 @@ import type { PackageType, RClass, RepoDetail, RepoUsage } from '@/lib/repos'
 import { configsForRepo, listReplicationConfigs } from '@/lib/replications'
 import type { ReplicationConfig } from '@/lib/replications'
 import { useAsync } from '@/lib/useAsync'
-import { listFolder } from '@/pages/artifacts/lib'
+import { getItemPermissions, listFolder } from '@/pages/artifacts/lib'
 import { clientCommands } from '@/pages/repositories/commands'
 import { useRepoDelete } from '@/pages/repositories/RepoDeleteConfirm'
-import { getItemPermissions } from '@/pages/artifacts/lib'
+
 import { tr } from '@/i18n'
 // 仓库管理域样式（pages/repositories 支撑模块族共享——旧页面退役后由新页直挂）
 import '@/pages/repositories/repositories.css'
@@ -350,12 +351,12 @@ export default function RepoDetailPage() {
       {repo.description && <p className="detail-desc text-dense text-muted-foreground">{repo.description}</p>}
 
       {mHolder && (
-        <p className="page-note rounded-md border border-border bg-surface-2 px-3 py-2 text-dense text-muted-foreground" data-testid="repo-manage-note">
+        <p className="page-note rounded-md border border-border bg-surface-2 px-3 py-2 text-dense text-foreground" data-testid="repo-manage-note">
           {t('ⓘ 当前会话以 manage 持有者身份管理此仓（permission target 授予）：配置可编辑；删除仓库仍是全局管理面写（服务端 403 兜底）。')}
         </p>
       )}
       {readOnly && (
-        <p className="page-note rounded-md border border-border bg-surface-2 px-3 py-2 text-dense text-muted-foreground" data-testid="repo-detail-readonly-note">
+        <p className="page-note rounded-md border border-border bg-surface-2 px-3 py-2 text-dense text-foreground" data-testid="repo-detail-readonly-note">
           {t('ⓘ 只读管理员（readonly_admin）视角：仓库配置只读、浏览器部署（Deploy）已禁用——配置保存走单仓管理面写 （CanManageRepo write）、部署走制品写面，服务端一律 403 兜底。')}
         </p>
       )}
@@ -364,9 +365,10 @@ export default function RepoDetailPage() {
           DetailInspector 同款链，P2 期缺者补齐） */}
       <div role="tablist" aria-label={t('仓库视图')} className="flex flex-wrap gap-1 border-b border-border">
         {TABS.map(([id, label]) => (
-          <button
+          <Button
             key={id}
             type="button"
+            variant="ghost"
             role="tab"
             aria-selected={tab === id}
             data-testid={`repo-tab-${id}`}
@@ -387,7 +389,7 @@ export default function RepoDetailPage() {
             }}
           >
             {label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -608,28 +610,28 @@ export default function RepoDetailPage() {
             </>
           ) : (
             <>
-              <table className="w-full text-dense" data-testid="repo-repl-table">
-                <thead>
-                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                    <th scope="col" className="px-2 py-1.5 font-medium">{t('名称')}</th>
-                    <th scope="col" className="px-2 py-1.5 font-medium">{t('目标（实例 / 仓）')}</th>
-                    <th scope="col" className="px-2 py-1.5 font-medium">{t('状态')}</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-dense" data-testid="repo-repl-table">
+                <TableHeader>
+                  <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                    <TableHead scope="col" className="px-2 py-1.5 font-medium">{t('名称')}</TableHead>
+                    <TableHead scope="col" className="px-2 py-1.5 font-medium">{t('目标（实例 / 仓）')}</TableHead>
+                    <TableHead scope="col" className="px-2 py-1.5 font-medium">{t('状态')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {replConfigs.map((c) => (
-                    <tr key={c.id} data-testid={`repo-repl-row-${c.name}`} className="border-b border-border/60">
-                      <td className="px-2 py-1.5 font-mono" lang="en">{c.name}</td>
-                      <td className="max-w-[360px] break-all px-2 py-1.5 font-mono" lang="en">{c.target_url} → {c.target_repo}</td>
-                      <td className="px-2 py-1.5">
+                    <TableRow key={c.id} data-testid={`repo-repl-row-${c.name}`} className="border-b border-border/60">
+                      <TableCell className="px-2 py-1.5 font-mono" lang="en">{c.name}</TableCell>
+                      <TableCell className="max-w-[360px] break-all px-2 py-1.5 font-mono" lang="en">{c.target_url} → {c.target_repo}</TableCell>
+                      <TableCell className="px-2 py-1.5">
                         <span className={`rounded-sm border px-1.5 py-0.5 text-[11px] ${c.enabled ? 'border-success text-success' : 'border-border text-muted-foreground'}`}>
                           {c.enabled ? t('已启用') : t('已停用')}
                         </span>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
               {canEditConfig ? (
                 <ButtonAsChild variant="outline" size="sm" className="mt-2">
                   <Link to={`/admin/repositories/${repo.key}/edit?section=replications`} data-testid="repo-repl-edit-link">{t('管理本仓复制配置 →')}</Link>
@@ -703,28 +705,28 @@ function RepoArtifactsPanel({ repoKey }: { repoKey: string }) {
           {nodes.length === 0 ? (
             <EmptyState message={t('此仓库尚无内容')} hint={t('上传第一个制品，或创建子目录组织布局。')} />
           ) : (
-            <table className="w-full text-dense">
-              <thead>
-                <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                  <th scope="col" className="px-2 py-1.5 font-medium">{t('名称')}</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium">{t('类型')}</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium">{t('大小')}</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-dense">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                  <TableHead scope="col" className="px-2 py-1.5 font-medium">{t('名称')}</TableHead>
+                  <TableHead scope="col" className="px-2 py-1.5 font-medium">{t('类型')}</TableHead>
+                  <TableHead scope="col" className="px-2 py-1.5 font-medium">{t('大小')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {nodes.slice(0, 50).map((n) => (
-                  <tr key={n.name} className="border-b border-border/60">
-                    <td className="px-2 py-1.5 font-mono" lang="en">
+                  <TableRow key={n.name} className="border-b border-border/60">
+                    <TableCell className="px-2 py-1.5 font-mono" lang="en">
                       <Link to={`/artifacts/${repoKey}${n.path ? `/${n.path.split('/').map((s) => encodeURIComponent(s)).join('/')}` : ''}`} className="text-primary hover:underline">
                         {n.name}
                       </Link>
-                    </td>
-                    <td className="px-2 py-1.5">{n.folder ? t('目录') : t('文件')}</td>
-                    <td className="px-2 py-1.5 font-mono">{!n.folder && n.size !== null ? formatBytes(n.size) : '—'}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="px-2 py-1.5">{n.folder ? t('目录') : t('文件')}</TableCell>
+                    <TableCell className="px-2 py-1.5 font-mono">{!n.folder && n.size !== null ? formatBytes(n.size) : '—'}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           )}
         </>
       )}
@@ -801,26 +803,26 @@ function RepoActivityPanel({ repoKey }: { repoKey: string }) {
         <EmptyState message={t('暂无审计事件')} hint={t('建仓、上传、删除等操作会记录在这里')} />
       )}
       {audit.status === 'ok' && events.length > 0 && (
-        <table className="w-full text-dense">
-          <thead>
-            <tr className="border-b border-border text-left text-aux text-muted-foreground">
-              <th scope="col" className="px-2 py-1.5 font-medium">{t('时间')}</th>
-              <th scope="col" className="px-2 py-1.5 font-medium">{t('操作者')}</th>
-              <th scope="col" className="px-2 py-1.5 font-medium">{t('动作')}</th>
-              <th scope="col" className="px-2 py-1.5 font-medium">{t('对象')}</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table className="w-full text-dense">
+          <TableHeader>
+            <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+              <TableHead scope="col" className="px-2 py-1.5 font-medium">{t('时间')}</TableHead>
+              <TableHead scope="col" className="px-2 py-1.5 font-medium">{t('操作者')}</TableHead>
+              <TableHead scope="col" className="px-2 py-1.5 font-medium">{t('动作')}</TableHead>
+              <TableHead scope="col" className="px-2 py-1.5 font-medium">{t('对象')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {events.map((ev: AuditEvent, i) => (
-              <tr key={ev.id} className="border-b border-border/60" data-testid={`repo-activity-row-${i}`}>
-                <td className="whitespace-nowrap px-2 py-1.5 font-mono">{formatAuditTime(ev.time)}</td>
-                <td className="px-2 py-1.5">{ev.actor}</td>
-                <td className="whitespace-nowrap px-2 py-1.5 font-mono" lang="en">{ev.action}</td>
-                <td className="break-all px-2 py-1.5 font-mono" lang="en">{ev.path}</td>
-              </tr>
+              <TableRow key={ev.id} className="border-b border-border/60" data-testid={`repo-activity-row-${i}`}>
+                <TableCell className="whitespace-nowrap px-2 py-1.5 font-mono">{formatAuditTime(ev.time)}</TableCell>
+                <TableCell className="px-2 py-1.5">{ev.actor}</TableCell>
+                <TableCell className="whitespace-nowrap px-2 py-1.5 font-mono" lang="en">{ev.action}</TableCell>
+                <TableCell className="break-all px-2 py-1.5 font-mono" lang="en">{ev.path}</TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       )}
     </section>
   )

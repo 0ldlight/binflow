@@ -5,6 +5,11 @@
  * 消费点的 color 继承链决定，本文件零色值（tokens 纪律）；brand 版
  * 色值在资产文件内。 */
 
+/* 黑白灰终裁：官方 brand 色仅保留在资产源，渲染时统一去色。 */
+.pkg-svg[data-variant='brand'] {
+  filter: grayscale(1);
+}
+
 /* ---------- 暗底提亮（K61，package-icons/README §4 登记） ----------
  * 11 个官方深色在暗色宿主面（磁贴/药丸 surface-2、矩阵表格 surface-1）
  * 对比度 <3:1（T-390 全枚实测，报告 reports/agents/T-390.md）：保色相抬

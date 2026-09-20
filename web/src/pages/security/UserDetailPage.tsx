@@ -18,7 +18,7 @@ import { Button, ButtonAsChild } from '@/components/ui/button'
 import { AlertBox, CheckRow, StatusLabel } from '@/components/layout/bits'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
-import { TextInput, NativeSelect } from '@/components/layout/fields'
+import { TextInput, SelectField } from '@/components/layout/fields'
 import { toast } from '@/lib/toast'
 import { ADMIN_ROLES, ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '@/lib/api'
 import type { AdminRole } from '@/lib/api'
@@ -203,7 +203,7 @@ export default function UserDetailPage() {
               </div>
               <div className="field max-w-[480px]">
                 <label htmlFor="ud-role">{t('角色（三值闭集——wire 值即选项值）')}</label>
-                <NativeSelect
+                <SelectField
                   id="ud-role"
                   className="max-w-[420px]"
                   value={f.role}

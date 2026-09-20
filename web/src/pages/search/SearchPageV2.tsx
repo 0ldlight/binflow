@@ -1,3 +1,8 @@
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 搜索页（console-ux §6.4 / reverse §3.3——P2 新栈重写：AG Grid 结果面
 // + AQL 尾缀链语义平移 + 顶栏驻留查询）。
 //
@@ -28,8 +33,6 @@ import { AgGridReact } from 'ag-grid-react'
 // 社区模块注册（v33+ 必需——行选/虚拟滚动都在社区集内）
 ModuleRegistry.registerModules([AllCommunityModule])
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { agThemeBridge } from '@/features/aggrid/theme'
 import { CopyButton } from '@/components/layout/copy-button'
@@ -52,7 +55,6 @@ import {
 } from './aql'
 import type { AQLResult, AQLRow } from './aql'
 import { tr } from '@/i18n'
-
 
 const t = tr('search')
 
@@ -152,7 +154,7 @@ function ColumnsMenu({ cols }: { cols: ColumnPrefs }) {
             const visible = cols.isVisible(c.id)
             const last = visible && cols.visibleCount === 1
             return (
-              <button
+              <Button
                 key={c.id}
                 type="button"
                 role="menuitemcheckbox"
@@ -167,11 +169,11 @@ function ColumnsMenu({ cols }: { cols: ColumnPrefs }) {
               >
                 <span aria-hidden="true" className="inline-block w-[1.25em] text-primary">{visible ? '☑' : '☐'}</span>
                 {c.label}
-              </button>
+              </Button>
             )
           })}
           <div role="separator" className="my-1 border-t border-border" />
-          <button
+          <Button
             type="button"
             role="menuitem"
             aria-disabled={atDefault || undefined}
@@ -181,7 +183,7 @@ function ColumnsMenu({ cols }: { cols: ColumnPrefs }) {
             onClick={() => cols.reset()}
           >
             {t('恢复默认列')}
-          </button>
+          </Button>
         </PopoverContent>
       </Popover>
     </span>
@@ -280,7 +282,7 @@ export default function SearchPageV2() {
         {mode === 'basic' && (
           <div className="flex overflow-hidden rounded-md border border-input" role="group" aria-label={t('搜索范围')} data-testid="search-scope">
             {(['artifacts', 'builds'] as const).map((s) => (
-              <button
+              <Button
                 key={s}
                 type="button"
                 data-testid={`search-scope-${s}`}
@@ -289,13 +291,13 @@ export default function SearchPageV2() {
                 onClick={() => switchScope(s)}
               >
                 {s === 'artifacts' ? t('制品') : 'Builds'}
-              </button>
+              </Button>
             ))}
           </div>
         )}
         <div className="flex overflow-hidden rounded-md border border-input" role="group" aria-label={t('搜索模式')} data-testid="search-mode">
           {(['basic', 'aql'] as const).map((m) => (
-            <button
+            <Button
               key={m}
               type="button"
               data-testid={`search-mode-${m}`}
@@ -304,7 +306,7 @@ export default function SearchPageV2() {
               onClick={() => switchMode(m)}
             >
               {m === 'basic' ? t('基本') : 'AQL'}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -641,12 +643,11 @@ function ResultsGrid({
 function SelectAllHeader(props: { api: GridApi }) {
   const [all, setAll] = useState(false)
   return (
-    <input
-      type="checkbox"
+    <Checkbox
       data-testid="search-select-all"
       aria-label={t('全选本页结果')}
       checked={all}
-      onChange={() => {
+      onCheckedChange={() => {
         const next = !all
         setAll(next)
         if (next) props.api.selectAllFiltered()
@@ -665,12 +666,11 @@ function RowSelectCell(props: { node?: { rowIndex?: number; isSelected: () => bo
   const idx = node.rowIndex ?? 0
   const sel = node.isSelected()
   return (
-    <input
-      type="checkbox"
+    <Checkbox
       data-testid={`search-row-select-${idx}`}
       aria-label={t('选择第 {v1} 行', { v1: idx + 1 })}
       checked={sel}
-      onChange={() => {
+      onCheckedChange={() => {
         node.setSelected(!sel)
         force((n) => n + 1)
       }}
@@ -689,7 +689,7 @@ function HeaderSortButton(props: {
   title: string
 }) {
   return (
-    <button
+    <Button
       type="button"
       data-testid={props.testid}
       title={props.title}
@@ -705,7 +705,7 @@ function HeaderSortButton(props: {
     >
       {props.label}
       <span className={props.active ? '' : 'opacity-30'}>{props.dir === 'desc' ? '↓' : '↑'}</span>
-    </button>
+    </Button>
   )
 }
 
@@ -758,7 +758,7 @@ function AqlPanel({ columns, cols, toolbar }: { columns: PrefColumnDef[]; cols: 
   return (
     <>
       <div className="aql-bar flex items-start gap-2">
-        <textarea
+        <Textarea
           placeholder='items.find({"repo":"libs-release-local"}).include("*").sort({"$desc":["modified"]}).limit(50)'
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -906,35 +906,35 @@ function BuildsScopePanel({
         />
       ) : (
         <section className="card section rounded-md border border-border bg-surface-1 p-0" data-testid="search-builds-results">
-          <table className="w-full text-dense">
-            <thead>
-              <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-medium">{t('构建名')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{t('run 号')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{t('启动时间')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{t('构建仓')}</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-dense">
+            <TableHeader>
+              <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('构建名')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('run 号')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('启动时间')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('构建仓')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((r, i) => {
                 const to = `/builds/${encodeURIComponent(r.name)}/${encodeURIComponent(r.number)}${r.started ? `?started=${encodeURIComponent(r.started)}` : ''}`
                 return (
-                  <tr key={`${r.name}|${r.number}|${r.started}|${i}`} className="border-b border-border/60 hover:bg-accent" data-testid={`search-builds-row-${i}`}>
-                    <td className="px-3 py-1.5">
+                  <TableRow key={`${r.name}|${r.number}|${r.started}|${i}`} className="border-b border-border/60 hover:bg-accent" data-testid={`search-builds-row-${i}`}>
+                    <TableCell className="px-3 py-1.5">
                       <Link className="row-link font-mono text-primary hover:underline" lang="en" to={to}>{r.name}</Link>
-                    </td>
-                    <td className="px-3 py-1.5">
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5">
                       <Link className="row-link font-mono text-primary hover:underline" lang="en" to={to}>{r.number}</Link>
-                    </td>
-                    <td className="px-3 py-1.5">
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5">
                       <span className="font-mono" lang="en" title={r.started}>{formatStamp(r.started) ?? r.started ?? '—'}</span>
-                    </td>
-                    <td className="px-3 py-1.5 font-mono" lang="en">{r.repo || '—'}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{r.repo || '—'}</TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </section>
       )}
     </>

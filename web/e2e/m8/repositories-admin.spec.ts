@@ -263,7 +263,13 @@ test('readonly_admin: full list visible, write entries gone; detail/config read-
   await detailDeploy.evaluate((el) => (el as HTMLButtonElement).click())
   await expect(page.locator('[data-testid="deploy-dialog"]')).toHaveCount(0)
   await page.click('[data-testid="repo-tab-configuration"]')
-  await expect(page.locator('[data-testid="repo-governance-card"]')).toContainText('10240')
+  // L027-4 双臂退役后：readonly_admin 的 v1 详读面 = partialConfigMap 四键
+  // 窄投影（读写座位解耦，L026-7 开门前开后同形）——配置卡呈现窄面
+  // （quotaBytes 缺键 → 「0（不限）」是缺键呈现，非存储真值）。面契约
+  // 钉：窄投影不带 quotaBytes（admin 全量面恒带，L026-3 blob 回显）。
+  await expect(page.locator('[data-testid="repo-governance-card"]')).toContainText('（不限）')
+  const roFace = await sessionApi(page, 'GET', `/api/repositories/${key}`)
+  expect((JSON.parse(roFace.text) as Record<string, unknown>).quotaBytes).toBeUndefined()
   await expect(page.locator('[data-testid="repo-quota-input"]')).toBeDisabled()
   await expect(page.locator('[data-testid="repo-quota-save"]')).toBeDisabled()
   // Replications Tab（T-404 指针升级）：本仓配置摘要卡 + 全局复制页链接；
@@ -341,13 +347,14 @@ test('m-holder: covered repo editable (quota inline + editor), uncovered converg
     ).status,
   ).toBe(201)
 
-  // 列表：CapRepoRead 403 → L2（普通 user 无全量清单）
+  // 列表：manage 授权投影出 covered 可见集，other 不泄漏。
   await page.goto('/binflow/ui/admin/repositories/local')
   await expect(page.locator('[data-testid="repos-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="repos-empty-filtered"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="repos-table"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="repos-table"]')).toBeVisible()
+  await expect(page.locator(`[data-testid="repos-row-${covered}"]`)).toBeVisible()
+  await expect(page.locator(`[data-testid="repos-row-${other}"]`)).toHaveCount(0)
   await expect(page.locator('[data-testid="repos-create"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="empty-state"]').first()).toContainText('无权限')
 
   // 覆盖集内详情：可达（GET 走 CanManageRepo 读臂）+ 身份注记 + quota 可编辑
   await page.goto(`/binflow/ui/admin/repositories/${covered}`)

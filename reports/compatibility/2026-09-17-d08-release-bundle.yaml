@@ -1,0 +1,119 @@
+# D08 release-bundle 域差分批次报告（LOOP 027 / L027-1）
+# 机读门自检: python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" <本文件>
+schema: difftest/1
+meta:
+  ticket: L027-1
+  date: 2026-09-17
+  domain: D08-release-bundle
+  mode: dual
+  runner: tools/difftest/l0271/d08_release_diff.py
+  wire: reports/compatibility/l027q-wire/{a,b}/   # 双端原始响应逐案落档（.hdr/.body）
+  sides:
+    a: {name: Artifactory-pro, version: 7.161.15, base: "http://172.16.58.130:8082/artifactory/api", auth: admin(脱敏)}
+    b: {name: BinFlow-dev, version: dev+L027-1-fixes, base: "http://172.16.58.130:8083/binflow/api", auth: admin(脱敏)}
+  b_unlock: >-
+    B 侧 community 档被 ADR-0032 license 门挡（release-bundle MinTier=pro）。解锁腿 =
+    无码变更：`bf license issue --licensee "L027-1 difftest" --tier pro --days 7`（仓库根
+    私钥 binflow-license-private.pem 与编译期内嵌验签公钥同对——T-281 首次签发链已换钥）+
+    `POST /api/system/license`（201，tier=pro 即时生效）。测试毕 `DELETE /api/system/license`
+    恢复 community 姿态（web/e2e/support/pro-license.ts 租约契约同款）。未重启容器、未改码解锁。
+  b_deploy: >-
+    本票 4 个 B 侧 BUG 修复经交叉编译（CGO_ENABLED=0 GOOS=linux GOARCH=amd64）scp +
+    docker cp 换 /usr/local/bin/binflow-server + docker restart binflow-dev（卷
+    binflow-uat-data 保留——license 持久）。容器重启两次（BUG-3 后、BUG-4 后）。
+  corpus: l026a-wire p01–p63 + p48b（64 案）→ 55 差分 case（v1 全族 + v2 读族 + R06 权限矩阵 + 相邻两案）
+  real_client: >-
+    REST-only 面（无包协议腿；jf CLI 的 release-bundle 面在 Distribution 服务侧，非本面）。
+    curl 六腿证据（双端 list/assemble/v2 names，退出码全 0）+ urllib 双发框架（l0254 先例体例）。
+  rounds: >-
+    r1(修复前基线) 39/15 → r2(BUG1-3 修复部署后) 51/4 → r5/r6(稳定复跑对) 51/4 →
+    r7/r8(BUG-4 部署后终局) 52/3。flake 复核：r2-r6 间 c07/c42 抖动均定位为 A 侧
+    非确定性（见 normalize RB5 与 c42 定性），r7/r8 两连跑结论一致。
+normalize_proposal:
+  status: proposal（登记权 compatibility-engineer；先例 buildinfo N1-N6 / search S1-S4 两轮转正路径）
+  rules:
+    RB1: {scope: headers, drop: "Date/Server/X-Powered-By/Set-Cookie/X-Request-Id/X-Artifactory-Id/X-Artifactory-Node-Id/Via/X-Jfrog-Version/Content-Length/Connection/Transfer-Encoding/X-Content-Type-Options", content_type: "vendor json-family 等价 + charset 剥离（沿 search S1）"}
+    RB2: {scope: body, absolute_url_prefix: "<BASE>"}
+    RB3: {scope: body, json: "结构化比对（缩进/键序忽略——storage-admin normalize_indent 姿态；本域双端无 compact/pretty 双形态指纹主张）"}
+    RB4: {scope: body, aql_results_order: "set-semantics by urn（沿 search S4）"}
+    RB5: {scope: body, v2_audit_missing_clauses: "set-semantics——A 七条款序来自 map 迭代，三连发三序（实测），条款集才是契约"}
+  preexisting_applied:
+    - "known-divergence conan/auth401-wording（L020-3 广度定案）：401 消息族双端各自统一待裁 R-22a——匿名臂按信封形态比对，realm 串占位化（品牌域 normalize R7 方向）"
+summary:
+  total: 55
+  same: 52
+  divergent: 3
+  skipped: 0
+  classification: {BUG_fixed: 4, reference_quirk: 0, pending_ruling: 3, unsupported: 0}
+  matrix_rows:
+    D08-R01: {verdict: SAME(实质), cases: "c24-c30", note: "装配校验链四臂+命中五行闭集+空命中+includeMetaData 同形；BUG-1（E1 锚点）修复后全绿"}
+    D08-R02: {verdict: SAME(实质), cases: "c31-c36", note: "错误臂全族（JWS 解析/裸 Jackson/事务不存在×3）；happy-path 需签名链，双端同不可达（wire 自身局限）"}
+    D08-R03: {verdict: SAME(实质)+1候裁, cases: "c37-c42", note: "OPTIONS/空 body 500 泄漏/非 JSON/INVALID_RB_REPO 双键信封/缺省仓副作用（单查200+列表隐+可 DELETE）全绿；c42=A 侧竞态候裁"}
+    D08-R04: {verdict: SAME(实质), cases: "c01-c11", note: "空态/404 三消息族/HEAD 无 body（BUG-4 CT 修复后）/type 投影全绿"}
+    D08-R05: {verdict: SAME(实质), cases: "c12-c23", note: "config 720/fat_manifest 400/v2 读族（names/received/records/statuses/-jfds DELETE/audit 405+七必填，BUG-2+RB5 后）全绿"}
+    D08-R06: {verdict: SAME(实质)+相邻1案, cases: "c44-c52(全 SAME) + c53(相邻 DIVERGENT)", note: "非 admin 六臂（user 放行/admin 门 403 信封）与匿名三臂（401，按 L020-3 既裁姿态）全 SAME；ANY DISTRIBUTION 非 REST 实体双端一致（单查 404/名单缺席）；c53 相邻缺 Any Remote/Anything 预置行（安全域，非本行本质）"}
+  adjacent: c54 SAME（distribution rclass 不可 REST 创建，双端同拒）
+bugs_fixed:
+  - id: BUG-1
+    case: c27-assemble-syntax-error
+    surface: "AQL E1 语法错锚点（共享面：/api/search/aql 与 /api/release/bundle 同源）"
+    symptom: "items.find(bogus-syntax( 的残段 B 报 `-syntax(`（词法器在 `-` 处死），A 报 `bogus-syntax(`（语法失败处）"
+    root_cause: "lexAll 全量预词法——词法错误恒抢在更早位置的语法错误前上浮；A 是流式拉取 token"
+    fix: "internal/search：lexAll 失败时返回已词法前缀，newParser 用合成 EOF 重跑前缀、前缀语法错误优先（否则报词法锚点）"
+    tests: internal/search/parse_error_anchor_test.go（三臂：语法先于词法/前缀完整/未闭合构造）
+  - id: BUG-2
+    case: c22-v2-audit-get
+    surface: "GET /api/v2/audit 405 缺 Allow 头"
+    fix: "internal/httpapi/release_bundle_v2.go handleV2AuditMethodNotAllowed 补 `Allow: POST,OPTIONS`（p22 逐字）"
+    tests: release_bundle_v2_test.go TestV2AuditFamily 扩 Allow 断言
+  - id: BUG-3
+    case: "c43-system-repo-side-effect / c55(修复前 400 卡死)"
+    surface: "release-bundles 系统仓不可经 B 自身 DELETE 清除"
+    symptom: "DELETE /api/repositories/release-bundles → 400 invalid repository type \"releasebundles\"（round1 实测，系统仓成永久残留）"
+    root_cause: "DeleteRepo 的 D3 删仓校验对域自有行跑管理面包型矩阵——该行由 bundle.EnsureSystemRepo 直写（设计上在矩阵之外）"
+    fix: "internal/repo/service.go DeleteRepo：PackageType==bundle.PackageTypeReleaseBundles 豁免矩阵校验（未知包型行仍拒——纵深未弱化）"
+    tests: internal/repo/system_repo_delete_test.go（系统行可删+外来行仍拒）
+  - id: BUG-4
+    case: c07-head-missing
+    surface: "HEAD /api/release/bundles/{name}/{version} 404 缺 Content-Type"
+    symptom: "A 无 body 404 仍镜像 GET 面 CT（application/json 无 charset），B 不发"
+    fix: "internal/httpapi/bundle.go handleBundleHead 404 臂补 Content-Type: application/json"
+    tests: bundle_wire_test.go p07 块扩 CT 断言
+divergent_cases:
+  - id: c42-store-bad-project
+    verdict: DIVERGENT
+    class: pending_ruling（候选 known-divergence 登记）
+    evidence: >-
+      同一请求（PUT /release/store?projectKey=l027qnope + {"signedJwsBundle":"garbage"}）A 端
+      非确定两形：p49 wire+round2 = 404 Access 联查消息；round4-6+复探 6 连发 = 500 JWS 解析
+      （臂序竞态/时效态）。B 确定性实现 p49 锚（404 联查消息逐字）。建议：B 维持 p49 形，
+      A 竞态登记 known-divergence（本票不改 B）。
+  - id: c53-permissions-any-family
+    verdict: DIVERGENT
+    class: pending_ruling（相邻域——安全/权限 REST 面，非 D08 六行）
+    evidence: >-
+      GET /api/security/permissions 的 Any 家族投影 A=['Any Remote','Anything'] B=[]。
+      D08-R06 本质断言（ANY DISTRIBUTION 非 REST 实体）双端一致成立：Any Distribution/
+      Any Local 单查双端 404、名单均无该行。残差是 B 缺 Any Remote/Anything 两个合成预置
+      目标的 REST 呈现——属权限目标族（spec §10.7 p61/p62 锚），建议路由安全域 owner 评估。
+  - id: c55-system-repo-delete
+    verdict: DIVERGENT
+    class: pending_ruling（相邻域——repositories 管理面，非 D08 六行）
+    evidence: >-
+      DELETE /api/repositories/{key} 响应信封：A JSON 报告体 {repoKey,statusMsg,
+      deletedArtifactsCount,success}（普通仓同形——l027q-delprobe 实证非 D08 特有）、
+      B text/plain "Repository … deleted successfully."。D08 特有部分（系统仓可 DELETE 清除）
+      已随 BUG-3 修复双端一致；信封形态建议路由仓库管理域 owner（repositories.go:834）。
+golden_candidates:
+  - "c01/c02/c03（空态三形态）、c04-c11（404 三消息族+HEAD）、c12（config 720）、c14-c21（v2 读族空态/泄露形态）、c24-c29（装配校验链+命中五行）、c31-c40（事务/STORE 错误臂族）——A 侧 200 响应 27 案，golden-capture 候选交 compatibility-engineer 评审"
+layer_index:
+  L1_REST: [c01-c54 全族]
+  L2_Repository: [c43, c55, c54]  # 系统仓副作用/删除/distribution rclass
+  L4_Auth: [c44-c52]              # R06 权限矩阵（非 admin 六臂+匿名三臂）
+cleanup:
+  b_side: "l027q-rbsrc/l027q-dist/l027q-d08-user 删净；release-bundles 系统仓随 c55+cleanup 删除（GET 后 400=不存在）；pro license 已 DELETE 恢复 community"
+  a_side: "l027q-rbsrc/l027q-dist/l027q-d08-user/l027q-delprobe 删净；release-bundles 系统仓删除复核（残留清单空）"
+commands:
+  - "python3 tools/difftest/l0271/d08_release_diff.py   # 批跑入口（幂等：先删后建夹具、尾清理）"
+  - "go test ./internal/httpapi/ -run 'Release|Bundle|V2Audit|BundleWire' -count=1   # ok"
+  - "go test ./internal/search/ ./internal/repo/ -count=1（新测试 -run TestParseErrorAnchorPreemptsLexerError / TestDeleteRepoReleaseBundlesSystemRow 先行通过；全包绿）"

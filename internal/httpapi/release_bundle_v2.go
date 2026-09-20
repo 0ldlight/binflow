@@ -165,7 +165,10 @@ func (s *Server) handleV2AuditPost(w http.ResponseWriter, r *http.Request) {
 
 // handleV2AuditMethodNotAllowed answers every non-POST verb on
 // /api/v2/audit (p22: GET → 405) — the family registers the path POST-only.
+// The Allow header rides along (L027-1 c22: the reference sends
+// `Allow: POST,OPTIONS` on the 405).
 func handleV2AuditMethodNotAllowed(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Allow", "POST,OPTIONS")
 	writeError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
 }
 

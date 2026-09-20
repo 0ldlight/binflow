@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Request is invalid. Missing AQL query"
+  } ]
+}

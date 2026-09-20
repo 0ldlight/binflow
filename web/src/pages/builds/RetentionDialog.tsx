@@ -1,3 +1,4 @@
+import { Input } from '@/components/ui/input'
 // Build retention 对话框（P3 解锁面——POST /api/build/retention/{name} 的
 // 控制台承载；契约 = internal/build RetentionRequest 四字段 + build-info.md
 // §2.5）。窗口 = count（保留最近 N 个）∨ minimumBuildDate（保留此时刻后）∨
@@ -112,7 +113,7 @@ export default function RetentionDialog({
           </div>
           <div className="field">
             <label htmlFor="br-date">{t('保留此时刻之后的 run（minimumBuildDate）')}</label>
-            <input
+            <Input
               id="br-date"
               type="datetime-local"
               value={f.minimumDate}

@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Release bundle tx/path not found"
+  } ]
+}

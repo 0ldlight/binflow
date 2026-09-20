@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // Webhook outbox 死信面（M17 T-496 FR-159.2 / LC-109——P3 FE 解锁）：
 // GET /api/v1/webhooks/outbox（管理面根，非事件面）——filter（subscription /
 // status 闭集 pending|delivering|delivered|dead / event_type）+ keyset 分页
@@ -16,7 +17,7 @@ import { Badge } from '@/components/ui/badge'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { Pager } from '@/components/layout/pager'
-import { TextInput, NativeSelect } from '@/components/layout/fields'
+import { TextInput, SelectField } from '@/components/layout/fields'
 import { useConfirm } from '@/app/providers'
 import { toast } from '@/lib/toast'
 import { ApiError, errText } from '@/lib/api'
@@ -152,7 +153,7 @@ export default function OutboxPanel({ readOnly }: { readOnly: boolean }) {
           aria-label={tt('按订阅 key 过滤')}
           data-testid="outbox-filter-subscription"
         />
-        <NativeSelect
+        <SelectField
           value={status}
           onChange={(e) => setStatus(e.target.value)}
           className="w-[150px]"
@@ -218,38 +219,38 @@ export default function OutboxPanel({ readOnly }: { readOnly: boolean }) {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-dense" data-testid="outbox-table">
-                <thead>
-                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('投递 ID')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('订阅')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('事件型')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('状态')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('尝试')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('最近错误 / 状态码')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('时间')}</th>
-                    <th scope="col" className="px-3 py-2 text-right font-medium">{tt('操作')}</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-dense" data-testid="outbox-table">
+                <TableHeader>
+                  <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('投递 ID')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('订阅')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('事件型')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('状态')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('尝试')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('最近错误 / 状态码')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('时间')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 text-right font-medium">{tt('操作')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {outbox.rows.map((row, i) => (
-                    <tr key={row.id} data-testid={`outbox-row-${i}`} className="border-b border-border/60 hover:bg-accent">
-                      <td className="px-3 py-1.5 font-mono" lang="en">
+                    <TableRow key={row.id} data-testid={`outbox-row-${i}`} className="border-b border-border/60 hover:bg-accent">
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">
                         {row.id} <CopyButton value={row.id} label={tt('投递 ID {v1}', { v1: row.id })} />
-                      </td>
-                      <td className="px-3 py-1.5 font-mono" lang="en">{row.subscription_key}</td>
-                      <td className="px-3 py-1.5 font-mono" lang="en">{row.event_type}</td>
-                      <td className="px-3 py-1.5">
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{row.subscription_key}</TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{row.event_type}</TableCell>
+                      <TableCell className="px-3 py-1.5">
                         <Badge variant={statusBadge(row.status)} mono lang="en">{row.status}</Badge>
-                      </td>
-                      <td className="px-3 py-1.5 font-mono" lang="en">{formatCount(row.attempts)}</td>
-                      <td className="max-w-[280px] break-all px-3 py-1.5 font-mono text-aux" title={row.last_error || undefined}>
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{formatCount(row.attempts)}</TableCell>
+                      <TableCell className="max-w-[280px] break-all px-3 py-1.5 font-mono text-aux" title={row.last_error || undefined}>
                         {row.last_error ? row.last_error : row.last_status_code !== null ? `HTTP ${row.last_status_code}` : <span className="text-muted-foreground">—</span>}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-1.5 font-mono text-aux" title={`${row.created_at}${row.delivered_at ? ` → ${row.delivered_at}` : ''}`}>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap px-3 py-1.5 font-mono text-aux" title={`${row.created_at}${row.delivered_at ? ` → ${row.delivered_at}` : ''}`}>
                         {fmtTime(row.created_at)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-1.5 text-right">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap px-3 py-1.5 text-right">
                         {row.status === 'dead' && (
                           <Button
                             variant="outline"
@@ -263,11 +264,11 @@ export default function OutboxPanel({ readOnly }: { readOnly: boolean }) {
                             {busyId === row.id ? tt('重放中…') : tt('重放')}
                           </Button>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
             <div data-testid="outbox-pager">
               <Pager

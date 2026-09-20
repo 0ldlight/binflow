@@ -1,3 +1,7 @@
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
@@ -133,15 +137,13 @@ function ToggleSwitch({
   'data-testid': string
 }) {
   return (
-    <input
-      type="checkbox"
-      role="switch"
+    <Switch
       checked={checked}
       disabled={disabled}
       aria-label={ariaLabel}
       data-testid={testid}
-      onChange={(e) => onCheckedChange(e.target.checked)}
-      className="size-4 accent-primary disabled:pointer-events-none disabled:opacity-50"
+      onCheckedChange={(next) => onCheckedChange(next === true)}
+      className="disabled:pointer-events-none disabled:opacity-50"
     />
   )
 }
@@ -153,12 +155,12 @@ function ReservedFields() {
     <div className="field" data-testid="repl-form-reserved">
       <p className="mb-2 text-dense text-muted-foreground">{tt('Artifactory 对齐字段（预留位——当前无效，不提交、不存储）')}</p>
       <label className="check-row">
-        <input type="checkbox" checked readOnly disabled data-testid="repl-form-event" className="size-4" />
+        <Checkbox checked disabled data-testid="repl-form-event" className="size-4" />
         {tt('事件复制（enableEventReplication）——BinFlow 引擎即事件驱动（上传即入队推送），语义恒真')}
       </label>
       <div className="field">
         <label htmlFor="repl-prefix">{tt('pathPrefix（路径前缀过滤）')}</label>
-        <input
+        <Input
           id="repl-prefix"
           disabled
           placeholder={tt('（预留位）')}
@@ -176,7 +178,7 @@ function ReservedFields() {
         ] as const
       ).map(([key, label]) => (
         <label key={key} className="check-row">
-          <input type="checkbox" disabled data-testid={`repl-form-${key}`} className="size-4" />
+          <Checkbox disabled data-testid={`repl-form-${key}`} className="size-4" />
           {tt('{label}——预留位：引擎尚不支持', { label: label })}
         </label>
       ))}
@@ -356,7 +358,7 @@ export default function ReplicationsSection({
         <p>{tt('将删除复制配置')} <b className="font-mono text-[0.95em]" lang="en">{c.name}</b>{tt('（')}<span className="font-mono text-[0.95em]" lang="en">{c.source_repo} → {c.target_url}/{c.target_repo}</span>{tt('）。 其')}<b>{tt('未决推送任务随之级联清空')}</b>{tt('，已推送制品不受影响；此操作没有撤销。')}</p>
         <div className="field" style={{ maxWidth: 'none', marginBottom: 0 }}>
           <label htmlFor={`repl-del-confirm-${c.name}`}>{tt('输入配置名')} <b className="font-mono text-[0.95em]" lang="en">{c.name}</b> {tt('以确认：')}</label>
-          <input
+          <Input
             id={`repl-del-confirm-${c.name}`}
             className="confirm-input"
             autoComplete="off"
@@ -438,24 +440,24 @@ export default function ReplicationsSection({
 
       {list.status === 'ok' && configs.length > 0 && (
         <>
-          <table data-testid="repl-list" className="w-full border-collapse text-dense">
-            <thead>
-              <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                <th scope="col" className="px-2 py-1.5 font-medium">{tt('启用')}</th>
-                <th scope="col" className="px-2 py-1.5 font-medium">{tt('名称')}</th>
-                <th scope="col" className="px-2 py-1.5 font-medium">{tt('目标（实例 / 仓）')}</th>
-                <th scope="col" className="px-2 py-1.5 font-medium">{tt('凭据')}</th>
-                <th scope="col" className="px-2 py-1.5 font-medium">{tt('调度')}</th>
-                <th scope="col" className="px-2 py-1.5 font-medium">{tt('节流 / 批量')}</th>
+          <Table data-testid="repl-list" className="w-full border-collapse text-dense">
+            <TableHeader>
+              <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                <TableHead scope="col" className="px-2 py-1.5 font-medium">{tt('启用')}</TableHead>
+                <TableHead scope="col" className="px-2 py-1.5 font-medium">{tt('名称')}</TableHead>
+                <TableHead scope="col" className="px-2 py-1.5 font-medium">{tt('目标（实例 / 仓）')}</TableHead>
+                <TableHead scope="col" className="px-2 py-1.5 font-medium">{tt('凭据')}</TableHead>
+                <TableHead scope="col" className="px-2 py-1.5 font-medium">{tt('调度')}</TableHead>
+                <TableHead scope="col" className="px-2 py-1.5 font-medium">{tt('节流 / 批量')}</TableHead>
                 {canWrite && (
-                  <th scope="col" className="px-2 py-1.5 text-right font-medium">{tt('操作')}</th>
+                  <TableHead scope="col" className="px-2 py-1.5 text-right font-medium">{tt('操作')}</TableHead>
                 )}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {configs.map((c) => (
-                <tr key={c.id} data-testid={`repl-row-${c.name}`} className="border-b border-border/60 align-top">
-                  <td className="px-2 py-1.5">
+                <TableRow key={c.id} data-testid={`repl-row-${c.name}`} className="border-b border-border/60 align-top">
+                  <TableCell className="px-2 py-1.5">
                     <ToggleSwitch
                       checked={c.enabled}
                       disabled={!canWrite || busyId === c.id}
@@ -463,16 +465,16 @@ export default function ReplicationsSection({
                       aria-label={tt('启用复制配置 {v1}', { v1: c.name })}
                       data-testid={`repl-toggle-${c.name}`}
                     />
-                  </td>
-                  <td className="px-2 py-1.5 font-mono" lang="en">
+                  </TableCell>
+                  <TableCell className="px-2 py-1.5 font-mono" lang="en">
                     {c.name}
-                  </td>
-                  <td className="max-w-[320px] break-all px-2 py-1.5 font-mono" lang="en">
+                  </TableCell>
+                  <TableCell className="max-w-[320px] break-all px-2 py-1.5 font-mono" lang="en">
                     {c.target_url} <CopyButton value={c.target_url} label={tt('目标 URL {v1}', { v1: c.name })} />
                     <br />→ {c.target_repo}
-                  </td>
-                  <td className="px-2 py-1.5">{c.target_username || <span className="text-muted-foreground">{tt('匿名')}</span>}</td>
-                  <td className="px-2 py-1.5" data-testid={`repl-row-sched-${c.name}`}>
+                  </TableCell>
+                  <TableCell className="px-2 py-1.5">{c.target_username || <span className="text-muted-foreground">{tt('匿名')}</span>}</TableCell>
+                  <TableCell className="px-2 py-1.5" data-testid={`repl-row-sched-${c.name}`}>
                     {c.cron_exp ? (
                       <>
                         <span className="font-mono" lang="en">{c.cron_exp}</span>
@@ -488,13 +490,13 @@ export default function ReplicationsSection({
                     ) : (
                       <span className="text-muted-foreground">{tt('事件驱动')}</span>
                     )}
-                  </td>
-                  <td className="px-2 py-1.5 font-mono" lang="en">
+                  </TableCell>
+                  <TableCell className="px-2 py-1.5 font-mono" lang="en">
                     {c.max_bandwidth_bytes_per_sec > 0 ? `${formatBytes(c.max_bandwidth_bytes_per_sec)}/s` : '—'} /{' '}
                     {formatCount(c.max_items_per_push)}
-                  </td>
+                  </TableCell>
                   {canWrite && (
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right">
+                    <TableCell className="whitespace-nowrap px-2 py-1.5 text-right">
                       <Button
                         variant="outline"
                         size="sm"
@@ -508,12 +510,12 @@ export default function ReplicationsSection({
                         data-testid={`repl-delete-${c.name}`}
                         aria-label={tt('删除复制配置 {v1}', { v1: c.name })}
                       >{tt('删除')}</Button>
-                    </td>
+                    </TableCell>
                   )}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           {canWrite && !editor && (
             <Button variant="outline" size="sm" onClick={startCreate} data-testid="repl-create" className="mt-3">{tt('＋ 新建复制配置')}</Button>
           )}
@@ -533,7 +535,7 @@ export default function ReplicationsSection({
           {!editor.base && (
             <div className="field">
               <label htmlFor="repl-name">{tt('配置名 *')}</label>
-              <input
+              <Input
                 id="repl-name"
                 value={f.name}
                 disabled={saving}
@@ -571,7 +573,7 @@ export default function ReplicationsSection({
 
           <div className="field">
             <label htmlFor="repl-url">{tt('目标实例 URL *')}</label>
-            <input
+            <Input
               id="repl-url"
               value={f.targetUrl}
               disabled={saving}
@@ -593,7 +595,7 @@ export default function ReplicationsSection({
 
           <div className="field">
             <label htmlFor="repl-target-repo">{tt('目标仓 key *')}</label>
-            <input
+            <Input
               id="repl-target-repo"
               value={f.targetRepo}
               disabled={saving}
@@ -608,7 +610,7 @@ export default function ReplicationsSection({
 
           <div className="field">
             <label htmlFor="repl-username">{tt('用户名（目标认证，可选）')}</label>
-            <input
+            <Input
               id="repl-username"
               value={f.username}
               disabled={saving}
@@ -619,7 +621,7 @@ export default function ReplicationsSection({
           </div>
           <div className="field">
             <label htmlFor="repl-password">{tt('密码（目标认证，可选）')}</label>
-            <input
+            <Input
               id="repl-password"
               type="password"
               autoComplete="new-password"
@@ -635,7 +637,7 @@ export default function ReplicationsSection({
 
           <div className="field">
             <label htmlFor="repl-bandwidth">{tt('带宽节流 max_bandwidth_bytes_per_sec（字节/秒）')}</label>
-            <input
+            <Input
               id="repl-bandwidth"
               value={f.bandwidth}
               disabled={saving}
@@ -651,7 +653,7 @@ export default function ReplicationsSection({
           </div>
           <div className="field">
             <label htmlFor="repl-items">{tt('单次批量上限 max_items_per_push')}</label>
-            <input
+            <Input
               id="repl-items"
               value={f.items}
               disabled={saving}
@@ -667,11 +669,10 @@ export default function ReplicationsSection({
           </div>
 
           <label className="check-row">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={f.enabled}
               disabled={saving}
-              onChange={(e) => setEditor({ ...editor, form: { ...f, enabled: e.target.checked } })}
+              onCheckedChange={(next) => setEditor({ ...editor, form: { ...f, enabled: next === true } })}
               data-testid="repl-form-enabled"
               className="size-4"
             />
@@ -684,7 +685,7 @@ export default function ReplicationsSection({
               校验（Invalid cronExp 点名原因行内呈现）。 */}
           <div className="field">
             <label htmlFor="repl-cron">{tt('cronExp（定时全量同步，可选——Quartz 六/七域）')}</label>
-            <input
+            <Input
               id="repl-cron"
               value={f.cron}
               disabled={saving}

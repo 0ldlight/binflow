@@ -1,3 +1,5 @@
+import { Button, ButtonAsChild } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table'
 // 组列表（console-m8 §6.10——P3 新栈重写）：Name〔描述副行〕│ 权限数〔+
 // manage 徽章〕│ 成员数 │ 操作（admin）。
 // - 三请求链式取数：组列表 + 成员扫描（E2 单请求双索引）+ 权限 target
@@ -13,7 +15,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/app/AuthContext'
-import { Button, ButtonAsChild } from '@/components/ui/button'
+
 import { Badge } from '@/components/ui/badge'
 import { AlertBox } from '@/components/layout/bits'
 import { CopyButton } from '@/components/layout/copy-button'
@@ -227,7 +229,7 @@ export default function GroupsPage() {
             const visible = cols.isVisible(c.id)
             const last = visible && cols.visibleCount === 1
             return (
-              <button
+              <Button
                 key={c.id}
                 type="button"
                 role="menuitemcheckbox"
@@ -242,11 +244,11 @@ export default function GroupsPage() {
               >
                 <span aria-hidden="true" className="inline-block w-[1.25em] text-primary">{visible ? '☑' : '☐'}</span>
                 {c.label}
-              </button>
+              </Button>
             )
           })}
           <div role="separator" className="my-1 border-t border-border" />
-          <button
+          <Button
             type="button"
 role="menuitem"
             aria-disabled={cols.visibleCount === pageColumns.length || undefined}
@@ -256,7 +258,7 @@ role="menuitem"
             onClick={() => cols.reset()}
           >
             {tt('全选列')}
-          </button>
+          </Button>
         </PopoverContent>
       </Popover>
         </span>
@@ -280,20 +282,20 @@ role="menuitem"
           )
         ) : (
           <>
-            <table className="w-full text-dense" data-testid="groups-table">
-              <thead>
-                <tr className="border-b border-border text-left text-aux text-muted-foreground">
+            <Table className="w-full text-dense" data-testid="groups-table">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
                   {cols.isVisible('name') && <SortTh label={tt('组名')} sortKey="name" sort={sort} onToggle={toggle} testid="groups-sort-name" />}
                   {cols.isVisible('perms') && <SortTh label={tt('权限数')} sortKey="perms" sort={sort} onToggle={toggle} />}
                   {cols.isVisible('members') && <SortTh label={tt('成员数')} sortKey="members" sort={sort} onToggle={toggle} />}
                   {admin && cols.isVisible('actions') && <Th label={tt('操作')} />}
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {pageRows.map((r) => (
-                  <tr key={r.group.name} data-testid={`group-row-${r.group.name}`} className="border-b border-border/60 hover:bg-accent">
+                  <TableRow key={r.group.name} data-testid={`group-row-${r.group.name}`} className="border-b border-border/60 hover:bg-accent">
                     {cols.isVisible('name') && (
-                      <td className="px-3 py-1.5">
+                      <TableCell className="px-3 py-1.5">
                         <div className="cell-stack">
                           <span>
                             <span className="font-mono" lang="en">{r.group.name}</span>{' '}
@@ -303,10 +305,10 @@ role="menuitem"
                             <span className="text-[11px] text-muted-foreground">{r.group.description}</span>
                           )}
                         </div>
-                      </td>
+                      </TableCell>
                     )}
                     {cols.isVisible('perms') && (
-                      <td className="px-3 py-1.5">
+                      <TableCell className="px-3 py-1.5">
                         {targets === null ? (
                           <span className="text-muted-foreground">—</span>
                         ) : (
@@ -325,10 +327,10 @@ role="menuitem"
                             )}
                           </span>
                         )}
-                      </td>
+                      </TableCell>
                     )}
                     {cols.isVisible('members') && (
-                      <td className="px-3 py-1.5">
+                      <TableCell className="px-3 py-1.5">
                         {r.memberCount === null ? (
                           <span className="text-muted-foreground">—</span>
                         ) : (
@@ -340,10 +342,10 @@ role="menuitem"
                             {r.memberCount}
                           </span>
                         )}
-                      </td>
+                      </TableCell>
                     )}
                     {admin && cols.isVisible('actions') && (
-                      <td className="whitespace-nowrap px-3 py-1.5">
+                      <TableCell className="whitespace-nowrap px-3 py-1.5">
                         <span className="inline-flex gap-2">
                           <Button
                             variant="outline"
@@ -364,12 +366,12 @@ role="menuitem"
                             {tt('删除')}
                           </Button>
                         </span>
-                      </td>
+                      </TableCell>
                     )}
-                  </tr>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             <div className="table-foot" data-testid="groups-count">
               <Pager
                 page={pager.page}

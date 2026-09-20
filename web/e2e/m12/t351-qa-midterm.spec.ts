@@ -1,3 +1,4 @@
+import { selectOptionValues } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
@@ -123,12 +124,12 @@ test.describe('T-351 QA real-stack trash legs (self-gating on license tier)', ()
     await page.goto(AUDIT_PAGE)
     await expect(page.locator('[data-testid="audit-page"]')).toBeVisible()
     await page.click('[data-testid="audit-filter-action"]')
-    // The 54-word mirror (T-352+353): a NATIVE select — the M12 additions
+    // The 54-word mirror (T-352+353): a shadcn Select — the M12 additions
     // must be selectable options.
-    const options = page.locator('[data-testid="audit-filter-action"] option')
-    await expect(options.filter({ hasText: 'trash.restore' })).toHaveCount(1)
-    await expect(options.filter({ hasText: 'cleanup.run' })).toHaveCount(1)
-    const count = await options.count()
+    const options = await selectOptionValues(page, '[data-testid="audit-filter-action"]')
+    expect(options).toContain('trash.restore')
+    expect(options).toContain('cleanup.run')
+    const count = options.length
     expect(count).toBeGreaterThanOrEqual(54)
   })
 })

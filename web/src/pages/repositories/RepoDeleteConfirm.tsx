@@ -1,3 +1,5 @@
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -47,17 +49,16 @@ export function useRepoDelete({ onDeleted }: { onDeleted?: (key: string) => void
         )}
         <p>{t('将永久删除仓库')} <b className="font-mono text-[0.95em]" lang="en">{repo.key}</b>{t('（')}{repo.rclass} / {repo.packageType}{t('） 及其全部制品。制品不可变，删除')}<b>{t('没有撤销')}</b>{t('。')}        </p>
         <label className="check-row">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={holder.deleteContent}
-            onChange={(e) => {
-              holder.deleteContent = e.target.checked
+            onCheckedChange={(next) => {
+              holder.deleteContent = next === true
             }}
             data-testid="repo-delete-content"
           />{t('同时删除内容（deleteContent）——非空仓必须勾选')}        </label>
         <div className="field" style={{ maxWidth: 'none', marginBottom: 0 }}>
           <label htmlFor={`del-confirm-${repo.key}`}>{t('输入仓库 key')} <b className="font-mono text-[0.95em]" lang="en">{repo.key}</b> {t('以确认：')}          </label>
-          <input
+          <Input
             id={`del-confirm-${repo.key}`}
             className="confirm-input"
             autoComplete="off"

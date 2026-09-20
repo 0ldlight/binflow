@@ -1,0 +1,13 @@
+[ {
+  "key" : "example-repo-local",
+  "description" : "Example artifactory repository",
+  "type" : "LOCAL",
+  "url" : "http://172.16.58.130:8082/artifactory/example-repo-local",
+  "packageType" : "Generic"
+}, {
+  "key" : "l027q-rbsrc",
+  "description" : "",
+  "type" : "LOCAL",
+  "url" : "http://172.16.58.130:8082/artifactory/l027q-rbsrc",
+  "packageType" : "Generic"
+} ]

@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 存储概要（console-m8 §6.18 / FR-73——P3 新栈重写）：
 // - 刷新行（「数据最近刷新于 <ts>」+ [刷新]）+ 汇总卡行 + 仓库表（TOTAL
 //   首行）——reverse §3.11 骨架三件套。
@@ -195,46 +196,46 @@ export default function StorageSummaryPage() {
             />
           ) : (
             measured.length > 0 && (
-              <table className="w-full text-dense" data-testid="storage-table">
-                <thead>
-                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('仓库')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('仓型')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('包类型')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('占比')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('制品大小')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('配额')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="storage-total border-b border-border font-medium hover:bg-accent" data-testid="storage-total-row">
-                    <td className="px-3 py-1.5"><b>TOTAL</b></td>
-                    <td className="px-3 py-1.5"><span className="text-muted-foreground">—</span></td>
-                    <td className="px-3 py-1.5"><span className="text-muted-foreground">—</span></td>
-                    <td className="px-3 py-1.5 font-mono" lang="en">100%</td>
-                    <td className="px-3 py-1.5 font-mono" lang="en">{formatBytes(totalUsed)}</td>
-                    <td className="px-3 py-1.5 font-mono" lang="en">{quotaSum > 0 ? formatBytes(quotaSum) : '—'}</td>
-                  </tr>
+              <Table className="w-full text-dense" data-testid="storage-table">
+                <TableHeader>
+                  <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('仓库')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('仓型')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('包类型')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('占比')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('制品大小')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('配额')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow className="storage-total border-b border-border font-medium hover:bg-accent" data-testid="storage-total-row">
+                    <TableCell className="px-3 py-1.5"><b>TOTAL</b></TableCell>
+                    <TableCell className="px-3 py-1.5"><span className="text-muted-foreground">—</span></TableCell>
+                    <TableCell className="px-3 py-1.5"><span className="text-muted-foreground">—</span></TableCell>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">100%</TableCell>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{formatBytes(totalUsed)}</TableCell>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{quotaSum > 0 ? formatBytes(quotaSum) : '—'}</TableCell>
+                  </TableRow>
                   {list.map((r) => {
                     const u = usage.map[r.key]
                     const virtual = r.type === 'virtual'
                     const pct = !virtual && u && totalUsed > 0 ? (u.usedBytes / totalUsed) * 100 : null
                     return (
-                      <tr key={r.key} data-testid={`storage-row-${r.key}`} className="border-b border-border/60 hover:bg-accent">
-                        <td className="px-3 py-1.5">
+                      <TableRow key={r.key} data-testid={`storage-row-${r.key}`} className="border-b border-border/60 hover:bg-accent">
+                        <TableCell className="px-3 py-1.5">
                           <Link className="row-link font-mono text-primary hover:underline" to={repoLink(r.key)} lang="en">
                             {r.key}
                           </Link>{' '}
                           <CopyButton value={r.key} label={tt('仓库 key {v1}', { v1: r.key })} />
-                        </td>
-                        <td className="px-3 py-1.5">
+                        </TableCell>
+                        <TableCell className="px-3 py-1.5">
                           <Badge variant="tint-neutral" mono lang="en">{r.type}</Badge>
-                        </td>
-                        <td className="px-3 py-1.5" lang="en">{r.packageType}</td>
-                        <td className="px-3 py-1.5 font-mono" lang="en">
+                        </TableCell>
+                        <TableCell className="px-3 py-1.5" lang="en">{r.packageType}</TableCell>
+                        <TableCell className="px-3 py-1.5 font-mono" lang="en">
                           {pct !== null ? `${pct.toFixed(0)}%` : <span className="text-muted-foreground">—</span>}
-                        </td>
-                        <td className="px-3 py-1.5 font-mono" lang="en">
+                        </TableCell>
+                        <TableCell className="px-3 py-1.5 font-mono" lang="en">
                           {virtual ? (
                             <span className="text-muted-foreground" title={tt('聚合视图，无自身内容')}>—</span>
                           ) : u ? (
@@ -247,8 +248,8 @@ export default function StorageSummaryPage() {
                               —
                             </span>
                           )}
-                        </td>
-                        <td className="px-3 py-1.5 font-mono" lang="en">
+                        </TableCell>
+                        <TableCell className="px-3 py-1.5 font-mono" lang="en">
                           {virtual ? (
                             <span className="text-muted-foreground">—</span>
                           ) : u ? (
@@ -256,12 +257,12 @@ export default function StorageSummaryPage() {
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             )
           )}
 

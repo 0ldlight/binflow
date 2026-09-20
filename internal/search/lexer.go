@@ -56,13 +56,19 @@ type lexer struct {
 
 // lexAll tokenizes the whole query up front. AQL queries are capped at
 // MaxQueryLen chars, so the token slice is bounded by construction.
+//
+// On a lexer error the tokens lexed SO FAR are returned alongside the error
+// (never nil): newParser re-parses that partial prefix so a grammar failure
+// earlier in the text can preempt the lexer failure — the streaming-reference
+// anchor Artifactory reports (L027-1 wire c27: `items.find(bogus-syntax(`
+// anchors at `bogus`, not at the `-` the lexer chokes on).
 func lexAll(query string) ([]token, *QueryError) {
 	lx := &lexer{query: query}
 	var toks []token
 	for {
 		t, err := lx.next()
 		if err != nil {
-			return nil, err
+			return toks, err
 		}
 		toks = append(toks, t)
 		if t.kind == tkEOF {

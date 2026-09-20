@@ -31,13 +31,13 @@ sources.list 形态（官方）：`deb [选项] <archive-root> <distribution> <c
       binary-<arch>/
         Packages                            ← 未压缩索引（恒生成）
         Packages.gz                         ← 恒生成
-        Packages.bz2                        ← 可选格式（默认开）
+        Packages.bz2                        ← 可选格式（配置键控制；读面默认 []，见下条勘误）
         by-hash/MD5Sum|SHA1|SHA256/<digest> ← By-Hash 历史地址（§5）
       source/
         Sources（.gz/.bz2/.xz/.lzma 同机制）
 ```
 
-- 压缩格式：未压缩 + `.gz` 恒生成；可选集合 `optionalIndexCompressionFormats` 默认 `["bz2"]`，可选 `xz`/`lzma`。此条补充公开规范（官方只说"可多格式"，未定默认集）。高（代码 + 官方）。
+- 压缩格式：未压缩 + `.gz` 恒生成；可选集合 `optionalIndexCompressionFormats`，**配置读面新仓默认 `[]`**。**勘误（L026-5 定谳 + L027-3 复测，2026-09-17）**：当客户端在 A（pro 7.161.15）新建 debian local 仓后 GET 其配置读面（`/api/repositories/<key>` v1/v2 与 configurations 面），服务端返回 `optionalIndexCompressionFormats: []`（空 JSON 数组）——按证据优先级（Runtime > 反编译）定谳，原反编译单源所记默认 `["bz2"]` 废弃；该键为 deb 包型条件键（generic 面不出），设值（如 `["bz2"]`）可存可回显、键数不变。**索引引擎对默认配置仓是否仍发 `Packages.bz2` 未实测**——Runtime 无证据，不猜；此臂待 pro 档差分腿（含 apt 实取目录）定谳。可选 `xz`/`lzma` 可配可渲染。此条补充公开规范（官方只说"可多格式"，未定默认集）。置信度：读面默认 高（活体双轮）；引擎发文件臂 未定。
 - 坐标三要素 `<dist>/<component>/<arch>` 不来自路径，来自**制品属性**（§3），索引位置由属性推导（`dists/<dist>/<comp>/binary-<arch>/`）。
 - Contents/Translation/diff 索引：官方可选，**BinFlow 不做**（§10）。
 
@@ -215,7 +215,7 @@ password pass
 | S1 | debPUT：矩阵参数坐标 + 增量自动索引（官方无上传协议定义） | 反编译 | 高 |
 | S2 | 坐标属性体系 deb.*/dsc.*（多值登记）与属性变更触发重算 | 反编译 | 高 |
 | S3 | By-Hash 三档策略（ALL/SHA256/NONE）与 Release 校验节联动裁剪 | 反编译 | 高 |
-| S4 | 索引压缩默认集（plain+.gz 恒定，bz2 默认可选，xz/lzma 可配） | 反编译 | 高 |
+| S4 | 索引压缩默认集（plain+.gz 恒定；可选集合可配 xz/lzma；**配置读面默认 []（L026-5 勘误，原反编译记 bz2 默认开已废弃——引擎对默认配置仓是否仍发 .bz2 未实测**） | 反编译 + Runtime（读面臂） | 读面 高 / 引擎臂 未定 |
 | S5 | Release 生成序（Origin/Label 来源、Suite=Codename=dist、Date 格式、Architecture 单复数） | 反编译 + 官方字段义 | 高 |
 | S6 | 签名链（detached + clearsign 双产物、无密钥删旧签名、X-GPG-PASSPHRASE） | 反编译 + 官方验签义 | 高 |
 | S7 | trivial 布局（仓根索引 + flat repo） | 反编译 + 官方 Flat 章 | 中 |

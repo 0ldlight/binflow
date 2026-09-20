@@ -49,9 +49,9 @@ const ADMIN_ENTRIES: [string, string][] = [
 ]
 
 /** 全可见条目（plain 用户同集——nav-model visibility:'all'） */
-const ALL_ENTRIES = ['仪表盘', '制品', '搜索', 'Builds', 'Release Bundles'] as const
+const ALL_ENTRIES = ['仪表盘', 'Packages', '制品', '搜索', 'Builds', 'Release Bundles'] as const
 
-test('admin: four-group sidebar (25 entries) all reachable, keyboard-driven', async ({ page }) => {
+test('admin: four-group sidebar (26 entries) all reachable, keyboard-driven', async ({ page }) => {
   await seedRepos(m8Client(), [{ key: REPO }])
   await page.goto('/binflow/ui/')
   await page.fill('[data-testid="login-username"]', roleFixturesFromEnv().admin.name)
@@ -66,10 +66,10 @@ test('admin: four-group sidebar (25 entries) all reachable, keyboard-driven', as
   for (const g of GROUPS) {
     await expect(nav.locator('.nav-group-label', { hasText: g })).toBeVisible()
   }
-  // 25 条目（核心 4 + 运营 5 + 安全 7 + 管理 9——nav-model 全表）
-  await expect(nav.locator('a.nav-item')).toHaveCount(25)
+  // 26 条目（核心 5 + 运营 5 + 安全 7 + 管理 9——nav-model 全表）
+  await expect(nav.locator('a.nav-item')).toHaveCount(26)
   // 一级条目图标（T-388 N2/V5 承接）：25/25 在场；分组标签不配（档位不变）
-  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(25)
+  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(26)
   await expect(nav.locator('.nav-group-label [data-testid="nav-icon"]')).toHaveCount(0)
 
   // 键盘驱动首条目：focus 仪表盘 → Enter 落 /dashboard
@@ -117,9 +117,9 @@ test('plain user: only all-visible entries; /admin/** deep link keeps shell + L2
 }) => {
   await loginAs(page, 'user')
 
-  // 全可见条目 5 项（核心 3 + 运营 2）；管理/安全分组整组不渲染（L1）
+  // 全可见条目 6 项（核心 4 + 运营 2）；管理/安全分组整组不渲染（L1）
   const nav = page.locator('[data-testid="app-nav"]')
-  await expect(nav.locator('a.nav-item')).toHaveCount(5)
+  await expect(nav.locator('a.nav-item')).toHaveCount(6)
   for (const label of ALL_ENTRIES) {
     await expect(nav.locator(`a.nav-item:text-is("${label}")`)).toBeVisible()
   }

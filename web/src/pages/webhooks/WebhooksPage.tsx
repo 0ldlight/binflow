@@ -1,3 +1,6 @@
+import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // Webhook 订阅管理页（M13 T-366——P3 新栈重写 + outbox 死信面解锁）。
 // 两 Tab：
 // - 订阅：GET /event/api/v1/subscriptions（读门 system:read——readonly 可
@@ -18,7 +21,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { useAuth } from '@/app/AuthContext'
-import { Button } from '@/components/ui/button'
+
 import { Badge } from '@/components/ui/badge'
 import { AlertBox } from '@/components/layout/bits'
 import { CopyButton } from '@/components/layout/copy-button'
@@ -188,24 +191,26 @@ export default function WebhooksPage() {
 
       {/* Tab 条（订阅 / 死信 outbox——P3 解锁面） */}
       <div className="mb-3 flex gap-1 border-b border-border">
-        <button
+        <Button
           type="button"
+          variant="ghost"
           data-testid="wh-tab-subs"
           aria-current={tab === 'subs' ? 'page' : undefined}
           onClick={() => setTab('subs')}
           className={`-mb-px rounded-t-sm border-b-2 px-3 py-1.5 text-dense ${tab === 'subs' ? 'border-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
         >
           {tt('订阅')}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="ghost"
           data-testid="wh-tab-outbox"
           aria-current={tab === 'outbox' ? 'page' : undefined}
           onClick={() => setTab('outbox')}
           className={`-mb-px rounded-t-sm border-b-2 px-3 py-1.5 text-dense ${tab === 'outbox' ? 'border-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
         >
           {tt('投递（Outbox / 死信）')}
-        </button>
+        </Button>
       </div>
 
       {tab === 'outbox' ? (
@@ -284,32 +289,30 @@ export default function WebhooksPage() {
           )}
           {phase.kind === 'ok' && subs.length > 0 && (
             <div className="overflow-x-auto rounded-md border border-border">
-              <table className="w-full text-dense" data-testid="wh-table">
-                <thead>
-                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('启用')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">key</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('事件域 / 类型')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{tt('接收器 URL')}</th>
-                    <th scope="col" className="px-3 py-2 text-right font-medium">{tt('操作')}</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-dense" data-testid="wh-table">
+                <TableHeader>
+                  <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('启用')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">key</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('事件域 / 类型')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{tt('接收器 URL')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 text-right font-medium">{tt('操作')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {subs.map((sub) => (
-                    <tr key={sub.key} data-testid={`wh-row-${sub.key}`} className="border-b border-border/60 hover:bg-accent">
-                      <td className="px-3 py-1.5">
-                        <input
-                          type="checkbox"
-                          role="switch"
+                    <TableRow key={sub.key} data-testid={`wh-row-${sub.key}`} className="border-b border-border/60 hover:bg-accent">
+                      <TableCell className="px-3 py-1.5">
+                        <Switch
                           checked={sub.enabled}
                           disabled={readOnly || busyKey === sub.key}
-                          onChange={(e) => void doToggle(sub, e.target.checked)}
+                          onCheckedChange={(next) => void doToggle(sub, next === true)}
                           aria-label={tt('启用订阅 {v1}', { v1: sub.key })}
                           data-testid={`wh-toggle-${sub.key}`}
                         />
-                      </td>
-                      <td className="px-3 py-1.5 font-mono" lang="en">{sub.key}</td>
-                      <td className="px-3 py-1.5">
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{sub.key}</TableCell>
+                      <TableCell className="px-3 py-1.5">
                         <span className="flex max-w-[320px] flex-wrap items-center gap-1">
                           <Badge variant="tint-neutral" lang="en">{sub.event_filter.domain}</Badge>
                           {sub.event_filter.event_types.slice(0, 3).map((t) => (
@@ -325,13 +328,13 @@ export default function WebhooksPage() {
                             <span className="text-aux text-muted-foreground">+{sub.event_filter.event_types.length - 3}</span>
                           )}
                         </span>
-                      </td>
-                      <td className="max-w-[280px] break-all px-3 py-1.5 font-mono" lang="en">
+                      </TableCell>
+                      <TableCell className="max-w-[280px] break-all px-3 py-1.5 font-mono" lang="en">
                         {sub.handlers[0]?.url ?? '—'}{' '}
                         {sub.handlers[0]?.url && <CopyButton value={sub.handlers[0].url} label={tt('接收器 URL {v1}', { v1: sub.key })} />}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-1.5 text-right">
-                        <button
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap px-3 py-1.5 text-right">
+                        <Button
                           type="button"
                           className="grid size-7 place-items-center rounded-sm hover:bg-accent disabled:opacity-40"
                           title={tt('订阅详情 + 最近投递记录')}
@@ -340,8 +343,8 @@ export default function WebhooksPage() {
                           data-testid={`wh-open-${sub.key}`}
                         >
                           ☰
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
                           className="grid size-7 place-items-center rounded-sm hover:bg-accent disabled:opacity-40"
                           title={tt('试发（test——同步单发，不入箱）')}
@@ -351,8 +354,8 @@ export default function WebhooksPage() {
                           data-testid={`wh-test-${sub.key}`}
                         >
                           ➤
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
                           className="grid size-7 place-items-center rounded-sm hover:bg-accent disabled:opacity-40"
                           title={tt('编辑')}
@@ -365,8 +368,8 @@ export default function WebhooksPage() {
                           data-testid={`wh-edit-${sub.key}`}
                         >
                           ✎
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
                           className="grid size-7 place-items-center rounded-sm text-destructive hover:bg-accent disabled:opacity-40"
                           title={tt('删除（级联投递行）')}
@@ -376,12 +379,12 @@ export default function WebhooksPage() {
                           data-testid={`wh-delete-${sub.key}`}
                         >
                           ✕
-                        </button>
-                      </td>
-                    </tr>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
           {phase.kind === 'ok' && (

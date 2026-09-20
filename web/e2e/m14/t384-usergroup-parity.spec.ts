@@ -1,3 +1,4 @@
+import { expectSelectValue } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
 
@@ -108,7 +109,7 @@ test('admin: user create chain — routed full-page form → Save lands the user
   await expect(page.locator('[data-testid="user-form-section-groups"]')).toBeVisible()
   await expect(page.locator('[data-testid="user-form-section-settings"] [data-testid="user-form-name"]')).toBeVisible()
   await expect(page.locator('[data-testid="user-form-section-settings"] [data-testid="user-form-email"]')).toBeVisible()
-  await expect(page.locator('[data-testid="user-form-section-settings"] [data-testid="user-form-role"]')).toHaveValue('user')
+  await expectSelectValue(page, '[data-testid="user-form-section-settings"] [data-testid="user-form-role"]', 'user')
   await expect(page.locator('[data-testid="user-form-section-options"] [data-testid="user-form-enabled"]')).toBeChecked()
   await expect(page.locator('[data-testid="user-form-section-password"] [data-testid="user-form-password"]')).toBeVisible()
   // Retype（T-453：7.161 创建表单实测在场——T-384 期缺位定案翻案）

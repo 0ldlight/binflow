@@ -16,12 +16,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { SelectField } from '@/components/layout/fields'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useConfirm } from '@/app/providers'
 import { toast } from '@/lib/toast'
-import { ApiError, errText } from '@/lib/api'
-import { getRepositories } from '@/lib/api'
+import { ApiError, errText, getRepositories } from '@/lib/api'
+
 import { copyOrMove } from '@/features/artifacts/operations'
 import type { CopyMoveMessage } from '@/features/artifacts/operations'
 import type { ChildNode } from '@/pages/artifacts/lib'
@@ -127,20 +128,21 @@ export function CopyMoveDialog({
         <div className="flex flex-col gap-3">
           <div className="field">
             <Label htmlFor="cm-target-repo">{tt('目标仓库')} *</Label>
-            <select
+            <SelectField
               id="cm-target-repo"
               value={targetRepo}
               onChange={(e) => setTargetRepo(e.target.value)}
               data-testid="copy-move-target-repo"
               className="h-8 w-full rounded-sm border border-input bg-surface-1 px-2 text-dense"
-            >
-              <option value="">{tt('选择目标仓库…')}</option>
-              {candidates.map((r) => (
-                <option key={r.key} value={r.key} lang="en">
-                  {r.key} · {r.packageType}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: '', label: tt('选择目标仓库…') },
+                ...candidates.map((r) => ({
+                  value: r.key,
+                  label: <>{r.key} · {r.packageType}</>,
+                  itemProps: { lang: 'en' },
+                })),
+              ]}
+            />
             <p className="field-hint text-aux text-muted-foreground">{tt('目标必须是 local 仓（可写）；remote/virtual 不是合法目标。')}</p>
           </div>
           <div className="field">

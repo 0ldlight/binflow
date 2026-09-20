@@ -1,3 +1,4 @@
+import { selectShadcn } from './support/shadcn'
 import { expect, test } from '@playwright/test'
 
 // T-102 探针：治理组三页全链——审计（过滤 + keyset 分页 + REST 对账）、
@@ -155,7 +156,7 @@ test('audit: filters, keyset page-window pager, path client-filter, REST parity'
     await route.continue()
   })
   await page.click('[data-testid="pager-next"]') // 第 2 页在飞（挂起，未出浏览器）
-  await page.selectOption('[data-testid="audit-filter-action"]', 'deploy') // 350ms 防抖后首页重拉
+  await selectShadcn(page, '[data-testid="audit-filter-action"]', 'deploy') // 350ms 防抖后首页重拉
   await page.waitForTimeout(700) // 新过滤首页（100 行 deploy）已落地
   expect(releaseP2).toBeTruthy()
   // TS CFA 不追踪路由闭包内的赋值（原收窄为 null → TS2349）：
@@ -183,7 +184,7 @@ test('audit: filters, keyset page-window pager, path client-filter, REST parity'
   await expect(page.locator('[data-testid="pager-first"]')).toBeEnabled()
 
   // 回全量（repo-only）并核对 keyset 末页终止：106 条 → 第 2 页 6 行
-  await page.selectOption('[data-testid="audit-filter-action"]', '')
+  await selectShadcn(page, '[data-testid="audit-filter-action"]', '')
   await page.waitForTimeout(700)
   await expect(page.locator('[data-testid="audit-table"] tbody tr')).toHaveCount(100, {
     timeout: 10_000,
@@ -205,13 +206,13 @@ test('audit: filters, keyset page-window pager, path client-filter, REST parity'
   await expect(page.locator('[data-testid="audit-count"]')).toContainText('本页 100 条')
 
   // 每页行数：换档 20 → 回第 1 页、窗口 20 行、range 行同步
-  await page.selectOption('[data-testid="pager-size"]', '20')
+  await selectShadcn(page, '[data-testid="pager-size"]', '20')
   await expect(page.locator('[data-testid="audit-table"] tbody tr')).toHaveCount(20, {
     timeout: 10_000,
   })
   await expect(page.locator('[data-testid="pager-range"]')).toContainText('显示 1 – 20（末页未知）')
   await expect(page.locator('[data-testid="audit-count"]')).toContainText('本页 20 条')
-  await page.selectOption('[data-testid="pager-size"]', '100') // 复位档位供后续腿
+  await selectShadcn(page, '[data-testid="pager-size"]', '100') // 复位档位供后续腿
 
   // path 过滤：仅本页窗口（客户端子串，§6.3 兜底——T-451 起窗口化）
   await page.fill('[data-testid="audit-filter-path"]', 'file-1')

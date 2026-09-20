@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Badge } from '@/components/ui/badge'
 import { AlertBox } from '@/components/layout/bits'
 import { CopyButton } from '@/components/layout/copy-button'
-import { TextInput, NativeSelect } from '@/components/layout/fields'
+import { TextInput, SelectField } from '@/components/layout/fields'
 import { toast } from '@/lib/toast'
 import { ApiError, apiJSON, apiText, canAdminWrite, errText } from '@/lib/api'
 import { tr } from '@/i18n'
@@ -346,7 +346,7 @@ function GenerateTokenDialog({
             <div className="flex flex-col gap-4">
               <div className="field">
                 <label htmlFor="pt-ttl">{t('有效期')}</label>
-                <NativeSelect
+                <SelectField
                   id="pt-ttl"
                   value={String(ttl)}
                   onChange={(e) => setTtl(Number(e.target.value))}

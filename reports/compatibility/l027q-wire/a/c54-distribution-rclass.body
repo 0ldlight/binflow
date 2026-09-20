@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Unsupported repository type 'distribution' or media type 'application/json'"
+  } ]
+}

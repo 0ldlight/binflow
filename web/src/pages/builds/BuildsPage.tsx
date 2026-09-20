@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // Builds 页（T-512 / FR-152.3——P3 新栈重写 + promote/retention 写面解锁
 // （capability matrix 未列域 builds 行：「promote/retention 写面——API 在，
 // 旧 FE 明文无 UI」））：
@@ -119,29 +120,29 @@ function BuildNamesView() {
       )}
       {names.status === 'ok' && (names.data?.builds.length ?? 0) > 0 && (
         <section className="card section" data-testid="builds-table">
-          <table className="w-full text-dense">
-            <thead>
-              <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-medium">{t('构建名')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{t('最新启动')}</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-dense">
+            <TableHeader>
+              <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('构建名')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('最新启动')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {(names.data?.builds ?? []).map((b) => {
                 const name = b.uri.replace(/^\//, '')
                 return (
-                  <tr key={`${name}|${b.lastStarted}`} className="border-b border-border/60 hover:bg-accent" data-testid={`builds-row-${name}`}>
-                    <td className="px-3 py-1.5">
+                  <TableRow key={`${name}|${b.lastStarted}`} className="border-b border-border/60 hover:bg-accent" data-testid={`builds-row-${name}`}>
+                    <TableCell className="px-3 py-1.5">
                       <Link className="row-link font-mono text-primary hover:underline" lang="en" to={`/builds/${encodeURIComponent(name)}`}>
                         {name}
                       </Link>
-                    </td>
-                    <td className="px-3 py-1.5 font-mono" lang="en">{fmtStarted(b.lastStarted)}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{fmtStarted(b.lastStarted)}</TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </section>
       )}
     </div>
@@ -182,19 +183,19 @@ function BuildNumbersView({ name }: { name: string }) {
       {notFound && <BuildNotFound name={name} />}
       {numbers.status === 'ok' && (
         <section className="card section" data-testid="build-runs-table">
-          <table className="w-full text-dense">
-            <thead>
-              <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-medium">{t('run 号')}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{t('启动时间')}</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-dense">
+            <TableHeader>
+              <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('run 号')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('启动时间')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {(numbers.data?.buildsNumbers ?? []).map((n) => {
                 const number = n.uri.replace(/^\//, '')
                 return (
-                  <tr key={`${number}|${n.started}`} className="border-b border-border/60 hover:bg-accent" data-testid={`build-run-row-${number}`}>
-                    <td className="px-3 py-1.5">
+                  <TableRow key={`${number}|${n.started}`} className="border-b border-border/60 hover:bg-accent" data-testid={`build-run-row-${number}`}>
+                    <TableCell className="px-3 py-1.5">
                       <Link
                         className="row-link font-mono text-primary hover:underline"
                         lang="en"
@@ -202,13 +203,13 @@ function BuildNumbersView({ name }: { name: string }) {
                       >
                         {number}
                       </Link>
-                    </td>
-                    <td className="px-3 py-1.5 font-mono" lang="en">{fmtStarted(n.started)}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{fmtStarted(n.started)}</TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </section>
       )}
       {retentionOpen && (
@@ -226,36 +227,36 @@ function BuildStatuses({ statuses }: { statuses: BuildInfo['statuses'] }) {
   return (
     <section className="card section" data-testid="build-statuses">
       <h3 className="mb-2 text-dense font-semibold">{t('promotion 历史（{v1} 条）', { v1: statuses.length })}</h3>
-      <table className="w-full text-dense">
-        <thead>
-          <tr className="border-b border-border text-left text-aux text-muted-foreground">
-            <th scope="col" className="px-3 py-2 font-medium">{t('状态')}</th>
-            <th scope="col" className="px-3 py-2 font-medium">{t('时间')}</th>
-            <th scope="col" className="px-3 py-2 font-medium">{t('目标仓')}</th>
-            <th scope="col" className="px-3 py-2 font-medium">comment</th>
-            <th scope="col" className="px-3 py-2 font-medium">ciUser</th>
-            <th scope="col" className="px-3 py-2 font-medium">user</th>
-          </tr>
-        </thead>
-        <tbody>
+      <Table className="w-full text-dense">
+        <TableHeader>
+          <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+            <TableHead scope="col" className="px-3 py-2 font-medium">{t('状态')}</TableHead>
+            <TableHead scope="col" className="px-3 py-2 font-medium">{t('时间')}</TableHead>
+            <TableHead scope="col" className="px-3 py-2 font-medium">{t('目标仓')}</TableHead>
+            <TableHead scope="col" className="px-3 py-2 font-medium">comment</TableHead>
+            <TableHead scope="col" className="px-3 py-2 font-medium">ciUser</TableHead>
+            <TableHead scope="col" className="px-3 py-2 font-medium">user</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {statuses.map((s, i) => (
-            <tr key={`${s.timestamp}|${i}`} className="border-b border-border/60 hover:bg-accent" data-testid={`build-status-row-${i}`}>
-              <td className="px-3 py-1.5">
+            <TableRow key={`${s.timestamp}|${i}`} className="border-b border-border/60 hover:bg-accent" data-testid={`build-status-row-${i}`}>
+              <TableCell className="px-3 py-1.5">
                 {i === 0 ? (
                   <Badge variant="tint-neutral" mono data-testid="build-status-current">{s.status}</Badge>
                 ) : (
                   <span className="font-mono" lang="en">{s.status}</span>
                 )}
-              </td>
-              <td className="px-3 py-1.5 font-mono" lang="en">{fmtStarted(s.timestamp)}</td>
-              <td className="px-3 py-1.5 font-mono" lang="en">{s.repository || '—'}</td>
-              <td className="px-3 py-1.5">{s.comment || '—'}</td>
-              <td className="px-3 py-1.5 font-mono" lang="en">{s.ciUser || '—'}</td>
-              <td className="px-3 py-1.5 font-mono" lang="en">{s.user || '—'}</td>
-            </tr>
+              </TableCell>
+              <TableCell className="px-3 py-1.5 font-mono" lang="en">{fmtStarted(s.timestamp)}</TableCell>
+              <TableCell className="px-3 py-1.5 font-mono" lang="en">{s.repository || '—'}</TableCell>
+              <TableCell className="px-3 py-1.5">{s.comment || '—'}</TableCell>
+              <TableCell className="px-3 py-1.5 font-mono" lang="en">{s.ciUser || '—'}</TableCell>
+              <TableCell className="px-3 py-1.5 font-mono" lang="en">{s.user || '—'}</TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </section>
   )
 }
@@ -279,34 +280,34 @@ function BuildTimeline({ name, number, started }: { name: string; number: string
         <p className="text-muted-foreground">{t('本 run 无 audit 事件行（retention 是名级窗口事件，不归属单个 run）。')}</p>
       )}
       {events.status === 'ok' && rows.length > 0 && (
-        <table className="w-full text-dense">
-          <thead>
-            <tr className="border-b border-border text-left text-aux text-muted-foreground">
-              <th scope="col" className="px-3 py-2 font-medium">{t('动作')}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{t('时间')}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{t('操作者')}</th>
-              <th scope="col" className="px-3 py-2 font-medium">detail</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table className="w-full text-dense">
+          <TableHeader>
+            <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+              <TableHead scope="col" className="px-3 py-2 font-medium">{t('动作')}</TableHead>
+              <TableHead scope="col" className="px-3 py-2 font-medium">{t('时间')}</TableHead>
+              <TableHead scope="col" className="px-3 py-2 font-medium">{t('操作者')}</TableHead>
+              <TableHead scope="col" className="px-3 py-2 font-medium">detail</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((e, i) => (
-              <tr key={e.id} className="border-b border-border/60 hover:bg-accent" data-testid={`build-timeline-row-${i}`}>
-                <td className="px-3 py-1.5">
+              <TableRow key={e.id} className="border-b border-border/60 hover:bg-accent" data-testid={`build-timeline-row-${i}`}>
+                <TableCell className="px-3 py-1.5">
                   <span className="font-mono" lang="en" title={ACTION_LABEL[e.action] ?? ''}>{e.action}</span>
-                </td>
-                <td className="px-3 py-1.5 font-mono" lang="en">{fmtAuditTime(e.time)}</td>
-                <td className="px-3 py-1.5 font-mono" lang="en">{e.actor}</td>
-                <td className="px-3 py-1.5">
+                </TableCell>
+                <TableCell className="px-3 py-1.5 font-mono" lang="en">{fmtAuditTime(e.time)}</TableCell>
+                <TableCell className="px-3 py-1.5 font-mono" lang="en">{e.actor}</TableCell>
+                <TableCell className="px-3 py-1.5">
                   <span className="break-all font-mono text-aux text-muted-foreground" lang="en">
                     {Object.entries(e.detail)
                       .map(([k, v]) => `${k}=${String(v)}`)
                       .join(' · ')}
                   </span>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       )}
     </section>
   )
@@ -325,8 +326,8 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
   const notFound = detail.status === 'error' && detail.error?.status === 404
   const info = detail.data?.buildInfo
   const modules = info?.modules ?? []
-  const artifacts = modules.flatMap((m) => m.artifacts.map((a) => ({ module: m.id, a })))
-  const dependencies = modules.flatMap((m) => m.dependencies.map((d) => ({ module: m.id, d })))
+  const artifacts = modules.flatMap((m) => (m.artifacts ?? []).map((a) => ({ module: m.id, a })))
+  const dependencies = modules.flatMap((m) => (m.dependencies ?? []).map((d) => ({ module: m.id, d })))
   const props = Object.entries(info?.properties ?? {})
 
   const header = (
@@ -408,7 +409,7 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
             )}
           </section>
 
-          <BuildStatuses statuses={info.statuses} />
+          <BuildStatuses statuses={info.statuses ?? []} />
 
           {/* 模块列表（build-info.md §3.1 module 字段集） */}
           <section className="card section" data-testid="build-modules">
@@ -416,55 +417,55 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
             {modules.length === 0 ? (
               <p className="text-muted-foreground">{t('（无模块——append 可按 module id 增量并入）')}</p>
             ) : (
-              <table className="w-full text-dense">
-                <thead>
-                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-medium">Module ID</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{t('类型')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{t('制品数')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{t('依赖数')}</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-dense">
+                <TableHeader>
+                  <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                    <TableHead scope="col" className="px-3 py-2 font-medium">Module ID</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('类型')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('制品数')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('依赖数')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {modules.map((m, i) => (
-                    <tr key={m.id} className="border-b border-border/60 hover:bg-accent" data-testid={`build-module-row-${i}`}>
-                      <td className="px-3 py-1.5">
+                    <TableRow key={m.id} className="border-b border-border/60 hover:bg-accent" data-testid={`build-module-row-${i}`}>
+                      <TableCell className="px-3 py-1.5">
                         <span className="font-mono" lang="en">{m.id}</span>
                         <CopyButton value={m.id} label="Module ID" />
-                      </td>
-                      <td className="px-3 py-1.5 font-mono" lang="en">{m.type || '—'}</td>
-                      <td className="px-3 py-1.5 font-mono">{m.artifacts.length}</td>
-                      <td className="px-3 py-1.5 font-mono">{m.dependencies.length}</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{m.type || '—'}</TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono">{m.artifacts?.length ?? 0}</TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono">{m.dependencies?.length ?? 0}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             )}
           </section>
 
           {artifacts.length > 0 && (
             <section className="card section" data-testid="build-artifacts">
               <h3 className="mb-2 text-dense font-semibold">{t('模块制品（{v1} 项）', { v1: artifacts.length })}</h3>
-              <table className="w-full text-dense">
-                <thead>
-                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-medium">Module ID</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{t('名称')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{t('路径')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">sha256</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-dense">
+                <TableHeader>
+                  <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                    <TableHead scope="col" className="px-3 py-2 font-medium">Module ID</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('名称')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('路径')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">sha256</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {artifacts.map(({ module, a }, i) => {
                     // 关联形 path = "<repo>/<path>"——首段拆 (repo, path) 挂
                     // 跨仓树深链；record-only 行（path 空）如实无链接
                     const repo = a.path?.includes('/') ? a.path.split('/')[0] : ''
                     const rest = a.path && repo ? a.path.slice(repo.length + 1) : ''
                     return (
-                      <tr key={`${module}|${a.path || a.name}|${i}`} className="border-b border-border/60 hover:bg-accent" data-testid={`build-artifact-row-${i}`}>
-                        <td className="px-3 py-1.5 font-mono" lang="en">{module}</td>
-                        <td className="px-3 py-1.5 font-mono" lang="en">{a.name || '—'}</td>
-                        <td className="px-3 py-1.5">
+                      <TableRow key={`${module}|${a.path || a.name}|${i}`} className="border-b border-border/60 hover:bg-accent" data-testid={`build-artifact-row-${i}`}>
+                        <TableCell className="px-3 py-1.5 font-mono" lang="en">{module}</TableCell>
+                        <TableCell className="px-3 py-1.5 font-mono" lang="en">{a.name || '—'}</TableCell>
+                        <TableCell className="px-3 py-1.5">
                           {repo && rest ? (
                             <Link
                               className="row-link font-mono text-primary hover:underline"
@@ -476,8 +477,8 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
                           ) : (
                             <span className="text-muted-foreground" title={t('record-only 行：上传文档的路径未解析到本实例节点（无 repo 段/节点缺/sha256 相左）——行存不冒领关联')}>—</span>
                           )}
-                        </td>
-                        <td className="px-3 py-1.5">
+                        </TableCell>
+                        <TableCell className="px-3 py-1.5">
                           {a.sha256 ? (
                             <>
                               <span className="font-mono" lang="en">{a.sha256.slice(0, 12)}…</span>
@@ -486,36 +487,36 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </section>
           )}
 
           {dependencies.length > 0 && (
             <section className="card section" data-testid="build-dependencies">
               <h3 className="mb-2 text-dense font-semibold">{t('模块依赖（{v1} 项）', { v1: dependencies.length })}</h3>
-              <table className="w-full text-dense">
-                <thead>
-                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-medium">Module ID</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{t('依赖')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{t('类型')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">scopes</th>
-                    <th scope="col" className="px-3 py-2 font-medium">sha1</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-dense">
+                <TableHeader>
+                  <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                    <TableHead scope="col" className="px-3 py-2 font-medium">Module ID</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('依赖')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('类型')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">scopes</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">sha1</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {dependencies.map(({ module, d }, i) => (
-                    <tr key={`${module}|${d.id}|${i}`} className="border-b border-border/60 hover:bg-accent" data-testid={`build-dependency-row-${i}`}>
-                      <td className="px-3 py-1.5 font-mono" lang="en">{module}</td>
-                      <td className="px-3 py-1.5 font-mono" lang="en">{d.id}</td>
-                      <td className="px-3 py-1.5 font-mono" lang="en">{d.type || '—'}</td>
-                      <td className="px-3 py-1.5 font-mono" lang="en">{(d.scopes ?? []).join(',') || '—'}</td>
-                      <td className="px-3 py-1.5">
+                    <TableRow key={`${module}|${d.id}|${i}`} className="border-b border-border/60 hover:bg-accent" data-testid={`build-dependency-row-${i}`}>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{module}</TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{d.id}</TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{d.type || '—'}</TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{(d.scopes ?? []).join(',') || '—'}</TableCell>
+                      <TableCell className="px-3 py-1.5">
                         {d.sha1 ? (
                           <>
                             <span className="font-mono" lang="en">{d.sha1.slice(0, 12)}…</span>
@@ -524,11 +525,11 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </section>
           )}
 

@@ -9,6 +9,7 @@
 //   传入）。
 import { useState } from 'react'
 
+import { TableHead } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
 export type SortDir = 'asc' | 'desc'
@@ -62,8 +63,7 @@ export function SortTh<K extends string>({
   const active = sort.key === sortKey
   const ariaSort = active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'
   return (
-    <th
-      scope="col"
+    <TableHead
       aria-sort={ariaSort}
       data-testid={testid}
       className={cn(
@@ -78,15 +78,15 @@ export function SortTh<K extends string>({
           {active && sort.dir === 'desc' ? '↓' : '↑'}
         </span>
       </span>
-    </th>
+    </TableHead>
   )
 }
 
 /** 非排序表头（新栈统一密度：与 SortTh 同 padding/字号） */
 export function Th({ label, title, className, children }: { label?: string; title?: string; className?: string; children?: React.ReactNode }) {
   return (
-    <th scope="col" title={title} className={cn('whitespace-nowrap px-3 py-2 text-left text-aux font-medium text-muted-foreground', className)}>
+    <TableHead title={title} className={cn('whitespace-nowrap px-3 py-2 text-left text-aux font-medium text-muted-foreground', className)}>
       {label ?? children}
-    </th>
+    </TableHead>
   )
 }

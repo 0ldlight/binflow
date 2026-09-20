@@ -1,3 +1,4 @@
+import { Input } from '@/components/ui/input'
 // ConfirmProvider：Promise 化危险确认层（对齐旧 components/ConfirmDialog
 // 语义——danger 红边/打开即聚焦取消/Esc 兜底；typed 确认（输入 repo key/
 // YES 等匹配门）由调用方经 confirmPhrase 启用）。P1 仅模块就位，不接线。
@@ -131,7 +132,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 <DialogDescription>{promptPending.options.description}</DialogDescription>
               )}
             </DialogHeader>
-            <input
+            <Input
               data-testid={promptPending.options.anchor}
               className={`h-8 w-full rounded-sm border border-input bg-surface-3 px-2.5 text-dense outline-none focus-visible:border-ring ${promptPending.options.mono ? 'font-mono' : ''}`}
               value={promptValue}
@@ -176,7 +177,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               {pending.options.description && <DialogDescription>{pending.options.description}</DialogDescription>}
             </DialogHeader>
             {phraseGate && (
-              <input
+              <Input
                 data-testid="confirm-phrase-input"
                 className="flex h-8 w-full rounded-sm border border-input bg-surface-3 px-2.5 text-dense outline-none focus-visible:border-ring"
                 onChange={(e) => setTyped(e.target.value)}

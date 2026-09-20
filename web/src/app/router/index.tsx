@@ -24,6 +24,7 @@ const t = tr('console')
 // ---- P2 新实现（六域——loader 形态供 lazyEl 消费） ----
 const LoginPage = () => import('@/pages/login/LoginPage')
 const DashboardPage = () => import('@/pages/dashboard/DashboardPage')
+const PackagesPage = () => import('@/pages/packages/PackagesPage')
 const ExplorerPage = () => import('@/pages/explorer/ExplorerPage')
 const SearchPage = () => import('@/pages/search/SearchPageV2')
 const RepositoriesPage = () => import('@/pages/repos/RepositoriesPage')
@@ -184,6 +185,7 @@ export const appRoutes: RouteObject[] = [
           // 先于本 index 重定向生效，return=%2F 语义不变
           { index: true, element: <Navigate to="/artifacts" replace /> },
           { path: 'dashboard', element: lazyEl(DashboardPage) },
+          { path: 'packages', element: lazyEl(PackagesPage) },
           // Artifact Explorer（P2 第一优先）：根与子树同组件——URL 即状态
           // （页签段+文件末段契约，TAB ∈ {general|properties|permissions}）
           { path: 'artifacts', element: lazyEl(ExplorerPage) },

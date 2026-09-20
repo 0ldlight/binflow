@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { SelectField } from '@/components/layout/fields'
 import { Input } from '@/components/ui/input'
 import { CopyButton } from '@/components/layout/copy-button'
 import { Badge } from '@/components/ui/badge'
@@ -233,17 +234,14 @@ export default function SystemLogsPage() {
         <span className="text-aux text-muted-foreground" data-testid="logs-countdown">
           {paused ? tt('已暂停尾随') : tt('{countdown} 秒后自动刷新', { countdown: countdown })}
         </span>
-        <select
+        <SelectField
           value={limit}
           onChange={(e) => setLimit(Number(e.target.value))}
           className="h-8 rounded-sm border border-input bg-surface-3 px-2 text-dense"
           aria-label={tt('日志窗口行数')}
           data-testid="logs-limit"
-        >
-          {LIMITS.map((n) => (
-            <option key={n} value={n}>{tt('最近')} {n} {tt('行')}</option>
-          ))}
-        </select>
+          options={LIMITS.map((n) => ({ value: n, label: <>{tt('最近')} {n} {tt('行')}</> }))}
+        />
         <Input
           type="search"
           placeholder={filterPlaceholder}

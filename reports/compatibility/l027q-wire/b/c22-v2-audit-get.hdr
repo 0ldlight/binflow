@@ -1,0 +1,7 @@
+HTTP 405
+Allow: POST,OPTIONS
+Content-Type: application/json
+X-Request-Id: 0ee96e87953ce9d77de7227d6653f9ef
+Date: Thu, 17 Sep 2026 08:03:39 GMT
+Content-Length: 93
+Connection: close

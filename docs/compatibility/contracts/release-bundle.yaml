@@ -10,6 +10,12 @@
 # 上游规格锚：release-bundle.md §1（18 端点表）/§3（冲突三态/状态机）/§10（活体核验 p01–p63 逐条锚）。
 # normalize: 未立域（候选——差分归一层复用 npm 域 wire_format=normalize_indent+ok_space 姿态吸收 Jackson
 #   "key" : value vs Go "key": value 渲染差；normalize#release-bundle 域待 L027-1 差分提案，本票不预写）。
+# L027-6（2026-09-17，conductor 落账）：七条目全升 VERIFIED——L027-1 差分 r7/r8 双轮稳（55 case
+#   SAME 52/3 DIVERGENT：c42 A 侧竞态候裁 + c53/c55 相邻域路由，零 B 侧未修 BUG——四 BUG 已随差分轮
+#   修复验证：BUG-1 AQL E1 锚点/BUG-2 v2 audit Allow 头/BUG-3 release-bundles 系统仓 DELETE/BUG-4 HEAD
+#   CT）。B 侧 dev 以仓库根私钥 pro 模拟档解锁（ADR-0032 机制），毕后回 community 复核。差分报告=
+#   reports/compatibility/2026-09-17-d08-release-bundle.yaml；wire=l027q-wire/{a,b}/。U1-U9 开放臂维持
+#   （签名链/有记录成功形双端同不可达=wire 局限，不挡实质口径 VERIFIED）。matrix D08-R01..R06 同批翻 compatible。
 #
 # ── pending-differential（wire 未覆盖分支——UNKNOWN 不立断言，禁猜测补齐）─────────────────
 #   U1 store 冲突三态 202/200+{bundle_path}/409 "Bundle already exists"（spec §3.1：根=DDL UNIQUE 高、
@@ -78,14 +84,15 @@ contracts:
     - { when: 'AQL 语法错', status: 400, literal_body: 'errors 信封 Failed to parse query: <原 aql>, it looks like there is syntax error near the following sub-query: <token>（p33——与 /api/search/aql 同族；token 提取差=C3 候裁）' }
     - { when: 'license 无 RELEASE_BUNDLES_READ 权益', status: 400, literal_body: 'Bundle request is only available on Enterprise Plus licensed Artifactory instances.（反编译单源 U7——本实例未触发，不挡 IMPLEMENTED）' }
   binflow_state:
-    verdict: 'IMPLEMENTED（L026-6 release_bundle_assembly.go：校验链/五键行形/props 水合/空 [] 单测钉；差分未跑）'
+    verdict: 'SAME（L027-1 r7/r8 差分双轮稳；实现 L026-6 release_bundle_assembly.go：校验链/五键行形/props 水合/空 [] 单测钉）'
     detail: 'D03 引擎跑 AQL；pkg_type 按 repoKey 缓存取仓储 packageType 首字母大写；非 admin 可达校验臂（p51 裁定）；community 档写面 403+X-Binflow-License-Required（ADR-0032 门，A 无此档位差）'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.695d8989 }
   evidence:
     - { kind: probe, path: reports/compatibility/l026a-wire/, anchor: 'p27/p28/p29/p33（校验链）+ p30-p37（命中/空命中/includeMetaData 双臂）', date: '2026-09-17' }
     - { kind: probe, path: reports/compatibility/l026a-wire/, anchor: 'p51（user 达校验臂）+ p56（anonymous 401）', date: '2026-09-17' }
+    - { kind: difftest, report: reports/compatibility/2026-09-17-d08-release-bundle.yaml, anchor: 'c24-c30（r7/r8 双轮稳；BUG-1 AQL E1 锚点修复后全绿）', date: '2026-09-17' }
   confidence: high
-  status: IMPLEMENTED
+  status: VERIFIED
 # ── R02 事务三段式错误臂 ──────────────────────────────────────────────────────
 - id: release-bundle/transaction-errors
   feature: 'v2 签名事务族错误臂（jose 包装/open 双端点 JWS 解析 400 同形；open 非 JSON 裸 Jackson 400；close/async-close/close-status 400 事务路径原文回显；成功形未实证 U2）'
@@ -108,13 +115,14 @@ contracts:
     - { when: 'GET async/close/status/{tx} 事务不存在', status: 400, literal_body: '同上（p43）' }
     - { when: '非 admin GET async/close/status/*', status: 403, literal_body: 'errors 信封 Forbidden（p54）' }
   binflow_state:
-    verdict: 'IMPLEMENTED（L026-6 release_bundle_transaction.go：四路由 + p38–p43 六臂单测钉；差分未跑）'
+    verdict: 'SAME（L027-1 r7/r8 差分双轮稳；实现 L026-6 release_bundle_transaction.go：四路由 + p38–p43 六臂单测钉）'
     detail: '缺分隔符前缀文案 / 路径回显语义（消费首段回显余段）；良构 JWS→400 签名终态=B-native（C6 候差分——A 无 wire）；community 档三端点 403'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.695d8989 }
   evidence:
     - { kind: probe, path: reports/compatibility/l026a-wire/, anchor: 'p38/p39/p40/p41/p42/p43 + p54（status 管理门）', date: '2026-09-17' }
+    - { kind: difftest, report: reports/compatibility/2026-09-17-d08-release-bundle.yaml, anchor: 'c31-c36（r7/r8 双轮稳——错误臂全族；成功形 U2 双端同不可达）', date: '2026-09-17' }
   confidence: high
-  status: IMPLEMENTED
+  status: VERIFIED
 # ── R03 承接：PUT /api/release/store ──────────────────────────────────────────
 - id: release-bundle/store
   feature: '源 bundle 承接七臂有序链（首败短路：管理门→projectKey 404 透传→Jackson 400→null 500 泄漏→INVALID_RB_REPO 双键 400→缺省仓解析+自动建→JWS 500）；OPTIONS 预检；三态 202/200/409 未实证 U1'
@@ -141,14 +149,15 @@ contracts:
     - { when: 'storingRepo 缺省 + 良构 JSON + garbage JWS', status: 500, literal_body: 'errors 信封 Invalid serialized unsecured/JWS/JWE object: Missing part delimiters（p48——无 "Failed to parse JWS." 前缀；与 transaction/open 的 400 同因异码，两端口不对称）' }
     - { when: 'JWS 解析通过后签名校验失败', status: 400, literal_body: 'Failed validating release bundle signature（spec §1 反编译——成功链不可达未实证）' }
   binflow_state:
-    verdict: 'IMPLEMENTED（L026-6 release_bundle_store.go：七臂链序单测钉含双键信封键序；差分未跑）'
+    verdict: 'SAME（L027-1 r7/r8 差分双轮稳；实现 L026-6 release_bundle_store.go：七臂链序单测钉含双键信封键序）'
     detail: 'EnsureSystemRepo 幂等自动建仓（internal/bundle/system.go）；repositories 列表隐藏 releasebundles 仓（单 GET 可见）；良构 JWS→400 签名终态=B-native（C6）；community 档 403+X-Binflow-License-Required'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.695d8989 }
   evidence:
     - { kind: probe, path: reports/compatibility/l026a-wire/, anchor: 'p44/p45/p46/p48/p49（臂链）+ p11（OPTIONS）+ p52/p58（门）', date: '2026-09-17' }
     - { kind: probe, path: reports/compatibility/l026a-wire/p48b-release-bundles-repo-config.json, anchor: '系统仓全配置（rclass local/packageType releasebundles/simple-default）', date: '2026-09-17' }
+    - { kind: difftest, report: reports/compatibility/2026-09-17-d08-release-bundle.yaml, anchor: 'c37-c42（r7/r8 双轮稳；BUG-3 修复后全绿；c42 A 侧竞态候裁→known-divergence#d08/store-endpoint-race-family）', date: '2026-09-17' }
   confidence: high
-  status: IMPLEMENTED
+  status: VERIFIED
 # ── R04 查询族 ────────────────────────────────────────────────────────────────
 - id: release-bundle/query-family
   feature: 'v1 查询族空态与 404 三消息族（列表 map 空对象/versions 恒 200 空数组；单查三态同 404 "Bundle not found"；status 冒号拼接族；HEAD 无 body；DELETE target/source 两族）；type 缺省 TARGET/HEAD 恒 SOURCE/DELETE 主端点恒 TARGET 不对称'
@@ -173,13 +182,14 @@ contracts:
     - { when: 'DELETE /{name}/{version} 不存在（恒 TARGET）', status: 404, literal_body: 'errors 信封 Bundle not found（p09）' }
     - { when: 'DELETE /source/{name}/{version} 不存在（恒 SOURCE）', status: 404, literal_body: 'errors 信封 Release bundle not found（p10——第三消息族）' }
   binflow_state:
-    verdict: 'IMPLEMENTED（L026-6 bundle.go 查询族重写：p01–p12 空态全表 + 种子记录 type 投影/三 404 族单测钉；差分未跑）'
+    verdict: 'SAME（L027-1 r7/r8 差分双轮稳；实现 L026-6 bundle.go 查询族重写：p01–p12 空态全表 + 种子记录 type 投影/三 404 族单测钉）'
     detail: '服务端过滤零泄漏（不可见名与不存在不可区分）；/source/ DELETE 有记录臂诚实 500 不删数据（C4——metadata delete 缝候票）'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.695d8989 }
   evidence:
     - { kind: probe, path: reports/compatibility/l026a-wire/, anchor: 'p01/p02/p03（空态）+ p04/p05/p07/p09/p10/p12/p59（404 三族）+ p50/p57（门）', date: '2026-09-17' }
+    - { kind: difftest, report: reports/compatibility/2026-09-17-d08-release-bundle.yaml, anchor: 'c01-c11（r7/r8 双轮稳；BUG-4 HEAD CT 修复后全绿）', date: '2026-09-17' }
   confidence: high
-  status: IMPLEMENTED
+  status: VERIFIED
 # ── R05 config/artifacts/fat_manifest ────────────────────────────────────────
 - id: release-bundle/config-and-artifacts
   feature: 'config 720 面（GET 出厂缺省；PUT 202 未实证）+ artifacts 清单 404 + fat_manifest 查看门（非 list.manifest.json 400 逐字）；admin 深度面'
@@ -204,13 +214,14 @@ contracts:
     - { when: 'fat_manifest 合规名（成功臂）', status: 'U3 未实证（B 现值 404 UNKNOWN）', literal_body: '不立断言' }
     - { when: '非 admin（config/fat_manifest）', status: 403, literal_body: 'errors 信封 Forbidden（p53/p55）' }
   binflow_state:
-    verdict: 'IMPLEMENTED（L026-6 release_bundle_config.go：720 默认/PUT 202 回显/round-trip/负值 400 + p47/p53/p55 单测钉；差分未跑）'
+    verdict: 'SAME（L027-1 r7/r8 差分双轮稳；实现 L026-6 release_bundle_config.go：720 默认/PUT 202 回显/round-trip/负值 400 + p47/p53/p55 单测钉）'
     detail: 'cleanupHours 旋钮 internal/bundle/system.go（内存态）；artifacts 有记录成功形 U9（BinFlow-native）'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.695d8989 }
   evidence:
     - { kind: probe, path: reports/compatibility/l026a-wire/, anchor: 'p06（720）+ p08（artifacts 404）+ p47（fat_manifest 400）+ p53/p55（admin 门）', date: '2026-09-17' }
+    - { kind: difftest, report: reports/compatibility/2026-09-17-d08-release-bundle.yaml, anchor: 'c12-c23（r7/r8 双轮稳；BUG-2 Allow 头+RB5 归一后全绿）', date: '2026-09-17' }
   confidence: high
-  status: IMPLEMENTED
+  status: VERIFIED
 # ── R05 伴随面：/api/v2/release_bundle/* 读面 + /api/v2/audit ───────────────────
 - id: release-bundle/v2-read-face
   feature: 'v2 Release Lifecycle 读面（下划线单数前缀）：names/received/records 空态信封三形（分页三键）；received 单查 GET 恒 400 名字校验 quirk；records/statuses/received-DELETE 三族 404 泄露 v2 存储布局（release-bundles-v2[.evd] 与 -jfds）；audit 七必填 400 + 405'
@@ -233,13 +244,14 @@ contracts:
     - { when: 'POST /v2/audit body {}（缺字段）', status: 400, literal_body: 'errors 信封 Bad request: [`''event_summary'' must be non-null`, `''event_status'' must be non-null`, `''release_bundle_version'' must be non-null`, `''subject_reference'' must be non-null`, `''release_bundle_name'' must be non-null`, `''subject_type'' must be non-null`, `''created_by'' must be non-null`]（p26——七必填清单+反引号）' }
     - { when: 'GET /v2/audit（audit 仅 POST）', status: 405, literal_body: 'errors 信封 Method Not Allowed + Allow: POST,OPTIONS（p22）' }
   binflow_state:
-    verdict: 'IMPLEMENTED（L026-6 release_bundle_v2.go + router v2 面：p13–p26/p60 全表单测钉（无 null 渲染）；差分未跑）'
+    verdict: 'SAME（L027-1 r7/r8 差分双轮稳；实现 L026-6 release_bundle_v2.go + router v2 面：p13–p26/p60 全表单测钉（无 null 渲染））'
     detail: 'v2 读面=源实例空态/错误面（成功形 U4/U9 不实现）；community 档 403 与 405 路由事实并存；/api/v2/keys 全局默认面=C7（scoped 不裁）'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.695d8989 }
   evidence:
     - { kind: probe, path: reports/compatibility/l026a-wire/, anchor: 'p13–p26（v2 读面/audit 族）+ p60（received-DELETE）', date: '2026-09-17' }
+    - { kind: difftest, report: reports/compatibility/2026-09-17-d08-release-bundle.yaml, anchor: 'c12-c23 v2 读族臂（r7/r8 双轮稳；BUG-2+RB5 后全绿）', date: '2026-09-17' }
   confidence: high
-  status: IMPLEMENTED
+  status: VERIFIED
 # ── R06 ANY DISTRIBUTION 可见面 + 权限矩阵横切 ────────────────────────────────
 - id: release-bundle/any-distribution-face
   feature: 'ANY DISTRIBUTION 非 REST 实体（permissions 名单无预置行；单查 404）+ distribution rclass REST 拒建 400 逐字 + 权限矩阵横切面（读面 user 放行/admin 门 403 族/匿名 401 族）'
@@ -263,13 +275,14 @@ contracts:
     ANY REMOTE→ANY DISTRIBUTION→ANY；release-bundle 仓排除于 ANY 回退——isBuildInfoOrReleaseBundleRepo
     短路）=反编译 §5 高置信非 REST 面，不立 REST 断言。
   binflow_state:
-    verdict: 'IMPLEMENTED（L026-6：distribution rclass 拒建 400 逐字（repositories.go）+ ANY DISTRIBUTION 单查保持 404 + bundle_wire_test 门矩阵/Any Distribution 通道/匿名 401 全族单测钉；差分未跑）'
+    verdict: 'SAME（L027-1 r7/r8 差分双轮稳；实现 L026-6：distribution rclass 拒建 400 逐字（repositories.go）+ ANY DISTRIBUTION 单查保持 404 + bundle_wire_test 门矩阵/Any Distribution 通道/匿名 401 全族单测钉）'
     detail: 'Any Distribution=allow() 同源伪键通道（ADR-0046 点 3；桶值拼写归 T-491——§0 ⑧字面 ANY DISTRIBUTION 已锚）'
   version: { artifactory_ref: 7.161.15, binflow_tested: dev.695d8989 }
   evidence:
     - { kind: probe, path: reports/compatibility/l026a-wire/, anchor: 'p61/p62（ANY DISTRIBUTION 非 REST 实体）+ p63（distribution rclass 拒建）+ p50–p58（权限矩阵横切）', date: '2026-09-17' }
+    - { kind: difftest, report: reports/compatibility/2026-09-17-d08-release-bundle.yaml, anchor: 'c44-c52（r7/r8 双轮稳；c53 相邻候裁→known-divergence#d08/preset-synthetic-rest-face）', date: '2026-09-17' }
   confidence: high
-  status: IMPLEMENTED
+  status: VERIFIED
 # ── 面外维持（不立条目）──────────────────────────────────────────────────────
 #   Distribution 服务侧 /api/v1/distribution/* 全族（D08-R07 not_applicable）；v2 写面/签名链成功臂（U1/U2）；
 #   webhook release_bundle 域九型（dormant）；release-bundles-v2 出口仓后缀/.json.draft 形态（§2.2——M17 面外）。

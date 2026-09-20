@@ -119,7 +119,7 @@
 
 /* 页级只读注记（M7 §7.3 推广形态；security.css 同款语义，本域自持） */
 .page-note {
-  color: var(--bf-text-muted);
+  color: var(--bf-text);
   font-size: var(--bf-fs-xs);
   margin: var(--bf-sp-2) 0;
 }

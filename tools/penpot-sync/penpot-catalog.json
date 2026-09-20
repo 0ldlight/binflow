@@ -1,22 +1,21 @@
 {
   "meta": {
-    "rebuiltAt": "2026-09-12T22:43:06.146Z",
-    "note": "Phase B rebuild — manifest slug→route 全量 (crawl-manifest.json is the authority); capture status = PNG presence. Phase A screens-catalog.json only had 4 entries because the screens phase was chunked; this catalog restores the full mapping.",
+    "rebuiltAt": "2026-09-17T17:58:33.433Z",
+    "note": "Phase B rebuild — manifest slug→route 全量 (crawl-manifest.json is the authority); capture status = PNG presence. Chunked runs can leave screens-catalog.json partial, so this catalog restores the full mapping.",
     "manifestScreens": 69,
-    "captured": 61,
+    "captured": 69,
     "groupsWithCaptures": [
-      "Artifacts & Release (7)",
+      "Artifacts & Release (8)",
       "Repos (8)",
       "Identity & Access (10)",
       "Security Config (11)",
       "Platform Config (2)",
-      "Artifactory Services (16)",
+      "Artifactory Services (22)",
       "Monitoring (3)",
-      "Auth & Shell (4)"
+      "Auth & Shell (4)",
+      "Other (1)"
     ],
-    "groupsWithoutCaptures": [
-      "Other"
-    ]
+    "groupsWithoutCaptures": []
   },
   "screens": [
     {
@@ -375,8 +374,9 @@
       "route": "/admin/integration/central",
       "effort": "best",
       "group": "Other",
-      "captured": false,
-      "note": ""
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/integration/central\ngroup: Other · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "mail",
@@ -464,8 +464,9 @@
       "route": "/admin/artifactory/configuration/user_plugins",
       "effort": "best",
       "group": "Artifactory Services",
-      "captured": false,
-      "note": ""
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/configuration/user_plugins\ngroup: Artifactory Services · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "backups",
@@ -481,16 +482,18 @@
       "route": "/admin/artifactory/services/backups/new",
       "effort": "best",
       "group": "Artifactory Services",
-      "captured": false,
-      "note": ""
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/services/backups/new\ngroup: Artifactory Services · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "indexer",
       "route": "/admin/artifactory/services/indexer",
       "effort": "best",
       "group": "Artifactory Services",
-      "captured": false,
-      "note": ""
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/services/indexer\ngroup: Artifactory Services · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "retention-policies",
@@ -518,8 +521,9 @@
       "route": "/admin/artifactory/services/retention/cold_storage_monitoring",
       "effort": "best",
       "group": "Artifactory Services",
-      "captured": false,
-      "note": "Pro"
+      "captured": true,
+      "note": "Pro",
+      "meta": "route: /ui/admin/artifactory/services/retention/cold_storage_monitoring\ngroup: Artifactory Services · effort: best\nmanifest note: Pro\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "import-export",
@@ -607,16 +611,18 @@
       "route": "/admin/artifactory/advanced/security_descriptor",
       "effort": "best",
       "group": "Artifactory Services",
-      "captured": false,
-      "note": ""
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/advanced/security_descriptor\ngroup: Artifactory Services · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "config-packages",
       "route": "/admin/artifactory/config_packages",
       "effort": "best",
       "group": "Artifactory Services",
-      "captured": false,
-      "note": ""
+      "captured": true,
+      "note": "",
+      "meta": "route: /ui/admin/artifactory/config_packages\ngroup: Artifactory Services · effort: best\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "migration-tool",
@@ -694,8 +700,9 @@
       "route": "/artifactory/release-bundles/target-history",
       "effort": "best",
       "group": "Artifacts & Release",
-      "captured": false,
-      "note": "Pro"
+      "captured": true,
+      "note": "Pro",
+      "meta": "route: /ui/artifactory/release-bundles/target-history\ngroup: Artifacts & Release · effort: best\nmanifest note: Pro\nzones: nav(red)/topbar+toolbar(slate)/content(lightblue) — geometry approximated from shell constants"
     },
     {
       "slug": "user-profile",

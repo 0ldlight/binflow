@@ -1,3 +1,5 @@
+import { Button, ButtonAsChild } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 仓库管理列表（console-ux §6.6 / reverse §3.4——P2 新栈重写：轻量 table
 // + usage 批量注水 E1 cap≤3 钉死 + inspector 对位）。
 //
@@ -19,7 +21,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
-import { Button, ButtonAsChild } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAuth } from '@/app/AuthContext'
@@ -124,7 +125,7 @@ function UsageCell({ repoKey, rclass, usage }: { repoKey: string; rclass: string
   }
   if (usage.status === 'error') {
     return (
-      <button
+      <Button
         type="button"
         className="text-muted-foreground hover:text-foreground"
         data-testid={testid}
@@ -136,7 +137,7 @@ function UsageCell({ repoKey, rclass, usage }: { repoKey: string; rclass: string
         }}
       >
         —
-      </button>
+      </Button>
     )
   }
   const row = usage.index?.get(repoKey)
@@ -169,7 +170,7 @@ function SortTh({
   testid?: string
 }) {
   return (
-    <th
+    <TableHead
       scope="col"
       aria-sort={sortKey === k ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
       data-testid={testid}
@@ -180,7 +181,7 @@ function SortTh({
       <span aria-hidden="true" className={`ml-1 ${sortKey === k ? '' : 'opacity-30'}`}>
         {sortKey === k && sortDir === 'desc' ? '↓' : '↑'}
       </span>
-    </th>
+    </TableHead>
   )
 }
 
@@ -320,7 +321,7 @@ export default function RepositoriesPage() {
                   三导航项补 menuitem（menu 子角色义务），L026-2 */}
               <PopoverContent className="w-64 p-1" align="end" role="menu" data-testid="repos-create-menu">
                 {TABS.map((t) => (
-                  <button
+                  <Button
                     key={t.id}
                     type="button"
                     role="menuitem"
@@ -334,7 +335,7 @@ export default function RepositoriesPage() {
                     <b>{REPO_CREATE_ENTRY[t.id].label}</b>
                     <br />
                     <span className="text-aux text-muted-foreground">{REPO_CREATE_ENTRY[t.id].desc}</span>
-                  </button>
+                  </Button>
                 ))}
               </PopoverContent>
             </Popover>
@@ -343,7 +344,7 @@ export default function RepositoriesPage() {
       </div>
 
       {readOnly && (
-        <p className="page-note rounded-md border border-border bg-surface-2 px-3 py-2 text-dense text-muted-foreground" data-testid="repos-readonly-note">
+        <p className="page-note rounded-md border border-border bg-surface-2 px-3 py-2 text-dense text-foreground" data-testid="repos-readonly-note">
           {tt('ⓘ 只读管理员（readonly_admin）视角：仓库清单与配置只读；创建/删除仓库与浏览器部署（Deploy）等写操作已禁用——服务端一律 403 兜底。')}
         </p>
       )}
@@ -385,7 +386,7 @@ export default function RepositoriesPage() {
                 const visible = cols.isVisible(c.id)
                 const last = visible && cols.visibleCount === 1
                 return (
-                  <button
+                  <Button
                     key={c.id}
                     type="button"
                     role="menuitemcheckbox"
@@ -400,11 +401,11 @@ export default function RepositoriesPage() {
                   >
                     <span aria-hidden="true" className="inline-block w-[1.25em] text-primary">{visible ? '☑' : '☐'}</span>
                     {c.label}
-                  </button>
+                  </Button>
                 )
               })}
               <div role="separator" className="my-1 border-t border-border" />
-              <button
+              <Button
                 type="button"
 role="menuitem"
                 aria-disabled={cols.visibleCount === COLUMNS.length || undefined}
@@ -414,7 +415,7 @@ role="menuitem"
                 onClick={() => cols.reset()}
               >
                 {tt('全选列')}
-              </button>
+              </Button>
             </PopoverContent>
           </Popover>
           <Button
@@ -479,29 +480,29 @@ role="menuitem"
           )
         ) : (
           <>
-            <table className="w-full text-dense" data-testid="repos-table">
-              <thead>
-                <tr className="border-b border-border text-left text-aux text-muted-foreground">
+            <Table className="w-full text-dense" data-testid="repos-table">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
                   {cols.isVisible('key') && <SortTh label="Repository Key" k="key" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} testid="repos-sort-key" />}
                   {cols.isVisible('package') && <SortTh label={tt('包类型')} k="package" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />}
                   {(tab === 'local' || tab === 'remote') && cols.isVisible('replications') && (
-                    <th
+                    <TableHead
                       scope="col"
                       className="whitespace-nowrap px-3 py-2 font-medium"
                       title={tab === 'remote' ? tt('push 复制配置（以该仓为源）——BinFlow 无 pull 复制（remote 缓存是另一能力域，ADR-0021/parity R10）') : tt('push 复制配置（以该仓为源）')}
                     >
                       Replications
-                    </th>
+                    </TableHead>
                   )}
-                  {cols.isVisible('upstream') && <th scope="col" className="px-3 py-2 font-medium">{tt('上游 / 成员')}</th>}
-                  {cols.isVisible('usage') && <th scope="col" className="px-3 py-2 font-medium">{tt('已用')}</th>}
-                  {cols.isVisible('description') && <th scope="col" className="px-3 py-2 font-medium">{tt('描述')}</th>}
-                  {cols.isVisible('actions') && <th scope="col" className="px-3 py-2 font-medium">{tt('操作')}</th>}
-                </tr>
-              </thead>
-              <tbody>
+                  {cols.isVisible('upstream') && <TableHead scope="col" className="px-3 py-2 font-medium">{tt('上游 / 成员')}</TableHead>}
+                  {cols.isVisible('usage') && <TableHead scope="col" className="px-3 py-2 font-medium">{tt('已用')}</TableHead>}
+                  {cols.isVisible('description') && <TableHead scope="col" className="px-3 py-2 font-medium">{tt('描述')}</TableHead>}
+                  {cols.isVisible('actions') && <TableHead scope="col" className="px-3 py-2 font-medium">{tt('操作')}</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {pageRows.map((repo) => (
-                  <tr
+                  <TableRow
                     key={repo.key}
                     data-testid={`repos-row-${repo.key}`}
                     className="cursor-pointer border-b border-border/60 hover:bg-accent"
@@ -510,9 +511,9 @@ role="menuitem"
                     onKeyDown={(e) => onTableRowKeys(e, () => navigate(`/admin/repositories/${repo.key}`))}
                   >
                     {cols.isVisible('key') && (
-                      <td className="px-3 py-1.5">
+                      <TableCell className="px-3 py-1.5">
                         <Link
-                          className="row-link font-mono text-primary hover:underline"
+                          className="row-link font-mono text-foreground hover:underline"
                           to={`/admin/repositories/${repo.key}`}
                           onClick={(e) => e.stopPropagation()}
                           lang="en"
@@ -522,18 +523,18 @@ role="menuitem"
                         <span onClick={(e) => e.stopPropagation()}>
                           <CopyButton value={repo.key} label={tt('仓库 key {v1}', { v1: repo.key })} />
                         </span>
-                      </td>
+                      </TableCell>
                     )}
                     {cols.isVisible('package') && (
-                      <td className="px-3 py-1.5">
+                      <TableCell className="px-3 py-1.5">
                         <span data-variant="tint-neutral" className="inline-flex items-center gap-1 rounded-sm bg-secondary px-[7px] py-0.5 text-[length:var(--bf-fs-xs)] [line-height:var(--bf-lh-xs)] text-muted-foreground">
                           <PkgIcon id={repo.packageType} variant="mono" size={13} />
                           {PKG_LABEL[repo.packageType] ?? repo.packageType}
                         </span>
-                      </td>
+                      </TableCell>
                     )}
                     {(tab === 'local' || tab === 'remote') && cols.isVisible('replications') && (
-                      <td className="px-3 py-1.5">
+                      <TableCell className="px-3 py-1.5">
                         <ReplicationsCell
                           repoKey={repo.key}
                           configs={repls.data ? (replIndex.get(repo.key) ?? []) : undefined}
@@ -542,19 +543,19 @@ role="menuitem"
                           canRun={admin}
                           onRun={(enabled) => void runReplications(repo.key, enabled)}
                         />
-                      </td>
+                      </TableCell>
                     )}
                     {cols.isVisible('upstream') && (
-                      <td className="px-3 py-1.5"><UpstreamCell repo={repo} /></td>
+                      <TableCell className="px-3 py-1.5"><UpstreamCell repo={repo} /></TableCell>
                     )}
                     {cols.isVisible('usage') && (
-                      <td className="px-3 py-1.5"><UsageCell repoKey={repo.key} rclass={repo.type} usage={usage} /></td>
+                      <TableCell className="px-3 py-1.5"><UsageCell repoKey={repo.key} rclass={repo.type} usage={usage} /></TableCell>
                     )}
                     {cols.isVisible('description') && (
-                      <td className="max-w-[260px] break-words px-3 py-1.5 text-muted-foreground">{repo.description || '—'}</td>
+                      <TableCell className="max-w-[260px] break-words px-3 py-1.5 text-muted-foreground">{repo.description || '—'}</TableCell>
                     )}
                     {cols.isVisible('actions') && (
-                      <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                         <Button variant="outline" size="sm" className="h-7" data-testid={`repos-setmeup-${repo.key}`} title={tt('Set Me Up：{v1} 的客户端接入向导', { v1: repo.key })} onClick={() => setSmuKey(repo.key)}>
                           Set Me Up
                         </Button>{' '}
@@ -587,12 +588,12 @@ role="menuitem"
                             {tt('删除')}
                           </Button>
                         )}
-                      </td>
+                      </TableCell>
                     )}
-                  </tr>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             <div className="table-foot" data-testid="repos-pager">
               <Pager
                 page={pager.page}
@@ -665,7 +666,7 @@ function ReplicationsCell({
     (canRun ? '' : tt('；只读管理员不可触发'))
   return (
     <span title={tip} onClick={(e) => e.stopPropagation()}>
-      <button
+      <Button
         type="button"
         className="grid size-7 place-items-center rounded-sm hover:bg-accent disabled:opacity-40"
         aria-label={tt('复制 {repoKey}：{v1} 条配置（{v2} 启用）', { repoKey, v1: configs.length, v2: enabledConfigs.length })}
@@ -677,7 +678,7 @@ function ReplicationsCell({
         }}
       >
         <span aria-hidden="true">▶</span>
-      </button>
+      </Button>
     </span>
   )
 }

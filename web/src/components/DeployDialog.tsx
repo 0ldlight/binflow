@@ -1,3 +1,8 @@
+import { SelectField } from '@/components/layout/fields'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
@@ -341,18 +346,13 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
                   <div className="field">
                     <label htmlFor="deploy-repo">{t('目标仓库')}</label>
-                    <select
+                    <SelectField
                       id="deploy-repo"
                       data-testid="deploy-repo"
                       value={repoKey}
                       onChange={(e) => setRepoKey(e.target.value)}
-                    >
-                      {candidates.map((r) => (
-                        <option key={r.key} value={r.key}>
-                          {r.key}
-                        </option>
-                      ))}
-                    </select>
+                      options={candidates.map((r) => ({ value: r.key, label: r.key, itemProps: { lang: 'en' } }))}
+                    />
                     {degradedCandidate && (
                       <div className="field-hint">{t('仓库元数据为管理员视图（HTTP 403）——按 Generic 语义直传；实际协议与 写权限由服务端终裁（被拒原因会在此原样呈现）。')}</div>
                     )}
@@ -366,24 +366,12 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                   </div>
                   <div className="field">
                     <label>{t('部署模式')}</label>
-                    <div role="radiogroup" aria-label={t('部署模式')} style={{ display: 'flex', gap: 12 }}>
+                    <RadioGroup aria-label={t('部署模式')} value={deployMode} onValueChange={(next) => setDeployMode(next as typeof deployMode)} className="flex" style={{ gap: 12 }}>
                       <label className="check-row">
-                        <input
-                          type="radio"
-                          name="deploy-mode"
-                          value="single"
-                          checked={deployMode === 'single'}
-                          onChange={() => setDeployMode('single')}
-                        />{t('单个部署')}</label>
+                        <RadioGroupItem value="single" />{t('单个部署')}</label>
                       <label className="check-row">
-                        <input
-                          type="radio"
-                          name="deploy-mode"
-                          value="multi"
-                          checked={deployMode === 'multi'}
-                          onChange={() => setDeployMode('multi')}
-                        />{t('多个部署')}</label>
-                    </div>
+                        <RadioGroupItem value="multi" />{t('多个部署')}</label>
+                    </RadioGroup>
                   </div>
                 </div>
 
@@ -391,7 +379,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                   <div className="field" style={{ marginTop: 12 }}>
                     <label htmlFor="deploy-target">{t('目标路径（repo 相对目录，可修改）')}</label>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <input
+                      <Input
                         id="deploy-target"
                         className="mono-input w-full"
                         data-testid="deploy-target"
@@ -419,7 +407,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                       ).map(([field, label, ph]) => (
                         <div className="field" key={field}>
                           <label htmlFor={`deploy-gav-${field}`}>{label}</label>
-                          <input
+                          <Input
                             id={`deploy-gav-${field}`}
                             className="mono-input w-full"
                             data-testid={`deploy-gav-${field}`}
@@ -460,11 +448,12 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                   <div aria-hidden="true">⬇</div>
                   <div>{dropHint}</div>
                 </div>
-                <input
+                <Input
                   ref={fileInput}
                   type="file"
                   multiple={mode === 'generic' && deployMode === 'multi'}
                   hidden
+                  aria-label={t('选择要部署的文件')}
                   data-testid="deploy-file-input"
                   onChange={(e) => {
                     if (e.target.files?.length) addFiles(e.target.files)
@@ -473,31 +462,31 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                 />
 
                 {rows.length > 0 && (
-                  <table data-testid="deploy-rows" className="w-full border-collapse text-dense" style={{ marginTop: 6 }}>
-                    <thead>
-                      <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                        <th className="w-6 px-2 py-1.5 font-medium">#</th>
-                        <th className="px-2 py-1.5 font-medium">{t('文件（目标路径 / 编码回显）')}</th>
-                        <th className="px-2 py-1.5 font-medium">{t('大小')}</th>
-                        <th className="px-2 py-1.5 font-medium">{t('sha256 / 进度')}</th>
-                        <th className="px-2 py-1.5 font-medium">{t('状态')}</th>
-                        <th className="px-2 py-1.5 font-medium">{t('操作')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                  <Table data-testid="deploy-rows" className="w-full border-collapse text-dense" style={{ marginTop: 6 }}>
+                    <TableHeader>
+                      <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                        <TableHead className="w-6 px-2 py-1.5 font-medium">#</TableHead>
+                        <TableHead className="px-2 py-1.5 font-medium">{t('文件（目标路径 / 编码回显）')}</TableHead>
+                        <TableHead className="px-2 py-1.5 font-medium">{t('大小')}</TableHead>
+                        <TableHead className="px-2 py-1.5 font-medium">{t('sha256 / 进度')}</TableHead>
+                        <TableHead className="px-2 py-1.5 font-medium">{t('状态')}</TableHead>
+                        <TableHead className="px-2 py-1.5 font-medium">{t('操作')}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {rows.map((r, i) => (
-                        <tr key={r.id} data-testid={`deploy-row-${r.fileName}`} className="border-b border-border/60 align-top">
-                          <td className="px-2 py-1.5">{i + 1}</td>
-                          <td className="px-2 py-1.5">
+                        <TableRow key={r.id} data-testid={`deploy-row-${r.fileName}`} className="border-b border-border/60 align-top">
+                          <TableCell className="px-2 py-1.5">{i + 1}</TableCell>
+                          <TableCell className="px-2 py-1.5">
                             <div className="font-mono text-[0.95em]" lang="en">
                               {r.fileName}
                             </div>
                             <div className="font-mono text-[length:var(--bf-fs-xs)] text-muted-foreground break-all" data-testid={`deploy-echo-${r.fileName}`} lang="en">
                               {repoKey}/{encodedPath(r.targetDir, r.fileName)}
                             </div>
-                          </td>
-                          <td className="px-2 py-1.5 font-mono">{formatBytes(r.file.size)}</td>
-                          <td className="px-2 py-1.5 min-w-[180px]">
+                          </TableCell>
+                          <TableCell className="px-2 py-1.5 font-mono">{formatBytes(r.file.size)}</TableCell>
+                          <TableCell className="px-2 py-1.5 min-w-[180px]">
                             {r.phase === 'hashing' ? (
                               <span className="text-muted-foreground">{t('正在计算本地 sha256…')}</span>
                             ) : r.localSha ? (
@@ -527,8 +516,8 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                                 </span>
                               </div>
                             )}
-                          </td>
-                          <td className="px-2 py-1.5">
+                          </TableCell>
+                          <TableCell className="px-2 py-1.5">
                             {r.phase === 'done' ? (
                               <span className="flex flex-wrap items-center gap-1">
                                 <Badge variant="success">{t('上传完成 201')}</Badge>
@@ -548,23 +537,22 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                                 {r.phase === 'hashing' ? t('哈希中') : r.phase === 'queued' ? t('待部署') : t('上传中')}
                               </span>
                             )}
-                          </td>
-                          <td className="px-2 py-1.5">
+                          </TableCell>
+                          <TableCell className="px-2 py-1.5">
                             {r.phase === 'error' && (
                               <Button variant="outline" size="sm" className="min-w-0" onClick={() => retry(r)}>{t('重试')}</Button>
                             )}
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 )}
 
                 <label className="check-row" style={{ marginTop: 8 }}>
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={sendChecksum}
-                    onChange={(e) => setSendChecksum(e.target.checked)}
+                    onCheckedChange={(next) => setSendChecksum(next === true)}
                   />{t('计算并附带 X-Checksum-Sha256（推荐：服务端校验，不一致 409）')}</label>
               </>
             )}

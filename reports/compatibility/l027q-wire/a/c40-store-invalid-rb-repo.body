@@ -1,0 +1,7 @@
+{
+  "reason" : "INVALID_RB_REPO",
+  "errors" : [ {
+    "status" : 400,
+    "message" : "Invalid release bundle repository"
+  } ]
+}

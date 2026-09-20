@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 服务状态页（T-459 / FR-145.5——P3 新栈重写；7.161 对位形态）：
 // - 总体 + 子系统：GET /api/v1/health；版本三值与 GET /api/system/version
 //   同源对账（useVersion 模块级缓存）。
@@ -36,16 +37,16 @@ function fmtRFC3339(v: string): string {
 function SubsystemRow({ name, st }: { name: string; st: SubsystemStatus }) {
   const ok = st.status === 'ok'
   return (
-    <tr data-testid={`status-sys-${name}`} className="border-b border-border/60">
-      <td className="px-3 py-1.5">
+    <TableRow data-testid={`status-sys-${name}`} className="border-b border-border/60">
+      <TableCell className="px-3 py-1.5">
         <span className={`status-dot ${ok ? 'ok' : 'err'}`} aria-hidden="true" />{' '}
         <span className="font-mono" lang="en">{name}</span>
-      </td>
-      <td className="px-3 py-1.5 font-mono" lang="en">{st.status}</td>
-      <td className="break-words px-3 py-1.5" title={st.detail ?? ''}>
+      </TableCell>
+      <TableCell className="px-3 py-1.5 font-mono" lang="en">{st.status}</TableCell>
+      <TableCell className="break-words px-3 py-1.5" title={st.detail ?? ''}>
         {ok ? <span className="text-muted-foreground">—</span> : (st.detail ?? st.status)}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   )
 }
 
@@ -120,20 +121,20 @@ export default function ServiceStatusPage() {
           {/* 子系统表（storage / metadata / registry） */}
           <section className="card section" data-testid="status-sys">
             <h3 className="mb-2 text-dense font-semibold">{t('子系统')}</h3>
-            <table className="w-full text-dense">
-              <thead>
-                <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-medium">{t('子系统')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('状态')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('详情')}</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-dense">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('子系统')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('状态')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('详情')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 <SubsystemRow name="storage" st={health.data.storage} />
                 <SubsystemRow name="metadata" st={health.data.metadata} />
                 <SubsystemRow name="registry" st={health.data.registry} />
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </section>
 
           {/* 调度服务（T-450 台账只读投影） */}
@@ -150,23 +151,23 @@ export default function ServiceStatusPage() {
               />
             )}
             {schedules.status === 'ok' && (schedules.data?.schedules.length ?? 0) > 0 && (
-              <table className="w-full text-dense">
-                <thead>
-                  <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-medium">{t('任务')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{t('域')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">cron</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{t('下次运行')}</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{t('上次运行 / 结果')}</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-dense">
+                <TableHeader>
+                  <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('任务')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('域')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">cron</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('下次运行')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('上次运行 / 结果')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {schedules.data!.schedules.map((s, i) => (
-                    <tr key={`${s.domain}:${s.key}`} data-testid={`status-sched-${i}`} className="border-b border-border/60 hover:bg-accent">
-                      <td className="px-3 py-1.5 font-mono" lang="en">{s.key}</td>
-                      <td className="px-3 py-1.5">{DOMAIN_LABEL[s.domain] ?? s.domain}</td>
-                      <td className="px-3 py-1.5 font-mono" lang="en">{s.cronExp || '—'}</td>
-                      <td className="px-3 py-1.5">
+                    <TableRow key={`${s.domain}:${s.key}`} data-testid={`status-sched-${i}`} className="border-b border-border/60 hover:bg-accent">
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{s.key}</TableCell>
+                      <TableCell className="px-3 py-1.5">{DOMAIN_LABEL[s.domain] ?? s.domain}</TableCell>
+                      <TableCell className="px-3 py-1.5 font-mono" lang="en">{s.cronExp || '—'}</TableCell>
+                      <TableCell className="px-3 py-1.5">
                         {s.enabled ? (
                           <span className="font-mono" lang="en" title={s.nextRun}>
                             {fmtRFC3339(s.nextRun)}
@@ -174,8 +175,8 @@ export default function ServiceStatusPage() {
                         ) : (
                           <Badge variant="tint-neutral">{t('已停用')}</Badge>
                         )}
-                      </td>
-                      <td className="px-3 py-1.5">
+                      </TableCell>
+                      <TableCell className="px-3 py-1.5">
                         {s.lastRun ? (
                           <>
                             <span className="font-mono" lang="en">{fmtRFC3339(s.lastRun)}</span>{' '}
@@ -188,11 +189,11 @@ export default function ServiceStatusPage() {
                         ) : (
                           <span className="text-muted-foreground">{t('未运行')}</span>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             )}
             <p className="field-hint mb-0">{t('调度台账为只读投影（cron 配置在维护 / 备份页编辑）；「上次运行」时间与结果来自 台账行，未跑过的任务如实标注。')}</p>
           </section>

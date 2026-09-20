@@ -1,3 +1,4 @@
+import { selectOptionValues, selectShadcn } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { TestInfo } from '@playwright/test'
 
@@ -113,15 +114,13 @@ test('admin: search results page-window pager — jump, size options, boundary d
 
   // 每页行数：换档 50 → 回第 1 页、窗 50 行（aria-rowcount = 51——虚拟化
   // 下 DOM 行数不是窗行数，同 :81 重锚口径）；档位枚举在场
-  await page.selectOption('[data-testid="search-pager"] [data-testid="pager-size"]', '50')
+  await selectShadcn(page, '[data-testid="search-pager"] [data-testid="pager-size"]', '50')
   await expect.poll(gridCount).toBe('51')
   await expect(page.locator('[data-testid="search-result-50"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="search-pager"] [data-testid="pager-range"]')).toHaveText(
     '显示 1 – 50 / 共 210 项',
   )
-  const options = await page
-    .locator('[data-testid="search-pager"] [data-testid="pager-size"] option')
-    .allTextContents()
+  const options = await selectOptionValues(page, '[data-testid="search-pager"] [data-testid="pager-size"]')
   expect(options).toEqual(['20', '50', '100', '200', '1000'])
 
   // 末页再核对（50/页 → 5 页，末页 10 行）
@@ -205,9 +204,9 @@ test('admin: AQL pager — page-number jump rewrites .offset(), size selector re
   // 每页行数：手写档位值 2 在选择器如实在场（非档值不显示空白）；换 50
   // → .limit(50) 重写 + .offset() 清除（回第 1 页——旧 offset 在新页大小
   // 下指向错位窗口）
-  const sizes = await page.locator('[data-testid="pager-size"] option').allTextContents()
+  const sizes = await selectOptionValues(page, '[data-testid="pager-size"]')
   expect(sizes).toContain('2')
-  await page.selectOption('[data-testid="pager-size"]', '50')
+  await selectShadcn(page, '[data-testid="pager-size"]', '50')
   await expect(page.locator('[data-testid="search-result-0"]')).toContainText('-f1.bin')
   expect(await editor.inputValue()).toBe(`${base}.limit(50)`)
   // 全量 5 行 < 50 → 单页末尾：next/last 禁置；range 行如实「末页未知」口径

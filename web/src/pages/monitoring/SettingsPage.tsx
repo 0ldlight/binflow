@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // Settings 新设页（capability matrix #25 解锁——「v1/system/settings 0 调用」
 // 的真身承载；P3 新写）：
 // - 运行时旋钮回显卡：GET /v1/system/settings（folder_download 六字段 +
@@ -294,21 +295,21 @@ function QrlPanel() {
           </div>
 
           {(q.data.state === 'active' || q.data.state === 'disabled') && (
-            <table className="mt-2 w-full text-dense" data-testid="qrl-table">
-              <thead>
-                <tr className="border-b border-border text-left text-aux text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-medium">rlType</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('许可数 / 窗')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('窗长（毫秒）')}</th>
-                  <th scope="col" className="px-3 py-2 font-medium">{t('时间配额')}</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="mt-2 w-full text-dense" data-testid="qrl-table">
+              <TableHeader>
+                <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                  <TableHead scope="col" className="px-3 py-2 font-medium">rlType</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('许可数 / 窗')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('窗长（毫秒）')}</TableHead>
+                  <TableHead scope="col" className="px-3 py-2 font-medium">{t('时间配额')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {settings.map((s) => (
-                  <tr key={s.rlType} data-testid={`qrl-row-${s.rlType}`} className="border-b border-border/60">
-                    <td className="px-3 py-1.5 font-mono" lang="en">{s.rlType}</td>
+                  <TableRow key={s.rlType} data-testid={`qrl-row-${s.rlType}`} className="border-b border-border/60">
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{s.rlType}</TableCell>
                     {(['permitsPerTimeFrame', 'timeFrameMillis', 'timeQuota'] as const).map((f) => (
-                      <td key={f} className="px-3 py-1.5">
+                      <TableCell key={f} className="px-3 py-1.5">
                         <TextInput
                           mono
                           lang="en"
@@ -320,12 +321,12 @@ function QrlPanel() {
                           aria-label={`${s.rlType} ${f}`}
                           data-testid={`qrl-input-${s.rlType}-${f}`}
                         />
-                      </td>
+                      </TableCell>
                     ))}
-                  </tr>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           )}
 
           {writeError && (

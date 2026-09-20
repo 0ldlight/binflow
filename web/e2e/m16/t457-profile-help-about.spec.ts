@@ -1,3 +1,4 @@
+import { expectSelectValue, selectOptionValues } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { Page, TestInfo } from '@playwright/test'
 
@@ -131,10 +132,8 @@ test('profile token: admin self-mint chain — one-time plaintext, immediately u
   await page.click('[data-testid="profile-token-generate"]')
   const dialog = page.locator('[data-testid="profile-token-dialog"]')
   await expect(dialog).toBeVisible()
-  await expect(page.locator('[data-testid="profile-token-ttl"]')).toHaveValue('86400')
-  const ttlOptions = await page.locator('[data-testid="profile-token-ttl"] option').evaluateAll((els) =>
-    els.map((e) => (e as HTMLOptionElement).value),
-  )
+  await expectSelectValue(page, '[data-testid="profile-token-ttl"]', '86400')
+  const ttlOptions = await selectOptionValues(page, '[data-testid="profile-token-ttl"]')
   expect(ttlOptions).toEqual(['3600', '86400', '604800', '2592000', '31536000', '0']) // 含永不过期（admin）
 
   // 生成 → 一次性明文（64 hex + token_id + 警示）
@@ -190,9 +189,7 @@ test('profile token: plain user self-mint — capped TTL set, no on-behalf field
 
   await page.click('[data-testid="profile-token-generate"]')
   await expect(page.locator('[data-testid="profile-token-dialog"]')).toBeVisible()
-  const ttlOptions = await page.locator('[data-testid="profile-token-ttl"] option').evaluateAll((els) =>
-    els.map((e) => (e as HTMLOptionElement).value),
-  )
+  const ttlOptions = await selectOptionValues(page, '[data-testid="profile-token-ttl"]')
   expect(ttlOptions).toEqual(['3600', '86400', '604800', '2592000', '31536000']) // 无「永不过期」（Q11 护栏）
   const dialogText = await page.locator('[data-testid="profile-token-dialog"]').textContent()
   expect(dialogText).not.toContain('代人签发')

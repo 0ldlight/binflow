@@ -89,6 +89,15 @@
 #   contracts/release-bundle.yaml#<entry-id>——R05 双条目：config-and-artifacts + v2-read-face 伴随面；
 #   行 capability 未含 v2 面=勘误候选 M1 归 conductor）；③ summary 同步 contract_ref 31→37。行态
 #   六行 absent 不动（翻绿归 L027-1 差分+落账）；last_difftest 不动；195 冻结行集不增删（本批零新行）。
+# L027-6（LOOP 027，2026-09-17，conductor D08 落账票）：① D08-R01..R06 六行翻 compatible（L027-1 差分
+#   r7/r8 双轮稳——55 case SAME 52/实质口径六行全 SAME；四 B 侧 BUG 修复随差分轮验证〔AQL E1 锚点/v2
+#   audit Allow 头/release-bundles 系统仓 DELETE/HEAD CT〕；成功臂需签名链双端同不可达=wire 局限注记
+#   在契约 U1/U2 不挡实质口径）；② 六行 last_difftest 回填（2026-09-17-d08-release-bundle.yaml 逐行
+#   案锚）+ 行 note 追加落账戳；③ summary 同步 compatible 88→94/absent 63→57（P1 absent 22→16；
+#   by_domain D08 compatible 6/absent 0）；last_difftest_non_null 44→50；④ known-divergence 新增 d08 域
+#   3 条（store-endpoint-race-family〔c42 A 侧竞态〕/preset-synthetic-rest-face〔c53 安全域路由〕/
+#   repo-delete-response-envelope〔c55 仓库管理域路由〕——全 UNKNOWN 候裁）；⑤ contracts/release-bundle.yaml
+#   七条目 IMPLEMENTED→VERIFIED（differential evidence 追锚）。195 冻结行集不增删（本批零新行）。
 
 ---
 schema: 1
@@ -131,9 +140,9 @@ priority_policy:
 summary:
   total_rows: 200
   state_counts:
-    compatible: 88
+    compatible: 94
     partial: 17
-    absent: 63
+    absent: 57
     not_applicable: 20
     superset: 12
   confidence_counts:
@@ -147,14 +156,14 @@ summary:
   by_state_x_priority:
     compatible:
       P0: 56
-      P1: 30
+      P1: 36
       P2: 2
     partial:
       P0: 2
       P1: 10
       P2: 5
     absent:
-      P1: 22
+      P1: 16
       P2: 41
     superset:
       P2: 12
@@ -204,7 +213,7 @@ summary:
       absent: 5
     D08:
       rows: 7
-      absent: 6
+      compatible: 6
       not_applicable: 1
     D09:
       rows: 9
@@ -232,7 +241,7 @@ summary:
       not_applicable: 1
   contract_ref_non_null: 37  # L027-2 同步：前置 31（L025-10 收官后）+ 本批 D08-R01..R06 六行 → 实计 37（逐行 ruby 对账通过；指向 contracts/release-bundle.yaml 条目号锚）
   golden_ref_non_null: 1     # D12-R01（empty-blob-synthetic / pull-sequence）——storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 / L024-4 §5 提金候选（l023d-wire/a/、l024d-wire/a/）在册待采，本批零金样变更
-  last_difftest_non_null: 44 # L025-10 同步：前置 39（L024 收官尾单）+ 本批 D02 五行 → 实计 44（逐行 ruby 对账通过）
+  last_difftest_non_null: 50 # L027-6 同步：前置 44（L025-10 收官后）+ 本批 D08-R01..R06 六行 → 实计 50（L027-1 r7/r8 双轮稳差分报告逐行回填）
 rows:
 - row_id: D01-R01
   domain: D01
@@ -2274,11 +2283,11 @@ rows:
 - row_id: D08-R01
   domain: D08
   capability: POST /api/release/bundle（AQL 装配清单）
-  state: absent
+  state: compatible
   confidence: high
   contract_ref: contracts/release-bundle.yaml#release-bundle/assemble
   golden_ref:
-  last_difftest:
+  last_difftest: reports/compatibility/2026-09-17-d08-release-bundle.yaml（L027-1 r7/r8 双轮稳：c24-c30 SAME 实质——装配校验链四臂+命中五行闭集+空命中+includeMetaData；BUG-1 AQL E1 锚点修复后全绿）
   priority_class: P1
   layer: A
   source_row: "§9 行 1"
@@ -2286,14 +2295,15 @@ rows:
     T-513/FR-153 最小面。L027-2 契约固化（2026-09-17）：条目 release-bundle/assemble（IMPLEMENTED——
     l026a-wire p27-p37/p51/p56 单端锚 + L026-6 单测钉；差分未跑不标 VERIFIED，行态维持 absent 翻绿归
     L027-1+落账）。
+    L027-6 落账（2026-09-17，conductor）：L027-1 r7/r8 差分 SAME 实质 → compatible（c24-c30，BUG-1 修复后全绿）。
 - row_id: D08-R02
   domain: D08
   capability: 事务三段式（transaction/open、close ×2、async status）
-  state: absent
+  state: compatible
   confidence: high
   contract_ref: contracts/release-bundle.yaml#release-bundle/transaction-errors
   golden_ref:
-  last_difftest:
+  last_difftest: reports/compatibility/2026-09-17-d08-release-bundle.yaml（L027-1 r7/r8 双轮稳：c31-c36 SAME——错误臂全族 JWS/裸 Jackson/事务不存在×3；成功形需签名链双端同不可达〔U2 wire 局限注记在契约〕）
   priority_class: P1
   layer: A
   source_row: "§9 行 2"
@@ -2301,14 +2311,15 @@ rows:
     M17 面外（v2 signing）。L027-2 契约固化（2026-09-17）：条目 release-bundle/transaction-errors
     （IMPLEMENTED——错误臂 p38-p43/p54 wire 锚；成功形 201/字段集 UNKNOWN 不立断言〔spec §8.3〕；
     差分未跑，行态维持 absent）。
+    L027-6 落账（2026-09-17，conductor）：L027-1 r7/r8 差分 SAME 实质 → compatible（c31-c36；成功形双端同不可达=U2 wire 局限）。
 - row_id: D08-R03
   domain: D08
   capability: PUT /api/release/store（源 bundle 承接，202/200/409 三态）
-  state: absent
+  state: compatible
   confidence: high
   contract_ref: contracts/release-bundle.yaml#release-bundle/store
   golden_ref:
-  last_difftest:
+  last_difftest: reports/compatibility/2026-09-17-d08-release-bundle.yaml（L027-1 r7/r8 双轮稳：c37-c42 SAME——OPTIONS/空 body 500 泄漏/非 JSON/INVALID_RB_REPO 双键信封/缺省仓副作用〔BUG-3 系统仓 DELETE 卡死修复后〕；c42=A 侧竞态候裁→known-divergence#d08/store-endpoint-race-family）
   priority_class: P1
   layer: A
   source_row: "§9 行 3"
@@ -2316,28 +2327,30 @@ rows:
     M17 面外（Distribution 推送对端）。L027-2 契约固化（2026-09-17）：条目 release-bundle/store
     （IMPLEMENTED——七臂有序链 p11/p44-p49/p52/p58 wire 锚 + p48b 系统仓副作用；三态 202/200/409
     需签名链未实证〔U1〕不立 wire 断言；差分未跑，行态维持 absent）。
+    L027-6 落账（2026-09-17，conductor）：L027-1 r7/r8 差分 SAME 实质 → compatible（c37-c42，BUG-3 系统仓 DELETE 修复后全绿；c42 A 竞态候裁→known-divergence#d08/store-endpoint-race-family）。
 - row_id: D08-R04
   domain: D08
   capability: 查询族（GET /release/bundles[/{name}[/{version}[/status]]]、HEAD 校验和、DELETE 两行）
-  state: absent
+  state: compatible
   confidence: high
   contract_ref: contracts/release-bundle.yaml#release-bundle/query-family
   golden_ref:
-  last_difftest:
+  last_difftest: reports/compatibility/2026-09-17-d08-release-bundle.yaml（L027-1 r7/r8 双轮稳：c01-c11 SAME——空态三形态/404 三消息族/HEAD 无 body〔BUG-4 CT 修复后〕/type 投影全绿）
   priority_class: P1
   layer: A
   source_row: "§9 行 4"
   note: >-
     L027-2 契约固化（2026-09-17）：条目 release-bundle/query-family（IMPLEMENTED——空态/404 三消息族
     p01-p12/p59 + 门 p50/p57 wire 锚；有记录成功形 UNKNOWN〔U9〕；差分未跑，行态维持 absent）。
+    L027-6 落账（2026-09-17，conductor）：L027-1 r7/r8 差分 SAME 实质 → compatible（c01-c11，BUG-4 CT 修复后全绿）。
 - row_id: D08-R05
   domain: D08
   capability: GET/PUT /api/release/bundles/config + artifacts 清单 + fat_manifest + v2 伴随读面（/api/v2/release_bundle/*）
-  state: absent
+  state: compatible
   confidence: high
   contract_ref: contracts/release-bundle.yaml#release-bundle/config-and-artifacts
   golden_ref:
-  last_difftest:
+  last_difftest: reports/compatibility/2026-09-17-d08-release-bundle.yaml（L027-1 r7/r8 双轮稳：c12-c23 SAME——config 720 面/fat_manifest 400/v2 读族〔names/received/records/statuses/-jfds DELETE/audit 405+七必填，BUG-2 Allow 头+RB5 归一后全绿〕）
   priority_class: P1
   layer: A
   source_row: "§9 行 5"
@@ -2346,14 +2359,15 @@ rows:
     （IMPLEMENTED——720 面 p06/artifacts p08/fat_manifest p47/admin 门 p53/p55 wire 锚；PUT 202 臂反编译
     未实证不立逐字断言）+ v2 读面伴随条目 release-bundle/v2-read-face（IMPLEMENTED——p13-p26/p60；
     行 capability 未含 v2 面=勘误候选 M1 归 conductor）；差分未跑，行态维持 absent。
+    L027-6 落账（2026-09-17，conductor）：L027-1 r7/r8 差分 SAME 实质 → compatible（c12-c23，BUG-2+RB5 后全绿；M1 勘误已由 L027-2 收编件落）。
 - row_id: D08-R06
   domain: D08
   capability: Any Distribution 权限桶（ANY DISTRIBUTION 预置）
-  state: absent
+  state: compatible
   confidence: high
   contract_ref: contracts/release-bundle.yaml#release-bundle/any-distribution-face
   golden_ref:
-  last_difftest:
+  last_difftest: reports/compatibility/2026-09-17-d08-release-bundle.yaml（L027-1 r7/r8 双轮稳：c44-c52 SAME——非 admin 六臂/匿名三臂〔L020-3 既裁姿态〕；ANY DISTRIBUTION 非 REST 实体双端一致〔单查 404/名单缺席〕；c53 相邻 DIVERGENT=Any Remote/Anything 预置 REST 呈现缺位→known-divergence#d08/preset-synthetic-rest-face 安全域路由）
   priority_class: P1
   layer: A/C
   source_row: "§9 行 6"
@@ -2361,6 +2375,7 @@ rows:
     T-491/T-513（FR-156.2）。L027-2 契约固化（2026-09-17）：条目 release-bundle/any-distribution-face
     （IMPLEMENTED——非 REST 实体 p61/p62 + distribution rclass 拒建 p63 + 权限矩阵横切 p50-p58 wire 锚；
     回退链内部语义非 REST 面不立断言；差分未跑，行态维持 absent）。
+    L027-6 落账（2026-09-17，conductor）：L027-1 r7/r8 差分 SAME 实质 → compatible（c44-c52；c53 相邻 DIVERGENT=预置合成 REST 呈现缺位→known-divergence#d08/preset-synthetic-rest-face，安全域路由不挡本行）。
 - row_id: D08-R07
   domain: D08
   capability: Distribution 服务侧 v1/v2 族（≈60+ 操作）

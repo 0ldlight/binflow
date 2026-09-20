@@ -90,10 +90,10 @@ test('N2: first-level nav entries carry 16px mono icons (identity closed set, cu
   ).toBeVisible()
 
   // 核心组条目同档（dashboard / artifacts；T-492 B-3.2 前缀断言）；四分组
-  // 壳下全景 25 图标（admin 视野全表）
+  // 壳下全景 26 图标（admin 视野全表）
   await page.click('a.nav-item:text-is("制品")')
   await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
-  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(25)
+  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(26)
   await expect(nav.locator('[data-testid="nav-icon"][data-icon="dashboard"]')).toBeVisible()
   await expect(nav.locator('[data-testid="nav-icon"][data-icon="artifacts"]')).toBeVisible()
 })
@@ -155,11 +155,11 @@ test('F2: audit filtered-empty carries the slot (third list page, same construct
 // ---- 3. F2 反断言：403 无权限卡不挂插画（错误语义不装饰） --------------------
 
 test('F2 negative: 403 no-permission empty state stays plain (no illustration)', async ({ page }) => {
+  // 仓库列表走授权投影，plain-user fixture 可能获得可见仓；用户管理是
+  // 确定性管理员读面，保留「403 错误语义不装饰」的反断言语义。
   await loginAs(page, 'user')
-  await page.goto('/binflow/ui/admin/repositories')
-  const empty = page.locator('[data-testid="repos-page"], [data-testid="empty-state"]').first()
-  await expect(empty).toBeVisible()
-  await expect(page.locator('[data-testid="empty-state"]')).toContainText('无权限查看仓库列表')
+  await page.goto('/binflow/ui/admin/security/users')
+  await expect(page.locator('[data-testid="empty-state"]')).toContainText('无权限访问用户管理')
   await expect(page.locator('[data-testid="empty-state"] [data-testid="empty-art"]')).toHaveCount(0)
 })
 

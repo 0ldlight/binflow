@@ -1,3 +1,4 @@
+import { selectShadcn } from './support/shadcn'
 import { expect, test } from '@playwright/test'
 
 // T-101 探针：安全组三页面（用户/组/权限 target 编辑器）真后端全流程。
@@ -126,10 +127,10 @@ test('W33 three-step flow: group -> user membership -> target matrix, tester + d
   await expect(page.locator('[data-testid="perm-pattern-verdict"]')).toContainText('不匹配')
 
   // 主体与动作矩阵：用户行 read；组行 read+write（双栏）
-  await page.selectOption('[data-testid="perm-add-user"]', user)
+  await selectShadcn(page, '[data-testid="perm-add-user"]', user)
   await page.getByRole('button', { name: '添加用户' }).click()
   await page.check(`[data-testid="perm-matrix-cell-user-${user}-read"]`)
-  await page.selectOption('[data-testid="perm-add-group"]', group)
+  await selectShadcn(page, '[data-testid="perm-add-group"]', group)
   await page.getByRole('button', { name: '添加组' }).click()
   await page.check(`[data-testid="perm-matrix-cell-group-${group}-read"]`)
   await page.check(`[data-testid="perm-matrix-cell-group-${group}-write"]`)

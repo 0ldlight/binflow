@@ -1,0 +1,404 @@
+[
+ {
+  "id": "c01-bundles-default",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p01 type缺省TARGET空态",
+  "class": []
+ },
+ {
+  "id": "c02-bundles-source",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p02 type=source空态",
+  "class": []
+ },
+ {
+  "id": "c03-versions",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p03 名不存在也200空数组",
+  "class": []
+ },
+ {
+  "id": "c04-get-missing",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p04 404 Bundle not found",
+  "class": []
+ },
+ {
+  "id": "c05-get-missing-source",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p59 type任意值同形",
+  "class": []
+ },
+ {
+  "id": "c06-status-missing",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p05 冒号拼接第二消息族",
+  "class": []
+ },
+ {
+  "id": "c07-head-missing",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p07 404无body恒SOURCE",
+  "class": []
+ },
+ {
+  "id": "c08-get-jws-missing",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p12",
+  "class": []
+ },
+ {
+  "id": "c09-artifacts-missing",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p08",
+  "class": []
+ },
+ {
+  "id": "c10-delete-target-missing",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p09 Bundle not found",
+  "class": []
+ },
+ {
+  "id": "c11-delete-source-missing",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p10 Release bundle not found第三消息族",
+  "class": []
+ },
+ {
+  "id": "c12-config-get",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p06 出厂缺省720",
+  "class": []
+ },
+ {
+  "id": "c13-fat-manifest-wrong-name",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p47 非 list.manifest.json 拒绝",
+  "class": []
+ },
+ {
+  "id": "c14-v2-names",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p14",
+  "class": []
+ },
+ {
+  "id": "c15-v2-received",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p15",
+  "class": []
+ },
+ {
+  "id": "c16-v2-records-name",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p18 分页三键信封",
+  "class": []
+ },
+ {
+  "id": "c17-v2-received-name",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p19",
+  "class": []
+ },
+ {
+  "id": "c18-v2-received-namever",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p20/p23 合法名也400名字校验（无GET路由落校验器）",
+  "class": []
+ },
+ {
+  "id": "c19-v2-records-namever",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p17/p24 泄露v2存储布局.evd",
+  "class": []
+ },
+ {
+  "id": "c20-v2-statuses-namever",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p16/p25",
+  "class": []
+ },
+ {
+  "id": "c21-v2-received-delete",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p60 -jfds仓名",
+  "class": []
+ },
+ {
+  "id": "c22-v2-audit-get",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p22 405仅POST",
+  "class": []
+ },
+ {
+  "id": "c23-v2-audit-post-empty",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p26 七必填字段清单",
+  "class": []
+ },
+ {
+  "id": "c24-assemble-missing-aql",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p27",
+  "class": []
+ },
+ {
+  "id": "c25-assemble-empty-aql",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p28",
+  "class": []
+ },
+ {
+  "id": "c26-assemble-not-items",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p29",
+  "class": []
+ },
+ {
+  "id": "c27-assemble-syntax-error",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p33 AQL语法错消息",
+  "class": []
+ },
+ {
+  "id": "c28-assemble-hit",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p30/p36 命中五行字段闭集",
+  "class": []
+ },
+ {
+  "id": "c29-assemble-empty-hit",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p32 空命中results在场",
+  "class": []
+ },
+ {
+  "id": "c30-assemble-include-meta",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p37 generic仓两臂同形",
+  "class": []
+ },
+ {
+  "id": "c31-tx-wrap-jose-garbage",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p38",
+  "class": []
+ },
+ {
+  "id": "c32-tx-open-garbage",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p39 与包装端点同形",
+  "class": []
+ },
+ {
+  "id": "c33-tx-open-not-json",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p40 裸Jackson消息",
+  "class": []
+ },
+ {
+  "id": "c34-tx-close-missing",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p41 事务不存在",
+  "class": []
+ },
+ {
+  "id": "c35-tx-async-close-missing",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p42",
+  "class": []
+ },
+ {
+  "id": "c36-tx-async-status-missing",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p43",
+  "class": []
+ },
+ {
+  "id": "c37-store-options",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p11 CORS预检",
+  "class": []
+ },
+ {
+  "id": "c38-store-empty-body",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p45 缺signedJwsBundle→500泄漏",
+  "class": []
+ },
+ {
+  "id": "c39-store-not-json",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p46",
+  "class": []
+ },
+ {
+  "id": "c40-store-invalid-rb-repo",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p44 INVALID_RB_REPO双键信封",
+  "class": []
+ },
+ {
+  "id": "c41-store-default-repo",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p48 缺省storingRepo→release-bundles系统仓副作用+500 JWS解析",
+  "class": []
+ },
+ {
+  "id": "c42-store-bad-project",
+  "verdict": "DIVERGENT",
+  "diffs": [
+   "status A=500 B=404",
+   "body-json A={\"errors\": [{\"status\": 500, \"message\": \"Invalid serialized unsecured/JWS/JWE object: Missing part delimiters\"}]} B={\"errors\": [{\"status\": 404, \"message\": \"HTTP response status 404:Failed to execute add project resource with error Could not find project `l027qnope`\"}]}"
+  ],
+  "note": "p49 projectKey不存在→404 Access联查",
+  "class": []
+ },
+ {
+  "id": "c43-system-repo-side-effect",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p48b 系统仓单查200+列表不可见",
+  "class": ""
+ },
+ {
+  "id": "c55-system-repo-delete",
+  "verdict": "DIVERGENT",
+  "diffs": [
+   "hdr Content-Type: A='<json-family>' B='text/plain'",
+   "body-text A='{\\n  \"repoKey\" : \"release-bundles\",\\n  \"statusMsg\" : \"Repository \\'release-bundles\\' and all its content have been removed successfully.\",\\n  \"deletedArtifactsCount\" : 0,\\n  \"success\" : true\\n}' B='Repository release-bundles deleted successfully.\\n'"
+  ],
+  "note": "系统仓DELETE可清（L026-1 清理先例；round1 B 400卡死=本票BUG）",
+  "class": []
+ },
+ {
+  "id": "c44-user-bundles",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p50 user角色放行200",
+  "class": []
+ },
+ {
+  "id": "c45-user-assemble",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p51 达校验臂非403",
+  "class": []
+ },
+ {
+  "id": "c46-user-store",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p52 admin门403 Forbidden信封",
+  "class": []
+ },
+ {
+  "id": "c47-user-config",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p53",
+  "class": []
+ },
+ {
+  "id": "c48-user-async-status",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p54",
+  "class": []
+ },
+ {
+  "id": "c49-user-fat-manifest",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p55",
+  "class": []
+ },
+ {
+  "id": "c50-anon-assemble",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p56 匿名401",
+  "class": [
+   "401 message A/B per-side (R-22a pending)",
+   "401 message A/B per-side (R-22a pending)"
+  ]
+ },
+ {
+  "id": "c51-anon-bundles",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p57",
+  "class": [
+   "401 message A/B per-side (R-22a pending)",
+   "401 message A/B per-side (R-22a pending)"
+  ]
+ },
+ {
+  "id": "c52-anon-store",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p58",
+  "class": [
+   "401 message A/B per-side (R-22a pending)",
+   "401 message A/B per-side (R-22a pending)"
+  ]
+ },
+ {
+  "id": "c53-permissions-any-family",
+  "verdict": "DIVERGENT",
+  "diffs": [
+   "Any-family A=['Any Remote', 'Anything'] B=[]"
+  ],
+  "note": "p61/p62 ANY家族投影（Any Distribution不在名单）",
+  "class": ""
+ },
+ {
+  "id": "c54-distribution-rclass",
+  "verdict": "SAME",
+  "diffs": [],
+  "note": "p63 distribution rclass不可REST创建",
+  "class": []
+ }
+]

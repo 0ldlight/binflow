@@ -1,0 +1,8 @@
+{
+  "errors": [
+    {
+      "status": 400,
+      "message": "Fat manifest content view is only allowed on list.manifest.json files. Got: [nonexistent/manifest.json]"
+    }
+  ]
+}

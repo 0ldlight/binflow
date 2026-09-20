@@ -1,0 +1,7 @@
+[ {
+  "name" : "Any Remote",
+  "uri" : "http://172.16.58.130:8082/artifactory/api/security/permissions/Any%20Remote"
+}, {
+  "name" : "Anything",
+  "uri" : "http://172.16.58.130:8082/artifactory/api/security/permissions/Anything"
+} ]

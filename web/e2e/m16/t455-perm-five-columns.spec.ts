@@ -1,3 +1,4 @@
+import { selectShadcn } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
@@ -91,13 +92,13 @@ test('admin: five-column matrix (read/annotate/write/delete/manage) with annotat
   expect(headTexts.slice(1).map((t) => t.trim())).toEqual(['read', 'annotate', 'write', 'delete', 'manage'])
 
   // 用户行 r+a+w；组行 annotate+manage（annotate 独立勾选位——不联动 write）
-  await page.selectOption('[data-testid="perm-add-user"]', user)
+  await selectShadcn(page, '[data-testid="perm-add-user"]', user)
   await page.getByRole('button', { name: '添加用户' }).click()
   await page.check(`[data-testid="perm-matrix-cell-user-${user}-read"]`)
   await page.check(`[data-testid="perm-matrix-cell-user-${user}-annotate"]`)
   await page.check(`[data-testid="perm-matrix-cell-user-${user}-write"]`)
   await expect(page.locator(`[data-testid="perm-matrix-cell-user-${user}-delete"]`)).not.toBeChecked()
-  await page.selectOption('[data-testid="perm-add-group"]', group)
+  await selectShadcn(page, '[data-testid="perm-add-group"]', group)
   await page.getByRole('button', { name: '添加组' }).click()
   await page.check(`[data-testid="perm-matrix-cell-group-${group}-annotate"]`)
   await page.check(`[data-testid="perm-matrix-cell-group-${group}-manage"]`)

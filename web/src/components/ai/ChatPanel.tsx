@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 // AI ChatPanel（总令 §十五 Context-aware Copilot 的壳实现——P5）：
 // 头部（上下文徽章——当前路由派生坐标）/ 消息流（markdown·code·表格·
 // ToolCallCard·ToolResultCard·ConfirmCard 分层渲染）/ 输入框（Enter 发送、
@@ -125,14 +127,14 @@ function AssistantBubble({ message, onRetry }: { message: MessageState; onRetry:
               {t('响应生成失败（本地状态机异常）')}
               {errDetail ? <span className="block font-mono text-aux">{errDetail}</span> : null}
             </p>
-            <button
+            <Button
               type="button"
               className="self-start rounded-md border border-border px-2.5 py-1 text-dense hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
               data-testid="ai-error-retry"
               onClick={() => onRetry(message.id, message.parentId)}
             >
               {t('重试')}
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -204,7 +206,7 @@ function ThreadPanel({ runtime }: { runtime: AssistantRuntime }) {
               {t('上下文感知 Copilot（演示）——当前无后端端点，响应由本地 mock 生成，零网络请求。')}
             </p>
             <div className="flex flex-col gap-2 pt-1">
-              <button
+              <Button
                 type="button"
                 className="rounded-md border border-border px-3 py-1.5 text-dense hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
                 data-testid="ai-empty-suggest-storage"
@@ -214,8 +216,8 @@ function ThreadPanel({ runtime }: { runtime: AssistantRuntime }) {
                 }}
               >
                 {t('查一下存储占用')}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 className="rounded-md border border-border px-3 py-1.5 text-dense hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
                 data-testid="ai-empty-suggest-create"
@@ -225,7 +227,7 @@ function ThreadPanel({ runtime }: { runtime: AssistantRuntime }) {
                 }}
               >
                 {t('帮我创建仓库')}
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
@@ -240,7 +242,7 @@ function ThreadPanel({ runtime }: { runtime: AssistantRuntime }) {
       {/* 输入框（Enter 发送 / Shift+Enter 换行；运行中禁发） */}
       <div className="border-t border-border p-3">
         <div className="flex items-end gap-2 rounded-lg border border-input bg-surface-1 p-2 focus-within:border-ring">
-          <textarea
+          <Textarea
             ref={inputRef}
             rows={2}
             className="min-h-[2.4em] max-h-[9em] flex-1 resize-none bg-transparent text-dense leading-relaxed outline-none placeholder:text-muted-foreground"
@@ -251,7 +253,7 @@ function ThreadPanel({ runtime }: { runtime: AssistantRuntime }) {
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onInputKeyDown}
           />
-          <button
+          <Button
             type="button"
             className={cn(
               'shrink-0 rounded-md px-3 py-1.5 text-dense font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring',
@@ -264,7 +266,7 @@ function ThreadPanel({ runtime }: { runtime: AssistantRuntime }) {
             onClick={() => send()}
           >
             {t('发送')}
-          </button>
+          </Button>
         </div>
         <p className="mt-1.5 px-1 text-aux text-muted-foreground">{t('本地 mock（零网络）——不发送任何请求到服务端。')}</p>
       </div>

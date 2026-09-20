@@ -18,7 +18,7 @@ import { useAuth } from '@/app/AuthContext'
 import { Button, ButtonAsChild } from '@/components/ui/button'
 import { AlertBox, CheckRow } from '@/components/layout/bits'
 import { StateSkeleton } from '@/components/layout/states'
-import { TextInput, NativeSelect } from '@/components/layout/fields'
+import { TextInput, SelectField } from '@/components/layout/fields'
 import { TransferBox } from '@/components/layout/transfer-box'
 import { toast } from '@/lib/toast'
 import { ADMIN_ROLES, ApiError, errText, isReadOnlyAdmin } from '@/lib/api'
@@ -184,7 +184,7 @@ export default function UserCreatePage() {
           </div>
           <div className="field max-w-[480px]">
             <label htmlFor="uf-role">{t('角色（三值闭集，M7 FR-66）')}</label>
-            <NativeSelect
+            <SelectField
               id="uf-role"
               value={f.role}
               disabled={readOnly}

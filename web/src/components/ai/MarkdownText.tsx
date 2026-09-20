@@ -1,3 +1,4 @@
+import { Table, TableCell, TableHead } from '@/components/ui/table'
 // AI 消息 markdown 渲染层（总令 §十五 消息渲染分层之一）：react-markdown
 // + remark-gfm——标题/列表/粗斜体/行内码 + **GFM 表格** + 围栏代码块
 // （mono + 一键拷贝——digest/checksum/路径同款纪律）。
@@ -78,15 +79,15 @@ export function MarkdownText({ text, className }: { text: string; className?: st
           pre: ({ children }) => <>{children}</>, // 围栏壳由 CodeShell 承载
           table: ({ children }) => (
             <div className="my-2 overflow-x-auto">
-              <table className="w-full border-collapse text-dense" data-testid="ai-md-table">
+              <Table className="w-full border-collapse text-dense" data-testid="ai-md-table">
                 {children}
-              </table>
+              </Table>
             </div>
           ),
           th: ({ children }) => (
-            <th className="border-b border-border px-2 py-1 text-left font-semibold">{children}</th>
+            <TableHead className="border-b border-border px-2 py-1 text-left font-semibold">{children}</TableHead>
           ),
-          td: ({ children }) => <td className="border-b border-border px-2 py-1 align-top">{children}</td>,
+          td: ({ children }) => <TableCell className="border-b border-border px-2 py-1 align-top">{children}</TableCell>,
           p: ({ children }) => <p className="my-1.5 first:mt-0 last:mb-0">{children}</p>,
           ul: ({ children }) => <ul className="my-1.5 list-disc pl-5">{children}</ul>,
           ol: ({ children }) => <ol className="my-1.5 list-decimal pl-5">{children}</ol>,

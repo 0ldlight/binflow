@@ -1,0 +1,5235 @@
+[
+  {
+    "key": "a11y-mu1m8zgzfyo7",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/a11y-mu1m8zgzfyo7"
+  },
+  {
+    "key": "a11y-mu1mqdl8qevg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/a11y-mu1mqdl8qevg"
+  },
+  {
+    "key": "a11y-mu1n4cv03v3o",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/a11y-mu1n4cv03v3o"
+  },
+  {
+    "key": "a11y-mu4ue9fwun3z",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/a11y-mu4ue9fwun3z"
+  },
+  {
+    "key": "a11yfix-mu1m8zuyu9g2",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/a11yfix-mu1m8zuyu9g2"
+  },
+  {
+    "key": "a11yfix-mu1mqe4n9zz4",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/a11yfix-mu1mqe4n9zz4"
+  },
+  {
+    "key": "a11yfix-mu1n4dea4b8h",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/a11yfix-mu1n4dea4b8h"
+  },
+  {
+    "key": "a11yfix-mu4uebb1f70t",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/a11yfix-mu4uebb1f70t"
+  },
+  {
+    "key": "auto-trashcan",
+    "description": "System trash can (auto-managed; restore/empty through the trash REST family)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/auto-trashcan"
+  },
+  {
+    "key": "demo-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/demo-local"
+  },
+  {
+    "key": "docker-ui-local",
+    "description": "",
+    "type": "local",
+    "packageType": "docker",
+    "url": "http://172.16.58.130:8083/binflow/docker-ui-local",
+    "configuration": {
+      "priorityResolution": false,
+      "quotaBytes": 0
+    }
+  },
+  {
+    "key": "kb-axe-mu1m9guhui2v",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-axe-mu1m9guhui2v"
+  },
+  {
+    "key": "kb-axe-mu1mqwsfdc37",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-axe-mu1mqwsfdc37"
+  },
+  {
+    "key": "kb-axe-mu1n4y4kqhfe",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-axe-mu1n4y4kqhfe"
+  },
+  {
+    "key": "kb-axe-mu4uen02y7mm",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-axe-mu4uen02y7mm"
+  },
+  {
+    "key": "kb-dlg-mu1m9ft63cg1",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-dlg-mu1m9ft63cg1"
+  },
+  {
+    "key": "kb-dlg-mu1mqvz55172",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-dlg-mu1mqvz55172"
+  },
+  {
+    "key": "kb-dlg-mu1n4x6j16is",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-dlg-mu1n4x6j16is"
+  },
+  {
+    "key": "kb-dlg-mu4uely99shc",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-dlg-mu4uely99shc"
+  },
+  {
+    "key": "kb-nav-mu1m9dn4m8jd",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-nav-mu1m9dn4m8jd"
+  },
+  {
+    "key": "kb-nav-mu1mqss9umyc",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-nav-mu1mqss9umyc"
+  },
+  {
+    "key": "kb-nav-mu1n4tbw1gwp",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-nav-mu1n4tbw1gwp"
+  },
+  {
+    "key": "kb-nav-mu4ued9r8f5n",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-nav-mu4ued9r8f5n"
+  },
+  {
+    "key": "kb-row-a-mu1m9dkbqs3z",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-row-a-mu1m9dkbqs3z"
+  },
+  {
+    "key": "kb-row-a-mu1mqtezv6ab",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-row-a-mu1mqtezv6ab"
+  },
+  {
+    "key": "kb-row-a-mu1n4ub6pyfk",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-row-a-mu1n4ub6pyfk"
+  },
+  {
+    "key": "kb-row-a-mu4uefz0s5qp",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-row-a-mu4uefz0s5qp"
+  },
+  {
+    "key": "kb-row-b-mu1m9dkbe73t",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-row-b-mu1m9dkbe73t"
+  },
+  {
+    "key": "kb-row-b-mu1mqtezsojf",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-row-b-mu1mqtezsojf"
+  },
+  {
+    "key": "kb-row-b-mu1n4ub6w49y",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-row-b-mu1n4ub6w49y"
+  },
+  {
+    "key": "kb-row-b-mu4uefz0hznk",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-row-b-mu4uefz0hznk"
+  },
+  {
+    "key": "kb-tab-mu1m9femjwwj",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-tab-mu1m9femjwwj"
+  },
+  {
+    "key": "kb-tab-mu1mqvk24z46",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-tab-mu1mqvk24z46"
+  },
+  {
+    "key": "kb-tab-mu1n4wealo46",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-tab-mu1n4wealo46"
+  },
+  {
+    "key": "kb-tab-mu4ueiib5psz",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-tab-mu4ueiib5psz"
+  },
+  {
+    "key": "kb-tree-mu1m9e2nngch",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-tree-mu1m9e2nngch"
+  },
+  {
+    "key": "kb-tree-mu1m9e2nngch-b",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-tree-mu1m9e2nngch-b"
+  },
+  {
+    "key": "kb-tree-mu1mqtklqim3",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-tree-mu1mqtklqim3"
+  },
+  {
+    "key": "kb-tree-mu1mqtklqim3-b",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-tree-mu1mqtklqim3-b"
+  },
+  {
+    "key": "kb-tree-mu1n4trgag0a",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-tree-mu1n4trgag0a"
+  },
+  {
+    "key": "kb-tree-mu1n4trgag0a-b",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-tree-mu1n4trgag0a-b"
+  },
+  {
+    "key": "kb-tree-mu4uee7u1ih4",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-tree-mu4uee7u1ih4"
+  },
+  {
+    "key": "kb-tree-mu4uee7u1ih4-b",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/kb-tree-mu4uee7u1ih4-b"
+  },
+  {
+    "key": "l026p12-mu4x5rgi",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/l026p12-mu4x5rgi"
+  },
+  {
+    "key": "l026pmu4vmbj4m1",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/l026pmu4vmbj4m1"
+  },
+  {
+    "key": "l026pmu4vmbj4m2",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/l026pmu4vmbj4m2"
+  },
+  {
+    "key": "l026smu4vq9m9",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/l026smu4vq9m9"
+  },
+  {
+    "key": "l027q-rbsrc",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/l027q-rbsrc"
+  },
+  {
+    "key": "m10-legacy-generic",
+    "description": "m10 legacy semicolon-path carrier (T-277, FR-89-AC4)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m10-legacy-generic"
+  },
+  {
+    "key": "m10-legacy-maven",
+    "description": "m10 legacy semicolon-path carrier, maven layout arm (T-277)",
+    "type": "local",
+    "packageType": "maven",
+    "url": "http://172.16.58.130:8083/binflow/m10-legacy-maven"
+  },
+  {
+    "key": "m8-perf-local",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8-perf-local"
+  },
+  {
+    "key": "m8armed-mu1m9nkehbwb",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8armed-mu1m9nkehbwb"
+  },
+  {
+    "key": "m8armed-mu1mr4xsmkjc",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8armed-mu1mr4xsmkjc"
+  },
+  {
+    "key": "m8armed-mu1n56523y2b",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8armed-mu1n56523y2b"
+  },
+  {
+    "key": "m8axe-mu1m95as6vy7",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8axe-mu1m95as6vy7"
+  },
+  {
+    "key": "m8axe-mu1m9ok73ndb",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8axe-mu1m9ok73ndb"
+  },
+  {
+    "key": "m8axe-mu1m9ok73ndb-npmpkg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/m8axe-mu1m9ok73ndb-npmpkg"
+  },
+  {
+    "key": "m8axe-mu1mqjwabp2a",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8axe-mu1mqjwabp2a"
+  },
+  {
+    "key": "m8axe-mu1mr6vz0fy0",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8axe-mu1mr6vz0fy0"
+  },
+  {
+    "key": "m8axe-mu1mr6vz0fy0-npmpkg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/m8axe-mu1mr6vz0fy0-npmpkg"
+  },
+  {
+    "key": "m8axe-mu1n4kye0ulm",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8axe-mu1n4kye0ulm"
+  },
+  {
+    "key": "m8axe-mu1n57zcjm4c",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8axe-mu1n57zcjm4c"
+  },
+  {
+    "key": "m8axe-mu1n57zcjm4c-npmpkg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/m8axe-mu1n57zcjm4c-npmpkg"
+  },
+  {
+    "key": "m8clip-mu1m9bt25rs3",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8clip-mu1m9bt25rs3"
+  },
+  {
+    "key": "m8clip-mu1mqr7luuzr",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8clip-mu1mqr7luuzr"
+  },
+  {
+    "key": "m8clip-mu1n4rg6ka9y",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8clip-mu1n4rg6ka9y"
+  },
+  {
+    "key": "m8copy-mu1m91cockll",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8copy-mu1m91cockll"
+  },
+  {
+    "key": "m8copy-mu1mqfcag84s",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8copy-mu1mqfcag84s"
+  },
+  {
+    "key": "m8copy-mu1n4h7pntdk",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8copy-mu1n4h7pntdk"
+  },
+  {
+    "key": "m8ctx-mu1m91x5mz5e",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8ctx-mu1m91x5mz5e"
+  },
+  {
+    "key": "m8ctx-mu1mqg53nesf",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8ctx-mu1mqg53nesf"
+  },
+  {
+    "key": "m8ctx-mu1n4erput4o",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8ctx-mu1n4erput4o"
+  },
+  {
+    "key": "m8dep-mu1m9nvzz8kw",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8dep-mu1m9nvzz8kw"
+  },
+  {
+    "key": "m8dep-mu1mr5tdzwlv",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8dep-mu1mr5tdzwlv"
+  },
+  {
+    "key": "m8dep-mu1n56zoyn29",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8dep-mu1n56zoyn29"
+  },
+  {
+    "key": "m8ent-mu1m9ob6zjgj",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8ent-mu1m9ob6zjgj"
+  },
+  {
+    "key": "m8ent-mu1mr66r0ct6",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8ent-mu1mr66r0ct6"
+  },
+  {
+    "key": "m8ent-mu1n57ikwvhj",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8ent-mu1n57ikwvhj"
+  },
+  {
+    "key": "m8exp-mu1m96ldtobx",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8exp-mu1m96ldtobx"
+  },
+  {
+    "key": "m8exp-mu1mqkqj2kgc",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8exp-mu1mqkqj2kgc"
+  },
+  {
+    "key": "m8exp-mu1n4ju2cziv",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8exp-mu1n4ju2cziv"
+  },
+  {
+    "key": "m8grid-mu1m9me4frta",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8grid-mu1m9me4frta"
+  },
+  {
+    "key": "m8grid-mu1m9me4frta-npmpkg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/m8grid-mu1m9me4frta-npmpkg"
+  },
+  {
+    "key": "m8grid-mu1mr3xakifm",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8grid-mu1mr3xakifm"
+  },
+  {
+    "key": "m8grid-mu1mr3xakifm-npmpkg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/m8grid-mu1mr3xakifm-npmpkg"
+  },
+  {
+    "key": "m8grid-mu1n558jzlrw",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8grid-mu1n558jzlrw"
+  },
+  {
+    "key": "m8grid-mu1n558jzlrw-npmpkg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/m8grid-mu1n558jzlrw-npmpkg"
+  },
+  {
+    "key": "m8ro-mu1m93bj0o82",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8ro-mu1m93bj0o82"
+  },
+  {
+    "key": "m8ro-mu1mqhkzh3qm",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8ro-mu1mqhkzh3qm"
+  },
+  {
+    "key": "m8ro-mu1n4i399ejj",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8ro-mu1n4i399ejj"
+  },
+  {
+    "key": "m8smu-mu1m9m0wgm9c",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8smu-mu1m9m0wgm9c"
+  },
+  {
+    "key": "m8smu-mu1m9m0wgm9c-npm",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/m8smu-mu1m9m0wgm9c-npm"
+  },
+  {
+    "key": "m8smu-mu1mr3g4c0b0",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8smu-mu1mr3g4c0b0"
+  },
+  {
+    "key": "m8smu-mu1mr3g4c0b0-npm",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/m8smu-mu1mr3g4c0b0-npm"
+  },
+  {
+    "key": "m8smu-mu1n54prdc9p",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8smu-mu1n54prdc9p"
+  },
+  {
+    "key": "m8smu-mu1n54prdc9p-npm",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/m8smu-mu1n54prdc9p-npm"
+  },
+  {
+    "key": "m8step-mu1m9mptrdtl",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8step-mu1m9mptrdtl"
+  },
+  {
+    "key": "m8step-mu1mr47yhlk8",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8step-mu1mr47yhlk8"
+  },
+  {
+    "key": "m8step-mu1n55t3rr9l",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8step-mu1n55t3rr9l"
+  },
+  {
+    "key": "m8time-mu1m9dbg94jo",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8time-mu1m9dbg94jo"
+  },
+  {
+    "key": "m8time-mu1mqsa5i3dn",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8time-mu1mqsa5i3dn"
+  },
+  {
+    "key": "m8time-mu1n4swknng5",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8time-mu1n4swknng5"
+  },
+  {
+    "key": "m8trash-mu1m93ztkhlb",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8trash-mu1m93ztkhlb"
+  },
+  {
+    "key": "m8trash-mu1mqi9w4tn5",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8trash-mu1mqi9w4tn5"
+  },
+  {
+    "key": "m8trash-mu1n4jn35wlo",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8trash-mu1n4jn35wlo"
+  },
+  {
+    "key": "m8tree-mu1m919172yu",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8tree-mu1m919172yu"
+  },
+  {
+    "key": "m8tree-mu1m919172yu-b",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8tree-mu1m919172yu-b"
+  },
+  {
+    "key": "m8tree-mu1mqfl76cdw",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8tree-mu1mqfl76cdw"
+  },
+  {
+    "key": "m8tree-mu1mqfl76cdw-b",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8tree-mu1mqfl76cdw-b"
+  },
+  {
+    "key": "m8tree-mu1n4ffz6u2q",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8tree-mu1n4ffz6u2q"
+  },
+  {
+    "key": "m8tree-mu1n4ffz6u2q-b",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8tree-mu1n4ffz6u2q-b"
+  },
+  {
+    "key": "m8usr-mu1m93zy0i5s",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8usr-mu1m93zy0i5s"
+  },
+  {
+    "key": "m8usr-mu1mqhz4be20",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8usr-mu1mqhz4be20"
+  },
+  {
+    "key": "m8usr-mu1n4i944lh9",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m8usr-mu1n4i944lh9"
+  },
+  {
+    "key": "m9-r00",
+    "description": "m9 seed repository m9-r00 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r00"
+  },
+  {
+    "key": "m9-r01",
+    "description": "m9 seed repository m9-r01 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r01"
+  },
+  {
+    "key": "m9-r02",
+    "description": "m9 seed repository m9-r02 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r02"
+  },
+  {
+    "key": "m9-r03",
+    "description": "m9 seed repository m9-r03 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r03"
+  },
+  {
+    "key": "m9-r04",
+    "description": "m9 seed repository m9-r04 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r04"
+  },
+  {
+    "key": "m9-r05",
+    "description": "m9 seed repository m9-r05 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r05"
+  },
+  {
+    "key": "m9-r06",
+    "description": "m9 seed repository m9-r06 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r06"
+  },
+  {
+    "key": "m9-r07",
+    "description": "m9 seed repository m9-r07 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r07"
+  },
+  {
+    "key": "m9-r08",
+    "description": "m9 seed repository m9-r08 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r08"
+  },
+  {
+    "key": "m9-r09",
+    "description": "m9 seed repository m9-r09 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r09"
+  },
+  {
+    "key": "m9-r10",
+    "description": "m9 seed repository m9-r10 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r10"
+  },
+  {
+    "key": "m9-r11",
+    "description": "m9 seed repository m9-r11 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r11"
+  },
+  {
+    "key": "m9-r12",
+    "description": "m9 seed repository m9-r12 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r12"
+  },
+  {
+    "key": "m9-r13",
+    "description": "m9 seed repository m9-r13 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r13"
+  },
+  {
+    "key": "m9-r14",
+    "description": "m9 seed repository m9-r14 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r14"
+  },
+  {
+    "key": "m9-r15",
+    "description": "m9 seed repository m9-r15 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r15"
+  },
+  {
+    "key": "m9-r16",
+    "description": "m9 seed repository m9-r16 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r16"
+  },
+  {
+    "key": "m9-r17",
+    "description": "m9 seed repository m9-r17 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r17"
+  },
+  {
+    "key": "m9-r18",
+    "description": "m9 seed repository m9-r18 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r18"
+  },
+  {
+    "key": "m9-r19",
+    "description": "m9 seed repository m9-r19 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r19"
+  },
+  {
+    "key": "m9-r20",
+    "description": "m9 seed repository m9-r20 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r20"
+  },
+  {
+    "key": "m9-r21",
+    "description": "m9 seed repository m9-r21 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r21"
+  },
+  {
+    "key": "m9-r22",
+    "description": "m9 seed repository m9-r22 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r22"
+  },
+  {
+    "key": "m9-r23",
+    "description": "m9 seed repository m9-r23 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r23"
+  },
+  {
+    "key": "m9-r24",
+    "description": "m9 seed repository m9-r24 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r24"
+  },
+  {
+    "key": "m9-r25",
+    "description": "m9 seed repository m9-r25 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r25"
+  },
+  {
+    "key": "m9-r26",
+    "description": "m9 seed repository m9-r26 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r26"
+  },
+  {
+    "key": "m9-r27",
+    "description": "m9 seed repository m9-r27 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r27"
+  },
+  {
+    "key": "m9-r28",
+    "description": "m9 seed repository m9-r28 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r28"
+  },
+  {
+    "key": "m9-r29",
+    "description": "m9 seed repository m9-r29 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r29"
+  },
+  {
+    "key": "m9-r30",
+    "description": "m9 seed repository m9-r30 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r30"
+  },
+  {
+    "key": "m9-r31",
+    "description": "m9 seed repository m9-r31 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r31"
+  },
+  {
+    "key": "m9-r32",
+    "description": "m9 seed repository m9-r32 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r32"
+  },
+  {
+    "key": "m9-r33",
+    "description": "m9 seed repository m9-r33 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r33"
+  },
+  {
+    "key": "m9-r34",
+    "description": "m9 seed repository m9-r34 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r34"
+  },
+  {
+    "key": "m9-r35",
+    "description": "m9 seed repository m9-r35 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r35"
+  },
+  {
+    "key": "m9-r36",
+    "description": "m9 seed repository m9-r36 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r36"
+  },
+  {
+    "key": "m9-r37",
+    "description": "m9 seed repository m9-r37 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r37"
+  },
+  {
+    "key": "m9-r38",
+    "description": "m9 seed repository m9-r38 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r38"
+  },
+  {
+    "key": "m9-r39",
+    "description": "m9 seed repository m9-r39 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r39"
+  },
+  {
+    "key": "m9-r40",
+    "description": "m9 seed repository m9-r40 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r40"
+  },
+  {
+    "key": "m9-r41",
+    "description": "m9 seed repository m9-r41 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r41"
+  },
+  {
+    "key": "m9-r42",
+    "description": "m9 seed repository m9-r42 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r42"
+  },
+  {
+    "key": "m9-r43",
+    "description": "m9 seed repository m9-r43 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r43"
+  },
+  {
+    "key": "m9-r44",
+    "description": "m9 seed repository m9-r44 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r44"
+  },
+  {
+    "key": "m9-r45",
+    "description": "m9 seed repository m9-r45 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r45"
+  },
+  {
+    "key": "m9-r46",
+    "description": "m9 seed repository m9-r46 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r46"
+  },
+  {
+    "key": "m9-r47",
+    "description": "m9 seed repository m9-r47 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r47"
+  },
+  {
+    "key": "m9-r48",
+    "description": "m9 seed repository m9-r48 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r48"
+  },
+  {
+    "key": "m9-r49",
+    "description": "m9 seed repository m9-r49 (T-250 fanout fixture)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9-r49"
+  },
+  {
+    "key": "m9armed-mu1mde81og77",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9armed-mu1mde81og77"
+  },
+  {
+    "key": "m9armed-mu1muvboomld",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9armed-mu1muvboomld"
+  },
+  {
+    "key": "m9armed-mu1n8nbzkof4",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9armed-mu1n8nbzkof4"
+  },
+  {
+    "key": "m9inv-mu1mddk26jq0",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9inv-mu1mddk26jq0"
+  },
+  {
+    "key": "m9inv-mu1muu6y607v",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9inv-mu1muu6y607v"
+  },
+  {
+    "key": "m9inv-mu1n8lfv4uaw",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9inv-mu1n8lfv4uaw"
+  },
+  {
+    "key": "m9oidc-mu1mdc274o0g",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9oidc-mu1mdc274o0g"
+  },
+  {
+    "key": "m9oidc-mu1mut9qppeq",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9oidc-mu1mut9qppeq"
+  },
+  {
+    "key": "m9oidc-mu1n8l1wx5rp",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9oidc-mu1n8l1wx5rp"
+  },
+  {
+    "key": "m9pend-mu1mddypkk24",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9pend-mu1mddypkk24"
+  },
+  {
+    "key": "m9pend-mu1muv4phpwp",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9pend-mu1muv4phpwp"
+  },
+  {
+    "key": "m9pend-mu1n8n7e15h5",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/m9pend-mu1n8n7e15h5"
+  },
+  {
+    "key": "p2-local",
+    "description": "p2 core-flow",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/p2-local"
+  },
+  {
+    "key": "t100a-mu1mzo1l79fu",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t100a-mu1mzo1l79fu"
+  },
+  {
+    "key": "t100b-mu1mzo1nq8zh",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t100b-mu1mzo1nq8zh"
+  },
+  {
+    "key": "t100c-mu1mzo1k6yrk",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t100c-mu1mzo1k6yrk",
+    "configuration": {
+      "excludesPattern": "tmp/**"
+    }
+  },
+  {
+    "key": "t100d-mu1mzo1kzrme",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t100d-mu1mzo1kzrme",
+    "configuration": {
+      "quotaBytes": 8
+    }
+  },
+  {
+    "key": "t100e-mu1mzo4jw0wn",
+    "description": "",
+    "type": "local",
+    "packageType": "maven",
+    "url": "http://172.16.58.130:8083/binflow/t100e-mu1mzo4jw0wn"
+  },
+  {
+    "key": "t100f-mu1mzt1ydtyu",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t100f-mu1mzt1ydtyu"
+  },
+  {
+    "key": "t100g-mu1mzu60nkh0",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t100g-mu1mzu60nkh0"
+  },
+  {
+    "key": "t100h-mu1mztuc6ufg",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t100h-mu1mztuc6ufg",
+    "configuration": {
+      "quotaBytes": 1048576
+    }
+  },
+  {
+    "key": "t101a-mu1n74tckd4b",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t101a-mu1n74tckd4b"
+  },
+  {
+    "key": "t101b-mu1n775yd9gy",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t101b-mu1n775yd9gy"
+  },
+  {
+    "key": "t101c-mu1n79mgwal5",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t101c-mu1n79mgwal5"
+  },
+  {
+    "key": "t101d-mu1n7abarwvv",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t101d-mu1n7abarwvv"
+  },
+  {
+    "key": "t104hash-mu1n7pc2l47w",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t104hash-mu1n7pc2l47w",
+    "configuration": {
+      "quotaBytes": 2147483648
+    }
+  },
+  {
+    "key": "t104hash-mu4uj3puldn3",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t104hash-mu4uj3puldn3",
+    "configuration": {
+      "quotaBytes": 2147483648
+    }
+  },
+  {
+    "key": "t104up403-mu1n7nchzv70",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t104up403-mu1n7nchzv70"
+  },
+  {
+    "key": "t104up403-mu4uii1cagzc",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t104up403-mu4uii1cagzc"
+  },
+  {
+    "key": "t104xb-chromium-mu1n7jc6",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t104xb-chromium-mu1n7jc6"
+  },
+  {
+    "key": "t104xb-chromium-mu4uhe9z",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t104xb-chromium-mu4uhe9z"
+  },
+  {
+    "key": "t131g30e-mu1n88c5xqbn",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t131g30e-mu1n88c5xqbn"
+  },
+  {
+    "key": "t131g30e-mu4ulcyygj37",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t131g30e-mu4ulcyygj37"
+  },
+  {
+    "key": "t134g32a-mu1n7zbifa0o",
+    "description": "",
+    "type": "local",
+    "packageType": "docker",
+    "url": "http://172.16.58.130:8083/binflow/t134g32a-mu1n7zbifa0o"
+  },
+  {
+    "key": "t134g32a-mu4ukmzx4zx6",
+    "description": "",
+    "type": "local",
+    "packageType": "docker",
+    "url": "http://172.16.58.130:8083/binflow/t134g32a-mu4ukmzx4zx6"
+  },
+  {
+    "key": "t218m-mu1n6jakppcl",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t218m-mu1n6jakppcl"
+  },
+  {
+    "key": "t218r-mu1n6iajrbiw",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t218r-mu1n6iajrbiw"
+  },
+  {
+    "key": "t240del-mu1m9kj2nekb",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240del-mu1m9kj2nekb"
+  },
+  {
+    "key": "t240del-mu1mr1kh9hgl",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240del-mu1mr1kh9hgl"
+  },
+  {
+    "key": "t240del-mu1n530vrjay",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240del-mu1n530vrjay"
+  },
+  {
+    "key": "t240del-mu4ufo7kglpt",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240del-mu4ufo7kglpt"
+  },
+  {
+    "key": "t240l-mu1m9k4bqsqm",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240l-mu1m9k4bqsqm"
+  },
+  {
+    "key": "t240l-mu1mr0zn1n2k",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240l-mu1mr0zn1n2k"
+  },
+  {
+    "key": "t240l-mu1n52fzs6hm",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240l-mu1n52fzs6hm"
+  },
+  {
+    "key": "t240l-mu4uffqamz1k",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240l-mu4uffqamz1k"
+  },
+  {
+    "key": "t240mg-mu1m9lo7dc9p",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240mg-mu1m9lo7dc9p",
+    "configuration": {
+      "quotaBytes": 10240
+    }
+  },
+  {
+    "key": "t240mg-mu1mr251v58a",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240mg-mu1mr251v58a",
+    "configuration": {
+      "quotaBytes": 10240
+    }
+  },
+  {
+    "key": "t240mg-mu1n53z18cuk",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240mg-mu1n53z18cuk",
+    "configuration": {
+      "quotaBytes": 10240
+    }
+  },
+  {
+    "key": "t240mo-mu1m9lo70exc",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240mo-mu1m9lo70exc",
+    "configuration": {
+      "quotaBytes": 10240
+    }
+  },
+  {
+    "key": "t240mo-mu1mr2518r7r",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240mo-mu1mr2518r7r",
+    "configuration": {
+      "quotaBytes": 10240
+    }
+  },
+  {
+    "key": "t240mo-mu1n53z1719e",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240mo-mu1n53z1719e",
+    "configuration": {
+      "quotaBytes": 10240
+    }
+  },
+  {
+    "key": "t240ro-mu1m9kxfuipm",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240ro-mu1m9kxfuipm",
+    "configuration": {
+      "quotaBytes": 10240
+    }
+  },
+  {
+    "key": "t240ro-mu1mr1whaqps",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240ro-mu1mr1whaqps",
+    "configuration": {
+      "quotaBytes": 10240
+    }
+  },
+  {
+    "key": "t240ro-mu1n53p3cw7z",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240ro-mu1n53p3cw7z",
+    "configuration": {
+      "quotaBytes": 10240
+    }
+  },
+  {
+    "key": "t240ro-mu4ug58d6mh9",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240ro-mu4ug58d6mh9",
+    "configuration": {
+      "quotaBytes": 10240
+    }
+  },
+  {
+    "key": "t265a-mu1md8ff7f5o-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1md8ff7f5o-local"
+  },
+  {
+    "key": "t265a-mu1md8g4f43n-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1md8g4f43n-local"
+  },
+  {
+    "key": "t265a-mu1md8w1q8w7-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1md8w1q8w7-local"
+  },
+  {
+    "key": "t265a-mu1md9zkfas5-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1md9zkfas5-local"
+  },
+  {
+    "key": "t265a-mu1mdatgvpal-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1mdatgvpal-local"
+  },
+  {
+    "key": "t265a-mu1mdbebkd8r-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1mdbebkd8r-local"
+  },
+  {
+    "key": "t265a-mu1mupu9gibb-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1mupu9gibb-local"
+  },
+  {
+    "key": "t265a-mu1mupua7b3i-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1mupua7b3i-local"
+  },
+  {
+    "key": "t265a-mu1mupuu80ac-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1mupuu80ac-local"
+  },
+  {
+    "key": "t265a-mu1mur9q5mdu-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1mur9q5mdu-local"
+  },
+  {
+    "key": "t265a-mu1musca9gtw-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1musca9gtw-local"
+  },
+  {
+    "key": "t265a-mu1muskc73dg-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1muskc73dg-local"
+  },
+  {
+    "key": "t265a-mu1n8flez4p1-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1n8flez4p1-local"
+  },
+  {
+    "key": "t265a-mu1n8fosondl-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1n8fosondl-local"
+  },
+  {
+    "key": "t265a-mu1n8fxi2vw0-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1n8fxi2vw0-local"
+  },
+  {
+    "key": "t265a-mu1n8i8lhf0r-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1n8i8lhf0r-local"
+  },
+  {
+    "key": "t265a-mu1n8ije1wed-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1n8ije1wed-local"
+  },
+  {
+    "key": "t265a-mu1n8l26j6f9-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265a-mu1n8l26j6f9-local"
+  },
+  {
+    "key": "t265b-mu1md8ffegid-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1md8ffegid-local"
+  },
+  {
+    "key": "t265b-mu1md8g4d7zm-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1md8g4d7zm-local"
+  },
+  {
+    "key": "t265b-mu1md8w1dehe-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1md8w1dehe-local"
+  },
+  {
+    "key": "t265b-mu1md9zkwiig-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1md9zkwiig-local"
+  },
+  {
+    "key": "t265b-mu1mdatgfyls-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1mdatgfyls-local"
+  },
+  {
+    "key": "t265b-mu1mdbebltiq-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1mdbebltiq-local"
+  },
+  {
+    "key": "t265b-mu1mupu9kns0-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1mupu9kns0-local"
+  },
+  {
+    "key": "t265b-mu1mupuaqonm-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1mupuaqonm-local"
+  },
+  {
+    "key": "t265b-mu1mupuu5kht-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1mupuu5kht-local"
+  },
+  {
+    "key": "t265b-mu1mur9qc0zy-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1mur9qc0zy-local"
+  },
+  {
+    "key": "t265b-mu1muscay3bm-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1muscay3bm-local"
+  },
+  {
+    "key": "t265b-mu1muskcp86z-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1muskcp86z-local"
+  },
+  {
+    "key": "t265b-mu1n8flefw1y-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1n8flefw1y-local"
+  },
+  {
+    "key": "t265b-mu1n8fosjmxd-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1n8fosjmxd-local"
+  },
+  {
+    "key": "t265b-mu1n8fxiv8kk-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1n8fxiv8kk-local"
+  },
+  {
+    "key": "t265b-mu1n8i8lw3dy-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1n8i8lw3dy-local"
+  },
+  {
+    "key": "t265b-mu1n8ijecjkl-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1n8ijecjkl-local"
+  },
+  {
+    "key": "t265b-mu1n8l26575y-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t265b-mu1n8l26575y-local"
+  },
+  {
+    "key": "t387r-mu1m68abwifk",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t387r-mu1m68abwifk"
+  },
+  {
+    "key": "t387r-mu1mnj4avmdr",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t387r-mu1mnj4avmdr"
+  },
+  {
+    "key": "t387r-mu1n0ooubb24",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t387r-mu1n0ooubb24"
+  },
+  {
+    "key": "t390npm-mu1m6fctmt2g",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/t390npm-mu1m6fctmt2g"
+  },
+  {
+    "key": "t390npm-mu1mnt5r929j",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/t390npm-mu1mnt5r929j"
+  },
+  {
+    "key": "t390npm-mu1n0xxm9kjy",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/t390npm-mu1n0xxm9kjy"
+  },
+  {
+    "key": "t390npm-mu4u8ipq15bs",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/t390npm-mu4u8ipq15bs"
+  },
+  {
+    "key": "t390npm-mu4ve7t1ekjg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/t390npm-mu4ve7t1ekjg"
+  },
+  {
+    "key": "t390npm-mu4vfda0l2tm",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/t390npm-mu4vfda0l2tm"
+  },
+  {
+    "key": "t390npm-mu4vhvkrkq12",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/t390npm-mu4vhvkrkq12"
+  },
+  {
+    "key": "t390smu-mu1m6f531pqn",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t390smu-mu1m6f531pqn"
+  },
+  {
+    "key": "t390smu-mu1m6f531pqn-npmpkg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/t390smu-mu1m6f531pqn-npmpkg"
+  },
+  {
+    "key": "t390smu-mu1mnrbbhjkw",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t390smu-mu1mnrbbhjkw"
+  },
+  {
+    "key": "t390smu-mu1mnrbbhjkw-npmpkg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/t390smu-mu1mnrbbhjkw-npmpkg"
+  },
+  {
+    "key": "t390smu-mu1n0xpej9o9",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t390smu-mu1n0xpej9o9"
+  },
+  {
+    "key": "t390smu-mu1n0xpej9o9-npmpkg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/t390smu-mu1n0xpej9o9-npmpkg"
+  },
+  {
+    "key": "t390smu-mu4u8gj590de",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t390smu-mu4u8gj590de"
+  },
+  {
+    "key": "t390smu-mu4u8gj590de-npmpkg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/t390smu-mu4u8gj590de-npmpkg"
+  },
+  {
+    "key": "t390smu-mu4ve7tijr09",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t390smu-mu4ve7tijr09"
+  },
+  {
+    "key": "t390smu-mu4ve7tijr09-npmpkg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/t390smu-mu4ve7tijr09-npmpkg"
+  },
+  {
+    "key": "t390smu-mu4vfd7zourc",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t390smu-mu4vfd7zourc"
+  },
+  {
+    "key": "t390smu-mu4vfd7zourc-npmpkg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/t390smu-mu4vfd7zourc-npmpkg"
+  },
+  {
+    "key": "t390smu-mu4vhvkspwob",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t390smu-mu4vhvkspwob"
+  },
+  {
+    "key": "t390smu-mu4vhvkspwob-npmpkg",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "npm",
+    "url": "http://172.16.58.130:8083/binflow/t390smu-mu4vhvkspwob-npmpkg"
+  },
+  {
+    "key": "t404a-mu1m6hcxbhyf",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404a-mu1m6hcxbhyf"
+  },
+  {
+    "key": "t404a-mu1mnvu64sva",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404a-mu1mnvu64sva"
+  },
+  {
+    "key": "t404a-mu1n10d6xodn",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404a-mu1n10d6xodn"
+  },
+  {
+    "key": "t404b-mu1m6hjwz5sd",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404b-mu1m6hjwz5sd"
+  },
+  {
+    "key": "t404b-mu1mnw8cdibr",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404b-mu1mnw8cdibr"
+  },
+  {
+    "key": "t404b-mu1n10y6h67u",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404b-mu1n10y6h67u"
+  },
+  {
+    "key": "t404c-mu1m6hjvrh1b",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404c-mu1m6hjvrh1b"
+  },
+  {
+    "key": "t404c-mu1mnx0hnz1n",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404c-mu1mnx0hnz1n"
+  },
+  {
+    "key": "t404c-mu1n11645x94",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404c-mu1n11645x94"
+  },
+  {
+    "key": "t404d-mu1m6iqxk33f",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404d-mu1m6iqxk33f"
+  },
+  {
+    "key": "t404d-mu1mnxqkl5ao",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404d-mu1mnxqkl5ao"
+  },
+  {
+    "key": "t404d-mu1n122479mr",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404d-mu1n122479mr"
+  },
+  {
+    "key": "t404e-mu1m6j3bb6lr",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404e-mu1m6j3bb6lr"
+  },
+  {
+    "key": "t404e-mu1mny5t9zgf",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404e-mu1mny5t9zgf"
+  },
+  {
+    "key": "t404e-mu1n12p7ioef",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404e-mu1n12p7ioef"
+  },
+  {
+    "key": "t404f-mu1m6jaw88vh",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404f-mu1m6jaw88vh"
+  },
+  {
+    "key": "t404f-mu1mnyxn9ycm",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404f-mu1mnyxn9ycm"
+  },
+  {
+    "key": "t404f-mu1n137vg9mz",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404f-mu1n137vg9mz"
+  },
+  {
+    "key": "t404g-mu1m6jawqajt",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404g-mu1m6jawqajt"
+  },
+  {
+    "key": "t404g-mu1mnyxn50h2",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404g-mu1mnyxn50h2"
+  },
+  {
+    "key": "t404g-mu1n137vxtyw",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404g-mu1n137vxtyw"
+  },
+  {
+    "key": "t404h-mu1m6ka4a6u9",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404h-mu1m6ka4a6u9"
+  },
+  {
+    "key": "t404h-mu1mnzoccp8t",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404h-mu1mnzoccp8t"
+  },
+  {
+    "key": "t404h-mu1n13rglab5",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404h-mu1n13rglab5"
+  },
+  {
+    "key": "t404i-mu1m6kmizpzw",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404i-mu1m6kmizpzw"
+  },
+  {
+    "key": "t404i-mu1mo026kr2z",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404i-mu1mo026kr2z"
+  },
+  {
+    "key": "t404i-mu1n14ehkxod",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t404i-mu1n14ehkxod"
+  },
+  {
+    "key": "t414smu1m6m3w-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414smu1m6m3w-local"
+  },
+  {
+    "key": "t414smu1mo1uy-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414smu1mo1uy-local"
+  },
+  {
+    "key": "t414smu1n162v-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414smu1n162v-local"
+  },
+  {
+    "key": "t414smu4u8rfr-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414smu4u8rfr-local"
+  },
+  {
+    "key": "t414smu4vj2uh-local",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414smu4vj2uh-local"
+  },
+  {
+    "key": "t414v1-mu1m6mewlbai",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v1-mu1m6mewlbai"
+  },
+  {
+    "key": "t414v1-mu1mo2r73igv",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v1-mu1mo2r73igv"
+  },
+  {
+    "key": "t414v1-mu1n16p6le6y",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v1-mu1n16p6le6y"
+  },
+  {
+    "key": "t414v1-mu4u8rlbuiei",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v1-mu4u8rlbuiei"
+  },
+  {
+    "key": "t414v1-mu4vj2ufzu0b",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v1-mu4vj2ufzu0b"
+  },
+  {
+    "key": "t414v2-mu1m6mewn116",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v2-mu1m6mewn116"
+  },
+  {
+    "key": "t414v2-mu1mo2r7qvco",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v2-mu1mo2r7qvco"
+  },
+  {
+    "key": "t414v2-mu1n16p6v40g",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v2-mu1n16p6v40g"
+  },
+  {
+    "key": "t414v2-mu4u8rlb7d1x",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v2-mu4u8rlb7d1x"
+  },
+  {
+    "key": "t414v2-mu4vj2ufctmu",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v2-mu4vj2ufctmu"
+  },
+  {
+    "key": "t416a-mu1n18rqysw9",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t416a-mu1n18rqysw9"
+  },
+  {
+    "key": "t416a-mu1n19xzt0uy",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t416a-mu1n19xzt0uy"
+  },
+  {
+    "key": "t416a-mu1n1e8d9jr5",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t416a-mu1n1e8d9jr5"
+  },
+  {
+    "key": "t416b-mu1n18rq3cdy",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t416b-mu1n18rq3cdy"
+  },
+  {
+    "key": "t416b-mu1n19xzyj27",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t416b-mu1n19xzyj27"
+  },
+  {
+    "key": "t416b-mu1n1e8dqrzc",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t416b-mu1n1e8dqrzc"
+  },
+  {
+    "key": "t416e1-mu1n19bywidt",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t416e1-mu1n19bywidt"
+  },
+  {
+    "key": "t416e2-mu1n19by9tg5",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t416e2-mu1n19by9tg5"
+  },
+  {
+    "key": "t419-mu1m6un1kzrk",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1m6un1kzrk"
+  },
+  {
+    "key": "t419-mu1m6uy7uv3y",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1m6uy7uv3y"
+  },
+  {
+    "key": "t419-mu1m6w236y40",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1m6w236y40"
+  },
+  {
+    "key": "t419-mu1m6wc5teon",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1m6wc5teon"
+  },
+  {
+    "key": "t419-mu1m6y9i00lj",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1m6y9i00lj"
+  },
+  {
+    "key": "t419-mu1mob25y7u8",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1mob25y7u8"
+  },
+  {
+    "key": "t419-mu1moc80xwjn",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1moc80xwjn"
+  },
+  {
+    "key": "t419-mu1mockllzsj",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1mockllzsj"
+  },
+  {
+    "key": "t419-mu1modnlflvl",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1modnlflvl"
+  },
+  {
+    "key": "t419-mu1mof9xsvca",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1mof9xsvca"
+  },
+  {
+    "key": "t419-mu1n1f6hx4ul",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1n1f6hx4ul"
+  },
+  {
+    "key": "t419-mu1n1gtxlqnz",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1n1gtxlqnz"
+  },
+  {
+    "key": "t419-mu1n1ic20gqu",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1n1ic20gqu"
+  },
+  {
+    "key": "t419-mu1n1jwqdxas",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1n1jwqdxas"
+  },
+  {
+    "key": "t419-mu1n1lnng15i",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu1n1lnng15i"
+  },
+  {
+    "key": "t419-mu4u91h5gvxi",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu4u91h5gvxi"
+  },
+  {
+    "key": "t419-mu4u97mqbaqz",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu4u97mqbaqz"
+  },
+  {
+    "key": "t419-mu4u9bwrlqxy",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu4u9bwrlqxy"
+  },
+  {
+    "key": "t419-mu4u9dmnsu98",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu4u9dmnsu98"
+  },
+  {
+    "key": "t419-mu4u9h0986f3",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu4u9h0986f3"
+  },
+  {
+    "key": "t419-mu4vohemm4io",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu4vohemm4io"
+  },
+  {
+    "key": "t419-mu4voheneauz",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu4voheneauz"
+  },
+  {
+    "key": "t419-mu4vohg9r9ft",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu4vohg9r9ft"
+  },
+  {
+    "key": "t419-mu4vojxjcixj",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu4vojxjcixj"
+  },
+  {
+    "key": "t419-mu4voom7l0sq",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t419-mu4voom7l0sq"
+  },
+  {
+    "key": "t422a-mu1m6z1kztz2",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422a-mu1m6z1kztz2"
+  },
+  {
+    "key": "t422a-mu1mof9vvut2",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422a-mu1mof9vvut2"
+  },
+  {
+    "key": "t422a-mu1n1mmsutsd",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422a-mu1n1mmsutsd"
+  },
+  {
+    "key": "t422a-mu4u9ho2znsw",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422a-mu4u9ho2znsw"
+  },
+  {
+    "key": "t422a-mu4vsz5x3odj",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422a-mu4vsz5x3odj"
+  },
+  {
+    "key": "t422a-mu4vwek1gkd7",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422a-mu4vwek1gkd7"
+  },
+  {
+    "key": "t422b-mu1m6z1kxw6d",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422b-mu1m6z1kxw6d"
+  },
+  {
+    "key": "t422b-mu1mofazlj5j",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422b-mu1mofazlj5j"
+  },
+  {
+    "key": "t422b-mu1n1n6bpsor",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422b-mu1n1n6bpsor"
+  },
+  {
+    "key": "t422b-mu4u9k5pvzw0",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422b-mu4u9k5pvzw0"
+  },
+  {
+    "key": "t422b-mu4vsz4oonyf",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422b-mu4vsz4oonyf"
+  },
+  {
+    "key": "t422b-mu4vwejn21t3",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422b-mu4vwejn21t3"
+  },
+  {
+    "key": "t422d-mu1m70qh3i93",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422d-mu1m70qh3i93"
+  },
+  {
+    "key": "t422d-mu1moh8r9nth",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422d-mu1moh8r9nth"
+  },
+  {
+    "key": "t422d-mu1n1p7w25kp",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422d-mu1n1p7w25kp"
+  },
+  {
+    "key": "t422d-mu4u9lkcw22s",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422d-mu4u9lkcw22s"
+  },
+  {
+    "key": "t422d-mu4vsznpac2c",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422d-mu4vsznpac2c"
+  },
+  {
+    "key": "t422d-mu4vweluydtt",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t422d-mu4vweluydtt"
+  },
+  {
+    "key": "t424ax-mu1m737epjen",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424ax-mu1m737epjen"
+  },
+  {
+    "key": "t424ax-mu1mokgs5u0d",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424ax-mu1mokgs5u0d"
+  },
+  {
+    "key": "t424ax-mu1n1tlbh5do",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424ax-mu1n1tlbh5do"
+  },
+  {
+    "key": "t424ax-mu4uadms58rh",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424ax-mu4uadms58rh"
+  },
+  {
+    "key": "t424ax-mu4vxi5luekc",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424ax-mu4vxi5luekc"
+  },
+  {
+    "key": "t424ax-mu4vyiw3n09f",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424ax-mu4vyiw3n09f"
+  },
+  {
+    "key": "t424cp-mu1m700zl113",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424cp-mu1m700zl113"
+  },
+  {
+    "key": "t424cp-mu1mohglct70",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424cp-mu1mohglct70"
+  },
+  {
+    "key": "t424cp-mu1n1qgv7rsb",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424cp-mu1n1qgv7rsb"
+  },
+  {
+    "key": "t424cp-mu4u9mh738o1",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424cp-mu4u9mh738o1"
+  },
+  {
+    "key": "t424cp-mu4vwoh2q5tt",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424cp-mu4vwoh2q5tt"
+  },
+  {
+    "key": "t424cp-mu4w0cfuxs4a",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424cp-mu4w0cfuxs4a"
+  },
+  {
+    "key": "t424cp-mu4w0q26y4ze",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424cp-mu4w0q26y4ze"
+  },
+  {
+    "key": "t424e1-mu1m72bpoy9j",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424e1-mu1m72bpoy9j"
+  },
+  {
+    "key": "t424e1-mu1moiqdd7il",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424e1-mu1moiqdd7il"
+  },
+  {
+    "key": "t424e1-mu1n1ry1mn9r",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424e1-mu1n1ry1mn9r"
+  },
+  {
+    "key": "t424e1-mu4u9siiu7vq",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424e1-mu4u9siiu7vq"
+  },
+  {
+    "key": "t424e1-mu4vwoflqi9i",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424e1-mu4vwoflqi9i"
+  },
+  {
+    "key": "t424ro-mu1m72rv1ueh",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424ro-mu1m72rv1ueh"
+  },
+  {
+    "key": "t424ro-mu1moiz6m5a7",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424ro-mu1moiz6m5a7"
+  },
+  {
+    "key": "t424ro-mu1n1sfs4ivk",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424ro-mu1n1sfs4ivk"
+  },
+  {
+    "key": "t424ro-mu4uabq7l3lo",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424ro-mu4uabq7l3lo"
+  },
+  {
+    "key": "t424ro-mu4vwofzwag8",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424ro-mu4vwofzwag8"
+  },
+  {
+    "key": "t424smu-mu1m71me1efe",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424smu-mu1m71me1efe"
+  },
+  {
+    "key": "t424smu-mu1moiozmiw9",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424smu-mu1moiozmiw9"
+  },
+  {
+    "key": "t424smu-mu1n1qxw9lz1",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424smu-mu1n1qxw9lz1"
+  },
+  {
+    "key": "t424smu-mu4u9ok8zf3x",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424smu-mu4u9ok8zf3x"
+  },
+  {
+    "key": "t424smu-mu4vwoh1xr38",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t424smu-mu4vwoh1xr38"
+  },
+  {
+    "key": "t434a-mu1n1zy7eeqj",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434a-mu1n1zy7eeqj"
+  },
+  {
+    "key": "t434a-mu4ub17o2flc",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434a-mu4ub17o2flc"
+  },
+  {
+    "key": "t434a-mu4wk1bper3k",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434a-mu4wk1bper3k"
+  },
+  {
+    "key": "t434a-mu4wndoa7zqw",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434a-mu4wndoa7zqw"
+  },
+  {
+    "key": "t434a-mu4wqm8vdbii",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434a-mu4wqm8vdbii"
+  },
+  {
+    "key": "t434a-mu4x3tnk9qaj",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434a-mu4x3tnk9qaj"
+  },
+  {
+    "key": "t434a-mu4x4ta0ukaz",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434a-mu4x4ta0ukaz"
+  },
+  {
+    "key": "t434b-mu1n22qrxiuh",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434b-mu1n22qrxiuh"
+  },
+  {
+    "key": "t434b-mu4ub3kcgdpw",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434b-mu4ub3kcgdpw"
+  },
+  {
+    "key": "t434b-mu4wnd0uo1yh",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434b-mu4wnd0uo1yh"
+  },
+  {
+    "key": "t434b-mu4wrvhbkv8a",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434b-mu4wrvhbkv8a"
+  },
+  {
+    "key": "t434b-mu4x3tl3qbnc",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434b-mu4x3tl3qbnc"
+  },
+  {
+    "key": "t434c-mu1n23yaw8gg",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434c-mu1n23yaw8gg"
+  },
+  {
+    "key": "t434c-mu4ub7k4uw25",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434c-mu4ub7k4uw25"
+  },
+  {
+    "key": "t434c-mu4wjzxa1s93",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434c-mu4wjzxa1s93"
+  },
+  {
+    "key": "t434c-mu4wndh2mjhw",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434c-mu4wndh2mjhw"
+  },
+  {
+    "key": "t434c-mu4wsc7tgrpg",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434c-mu4wsc7tgrpg"
+  },
+  {
+    "key": "t434c-mu4x3t08qubx",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434c-mu4x3t08qubx"
+  },
+  {
+    "key": "t434dmu1n26o1",
+    "description": "",
+    "type": "local",
+    "packageType": "docker",
+    "url": "http://172.16.58.130:8083/binflow/t434dmu1n26o1"
+  },
+  {
+    "key": "t434dmu4ub9s7",
+    "description": "",
+    "type": "local",
+    "packageType": "docker",
+    "url": "http://172.16.58.130:8083/binflow/t434dmu4ub9s7"
+  },
+  {
+    "key": "t434dmu4wncy0",
+    "description": "",
+    "type": "local",
+    "packageType": "docker",
+    "url": "http://172.16.58.130:8083/binflow/t434dmu4wncy0"
+  },
+  {
+    "key": "t434dmu4wt0bu",
+    "description": "",
+    "type": "local",
+    "packageType": "docker",
+    "url": "http://172.16.58.130:8083/binflow/t434dmu4wt0bu"
+  },
+  {
+    "key": "t434dmu4x3t01",
+    "description": "",
+    "type": "local",
+    "packageType": "docker",
+    "url": "http://172.16.58.130:8083/binflow/t434dmu4x3t01"
+  },
+  {
+    "key": "t434e-mu1n28kti1w3",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434e-mu1n28kti1w3"
+  },
+  {
+    "key": "t434e-mu4ubbkdmh90",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434e-mu4ubbkdmh90"
+  },
+  {
+    "key": "t434e-mu4wkvbqhxit",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434e-mu4wkvbqhxit"
+  },
+  {
+    "key": "t434e-mu4wo99ug6t2",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434e-mu4wo99ug6t2"
+  },
+  {
+    "key": "t434e-mu4wuk8aksu5",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434e-mu4wuk8aksu5"
+  },
+  {
+    "key": "t434e-mu4x3z5yq6do",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434e-mu4x3z5yq6do"
+  },
+  {
+    "key": "t434zmu1n26o1",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434zmu1n26o1"
+  },
+  {
+    "key": "t434zmu4ub9s7",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434zmu4ub9s7"
+  },
+  {
+    "key": "t434zmu4wncy0",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434zmu4wncy0"
+  },
+  {
+    "key": "t434zmu4wt0bu",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434zmu4wt0bu"
+  },
+  {
+    "key": "t434zmu4x3t01",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434zmu4x3t01"
+  },
+  {
+    "key": "t443d-mu1m7n5q17jq",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t443d-mu1m7n5q17jq"
+  },
+  {
+    "key": "t443d-mu1mp2aybwdn",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t443d-mu1mp2aybwdn"
+  },
+  {
+    "key": "t443d-mu1n2hrsij19",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t443d-mu1n2hrsij19"
+  },
+  {
+    "key": "t443l-mu1m7mcb1squ",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t443l-mu1m7mcb1squ"
+  },
+  {
+    "key": "t443l-mu1mp1yi8yjh",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t443l-mu1mp1yi8yjh"
+  },
+  {
+    "key": "t443l-mu1n2gyjvqix",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t443l-mu1n2gyjvqix"
+  },
+  {
+    "key": "t445a-mu1n2kcjq3ky",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445a-mu1n2kcjq3ky"
+  },
+  {
+    "key": "t445a-mu4ubuo68ox2",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445a-mu4ubuo68ox2"
+  },
+  {
+    "key": "t445a-mu4yles9swb7",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445a-mu4yles9swb7"
+  },
+  {
+    "key": "t445b-mu1n2l1ha57x",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445b-mu1n2l1ha57x"
+  },
+  {
+    "key": "t445b-mu4ubyb1phxz",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445b-mu4ubyb1phxz"
+  },
+  {
+    "key": "t445b-mu4yljtfz8vp",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445b-mu4yljtfz8vp"
+  },
+  {
+    "key": "t445b-mu4z5c2c8hqk",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445b-mu4z5c2c8hqk"
+  },
+  {
+    "key": "t445c-mu1n2rj1akkm",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445c-mu1n2rj1akkm"
+  },
+  {
+    "key": "t445c-mu4uc21iaecb",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445c-mu4uc21iaecb"
+  },
+  {
+    "key": "t445c-mu4ylksfmqtz",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445c-mu4ylksfmqtz"
+  },
+  {
+    "key": "t445d-mu1n2q2mxgi5",
+    "description": "t445-描述-t445d-mu1n2q2mxgi5",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445d-mu1n2q2mxgi5"
+  },
+  {
+    "key": "t445d-mu4uc30gfu24",
+    "description": "t445-描述-t445d-mu4uc30gfu24",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445d-mu4uc30gfu24"
+  },
+  {
+    "key": "t445d-mu4ylnv3zxvi",
+    "description": "t445-描述-t445d-mu4ylnv3zxvi",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445d-mu4ylnv3zxvi"
+  },
+  {
+    "key": "t445e-mu1n2rd2lp9y",
+    "description": "axe-fixture",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445e-mu1n2rd2lp9y"
+  },
+  {
+    "key": "t445e-mu4uc50qjdsr",
+    "description": "axe-fixture",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445e-mu4uc50qjdsr"
+  },
+  {
+    "key": "t445e-mu4ylovoeuda",
+    "description": "axe-fixture",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445e-mu4ylovoeuda"
+  },
+  {
+    "key": "t445f-mu1n2ly66mlp",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445f-mu1n2ly66mlp"
+  },
+  {
+    "key": "t445f-mu4uc0kjmu00",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445f-mu4uc0kjmu00"
+  },
+  {
+    "key": "t445f-mu4ylkbz3t5e",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t445f-mu4ylkbz3t5e"
+  },
+  {
+    "key": "t447a-mu1n2svtfow0",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t447a-mu1n2svtfow0"
+  },
+  {
+    "key": "t447b-mu1n2va134o8",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t447b-mu1n2va134o8"
+  },
+  {
+    "key": "t447c-mu1n2y3yeam4",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t447c-mu1n2y3yeam4"
+  },
+  {
+    "key": "t447e-mu1n2yo57ds7",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t447e-mu1n2yo57ds7"
+  },
+  {
+    "key": "t449-mu1m81scrunn",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1m81scrunn"
+  },
+  {
+    "key": "t449-mu1m82ssdjsq",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1m82ssdjsq"
+  },
+  {
+    "key": "t449-mu1m83te63qc",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1m83te63qc"
+  },
+  {
+    "key": "t449-mu1m84qvfy1i",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1m84qvfy1i"
+  },
+  {
+    "key": "t449-mu1m84zg5zsv",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1m84zg5zsv"
+  },
+  {
+    "key": "t449-mu1m859qc8n6",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1m859qc8n6"
+  },
+  {
+    "key": "t449-mu1mpfrx8r6b",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1mpfrx8r6b"
+  },
+  {
+    "key": "t449-mu1mpgcl6otu",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1mpgcl6otu"
+  },
+  {
+    "key": "t449-mu1mpgwjz0xn",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1mpgwjz0xn"
+  },
+  {
+    "key": "t449-mu1mphhifvy8",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1mphhifvy8"
+  },
+  {
+    "key": "t449-mu1mpi3nn2y8",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1mpi3nn2y8"
+  },
+  {
+    "key": "t449-mu1mpindusy9",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1mpindusy9"
+  },
+  {
+    "key": "t449-mu1n2z8ydfg5",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1n2z8ydfg5"
+  },
+  {
+    "key": "t449-mu1n30z6zd9o",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1n30z6zd9o"
+  },
+  {
+    "key": "t449-mu1n315gfuk7",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1n315gfuk7"
+  },
+  {
+    "key": "t449-mu1n335u4lw2",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1n335u4lw2"
+  },
+  {
+    "key": "t449-mu1n335uircy",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1n335uircy"
+  },
+  {
+    "key": "t449-mu1n34x8bs8b",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu1n34x8bs8b"
+  },
+  {
+    "key": "t449-mu4uc3qdt3b7",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4uc3qdt3b7"
+  },
+  {
+    "key": "t449-mu4uc4fese59",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4uc4fese59"
+  },
+  {
+    "key": "t449-mu4ucb9rffjd",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4ucb9rffjd"
+  },
+  {
+    "key": "t449-mu4uccjgexlf",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4uccjgexlf"
+  },
+  {
+    "key": "t449-mu4ucf4pe4p7",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4ucf4pe4p7"
+  },
+  {
+    "key": "t449-mu4ucj7wisbc",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4ucj7wisbc"
+  },
+  {
+    "key": "t449-mu4z7qdw5sco",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4z7qdw5sco"
+  },
+  {
+    "key": "t449-mu4z7qesgti2",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4z7qesgti2"
+  },
+  {
+    "key": "t449-mu4z7qew7crx",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4z7qew7crx"
+  },
+  {
+    "key": "t449-mu4z7qfblsw2",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4z7qfblsw2"
+  },
+  {
+    "key": "t449-mu4z85jf8nra",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4z85jf8nra"
+  },
+  {
+    "key": "t449-mu4z8dl2f48l",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4z8dl2f48l"
+  },
+  {
+    "key": "t449-mu4zdamrh98i",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4zdamrh98i"
+  },
+  {
+    "key": "t449-mu4zhlzjm4c7",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4zhlzjm4c7"
+  },
+  {
+    "key": "t449-mu4zhlzjpdh8",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4zhlzjpdh8"
+  },
+  {
+    "key": "t449-mu4zhlzjw3zc",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4zhlzjw3zc"
+  },
+  {
+    "key": "t449-mu4zhlzjy347",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4zhlzjy347"
+  },
+  {
+    "key": "t449-mu4zhvif9dzf",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4zhvif9dzf"
+  },
+  {
+    "key": "t449-mu4zhxew0330",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4zhxew0330"
+  },
+  {
+    "key": "t449-mu4zk6l4trnt",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4zk6l4trnt"
+  },
+  {
+    "key": "t449-mu4zk6n0f8os",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4zk6n0f8os"
+  },
+  {
+    "key": "t449-mu4zxs6810iy",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t449-mu4zxs6810iy"
+  },
+  {
+    "key": "t451a-mu1m86fl30hh",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451a-mu1m86fl30hh"
+  },
+  {
+    "key": "t451a-mu1mpkqoj6wr",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451a-mu1mpkqoj6wr"
+  },
+  {
+    "key": "t451a-mu1n38tih3zw",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451a-mu1n38tih3zw"
+  },
+  {
+    "key": "t451a-mu4uctffl899",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451a-mu4uctffl899"
+  },
+  {
+    "key": "t451a-mu4z8p4agmf4",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451a-mu4z8p4agmf4"
+  },
+  {
+    "key": "t451a-mu512inyr0vc",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451a-mu512inyr0vc"
+  },
+  {
+    "key": "t451a-mu514dk30aoa",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451a-mu514dk30aoa"
+  },
+  {
+    "key": "t451r-mu1m866hi5rv",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451r-mu1m866hi5rv"
+  },
+  {
+    "key": "t451r-mu1mpjari4p3",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451r-mu1mpjari4p3"
+  },
+  {
+    "key": "t451r-mu1n34xdfvz5",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451r-mu1n34xdfvz5"
+  },
+  {
+    "key": "t451r-mu4ucltcoti1",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451r-mu4ucltcoti1"
+  },
+  {
+    "key": "t451r-mu4z8kgu25vk",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451r-mu4z8kgu25vk"
+  },
+  {
+    "key": "t451r-mu512inx51hg",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451r-mu512inx51hg"
+  },
+  {
+    "key": "t451r-mu514dk3mxlo",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451r-mu514dk3mxlo"
+  },
+  {
+    "key": "t451x-mu1m86snvxfl",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451x-mu1m86snvxfl"
+  },
+  {
+    "key": "t451x-mu1mplgcizjr",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451x-mu1mplgcizjr"
+  },
+  {
+    "key": "t451x-mu1n3b2s70sr",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451x-mu1n3b2s70sr"
+  },
+  {
+    "key": "t451x-mu4ucvl3ttgm",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451x-mu4ucvl3ttgm"
+  },
+  {
+    "key": "t451x-mu4z8vg93o7w",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451x-mu4z8vg93o7w"
+  },
+  {
+    "key": "t451x-mu512io61cwo",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451x-mu512io61cwo"
+  },
+  {
+    "key": "t451x-mu514dkol1rz",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t451x-mu514dkol1rz"
+  },
+  {
+    "key": "t462r-mu1m8q9eifkd",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t462r-mu1m8q9eifkd"
+  },
+  {
+    "key": "t462r-mu1mq450f6c8",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t462r-mu1mq450f6c8"
+  },
+  {
+    "key": "t462r-mu1n423nwncz",
+    "description": "m8 e2e fixture (T-232)",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t462r-mu1n423nwncz"
+  },
+  {
+    "key": "t464-mu1m8ti3eudq",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t464-mu1m8ti3eudq"
+  },
+  {
+    "key": "t464-mu1mq8vu44e2",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t464-mu1mq8vu44e2"
+  },
+  {
+    "key": "t464-mu1n46c5623q",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t464-mu1n46c5623q"
+  },
+  {
+    "key": "t464-mu4tyfaodb2k",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t464-mu4tyfaodb2k"
+  },
+  {
+    "key": "t464-mu4tyia37cd9",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t464-mu4tyia37cd9"
+  },
+  {
+    "key": "t464-mu4tyju5tb7c",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t464-mu4tyju5tb7c"
+  },
+  {
+    "key": "t464-mu4udw44hoex",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t464-mu4udw44hoex"
+  },
+  {
+    "key": "t464-mu4udyw2i1du",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t464-mu4udyw2i1du"
+  },
+  {
+    "key": "t464-mu4udz95wdnp",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t464-mu4udz95wdnp"
+  },
+  {
+    "key": "t494a-mu1n493k1qxl",
+    "description": "",
+    "type": "local",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t494a-mu1n493k1qxl"
+  },
+  {
+    "key": "demo-remote",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8082/artifactory",
+    "configuration": {
+      "allowPrivateUpstream": false,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://172.16.58.130:8082/artifactory"
+    }
+  },
+  {
+    "key": "t240r-mu1m9k4bzlju",
+    "description": "",
+    "type": "remote",
+    "packageType": "maven",
+    "url": "https://repo1.maven.org/maven2",
+    "configuration": {
+      "allowPrivateUpstream": false,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "https://repo1.maven.org/maven2"
+    }
+  },
+  {
+    "key": "t240r-mu1mr0zn2hps",
+    "description": "",
+    "type": "remote",
+    "packageType": "maven",
+    "url": "https://repo1.maven.org/maven2",
+    "configuration": {
+      "allowPrivateUpstream": false,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "https://repo1.maven.org/maven2"
+    }
+  },
+  {
+    "key": "t240r-mu1n52fzjstw",
+    "description": "",
+    "type": "remote",
+    "packageType": "maven",
+    "url": "https://repo1.maven.org/maven2",
+    "configuration": {
+      "allowPrivateUpstream": false,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "https://repo1.maven.org/maven2"
+    }
+  },
+  {
+    "key": "t240r-mu4uffqasa3r",
+    "description": "",
+    "type": "remote",
+    "packageType": "maven",
+    "url": "https://repo1.maven.org/maven2",
+    "configuration": {
+      "allowPrivateUpstream": false,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "https://repo1.maven.org/maven2"
+    }
+  },
+  {
+    "key": "t240rz-mu4uetdp7187",
+    "description": "t240 wizard probe",
+    "type": "remote",
+    "packageType": "maven",
+    "url": "https://repo1.maven.org/maven2",
+    "configuration": {
+      "allowPrivateUpstream": false,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "https://repo1.maven.org/maven2"
+    }
+  },
+  {
+    "key": "t404r-mu1m6jawoufz",
+    "description": "t404 remote",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "https://example.com/upstream",
+    "configuration": {
+      "allowPrivateUpstream": false,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "https://example.com/upstream"
+    }
+  },
+  {
+    "key": "t404r-mu1mnyxnebxt",
+    "description": "t404 remote",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "https://example.com/upstream",
+    "configuration": {
+      "allowPrivateUpstream": false,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "https://example.com/upstream"
+    }
+  },
+  {
+    "key": "t404r-mu1n137vfygk",
+    "description": "t404 remote",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "https://example.com/upstream",
+    "configuration": {
+      "allowPrivateUpstream": false,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "https://example.com/upstream"
+    }
+  },
+  {
+    "key": "t443auth-mu1m7ndo4iji",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://127.0.0.1:8099/binflow/api/repositories",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://127.0.0.1:8099/binflow/api/repositories"
+    }
+  },
+  {
+    "key": "t443auth-mu1mp2k5idz8",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://127.0.0.1:8099/binflow/api/repositories",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://127.0.0.1:8099/binflow/api/repositories"
+    }
+  },
+  {
+    "key": "t443auth-mu1n2iaj81ws",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://127.0.0.1:8099/binflow/api/repositories",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://127.0.0.1:8099/binflow/api/repositories"
+    }
+  },
+  {
+    "key": "t443auth-mu4ylbqvok82",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://localhost:18083/binflow/api/repositories",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://localhost:18083/binflow/api/repositories"
+    }
+  },
+  {
+    "key": "t443auth-mu4yup6x9fzn",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://localhost:18083/binflow/api/repositories",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://localhost:18083/binflow/api/repositories"
+    }
+  },
+  {
+    "key": "t443auth-mu4ywov7xg8k",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://127.0.0.1:8083/binflow/api/repositories",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://127.0.0.1:8083/binflow/api/repositories"
+    }
+  },
+  {
+    "key": "t443auth-mu4yyfft4y5a",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://127.0.0.1:8083/binflow/api/repositories",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://127.0.0.1:8083/binflow/api/repositories"
+    }
+  },
+  {
+    "key": "t443ax-mu1m7nv8bi5s",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://127.0.0.1:8099/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://127.0.0.1:8099/healthz"
+    }
+  },
+  {
+    "key": "t443ax-mu1mp38uzdot",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://127.0.0.1:8099/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://127.0.0.1:8099/healthz"
+    }
+  },
+  {
+    "key": "t443ax-mu1n2ipix4kf",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://127.0.0.1:8099/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://127.0.0.1:8099/healthz"
+    }
+  },
+  {
+    "key": "t443ax-mu4ubtnrnyzt",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://172.16.58.130:8083/healthz"
+    }
+  },
+  {
+    "key": "t443ax-mu4ylc51c3md",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://localhost:18083/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://localhost:18083/healthz"
+    }
+  },
+  {
+    "key": "t443ax-mu4yx6fm9qjj",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://127.0.0.1:8083/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://127.0.0.1:8083/healthz"
+    }
+  },
+  {
+    "key": "t443ax-mu4z2jxekigq",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://172.16.58.1:50773/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://172.16.58.1:50773/healthz"
+    }
+  },
+  {
+    "key": "t443ax-mu4z3xlwcis3",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://172.16.58.1:51001/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://172.16.58.1:51001/healthz"
+    }
+  },
+  {
+    "key": "t443ok-mu1m7ndo2flz",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://127.0.0.1:8099/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://127.0.0.1:8099/healthz"
+    }
+  },
+  {
+    "key": "t443ok-mu1mp2k59kcf",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://127.0.0.1:8099/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://127.0.0.1:8099/healthz"
+    }
+  },
+  {
+    "key": "t443ok-mu1n2iajebw8",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://127.0.0.1:8099/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://127.0.0.1:8099/healthz"
+    }
+  },
+  {
+    "key": "t443ok-mu4ylbqvk6ea",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://localhost:18083/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://localhost:18083/healthz"
+    }
+  },
+  {
+    "key": "t443ok-mu4yup6xjbrs",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://localhost:18083/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://localhost:18083/healthz"
+    }
+  },
+  {
+    "key": "t443ok-mu4ywov7iuhp",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://127.0.0.1:8083/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://127.0.0.1:8083/healthz"
+    }
+  },
+  {
+    "key": "t443ok-mu4yyfftrnjq",
+    "description": "",
+    "type": "remote",
+    "packageType": "generic",
+    "url": "http://127.0.0.1:8083/healthz",
+    "configuration": {
+      "allowPrivateUpstream": true,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "http://127.0.0.1:8083/healthz"
+    }
+  },
+  {
+    "key": "t443r-mu1m7mcbs077",
+    "description": "",
+    "type": "remote",
+    "packageType": "maven",
+    "url": "https://repo1.maven.org/maven2",
+    "configuration": {
+      "allowPrivateUpstream": false,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "https://repo1.maven.org/maven2"
+    }
+  },
+  {
+    "key": "t443r-mu1mp1yikurv",
+    "description": "",
+    "type": "remote",
+    "packageType": "maven",
+    "url": "https://repo1.maven.org/maven2",
+    "configuration": {
+      "allowPrivateUpstream": false,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "https://repo1.maven.org/maven2"
+    }
+  },
+  {
+    "key": "t443r-mu1n2gyjs13x",
+    "description": "",
+    "type": "remote",
+    "packageType": "maven",
+    "url": "https://repo1.maven.org/maven2",
+    "configuration": {
+      "allowPrivateUpstream": false,
+      "archiveBrowsingEnabled": false,
+      "assumedOfflinePeriodSecs": 300,
+      "blackedOut": false,
+      "contentSynchronisation": {
+        "enabled": false,
+        "propertiesEnabled": false,
+        "sourceOrigin": false,
+        "statisticsEnabled": false
+      },
+      "enableTokenAuthentication": false,
+      "hardFail": false,
+      "listRemoteFolderItems": false,
+      "maxUniqueSnapshots": 0,
+      "metadataRetrievalCachePeriodSecs": 600,
+      "metadataRetrievalTimeoutSecs": 60,
+      "missedRetrievalCachePeriodSecs": 1800,
+      "priorityResolution": false,
+      "repoLayoutRef": "maven-2-default",
+      "retrievalCachePeriodSecs": 7200,
+      "socketTimeoutMillis": 15000,
+      "socketTimeoutSecs": 15,
+      "unusedArtifactsCleanupPeriodHours": 0,
+      "url": "https://repo1.maven.org/maven2"
+    }
+  },
+  {
+    "key": "demo-virtual",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/demo-virtual",
+    "configuration": {
+      "repositories": [
+        "demo-local",
+        "demo-remote"
+      ]
+    }
+  },
+  {
+    "key": "l026pmu4vmbj4v",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/l026pmu4vmbj4v",
+    "configuration": {
+      "repositories": [
+        "l026pmu4vmbj4m1",
+        "l026pmu4vmbj4m2"
+      ]
+    }
+  },
+  {
+    "key": "t240v-mu1m9k4blzfl",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240v-mu1m9k4blzfl",
+    "configuration": {
+      "repositories": [
+        "t240l-mu1m9k4bqsqm",
+        "t240r-mu1m9k4bzlju"
+      ]
+    }
+  },
+  {
+    "key": "t240v-mu1mr0zncf1n",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240v-mu1mr0zncf1n",
+    "configuration": {
+      "repositories": [
+        "t240l-mu1mr0zn1n2k",
+        "t240r-mu1mr0zn2hps"
+      ]
+    }
+  },
+  {
+    "key": "t240v-mu1n52fzpkcf",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240v-mu1n52fzpkcf",
+    "configuration": {
+      "repositories": [
+        "t240l-mu1n52fzs6hm",
+        "t240r-mu1n52fzjstw"
+      ]
+    }
+  },
+  {
+    "key": "t240v-mu4uffqaw2td",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t240v-mu4uffqaw2td",
+    "configuration": {
+      "repositories": [
+        "t240l-mu4uffqamz1k",
+        "t240r-mu4uffqasa3r"
+      ]
+    }
+  },
+  {
+    "key": "t414v-mu1m6mew9m6j",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v-mu1m6mew9m6j",
+    "configuration": {
+      "repositories": [
+        "t414v1-mu1m6mewlbai",
+        "t414v2-mu1m6mewn116"
+      ]
+    }
+  },
+  {
+    "key": "t414v-mu1mo2r73mhl",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v-mu1mo2r73mhl",
+    "configuration": {
+      "repositories": [
+        "t414v1-mu1mo2r73igv",
+        "t414v2-mu1mo2r7qvco"
+      ]
+    }
+  },
+  {
+    "key": "t414v-mu1n16p64nvd",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v-mu1n16p64nvd",
+    "configuration": {
+      "repositories": [
+        "t414v1-mu1n16p6le6y",
+        "t414v2-mu1n16p6v40g"
+      ]
+    }
+  },
+  {
+    "key": "t414v-mu4u8rlbws93",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v-mu4u8rlbws93",
+    "configuration": {
+      "repositories": [
+        "t414v1-mu4u8rlbuiei",
+        "t414v2-mu4u8rlb7d1x"
+      ]
+    }
+  },
+  {
+    "key": "t414v-mu4vj2ufuljz",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t414v-mu4vj2ufuljz",
+    "configuration": {
+      "repositories": [
+        "t414v1-mu4vj2ufzu0b",
+        "t414v2-mu4vj2ufctmu"
+      ]
+    }
+  },
+  {
+    "key": "t416ev-mu1n19by30tg",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t416ev-mu1n19by30tg",
+    "configuration": {
+      "repositories": [
+        "t416e1-mu1n19bywidt",
+        "t416e2-mu1n19by9tg5"
+      ]
+    }
+  },
+  {
+    "key": "t416v-mu1n18rqvmtn",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t416v-mu1n18rqvmtn",
+    "configuration": {
+      "repositories": [
+        "t416a-mu1n18rqysw9",
+        "t416b-mu1n18rq3cdy"
+      ]
+    }
+  },
+  {
+    "key": "t416v-mu1n19xz6jfs",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t416v-mu1n19xz6jfs",
+    "configuration": {
+      "repositories": [
+        "t416a-mu1n19xzt0uy",
+        "t416b-mu1n19xzyj27"
+      ]
+    }
+  },
+  {
+    "key": "t416v-mu1n1e8dvpqx",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t416v-mu1n1e8dvpqx",
+    "configuration": {
+      "repositories": [
+        "t416a-mu1n1e8d9jr5",
+        "t416b-mu1n1e8dqrzc"
+      ]
+    }
+  },
+  {
+    "key": "t416v3-mu1n1brcqoyi",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t416v3-mu1n1brcqoyi",
+    "configuration": {
+      "repositories": [
+        "t416m3-mu1n1brc03ql"
+      ]
+    }
+  },
+  {
+    "key": "t434amu1n26o1",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434amu1n26o1",
+    "configuration": {
+      "repositories": [
+        "t434zmu1n26o1"
+      ]
+    }
+  },
+  {
+    "key": "t434amu4ub9s7",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434amu4ub9s7",
+    "configuration": {
+      "repositories": [
+        "t434zmu4ub9s7"
+      ]
+    }
+  },
+  {
+    "key": "t434amu4wncy0",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434amu4wncy0",
+    "configuration": {
+      "repositories": [
+        "t434zmu4wncy0"
+      ]
+    }
+  },
+  {
+    "key": "t434amu4wt0bu",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434amu4wt0bu",
+    "configuration": {
+      "repositories": [
+        "t434zmu4wt0bu"
+      ]
+    }
+  },
+  {
+    "key": "t434amu4x3t01",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t434amu4x3t01",
+    "configuration": {
+      "repositories": [
+        "t434zmu4x3t01"
+      ]
+    }
+  },
+  {
+    "key": "t443v-mu1m7mcbg7wt",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t443v-mu1m7mcbg7wt",
+    "configuration": {
+      "repositories": [
+        "t443l-mu1m7mcb1squ"
+      ]
+    }
+  },
+  {
+    "key": "t443v-mu1mp1yiw2nr",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t443v-mu1mp1yiw2nr",
+    "configuration": {
+      "repositories": [
+        "t443l-mu1mp1yi8yjh"
+      ]
+    }
+  },
+  {
+    "key": "t443v-mu1n2gyjud6f",
+    "description": "",
+    "type": "virtual",
+    "packageType": "generic",
+    "url": "http://172.16.58.130:8083/binflow/t443v-mu1n2gyjud6f",
+    "configuration": {
+      "repositories": [
+        "t443l-mu1n2gyjvqix"
+      ]
+    }
+  }
+]

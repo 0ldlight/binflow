@@ -1,3 +1,4 @@
+import { expectSelectValue, selectShadcn } from './support/shadcn'
 import { expect, test } from '@playwright/test'
 
 // T-99 探针：仓库创建 → 列表 → 详情 → 编辑（governance 字段往返）→
@@ -224,6 +225,34 @@ test('remote maven: url roundtrip, password never echoed, empty delete', async (
   await expect(page.locator('[data-testid="form-url"]')).toHaveValue('https://repo1.maven.org/maven2')
   await expect(page.locator('[data-testid="form-password"]')).toHaveValue('')
 
+  // L027-4 deny 键读位回归：allowPrivateUpstream / socketTimeoutSecs 恒不随
+  // 任何渲染面回显（L025-8 blobEchoDenyKeys，键面 zero-diff 约束）——列表
+  // 面 configuration blob 是唯一注册读位（getRepoDetail 的 remote 收窄提
+  // 取臂）。置位后编辑器预填真值 + 未触碰保存不翻转（读位断裂时这里是
+  // 未勾 / 15，且全量替换保存会把真值翻回缺省）。
+  await api(page, 'POST', `/api/repositories/${key}`, {
+    rclass: 'remote',
+    packageType: 'maven',
+    description: 'e2e',
+    url: 'https://repo1.maven.org/maven2',
+    username: 'dev',
+    allowPrivateUpstream: true,
+    socketTimeoutSecs: 90,
+  })
+  await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
+  // 基本步（来源节）：allowPrivateUpstream 复选预填真值
+  await expect(page.locator('[data-testid="form-allow-private-upstream"]')).toBeChecked()
+  await page.click('[data-testid="form-step-advanced"]')
+  await expect(page.locator('[data-testid="form-socketTimeoutSecs"]')).toHaveValue('90')
+  await page.click('[data-testid="form-step-basic"]')
+  await page.fill('[data-testid="form-description"]', 'l027-4 deny-key seat')
+  await page.click('[data-testid="form-submit"]')
+  await expect(page.locator('[data-testid="toast"]')).toContainText('update successfully')
+  // 对账（deny 键唯一读位 = 列表面 blob）：未触碰的 deny 键不翻转
+  const denyCfg = await listConfigOf(page, key)
+  expect(denyCfg.allowPrivateUpstream).toBe(true)
+  expect(denyCfg.socketTimeoutSecs).toBe(90)
+
   // 空仓删除：不勾 deleteContent 直接成功
   await page.goto(`/binflow/ui/admin/repositories/${key}`)
   await page.click('[data-testid="repo-delete-button"]')
@@ -292,7 +321,7 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   // 调序：把 m2 上移到首位
   await page.click('[data-testid="member-up-1"]')
   await expect(page.locator('[data-testid="form-member-order"] .chip-item').first()).toContainText(m2)
-  await page.selectOption('[data-testid="form-default-deploy"]', m1)
+  await selectShadcn(page, '[data-testid="form-default-deploy"]', m1)
   await page.click('[data-testid="form-submit"]')
 
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${vkey}$`))
@@ -318,9 +347,9 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   // review B2：取消 defaultDeploymentRepo 所指成员 → select 联动回「（未配置）」，提交不再吃 400
   await page.goto(`/binflow/ui/admin/repositories/${vkey}/edit`)
   await expect(page.locator(`[data-testid="form-member-${m1}"]`)).toBeChecked()
-  await expect(page.locator('[data-testid="form-default-deploy"]')).toHaveValue(m1)
+  await expectSelectValue(page, '[data-testid="form-default-deploy"]', m1)
   await page.uncheck(`[data-testid="form-member-${m1}"]`)
-  await expect(page.locator('[data-testid="form-default-deploy"]')).toHaveValue('')
+  await expectSelectValue(page, '[data-testid="form-default-deploy"]', '')
   await page.click('[data-testid="form-submit"]')
   await expect(page.locator('[data-testid="toast"]')).toContainText('update successfully')
   const after = await api(page, 'GET', `/api/repositories/${vkey}`)
@@ -344,12 +373,14 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   await api(page, 'DELETE', `/api/repositories/${m1}`)
 })
 
-// L025-7 回归腿：G1 渲染收敛（989ad5ed）后 BinFlow 专键离开 v1 详读面——
-// 控制台读位迁列表面 blob（getRepoDetail 合并）。钉死写路径保险：专键已置位
-// 的 local 仓，编辑器零触碰开关、只改 description 保存 → priorityResolution /
-// quotaBytes / includesPattern 不翻转（读位断裂时 cfgBool 回 false、表单全量
-// 回传会把用户没动的开关翻成缺省写回）。
-test('L025-7: BinFlow-only keys survive an untouched-fields edit (read seat = list-face blob)', async ({ page }) => {
+// L025-7 回归腿（L027-4 重锚读位）：G1 渲染收敛（989ad5ed）后 BinFlow 专键
+// 离开 v1 详读面键表——L025-7 一度以列表面 blob 合并读位；L026-3 起服务端
+// appendUnmodeledBlobKeys 让专键原样随详读面回显，L027-4 退役双臂后读位 =
+// v1 详读面一跳直取。钉死写路径保险：专键已置位的 local 仓，编辑器零触碰
+// 开关、只改 description 保存 → priorityResolution / quotaBytes /
+// includesPattern 不翻转（读位断裂时 cfgBool 回 false、表单全量回传会把
+// 用户没动的开关翻成缺省写回）。
+test('L025-7: BinFlow-only keys survive an untouched-fields edit (read seat = v1 detail face)', async ({ page }) => {
   const key = uniq('l0257')
   await page.goto('/binflow/ui/')
   await login(page)
@@ -362,7 +393,7 @@ test('L025-7: BinFlow-only keys survive an untouched-fields edit (read seat = li
     includesPattern: 'keep/**',
   })
 
-  // 列表 → 详情：专键经合并读位回显（governance 卡配额 + 优先解析 kv 行）
+  // 列表 → 详情：专键随详读面回显（governance 卡配额 + 优先解析 kv 行）
   await page.goto('/binflow/ui/admin/repositories/local')
   await page.fill('[data-testid="repos-filter-key"]', key)
   await page.click(`[data-testid="repos-row-${key}"]`)
@@ -376,17 +407,18 @@ test('L025-7: BinFlow-only keys survive an untouched-fields edit (read seat = li
   await page.click('[data-testid="form-step-advanced"]')
   await expect(page.locator('[data-testid="form-quota"]')).toHaveValue('1048576')
   await expect(page.locator('[data-testid="form-includes"]')).toHaveValue('keep/**')
-  await expect(page.locator('label:has-text("priorityResolution") > input')).toBeChecked()
+  await expect(page.locator('[data-testid="form-priority-resolution"]')).toBeChecked()
   await page.click('[data-testid="form-step-basic"]')
   await page.fill('[data-testid="form-description"]', 'l025-7 untouched-fields save')
   await page.click('[data-testid="form-submit"]')
   await expect(page.locator('[data-testid="toast"]')).toContainText('update successfully')
 
-  // 对账（列表面 blob）：未触碰的专键不翻转
-  const cfg = await listConfigOf(page, key)
-  expect(cfg.priorityResolution).toBe(true)
-  expect(cfg.quotaBytes).toBe(1048576)
-  expect(cfg.includesPattern).toBe('keep/**')
+  // 对账（v1 详读面——L026-3 blob 回显后专键顶层平铺）：未触碰的专键不翻转
+  const after = await api(page, 'GET', `/api/repositories/${key}`)
+  const afterJson = JSON.parse(after.text)
+  expect(afterJson.priorityResolution).toBe(true)
+  expect(afterJson.quotaBytes).toBe(1048576)
+  expect(afterJson.includesPattern).toBe('keep/**')
 
   await api(page, 'DELETE', `/api/repositories/${key}`)
 })

@@ -1,3 +1,6 @@
+import { Button, ButtonAsChild } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 权限 target 编辑器（T-241 重排——P3 新栈重写；audit §2.7 行为契约逐条）：
 //   [1] 目标信息（name 编辑态锁定 + 适用仓库 chips + 「添加/编辑仓库…」入口）
 //   [2] 路径模式（只读摘要 + 模式测试器——evaluatePath 本地求值零端点，
@@ -22,12 +25,12 @@ import type { ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { useAuth } from '@/app/AuthContext'
-import { Button, ButtonAsChild } from '@/components/ui/button'
+
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { AlertBox } from '@/components/layout/bits'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
-import { TextInput, NativeSelect } from '@/components/layout/fields'
+import { TextInput, SelectField } from '@/components/layout/fields'
 import { TransferBox } from '@/components/layout/transfer-box'
 import { useConfirm } from '@/app/providers'
 import { toast } from '@/lib/toast'
@@ -95,18 +98,17 @@ function MatrixCell({
   disabled?: boolean
 }) {
   return (
-    <td className="px-3 py-1.5 text-center">
+    <TableCell className="px-3 py-1.5 text-center">
       <label className="matrix-cell">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={on}
           disabled={disabled}
-          onChange={onToggle}
+          onCheckedChange={onToggle}
           aria-label={tt('{v1} {name} 的 {action} 权限', { v1: kind === 'user' ? tt('用户') : tt('组'), name: name, action: action })}
           data-testid={`perm-matrix-cell-${kind}-${name}-${action}`}
         />
       </label>
-    </td>
+    </TableCell>
   )
 }
 
@@ -188,14 +190,14 @@ function ResourceDialog({
         {list.map((p, i) => (
           <div key={p} className="pattern-chip" data-testid={`perm-pattern-${word}-${i}`}>
             <span className="val" lang="en">{p}</span>
-            <button
+            <Button
               type="button"
               aria-label={tt('移除 {p}', { p: p })}
               onClick={() => setList((prev) => prev.filter((x) => x !== p))}
               data-testid={`perm-pattern-remove-${word}-${i}`}
             >
               ✕
-            </button>
+            </Button>
           </div>
         ))}
         <div className="pattern-add">
@@ -234,21 +236,21 @@ function ResourceDialog({
           <DialogTitle>{step === 1 ? (create ? tt('添加仓库') : tt('编辑仓库')) : tt('设置模式（可选）')}</DialogTitle>
         </DialogHeader>
         {/* 可点步头（两步头常驻可点、「2 Set Patterns (Optional)」标可选） */}
-        <div className="perm-res-steps" role="list" aria-label={tt('两步流程')}>
+        <nav className="perm-res-steps" aria-label={tt('两步流程')}>
           {([1, 2] as const).map((n) => (
-            <button
+            <Button
               key={n}
               type="button"
-              role="listitem"
+              variant="ghost"
               aria-current={step === n ? 'step' : undefined}
               data-testid={`perm-res-step-${n}`}
               onClick={() => setStep(n)}
               className={`text-left text-aux ${step === n ? 'font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
             >
               {`${n} ${n === 1 ? tt('选择仓库') : tt('设置模式（可选）')}`}
-            </button>
+            </Button>
           ))}
-        </div>
+        </nav>
         <p className="perm-res-step" data-testid="perm-res-step">
           {tt('第')} {step} {tt('步，共 2 步')}{' '}
           {step === 1
@@ -622,30 +624,30 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
     const cellKind: 'user' | 'group' = kind === 'users' ? 'user' : 'group'
     const names = Object.keys(f[kind]).sort()
     return (
-      <table className="w-full text-dense" data-testid={kind === 'users' ? 'perm-matrix' : 'perm-matrix-groups'}>
-        <thead>
-          <tr className="border-b border-border text-left text-aux text-muted-foreground">
-            <th scope="col" className="px-3 py-2 font-medium">{tt('主体')}</th>
-            <th scope="col" className="px-3 py-2 font-medium">read</th>
-            <th scope="col" className="px-3 py-2 font-medium" title={tt('annotate = 属性写位（7.161 标签 Annotate）：properties 的 PUT/DELETE 门；不隐含内容写（write 是独立列）')}>annotate</th>
-            <th scope="col" className="px-3 py-2 font-medium" title={tt('write = 部署位（7.161 标签 Deploy/Cache；wire 正名 deploy-cache，PUT 仍收 write 别名）；不携带 annotate——属性写需另勾 annotate 列')}>write</th>
-            <th scope="col" className="px-3 py-2 font-medium" title={tt('delete = 删除/覆盖（7.161 标签 Delete/Overwrite）')}>delete</th>
-            <th scope="col" className="px-3 py-2 font-medium" title={tt('manage = 仓库级 admin 派生位（只判 repos[]，pattern 不参与）；不隐含读写删')}>manage</th>
-          </tr>
-        </thead>
-        <tbody>
+      <Table className="w-full text-dense" data-testid={kind === 'users' ? 'perm-matrix' : 'perm-matrix-groups'}>
+        <TableHeader>
+          <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+            <TableHead scope="col" className="px-3 py-2 font-medium">{tt('主体')}</TableHead>
+            <TableHead scope="col" className="px-3 py-2 font-medium">read</TableHead>
+            <TableHead scope="col" className="px-3 py-2 font-medium" title={tt('annotate = 属性写位（7.161 标签 Annotate）：properties 的 PUT/DELETE 门；不隐含内容写（write 是独立列）')}>annotate</TableHead>
+            <TableHead scope="col" className="px-3 py-2 font-medium" title={tt('write = 部署位（7.161 标签 Deploy/Cache；wire 正名 deploy-cache，PUT 仍收 write 别名）；不携带 annotate——属性写需另勾 annotate 列')}>write</TableHead>
+            <TableHead scope="col" className="px-3 py-2 font-medium" title={tt('delete = 删除/覆盖（7.161 标签 Delete/Overwrite）')}>delete</TableHead>
+            <TableHead scope="col" className="px-3 py-2 font-medium" title={tt('manage = 仓库级 admin 派生位（只判 repos[]，pattern 不参与）；不隐含读写删')}>manage</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {names.map((name) => {
             const actions = f[kind][name] ?? []
             return (
-              <tr key={`${kind}:${name}`} className="border-b border-border/60 hover:bg-accent">
-                <td className="px-3 py-1.5">
+              <TableRow key={`${kind}:${name}`} className="border-b border-border/60 hover:bg-accent">
+                <TableCell className="px-3 py-1.5">
                   <span className="matrix-user-cell">
                     {cellKind === 'group' && (
                       <span aria-hidden="true" title={tt('组（组成员并集授权）')}>👥</span>
                     )}
                     <span className="font-mono" lang="en">{name}</span>
                     <Badge variant="tint-neutral">{cellKind === 'group' ? tt('组') : tt('用户')}</Badge>
-                    <button
+                    <Button
                       type="button"
                       className="principal-remove"
                       aria-label={tt('移除主体 {name}', { name: name })}
@@ -654,9 +656,9 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                       data-testid={`perm-matrix-remove-${cellKind}-${name}`}
                     >
                       ✕
-                    </button>
+                    </Button>
                   </span>
-                </td>
+                </TableCell>
                 {PERM_ACTIONS.map((a) => (
                   <MatrixCell
                     key={a}
@@ -668,20 +670,20 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                     onToggle={() => toggleAction(kind, name, a)}
                   />
                 ))}
-              </tr>
+              </TableRow>
             )
           })}
           {names.length === 0 && (
-            <tr>
-              <td colSpan={6} className="px-3 py-2 text-muted-foreground">
+            <TableRow>
+              <TableCell colSpan={6} className="px-3 py-2 text-muted-foreground">
                 {kind === 'users'
                   ? tt('还没有用户主体——从下方添加。')
                   : tt('还没有组主体——从下方添加。授权 = 用户自身行 ∪ 所属组行的动作并集。')}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           )}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     )
   }
 
@@ -743,7 +745,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                   <span className="val" lang="en" title={isWildcardBucket(r) ? tt('通配桶（wire 字面）——语义见「添加/编辑仓库」对话框注记') : undefined}>
                     {r}
                   </span>
-                  <button
+                  <Button
                     type="button"
                     aria-label={tt('移除仓库 {r}', { r: r })}
                     disabled={readOnly}
@@ -751,7 +753,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                     data-testid={`perm-repo-remove-${r}`}
                   >
                     ✕
-                  </button>
+                  </Button>
                 </span>
               ))}
             </div>
@@ -868,7 +870,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
               data-testid="perm-add-user"
             />
           ) : (
-            <NativeSelect
+            <SelectField
               value={addUser}
               disabled={readOnly}
               onChange={(e) => setAddUser(e.target.value)}
@@ -922,7 +924,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
               data-testid="perm-add-group"
             />
           ) : (
-            <NativeSelect
+            <SelectField
               value={addGroup}
               disabled={readOnly}
               onChange={(e) => setAddGroup(e.target.value)}
