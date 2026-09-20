@@ -356,6 +356,17 @@ func validateDockerImage(image string) error {
 
 // ---- Content use cases ----
 
+// isRemotePyPIProjectIndex identifies the protocol face that intentionally
+// addresses a slash-terminated upstream resource: /simple/<project>/. A stale
+// cached folder marker from an older browser face must not block that fetch.
+func isRemotePyPIProjectIndex(packageType, path string) bool {
+	if packageType != PackagePypi || !isFolderNode(path) {
+		return false
+	}
+	trimmed := strings.Trim(path, "/")
+	return strings.HasPrefix(trimmed, "simple/") && strings.Count(trimmed, "/") == 1
+}
+
 // Get implements Service.Get. Addressing a folder node yields
 // (nil, node, ErrIsFolder): folder rows carry metadata but no streamable
 // body (their sha256 is the shared empty-marker sentinel).
@@ -400,7 +411,7 @@ func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (
 		// slash-terminated upstream resources (pypi /simple/<project>/ index
 		// pages, nuget v2 paths), so a bare childless-404 shortcut here broke
 		// them (T-400's first red — T-406b).
-		if isFolderNode(path) {
+		if isFolderNode(path) && !isRemotePyPIProjectIndex(row.PackageType, path) {
 			if n, nerr := s.md.Nodes().Get(ctx, repoKey, path); nerr == nil && n.Sha256 == emptyFolderSHA {
 				return nil, n, fmt.Errorf("get %s/%s: %w", repoKey, path, ErrIsFolder)
 			}
