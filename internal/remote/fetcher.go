@@ -90,6 +90,14 @@ type FetchResult struct {
 	HasCopy bool
 }
 
+// hasCacheableCopy excludes the shared folder-marker sentinel. Old protocol
+// migrations could leave a marker plus a fresh remote-cache row on a path that
+// is now an upstream document (notably PyPI /simple/<project>/); such a row
+// must be replaced by a real upstream fetch, never opened as a blob.
+func hasCacheableCopy(node *metadata.Node) bool {
+	return node != nil && node.Sha256 != "" && node.Sha256 != metadata.FolderMarkerSHA
+}
+
 // RepoStats is the RE-11 statistics snapshot of one remote repository (the
 // /api/v1/remote/stats endpoint is P2; this is the data surface it reads).
 type RepoStats struct {
@@ -535,7 +543,10 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 	if err != nil && !errors.Is(err, metadata.ErrNodeNotFound) {
 		return nil, fmt.Errorf("remote %s: cache node %s: %w", repoKey, path, err)
 	}
-	if err == nil && node != nil && node.Sha256 != "" {
+	if err == nil && !hasCacheableCopy(node) {
+		node = nil // marker rows are display facts, not pull-through copies
+	}
+	if node != nil {
 		if entry, cerr := e.md.Remote().GetCache(ctx, repoKey, path); cerr == nil && entryFresh(entry.ExpiresAt, now) {
 			e.counters(repoKey).hits.Add(1)
 			res, serr := e.serveCopy(ctx, node, CacheHit, "")
@@ -554,7 +565,7 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 	// window is deliberately not written, an operator action is not an
 	// upstream fault and lifting it must restore service with no wait).
 	if pullBlocked() {
-		if node != nil && node.Sha256 != "" {
+		if hasCacheableCopy(node) {
 			return e.downgrade(ctx, node, repoKey, path, cfg, pol, pullBlockSummary, "")
 		}
 		e.logResult(repoKey, path, "", e.upstreamHost(cfg), 0, time.Time{}, 0, pullBlockSummary)
@@ -605,7 +616,7 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 			// stops queueing behind a stuck winner. With an old copy
 			// standing it is served as-is ("回发旧缓存副本", 7.3); without
 			// one there is nothing to fall back to and the miss stands.
-			if node != nil && node.Sha256 != "" {
+			if hasCacheableCopy(node) {
 				e.counters(repoKey).stales.Add(1)
 				e.logResult(repoKey, path, CacheStale, e.upstreamHost(cfg), 0, time.Time{}, 0,
 					"singleflight wait timeout — serving the expired copy")
@@ -624,7 +635,7 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 
 	// Winner double-check: state may have moved while the flight was
 	// contended (a previous winner's landing, a concurrent invalidate).
-	if node2, err := e.md.Nodes().Get(ctx, repoKey, path); err == nil && node2.Sha256 != "" {
+	if node2, err := e.md.Nodes().Get(ctx, repoKey, path); err == nil && hasCacheableCopy(node2) {
 		if entry, cerr := e.md.Remote().GetCache(ctx, repoKey, path); cerr == nil && entryFresh(entry.ExpiresAt, now) {
 			e.counters(repoKey).hits.Add(1)
 			res, serr := e.serveCopy(ctx, node2, CacheHit, "")
@@ -1100,7 +1111,7 @@ func (e *Engine) downgrade(ctx context.Context, node *metadata.Node, repoKey, pa
 	if extHost != "" {
 		host = extHost
 	}
-	if node != nil && node.Sha256 != "" {
+	if hasCacheableCopy(node) {
 		e.counters(repoKey).stales.Add(1)
 		e.logResult(repoKey, path, CacheStale, host, 0, time.Time{}, 0, summary)
 		return e.serveStale(ctx, node, summary)

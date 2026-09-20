@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
@@ -252,6 +253,13 @@ func TestRemoteRepositoryProjectPageOverridesStaleFolderMarker(t *testing.T) {
 		RepoKey: "pyv-rem", Path: "simple/up-only/", Sha256: metadata.FolderMarkerSHA,
 	}); err != nil {
 		t.Fatalf("seed stale folder marker: %v", err)
+	}
+	future := time.Now().UTC().Add(time.Hour).Format(time.RFC3339)
+	if err := f.s.md.Remote().PutCache(ctx, &metadata.RemoteCacheEntry{
+		RepoKey: "pyv-rem", Path: "simple/up-only/",
+		Kind: metadata.RemoteCacheKindMetadata, FetchedAt: future, ExpiresAt: future,
+	}); err != nil {
+		t.Fatalf("seed stale marker cache row: %v", err)
 	}
 
 	status, body, _ := f.s.get("/binflow/api/pypi/pyv-rem/simple/up-only/")
