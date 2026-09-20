@@ -85,7 +85,7 @@ func TestBlockGateSeedAndPersist(t *testing.T) {
 // blockedEngineFixture builds an engine with a gate over the real 009 store
 // and one enabled config; the scripted target serves the generic push plane
 // (HEAD 404 → PUT 201). sleep overrides the backoff sleeper (nil = no-op).
-func blockedEngineFixture(t *testing.T, target http.HandlerFunc, sleep func(context.Context, time.Duration) error) (*replication.Engine, replication.Store, *replication.BlockGate) {
+func blockedEngineFixture(t *testing.T, target http.HandlerFunc, sleep func(context.Context, time.Duration) error, initialPushBlocked ...bool) (*replication.Engine, replication.Store, *replication.BlockGate) {
 	t.Helper()
 	server := httptest.NewServer(target)
 	t.Cleanup(server.Close)
@@ -94,7 +94,11 @@ func blockedEngineFixture(t *testing.T, target http.HandlerFunc, sleep func(cont
 	if !ok {
 		t.Fatalf("store is %T, want *replication.SQLiteStore", store)
 	}
-	gate := replication.NewBlockGate(keeper, replication.GlobalBlock{}, nil, nil)
+	seed := replication.GlobalBlock{}
+	if len(initialPushBlocked) == 1 && initialPushBlocked[0] {
+		seed.BlockPush = true
+	}
+	gate := replication.NewBlockGate(keeper, seed, nil, nil)
 	if err := gate.Load(context.Background()); err != nil {
 		t.Fatalf("gate Load: %v", err)
 	}
@@ -181,7 +185,7 @@ func TestEnqueueBlockedDropsEvents(t *testing.T) {
 // unblock's wake hook resumes the queue immediately (no sweep wait).
 func TestDrainParksWhileBlockedAndWakeResumes(t *testing.T) {
 	var hits atomic.Int64
-	eng, store, gate := blockedEngineFixture(t, genericPushTarget(&hits), nil)
+	eng, store, gate := blockedEngineFixture(t, genericPushTarget(&hits), nil, true)
 	ctx := context.Background()
 	if _, err := store.CreateTask(ctx, &replication.ReplicationTask{
 		ReplicationID: 1, BlobSHA256: testSHA256(testPayload), NodePath: "a/one.bin",
@@ -189,9 +193,8 @@ func TestDrainParksWhileBlockedAndWakeResumes(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
-	if _, err := gate.Update(ctx, true, false, "admin"); err != nil {
-		t.Fatalf("block: %v", err)
-	}
+	// The fixture blocks before Run's immediate drain, so the pending row
+	// cannot race the test's gate update and be claimed prematurely.
 	// Several sweep ticks pass while blocked: nothing claimed, no contact.
 	time.Sleep(300 * time.Millisecond)
 	task, err := store.GetTask(ctx, 1)
