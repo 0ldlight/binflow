@@ -3,8 +3,8 @@
 [English](README.md) | **简体中文**
 
 BinFlow 是一个用 Go 从零实现的**云原生制品仓库**，架构与概念模型对标
-JFrog Artifactory——仓库、存储、权限、REST 语义一一对应，Artifactory
-用户迁移过来不用重学词汇。单静态二进制、零外部依赖、内嵌 Web 控制台，
+主流制品仓库——仓库、存储、权限、REST 语义一一对应，已有仓库用户
+迁移过来不用重学词汇。单静态二进制、零外部依赖、内嵌 Web 控制台，
 原生服务**十三个包生态**——每种协议都支持 **local / remote（代理缓存）/
 virtual（聚合）** 三种仓型。本文适用于 BinFlow v1.0.0；完整文档见
 [binflow.docs.buildwithfern.com](https://binflow.docs.buildwithfern.com)
@@ -102,12 +102,12 @@ docker compose -f deploy/dev/docker-compose.yml ps
 - **存储**——磁盘或 S3（AWS/MinIO）、在线双写迁移、`binstore.yaml` provider 链：[S3](docs/user/guides/s3-config.md) · [存储配置](docs/user/admin/storage-config.md)
 - **复制**——事件驱动单向 push、按需全量重同步、全局封锁闸：[治理](docs/user/admin/governance.md)
 - **搜索**——AQL（`items.find({...})`）+ gavc/prop/pattern 端点，另有属性系统：[AQL](docs/user/aql.md) · [属性](docs/user/properties.md)
-- **REST API**——管理面与 Artifactory 语义兼容：仓配置动词（PUT 只建 / POST 合并更新：省略字段保留、`null` 清空）、递归属性写（只有真实变更才移动节点属性时刻）、七参 `?list` 目录清单（`deep`/`depth`/`listFolders`/`includeRootPath` 加 `mdTimestamps`/`statsTimestamps`/`includePropertiesMd5` 元数据三参）、下载统计只计内容 GET（元数据面读取不计数）：[`docs/user/api-reference.md`](docs/user/api-reference.md)
+- **REST API**——管理面与主流制品仓库语义兼容：仓配置动词（PUT 只建 / POST 合并更新：省略字段保留、`null` 清空）、递归属性写（只有真实变更才移动节点属性时刻）、七参 `?list` 目录清单（`deep`/`depth`/`listFolders`/`includeRootPath` 加 `mdTimestamps`/`statsTimestamps`/`includePropertiesMd5` 元数据三参）、下载统计只计内容 GET（元数据面读取不计数）：[`docs/user/api-reference.md`](docs/user/api-reference.md)
 - **访问控制**——`user`/`readonly_admin`/`admin` 三值角色、`manage` 仓库级下放、API Token 与可选 step-up：[RBAC](docs/user/admin/rbac-roles.md) · [step-up](docs/user/admin/token-step-up.md)
 - **制品生命周期**——copy/move/zip/`archive!`/explode 操作族与可恢复、带保留期的回收站：[操作族](docs/user/admin/artifact-operations.md) · [回收站](docs/user/admin/trash-can.md)
 - **Webhook**——HMAC-SHA256 签名投递与重试语义：[`docs/user/admin/webhooks.md`](docs/user/admin/webhooks.md)
 - **运维与可观测**——并发安全 GC、在线 export/import 备份、审计、配额、Prometheus `/metrics`：[备份](docs/user/admin/backup-restore.md) · [治理](docs/user/admin/governance.md) · [指标](docs/user/metrics/prometheus-reference.md)
-- **工具**——`bf` CLI 与 `bf-migrate`（Artifactory 搬迁）：[bf CLI](docs/user/guides/bf-cli.md) · [迁移](docs/user/guides/migrate-artifactory.md)
+- **工具**——`bf` CLI 与 `bf-migrate`（仓库搬迁）：[bf CLI](docs/user/guides/bf-cli.md) · [迁移](docs/user/guides/migration-guide.md)
 
 ## 部署形态
 
@@ -183,8 +183,8 @@ GC 在每次物理删除前即时复核引用，可与 CI 并行推送同时运�
 | 内容 | 位置 |
 |---|---|
 | 文档站（安装 / 接入 / 管理 / API / FAQ） | [binflow.docs.buildwithfern.com](https://binflow.docs.buildwithfern.com) · 源 [`docs/user/`](docs/user/README.md) |
-| API 参考（Artifactory 兼容子集 + `/api/v1`） | [`docs/user/api-reference.md`](docs/user/api-reference.md) |
-| FAQ 与故障排查（含 Artifactory→BinFlow 对照表） | [`docs/user/faq.md`](docs/user/faq.md) |
+| API 参考（兼容子集 + `/api/v1`） | [`docs/user/api-reference.md`](docs/user/api-reference.md) |
+| FAQ 与故障排查（含迁移对照表） | [`docs/user/faq.md`](docs/user/faq.md) |
 | 产品愿景与范围 | [`PRODUCT.md`](PRODUCT.md) |
 | 架构规范 | [`docs/design/architecture.md`](docs/design/architecture.md) |
 | 决策记录（ADR） | [`DECISIONS.md`](DECISIONS.md) |

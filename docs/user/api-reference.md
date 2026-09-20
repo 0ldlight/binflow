@@ -5,7 +5,7 @@ sidebar_position: 70
 
 # API Reference
 
-> This page applies to **BinFlow v1.0.0**. BinFlow-native endpoints carry the `/api/v1` prefix; all other management endpoints follow the Artifactory-compatible REST conventions.
+> This page applies to **BinFlow v1.0.0**. BinFlow-native endpoints carry the `/api/v1` prefix; all other management endpoints follow the 参考仓库-compatible REST conventions.
 
 The BinFlow API spans four surfaces:
 
@@ -254,7 +254,7 @@ Docker-Distribution-Api-Version: registry/2.0
 | `ETag: <sha1>` | GET download | Without surrounding quotes; conditional requests via `If-None-Match` |
 | `Last-Modified` | GET download | RFC1123 format |
 | `Accept-Ranges: bytes` | GET download | Range request support |
-| `X-Artifactory-Filename` | GET download | URL-encoded file name |
+| `X-参考仓库-Filename` | GET download | URL-encoded file name |
 | `Location` | PUT upload success | URL of the new resource |
 | `X-Binflow-Exploded-Files: <n>` | Explode deploy | Count of files stored |
 | `Cache-Control: no-store` | Repository lists and other sensitive data | Caching forbidden |
@@ -278,7 +278,7 @@ Content paths — every protocol client (Maven, Go, Cargo, npm tarballs, …) de
 | HEAD | `/binflow/{repoKey}/{path}` | File metadata — response headers identical to GET, no body |
 | DELETE | `/binflow/{repoKey}/{path}` | Delete a file or a directory tree (recursive) |
 | PUT | `/binflow/{repoKey}/{GAV path}` | Deploy a Maven artifact (strict layout validation); resolve via GET, checksums via the `.sha1/.md5/.sha256` suffixes |
-| GET | `/binflow/api/storage/{repoKey}/{path}` | FileInfo / FolderInfo JSON. Query arms: `?properties=K1,K2*` (key filter + trailing `*` wildcard; no matches = 200 `{"properties":{}}` — a BinFlow ruling, not Artifactory's 404; a nonexistent node is 404), `?lastModified` (the directory's latest modification time), `?permissions` (effective-permissions view; admin only, local repositories only) |
+| GET | `/binflow/api/storage/{repoKey}/{path}` | FileInfo / FolderInfo JSON. Query arms: `?properties=K1,K2*` (key filter + trailing `*` wildcard; no matches = 200 `{"properties":{}}` — a BinFlow ruling, not 参考仓库's 404; a nonexistent node is 404), `?lastModified` (the directory's latest modification time), `?permissions` (effective-permissions view; admin only, local repositories only) |
 | GET | `/binflow/api/storage/{repoKey}/{path}?stats` | Download statistics `{uri, downloadCount, lastDownloaded, lastDownloadedBy, remoteDownloadCount}`. Counts are visible on all tiers (the item-info read gate); `lastDownloadedBy` is returned only to admin / readonly_admin (omitted on lower tiers, never fabricated); the stats probe itself is not counted |
 | PUT | `/binflow/api/storage/{repoKey}/{path}?properties=k=v1,v2[&recursive=1]` | Write properties — **merge semantics**: the value set of a same-named key is replaced wholesale, differently-named keys are kept; the node must exist (404) |
 | DELETE | `/binflow/api/storage/{repoKey}/{path}?properties=k1,k2[&recursive=1]` | Delete properties (idempotent; nonexistent keys 204; `properties=*` deletes everything; folder + `recursive=1` applies recursively) |
@@ -401,7 +401,7 @@ Repository-level administrators reach the permission editor through `?filter=man
 
 ### Search
 
-Results are always filtered by the caller's permissions. Language subset, error message family and the Artifactory migration table: [AQL search guide](aql.md).
+Results are always filtered by the caller's permissions. Language subset, error message family and the 参考仓库 migration table: [AQL search guide](aql.md).
 
 | Method | Path | Parameters | Semantics |
 |---|---|---|---|
@@ -477,7 +477,7 @@ GPG key pairs for repository metadata signing. Private keys and passphrases neve
 | DELETE | `/binflow/api/security/keypair/{pairName}` | Delete; 200 plain text `OK`; referenced by repositories → 400 naming the referencing repositories |
 | POST | `/binflow/api/security/keypair/verify` | 200 plain text `Key was verified.`; the body is the full material, or (BinFlow extension) just `{"pairName":…}` to verify the stored sealed key |
 | GET | `/binflow/api/security/keypair/public/repositories/{repoKey}` | The repository's associated key pair, armored public key (text/plain) |
-| POST | `/binflow/api/v1/admin/security/keypair/generate` | **Generate server-side** (201 echoes a summary; duplicate name 409) — official Artifactory REST has no keygen; this is a BinFlow-native management face |
+| POST | `/binflow/api/v1/admin/security/keypair/generate` | **Generate server-side** (201 echoes a summary; duplicate name 409) — official 参考仓库 REST has no keygen; this is a BinFlow-native management face |
 | POST / DELETE | `/binflow/api/v2/repositories/{repoKey}/keyPairs[/{keyName}]` | Associate (text/plain body = the key pair name) / disassociate — only local `debian`/`rpm` repositories accept `keyPairName`; other package types get 400 by name |
 
 Import body = `{pairName, pairType ("GPG"), alias, privateKey, publicKey, passphrase}`; generation body = `{pairName, alias, passphrase, keyBits, uidName, uidComment, uidEmail}`. Summaries carry `{pairName, pairType, alias, publicKey}` plus additive fields (`algorithm`/`createdAt`/`updatedAt`/`updatedBy`/`repositories`).
@@ -616,7 +616,7 @@ The cron scheduling domains — expression subset, validation family and the aud
 
 ### Multipart uploads
 
-The Artifactory-shaped MPU family for very large files (used by JFrog CLI). **Data endpoints require a pure S3 backend** — filestore/dual-write instances return **501 plain text**, not 404.
+The 参考仓库-shaped MPU family for very large files (used by JFrog CLI). **Data endpoints require a pure S3 backend** — filestore/dual-write instances return **501 plain text**, not 404.
 
 | Method | Path | Semantics |
 |---|---|---|
@@ -718,7 +718,7 @@ These paths are intentionally unrouted (404) — the supported alternatives are 
 
 | Path | Status | Use instead |
 |---|---|---|
-| `/binflow/api/v2/**` | 404 | The Artifactory v2 permissions API is not implemented — use `/api/v1/permissions`. The one exception: the repository key-pair association face `/api/v2/repositories/{key}/keyPairs` |
+| `/binflow/api/v2/**` | 404 | The 参考仓库 v2 permissions API is not implemented — use `/api/v1/permissions`. The one exception: the repository key-pair association face `/api/v2/repositories/{key}/keyPairs` |
 | `/binflow/api/export/**`, `/binflow/api/import/**` | 404 | Backup/restore is CLI-only |
 | `/binflow/api/system/storage/prune/**` | 404 | Space reclamation goes through GC |
 | `/binflow/v2/**` | 404 | Docker endpoints do not live under the `/binflow` prefix — use the root-level `/v2` plane |
@@ -731,6 +731,6 @@ These paths are intentionally unrouted (404) — the supported alternatives are 
 ## Next steps
 
 - Client integration guides: [Docker](docker-registry.md) · [Maven](integrations/maven.md) · [npm](integrations/npm.md) · [PyPI](integrations/pypi.md) · [Go](integrations/golang.md) · [NuGet](integrations/nuget.md) · [Cargo](integrations/cargo.md) · [Conan](integrations/conan.md) · [Helm](integrations/helm-charts.md) · [RPM](integrations/rpm.md) · [Debian](integrations/debian.md)
-- Search: [AQL search guide](aql.md) (language subset / error family / Artifactory migration mapping) · [properties](properties.md)
+- Search: [AQL search guide](aql.md) (language subset / error family / 参考仓库 migration mapping) · [properties](properties.md)
 - Administration: [governance](admin/governance.md) · [groups and permissions](admin/groups-permissions.md) · [RBAC roles and repository-level admins](admin/rbac-roles.md) · [token step-up](admin/token-step-up.md) · [backup and restore](admin/backup-restore.md) · [license and add-ons](admin/license.md) · [authentication configuration](admin/auth-config.md) · [storage configuration](admin/storage-config.md) · [webhooks](admin/webhooks.md)
 - FAQ and troubleshooting: [FAQ](faq.md)

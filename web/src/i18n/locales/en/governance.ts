@@ -1,5 +1,5 @@
 // T-463 键集 / T-464 填充：governance 域 en 目录包——键 = zh 文案原文
-// （zh-as-key），值 = 逐义对译 en（术语对齐 Artifactory：repo key / node /
+// （zh-as-key），值 = 逐义对译 en（术语对齐 reference console：repo key / node /
 // checksum / Deploy / Set Me Up 等英文术语原样保留）。
 import { registerEn } from '../../index'
 
@@ -302,7 +302,7 @@ registerEn('governance', {
   "字节": "bytes",
   "最近事件": "Recent events",
   "作业": "Job",
-  "Artifactory 表单的其余字段（仓子集〔BinFlow 导出恒为全实例快照〕/ 邮件告警 / Exclude New Repositories / Incremental / Retention / Zip 归档）在 BinFlow 无后端载体 ——缺位不伪造。": "The remaining Artifactory form fields (repository subset [BinFlow exports are always full-instance snapshots] / email alerts / Exclude New Repositories / Incremental / Retention / Zip archive) have no backend carrier in BinFlow — the gap is honest, nothing fabricated.",
+  "同类控制台 表单的其余字段（仓子集〔BinFlow 导出恒为全实例快照〕/ 邮件告警 / Exclude New Repositories / Incremental / Retention / Zip 归档）在 BinFlow 无后端载体 ——缺位不伪造。": "The remaining reference console form fields (repository subset [BinFlow exports are always full-instance snapshots] / email alerts / Exclude New Repositories / Incremental / Retention / Zip archive) have no backend carrier in BinFlow — the gap is honest, nothing fabricated.",
   "cron 表达式": "cron expression",
   "cron 到点由服务端执行全实例导出（与 CLI export 同载体，产物落": "When the cron fires, the server exports the whole instance (same carrier as CLI export; artifacts land in ",
   "Cron Expression（Quartz 六/七域；留空 = 保存但不调度）": "Cron Expression (Quartz six/seven fields; empty = save without scheduling)",
@@ -319,5 +319,4 @@ registerEn('governance', {
   "Next Backup Time（可选——首跑时刻，须晚于当前）": "Next Backup Time (optional — the first run time; must be later than now)",
   "Server Path For Backup *（服务器绝对路径）": "Server Path For Backup * (absolute server path)",
   "备份 / 恢复": "Backup / Restore",
-  "审计日志": "Audit Log",
 })

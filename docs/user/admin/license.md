@@ -48,7 +48,7 @@ license 文档里的 **addons 白名单**可以收窄授权：`--addons "go"` �
 
 ### 方式二：REST
 
-`POST /binflow/api/system/license`，**body 为 license 文档原文**（注意：装/卸是 POST/DELETE，无 PUT 动词；Artifactory 复数路径 `/api/system/licenses` 有意不做——JFrog 格式文档装不进来，404 即引导）：
+`POST /binflow/api/system/license`，**body 为 license 文档原文**（注意：装/卸是 POST/DELETE，无 PUT 动词；参考仓库 复数路径 `/api/system/licenses` 有意不做——JFrog 格式文档装不进来，404 即引导）：
 
 ```bash
 export BASE=http://localhost:8080
@@ -130,7 +130,7 @@ M10 装配 11 个槽位，M11 增至 15 个，M12 增至 18 个，**M13 增至 1
 | `maven` | package-type | Maven | community（地板） | Maven 布局 + maven-metadata.xml 计算 |
 | `npm` | package-type | npm | community（地板） | packument/tarball 双面 |
 | `pypi` | package-type | PyPI | community（地板） | simple 索引 + 上传面 |
-| `properties` | feature | Artifact Properties | community（地板） | 矩阵参数剥离 + 节点属性读写（Artifactory 归 pro，BinFlow 有意作核心能力） |
+| `properties` | feature | Artifact Properties | community（地板） | 矩阵参数剥离 + 节点属性读写（参考仓库 归 pro，BinFlow 有意作核心能力） |
 | `go` | package-type | Go Modules | **pro** | GOPROXY @v 五端点（见 [Go 接入](../integrations/golang.md)） |
 | `nuget` | package-type | NuGet | **pro** | v3 主面 + v2 全路由（M12 补全；见 [NuGet 接入](../integrations/nuget.md)） |
 | `cargo` | package-type | Cargo (Rust) | **pro** | sparse 索引 + crates API（见 [Cargo 接入](../integrations/cargo.md)） |
@@ -157,7 +157,7 @@ M10 装配 11 个槽位，M11 增至 15 个，M12 增至 18 个，**M13 增至 1
 
 ## `addons.disabled` 熔断配置
 
-运维的全局断路器（对标 Artifactory `artifactory.addons.disabled` 的行为模式，BinFlow 自有拼写）——**排障旋钮**，例如上游故障期临时关掉某包型：
+运维的全局断路器（兼容管理面全局插件开关的行为模式，BinFlow 自有拼写）——**排障旋钮**，例如上游故障期临时关掉某包型：
 
 ```yaml
 # binflow.yaml

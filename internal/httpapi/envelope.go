@@ -47,8 +47,8 @@ func notImplemented(w http.ResponseWriter, what string) {
 }
 
 // notFoundPrefixHint renders the E-26 root-path 404 with the /binflow
-// prefix hint (PRD C24: "/artifactory/** 的 message 提示 /binflow 前缀").
+// prefix hint (PRD C24: legacy root requests receive a /binflow prefix hint).
 func notFoundPrefixHint(w http.ResponseWriter, path string) {
 	writeError(w, http.StatusNotFound,
-		"no root mirror: BinFlow serves every endpoint under the /binflow prefix (requested path "+path+"); the Artifactory /artifactory prefix is not emulated")
+		"no root mirror: BinFlow serves every endpoint under the /binflow prefix (requested path "+path+"); the legacy repository context prefix is not emulated")
 }

@@ -73,7 +73,7 @@ function gatedPkgBlock(packageType: PackageType, repoKey: string): CommandBlock[
   ]
 }
 
-// T-382 三 Tab 重组（console-artifactory-parity D1 v1.1）：Configure/Deploy
+// T-382 三 Tab 重组（console-parity D1 v1.1）：Configure/Deploy
 // 双侧改 Configure/Deploy/Resolve 三侧，按语义三分（映射留痕见组件头注）：
 //   Configure = 客户端初始配置（端点 + 凭据：docker login / settings.xml
 //               servers / .npmrc _auth）；generic/pypi 无配置步（curl/pip

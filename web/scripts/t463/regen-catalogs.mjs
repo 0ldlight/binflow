@@ -114,7 +114,7 @@ for (const d of DOMAINS) {
     join(SRC, `i18n/locales/en/${d}.ts`),
     [
       `// T-463 键集 / T-464 填充：${d} 域 en 目录包——键 = zh 文案原文`,
-      `// （zh-as-key），值 = 逐义对译 en（术语对齐 Artifactory：repo key / node /`,
+      `// （zh-as-key），值 = 逐义对译 en（术语对齐 同类控制台：repo key / node /`,
       `// checksum / Deploy / Set Me Up 等英文术语原样保留）。`,
       `import { registerEn } from '../../index'`,
       '',

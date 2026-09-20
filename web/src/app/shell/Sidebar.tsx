@@ -69,7 +69,7 @@ export function Sidebar({
           data-testid="nav-mode-platform"
           aria-current={platformActive ? 'page' : undefined}
         >
-          <Link to="/packages">Platform</Link>
+          <Link to="/packages">{t('平台')}</Link>
         </ButtonAsChild>
         {canSeeAdmin ? (
           <ButtonAsChild
@@ -79,7 +79,7 @@ export function Sidebar({
             data-testid="nav-mode-administration"
             aria-current={!platformActive ? 'page' : undefined}
           >
-            <Link to="/admin/repositories/local">Administration</Link>
+            <Link to="/admin/repositories/local">{t('管理')}</Link>
           </ButtonAsChild>
         ) : (
           <Button
@@ -91,7 +91,7 @@ export function Sidebar({
             data-testid="nav-mode-administration"
             aria-current={!platformActive ? 'page' : undefined}
           >
-            Administration
+            {t('管理')}
           </Button>
         )}
       </div>

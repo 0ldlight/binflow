@@ -4,7 +4,7 @@ import { expectA11yClean } from './m8/support/a11y'
 
 // T-UIB2（design-system-plan §6 批 2）：壳布局 token 消费腿。
 // 断言口径（ADR-0029 决策 3 延伸）：布局尺寸是宪章 §13 自选值（240/64
-// 非 Artifactory 260 的翻拍——皮肤色值克隆断言仍被禁止，此处只钉布局），
+// 非 同类控制台 260 的翻拍——皮肤色值克隆断言仍被禁止，此处只钉布局），
 // computed 具体值断言合法：侧栏 240 / 顶栏 64 / 内容 max 1440 必须从
 // --bf-sidebar-w / --bf-topbar-h / --bf-content-max 经桥接语义类
 // （w-sidebar / h-topbar / max-w-content）生效——w-56 / h-12 /

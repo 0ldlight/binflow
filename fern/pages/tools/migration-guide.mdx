@@ -1,19 +1,19 @@
-# 从 Artifactory 迁移（bf-migrate）
+# 从 参考仓库 迁移（bf-migrate）
 
-`bf-migrate` 把 Artifactory 实例的**仓库定义、用户、token 台账、generic/maven 布局仓的制品本体**搬进 BinFlow。概念一一对应（local/remote/virtual、repo key、permission target——术语不变，总对照表见 [FAQ](/faq)）。
+`bf-migrate` 把 参考仓库 实例的**仓库定义、用户、token 台账、generic/maven 布局仓的制品本体**搬进 BinFlow。概念一一对应（local/remote/virtual、repo key、permission target——术语不变，总对照表见 [FAQ](/faq)）。
 
 ## 迁移什么、不迁移什么
 
 | 阶段 | 迁移内容 | 不迁/不可迁 |
 |---|---|---|
-| repos | local/remote/virtual 仓定义（rclass 1:1） | federated 仓；**映射集外包型仓**（转换器映射集 = `generic`/`docker`/`maven`/`npm`/`pypi`，`gradle` 别名 `maven` 并警告）；**remote 仓上游密码**（Artifactory 从不回显，目标侧重填） |
+| repos | local/remote/virtual 仓定义（rclass 1:1） | federated 仓；**映射集外包型仓**（转换器映射集 = `generic`/`docker`/`maven`/`npm`/`pypi`，`gradle` 别名 `maven` 并警告）；**remote 仓上游密码**（参考仓库 从不回显，目标侧重填） |
 | users | internal realm 用户（名、email、admin 位、groups） | `anonymous`/`_system_`/IdP realm 用户、无 email 用户；**口令不可导出** |
 | tokens | 仅台账：列出、计数 | **token 值不可导出**——目标侧重发再分发 |
 | artifacts | **generic 与 maven（含 gradle 别名）布局仓的制品本体**：源侧清单 → 下载中双哈希校验 → 目标侧 PUT；`--concurrency` 并行（默认 4） | docker/npm/pypi 仓的**制品**（协议上传面无法用 plain-file 复刻——配置迁、制品留源侧记原因）；remote 仓（缓存不迁）与 virtual 仓（聚合无本体） |
 
 **工具映射面 ≠ 产品能力面**：repos 阶段跳过 nuget/go/cargo/conan/helm/rpm/debian 等包型仓，说的是 **bf-migrate 的转换器映射集**，不是 BinFlow 的产品能力——这些包型 BinFlow 均支持。此类仓在目标侧**手建同 key 仓**、用各协议客户端（`dotnet nuget push` / `conan upload` / `helm push` 等）重灌制品即可。
 
-两条 Artifactory 硬约束：
+两条 参考仓库 硬约束：
 
 1. **口令**：任何响应都不含用户口令。二选一——`--password-env <VAR>`（全员共享一个初始口令，迁后轮换）或 `--passwords-out <file>`（每用户随机 24 位口令，写 0600 文件）。两者皆无且有待迁用户时 fail-fast。
 2. **token 值**：源只回元数据——第三阶段全部标 skipped 并提示目标重建。
@@ -22,7 +22,7 @@
 
 ## 前置条件
 
-- 源：Artifactory REST 可达，admin 凭据（Bearer token 或 API key）。
+- 源：参考仓库 REST 可达，admin 凭据（Bearer token 或 API key）。
 - 目标：BinFlow 实例 + admin API token；**默认只许迁入空目标（零仓实例）**——非空目标被守卫拒绝，确需合并见 `--allow-non-empty`。
 - 目标侧已建好用户引用到的组。
 
@@ -68,7 +68,7 @@ bf-migrate migrate --passwords-out ./migrated-passwords.txt --resume
 
 ## 迁移后手工收尾清单
 
-1. **remote 仓上游密码**：逐个重填（Artifactory 不回显，迁移只带 url/username）。
+1. **remote 仓上游密码**：逐个重填（参考仓库 不回显，迁移只带 url/username）。
 2. **组与权限**：`POST /api/v1/permissions` 挂授权（组预建前置）。
 3. **token 重发**：按台账在目标侧 `bf token create`，再分发给持有方。
 4. **用户口令分发**：`migrated-passwords.txt`（0600）安全渠道分发，强制首次登录轮换。
@@ -77,7 +77,7 @@ bf-migrate migrate --passwords-out ./migrated-passwords.txt --resume
 ## 已知缺口与行为注记
 
 - **maven 仓重迁轮 `maven-metadata.xml` 会被目标重算**：重跑时 jar/pom 再上传触发 BinFlow 按服务端语义重算 metadata（`<lastUpdated>` 变化）。比对迁移前后字节以构件本体（jar/pom）为准，metadata 差异可忽略。
-- **源为 Artifactory OSS 时的能力边界**：OSS 7.x 无 docker registry 与 npm 协议面（`/v2/`、`/api/npm/{repo}/**` 全 404）——docker/npm 仓只能 **config-only 迁移**（报告记 "artifacts left behind"），与网络连通性无关；协议制品迁移须 Pro/企业版源。
+- **源为 参考仓库 OSS 时的能力边界**：OSS 7.x 无 docker registry 与 npm 协议面（`/v2/`、`/api/npm/{repo}/**` 全 404）——docker/npm 仓只能 **config-only 迁移**（报告记 "artifacts left behind"），与网络连通性无关；协议制品迁移须 Pro/企业版源。
 
 ## 常见报错对照
 

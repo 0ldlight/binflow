@@ -8,7 +8,7 @@
 
 ## 破坏性变更：仓库配置动词语义收紧（PUT 只建仓，更新只有 POST）
 
-**此前**：`PUT /api/repositories/{key}` 对已存在 key = 替换更新（200）。**现在**：**PUT 只建仓**——已存在 key 一律 **400**（`error when validating repository name: <key> : Repository key already exists`），零副作用。**唯一更新拼写是 POST**，合并语义三列：**省略字段=保留存量**、**`null`/空串=清空**（数组空值保留、对象 `{}` 整族复位）、**显式值=覆盖**（含 `0`）；未知 key 404。对齐 Artifactory（参照更新拼写只有 POST）。
+**此前**：`PUT /api/repositories/{key}` 对已存在 key = 替换更新（200）。**现在**：**PUT 只建仓**——已存在 key 一律 **400**（`error when validating repository name: <key> : Repository key already exists`），零副作用。**唯一更新拼写是 POST**，合并语义三列：**省略字段=保留存量**、**`null`/空串=清空**（数组空值保留、对象 `{}` 整族复位）、**显式值=覆盖**（含 `0`）；未知 key 404。对齐 参考仓库（参照更新拼写只有 POST）。
 
 **影响面**：repeat-PUT 更新脚本（「先 PUT 建仓、每轮 PUT 刷配置」的脚本 / CI / IaC）从第二个 PUT 起 400。**迁移 = 更新调用 PUT 改 POST**（body 省略字段保留，无需补全）：
 
@@ -27,7 +27,7 @@ upsert 脚本改两步：`GET` 探测（404 → `PUT` 建；200 → `POST` 改�
 
 ## 协议语义对齐批次：客户端可见面
 
-六个协议域（npm / PyPI / Conan / Docker / Go / Helm）客户端可见语义逐项对齐 Artifactory 口径，Maven 与存储管理面同步收敛（经真实客户端在隔离实例或双端对照验证）：
+六个协议域（npm / PyPI / Conan / Docker / Go / Helm）客户端可见语义逐项对齐 参考仓库 口径，Maven 与存储管理面同步收敛（经真实客户端在隔离实例或双端对照验证）：
 
 - **Maven**：SNAPSHOT 缺省 `unique`（时间戳版本落盘 + buildNumber 跨趟递增）；版本目录 metadata 的 **pom 前置**（目录含 `.pom` 直接子文件才生成）；`deploy-file` 免 `generatePom` 404 面。见 [Maven 接入](/integrations/maven)。
 - **PyPI**：`Requires-Python` 三源管线（twine 表单 / wheel METADATA / sdist PKG-INFO）——pip 版本过滤直接可见；坏元数据**存而不索引**。见 [PyPI 接入](/integrations/pypi)。
@@ -110,4 +110,4 @@ upsert 脚本改两步：`GET` 探测（404 → `PUT` 建；200 → `POST` 改�
 ## 下一步
 
 - 脚本迁移：[仓库管理 · 动词语义](/admin/repositories) · [API 参考](/api-参考/binflow-api)
-- [计划任务与定时备份](/admin/cron-scheduling) · [仓库管理（远端浏览）](/admin/repositories) · [Web 控制台](/admin/console) · [Artifactory 迁移指南](/tools/migrate-artifactory)
+- [计划任务与定时备份](/admin/cron-scheduling) · [仓库管理（远端浏览）](/admin/repositories) · [Web 控制台](/admin/console) · [参考仓库 迁移指南](/tools/migration-guide)

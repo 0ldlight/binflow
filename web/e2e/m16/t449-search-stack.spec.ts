@@ -18,7 +18,7 @@ import { m8Client } from '../m8/support/seed'
 //      网格内快滤（客户端窄化 + 无匹配态）；AQL 模式编辑器共存（编辑器
 //      管服务端查询，快滤管已取回行——两层正交）。
 //   ④ 快搜空历史占位（B-2.14/B-3.16 翻正腿）：聚焦恒渲染下拉，空历史
-//      给「暂无最近搜索」占位（对位 Artifactory "No recent searches yet"）。
+//      给「暂无最近搜索」占位（对位 同类控制台 "No recent searches yet"）。
 //   ⑤ 日期格式（B-3.15 结果表腿）：modified = dd-MM-yy HH:mm:ss +ZZZZ
 //      （正则断言含时区偏移）。
 //   ⑥ axe 双主题：结果 + 快滤激活 + AQL 模式结果态。

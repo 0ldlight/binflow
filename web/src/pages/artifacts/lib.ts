@@ -318,7 +318,7 @@ export function getItemPermissions(
  * （admin ∨ readonly_admin）回带，其余档服务端 omitempty 省略（FE 端
  * 「缺省 = '—'」，不伪造、也不区分「从未下载」与「非档位省略」）。
  * folder 行是结构性零值（CountDownload 的 SQL 边排除 folder）——详情页
- * 只在 file 形态消费本面（Artifactory folder item view 亦无下载族）。
+ * 只在 file 形态消费本面（同类控制台 folder item view 亦无下载族）。
  */
 export interface NodeStats {
   uri: string
@@ -359,7 +359,7 @@ export async function getRepoUsageCounts(repoKey: string, signal?: AbortSignal):
  * 内容面绝对 URL（File URL 行的呈现与复制值——FR-144.2/.3）：origin +
  * `/binflow/<repo>/<path>`，folder 保留尾斜杠（与「直接下载」钮同一构造，
  * 运行时派生、无绝对路径假设；FileInfo.downloadUri 是 api/storage 形态，
- * 非 Artifactory 语义的下载 URL——不用）。
+ * 非 同类控制台 语义的下载 URL——不用）。
  */
 export function contentFileURL(repoKey: string, ref: string): string {
   const trailing = ref.endsWith('/')

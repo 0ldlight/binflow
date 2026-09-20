@@ -2,7 +2,7 @@
 
 ## 状态码信封解读
 
-所有非 2xx 的制品域响应为统一信封：`{"errors":[{"status":413,"message":"..."}]}`。用户管理/组/token 域为**纯文本**错误体，docker `/v2` 面为 spec 信封（`{"errors":[{"code":"DENIED",...}]}`）——三种格式并存是 Artifactory 兼容面，客户端按域名解析即可。
+所有非 2xx 的制品域响应为统一信封：`{"errors":[{"status":413,"message":"..."}]}`。用户管理/组/token 域为**纯文本**错误体，docker `/v2` 面为 spec 信封（`{"errors":[{"code":"DENIED",...}]}`）——三种格式并存是 参考仓库 兼容面，客户端按域名解析即可。
 
 ### 401（未认证）
 
@@ -104,13 +104,13 @@ pro 档（槽 `trashcan`）local 仓删除先捕获进内置仓 `auto-trashcan`�
 
 是**有意幸存**：chart 自建 PVC 带 `helm.sh/resource-policy: keep` 注解，卸载只删工作负载、保留数据卷——防误删。同 namespace 重装同名 release 会复用幸存 PVC。彻底删除须手动 `kubectl delete pvc`（见 [Helm 安装 · 卸载](/install/helm)）。
 
-### Artifactory 的 AQL 查询搬过来，哪些能用哪些 400？
+### 参考仓库 的 AQL 查询搬过来，哪些能用哪些 400？
 
-BinFlow 实现 **items 域只读子集**：`items.find()` + 全部比较/通配/逻辑操作符 + `.include().sort().offset().limit()` 链 + virtual key 透明展开均可用；envelope 与语法错文案与 Artifactory 逐字一致。**400 点名拒绝**：build/statistics 系域、`stat.*`/`modified_by`/`original_*` 字段、写动词、`.transitive`。迁移改写四类：相对时间加空格（`"1d"` → `"1 d"`）；build 系查询改道；大结果集加分页（硬上限 1,000）；配凭据（AQL 永不允许匿名）。见 [AQL](/search/aql)。
+BinFlow 实现 **items 域只读子集**：`items.find()` + 全部比较/通配/逻辑操作符 + `.include().sort().offset().limit()` 链 + virtual key 透明展开均可用；envelope 与语法错文案与 参考仓库 逐字一致。**400 点名拒绝**：build/statistics 系域、`stat.*`/`modified_by`/`original_*` 字段、写动词、`.transitive`。迁移改写四类：相对时间加空格（`"1d"` → `"1 d"`）；build 系查询改道；大结果集加分页（硬上限 1,000）；配凭据（AQL 永不允许匿名）。见 [AQL](/search/aql)。
 
 ## 有意不兼容清单（汇总）
 
-从 Artifactory 迁移时的差异点（各域细节见对应指南）：
+从 参考仓库 迁移时的差异点（各域细节见对应指南）：
 
 | 不做项 | 表现 |
 |---|---|
@@ -124,26 +124,26 @@ BinFlow 实现 **items 域只读子集**：`items.find()` + 全部比较/通配/
 | npmjs.org 真上游代理 | packument 布局不兼容——remote 适用于布局兼容上游 |
 | 洞察报表、漏洞扫描（Xray）、Pipelines 等独立产品 | 不做（Non-goal） |
 
-## 从 Artifactory 迁移
+## 从 参考仓库 迁移
 
 概念一一对应，术语不变：
 
-| Artifactory | BinFlow | 说明 |
+| 参考仓库 | BinFlow | 说明 |
 |---|---|---|
 | local / remote / virtual 仓 | 同名 rclass 三型 | 语义一致；建仓走 `PUT /api/repositories/{key}`（重复 PUT 为更新） |
 | repo key / node / checksum | 同名 | checksum 族 sha256/sha1/md5 |
 | deployment / resolution | 上传 / 解析 | UI 与文档保留 deployment 原词 |
 | permission target、include/exclude patterns | 同名同构 | principals 支持 groups；`?permissions` 视图同形 |
-| groups / users / access tokens | 同名 | 组删除 409 保护同款；用户删除三护栏 + 级联撤权、**重复删除 404**（Artifactory 视为成功——幂等 vs 有意非幂等） |
+| groups / users / access tokens | 同名 | 组删除 409 保护同款；用户删除三护栏 + 级联撤权、**重复删除 404**（参考仓库 视为成功——幂等 vs 有意非幂等） |
 | 管理面 admin 布尔 | `adminRole` 三值角色 | `readonly_admin` 为 BinFlow 自有（实例级只读管理员） |
 | System YAML / GC / backup | `binflow.yaml` / `POST /api/v1/system/gc` / export·import CLI | GC 语义（mark-sweep + grace）同构 |
 | AQL / 老搜索族 | 同路径同信封 | 子集边界见 [AQL](/search/aql) |
 
-**三步走**：① 概念对齐（仓库/权限/checksum 去重一一对应）；② URL 映射：`/artifactory/api/...` → `/binflow/api/...`；`/artifactory/<repo>/<path>` → `/binflow/<repo>/<path>`；docker 端 `/v2/` 地址不变；③ 差异复核（上方清单 + 各指南「有意不兼容」小节）。批量搬迁走 [bf-migrate](/tools/migrate-artifactory)；控制台操作路径对照见 [Web 控制台](/admin/console)。
+**三步走**：① 概念对齐（仓库/权限/checksum 去重一一对应）；② URL 映射：`/artifactory/api/...` → `/binflow/api/...`；`/artifactory/<repo>/<path>` → `/binflow/<repo>/<path>`；docker 端 `/v2/` 地址不变；③ 差异复核（上方清单 + 各指南「有意不兼容」小节）。批量搬迁走 [bf-migrate](/tools/migration-guide)；控制台操作路径对照见 [Web 控制台](/admin/console)。
 
 迁移高频四问：
 
-1. **「我的 404 为什么在 Artifactory 是 200？」**——先查仓库的 `excludesPattern`（拦截下载与 miss 同文案）与 remote 仓负缓存/assumed-offline（`X-Binflow-Cache` / `X-Binflow-Upstream-Error` 头）。
+1. **「我的 404 为什么在 参考仓库 是 200？」**——先查仓库的 `excludesPattern`（拦截下载与 miss 同文案）与 remote 仓负缓存/assumed-offline（`X-Binflow-Cache` / `X-Binflow-Upstream-Error` 头）。
 2. **「docker push 为什么报错别的协议都好？」**——docker 固定根级 `/v2`，前置反代必须原样直通（不能 rewrite 进 `/binflow`）；明文 HTTP 需配 insecure-registries。
 3. **「脚本 401 但浏览器正常？」**——浏览器是会话 cookie，脚本用 Basic/token；确认没把控制台 cookie 混进 CI。
 4. **「控制台旧路径失效了？」**——旧路由已不再重定向（404 页），按[控制台 · 旧路径对照表](/admin/console)更新书签。
@@ -168,4 +168,4 @@ curl -s -D - -o /dev/null $BASE/binflow/<repo>/<path>           # 完整响应�
 
 ## 下一步
 
-- [五分钟快速开始](/getting-started/quickstart) · [API 参考](/api-参考/binflow-api) · [bf-migrate 迁移指南](/tools/migrate-artifactory)
+- [五分钟快速开始](/getting-started/quickstart) · [API 参考](/api-参考/binflow-api) · [bf-migrate 迁移指南](/tools/migration-guide)

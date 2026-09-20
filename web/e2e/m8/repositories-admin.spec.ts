@@ -123,7 +123,7 @@ test('admin: three-tab subroutes, per-type rows, column sort, count + pager, fil
 
   await loginAs(page, 'admin')
 
-  // Artifactory landing shows all repository classes first; type deep links remain
+  // 同类控制台 landing shows all repository classes first; type deep links remain
   // direct subroutes rather than redirecting the primary entry to Local.
   await page.goto('/binflow/ui/admin/repositories')
   await expect(page).toHaveURL('/binflow/ui/admin/repositories')
@@ -131,7 +131,7 @@ test('admin: three-tab subroutes, per-type rows, column sort, count + pager, fil
   await expect(page.locator(`[data-testid="repos-row-${local}"]`)).toBeVisible({ timeout: 30_000 })
   await expect(page.locator(`[data-testid="repos-row-${remote}"]`)).toBeVisible()
   await expect(page.locator(`[data-testid="repos-row-${virtual}"]`)).toBeVisible()
-  await expect(page.locator('[data-testid="repos-table"] th').nth(1)).toHaveText('Repository Type')
+  await expect(page.locator('[data-testid="repos-table"] th').nth(1)).toHaveText('仓库类型')
   await page.click('[data-testid="repos-filter-package"]')
   await page.getByRole('option', { name: 'Maven' }).click()
   await expect(page.locator(`[data-testid="repos-row-${remote}"]`)).toBeVisible()
@@ -173,8 +173,8 @@ test('admin: three-tab subroutes, per-type rows, column sort, count + pager, fil
   await page.click('[data-testid="repos-sort-key"]')
   await expect(page.locator('[data-testid="repos-sort-key"]')).toHaveAttribute('aria-sort', 'none')
 
-  // 计数标题 + 底部计数行（Artifactory "<N> Repositories" / "Showing a – b from c" 形态）
-  await expect(page.locator('[data-testid="repos-count"]')).toContainText('repositories')
+  // 计数标题 + 底部计数行（同类控制台 "<N> Repositories" / "Showing a – b from c" 形态）
+  await expect(page.locator('[data-testid="repos-count"]')).toContainText('个仓库')
   await expect(page.locator('[data-testid="repos-pager"]')).toContainText(/显示 1 – \d+ /)
 
   // 行链接键盘腿：focus + Enter 进详情
@@ -189,7 +189,7 @@ test('admin: three-tab subroutes, per-type rows, column sort, count + pager, fil
   await expect(page.locator('[data-testid="repos-pager"]')).toContainText('过滤')
   await page.fill('[data-testid="repos-filter-key"]', 'definitely-no-such-repo')
   await expect(page.locator('[data-testid="repos-empty-filtered"]')).toBeVisible()
-  await page.locator('[data-testid="repos-empty-filtered"] button', { hasText: 'Clear all' }).click()
+  await page.locator('[data-testid="repos-empty-filtered"] button', { hasText: '全部清除' }).click()
   await expect(page.locator(`[data-testid="repos-row-${local}"]`)).toBeVisible()
 
   await expectA11yClean(page, testInfo, { include: '[data-testid="repos-page"]' })

@@ -249,6 +249,8 @@ export function Topbar({
   return (
     <header className="app-topbar sticky top-0 z-[var(--bf-z-nav-sticky,70)] flex h-topbar items-center gap-4 border-b border-border bg-background px-6">
       {crumbs ? (
+        <>
+        <h1 className="sr-only">{crumbs[crumbs.length - 1]?.label ?? t('管理')}</h1>
         <nav className="topbar-breadcrumb flex min-w-0 items-center gap-1 text-dense" data-testid="topbar-breadcrumb" aria-label={t('位置')}>
           {crumbs.map((c, i) =>
             c.to && i < crumbs.length - 1 ? (
@@ -262,6 +264,7 @@ export function Topbar({
             ),
           ).reduce<React.ReactNode[]>((acc, el, i) => (i === 0 ? [el] : [...acc, <span key={`sep-${i}`} aria-hidden="true" className="text-muted-foreground">/</span>, el]), [])}
         </nav>
+        </>
       ) : (
         <h1 className="truncate text-[17px] font-semibold">{title}</h1>
       )}
@@ -273,7 +276,7 @@ export function Topbar({
           <Input
             ref={adminFilterRef}
             type="search"
-            placeholder="Search Admin Resources…"
+            placeholder={t('搜索管理资源…')}
             data-testid="admin-filter"
             aria-label={t('搜索管理资源（过滤管理侧栏条目）')}
             autoComplete="off"
@@ -415,7 +418,7 @@ export function Topbar({
         <DropdownMenuContent align="end" data-testid="topbar-help-menu">
           <DropdownMenuItem asChild>
             <a href="/binflow/docs/" target="_blank" rel="noopener noreferrer" data-testid="help-docs">
-              Documentation
+              {t('文档')}
             </a>
           </DropdownMenuItem>
           <DropdownMenuItem disabled data-testid="help-training">
@@ -423,12 +426,12 @@ export function Topbar({
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <a href="/binflow/docs/install/upgrade" target="_blank" rel="noopener noreferrer" data-testid="help-release-notes">
-              Release Notes
+              {t('版本说明')}
             </a>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem data-testid="help-about" onSelect={() => onAboutOpenChange(true)}>
-            About
+            {t('关于')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -535,7 +538,7 @@ export function Topbar({
       <Dialog open={aboutOpen} onOpenChange={onAboutOpenChange}>
         <DialogContent className="max-w-sm" data-testid="about-dialog">
           <DialogHeader>
-            <DialogTitle>About</DialogTitle>
+            <DialogTitle>{t('关于')}</DialogTitle>
           </DialogHeader>
           <div className="flex items-center gap-2">
             <BrandMark size={32} testid="about-brand-mark" />

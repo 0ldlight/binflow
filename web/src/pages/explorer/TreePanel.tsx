@@ -241,7 +241,7 @@ export function TreePanel({
 
   return (
     <nav className="tree-pane browser-tree flex min-w-0 flex-col" aria-label={tt('制品树')} data-testid="browser-tree">
-      {/* ---- 树头工具带（T-434 / FR-142.4——Artifactory 树头对齐面）---- */}
+      {/* ---- 树头工具带（T-434 / FR-142.4——同类控制台 树头对齐面）---- */}
       <div className="tree-toolband border-b border-border p-2" data-testid="tree-toolband">
         <div className="toolband-row flex items-center gap-1.5">
           <Input

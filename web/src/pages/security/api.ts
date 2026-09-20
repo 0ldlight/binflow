@@ -334,7 +334,7 @@ export function validateUserName(name: string): string | null {
 // ---- 主体授权汇总（T-237；console-m8 §6.9[5]/§6.10 组权限矩阵）----
 // 只读汇总：把 permission targets 列表折叠成「某主体在每个 target 上的
 // 五动作视图」（T-455 起含 annotate）。对用户 = 直接行 + 经所属组行
-// （Artifactory User Permissions Tab 的 Applied To 语义）；对组 = 该组的行。
+// （同类控制台 User Permissions Tab 的 Applied To 语义）；对组 = 该组的行。
 // 纯前端计算，零新端点。
 
 export interface PrincipalGrantRow {
@@ -358,7 +358,7 @@ export function grantsOfGroup(targets: PermissionTarget[], group: string): Princ
   return rows
 }
 
-/** 用户的授权行：直接 + 经组（Artifactory Applied To 形态）；并集在 UI 词域 */
+/** 用户的授权行：直接 + 经组（同类控制台 Applied To 形态）；并集在 UI 词域 */
 export function grantsOfUser(
   targets: PermissionTarget[],
   user: string,
@@ -387,7 +387,7 @@ export function grantsOfUser(
 }
 
 /** 主体是否在任何 target 上持有 manage——组页 adminPrivileges 徽章的数据源。
- *  BinFlow 组模型无 Artifactory 的 adminPrivileges 布尔（rbac-model §5
+ *  BinFlow 组模型无 同类控制台 的 adminPrivileges 布尔（rbac-model §5
  *  有意不跟进）；manage（仓库配置派生权，ADR-0026）是其最小诚实同构。 */
 export function holdsManage(rows: readonly PrincipalGrantRow[]): boolean {
   return rows.some((r) => r.actions.includes('manage'))

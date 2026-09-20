@@ -138,7 +138,7 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/audit?action=user.role.change&lim
 
 ## 仓库级管理员：`manage` 动作
 
-permission target 的 principals 动作集从 `read|write|delete` 扩为 **`read|write|delete|manage`**（对齐 Artifactory ACE 动作集子集）。给组或用户授 `manage` + target 命中某仓 = 该主体成为**这些仓的仓库级管理员**。既有 target 无 manage 位 = 行为逐字不变。
+permission target 的 principals 动作集从 `read|write|delete` 扩为 **`read|write|delete|manage`**（对齐 参考仓库 ACE 动作集子集）。给组或用户授 `manage` + target 命中某仓 = 该主体成为**这些仓的仓库级管理员**。既有 target 无 manage 位 = 行为逐字不变。
 
 `manage` 的 target 匹配**只看 `repos[]`**——includes/excludes 不参与（manage 是仓库配置权，无路径子域）。
 
@@ -196,7 +196,7 @@ DELETE 臂同理：被删 target 的 repo 集取自存量行，越界 → 403。
 | 读配额用量 `GET /api/v1/storage/usage/{repo}`、批量 `GET /api/v1/storage/usage`（M9，read ∨ manage 可见集） | — |
 | 读制品授权位 `?permissions` 视图（字母集含 `m`；路径探针本身仍需内容 read） | — |
 
-**`manage` 不是数据面权限**：不隐含 read/write/delete——制品读写仍需显式授予（与 Artifactory 动作正交语义一致）。仅授 manage 的用户：
+**`manage` 不是数据面权限**：不隐含 read/write/delete——制品读写仍需显式授予（与 参考仓库 动作正交语义一致）。仅授 manage 的用户：
 
 ```bash
 # carol2 只在 t-mgmt 拿到 manage（无 r/w/d）：

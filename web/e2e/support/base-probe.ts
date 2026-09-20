@@ -8,7 +8,7 @@
 //
 // Identity check = /binflow/api/system/version (E-03, anonymous 200) whose
 // body pins product:"BinFlow" (PRD Q4: honest identity, never an emulated
-// Artifactory version) — an arbitrary web server or a non-BinFlow registry
+// 同类控制台 version) — an arbitrary web server or a non-BinFlow registry
 // cannot satisfy it. The resolved version/revision is echoed into the run
 // log so stale-binary incidents (T-266 §3.1) are visible at a glance.
 //

@@ -344,7 +344,7 @@ export function getNodeProperties(
  * `POST …?properties=k=v`（增量）一行，但 router 的 properties 臂只挂了
  * GET/PUT/DELETE——POST 落 E-26 404（T-286 日志「三动词」）。FE 的增量
  * 编辑全部走 PUT：merge 语义下单键写即「替换该键值集、保留他键」，与
- * Artifactory 逐属性 add/remove 的效果面一致，无需 POST。
+ * 同类控制台 逐属性 add/remove 的效果面一致，无需 POST。
  */
 export function putNodeProperties(
   repoKey: string,
@@ -370,7 +370,7 @@ export function deleteNodeProperties(repoKey: string, path: string, keys: string
 // 家族挂在 /v1/admin/security/{ldap|oauth|saml/config}。GET 回显是脱敏哨兵
 // 形态（已设置 secret = 20 星，未设置 = ""）；PUT 对 secret 是 write-only：
 // 键缺省 = 保持库存值、"" = 清除、新明文 = 替换、**回传哨兵 = 400 拒绝**
-// （用户 2026-08-27 裁定照 Artifactory）——FE 的「留空保持不变」= 提交时把
+// （用户 2026-08-27 裁定照 同类控制台）——FE 的「留空保持不变」= 提交时把
 // 空的 secret 字段从 payload 整个剔除，绝不回传哨兵。
 
 /** 三协议段（wire 段名；REST 路径映射 saml → saml/config） */

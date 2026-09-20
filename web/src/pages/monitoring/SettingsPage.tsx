@@ -383,7 +383,7 @@ function QrlPanel() {
             )}
           </div>
           <p className="field-hint" style={{ marginBottom: 0 }}>
-            {t('mode 是 BinFlow 的 POST 承载位（disabled / enabled / simulation——Artifactory 走 system.properties，BinFlow 无 properties 面）；文档为进程生命周期态，重启回出厂（DB 持久化是已登记缺口）。')}
+            {t('mode 是 BinFlow 的 POST 承载位（disabled / enabled / simulation——同类控制台 走 system.properties，BinFlow 无 properties 面）；文档为进程生命周期态，重启回出厂（DB 持久化是已登记缺口）。')}
           </p>
         </>
       )}

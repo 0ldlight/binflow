@@ -1,6 +1,6 @@
 # BinFlow introduction
 
-BinFlow is a **cloud-native artifact repository** written in Go from scratch. Its architecture and conceptual model align with JFrog Artifactory—repositories, storage, permissions, and REST semantics correspond directly, so Artifactory users can migrate without learning a new vocabulary. BinFlow ships as one static binary with no external runtime dependencies and an embedded web console.
+BinFlow is a **cloud-native artifact repository** written in Go from scratch. Its architecture and conceptual model align with the reference repository—repositories, storage, permissions, and REST semantics correspond directly, so the reference repository users can migrate without learning a new vocabulary. BinFlow ships as one static binary with no external runtime dependencies and an embedded web console.
 
 This documentation applies to **BinFlow v1.0.0**.
 
@@ -42,5 +42,5 @@ Every application URL shares the `/binflow` prefix:
 - **Client integrations**: configuration, round-trip examples, and common error mappings for thirteen package types.
 - **Administration**: console, repositories, permissions, tokens, governance, scheduled jobs, backups, storage, authentication, licensing, artifact operations, webhooks, and monitoring.
 - **Search and properties**: the property system and AQL search.
-- **Tools and migration**: the `bf` CLI and `bf-migrate` for Artifactory migration.
-- [API reference](/api-reference/binflow-api) · [FAQ and troubleshooting](/faq), including an Artifactory migration comparison table.
+- **Tools and migration**: the `bf` CLI and `bf-migrate` for the reference repository migration.
+- [API reference](/api-reference/binflow-api) · [FAQ and troubleshooting](/faq), including an the reference repository migration comparison table.

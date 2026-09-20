@@ -1,6 +1,6 @@
 # Web 控制台
 
-单二进制自带 Web 控制台（go:embed，零外部依赖、断网可用）。控制台的信息架构与操作流**对齐 Artifactory**——同一个动作在同样的位置、走同样的步骤；控制台仍是**管理面**，CI 与脚本继续走 REST/token，两者同一 API、同一权限模型。
+单二进制自带 Web 控制台（go:embed，零外部依赖、断网可用）。控制台的信息架构与操作流**对齐 参考仓库**——同一个动作在同样的位置、走同样的步骤；控制台仍是**管理面**，CI 与脚本继续走 REST/token，两者同一 API、同一权限模型。
 
 ## 登录与会话
 
@@ -107,11 +107,11 @@ curl -s -b jar.txt -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{htt
 
 首页 `/` 不受影响：登录落点仍是 `/artifacts`。
 
-## 从 Artifactory 迁移：操作路径对照
+## 从 参考仓库 迁移：操作路径对照
 
 同一动作在两侧的位置与步骤对齐（BinFlow 路径前缀 `$BASE/binflow/ui`）：
 
-| 任务 | Artifactory | BinFlow |
+| 任务 | 参考仓库 | BinFlow |
 |---|---|---|
 | 建仓 | Administration → Repositories →「+」 | 管理 → 仓库 → `+ 添加仓库`（进页先选包类型） |
 | 建用户 / 建组 / 配权限 | User Management 对应页 | 管理 → 用户与权限 对应页（权限编辑器带模式测试器与 diff） |
@@ -123,7 +123,7 @@ curl -s -b jar.txt -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{htt
 | 备份 | SERVICES → Backups（cron 计划） | 监控 → 备份/恢复（**定时备份卡**——到点 export 同 cron 语义；恢复走 import CLI 带外） |
 | 复制 | Replications Tab / 全局复制页（许可功能） | 治理 → 复制（含**调度列**）+ 仓库编辑页 Replications 节（无 license 门；`cron` 字段为真字段——**cron 双轨**，事件轨不变；sync 等其余字段为预留位） |
 
-**Artifactory 有而 BinFlow 不建的面**：Xray / Pipelines / Distribution / Builds / Projects（JFrog 独立产品）、Packages 聚合页、Authentication Providers 的 UI 配置（OIDC/LDAP 走配置文件与运行态 REST，见[认证](/admin/auth)）、自定义仓库 Layouts、Mail Server。**BinFlow 自有增强**：审计日志页（也是 System Logs 页的日志源）、per-repo 配额水位条、全局复制配置页、`readonly_admin` 实例级只读管理员、Set Me Up 内 step-up 重验、权限模式测试器、界面双语切换。
+**参考仓库 有而 BinFlow 不建的面**：Xray / Pipelines / Distribution / Builds / Projects（JFrog 独立产品）、Packages 聚合页、Authentication Providers 的 UI 配置（OIDC/LDAP 走配置文件与运行态 REST，见[认证](/admin/auth)）、自定义仓库 Layouts、Mail Server。**BinFlow 自有增强**：审计日志页（也是 System Logs 页的日志源）、per-repo 配额水位条、全局复制配置页、`readonly_admin` 实例级只读管理员、Set Me Up 内 step-up 重验、权限模式测试器、界面双语切换。
 
 ## 浏览器兼容
 
@@ -143,4 +143,4 @@ GC / 缓存清理（维护三槽）、定时备份与复制调度（cron 双轨�
 
 ## 下一步
 
-- [用户、组与权限](/admin/permissions) · [治理](/admin/governance) · [计划任务](/admin/cron-scheduling) · [Artifactory 迁移指南](/tools/migrate-artifactory)
+- [用户、组与权限](/admin/permissions) · [治理](/admin/governance) · [计划任务](/admin/cron-scheduling) · [参考仓库 迁移指南](/tools/migration-guide)

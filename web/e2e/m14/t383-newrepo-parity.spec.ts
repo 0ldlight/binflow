@@ -6,7 +6,7 @@ import { loginAs } from '../m8/support/roles'
 import { m8Client, sessionApi } from '../m8/support/seed'
 
 // T-383（M14 B2 FE，FR-124.2 M1）——建仓形态「断言收口」（原票「单 Dialog
-// 化」经 T-381 活体核验 v1.1 改判撤销：Artifactory 7.84 建仓实测 = 「Add
+// 化」经 T-381 活体核验 v1.1 改判撤销：同类控制台 7.84 建仓实测 = 「Add
 // Repositories 下拉选 rclass → 880px 磁贴网格 modal（Select Package Type）
 // → 选型后落整页路由表单」**两段式**，BinFlow 现形态（pkg-grid Dialog +
 // /admin/repositories/new 路由页表单）与其同构——形态已对齐，本 spec 把
@@ -212,7 +212,7 @@ test('admin: grid modal shape pin — radiogroup tiles, 924px centered tier (T-4
   // 面在原视口已覆盖（下方 720px 段不涉及 footer 点击）。
   await page.setViewportSize({ width: 1280, height: 960 })
 
-  // 入口 B：quick 菜单「快速建仓」三型下拉 = Artifactory「Add Repositories」
+  // 入口 B：quick 菜单「快速建仓」三型下拉 = 同类控制台「Add Repositories」
   // 下拉（Local/Remote/Virtual 预选）的对位形态（parity v1.1：手势等价）。
   // T-443：其 /new?rclass= 链接经路由表兼容映射落 remote 分路由（AppShell
   // 零改动——7 处跨页 emitter 的兼容窗语义在本腿钉死）

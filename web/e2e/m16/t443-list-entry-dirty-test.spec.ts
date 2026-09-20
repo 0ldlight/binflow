@@ -9,7 +9,7 @@ import { m8Client, seedRepos, sessionApi } from '../m8/support/seed'
 // dirty-gating + remote Test 三臂消费）：
 //
 //   ① 入口分路由（B-3.8 翻正收口）：列表入口自平钮翻 **Create a Repository
-//      下拉三预选**（Local/Remote/Virtual 各带一句描述——Artifactory
+//      下拉三预选**（Local/Remote/Virtual 各带一句描述——同类控制台
 //      7.161.20 实测 el-dropdown 形态，m16-baseline-refresh §A3-1 / 证据
 //      s3e-create-dropdown：Local "Upload and resolve your own packages"…
 //      BinFlow 三型实有口径，federated/release-bundle 不伪造）；选中即分
@@ -162,7 +162,7 @@ test('entry: three-preset dropdown routes to split paths; /new compat maps; in-f
   await page.goto('/binflow/ui/admin/repositories/new?rclass=virtual')
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/virtual\/new$/)
 
-  // 非法段不落建仓表单：静态三路由外落 404（与 Artifactory 未知 rclass 同姿）
+  // 非法段不落建仓表单：静态三路由外落 404（与 同类控制台 未知 rclass 同姿）
   await page.goto('/binflow/ui/admin/repositories/federated/new')
   await expect(page.locator('[data-testid="not-found-path"]')).toBeVisible()
 })
@@ -197,12 +197,12 @@ test('columns: Repository Type visible; Replications on local+remote tabs (push-
   await page.fill('[data-testid="repos-filter-key"]', local)
   await expect(page.locator(`[data-testid="repos-row-${local}"]`)).toBeVisible({ timeout: 30_000 })
 
-  // Artifactory all-repositories landing keeps Repository Type directly
+  // 同类控制台 all-repositories landing keeps Repository Type directly
   // visible; Project remains absent because BinFlow has no Projects API field.
   const th = page.locator('[data-testid="repos-table"] thead th')
   await expect(th).toHaveCount(8)
   // 「类型」列收敛：精确整格匹配（「包类型」列含「类型」子串——子串负断言会假红）
-  await expect(th.filter({ hasText: 'Repository Type' })).toHaveCount(1)
+  await expect(th.filter({ hasText: '仓库类型' })).toHaveCount(1)
   await expect(th.filter({ hasText: /^Project$/ })).toHaveCount(0)
   await page.click('[data-testid="repos-columns"]')
   await expect(page.getByTestId('repos-columns-item-type')).toBeVisible()

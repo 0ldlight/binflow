@@ -94,7 +94,7 @@ dist-tag 族走显式端点 `/-/package/<name>/dist-tags[/<tag>]`，语义与 np
 
 - **remote 仓**：registry 指向 `$BASE/binflow/api/npm/npm-remote/`，packument 与 tarball 经 BinFlow 回源缓存，二次安装零上游流量。
 - **virtual 仓**：registry 指向 `$BASE/binflow/api/npm/npm-virtual/`，本地包与上游包一次装齐。
-- **重要边界**：`registry.npmjs.org` 的 packument 不在 `<name>/packument.json` 布局路径上，**npmjs 真上游暂不可代理**（`npm install lodash` → 404）。remote 仓适用于布局兼容的上游（内网 Nexus/Artifactory 等）。
+- **重要边界**：`registry.npmjs.org` 的 packument 不在 `<name>/packument.json` 布局路径上，**npmjs 真上游暂不可代理**（`npm install lodash` → 404）。remote 仓适用于布局兼容的上游（内网 Nexus/参考仓库 等）。
 
 ## 常见报错对照
 

@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 //   （管理面根；filter: subscription/status/event_type + keyset 分页），
 //   dead 行 replay（POST …/{id}/replay——reset pending 即刻重投；写面过
 //   webhook 槽门）。
-// 交互形态照 console-artifactory-parity：新建/编辑 = Dialog，详情 + 记录 =
+// 交互形态照 console-parity：新建/编辑 = Dialog，详情 + 记录 =
 // 右侧 Drawer。
 // 锚族原样：wh-page/wh-refresh/wh-create/wh-readonly-note/wh-locked-note/
 // wh-test-last/wh-empty(-create)?/wh-table/wh-row-<key>/wh-toggle-<key>/

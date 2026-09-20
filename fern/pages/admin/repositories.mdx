@@ -1,6 +1,6 @@
 # 仓库管理（local / remote / virtual）
 
-三种仓型各司其职，概念与 Artifactory 一一对应（术语不变）：
+三种仓型各司其职，概念与 参考仓库 一一对应（术语不变）：
 
 | 仓型 | rclass | 职责 | 可写 |
 |---|---|---|---|
@@ -8,7 +8,7 @@
 | **remote 仓** | `remote` | 上游代理缓存（pull-through）：首次回源、此后命中本地缓存，上游故障不传染 | 否（405，只读代理） |
 | **virtual 仓** | `virtual` | 把 local 与 remote 成员缝成单一访问入口 | 默认否（405）；显式配置写路由后可写 |
 
-建仓与改配置走管理面 API，**两个动词各管一段**（与 Artifactory 语义对齐）：
+建仓与改配置走管理面 API，**两个动词各管一段**（与 参考仓库 语义对齐）：
 
 | 动词 | 语义 | 已存在 key 时 |
 |---|---|---|
@@ -131,7 +131,7 @@ BINFLOW_REMOTE_CREDENTIALS_KEY=<值>   # 部署时注入（compose env / K8s Sec
 
 **默认拒绝（无需配置）**。全部出站请求逐目标过 SSRF 校验链，命中以下类别一律 400（`Cannot fetch '<repo>/<path>': upstream target refused — private or suppressed upstream (...)`）：回环、RFC1918 私网与 IPv6 ULA、链路本地（**含云 metadata 服务 169.254.169.254**）、未指定/保留/组播地址、非 http(s) scheme、重定向到上述目标（每跳重过链）。防 DNS rebinding：校验通过的 IP 钉死用于实际拨号。
 
-**放行内网上游**（场景：上游是内网 Nexus/Artifactory）：admin 建仓/改仓时设 `"allowPrivateUpstream": true`。注意放行后该仓可触达部署网络内任意私网目标（含同网段云 metadata 服务），属高权限操作——审计留痕，定期复核豁免仓清单，无用即收回（改回 `false` 即时生效）。
+**放行内网上游**（场景：上游是内网 Nexus/参考仓库）：admin 建仓/改仓时设 `"allowPrivateUpstream": true`。注意放行后该仓可触达部署网络内任意私网目标（含同网段云 metadata 服务），属高权限操作——审计留痕，定期复核豁免仓清单，无用即收回（改回 `false` 即时生效）。
 
 ## 上游兼容性速查
 
@@ -139,7 +139,7 @@ BINFLOW_REMOTE_CREDENTIALS_KEY=<值>   # 部署时注入（compose env / K8s Sec
 |---|---|
 | Maven Central（`https://repo.maven.apache.org/maven2`） | **可用**（全链含传递依赖） |
 | pypi.org | **可用**（302 逐跳过链后跟随） |
-| registry.npmjs.org | **不可用**——packument 布局不兼容；布局兼容上游（内网 Nexus/Artifactory）可用 |
+| registry.npmjs.org | **不可用**——packument 布局不兼容；布局兼容上游（内网 Nexus/参考仓库）可用 |
 | docker registry 上游（`packageType=docker`） | BinFlow 上游可用（digest 全等、二拉零回源、降级 STALE） |
 | 内网私网上游 | 可用，需 `allowPrivateUpstream: true` |
 

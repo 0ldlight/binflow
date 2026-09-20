@@ -93,7 +93,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/cargo-remote \
   -o /dev/null -w '%{http_code}\n'        # 200
 ```
 
-- **上游语法前提**：上游须为**单主机 sparse wire 语法**（其 `config.json` 的 dl/api 指向同主机路径——BinFlow / Artifactory cargo 面 / 自建兼容源均属此类）。**crates.io 直连（index/dl 双主机形态）不支持**。
+- **上游语法前提**：上游须为**单主机 sparse wire 语法**（其 `config.json` 的 dl/api 指向同主机路径——BinFlow / 参考仓库 cargo 面 / 自建兼容源均属此类）。**crates.io 直连（index/dl 双主机形态）不支持**。
 - 内网上游需 `"allowPrivateUpstream": true`（SSRF 守卫默认拒绝私网/环回目标）。
 - 行为：index / 下载 pull-through（二次命中 `X-Binflow-Cache: HIT`）；search 查询串逐字代理上游（上游硬故障 → 409；assumed-offline 静默期 → 404）；**缓存续供**——上游删除 crate 后，全新项目 `cargo add` + `build` 仅凭 remote 缓存照常成功；写操作（publish/yank/索引写）**405** 只读；`DELETE /binflow/<remote>/<path>` = 缓存驱逐。
 

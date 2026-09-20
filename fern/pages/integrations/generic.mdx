@@ -98,7 +98,7 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/storage/generic-local?list&deep=1&li
 #    "mdTimestamps":{"properties":"..."},"propertiesMd5":"..."}]}
 ```
 
-条目按字母序；`created` 是请求时刻；响应 Content-Type 为 Artifactory 同款 vendor 类型（`application/vnd.org.jfrog.artifactory.storage.FileList+json`）。另注意**下载计数只认内容 GET**——`?list`、`?properties`、item-info 等元数据面读取不计入 `downloadCount`。
+条目按字母序；`created` 是请求时刻；响应 Content-Type 为 兼容管理面同款 vendor 类型（`application/vnd.org.jfrog.artifactory.storage.FileList+json`）。另注意**下载计数只认内容 GET**——`?list`、`?properties`、item-info 等元数据面读取不计入 `downloadCount`。
 
 ## 匿名与凭据
 

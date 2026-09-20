@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 // 两卡：
 // ① 定时备份（New Backup / 列表 / cron / next-run）：GET/PUT/DELETE
 //   /api/v1/system/backups。表单四字段（Enabled / Backup Key / Cron
-//   Expression / Next Backup Time / Server Path）；Artifactory 其余字段
+//   Expression / Next Backup Time / Server Path）；同类控制台 其余字段
 //   （仓子集 / incremental / retention 轮转 / zip / 邮件告警）缺位不伪造。
 // ② 导入 / 导出（CLI）：ADR-0015 勘误②边界维持——/api/export/** 404 有意
 //   不兼容、import CLI-only；一次性 export 也走 CLI。
@@ -417,7 +417,7 @@ function BackupCrudCard() {
           />
 
           <p className="field-hint" data-testid="backup-form-gap">
-            {t('Artifactory 表单的其余字段（仓子集〔BinFlow 导出恒为全实例快照〕/ 邮件告警 / Exclude New Repositories / Incremental / Retention / Zip 归档）在 BinFlow 无后端载体 ——缺位不伪造。')}
+            {t('同类控制台 表单的其余字段（仓子集〔BinFlow 导出恒为全实例快照〕/ 邮件告警 / Exclude New Repositories / Incremental / Retention / Zip 归档）在 BinFlow 无后端载体 ——缺位不伪造。')}
           </p>
 
           {formError && (

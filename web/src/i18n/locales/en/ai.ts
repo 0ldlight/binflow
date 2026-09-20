@@ -1,5 +1,5 @@
 // T-463 键集 / T-464 填充：ai 域 en 目录包——键 = zh 文案原文
-// （zh-as-key），值 = 逐义对译 en（术语对齐 Artifactory：repo key / node /
+// （zh-as-key），值 = 逐义对译 en（术语对齐 reference console：repo key / node /
 // checksum / Deploy / Set Me Up 等英文术语原样保留）。
 import { registerEn } from '../../index'
 
@@ -29,11 +29,9 @@ registerEn('ai', {
   "工具调用（已完成）": "Tool call (completed)",
   "工具结果": "Tool result",
   "工具结果（错误）": "Tool result (error)",
-  "构建": "Builds",
   "关闭 AI 助手": "Close AI assistant",
   "关闭（Esc）": "Close (Esc)",
   "好的——创建仓库前请确认以下参数（**演示流程**：确认后本地收账，不发任何请求）：": "Sure — please confirm the following parameters before creating the repository (**demo flow**: confirmed locally, no requests are sent):",
-  "监控": "Monitoring",
   "结果数据": "Result data",
   "控制台": "Console",
   "确认创建仓库": "Confirm repository creation",
@@ -54,5 +52,4 @@ registerEn('ai', {
   "正在查询存储占用…": "Querying storage usage…",
   "正在生成": "Generating",
   "AI 输入框": "AI input",
-  "安全": "Security",
 })

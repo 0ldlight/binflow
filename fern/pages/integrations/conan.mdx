@@ -43,7 +43,7 @@ conan remove 'hello/1.0' -r binflow             # 整树删：全部修订 + 全
 
 删除语义（v1 DELETE 与 v2 无修订 DELETE 一面一真）：删的是**坐标根**（`<user>/<name>/<version>/<channel>/`）——`index.json`、全部 recipe 修订、全部包修订一并消失。再删同一坐标（ghost）：**v1 面 200 空体幂等**（重复 `conan remove` / 双操作者竞态静默成功）；**v2 面 404** `Couldn't find path '<user>/<name>/<version>/<channel>'`——errors JSON 信封、引号内路径无尾斜杠。写权限门照走（无 delete 权限 → 403）；trash can 开启时删除照常先捕获。
 
-错误面统一 errors JSON 信封：conan 数据面的 ghost GET 族（latest/revisions/snapshot/文件）回 404 `{"errors":[{"status":404,"message":"Not Found"}]}`——与 npm 的幽灵包 404 同构（信封族对齐 Artifactory 真身，conan 原生裸文本形态不回）。
+错误面统一 errors JSON 信封：conan 数据面的 ghost GET 族（latest/revisions/snapshot/文件）回 404 `{"errors":[{"status":404,"message":"Not Found"}]}`——与 npm 的幽灵包 404 同构（信封族对齐 参考仓库 真身，conan 原生裸文本形态不回）。
 
 ## conan 1.x 客户端（仅 local 仓）
 

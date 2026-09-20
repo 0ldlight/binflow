@@ -37,7 +37,7 @@ curl -su admin:$ADMIN_PW -T binflow-e2e_1.0-1_amd64.deb \
 ```
 
 - **三坐标必带**（`deb.distribution` / `deb.component` / `deb.architecture`）——缺失 400（文案附矩阵参数示例），拒绝件不落库。
-- 坐标即声明：一个 `.deb` 属于哪个 suite/component/arch 由**上传者**指定（Artifactory 语义）；`pool/…` 路径自由布局。
+- 坐标即声明：一个 `.deb` 属于哪个 suite/component/arch 由**上传者**指定（参考仓库 语义）；`pool/…` 路径自由布局。
 - `.dsc`（源码包）：缺必填段落（如 `Files:` 校验块）→ 400（Sources 索引的唯一输入，从严）；`.deb` 解析失败则存而不引。
 - 上传后**后台增量重算**索引（不阻塞 201）。
 
@@ -147,7 +147,7 @@ apt-get update && apt-get install -y <成员包>      # local/remote 成员混�
 | 项 | 行为 |
 |---|---|
 | 索引压缩集 | plain + `.gz` 恒有；`.xz`/`.lzma` 可配（仓配置 JSON）；`.bz2` 暂不渲染（配了该档仅 WARN） |
-| 无坐标 `.deb` PUT | **400**（非 Artifactory 的静默存储）——坐标是索引的输入 |
+| 无坐标 `.deb` PUT | **400**（非 参考仓库 的静默存储）——坐标是索引的输入 |
 | 索引族写保护 | `dists/**` 生成族 PUT/DELETE → 403（文案含路径 + debPUT 指引）；`dists/stable/README` 等非生成族可写 |
 | 虚仓签名/by-hash | 404（apt 回退语义） |
 | 空 dist | 组件清零后整树清扫，不留空骨架 Release |

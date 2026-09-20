@@ -10,7 +10,7 @@ sidebar_position: 50
 
 ## 用途
 
-五个动作覆盖 Artifactory 的制品生命周期操作面：
+五个动作覆盖 参考仓库 的制品生命周期操作面：
 
 | 动作 | 端点 | 一句话 |
 |---|---|---|
@@ -62,8 +62,8 @@ curl -su admin:$ADMIN_PW -X POST \
 | `failFast` | 0/1 | 解析接受；BinFlow 逐项管线天然即部分成功姿态 |
 | `suppressLayouts` | 0/1 | 解析接受；跨布局翻译不实现，所有取值行为等同 1 |
 
-- 响应 **200 + `{"messages":[{"level","message"}]}`**，Content-Type 为 Artifactory 的 vendor 形 `application/vnd.org.jfrog.artifactory.storage.CopyOrMoveResult+json`；errors 在前 warnings 在后。HTTP 状态 = 最后一条 error 的码，error 无码 → 409 兜底，无 error → 200。
-- `/api/flat/copy`、`/api/flat/move` **不实现**（404——Artifactory 默认部署同样如此）。
+- 响应 **200 + `{"messages":[{"level","message"}]}`**，Content-Type 为 兼容管理面的 vendor 形 `application/vnd.org.jfrog.artifactory.storage.CopyOrMoveResult+json`；errors 在前 warnings 在后。HTTP 状态 = 最后一条 error 的码，error 无码 → 409 兜底，无 error → 200。
+- `/api/flat/copy`、`/api/flat/move` **不实现**（404——参考仓库 默认部署同样如此）。
 - 大树实测：万节点（10,101 节点）dry run 570ms，零 5xx，抽样 sha256 对账一致（T-339 服务层矩阵）。
 
 ### 校验链（顺序即优先级）
@@ -73,10 +73,10 @@ curl -su admin:$ADMIN_PW -X POST \
 | 0 | 目标 remote/virtual | 400（copy/move 只落 local） |
 | 0 | 源/目标 repo 不存在 | 400 `Could not calculate repo path from src=…, target=…: repository <key> not found` |
 | 0 | 源 == 目标 | 400 `Skipping <verb> <path>: Destination and source are the same` |
-| 1 | 源读权限 | 403（逐字 Artifactory 文案） |
+| 1 | 源读权限 | 403（逐字 参考仓库 文案） |
 | 3 | 目标 include/exclude 模式 | 403 |
 | 4 | move 的源删除权限 | 403 |
-| 5 | 目标已存在且无删权限 | **401**（override 消息，Artifactory 特例） |
+| 5 | 目标已存在且无删权限 | **401**（override 消息，参考仓库 特例） |
 | 6 | 目录落文件下 | 400 |
 | 7 | 目标写权限 | 403 |
 
@@ -104,12 +104,12 @@ curl -su admin:$ADMIN_PW \
 - `includeChecksumFiles=true`：从 blobs 台账**生成** `.sha1/.md5/.sha256` 伴随条目（BinFlow 磁盘无边文件，ADR-0006——这是本条目的 BinFlow 语义）。
 - 流式打包不落盘（io.Pipe），审计一次 DOWNLOAD 行（带 archiveType/files/bytes，非逐文件）。
 
-**限额与开关（folderDownloadConfig 六字段，M13 起可配）**：默认 `enabled=false`、`enabledForAnonymous=false`、`maxDownloadSizeMb=1024`、`maxFiles=5000`、`maxConcurrentRequests=10`、`enabledEmptyDirectories=false`；超限/超并发按 Artifactory 逐字消息拒绝（MB=1024²）。
+**限额与开关（folderDownloadConfig 六字段，M13 起可配）**：默认 `enabled=false`、`enabledForAnonymous=false`、`maxDownloadSizeMb=1024`、`maxFiles=5000`、`maxConcurrentRequests=10`、`enabledEmptyDirectories=false`；超限/超并发按 参考仓库 逐字消息拒绝（MB=1024²）。
 
 **配置旋钮（`folder_download` 段，M13 T-368 落地——重启生效）**：
 
 ```yaml
-# binflow.yaml（Artifactory folderDownloadConfig 六字段 → BinFlow snake_case 拼写）
+# binflow.yaml（参考仓库 folderDownloadConfig 六字段 → BinFlow snake_case 拼写）
 folder_download:
   enabled: true                     # 总开关；BINFLOW_FOLDER_DOWNLOAD__ENABLED
   enabled_for_anonymous: false      # 匿名打包下载（实例关匿名时开了也 401）
@@ -120,7 +120,7 @@ folder_download:
 ```
 
 - 生效值可经 `GET /binflow/api/v1/system/settings` 回显核对（admin / readonly_admin；实测缺省实例回 `"enabled": false` + `1024/5000/10`）。
-- 语义要点（实测）：开 `enabled` 后目录打包 200（zip 条目与树一致）；**匿名腿** = `enabled_for_anonymous=false` 或实例关匿名 → 401 `You must be logged in to download a folder or repository.`；关 `enabled` → 403 `Download Folder functionality is disabled.`；`max_files=1` 超限 → 400 逐字文案。camelCase 拼写（`maxDownloadSizeMb` 等）被 strict schema **拒绝**——从 Artifactory 复制配置请改 snake_case。
+- 语义要点（实测）：开 `enabled` 后目录打包 200（zip 条目与树一致）；**匿名腿** = `enabled_for_anonymous=false` 或实例关匿名 → 401 `You must be logged in to download a folder or repository.`；关 `enabled` → 403 `Download Folder functionality is disabled.`；`max_files=1` 超限 → 400 逐字文案。camelCase 拼写（`maxDownloadSizeMb` 等）被 strict schema **拒绝**——从 参考仓库 复制配置请改 snake_case。
 
 ## 归档内成员读取：`archive!/`
 
@@ -174,7 +174,7 @@ curl -u admin:password -X POST "$BASE/binflow/api/copy/src/a.bin?to=/dst/a.bin" 
 # {"errors":[{"status":403,"message":"license required: addon 'repo-operations' needs tier 'pro' (current: none)"}]}
 ```
 
-- 与 Artifactory 的差异（有意登记）：Artifactory 自家 addon 拒绝是 400 text/plain；BinFlow 统一走 403 + errors[] 信封 + 头（D4 形态，CI 可按头分支）。
+- 与 参考仓库 的差异（有意登记）：参考仓库 自家 addon 拒绝是 400 text/plain；BinFlow 统一走 403 + errors[] 信封 + 头（D4 形态，CI 可按头分支）。
 - 匿名请求先吃 401（认证门先于 license 门）；GET /api/copy/** → 404（仅 POST 有路由）。
 - license 降级语义与包型一致：**已复制/搬移的数据不受影响**，只有动词关门。
 

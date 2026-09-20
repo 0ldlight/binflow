@@ -149,7 +149,7 @@ base = `$BASE/binflow/api/nuget/v2/<repoKey>`，OData Atom feed（V2FeedPackage 
 | `GET /Download/{id}/{version}` | 包文件下载：local 三级链 / remote canonical→`api/v2/package` 上游 hop（marker 缓存）/ virtual local-先-remote 两趟 |
 | `GET /{file}.nupkg`（任意深度） | 直通存储（免 v2 门，权限归存储层） |
 | `DELETE /{id}/{version}` | 200 `Successfully removed '<path>'`（T-337 live 逐字）/ 404 / 无删权限 403 `Unable to delete NuGet package '<path>'`；remote → 400 |
-| `PUT /`（multipart，字段名 `package`） | 201 `Successfully published NuPkg to: <path>`（live 逐字，如 `team/live.a/1.1.0/live.a.1.1.0.nupkg`）；缺字段 → 400 精确文案。**落点差异**：Artifactory 落仓根扁平 `<id>.<version>.nupkg`，BinFlow 落 canonical flatcontainer 三件套（201 文案中的 path 随之） |
+| `PUT /`（multipart，字段名 `package`） | 201 `Successfully published NuPkg to: <path>`（live 逐字，如 `team/live.a/1.1.0/live.a.1.1.0.nupkg`）；缺字段 → 400 精确文案。**落点差异**：参考仓库 落仓根扁平 `<id>.<version>.nupkg`，BinFlow 落 canonical flatcontainer 三件套（201 文案中的 path 随之） |
 | `PUT /{前缀}` | deployPath = `<前缀>/<nuspec.id>.<nuspec.version>.nupkg`（身份取自 nuspec，按规格字面） |
 
 **重复推送臂**（v2 直推与 v3 push 两面**同语义、字节盲**——同字节/异字节同判，不存在「同字节幂等 201」臂：v2 面自 T-378〔D-10 终裁〕、v3 面自 M14 T-401 起先后对齐 409，两面仅 409 响应文案不同）：

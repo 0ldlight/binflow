@@ -104,8 +104,8 @@ navigation:
         contents:
           - page: bf CLI
             path: pages/tools/bf-cli.mdx
-          - page: Migrate from Artifactory (bf-migrate)
-            path: pages/tools/migrate-artifactory.mdx
+          - page: Migration guide (bf-migrate)
+            path: pages/tools/migration-guide.mdx
       - page: FAQ and troubleshooting
         path: pages/faq.mdx
         icon: circle-help

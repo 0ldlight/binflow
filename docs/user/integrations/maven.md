@@ -8,7 +8,7 @@ sidebar_position: 20
 > 适用版本：M3（Maven 2 layout + maven-metadata.xml + remote/virtual；PRD milestone-3 v1.2）。
 > 本文核心链在 M3 QA 基线（commit `0f86229`，T-74/T-76 验收产物）上复跑：release deploy、全新本地仓 resolve、mirror 全量收口、virtual 混合解析均退出码 0（复跑记录见 `reports/agents/T-77.md`）；snapshot `-U` 强刷与 checksum 两态链取自 T-74/T-76 验收记录。客户端锚定 mvn 3.9.x（3.9.9 实测）；Gradle 8.x 走 Maven 仓可用（P2 观察，见文末）。
 
-把 BinFlow 当作 Maven 2 仓库用：`mvn deploy` 发内部构件、`settings.xml`/pom 指过来解析依赖——layout、`maven-metadata.xml`、checksum 语义与 Nexus/Artifactory 一致，迁移时 URL 前缀从 `/artifactory` 改成 `/binflow` 即可。
+把 BinFlow 当作 Maven 2 仓库用：`mvn deploy` 发内部构件、`settings.xml`/pom 指过来解析依赖——layout、`maven-metadata.xml`、checksum 语义与 Nexus/参考仓库 一致，迁移时 URL 前缀从 `/artifactory` 改成 `/binflow` 即可。
 
 ## 前置条件
 
@@ -205,4 +205,4 @@ repositories {
 
 - 代理 Maven Central / 聚合 local+remote：[remote/virtual 管理指南](../admin/remote-virtual.md)
 - npm / PyPI 接入：[npm](npm.md) · [pypi](pypi.md)
-- 从 Artifactory 迁移的概念对照：[faq.md](../faq.md)
+- 从 参考仓库 迁移的概念对照：[faq.md](../faq.md)

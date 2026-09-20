@@ -1,6 +1,6 @@
 # Maven 接入
 
-把 BinFlow 当作 Maven 2 仓库：`mvn deploy` 发内部构件、`settings.xml`/pom 指过来解析依赖——layout、`maven-metadata.xml`、checksum 语义与 Nexus/Artifactory 一致，迁移时 URL 前缀从 `/artifactory` 改成 `/binflow`。
+把 BinFlow 当作 Maven 2 仓库：`mvn deploy` 发内部构件、`settings.xml`/pom 指过来解析依赖——layout、`maven-metadata.xml`、checksum 语义与 Nexus/主流仓库一致，迁移时 URL 前缀从 `/artifactory` 改成 `/binflow`。
 
 ## URL 形态
 
@@ -105,7 +105,7 @@ curl -su admin:$ADMIN_PW $MVN_REPO/com/acme/demo-app/1.0.0/demo-app-1.0.0.jar.sh
 
 ### 版本目录 metadata 的 pom 前置
 
-与 Artifactory 行为对齐：`<artifactId>/<version>/maven-metadata.xml` 只在该版本目录**含 pom** 时生成并保持——`mvn deploy:deploy-file -DgeneratePom=false`（jar-only 目录）GET metadata 得 **404**；补上 pom 部署（`generatePom` 默认 true）后 200；删除目录里最后一个 pom 时既有 metadata 一并删除。组目录 `maven-metadata.xml` 的 `<versions>` 只统计含 pom 的版本目录。真实 `mvn deploy`（走项目 POM）永不触发该边界。
+与 参考仓库 行为对齐：`<artifactId>/<version>/maven-metadata.xml` 只在该版本目录**含 pom** 时生成并保持——`mvn deploy:deploy-file -DgeneratePom=false`（jar-only 目录）GET metadata 得 **404**；补上 pom 部署（`generatePom` 默认 true）后 200；删除目录里最后一个 pom 时既有 metadata 一并删除。组目录 `maven-metadata.xml` 的 `<versions>` 只统计含 pom 的版本目录。真实 `mvn deploy`（走项目 POM）永不触发该边界。
 
 ```bash
 mvn -B -q deploy:deploy-file -Durl=$MVN_REPO -DrepositoryId=binflow \

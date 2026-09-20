@@ -4,7 +4,7 @@
   "info": {
     "title": "BinFlow API",
     "version": "1.0.0",
-    "summary": "BinFlow artifact repository REST API — the Artifactory-compatible surface, the native /api/v1 surface, and protocol client surfaces",
+    "summary": "BinFlow artifact repository REST API — the compatibility surface, the native /api/v1 surface, and protocol client surfaces",
     "description": "The BinFlow API spans four surfaces:\n\n1. **Artifact content paths** (no `/api` prefix): `/binflow/<repoKey>/<path>` — upload, download and delete artifacts; every protocol client goes through here;\n2. **Management API** (`/binflow/api/*`): repository CRUD, users/groups/permissions, audit, GC, tokens, search, system info;\n3. **Docker Registry root-level plane** (`/v2/*`) — separately routed, not under the `/binflow` prefix (in this spec those paths carry their own root-level server);\n4. **Webhook event surface** (`/binflow/event/api/v1/*`) — subscription CRUD, test sends, troubleshooting.\n\n**Authentication**: Basic (HTTP Basic Auth — at the REST API layer credentials must always be present and correct in the request; there is no challenge-then-retry, a failed authentication is an immediate 401) and Bearer tokens (recommended for high QPS/CI — validation does not run the argon2 hash). The console additionally uses a `binflow_session` cookie (HttpOnly; Path=/binflow; SameSite=Lax) sent automatically with same-origin requests; non-GET/HEAD writes authenticated by the session that carry a cross-origin `Origin` header → 403.\n\n**Three error formats**: the errors[] envelope (the primary format: `{\"errors\":[{\"status\":<code>,\"message\":\"…\"}]}`); plain-text errors (user/group management domains); OAuth-style errors (token endpoint and the docker domain: `{\"error\":…,\"error_description\":…}`).\n\n**Intentionally unrouted paths (not supported, 404)**: `/api/v2/**` (the Artifactory v2 permissions API — use `/api/v1/permissions`; the repository key-pair association face `/api/v2/repositories/{key}/keyPairs` is the one exception), `/api/export/**` and `/api/import/**` (backup/restore is CLI-only), `/api/system/storage/prune/**` (space reclamation goes through GC), `/binflow/v2/**` (docker endpoints do not live under the `/binflow` prefix), `/api/system/licenses` (plural — the HA multi-license semantics are not adopted), the search family `props|users|artifactory|badge` (`prop` is the official singular spelling; the plural `props` is 404), and `/api/flat/copy|move`.",
     "contact": {
       "name": "BinFlow",
@@ -517,7 +517,7 @@
           "artifacts"
         ],
         "summary": "Get FileInfo / FolderInfo JSON",
-        "description": "Canonical path: `GET /binflow/api/storage/{repoKey}/{path}`. Query arms:\n- `?properties=K1,K2*` returns properties (key filter + trailing `*` wildcard; no matches = 200 `{\"properties\":{}}` — a BinFlow ruling, not Artifactory's 404; nonexistent node = 404);\n- `?stats` returns download statistics (counts visible on all tiers — the item-info read gate; `lastDownloadedBy` is returned only to admin / readonly_admin, omitted on lower tiers, never fabricated; the probe itself is not counted);\n- `?lastModified` returns the directory's latest modification time;\n- `?permissions` returns the effective-permissions view (admin only, local repositories only).\nTrash can browsing rides the same face: `GET /api/storage/auto-trashcan[...][?properties|?list]` (the five-tuple assertion face = `?properties`).",
+        "description": "Canonical path: `GET /binflow/api/storage/{repoKey}/{path}`. Query arms:\n- `?properties=K1,K2*` returns properties (key filter + trailing `*` wildcard; no matches = 200 `{\"properties\":{}}` — a BinFlow compatibility ruling, not a 404; nonexistent node = 404);\n- `?stats` returns download statistics (counts visible on all tiers — the item-info read gate; `lastDownloadedBy` is returned only to admin / readonly_admin, omitted on lower tiers, never fabricated; the probe itself is not counted);\n- `?lastModified` returns the directory's latest modification time;\n- `?permissions` returns the effective-permissions view (admin only, local repositories only).\nTrash can browsing rides the same face: `GET /api/storage/auto-trashcan[...][?properties|?list]` (the five-tuple assertion face = `?properties`).",
         "operationId": "storageItemInfo",
         "parameters": [
           {
@@ -1519,7 +1519,7 @@
           "users"
         ],
         "summary": "Create a user (collection route, create-only)",
-        "description": "Canonical path: `POST /binflow/api/security/users` (**a BinFlow-native collection route** — official Artifactory has no such face; create-or-replace goes through `PUT /api/security/users/{name}`). Create-only: the body must include `name` (missing, or the reserved name `_system_` → 400 plain text `Unable to create user.`); an existing name → **409 plain text** `The user already exists: <name>` (no path to key-replace — partial updates live at `POST /api/security/users/{name}`). Mixed-case usernames are rejected 400 plain text (no silent renaming); missing email/password reuse the PUT-family 400 messages (`Please provide a valid user email.` / `Please provide a valid user password.`). Success is **201 with no body**.",
+        "description": "Canonical path: `POST /binflow/api/security/users` (**a BinFlow-native collection route** — the reference API has no such face; create-or-replace goes through `PUT /api/security/users/{name}`). Create-only: the body must include `name` (missing, or the reserved name `_system_` → 400 plain text `Unable to create user.`); an existing name → **409 plain text** `The user already exists: <name>` (no path to key-replace — partial updates live at `POST /api/security/users/{name}`). Mixed-case usernames are rejected 400 plain text (no silent renaming); missing email/password reuse the PUT-family 400 messages (`Please provide a valid user email.` / `Please provide a valid user password.`). Success is **201 with no body**.",
         "operationId": "userCreatePost",
         "requestBody": {
           "description": "User fields (name is required here)",
@@ -2756,7 +2756,7 @@
           "keypairs"
         ],
         "summary": "Generate a key pair server-side (BinFlow-native face)",
-        "description": "Canonical path: `POST /binflow/api/v1/admin/security/keypair/generate` (201 echoes a summary; duplicate name 409) — official Artifactory REST has no keygen; this endpoint is a BinFlow-native management face.",
+        "description": "Canonical path: `POST /binflow/api/v1/admin/security/keypair/generate` (201 echoes a summary; duplicate name 409) — the reference API has no keygen; this endpoint is a BinFlow-native management face.",
         "operationId": "keypairGenerate",
         "requestBody": {
           "description": "Generation input",

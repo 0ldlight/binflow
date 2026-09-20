@@ -382,7 +382,7 @@ test('admin: repos list Replications column — plain 0 vs Run trigger (toast + 
   await expect(page).toHaveURL(/\/admin\/governance\/replication$/)
   await expect(page.locator('[data-testid="toast"]')).toHaveCount(0)
 
-  // remote Tab 亦有该列（T-443 / B-3.9 翻正：Artifactory 对位列存在——BinFlow
+  // remote Tab 亦有该列（T-443 / B-3.9 翻正：同类控制台 对位列存在——BinFlow
   // 口径 = push-only，ADR-0021/R10：呈现以该仓为源的 push 配置，无 pull 概念
   // ——表头 tooltip 注记）。本腿先备 remote 行再断言（非空表非空断言——
   // 空表时表头不渲染的空洞在 T-443 复核发现）

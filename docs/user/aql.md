@@ -1,14 +1,14 @@
 ---
-title: AQL 搜索指南（Artifactory Query Language 子集）
+title: AQL 搜索指南（参考仓库 Query Language 子集）
 sidebar_position: 61
 ---
 
-# AQL 搜索指南（Artifactory Query Language 子集）
+# AQL 搜索指南（参考仓库 Query Language 子集）
 
 > 适用版本：M15（语言内核 T-409/T-411、引擎 T-413、REST 端点 T-415）。行为逐项核对 `internal/search`（parser/fields/engine）与 `internal/httpapi/search_aql.go`；本文 curl 命令于 HEAD 构建的双 scratch 实例实测（2026-09-02），输出摘录原样；statistics 域与 usage 端点两节于当前 HEAD 构建的 scratch 实例（127.0.0.1:18095，admin 凭据）实测（2026-09-04），输出原样摘录。
-> BinFlow 实现 AQL 的 **items 域只读查询子集**——子集边界与 Artifactory 的差异逐条见文末[迁移对照表](#从-artifactory-aql-迁移对照表)；老搜索端点（gavc/prop/pattern）见 [API Reference · Search](api-reference.md#search)。
+> BinFlow 实现 AQL 的 **items 域只读查询子集**——子集边界与 参考仓库 的差异逐条见文末[迁移对照表](#从-参考仓库-aql-迁移对照表)；老搜索端点（gavc/prop/pattern）见 [API Reference · Search](api-reference.md#search)。
 
-AQL 是 Artifactory 的制品查询语言：一段查询文本描述「查什么、输出哪些字段、怎么排序翻页」，服务端返回流式 JSON。BinFlow 以 `items.find(...)` 为唯一入口，覆盖日常的「按仓库/路径/属性/checksum/时间窗找制品」场景。
+AQL 是 参考仓库 的制品查询语言：一段查询文本描述「查什么、输出哪些字段、怎么排序翻页」，服务端返回流式 JSON。BinFlow 以 `items.find(...)` 为唯一入口，覆盖日常的「按仓库/路径/属性/checksum/时间窗找制品」场景。
 
 ## 前置条件
 
@@ -84,7 +84,7 @@ curl -su $AU -X POST "$BASE/binflow/api/search/aql?query=items.find(%7B%22repo%2
 
 ### 域：只有 items
 
-查询入口域只有一个：`items`。其余 Artifactory 域一律 **400 点名拒绝**（envelope 里的 message 直接说该域为什么不行）：
+查询入口域只有一个：`items`。其余 参考仓库 域一律 **400 点名拒绝**（envelope 里的 message 直接说该域为什么不行）：
 
 ```bash
 curl -su $AU -X POST $BASE/binflow/api/search/aql --data-binary 'builds.find({})'
@@ -96,7 +96,7 @@ curl -su $AU -X POST $BASE/binflow/api/search/aql --data-binary 'properties.find
 #        query properties through items.find with {\"@key\": value} criteria)"
 ```
 
-| 域（Artifactory） | BinFlow | 拒绝文案提示 |
+| 域（参考仓库） | BinFlow | 拒绝文案提示 |
 |---|---|---|
 | `items` | **支持**（唯一入口；`stat.*` 统计字段嵌于 items 查询，见[statistics 域字段](#statistics-域下载统计字段)） | — |
 | `properties` | 400 | 属性走 items 的 `@key` 条件 |
@@ -140,7 +140,7 @@ items 域条件与输出字段（`include` 可用即条件可用）：
 | 单属性 | `$msp` | 要求**同一个属性实例**满足全部条件——`{"$msp":[{"property.key":"stage"},{"property.value":"dev"}]}` 命中 key=stage 且 value=dev 的那个属性；两个不同 `@key` 条件放进 `$msp` 永远空集（语义正确，不是 bug） |
 | 相对时间 | `$last` `$before`（仅 date 字段） | 见下——**数值与单位之间必须有空格** |
 
-相对时间语法：`"<count> <unit>"`，单位词表 `ms/millis/millisecond(s)`、`s/second(s)`、`minute(s)`、`d/day(s)`、`w/week(s)`、`mo/month(s)`、`y/year(s)`。**count 与 unit 之间至少一个空格**（`"1 day"`、`"1 d"` 可用；`"1d"` → 400 `Invalid relative date format for: 1d`）——与 Artifactory 官方示例的粘连短后缀不同，迁移脚本注意改写（对照表见文末）。
+相对时间语法：`"<count> <unit>"`，单位词表 `ms/millis/millisecond(s)`、`s/second(s)`、`minute(s)`、`d/day(s)`、`w/week(s)`、`mo/month(s)`、`y/year(s)`。**count 与 unit 之间至少一个空格**（`"1 day"`、`"1 d"` 可用；`"1d"` → 400 `Invalid relative date format for: 1d`）——与 参考仓库 官方示例的粘连短后缀不同，迁移脚本注意改写（对照表见文末）。
 
 **不收录**（400 点名拒绝）：`$not`（AQL 语言本身无此操作符，用 `$ne`/`$nmatch`）、`$contains`（非 AQL 操作符，用 `$match`）、`$eqic`/`$eqvic`/`$matchic`（反编译才有的忽略大小写变体，官方未文档化）。
 
@@ -158,7 +158,7 @@ curl -su $AU -X POST $BASE/binflow/api/search/aql --data-binary 'items.find({"$n
 | `.offset(<n>)` | 跳过 n 行（range.start_pos 回显） |
 | `.limit(<n>)` | 上限 n 行（仅显式声明时 range 才有 `limit` 键） |
 
-**链序固定**：`include → sort → offset → limit`。乱序（如 `.limit(1).sort(...)`）→ 400 语法错，文案逐字对齐 Artifactory：
+**链序固定**：`include → sort → offset → limit`。乱序（如 `.limit(1).sort(...)`）→ 400 语法错，文案逐字对齐 参考仓库：
 
 ```bash
 curl -su $AU -X POST $BASE/binflow/api/search/aql \
@@ -303,9 +303,9 @@ curl -su $AU "$BASE/binflow/api/search/usage" -w '%{http_code}\n' -o /dev/null  
 
 - 流式形态：前导 `\n{\n"results" : [ `，行间 `},{`，空集 `"results" : [  ]`（两空格）；日期回显 ISO8601 毫秒 UTC。`?compact=true` 只压行体与 range，外层包裹不变。
 - `range` 对象：`start_pos`（= offset 回显）、`end_pos` / `total`（**本页行数**——流式约定，total 不是全量计数，翻页判断用「本页满窗或 notification 在场」）、`limit`（仅声明时）、`notification`（截断通告）。
-- **行数上限 1,000**：超限返回前 1,000 行，同时置响应头 `X-Binflow-Search-Truncated: true` 与 `range.notification = "AQL query reached the search hard limit, results are trimmed."`（文案与 Artifactory 逐字一致）。用 `.offset()` 续翻可达全量。
+- **行数上限 1,000**：超限返回前 1,000 行，同时置响应头 `X-Binflow-Search-Truncated: true` 与 `range.notification = "AQL query reached the search hard limit, results are trimmed."`（文案与 参考仓库 逐字一致）。用 `.offset()` 续翻可达全量。
   - 注意：**用户自己的 `.limit(n)` 小于原始命中数时同样置截断标记**（诚实上界——「窗口没吃完全集」就告诉你还有余量），此时 notification 语义是「仍有未取行」，不区分是用户 limit 还是硬上限。
-- 查询文本上限 **6,000 字符**（与 Artifactory 官方默认一致）：超限 400 `AQL query is too long; please reduce the query length to less than 6000 chars`。
+- 查询文本上限 **6,000 字符**（与 参考仓库 官方默认一致）：超限 400 `AQL query is too long; please reduce the query length to less than 6000 chars`。
 
 ## 权限与脱敏
 
@@ -322,16 +322,16 @@ curl -su $AU "$BASE/binflow/api/search/usage" -w '%{http_code}\n' -o /dev/null  
 | 慢查询 | >5s 服务端 WARN 单行日志（查询摘要 + 耗时） |
 | 指标 | `binflow_search_queries_total{plane="aql"}`、`binflow_search_query_duration_seconds`、`binflow_search_rejections_total{reason=…}`（reason = `concurrency` / `timeout`；见 [Prometheus 指标参考](metrics/prometheus-reference.md)） |
 
-## 从 Artifactory AQL 迁移对照表
+## 从 参考仓库 AQL 迁移对照表
 
 术语与语法主体不变（`items.find()`、操作符、尾缀链、envelope 形态），差异集中在**域子集**与少量行为面：
 
-| Artifactory 行为 | BinFlow 现状（M15） | 迁移动作 |
+| 参考仓库 行为 | BinFlow 现状（M15） | 迁移动作 |
 |---|---|---|
 | `builds.find()` / `modules` / `dependencies` / `releases` 等 build 系域 | 400 点名拒绝（build-info 未实现） | build 系查询改走外部 CI 记录；或等 build-info 域立项 |
 | `stat.downloads` 统计字段 | **支持**（条件/include/sort；`stat.id` 仍 400） | 无——`stat.*` 族查询可直接迁入；`statistics.find(...)` 入口域写法须改为 items 嵌字段 |
 | `stat.remote_downloads` 等 smart remote 统计 | 可查可投影但**恒 0/null**（无 smart remote 拓扑，不造数据；不可 sort） | 脚本里依赖 remote 维度的分支删掉 |
-| usage 端点 `GET /api/search/usage` | 支持（`notUsedSince`/`createdBefore`/`repos`；空集 404 `No results found.`） | Artifactory 脚本可直接迁移；注意 never 行 lastDownloaded 为 epoch-0 字面 |
+| usage 端点 `GET /api/search/usage` | 支持（`notUsedSince`/`createdBefore`/`repos`；空集 404 `No results found.`） | 参考仓库 脚本可直接迁移；注意 never 行 lastDownloaded 为 epoch-0 字面 |
 | `items.find(...).include("modified_by")` | 400（无存储源） | 脚本删掉该字段 |
 | `original_sha1` / `original_md5` 双值 checksum | 400（单值存储） | 改用 `sha256` / `actual_sha1` / `actual_md5` |
 | `items.delete()` / `properties.update()` AQL 写动作 | 400（AQL 只读） | 删除走 `DELETE /binflow/{repo}/{path}`；属性走 `?properties` 三动词（[属性系统](properties.md)） |
@@ -356,4 +356,4 @@ curl -su $AU -X POST $BASE/binflow/api/search/aql --data-binary 'items.find({"re
 
 - 老搜索端点（gavc / prop / pattern / artifact / checksum）：[API Reference · Search](api-reference.md#search)；控制台搜索页的 AQL 模式见[控制台指南](console.md#搜索与仪表盘)
 - 属性的写入与其它读取入口：[属性系统用法](properties.md)
-- 从 Artifactory 整体迁移：[bf-migrate 指南](guides/migrate-artifactory.md)与 [FAQ 迁移对照表](faq.md#从-artifactory-迁移对照表)
+- 从 参考仓库 整体迁移：[bf-migrate 指南](guides/migration-guide.md)与 [FAQ 迁移对照表](faq.md#从-参考仓库-迁移对照表)

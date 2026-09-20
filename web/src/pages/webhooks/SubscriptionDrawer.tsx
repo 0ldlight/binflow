@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // 订阅详情 / 最近投递记录抽屉（M13 T-366——P3 新栈重写：shadcn Sheet 右滑
-// 480 档；形态 = console-artifactory-parity 抽屉族通用规格）。
+// 480 档；形态 = console-parity 抽屉族通用规格）。
 // 「最近投递记录」= GET /event/api/v1/troubleshooting?subscription=<key>
 // （webhook.md §7 排障环）：失败必录；成功仅 debug:true 订阅入记录——空
 // 列表 ≠ 无投递，空态文案如实说明。行点击展开 payload 快照（mono + 拷贝）。

@@ -3,7 +3,7 @@
 // button 是 UA 默认黑底灰面，深色主题下 ButtonFace 组合曾触 axe 对比度
 // serious（radix-* 按钮、t512 ⑥ 双主题腿实证）；P4 恢复 preflight 后冗余。
 // ghost / destructive / link）× 四尺寸；dense 形态（默认档 32px 高，
-// text-dense）——控制台按钮从不大写（对齐 Artifactory 观感）。
+// text-dense）——控制台按钮从不大写（对齐 同类控制台 观感）。
 // 批 4（§4.2 Button★）：loading 态=左 spinner+文字保留+真禁用
 // （aria-busy + disabled——防双击提交竞态）；link 变体无 loading。
 import { Slot } from '@radix-ui/react-slot'

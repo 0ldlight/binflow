@@ -7,7 +7,7 @@ sidebar_position: 29
 
 > 适用版本：M11（rpm 包型为 **pro 档**能力——建仓/上传需 pro 及以上 license，见 [License 与 Add-ons 管理](../admin/license.md)；未解锁时既有包仍可 `dnf install`）。
 > 验证客户端：**Rocky Linux 9 容器 + dnf**（T-311/T-315/T-322：rpmbuild 现造真包 → PUT → reindex → `dnf makecache` / `repoquery` / `install` / `rpm -q` 全链；`repo_gpgcheck=1` 的 gpg 签名链三腿）。行为基准 `docs/reverse/rpm.md`。
-> 摘要算法：BinFlow 一律 **SHA-256**（索引文件名摘要、repomd `checksum type="sha256"`、primary `pkgid` 三处一致——有意与 Artifactory 默认 SHA-1 不同）。
+> 摘要算法：BinFlow 一律 **SHA-256**（索引文件名摘要、repomd `checksum type="sha256"`、primary `pkgid` 三处一致——有意与 参考仓库 默认 SHA-1 不同）。
 
 BinFlow 的 rpm 仓 = YUM 仓库：`.rpm` 上传（header 解析登记 `rpm.metadata.*` 属性）+ **repodata 引擎**（primary / filelists / other 三索引 + repomd.xml；**filelists 仅在仓配置 `enableFileListsIndexing=true` 时生成**——默认 false，repodata 只含 primary+other）。**local / remote（代理）/ virtual（聚合）三类仓型齐备**。
 

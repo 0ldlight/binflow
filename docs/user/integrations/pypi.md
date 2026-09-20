@@ -80,7 +80,7 @@ twine upload --repository binflow dist/*
 
 一次性用法：`twine upload --repository-url $BASE/binflow/api/pypi/pypi-local -u admin -p $ADMIN_PW dist/*`。
 
-上传协议要点：multipart 的 `:action` 必须为 `file_upload`（其它值 400 `unknown action '<action>'`）；`md5_digest` 可选（twine ≥ 6.2 不再发送，服务端自算 sha256；提供且不一致走 409 校验链）；响应统一 200。存储路径为 `<name>/<version>/<filename>`（原始文件名），与 Artifactory 布局对齐。
+上传协议要点：multipart 的 `:action` 必须为 `file_upload`（其它值 400 `unknown action '<action>'`）；`md5_digest` 可选（twine ≥ 6.2 不再发送，服务端自算 sha256；提供且不一致走 409 校验链）；响应统一 200。存储路径为 `<name>/<version>/<filename>`（原始文件名），与 参考仓库 布局对齐。
 
 ### 4. 验证：hash 对账与依赖链
 
@@ -123,7 +123,7 @@ shasum -a 256 dl.whl
 | 同 filename 重复上传 | **400** `file '<f>' already exists in repository '<repo>'; overwriting is not allowed (path <name>/<version>/<f>)`（twine 报 HTTPError 400） | warehouse 语义，防覆盖 |
 | PyPI JSON API（`/pypi/<pkg>/json`） | **404**——不做 | §2.2（M4+ 评估） |
 | PEP 592（yank）、PEP 658（分离 metadata） | 不做——`yanked` 字段收下作元数据、不影响索引 | §2.2 |
-| `rel="internal|external"` 属性 | 不输出（Artifactory 私有属性，pip 忽略；PEP 503 无此定义） | 有意不补充 |
+| `rel="internal|external"` 属性 | 不输出（参考仓库 私有属性，pip 忽略；PEP 503 无此定义） | 有意不补充 |
 | 托管 UI 前缀 `/binflow/api/pypi-ui/**` | **404** | M1 边界维持 |
 | setuptools legacy upload（python 3.8- 老客户端） | 不做——以 twine 现代形态为准 | §5.3 |
 
@@ -142,4 +142,4 @@ shasum -a 256 dl.whl
 
 - remote/virtual 仓的创建与缓存管理：[remote/virtual 管理指南](../admin/remote-virtual.md)
 - Maven / npm 接入：[maven](maven.md) · [npm](npm.md)
-- 从 Artifactory 迁移的概念对照：[faq.md](../faq.md)
+- 从 参考仓库 迁移的概念对照：[faq.md](../faq.md)

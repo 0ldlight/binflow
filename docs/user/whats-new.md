@@ -17,7 +17,7 @@ sidebar_position: 5
 ```
 
 - **唯一的更新拼写是 `POST`**，且为**合并语义（三列）**：body 里**省略**的字段保留存量；**`null` / 空串**清空该字段（数组空值保留、对象 `{}` 整族复位）；**显式值**覆盖（`0` 也是显式值，不是缺省）。未知 key 404。
-- **动因**：对齐 Artifactory——参照系统的更新拼写只有 POST；BinFlow 先前「PUT 也能更新」是自有偏差，本批收敛。建仓仍 admin only；更新臂对覆盖仓的 manage 持有者开放（与此前一致）。
+- **动因**：对齐 参考仓库——参照系统的更新拼写只有 POST；BinFlow 先前「PUT 也能更新」是自有偏差，本批收敛。建仓仍 admin only；更新臂对覆盖仓的 manage 持有者开放（与此前一致）。
 
 **影响面与迁移**（repeat-PUT 更新脚本必读）：
 
@@ -41,7 +41,7 @@ curl -u admin:*** -X POST "$BASE/binflow/api/repositories/libs-release" \
 
 ## 协议语义对齐批次：客户端可见面
 
-六个协议域（npm / PyPI / Conan / Docker / Go / Helm）的客户端可见语义逐项对齐 Artifactory 口径，Maven 与存储管理面同步收敛；下列行为经真实客户端（pip / mvn / npm / conan / helm CLI / curl）在隔离实例或双端对照下验证：
+六个协议域（npm / PyPI / Conan / Docker / Go / Helm）的客户端可见语义逐项对齐 参考仓库 口径，Maven 与存储管理面同步收敛；下列行为经真实客户端（pip / mvn / npm / conan / helm CLI / curl）在隔离实例或双端对照下验证：
 
 - **Maven**：SNAPSHOT 部署缺省 `unique`——落盘名改写为时间戳版本（`demo-app-1.2.0-20260819.212603-2.jar`，buildNumber 跨趟递增；消费侧 `-U` 强刷解析最新）；版本目录的 `maven-metadata.xml` 有 **pom 前置**（目录存在 `.pom` 直接子文件才生成）；`deploy:deploy-file` 免 `generatePom` 的路径 404。见 [Maven 接入](integrations/maven.md)。
 - **PyPI**：simple 索引的 `Requires-Python` 按三源管线取值（twine 上传表单 / wheel `*.dist-info/METADATA` / sdist `PKG-INFO`），服务端从制品字节解析并转义渲染——pip 的版本过滤直接吃到这个值；坏元数据**存而不索引**（上传成功、不进 simple 页）。见 [PyPI 接入](integrations/pypi.md)。
@@ -55,7 +55,7 @@ curl -u admin:*** -X POST "$BASE/binflow/api/repositories/libs-release" \
 **此前**：控制台为中文单语。**现在**：内置中英双语资源包，一步切换。
 
 - **切换器**在侧栏底部脚注（「语言」caption + `中文` / `English` 两档单选，应用与管理两侧栏同脚注常驻）——当前语言呈选中态，点选即生效。
-- 切换 = **整页重载**后按新语言渲染（与 Artifactory 同款姿态），选择持久化在浏览器本地（`localStorage`），下次打开保持；清除浏览器数据后回落中文默认。
+- 切换 = **整页重载**后按新语言渲染（与 参考仓库 同款姿态），选择持久化在浏览器本地（`localStorage`），下次打开保持；清除浏览器数据后回落中文默认。
 - **中文默认不变**；英文界面为全量覆盖（控制台、仓库、制品、搜索、安全、治理、监控、Webhooks 等全部页面域）。
 - **术语两包保真**：repo key、node、checksum、Deploy、Set Me Up、cron、readonly_admin 等英文术语在两种语言下原样呈现——中文界面里它们今天长什么样，英文界面里就长什么样。
 - **日期与数字随语言**：结果表与审计时间列在英文界面下用 `MMM d, yyyy h:mm:ss AM/PM` 形态（中文界面维持 `dd-MM-yy HH:mm:ss` 24 小时形态，零变化）；数字千位分组随语言取义。
@@ -95,15 +95,15 @@ curl -u admin:*** -X POST "$BASE/binflow/api/repositories/libs-release" \
 
 ## 交互形态对齐与既定裁定的翻案
 
-以下变化来自控制台与 Artifactory 交互形态的逐项对齐；其中数项**推翻了此前登记的「有意不做」裁定**，逐一明示：
+以下变化来自控制台与 参考仓库 交互形态的逐项对齐；其中数项**推翻了此前登记的「有意不做」裁定**，逐一明示：
 
 ### 分页：页码控件全面替换「加载更多」（翻案）
 
-**此前**：「加载更多」增量分导是登记在案的豁免项。**现在**：全站列表与结果表统一**页码控件**——页码序列 + 首/上一页/下一页/末页 + 每页行数档 `[20, 50, 100, 200, 1000]`（缺省 100）；边界态禁置不隐藏。搜索（基本与 AQL 两模式）、审计日志、仓库 / 用户 / 组 / 权限 / token 列表全部迁移。分治例外：制品树大目录的「加载更多」**维持**（深浏览场景，与 Artifactory 同为树增量 + 表页码双轨）。AQL 模式下页码重写 `.offset()`、档位重写 `.limit()`——查询文本仍是唯一事实源。
+**此前**：「加载更多」增量分导是登记在案的豁免项。**现在**：全站列表与结果表统一**页码控件**——页码序列 + 首/上一页/下一页/末页 + 每页行数档 `[20, 50, 100, 200, 1000]`（缺省 100）；边界态禁置不隐藏。搜索（基本与 AQL 两模式）、审计日志、仓库 / 用户 / 组 / 权限 / token 列表全部迁移。分治例外：制品树大目录的「加载更多」**维持**（深浏览场景，与 参考仓库 同为树增量 + 表页码双轨）。AQL 模式下页码重写 `.offset()`、档位重写 `.limit()`——查询文本仍是唯一事实源。
 
 ### 用户与组：路由整页表单 + Retype Password 双录（翻案）
 
-**此前**：用户/组创建是列表页内联展开卡，且创建态**没有**二次口令输入。**现在**：创建与编辑均为**路由整页表单**（`/admin/security/users/new`、`/admin/security/groups/new`、`/groups/:name/edit` 可直达深链）；内联卡退役。用户创建页补 **Retype Password 双录**（两次不一致挡提交——按 Artifactory 现版形态补齐）；页脚 `Cancel` | `Reset` | `Save` 双初始禁置（未改过不可复位）。表单里的能力位三开关（Can Update Profile / Disable UI Access / Disable Internal Password）为**恒禁用预留位**——服务端尚未承接，提交体零携带，承接落地后转正。
+**此前**：用户/组创建是列表页内联展开卡，且创建态**没有**二次口令输入。**现在**：创建与编辑均为**路由整页表单**（`/admin/security/users/new`、`/admin/security/groups/new`、`/groups/:name/edit` 可直达深链）；内联卡退役。用户创建页补 **Retype Password 双录**（两次不一致挡提交——按 参考仓库 现版形态补齐）；页脚 `Cancel` | `Reset` | `Save` 双初始禁置（未改过不可复位）。表单里的能力位三开关（Can Update Profile / Disable UI Access / Disable Internal Password）为**恒禁用预留位**——服务端尚未承接，提交体零携带，承接落地后转正。
 
 ### 删除动作收敛（范围修正）
 
@@ -134,4 +134,4 @@ curl -u admin:*** -X POST "$BASE/binflow/api/repositories/libs-release" \
 
 - 脚本迁移：[API Reference · 仓库管理端点](api-reference.md)（PUT/POST 动词语义与合并细则）
 - 新能力上手：[计划任务与定时备份](admin/cron-scheduling.md) · [远端浏览可选档](admin/remote-virtual.md#远端浏览可选档listremotefolderitems) · [界面语言](console.md#界面语言中英双语切换)
-- 从 Artifactory 迁移的逐任务对照：[操作路径对照表](artifactory-path-map.md)
+- 从 参考仓库 迁移的逐任务对照：[操作路径对照表](compatibility-path-map.md)

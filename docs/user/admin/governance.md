@@ -69,7 +69,7 @@ SHA=$(shasum -a 256 w.bin | cut -d' ' -f1)
 curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/checksum?sha256=$SHA"
 ```
 
-**M15 起搜索面六端点齐备**：上述两端点之外，新增 AQL（`POST /api/search/aql`）与老搜索三端点（`GET /api/search/gavc|prop|pattern`）——语言子集、错误文案族与 Artifactory 迁移对照见 **[AQL 搜索指南](../aql.md)**，wire 速览见 [API Reference · Search](../api-reference.md#search)。未命中一律 200 空数组；结果上限 1,000 行（截断置 `X-Binflow-Search-Truncated` 头）。
+**M15 起搜索面六端点齐备**：上述两端点之外，新增 AQL（`POST /api/search/aql`）与老搜索三端点（`GET /api/search/gavc|prop|pattern`）——语言子集、错误文案族与 参考仓库 迁移对照见 **[AQL 搜索指南](../aql.md)**，wire 速览见 [API Reference · Search](../api-reference.md#search)。未命中一律 200 空数组；结果上限 1,000 行（截断置 `X-Binflow-Search-Truncated` 头）。
 
 仍 404（有意不做）：`/api/search/props|users|artifactory|badge`（注意 `prop` 为官方单数拼写）。匿名姿态按面分化：老搜索族（artifact/checksum/gavc/prop/pattern）闭环实例匿名 → 403；**AQL 永不允许匿名**（闭环 401 / 开匿名 403）。
 
@@ -278,7 +278,7 @@ curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/test \
 
 ### 全局封锁 blockPush / blockPull（M15，T-422）
 
-**应急刹车**：一键停全实例的 push 复制与 remote 回源，无论各配置 enabled 与否（对齐 Artifactory blockPush/blockPull 语义，三端点官方 wire 形）：
+**应急刹车**：一键停全实例的 push 复制与 remote 回源，无论各配置 enabled 与否（对齐 参考仓库 blockPush/blockPull 语义，三端点官方 wire 形）：
 
 ```bash
 # 读态（readonly_admin 可读）——官方 camelCase 键形
@@ -318,7 +318,7 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/replication/status?limit=50"
 #   "status":"in_progress","attempts":3,…}]}        —— limit 1..500，缺省 50
 ```
 
-控制台入口两处：治理 → 复制（`/admin/governance/replication`：目标表〔含**「调度」列**——cron 表达式与下次同步时刻〕+ 最近事件 10s 轮询；**页头全局封锁卡**——两方向独立 Switch，即上文 block/unblock 三端点）与**仓库编辑页 Replications 节**（仅 local 仓编辑态：配置列表 + 新建/编辑表单〔表单带「测试连接」按钮，即 Test 面〕+ 行内启停开关即上表 `PUT` + 输入 name 强确认删除；表单的 **`cron` 字段为真字段**——写入即上节 `cron_exp` 调度轨〔编辑回显 + 双轨 hint〕；事件开关/路径前缀/sync 开关仍为 Artifactory 概念的**预留位，恒禁用**——BinFlow 事件轨即落库即推，无按开关启停的语义）。仓库列表 local Tab 的 `Replications` 列显示每仓配置计数；**▶ Run 动作 = 真触发**（对本仓逐启用配置 POST run，toast 回报排程数 + 「查看任务」深链复制页；全部停用则按钮禁用——见上文 Replicate Now）。
+控制台入口两处：治理 → 复制（`/admin/governance/replication`：目标表〔含**「调度」列**——cron 表达式与下次同步时刻〕+ 最近事件 10s 轮询；**页头全局封锁卡**——两方向独立 Switch，即上文 block/unblock 三端点）与**仓库编辑页 Replications 节**（仅 local 仓编辑态：配置列表 + 新建/编辑表单〔表单带「测试连接」按钮，即 Test 面〕+ 行内启停开关即上表 `PUT` + 输入 name 强确认删除；表单的 **`cron` 字段为真字段**——写入即上节 `cron_exp` 调度轨〔编辑回显 + 双轨 hint〕；事件开关/路径前缀/sync 开关仍为 参考仓库 概念的**预留位，恒禁用**——BinFlow 事件轨即落库即推，无按开关启停的语义）。仓库列表 local Tab 的 `Replications` 列显示每仓配置计数；**▶ Run 动作 = 真触发**（对本仓逐启用配置 POST run，toast 回报排程数 + 「查看任务」深链复制页；全部停用则按钮禁用——见上文 Replicate Now）。
 
 ## 控制台对应页面
 
@@ -383,7 +383,7 @@ curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/security/users/victim -w '\
 
 **级联（同事务，不可恢复）**：剥该用户在全部 permission target 的授权行 → 删用户行 → 组员关系清空、**全部 token 与 web session 即时吊销**（已持有的 Bearer 下一次请求即 401，实测）；审计历史保留并新增 `user.delete` 事件（护栏拒绝不落审计）。与组删除的 409 保护是**有意不对称**：组是多成员策略对象，静默剥夺全员授权故拒绝；用户是单主体，级联即删除意图本身。
 
-**重复删除 404 = 有意非幂等**（review 裁定）：Artifactory「重复删视为成功」的幂等形态是其并发窗口产物；BinFlow 取确定性 pre-probe——第二次 DELETE 得 404 就意味着「对象已被删」，调用方不要重试、不要把它当失败告警。控制台对应面为**输入用户名强确认**（列表行 + 编辑页危险区，文案明示级联不可恢复与非幂等），见[控制台指南](../console.md#用户与权限adminsecurity)。
+**重复删除 404 = 有意非幂等**（review 裁定）：参考仓库「重复删视为成功」的幂等形态是其并发窗口产物；BinFlow 取确定性 pre-probe——第二次 DELETE 得 404 就意味着「对象已被删」，调用方不要重试、不要把它当失败告警。控制台对应面为**输入用户名强确认**（列表行 + 编辑页危险区，文案明示级联不可恢复与非幂等），见[控制台指南](../console.md#用户与权限adminsecurity)。
 
 ### 用户管理风险：last-admin 竞窗（运营提醒）
 

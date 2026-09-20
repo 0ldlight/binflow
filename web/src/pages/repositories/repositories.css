@@ -10,7 +10,7 @@
  * MUI Tabs + Tab component={Link} 承载——锚 repos-tab-* 落 Tab 根（<a>）、
  * aria-current=page 续挂，方向键/指示条交 MUI（onTablistKeys 退役）。 */
 
-/* 页头右侧：计数标题 + 添加按钮（对齐 Artifactory "<N> Repositories" + Add） */
+/* 页头右侧：计数标题 + 添加按钮（对齐 同类控制台 "<N> Repositories" + Add） */
 .repos-head-actions {
   display: flex;
   align-items: center;

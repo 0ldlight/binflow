@@ -8,7 +8,7 @@ sidebar_position: 40
 > 适用版本：M3（pull-through 代理缓存 + 聚合解析；PRD milestone-3 v1.2、ADR-0012/0013）+ **M10 增补**（smart remote 生效字段子集：`socketTimeoutMs`〔含 xsd 别名〕/`metadataRetrievalTimeoutSecs`）+ **M11 增补**（`enableTokenAuthentication`/`contentSynchronisation` 接受且生效〔L25 反转，T-317〕；`unusedArtifactsCleanupPeriodHours` 清理引擎生效〔T-324〕；conan/helm/rpm/debian 三类仓型——T-312/313/314/315；**cargo remote/virtual 仓型**——T-316/T-318，见 [Cargo 接入](../integrations/cargo.md)）+ **M14 增补**（**docker remote 仓型**——FR-129/T-392，community 档自动受缝）+ **近期增补**（**远端浏览可选档 `listRemoteFolderItems`**——helm/debian/rpm 三型，见[下文专节](#远端浏览可选档listremotefolderitems)）。
 > 本文命令在 M3 QA 基线（commit `0f86229`，T-75/T-76 验收产物）上复验：建仓字段回显、缓存 MISS→HIT 冻结、DELETE 强刷、凭据加密落盘、无钥 fail-fast、virtual 收口与写路由均按预期（复跑记录见 `reports/agents/T-77.md`）。远端浏览可选档的 wire 事实（PUT/GET 回显、批 1 型门与类型门 400、`remoteDegraded` 注记）在 HEAD 构建的本地 scratch 实例（2026-09-06）curl 实测。
 
-三种仓型各司其职，概念与 Artifactory 一一对应（术语不变）：
+三种仓型各司其职，概念与 参考仓库 一一对应（术语不变）：
 
 | 仓型 | rclass | 职责 | 可写 |
 |---|---|---|---|
@@ -34,7 +34,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-remote-cent
 | `url` | 是 | — | 上游 base URL，仅 `http`/`https`（`file://`/`ftp://` 建仓即 400）；请求路径直接拼接 |
 | `username` / `password` | 否 | 空 | 上游 Basic 认证；password 静态加密落库（见[凭据小节](#上游凭据与-binflow_remote_credentials_key)），GET 永不回显 |
 | `retrievalCachePeriodSecs` | 否 | **7200** | 缓存命中期：期内 GET 不回源；过期后下次请求触发回源 |
-| `missedRetrievalCachePeriodSecs` | 否 | **1800** | 404 负缓存期：期内同路径 404 零上游流量（防穿透）。**显式 `0` = 回落默认 1800 而非禁用**（与 Artifactory 语义一致——验证「负缓存已关」时勿用 0，直接观察 `X-Binflow-Cache`/回源流量）。**M10 起**接受 `missRetrievalCachePeriodSecs`（无 ed）为输入别名——回显恒用 canonical 拼写（与 Artifactory 一致），两拼写同时给非零且不相等 → 400 |
+| `missedRetrievalCachePeriodSecs` | 否 | **1800** | 404 负缓存期：期内同路径 404 零上游流量（防穿透）。**显式 `0` = 回落默认 1800 而非禁用**（与 参考仓库 语义一致——验证「负缓存已关」时勿用 0，直接观察 `X-Binflow-Cache`/回源流量）。**M10 起**接受 `missRetrievalCachePeriodSecs`（无 ed）为输入别名——回显恒用 canonical 拼写（与 参考仓库 一致），两拼写同时给非零且不相等 → 400 |
 | `socketTimeoutMillis` | 否 | **15000** | 上游连接/读/响应头超时（毫秒粒度，可表达亚秒超时）——**canonical 拼写**（artifactory.xsd，**M12 起回显统一为本拼写**，FR-113.1/T-290-2 兑现）。M10 期 PRD 拼写 `socketTimeoutMs` 仍接受为**输入别名**（只进不出，回显恒为新拼写；两拼写非零分歧 400）；显式 `0` = 缺席（回落 `socketTimeoutSecs`/默认） |
 | `socketTimeoutSecs` | 否 | **15** | 上游连接/读超时（秒）——**legacy 字段**（M3）：`socketTimeoutMillis` 非零时以 ms 为准；回显时恒附派生 `socketTimeoutSecs`（= ceil(ms/1000)，永不虚报更长超时） |
 | `metadataRetrievalTimeoutSecs` | 否 | **60** | **M10**：并发拉取同一 metadata 路径（如 `maven-metadata.xml`）时等待者的等锁上限，超时回发旧缓存副本（零回源）——per-repo 化（原为引擎级常量 60s） |
@@ -162,7 +162,7 @@ curl -su admin:$ADMIN_PW $BASE/binflow/api/repositories/helm-remote
 
 ## 缓存管理与强刷手法
 
-- **强刷单个路径**：`DELETE /binflow/<remote>/<path>` → 204（仅删本地缓存，不触达上游），下次 GET 重新回源。这是 M3 唯一的强刷手法——**没有** `?refresh=true` 参数（保持 URL 语义纯净，与 Artifactory 一致）。mvn `-U` 拿不到新 SNAPSHOT 时，对 `maven-metadata.xml` 的缓存路径执行 DELETE 即可。未缓存路径 DELETE → 404（幂等）。**docker remote 注记（M14 实测）**：manifest 以 digest 寻址落盘，按 tag 路径或裸 hex 路径 DELETE 均不命中缓存节点（404、缓存不动）——清 docker remote 缓存请走「整仓清空」或观察头。
+- **强刷单个路径**：`DELETE /binflow/<remote>/<path>` → 204（仅删本地缓存，不触达上游），下次 GET 重新回源。这是 M3 唯一的强刷手法——**没有** `?refresh=true` 参数（保持 URL 语义纯净，与 参考仓库 一致）。mvn `-U` 拿不到新 SNAPSHOT 时，对 `maven-metadata.xml` 的缓存路径执行 DELETE 即可。未缓存路径 DELETE → 404（幂等）。**docker remote 注记（M14 实测）**：manifest 以 digest 寻址落盘，按 tag 路径或裸 hex 路径 DELETE 均不命中缓存节点（404、缓存不动）——清 docker remote 缓存请走「整仓清空」或观察头。
 - **整仓清空**：删仓时带 `?deleteContent=true`（缓存 node 一并删除后重建仓），或按路径逐个 DELETE。
 - **删仓**：`DELETE /binflow/api/repositories/<key>?deleteContent=true`。
 - 缓存跨重启保留：重启实例（含换密钥重启）后已缓存内容直接 HIT，不回退重拉（T-77 复跑实证）。
@@ -208,7 +208,7 @@ BINFLOW_REMOTE_CREDENTIALS_KEY=<上一步的值>
 remote: outbound target rejected (ssrf-guard)  repo=<key> target=<host:port> category=<类别> phase=check ip=<IP>
 ```
 
-**放行内网上游**（场景：上游是内网 Nexus/Artifactory）。操作步骤：
+**放行内网上游**（场景：上游是内网 Nexus/参考仓库）。操作步骤：
 
 1. 确认目标上游确实受信且必要——放行后**该 remote 仓可触达部署网络内任意私网目标**（含同网段云 metadata 服务），等同授予该仓「内网 Reachability」权限，属高权限操作；
 2. 建仓/改仓时由 **admin** 设置 `"allowPrivateUpstream": true`（仅 admin 可设，非 admin 请求被拒）；
@@ -244,7 +244,7 @@ M3 起 BinFlow 从「纯内网服务」变为**出网客户端**（架构规范 
 |---|---|---|
 | Maven Central（`https://repo.maven.apache.org/maven2`） | **可用**（实测） | mvn 全链经 BinFlow，含传递依赖 |
 | pypi.org | **可用**（实测；302 → files.pythonhosted.org 逐跳过链后跟随） | simple + 下载全链 |
-| registry.npmjs.org | **M3 不可用**——packument 不在 `<name>/packument.json` 布局路径（404），npmjs 代理归 M4 | 布局兼容上游（内网 Nexus/Artifactory）可用 |
+| registry.npmjs.org | **M3 不可用**——packument 不在 `<name>/packument.json` 布局路径（404），npmjs 代理归 M4 | 布局兼容上游（内网 Nexus/参考仓库）可用 |
 | docker registry 上游（`packageType=docker`，M14） | **自指上游（另一台 BinFlow）可用**（实测：digest 全等、二拉零回源、降级 STALE）；Bearer challenge 上游（mock 全舞步）可用 | Docker Hub（`https://registry-1.docker.io/v2`）等公用 registry 直连**未实测**——Bearer 舞步同构，待验证 |
 | 内网私网上游 | 可用，需 `allowPrivateUpstream: true` | 见 SSRF 小节 |
 
@@ -293,4 +293,4 @@ M3 起 BinFlow 从「纯内网服务」变为**出网客户端**（架构规范 
 
 - 各协议客户端配置：[maven](../integrations/maven.md) · [npm](../integrations/npm.md) · [pypi](../integrations/pypi.md) · [docker](../docker-registry.md)
 - 管理面 API（建仓/用户/token）：[API Reference](../api-reference.md)
-- 从 Artifactory 迁移的概念对照：[faq.md](../faq.md)
+- 从 参考仓库 迁移的概念对照：[faq.md](../faq.md)

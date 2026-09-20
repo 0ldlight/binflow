@@ -15,7 +15,7 @@ const t = tr('artifacts')
 
 // 制品详情 · Properties 页签（T-291 M10 首发；T-447 / FR-144.4 解剖翻正）。
 //
-// 交互解剖按 Artifactory 7.161.20 活体实证对齐（B-2.9 翻正——T-447 活体
+// 交互解剖按 reference console.20 活体实证对齐（B-2.9 翻正——T-447 活体
 // 取证：example-repo-local Properties 页签 = 常显 Property name / Property
 // value 输入 + Add Property 钮 + 网格 Search 过滤 + 行选网格）：
 //   - **常显表单**：Property/Value 两输入 + Add 钮常驻（隐藏「+ 新增属性」

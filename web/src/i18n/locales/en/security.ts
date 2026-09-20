@@ -1,5 +1,5 @@
 // T-463 键集 / T-464 填充：security 域 en 目录包——键 = zh 文案原文
-// （zh-as-key），值 = 逐义对译 en（术语对齐 Artifactory：repo key / node /
+// （zh-as-key），值 = 逐义对译 en（术语对齐 reference console：repo key / node /
 // checksum / Deploy / Set Me Up 等英文术语原样保留）。
 import { registerEn } from '../../index'
 
@@ -65,7 +65,7 @@ registerEn('security', {
   "步，共 2 步": "of 2",
   "部分成员变更未落盘（{v1}）——组本体已保存；请重试或到用户编辑器逐个处理。": "Some membership changes were not persisted ({v1}) — the group itself was saved; retry or handle them one by one in the user editor.",
   "仓库」对话框第 2 步修改）": "repositories” dialog, step 2)",
-  "仓库关联后，该仓库的签名/校验使用此密钥对（Artifactory 7.19 关联面：仓库单槽——再关联即替换）。": "Once associated, the repository's signing/verification uses this key pair (the Artifactory 7.19 association face: one slot per repository — re-associating replaces).",
+  "仓库关联后，该仓库的签名/校验使用此密钥对（同类控制台 7.19 关联面：仓库单槽——再关联即替换）。": "Once associated, the repository's signing/verification uses this key pair (the reference console 7.19 association face: one slot per repository — re-associating replaces).",
   "仓库列表不可用——关闭后重试（编辑器保存仍需至少一个仓库）。": "The repository list is unavailable — close and retry (the editor still needs at least one repository to save).",
   "仓库列表不可用（": "The repository list is unavailable (",
   "仓库列表加载中…": "Loading the repository list…",
@@ -128,7 +128,7 @@ registerEn('security', {
   "还没有用户主体——从下方添加。": "No user subjects yet — add them below.",
   "还没有组": "No groups yet",
   "还没有组主体——从下方添加。授权 = 用户自身行 ∪ 所属组行的动作并集。": "No group subjects yet — add them below. Grants = the user's own rows ∪ the union of actions in the rows of its groups.",
-  "候裁臂：Artifactory 7.161 此处为 Administer Platform + Manage Resources 双布尔（另有 Platform Auditor / Manage Webhook）；BinFlow 按 ADR-0026 暂行维持三值枚举（readonly_admin 无双布尔对位），差异登记候裁——双布尔不建不伪造。": "Pending decision: Artifactory 7.161 offers the Administer Platform + Manage Resources dual booleans here (plus Platform Auditor / Manage Webhook); BinFlow keeps the three-value enum for now per ADR-0026 (readonly_admin has no dual-boolean counterpart) — the divergence is registered and pending; the dual booleans are not built or fabricated.",
+  "候裁臂：reference console 此处为 Administer Platform + Manage Resources 双布尔（另有 Platform Auditor / Manage Webhook）；BinFlow 按 ADR-0026 暂行维持三值枚举（readonly_admin 无双布尔对位），差异登记候裁——双布尔不建不伪造。": "Pending decision: reference console offers the Administer Platform + Manage Resources dual booleans here (plus Platform Auditor / Manage Webhook); BinFlow keeps the three-value enum for now per ADR-0026 (readonly_admin has no dual-boolean counterpart) — the divergence is registered and pending; the dual booleans are not built or fabricated.",
   "及其全部授权行（用户与组两侧）。依赖此 target 的主体将": "and all of its grant rows (user and group sides). Subjects relying on this target",
   "将解除": "will unlink",
   "将删除": "This deletes",
@@ -307,7 +307,7 @@ registerEn('security', {
   "用户与组管理是管理员功能（管理面需 admin）。制品访问请使用搜索或仓库直链。": "User and group management is an administrator function (the admin plane requires admin). Use search or a direct repository link to access artifacts.",
   "用途、负责人…": "Purpose, owner…",
   "有效": "Valid",
-  "预留位——后端创建/更新端点未承接该域（GET 回显恒 true、零行为联动），恒禁用、零提交；Artifactory 语义 = 取消勾选后用户不能自助修改档案。承接落地时解禁（漂移钉见 t453 spec）。": "Reserved — the backend create/update endpoints do not carry this field yet (GET always echoes true, no behavioral coupling), permanently disabled with zero submission; the Artifactory meaning = when unchecked, the user cannot edit their own profile. It will be unlocked when the backend picks it up (the drift pin is in the t453 spec).",
+  "预留位——后端创建/更新端点未承接该域（GET 回显恒 true、零行为联动），恒禁用、零提交；同类控制台 语义 = 取消勾选后用户不能自助修改档案。承接落地时解禁（漂移钉见 t453 spec）。": "Reserved — the backend create/update endpoints do not carry this field yet (GET always echoes true, no behavioral coupling), permanently disabled with zero submission; the reference console meaning = when unchecked, the user cannot edit their own profile. It will be unlocked when the backend picks it up (the drift pin is in the t453 spec).",
   "预留位——同上未承接。语义（登录被拒臂）：勾选后该用户 UI 登录被拒，API / Token 面不受影响。": "Reserved — same as above, not yet carried. Semantics (the login-denied arm): when checked, this user's UI sign-in is rejected while the API / Token surfaces are unaffected.",
   "预留位——同上未承接。语义（密码改道臂）：勾选后内部口令登录停用，认证走外部 IdP（LDAP/OIDC）。": "Reserved — same as above, not yet carried. Semantics (the password re-routing arm): when checked, internal password login is disabled and authentication goes through the external IdP (LDAP/OIDC).",
   "账户信息": "Account information",
@@ -344,7 +344,7 @@ registerEn('security', {
   "组权限矩阵": "Group permission matrix",
   "组设置": "Group settings",
   "组数": "Groups",
-  "组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）": "The group holds manage on at least one permission target (the repository-configuration derived right) — BinFlow has no Artifactory group-level adminPrivileges field (a deliberate divergence, rbac-model §5)",
+  "组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 同类控制台 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）": "The group holds manage on at least one permission target (the repository-configuration derived right) — BinFlow has no reference console group-level adminPrivileges field (a deliberate divergence, rbac-model §5)",
   "最近登录": "Last Login",
   "admin —— 管理面全权": "admin — full rights on the admin plane",
   "annotate = 属性写位（7.161 标签 Annotate；不隐含内容写）": "annotate = the property-write bit (labeled Annotate in 7.161; implies no content writes)",
@@ -393,6 +393,4 @@ registerEn('security', {
   "user=按 permission target 授权；readonly_admin=管理面只读；admin=管理面全权。": "user = authorized by permission target; readonly_admin = read-only admin plane; admin = full rights on the admin plane.",
   "write = 部署位（7.161 标签 Deploy/Cache；wire 正名 deploy-cache，PUT 仍收 write 别名）；不携带 annotate——属性写需另勾 annotate 列": "write = the deployment bit (labeled Deploy/Cache in 7.161; wire name deploy-cache, PUT still accepts the write alias); does not carry annotate — property writes need the separate annotate column",
   "write = 部署位（7.161 标签 Deploy/Cache；wire 正名 deploy-cache；不携带 annotate）": "write = the deployment bit (labeled Deploy/Cache in 7.161; wire name deploy-cache; does not carry annotate)",
-  "用户": "Users",
-  "组": "Groups",
 })

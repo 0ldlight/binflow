@@ -305,7 +305,7 @@ test('③ admin render: nav entry + list/detail views + axe (light/dark)', async
   const navEntry = page.locator('[data-testid="nav-entry-release-lifecycle"]')
   await expect(navEntry).toBeVisible()
   await navEntry.click()
-  await expect(page).toHaveURL('/binflow/ui/artifactory/release-lifecycle')
+  await expect(page).toHaveURL('/binflow/ui/release-lifecycle')
 
   // 名单视图：表头 + 本票夹具行（②建的 bundle——serial 序保证在场）
   await expect(page.locator('[data-testid="bundles-table"]')).toBeVisible()

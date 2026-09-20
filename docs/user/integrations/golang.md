@@ -108,7 +108,7 @@ go build ./...        # 构建成功（exit 0）——.info → .mod → .zip �
 ### 5. remote 代理与 virtual 聚合
 
 ```bash
-# remote 直连可用（BinFlow 有意允许——无 Artifactory 的「remote 必须经 virtual」限制）
+# remote 直连可用（BinFlow 有意允许——无 参考仓库 的「remote 必须经 virtual」限制）
 export GOPROXY="$BASE/binflow/go-remote" GOSUMDB=off
 go mod download golang.org/x/mod@v0.17.0
 go mod download golang.org/x/mod@v0.17.0   # 二次执行：上游接触恰 1 次，其余命中缓存

@@ -15,7 +15,7 @@ sidebar_position: 90
 {"errors":[{"status":413,"message":"Repository 'tiny' quota exceeded: used 800 of 1024 bytes; ..."}]}
 ```
 
-用户管理/组/token 域为**纯文本**错误体，docker `/v2` 面为 spec 信封（`{"errors":[{"code":"DENIED",...}]}`）——三种格式并存是 Artifactory 兼容面，客户端按域名解析即可。
+用户管理/组/token 域为**纯文本**错误体，docker `/v2` 面为 spec 信封（`{"errors":[{"code":"DENIED",...}]}`）——三种格式并存是 参考仓库 兼容面，客户端按域名解析即可。
 
 ### 401（未认证）
 
@@ -106,7 +106,7 @@ curl -s -H "Authorization: Bearer <access_token>" $BASE/binflow/api/v1/storage/u
 
 ### 删除用户的脚本第二次跑同一条 DELETE，404 是失败吗？
 
-**不是失败，是终态**。M9 起 `DELETE /api/security/users/{name}` 为**有意非幂等**：首次成功 200（纯文本 `The user: '<name>' has been removed successfully.`），对象已删后再发**确定性 404**（`User not found` 文本体）——调用方应把第二次 404 读作「已删除」，不要重试、不要当告警（Artifactory「重复删视为成功」的幂等形态是其并发窗口产物，BinFlow 不复刻）。四道护栏（不存在 404 / 内置 admin / 最后一个 admin / 自删，全 400）与级联语义见[治理指南 · 删除用户](admin/governance.md#删除用户m9-起)。
+**不是失败，是终态**。M9 起 `DELETE /api/security/users/{name}` 为**有意非幂等**：首次成功 200（纯文本 `The user: '<name>' has been removed successfully.`），对象已删后再发**确定性 404**（`User not found` 文本体）——调用方应把第二次 404 读作「已删除」，不要重试、不要当告警（参考仓库「重复删视为成功」的幂等形态是其并发窗口产物，BinFlow 不复刻）。四道护栏（不存在 404 / 内置 admin / 最后一个 admin / 自删，全 400）与级联语义见[治理指南 · 删除用户](admin/governance.md#删除用户m9-起)。
 
 ### 给 npm 复制任务配目标仓凭据，要授 delete 吗？
 
@@ -137,7 +137,7 @@ curl -s -H "Authorization: Bearer <access_token>" $BASE/binflow/api/v1/storage/u
 
 ### S3 后端和本地 filestore 的 MPU（/api/v1/uploads）有什么差异？
 
-分块上传 REST 面（M11 起为 Artifactory 形状：`POST create?repoKey=&repoPath=&partSizeMB=` 回 `{"token"}`、`GET config` 能力探测、`POST urlPart?partNumber=`、`POST status`、`POST complete?sha1=` 回 202 异步、`POST abort`、`PUT part/{id}/{n}?token=`——ADR-0039）**数据端点只在纯 S3 后端的实例上存在**：
+分块上传 REST 面（M11 起为 参考仓库 形状：`POST create?repoKey=&repoPath=&partSizeMB=` 回 `{"token"}`、`GET config` 能力探测、`POST urlPart?partNumber=`、`POST status`、`POST complete?sha1=` 回 202 异步、`POST abort`、`PUT part/{id}/{n}?token=`——ADR-0039）**数据端点只在纯 S3 后端的实例上存在**：
 
 | | S3 后端 | 本地 filestore / 双写 |
 |---|---|---|
@@ -194,7 +194,7 @@ M12 起（pro 档暂行——槽 `trashcan`）local 仓的删除先捕获进内�
 
 ### copy / move / zip / archive! / explode 也要 license？community 实例报什么？
 
-**是——整族一个 feature 槽 `repo-operations`，pro 档**（Q4 终裁照搬 Artifactory 的 pro entitlement 结构）。community / 过期实例对族内任何动词（`POST /api/copy|move`、`GET /api/archive/download`、带 `X-Explode-Archive` 头的 PUT、`archive!/` 成员读取）答 **403 + `X-Binflow-License-Required: repo-operations`**；匿名先吃 401（认证 → RBAC → license 的门序）。与 Artifactory 的差异（有意）：JFrog 自家 addon 拒绝是 400 text/plain，BinFlow 统一 403 errors[] 信封 + 头（与其余门控面一致，CI 按头分支即可）。降级只关门不碰数据——已复制/搬移/解包的制品照常可读。另一个易混点：**目录打包下载默认关**（`folder_download.enabled=false`）——pro 实例不配置也答 403，属配置面非 license 问题；**M13 起六字段可配**（重启生效，`GET /api/v1/system/settings` 回显核对）。见[制品操作族](admin/artifact-operations.md)。
+**是——整族一个 feature 槽 `repo-operations`，pro 档**（Q4 终裁照搬 参考仓库 的 pro entitlement 结构）。community / 过期实例对族内任何动词（`POST /api/copy|move`、`GET /api/archive/download`、带 `X-Explode-Archive` 头的 PUT、`archive!/` 成员读取）答 **403 + `X-Binflow-License-Required: repo-operations`**；匿名先吃 401（认证 → RBAC → license 的门序）。与 参考仓库 的差异（有意）：JFrog 自家 addon 拒绝是 400 text/plain，BinFlow 统一 403 errors[] 信封 + 头（与其余门控面一致，CI 按头分支即可）。降级只关门不碰数据——已复制/搬移/解包的制品照常可读。另一个易混点：**目录打包下载默认关**（`folder_download.enabled=false`）——pro 实例不配置也答 403，属配置面非 license 问题；**M13 起六字段可配**（重启生效，`GET /api/v1/system/settings` 回显核对）。见[制品操作族](admin/artifact-operations.md)。
 
 ### dual-write（filestore+s3）实例上 S3 挂了，上传下载会怎样？
 
@@ -253,9 +253,9 @@ manifest（by-tag 与 by-digest）与 blobs 是**逐路径各自 MISS→HIT** �
 
 ## M15 增补两问（AQL 子集边界 / AQL 迁移差异）
 
-### Artifactory 的 AQL 查询搬过来，哪些能用哪些 400？
+### 参考仓库 的 AQL 查询搬过来，哪些能用哪些 400？
 
-BinFlow 实现 AQL 的 **items 域只读子集**：`items.find()` + 全部比较/通配/逻辑操作符（`$eq/$ne/$gt/$gte/$lt/$lte/$match/$nmatch/$and/$or/$msp/$last/$before`）+ `.include().sort().offset().limit()` 尾缀链 + virtual key 透明展开，均可用；envelope、range、错误信封与 E1 语法错文案与 Artifactory 逐字一致。
+BinFlow 实现 AQL 的 **items 域只读子集**：`items.find()` + 全部比较/通配/逻辑操作符（`$eq/$ne/$gt/$gte/$lt/$lte/$match/$nmatch/$and/$or/$msp/$last/$before`）+ `.include().sort().offset().limit()` 尾缀链 + virtual key 透明展开，均可用；envelope、range、错误信封与 E1 语法错文案与 参考仓库 逐字一致。
 
 **400 点名拒绝**的（message 直接说原因，不是静默空集）：
 
@@ -265,53 +265,53 @@ BinFlow 实现 AQL 的 **items 域只读子集**：`items.find()` + 全部比较
 
 完整字段表与文案族见 [AQL 搜索指南](aql.md#语言子集)。
 
-### 从 Artifactory 迁 AQL 查询脚本，要改哪几处？
+### 从 参考仓库 迁 AQL 查询脚本，要改哪几处？
 
-四类高频改写（完整对照表见 [AQL 指南 · 迁移对照](aql.md#从-artifactory-aql-迁移对照表)）：
+四类高频改写（完整对照表见 [AQL 指南 · 迁移对照](aql.md#从-参考仓库-aql-迁移对照表)）：
 
 1. **相对时间加空格**：`"$last":"1d"` → `"$last":"1 d"`（BinFlow 要求 count 与 unit 空格分隔，`"1d"` 400 `Invalid relative date format`）。
 2. **build/stat 域查询改道**：build 系查询走外部 CI 记录；下载统计 M16 前用指标/usage 面替代。
-3. **大结果集加分页**：BinFlow 硬上限 **1,000 行**（Artifactory self-managed 无默认上限）——超限置 `X-Binflow-Search-Truncated: true` + `range.notification`，`.offset()` 循环续翻；注意**自己的 `.limit(n)` 小于命中数时同样置截断标记**（= 还有未取行，不代表出错）。
+3. **大结果集加分页**：BinFlow 硬上限 **1,000 行**（参考仓库 self-managed 无默认上限）——超限置 `X-Binflow-Search-Truncated: true` + `range.notification`，`.offset()` 循环续翻；注意**自己的 `.limit(n)` 小于命中数时同样置截断标记**（= 还有未取行，不代表出错）。
 4. **凭据**：AQL 永不允许匿名（闭环实例 401 / 开匿名实例 403），脚本必须带 Basic/Token。
 
-另有两个「反向惊喜」：`.sort()` 在 Artifactory OSS 档被许可门挡，BinFlow 无门**直接可用**；`maven-metadata.xml` 会作为普通 file 行出现在 items 结果里（想排除加 `{"name":{"$nmatch":"*maven-metadata.xml"}}`）。
+另有两个「反向惊喜」：`.sort()` 在 参考仓库 OSS 档被许可门挡，BinFlow 无门**直接可用**；`maven-metadata.xml` 会作为普通 file 行出现在 items 结果里（想排除加 `{"name":{"$nmatch":"*maven-metadata.xml"}}`）。
 
 ## M4 有意不兼容清单（里程碑级汇总）
 
-从 Artifactory 迁移时的差异点（各域细节见对应指南；M1~M3 清单见 [remote/virtual 管理](admin/remote-virtual.md#m3-有意不兼容清单汇总)）：
+从 参考仓库 迁移时的差异点（各域细节见对应指南；M1~M3 清单见 [remote/virtual 管理](admin/remote-virtual.md#m3-有意不兼容清单汇总)）：
 
 | 不做项 | 表现 | 归属 |
 |---|---|---|
 | 组的 admin 位 | 组只能授 read/write/delete；admin 组成员的非 admin 用户对管理面仍 403 | M4 定案（防组内自提权） |
-| `/api/v2/security/permissions/**`（Artifactory v2 权限 API） | 404——BinFlow 权限面是 `/api/v1/permissions` | M4 |
-| Artifactory 搜索族残项（props 复数拼写/users/artifactory/badge） | 404——AQL 与 gavc/prop/pattern 已于 M15 交付（见 [AQL 搜索指南](aql.md)），`creation/dates/usage` 族登记 M16 | M4 起；M15 收窄 |
+| `/api/v2/security/permissions/**`（参考仓库 v2 权限 API） | 404——BinFlow 权限面是 `/api/v1/permissions` | M4 |
+| 参考仓库 搜索族残项（props 复数拼写/users/artifactory/badge） | 404——AQL 与 gavc/prop/pattern 已于 M15 交付（见 [AQL 搜索指南](aql.md)），`creation/dates/usage` 族登记 M16 | M4 起；M15 收窄 |
 | `/api/system/storage/prune/**` | 404——空间回收走 GC | M4 |
 | REST export/import | 404——备份/恢复的**数据面**仅 CLI（M4 定案，高危操作带外）；**定时备份的调度配置**是另一回事——REST 配置面已交付（[计划任务指南](admin/cron-scheduling.md#定时备份到点-export)），fire 走同一 CLI 内核 | M4 定案（带外）；调度面已交付 |
 | 异步 GC 作业 / GC 状态端点 | 同步执行、无 `GET /api/v1/system/gc`（上次运行查审计 `gc.run`） | M4；异步框架 M6+ |
 | 审计 CSV 导出 / token 列表 UI / `--tar` 备份单文件 | 控制台不渲染；CLI 显式报未实现 | M4 P2 债务 |
 | SAML 运行时登录、洞察报表、漏洞扫描 | SAML 的**配置面** M11 已交付（三 Tab 之一，字段可存可测——见[认证配置](admin/auth-config.md)），但 SP 断言消费（真正登录）不在 M11 交付面；OIDC/LDAP 登录 M6 已交付（见[专题指南](guides/oidc-config.md)/[LDAP](guides/ldap-config.md)） | 报表/扫描 Non-goal；SAML 运行时随票 |
 
-## 从 Artifactory 迁移对照表
+## 从 参考仓库 迁移对照表
 
-概念一一对应，术语不变；**逐任务的控制台操作路径对照**（建仓/建用户/配权限/找制品/Set Me Up/GC/备份……）见 [Artifactory → BinFlow 操作路径对照表](artifactory-path-map.md)：
+概念一一对应，术语不变；**逐任务的控制台操作路径对照**（建仓/建用户/配权限/找制品/Set Me Up/GC/备份……）见 [参考仓库 → BinFlow 操作路径对照表](compatibility-path-map.md)：
 
-| Artifactory | BinFlow | 说明 |
+| 参考仓库 | BinFlow | 说明 |
 |---|---|---|
 | local / remote / virtual 仓 | 同名 rclass 三型 | 语义一致；建仓走 `PUT /api/repositories/{key}`（重复 PUT 为更新） |
 | repo key / node / checksum | 同名 | node = 制品节点；checksum 族 sha256/sha1/md5 |
 | deployment / resolution | 上传 / 解析 | UI 与文档保留 deployment 原词 |
 | permission target、include/exclude patterns | 同名同构 | M4 起 principals 支持 groups；`?permissions` 视图同形（key=主体名、value=r/w/d 字母集） |
-| groups / users / access tokens | 同名 | 组删除的 409 保护、`Unable to find group by name '<g>'.` 文案同款；用户删除（M9）三护栏 + 级联撤权、**重复删除 404**（Artifactory 视为成功——幂等 vs 有意非幂等） |
-| （无内置实例级只读管理员；管理面 admin 为布尔） | `adminRole` 三值角色（`user`/`readonly_admin`/`admin`） | M7 起；`admin=true ⇔ adminRole=admin` 两写法等价。readonly_admin 为 BinFlow 自有（Artifactory 近似能力 = target 只授 read，无管理面只读） |
-| `binflow_session` 控制台会话 | （本产品新增） | server-side session + CSRF Origin 校验；Artifactory 无对应面 |
+| groups / users / access tokens | 同名 | 组删除的 409 保护、`Unable to find group by name '<g>'.` 文案同款；用户删除（M9）三护栏 + 级联撤权、**重复删除 404**（参考仓库 视为成功——幂等 vs 有意非幂等） |
+| （无内置实例级只读管理员；管理面 admin 为布尔） | `adminRole` 三值角色（`user`/`readonly_admin`/`admin`） | M7 起；`admin=true ⇔ adminRole=admin` 两写法等价。readonly_admin 为 BinFlow 自有（参考仓库 近似能力 = target 只授 read，无管理面只读） |
+| `binflow_session` 控制台会话 | （本产品新增） | server-side session + CSRF Origin 校验；参考仓库 无对应面 |
 | System YAML / storage GC / backup | `binflow.yaml` / `POST /api/v1/system/gc` / `export`/`import` CLI | GC 语义（mark-sweep + grace=mtime）同构 |
-| Backups / Maintenance / 复制的 cron 计划 | **计划任务域**（维护三槽 / 定时备份 / 复制 `cron_exp`，见[计划任务指南](admin/cron-scheduling.md)） | 表达式同为 Quartz 六域子集（秒开头；`W`/`#` BinFlow 拒收）；备份 fire 与 CLI export 同内核；**实例零预置**（Artifactory 出厂带 backup-daily/weekly） |
-| AQL（`POST /api/search/aql`） | 同路径同信封（M15） | items 域只读子集；build/stat 域、写动词、`.transitive` 400 点名——逐条差异见 [AQL 指南 · 迁移对照表](aql.md#从-artifactory-aql-迁移对照表) |
-| 老搜索族（gavc/prop/pattern） | 同路径（M15） | `prop` 单数拼写；未命中一律 200 空数组；行 = FileInfo 超集（非 Artifactory 瘦 uri 行） |
+| Backups / Maintenance / 复制的 cron 计划 | **计划任务域**（维护三槽 / 定时备份 / 复制 `cron_exp`，见[计划任务指南](admin/cron-scheduling.md)） | 表达式同为 Quartz 六域子集（秒开头；`W`/`#` BinFlow 拒收）；备份 fire 与 CLI export 同内核；**实例零预置**（参考仓库 出厂带 backup-daily/weekly） |
+| AQL（`POST /api/search/aql`） | 同路径同信封（M15） | items 域只读子集；build/stat 域、写动词、`.transitive` 400 点名——逐条差异见 [AQL 指南 · 迁移对照表](aql.md#从-参考仓库-aql-迁移对照表) |
+| 老搜索族（gavc/prop/pattern） | 同路径（M15） | `prop` 单数拼写；未命中一律 200 空数组；行 = FileInfo 超集（非 参考仓库 瘦 uri 行） |
 
 迁移注意事项（高频四问）：
 
-1. **「我的 404 为什么在 Artifactory 是 200？」**——先查 BinFlow 仓库的 `excludesPattern`（拦截下载与 miss 同文案）与 remote 仓负缓存/assumed-offline（`X-Binflow-Cache` / `X-Binflow-Upstream-Error` 响应头）。
+1. **「我的 404 为什么在 参考仓库 是 200？」**——先查 BinFlow 仓库的 `excludesPattern`（拦截下载与 miss 同文案）与 remote 仓负缓存/assumed-offline（`X-Binflow-Cache` / `X-Binflow-Upstream-Error` 响应头）。
 2. **「docker push 为什么报错别的协议都好？」**——docker 固定根级 `/v2`，前置反代必须原样直通（不能 rewrite 进 `/binflow`）；明文 HTTP 需配 daemon 的 insecure-registries。
 3. **「脚本 401 但浏览器正常？」**——浏览器是会话 cookie，脚本用 Basic/token；确认没有把控制台 cookie 混进 CI（cookie 过期不受你控制）。
 4. **「收藏夹里的 BinFlow 控制台旧路径失效了吗？（M8 引入 / M9 收紧）」**——M8 路由重排后旧路径曾**自动重定向**到新路径（如 `/security/users` → `/admin/security/users`）；**M9 起重定向已移除**（ADR-0029 Q3 终裁），旧路径直链落 404 页（提供「回主页」链接）——请按映射表更新书签，见[控制台指南 · 旧路径 → 新路径](console.md#旧路径--新路径m9-起不再重定向)。
@@ -656,13 +656,13 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/audit?limit=20"
 curl -s -D - -o /dev/null $BASE/binflow/<repo>/<path>
 ```
 
-## 从 Artifactory 迁移三步走
+## 从 参考仓库 迁移三步走
 
 1. **概念对齐**：仓库模型（local/remote/virtual）、权限模型（permission target × path × principal）、checksum 去重——概念一一对应，术语不变。
 2. **URL 映射**：`/artifactory/api/...` → `/binflow/api/...`；`/artifactory/<repo>/<path>` → `/binflow/<repo>/<path>`；docker 端 `/v2/` 地址不变。
 3. **差异复核**：见上文「M4 有意不兼容清单」与各协议指南的「有意不兼容」小节——404 的搜索端点、404 的 REST export/import、组无 admin 位是三件最高频的差异点。
 
-工具与实证：定义/用户/token 台账批量搬迁走 [bf-migrate](guides/migrate-artifactory.md)；真实 Artifactory OSS 源（7.84.10 + PostgreSQL）的整场迁移实录与差异清单见[附录 V28](admin/real-env-appendix.md#v28真实-artifactory-迁移实腿dep用户环境)。
+工具与实证：定义/用户/token 台账批量搬迁走 [bf-migrate](guides/migration-guide.md)；真实 参考仓库 OSS 源（7.84.10 + PostgreSQL）的整场迁移实录与差异清单见[附录 V28](admin/real-env-appendix.md#v28真实-参考仓库-迁移实腿dep用户环境)。
 
 ## 持续部署链验证标记（T-298）
 

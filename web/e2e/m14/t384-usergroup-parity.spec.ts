@@ -7,7 +7,7 @@ import { loginAs } from '../m8/support/roles'
 import { m8Client, sessionApi } from '../m8/support/seed'
 
 // T-384（M14 B3 FE，FR-124.3 M3）——用户/组创建形态「断言收口」（原票
-// 「创建 modal 化」经 T-381 活体核验 v1.1 改判撤销：Artifactory 7.84 用户/组
+// 「创建 modal 化」经 T-381 活体核验 v1.1 改判撤销：同类控制台 7.84 用户/组
 // 创建实测 = **整页路由表单非 modal**，决策项 B 撤销）。
 //
 // **T-453 断言反转④（Q5 出口①路由化，2026-09-04）**：本 spec 的「内建
@@ -26,12 +26,12 @@ import { m8Client, sessionApi } from '../m8/support/seed'
 //      m16/t453-route-forms.spec.ts）；
 //   ② 表单结构（用户）：四节 user-form-section-{settings|options|password|
 //      groups}——核心字段集（name/email/password〔+Retype，T-453〕）对位
-//      Artifactory User Name/Email/Password/Retype Password；角色三值下拉
+//      同类控制台 User Name/Email/Password/Retype Password；角色三值下拉
 //      + 组穿梭 = BinFlow RBAC 超集（FR-66；管理位双布尔候裁臂注记——
 //      ADR-0026 暂行维持枚举）；能力位三旗 = 预留位（BE 未承接，恒禁用
 //      零提交——详腿见 m16/t453 spec）；
 //   ③ 组面：group-form-section-{settings|members}——组名/描述 + 成员选择
-//      列表（Artifactory Users 双列的对位形态，穿梭增强）；External ID /
+//      列表（同类控制台 Users 双列的对位形态，穿梭增强）；External ID /
 //      Auto Join / 组级管理位不建（console-m8 §6.10「无外部组模型」+
 //      rbac-model §5 既有裁定）；
 //   ④ 页脚三联：Cancel 最左 / Reset / Save 右（V6 实测形态；7.161 活体：
@@ -124,12 +124,12 @@ test('admin: user create chain — routed full-page form → Save lands the user
   await page.fill('[data-testid="user-form-password2"]', 't384-pw-1')
   await expect(page.locator('[data-testid="user-form-submit"]')).toBeEnabled()
 
-  // 相关组（穿梭）：勾选即入「已选组」列 = Artifactory Related Groups 对位
+  // 相关组（穿梭）：勾选即入「已选组」列 = 同类控制台 Related Groups 对位
   await page.check(`[data-testid="user-form-group-${group}"]`)
   await expect(page.locator('[data-testid="user-form-groups"] [data-testid="transfer-selected"]')).toContainText(group)
   await page.click('[data-testid="user-form-submit"]')
 
-  // toast + 保存后回列表（Artifactory 同姿；T-453：路由表单 Save 即导航）
+  // toast + 保存后回列表（同类控制台 同姿；T-453：路由表单 Save 即导航）
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: `用户 ${user} 已创建` })).toBeVisible({ timeout: 8000 })
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/security\/users$/)
   await expect(page.locator(`[data-testid="user-row-${user}"]`)).toContainText(group)
@@ -194,7 +194,7 @@ test('admin: group create chain — settings/members sections, per-user membersh
   await page.fill('[data-testid="group-form-description"]', 't384 parity probe')
   await expect(page.locator('[data-testid="group-form-submit"]')).toBeEnabled()
 
-  // 成员选择列表（Artifactory Users 双列的对位形态）：勾选 → 已选成员列
+  // 成员选择列表（同类控制台 Users 双列的对位形态）：勾选 → 已选成员列
   await page.check(`[data-testid="group-form-member-${member}"]`)
   await expect(page.locator('[data-testid="group-form-members"] [data-testid="transfer-selected"]')).toContainText(member)
   await page.click('[data-testid="group-form-submit"]')
@@ -256,7 +256,7 @@ test('admin: routed-form shape pin — footer triple Cancel/Reset/Save, reset+ca
   await expect(page.locator('[data-testid="user-form-password"]')).toHaveValue('')
   await expect(page.locator('[data-testid="user-form-submit"]')).toBeDisabled()
 
-  // Cancel 语义：路由表单的 Cancel = 导航回列表（Artifactory 同姿）
+  // Cancel 语义：路由表单的 Cancel = 导航回列表（同类控制台 同姿）
   await page.click('[data-testid="user-form-cancel"]')
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/security\/users$/)
   await expect(page.locator('[data-testid="users-table"]')).toBeVisible()
