@@ -1,6 +1,6 @@
 import { Link, NavLink } from 'react-router-dom'
 
-import { BrandMark } from '@/components/BrandLogo'
+import { BrandLockup } from '@/components/BrandLogo'
 import { Button, ButtonAsChild } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { getLocale, setLocale, tr } from '@/i18n'
@@ -56,8 +56,9 @@ export function Sidebar({
       style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}
     >
       <div className="app-nav-brand border-b border-sidebar-border flex h-topbar items-center gap-2 px-4">
-        <BrandMark size={24} testid="brand-sidebar-mark" />
-        <span className="name text-[15px] font-semibold text-sidebar-foreground">BinFlow</span>
+        {/* Historical anchor: brand-sidebar-mark. The supplied modular kit
+            puts the navigation wordmark in the horizontal lockup itself. */}
+        <BrandLockup height={42} testid="brand-sidebar-mark" />
       </div>
 
       <div className="flex gap-1 border-b border-sidebar-border p-2" role="group" aria-label={t('平台模式')}>
