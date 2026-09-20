@@ -275,7 +275,10 @@ repo_upsert() { # repo_upsert <key> <json-body>
   probe="$WORK/probe-$key.json"
   code=$(curl -su "$AUTH" "$BINFLOW_BASE/binflow/api/repositories/$key" \
     -o "$probe" -w '%{http_code}')
-  if [ "$code" = "404" ]; then
+  # The v1 GET face answers an unknown key with its measured bare-400
+  # quirk, not 404 (L025-5 / diff G5). Treat that as the create arm; a
+  # genuinely invalid key/body still fails below with the PUT diagnostics.
+  if [ "$code" = "400" ] || [ "$code" = "404" ]; then
     method=PUT
   elif [ "$code" = "200" ]; then
     method=POST
@@ -995,8 +998,17 @@ leg_pypi() {
     # engine-level: simple page rewrites hrefs to BinFlow paths, wheel is
     # served through the proxy and its bytes match the upstream sha256
     local WHREF WURL WSHA WLOCAL WPATH
-    curl -sSf -u "$AUTH" -o rsimple.html \
-      "$BINFLOW_BASE/binflow/api/pypi/uat-matrix-pypi-remote/simple/six/" || return 1
+    retry_run 2 curl -sSf -u "$AUTH" -o rsimple.html \
+      "$BINFLOW_BASE/binflow/api/pypi/uat-matrix-pypi-remote/simple/six/" \
+      || {
+        local pcode
+        pcode="$(curl -sS -u "$AUTH" -o rsimple-error.html \
+          -w '%{http_code}' \
+          "$BINFLOW_BASE/binflow/api/pypi/uat-matrix-pypi-remote/simple/six/" || true)"
+        echo "six simple page failed (HTTP ${pcode:-transport}):"
+        cat rsimple-error.html 2>/dev/null || true
+        return 1
+      }
     WHREF="$(grep -o 'href="[^"]*six-1\.17\.0-py2\.py3-none-any\.whl[^"]*"' rsimple.html | head -1)"
     [ -n "$WHREF" ] || { echo "six $PIN_SIX wheel absent from proxied simple page"; return 1; }
     WURL="$(printf '%s' "$WHREF" | sed 's/^href="//; s/"$//')"

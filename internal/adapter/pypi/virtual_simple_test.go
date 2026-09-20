@@ -236,6 +236,30 @@ func TestVirtualSimpleMemberFaults(t *testing.T) {
 // upstream page remapped onto its own packages/ mount (the M46/M47 face
 // T-70 left at the transitional refusal) — the single-member degenerate
 // case of the same collection.
+func TestRemoteRepositoryProjectPageOverridesStaleFolderMarker(t *testing.T) {
+	f := newPyPIVirtualFixture(t, `{"repositories":["pyv-a","pyv-rem"]}`, false)
+	ctx := context.Background()
+
+	// UAT once cached the pre-protocol browse face's folder marker at the
+	// same path as the PEP 503 upstream page. The HTTP face must still fetch
+	// and replace that marker rather than surfacing it as a folder/error.
+	if err := f.s.md.Blobs().Put(ctx, &metadata.Blob{
+		Sha256: metadata.FolderMarkerSHA, Sha1: "folder", Md5: "folder", Size: 0,
+	}); err != nil {
+		t.Fatalf("seed folder blob: %v", err)
+	}
+	if err := f.s.md.Nodes().Put(ctx, &metadata.Node{
+		RepoKey: "pyv-rem", Path: "simple/up-only/", Sha256: metadata.FolderMarkerSHA,
+	}); err != nil {
+		t.Fatalf("seed stale folder marker: %v", err)
+	}
+
+	status, body, _ := f.s.get("/binflow/api/pypi/pyv-rem/simple/up-only/")
+	if status != http.StatusOK || !strings.Contains(body, "up_only-1.0.0-py3-none-any.whl") {
+		t.Fatalf("remote page through stale marker = %d: %s", status, body)
+	}
+}
+
 func TestRemoteRepositoryProjectPage(t *testing.T) {
 	f := newPyPIVirtualFixture(t, `{"repositories":["pyv-a","pyv-rem"]}`, false)
 
