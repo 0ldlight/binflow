@@ -44,9 +44,9 @@
 #   ci/protocol-matrix.sh --strict-tools ...          # missing tool = FAIL
 #                          # (CI posture) instead of SKIP
 #
-# Repositories: each leg owns uat-matrix-<proto>-local, created by an
-# idempotent upsert (PUT /binflow/api/repositories/<key> answers 200 for
-# both create and identical replace) and KEPT after the run — the next
+# Repositories: each leg owns uat-matrix-<proto>-local, created or updated
+# idempotently (404 -> PUT create; 200 -> POST merge under ADR-0050) and
+# KEPT after the run — the next
 # deploy retests against the same repos with a fresh timestamp-stamped
 # version, so history accretes and no overwrite is ever attempted (BinFlow
 # rejects same-version republish on npm/pypi/nuget by design).
@@ -266,14 +266,28 @@ ensure_repo() { # ensure_repo <key> <packageType>
 # T-479 remote/virtual segment helpers
 # ---------------------------------------------------------------------------
 repo_upsert() { # repo_upsert <key> <json-body>
-  local key="$1" body code
+  # ADR-0050 repository verbs: PUT is create-only and POST is the sole update
+  # spelling. Matrix repositories are intentionally kept across runs, so probe
+  # first and choose the verb from the server's existence truth.
+  local key="$1" method code
+  local body probe
   body="$WORK/ensure-$key.json"
-  code=$(curl -su "$AUTH" -X PUT "$BINFLOW_BASE/binflow/api/repositories/$key" \
+  probe="$WORK/probe-$key.json"
+  code=$(curl -su "$AUTH" "$BINFLOW_BASE/binflow/api/repositories/$key" \
+    -o "$probe" -w '%{http_code}')
+  if [ "$code" = "404" ]; then
+    method=PUT
+  elif [ "$code" = "200" ]; then
+    method=POST
+  else
+    echo "repo probe $key -> HTTP $code:"; cat "$probe"; echo; return 1
+  fi
+  code=$(curl -su "$AUTH" -X "$method" "$BINFLOW_BASE/binflow/api/repositories/$key" \
     -H 'Content-Type: application/json' -d "$2" \
     -o "$body" -w '%{http_code}')
   case "$code" in
-    2*) log "repo $key ready (HTTP $code)"; return 0 ;;
-    *)  echo "repo upsert $key -> HTTP $code:"; cat "$body"; echo; return 1 ;;
+    2*) log "repo $key ready ($method HTTP $code)"; return 0 ;;
+    *)  echo "repo upsert $key ($method) -> HTTP $code:"; cat "$body"; echo; return 1 ;;
   esac
 }
 
