@@ -118,3 +118,7 @@ navigation:
       - api: openapi/binflow.json
         slug: binflow-api
         display-errors: true
+favicon: favicon.ico
+logo:
+  dark: binflow-horizontal-primary.svg
+  light: binflow-horizontal-primary.svg
