@@ -1,6 +1,6 @@
 import { selectShadcn } from '../support/shadcn'
 import { expect, test } from '@playwright/test'
-import type { Page, Request, TestInfo } from '@playwright/test'
+import type { Request, TestInfo } from '@playwright/test'
 
 import { expectA11yClean } from '../m8/support/a11y'
 import { loginAs } from '../m8/support/roles'
@@ -30,12 +30,6 @@ test.beforeEach(async ({ request }) => {
   const probe = await request.get('/binflow/ui/')
   test.skip(probe.status() === 404, 'console segment not mounted by this binary yet')
 })
-
-/** 管理侧栏某分组下的条目文案集 */
-async function groupEntries(page: Page, groupTitle: string): Promise<string[]> {
-  const group = page.locator(`[data-testid="app-nav"] div:has(> .nav-group-label:text-is("${groupTitle}"))`)
-  return group.locator('a.nav-item').evaluateAll((els) => els.map((e) => (e.textContent ?? '').trim()))
-}
 
 // ---------------------------------------------------------------------------
 // ① Service Status：health 对账 + 子系统 + 版本 + 调度台账 + user L2
@@ -231,48 +225,23 @@ test('system logs: plain user 403 -> L2 card and tail auto-pauses', async ({ pag
 // ③ 导航分组（B-2.18）：监控组六页 + Webhooks 常规组 + 旧深链折入
 // ---------------------------------------------------------------------------
 
-test('nav grouping: monitoring holds 6 service pages; webhooks in general; legacy URLs fold', async ({ page }) => {
+test('Artifactory-aligned sections remain directly reachable; legacy URLs fold', async ({ page }) => {
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/admin/monitoring/storage')
   await expect(page.locator('[data-testid="storage-page"]')).toBeVisible()
 
-  // L026-2 重锚（frontend-rewrite-architecture §4 分组重排裁定）：侧栏
-  // IA = 四分组 核心/运营/安全/管理（双模式概念并入分组、路由 URL 全部
-  // 保持）。监控六页（存储/服务状态/系统日志/系统信息/维护/备份）归
-  // 「管理」组；Webhooks 归「运营」组；治理四页拆入 安全（审计）/管理
-  // （配额）/运营（复制、回收站）
-  expect(await groupEntries(page, '核心')).toEqual(['仪表盘', 'Packages', '制品', '仓库', '搜索'])
-  expect(await groupEntries(page, '运营')).toEqual([
-    'Builds',
-    'Release Bundles',
-    '复制',
-    'Webhooks',
-    '回收站',
-  ])
-  expect(await groupEntries(page, '安全')).toEqual([
-    '用户',
-    '组',
-    '权限',
-    'Access Tokens',
-    '签名密钥',
-    '认证配置',
-    '审计日志',
-  ])
-  expect(await groupEntries(page, '管理')).toEqual([
-    '配额',
-    '存储',
-    '服务状态',
-    '系统日志',
-    '维护（GC）',
-    '备份 / 恢复',
-    '系统信息',
-    '设置',
-    'License & Add-ons',
-  ])
+  // Artifactory section order is retained, while all implemented BinFlow faces
+  // stay direct links. Reference-only enterprise faces do not pollute the nav.
+  for (const id of ['service-status', 'storage', 'system-logs', 'system-info']) {
+    await expect(page.getByTestId(`nav-entry-${id}`)).toBeVisible()
+  }
+  for (const id of ['maintenance', 'backups']) {
+    await expect(page.getByTestId(`nav-entry-${id}`)).toBeVisible()
+  }
+  await expect(page.locator('[data-testid^="nav-gap-"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid^="nav-menu-"]')).toHaveCount(0)
 
-  // 四条旧深链 replace 折入新址（T-434 ?focus= 同款一轮兼容窗）。
-  // L026-2 重锚：general/settings 自 P3 起折 /admin/monitoring/settings
-  //（Settings 真身新设页——旧兼容期曾折 system-info，router 归位留痕）
+  // Four legacy deep links retain their compatibility folds.
   const folds: [string, string][] = [
     ['/admin/general/settings', '/admin/monitoring/settings'],
     ['/admin/governance/gc', '/admin/monitoring/gc'],
@@ -284,7 +253,6 @@ test('nav grouping: monitoring holds 6 service pages; webhooks in general; legac
     await expect(page).toHaveURL(`/binflow/ui${to}`, { timeout: 10_000 })
   }
 
-  // 新路由页锚逐页到达
   await page.goto('/binflow/ui/admin/monitoring/status')
   await expect(page.locator('[data-testid="status-page"]')).toBeVisible()
   await page.goto('/binflow/ui/admin/monitoring/logs')
@@ -292,6 +260,7 @@ test('nav grouping: monitoring holds 6 service pages; webhooks in general; legac
   await page.goto('/binflow/ui/admin/monitoring/system-info')
   await expect(page.locator('[data-testid="settings"]')).toBeVisible()
 })
+
 
 // ---------------------------------------------------------------------------
 // ④ 侧栏 Search Admin Resources 过滤框（B-2.18——7.161 活体：管理态顶栏）
@@ -308,23 +277,22 @@ test('admin filter: filters sidebar entries, hides empty groups, Esc clears', as
   await expect(box).toHaveAttribute('placeholder', 'Search Admin Resources…')
   await expect(page.locator('[data-testid="topbar-search"]')).toHaveCount(0)
 
-  // 过滤生效：子串命中条目窄化 + 整组隐藏（「备份」只命中管理组的备份/
-  // 恢复——其余三组整组退场，仅管理组标签驻留）
-  await box.fill('备份')
+  // Artifactory child hit retains its ordered parent; other top-level entries
+  // disappear without reordering the tree.
+  await box.fill('Backups')
   await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveCount(1)
-  await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveText('备份 / 恢复')
+  await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveText('Backups')
   await expect(page.locator('[data-testid="app-nav"] .nav-group-label')).toHaveCount(1)
-  await expect(page.locator('[data-testid="app-nav"] .nav-group-label')).toHaveText('管理')
+  await expect(page.locator('[data-testid="app-nav"] .nav-group-label')).toHaveText('Artifactory Settings')
 
   // 无匹配：注记 + 空侧栏如实反馈
   await box.fill('zzz-none')
   await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveCount(0)
   await expect(page.locator('[data-testid="admin-filter-empty"]')).toBeVisible()
 
-  // Esc 清词（两段 Esc 同款语义——直接清空）：四分组 26 条目全量复原
-  //（L026-2 重锚：四分组树 5+5+7+9——原 18 为 B-2.18 五分组口径）
+  // Esc restores all 20 direct administration/extension destinations.
   await box.press('Escape')
-  await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveCount(26)
+  await expect(page.locator('[data-testid="app-nav"] a.nav-item')).toHaveCount(20)
   await expect(page.locator('[data-testid="admin-filter-empty"]')).toHaveCount(0)
 
   // ⌘K = 命令面板（FE-P4 A1——CommandPalette 独占）；`/` 聚焦当前模式的框

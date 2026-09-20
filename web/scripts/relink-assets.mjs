@@ -97,6 +97,9 @@ async function scan(dir) {
       await scan(full)
       continue
     }
+    // brand manifest's start_url intentionally navigates to the SPA segment;
+    // it is a route declaration, not an asset preload/mount reference.
+    if (full === join(dist, 'brand', 'manifest.json')) continue
     const text = await readFile(full, 'utf8').catch(() => '')
     if (text.includes(literalFrom)) {
       leftovers.push(`${full}: still contains ${literalFrom}`)

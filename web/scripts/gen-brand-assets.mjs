@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// DEPRECATED 2026-09-20: the committed modular brand suite under
+// src/assets/brand/modular/ plus public/brand/ is canonical. This legacy
+// generator remains only as historical provenance and must not be run to
+// recreate current assets.
 // gen-brand-assets（FR-126 / T-389）——品牌 favicon / PWA PNG / manifest
 // 的可复跑派生器。K56 生产件（web/src/assets/brand/*.svg）是唯一输入，
 // 输出全部落 web/public/brand/（vite public 面，build 时由

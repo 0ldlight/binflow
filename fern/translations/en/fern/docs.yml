@@ -1,0 +1,116 @@
+title: BinFlow Documentation
+
+tabs:
+  Documentation:
+    display-name: Documentation
+    icon: home
+  API Reference:
+    display-name: API Reference
+    icon: square-terminal
+
+navigation:
+  - tab: Documentation
+    layout:
+      - page: BinFlow introduction
+        path: pages/index.mdx
+        icon: home
+      - page: User-visible changes
+        path: pages/whats-new.mdx
+        icon: bell
+      - section: Quick start
+        contents:
+          - page: Five-minute quick start
+            path: pages/getting-started/quickstart.mdx
+            icon: rocket
+      - section: Installation and deployment
+        contents:
+          - page: Single-binary installation
+            path: pages/install/binary.mdx
+          - page: Run with Docker
+            path: pages/install/docker.mdx
+          - page: Docker Compose deployment
+            path: pages/install/compose.mdx
+          - page: Helm charts (Kubernetes)
+            path: pages/install/helm.mdx
+          - page: Native Kubernetes manifests
+            path: pages/install/kubernetes.mdx
+          - page: systemd service (bare metal)
+            path: pages/install/systemd.mdx
+          - page: Offline installation (air-gapped)
+            path: pages/install/offline.mdx
+          - page: Upgrade
+            path: pages/install/upgrade.mdx
+      - section: Client integrations
+        contents:
+          - page: Docker / OCI images
+            path: pages/integrations/docker.mdx
+          - page: Generic (arbitrary files)
+            path: pages/integrations/generic.mdx
+          - page: Maven
+            path: pages/integrations/maven.mdx
+          - page: npm
+            path: pages/integrations/npm.mdx
+          - page: PyPI
+            path: pages/integrations/pypi.mdx
+          - page: Go modules
+            path: pages/integrations/go.mdx
+          - page: NuGet
+            path: pages/integrations/nuget.mdx
+          - page: Cargo (Rust)
+            path: pages/integrations/cargo.mdx
+          - page: Conan (C/C++)
+            path: pages/integrations/conan.mdx
+          - page: Helm chart repositories
+            path: pages/integrations/helm.mdx
+          - page: RPM (Yum/DNF)
+            path: pages/integrations/rpm.mdx
+          - page: Debian (apt)
+            path: pages/integrations/debian.mdx
+      - section: Administration
+        contents:
+          - page: Web console
+            path: pages/admin/console.mdx
+          - page: Repository management (local / remote / virtual)
+            path: pages/admin/repositories.mdx
+          - page: Users, groups, and permissions
+            path: pages/admin/permissions.mdx
+          - page: Tokens and step-up authentication
+            path: pages/admin/tokens.mdx
+          - page: Governance (audit / GC / quotas / replication)
+            path: pages/admin/governance.mdx
+          - page: Scheduled jobs (cron)
+            path: pages/admin/cron-scheduling.mdx
+          - page: Backup and recovery
+            path: pages/admin/backup.mdx
+          - page: Storage backends (disk / S3 / dual-write)
+            path: pages/admin/storage.mdx
+          - page: Authentication (LDAP / OIDC / SAML)
+            path: pages/admin/auth.mdx
+          - page: License and add-ons
+            path: pages/admin/license.mdx
+          - page: Artifact operations and trash
+            path: pages/admin/operations.mdx
+          - page: Webhooks
+            path: pages/admin/webhooks.mdx
+          - page: Monitoring metrics (Prometheus)
+            path: pages/admin/monitoring.mdx
+      - section: Search and properties
+        contents:
+          - page: Property system
+            path: pages/search/properties.mdx
+          - page: AQL search
+            path: pages/search/aql.mdx
+      - section: Tools and migration
+        contents:
+          - page: bf CLI
+            path: pages/tools/bf-cli.mdx
+          - page: Migrate from Artifactory (bf-migrate)
+            path: pages/tools/migrate-artifactory.mdx
+      - page: FAQ and troubleshooting
+        path: pages/faq.mdx
+        icon: circle-help
+  - tab: API Reference
+    layout:
+      - api: openapi/binflow.json
+        slug: binflow-api
+        display-errors: true

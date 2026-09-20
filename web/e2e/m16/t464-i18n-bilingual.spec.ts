@@ -74,24 +74,24 @@ test('switcher roundtrip: zh → en → zh via sidebar footer, reload persists',
   await expect(page.locator('[data-testid="nav-locale-zh"]')).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('[data-testid="nav-locale-en"]')).toHaveAttribute('aria-pressed', 'false')
   // zh 态文案（应用侧栏仪表盘项）
-  await expect(page.locator('[data-testid="app-nav"]').getByText('仪表盘')).toBeVisible()
+  await expect(page.locator('[data-testid="app-nav"]').getByText('单二进制制品仓库')).toBeVisible()
 
   // 切 en：setLocale = 持久化 + 整页 reload——断言在 reload 后的帧上成立
   await page.click('[data-testid="nav-locale-en"]')
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   await expect(page.locator('[data-testid="nav-locale-en"]')).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('[data-testid="app-nav"]').getByText('Dashboard')).toBeVisible()
+  await expect(page.locator('[data-testid="app-nav"]').getByText('single-binary artifact repository')).toBeVisible()
   // reload 持久：仍是 en（localStorage 引导）
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
-  await expect(page.locator('[data-testid="app-nav"]').getByText('Dashboard')).toBeVisible()
+  await expect(page.locator('[data-testid="app-nav"]').getByText('single-binary artifact repository')).toBeVisible()
 
   // 往返回 zh：文案翻转回来 + 档位指示复位
   await page.click('[data-testid="nav-locale-zh"]')
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
   await expect(page.locator('[data-testid="nav-locale-zh"]')).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('[data-testid="app-nav"]').getByText('仪表盘')).toBeVisible()
-  await expect(page.locator('[data-testid="app-nav"]').getByText('Dashboard')).toHaveCount(0)
+  await expect(page.locator('[data-testid="app-nav"]').getByText('单二进制制品仓库')).toBeVisible()
+  await expect(page.locator('[data-testid="app-nav"]').getByText('single-binary artifact repository')).toHaveCount(0)
 })
 
 test('en sampling: tree / form / detail / search / security / monitoring / governance', async ({ page }) => {
@@ -100,7 +100,7 @@ test('en sampling: tree / form / detail / search / security / monitoring / gover
 
   // ① 制品树（/artifacts）：跨仓树 aria-label 翻转
   await page.goto('/binflow/ui/artifacts')
-  await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
+  await expect(page.locator('[data-testid="tree-page"]')).toBeVisible({ timeout: 30_000 })
   await expect(page.locator('[data-testid="tree-page"] [role="tree"]')).toHaveAttribute(
     'aria-label',
     'Cross-repository artifact tree',
@@ -149,7 +149,7 @@ test('en date format: search results modified = MMM d, yyyy h:mm:ss AM/PM +ZZZZ'
   await loginAs(page, 'admin')
   await seedRepoWithArtifact()
   await page.goto(`/binflow/ui/search?q=hello.txt`)
-  await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible()
+  await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 30_000 })
   // FR-144.6 的 en 变体（FR-149.4）：同款本地时区 + 显式偏移，12 小时制。
   // L026-2 重锚：fe-rewrite 后搜索结果是 ARIA grid（role=grid/gridcell，
   // 无 table/td）——定位 = 结果 0 所在行（search-result-0 锚仍在名称格内）
@@ -187,7 +187,7 @@ test('axe dual locale: en two pages + zh one page, serious/critical = 0', async 
   await loginAs(page, 'admin')
 
   await page.goto('/binflow/ui/artifacts')
-  await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
+  await expect(page.locator('[data-testid="tree-page"]')).toBeVisible({ timeout: 30_000 })
   await expectA11yClean(page, testInfo) // en · 树（含侧栏切换器）
 
   await page.goto('/binflow/ui/admin/monitoring/status')

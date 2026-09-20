@@ -1,8 +1,9 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 // Release Bundles 页（T-514 / FR-153.3——P3 新栈重写 + 创建面解锁（capability
 // matrix 未列域 bundles 行：「POST create」））：
-// - 三视图一组件（URL 即状态）：/bundles（名单）→ /bundles/:name（版本单）
-//   → /bundles/:name/:version（描述符 + HEAD 校验和探针）。
+// - URL 即状态：/bundles 与 /bundles/source（source 名单）→ /bundles/:name
+//   → /bundles/:name/:version；/bundles/target → /bundles/target/:name →
+//   /bundles/target/:name/:version（Release Lifecycle v2 target/history 面）。
 // - 读门语义如实（T-513 实测）：名单面按会话可见集过滤（空集走空态）；
 //   版本/描述符面对无读门会话 403（canRead 拒绝即答案），404 = 真缺。
 // - **创建对话框（解锁）**：POST /api/release/bundle 显式清单形——name/
@@ -18,11 +19,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 // bundle-not-found/bundle-denied。
 // 新锚（日志登记诉求）：bundle-create/bundle-create-dialog。
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 
 import { useAuth } from '@/app/AuthContext'
 import { Badge } from '@/components/ui/badge'
 import { Button, ButtonAsChild } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { CopyButton } from '@/components/layout/copy-button'
 import { EmptyState, ErrorCard, StateSkeleton } from '@/components/layout/states'
 import { Pager, useClientPager } from '@/components/layout/pager'
@@ -33,10 +35,14 @@ import CreateBundleDialog from './CreateBundleDialog'
 import {
   getBundleDescriptor,
   headBundleChecksum,
+  getTargetBundleRecord,
+  getTargetBundleStatus,
   listBundleNames,
   listBundleVersions,
+  listTargetBundleVersions,
+  listTargetBundles,
 } from './api'
-import type { BundleVersionRow } from './api'
+import type { BundleNameRow, BundleVersionRow } from './api'
 
 const t = tr('bundles')
 
@@ -65,7 +71,7 @@ function BundleNotFound({ name }: { name?: string }) {
       hint={t('名单面按会话可见集过滤（空集如实）；版本/描述符面对无读门会话是明确的 403。读门 = 系统读权限 ∨ Any Distribution 通道（按 bundle 名授予）。')}
       action={
         <ButtonAsChild variant="outline" size="sm">
-          <Link to="/bundles">{t('← 返回 bundle 列表')}</Link>
+          <Link to="/artifactory/release-bundles">{t('← 返回 bundle 列表')}</Link>
         </ButtonAsChild>
       }
     />
@@ -81,7 +87,7 @@ function BundleDenied({ backTo }: { backTo?: string }) {
       hint={t('读门 = 系统读权限 ∨ Any Distribution 通道（按 bundle 名授予）——403 即读门拒绝（拒绝即答案，不与不存在混同）。')}
       action={
         <ButtonAsChild variant="outline" size="sm">
-          <Link to={backTo ?? '/bundles'}>{backTo ? t('← 返回版本列表') : t('← 返回 bundle 列表')}</Link>
+          <Link to={backTo ?? '/artifactory/release-bundles'}>{backTo ? t('← 返回版本列表') : t('← 返回 bundle 列表')}</Link>
         </ButtonAsChild>
       }
     />
@@ -95,22 +101,43 @@ function BundleNamesView() {
   const adminWrite = session?.admin === true
   const names = useAsync(listBundleNames, [])
   const [createOpen, setCreateOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const allRows = names.status === 'ok' ? (Object.values(names.data?.bundles ?? {}) as BundleNameRow[]) : []
+  const rows = allRows.filter((row) => row.name.toLowerCase().includes(query.trim().toLowerCase()))
 
   return (
     <div data-testid="bundles-page">
       <div className="page-header flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold">Release Bundles</h2>
-        <span className="text-aux text-muted-foreground">{t('版本化发布记录（名 → 版本 → 描述符 + 创建面）')}</span>
+        <h2 className="text-lg font-semibold">Release Lifecycle</h2>
+        <span className="text-aux text-muted-foreground">
+          {t('版本化发布记录；Project / 版本聚合 / Latest Version 后端字段缺失时如实留空。')}
+        </span>
         {adminWrite && (
           <Button size="sm" className="ml-auto" data-testid="bundle-create" onClick={() => setCreateOpen(true)}>
-            {t('＋ 创建 Bundle')}
+            Create Release Bundle
+          </Button>
+        )}
+      </div>
+
+      <div className="flex max-w-md items-center gap-2">
+        <Input
+          type="search"
+          value={query}
+          placeholder="Search Release Bundles"
+          aria-label="Search Release Bundles"
+          data-testid="bundles-search"
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        {query && (
+          <Button variant="outline" size="sm" data-testid="bundles-search-clear" onClick={() => setQuery('')}>
+            Clear
           </Button>
         )}
       </div>
 
       {names.status === 'loading' && <StateSkeleton lines={5} />}
       {names.status === 'error' && names.error && <ErrorCard error={names.error} onRetry={names.reload} />}
-      {names.status === 'ok' && (names.data?.bundles.length ?? 0) === 0 && (
+      {names.status === 'ok' && allRows.length === 0 && (
         <EmptyState
           testid="bundles-empty"
           illustration
@@ -119,28 +146,41 @@ function BundleNamesView() {
           action={
             adminWrite ? (
               <Button size="sm" data-testid="bundle-create-empty" onClick={() => setCreateOpen(true)}>
-                {t('创建第一个 Bundle')}
+                Create Release Bundle
               </Button>
             ) : undefined
           }
         />
       )}
-      {names.status === 'ok' && (names.data?.bundles.length ?? 0) > 0 && (
+      {names.status === 'ok' && allRows.length > 0 && rows.length === 0 && (
+        <EmptyState
+          testid="bundles-empty-filtered"
+          message={t('没有匹配的 Release Bundle')}
+          hint={t('搜索仅作用于当前名单面的 Bundle 名称。')}
+        />
+      )}
+      {names.status === 'ok' && rows.length > 0 && (
         <section className="card section" data-testid="bundles-table">
           <Table className="w-full text-dense">
             <TableHeader>
               <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
-                <TableHead scope="col" className="px-3 py-2 font-medium">{t('Bundle')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">Release Bundle Name</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">Project</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">Number of Versions</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">Latest Version</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(names.data?.bundles ?? []).map((b) => (
-                <TableRow key={b.name} className="border-b border-border/60 hover:bg-accent" data-testid={`bundles-row-${b.name}`}>
+              {rows.map((row) => (
+                <TableRow key={row.name} className="border-b border-border/60 hover:bg-accent" data-testid={`bundles-row-${row.name}`}>
                   <TableCell className="px-3 py-1.5">
-                    <Link className="row-link font-mono text-primary hover:underline" lang="en" to={`/bundles/${encodeURIComponent(b.name)}`}>
-                      {b.name}
+                    <Link className="row-link font-mono text-primary hover:underline" lang="en" to={`/artifactory/release-bundles/${encodeURIComponent(row.name)}`}>
+                      {row.name}
                     </Link>
                   </TableCell>
+                  <TableCell className="px-3 py-1.5" title={t('Project 字段需要 release bundle 聚合 API 投影；当前名单端点只返回 name。')}>—</TableCell>
+                  <TableCell className="px-3 py-1.5" title={t('版本数需要逐 bundle 版本聚合 API；当前不逐名补请求，也不用假数。')}>—</TableCell>
+                  <TableCell className="px-3 py-1.5" title={t('Latest Version 需要服务端排序聚合；当前端点无该字段。')}>—</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -169,7 +209,7 @@ function BundleVersionsView({ name }: { name: string }) {
             Release Bundles / <span className="font-mono" lang="en">{name}</span>
           </h2>
           <ButtonAsChild variant="outline" size="sm" className="ml-auto">
-            <Link to="/bundles">{t('← 返回 bundle 列表')}</Link>
+            <Link to="/artifactory/release-bundles">{t('← 返回 bundle 列表')}</Link>
           </ButtonAsChild>
         </div>
         <BundleDenied />
@@ -184,7 +224,7 @@ function BundleVersionsView({ name }: { name: string }) {
           Release Bundles / <span className="font-mono" lang="en">{name}</span>
         </h2>
         <ButtonAsChild variant="outline" size="sm" className="ml-auto">
-          <Link to="/bundles">{t('← 返回 bundle 列表')}</Link>
+          <Link to="/artifactory/release-bundles">{t('← 返回 bundle 列表')}</Link>
         </ButtonAsChild>
       </div>
 
@@ -201,6 +241,7 @@ function BundleVersionsView({ name }: { name: string }) {
                 <TableHead scope="col" className="px-3 py-2 font-medium">{t('版本')}</TableHead>
                 <TableHead scope="col" className="px-3 py-2 font-medium">{t('状态')}</TableHead>
                 <TableHead scope="col" className="px-3 py-2 font-medium">{t('创建时间')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('历史')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -210,7 +251,7 @@ function BundleVersionsView({ name }: { name: string }) {
                     <Link
                       className="row-link font-mono text-primary hover:underline"
                       lang="en"
-                      to={`/bundles/${encodeURIComponent(name)}/${encodeURIComponent(v.version)}`}
+                      to={`/artifactory/release-bundles/${encodeURIComponent(name)}/${encodeURIComponent(v.version)}`}
                     >
                       {v.version}
                     </Link>
@@ -219,6 +260,11 @@ function BundleVersionsView({ name }: { name: string }) {
                     <StateBadge state={v.state} />
                   </TableCell>
                   <TableCell className="px-3 py-1.5 font-mono" lang="en">{fmtUTC(v.created)}</TableCell>
+                  <TableCell className="px-3 py-1.5">
+                    <Link className="row-link" lang="en" to={'/artifactory/release-bundles/target/' + encodeURIComponent(name) + '/' + encodeURIComponent(v.version)} data-testid={'bundle-history-' + v.version}>
+                      {t('查看 target 历史')}
+                    </Link>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -263,10 +309,10 @@ function BundleDetailView({ name, version }: { name: string; version: string }) 
             <span className="font-mono" lang="en">{version}</span>
           </h2>
           <ButtonAsChild variant="outline" size="sm" className="ml-auto">
-            <Link to={`/bundles/${encodeURIComponent(name)}`}>{t('← 返回版本列表')}</Link>
+            <Link to={`/artifactory/release-bundles/${encodeURIComponent(name)}`}>{t('← 返回版本列表')}</Link>
           </ButtonAsChild>
         </div>
-        <BundleDenied backTo={`/bundles/${encodeURIComponent(name)}`} />
+        <BundleDenied backTo={`/artifactory/release-bundles/${encodeURIComponent(name)}`} />
       </div>
     )
   }
@@ -279,7 +325,7 @@ function BundleDetailView({ name, version }: { name: string; version: string }) 
           <span className="font-mono" lang="en">{version}</span>
         </h2>
         <ButtonAsChild variant="outline" size="sm" className="ml-auto">
-          <Link to={`/bundles/${encodeURIComponent(name)}`}>{t('← 返回版本列表')}</Link>
+          <Link to={`/artifactory/release-bundles/${encodeURIComponent(name)}`}>{t('← 返回版本列表')}</Link>
         </ButtonAsChild>
       </div>
 
@@ -376,9 +422,172 @@ function BundleDetailView({ name, version }: { name: string; version: string }) 
   )
 }
 
-// 三视图一组件（URL 即状态：/bundles → :name → :name/:version）
+
+
+// ---- Release Lifecycle target/history companion views ------------------------
+
+function TargetBundlesView() {
+  const targets = useAsync(listTargetBundles, [])
+  const rows = targets.data?.release_bundles ?? []
+
+  return (
+    <div data-testid="target-bundles-page" className="flex flex-col gap-3">
+      <div className="page-header flex flex-wrap items-center gap-3">
+        <h2 className="text-lg font-semibold">{t('Release Bundles · Target')}</h2>
+        <span className="text-aux text-muted-foreground">{t('Distribution received 面（v2 只读）')}</span>
+      </div>
+
+      {targets.status === 'loading' && <StateSkeleton lines={5} />}
+      {targets.status === 'error' && targets.error && <ErrorCard error={targets.error} onRetry={targets.reload} />}
+      {targets.status === 'forbidden' && <BundleDenied backTo="/artifactory/release-bundles" />}
+      {targets.status === 'ok' && rows.length === 0 && (
+        <EmptyState
+          testid="target-bundles-empty"
+          illustration
+          message={t('暂无 Received Release Bundle')}
+          hint={t('BinFlow 当前是 source-only 实例；Distribution v2 received 面如实返回空集。')}
+        />
+      )}
+      {targets.status === 'ok' && rows.length > 0 && (
+        <section className="card section" data-testid="target-bundles-table">
+          <Table className="w-full text-dense">
+            <TableHeader>
+              <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('名称')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('项目')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('版本数')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('最新版本')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('日期')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('接收时间')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => {
+                const name = row.name ?? ''
+                return (
+                  <TableRow key={name} data-testid={'target-bundle-row-' + name}>
+                    <TableCell className="px-3 py-1.5">
+                      <Link className="row-link font-mono" lang="en" to={'/artifactory/release-bundles/target/' + encodeURIComponent(name)}>{name}</Link>
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{row.project_key ?? '—'}</TableCell>
+                    <TableCell className="px-3 py-1.5">{targets.data?.total ?? rows.length}</TableCell>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{row.release_bundle_version ?? row.version ?? '—'}</TableCell>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{fmtUTC(row.created ?? '')}</TableCell>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{fmtUTC(row.received_at ?? '')}</TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </section>
+      )}
+    </div>
+  )
+}
+
+function TargetBundleVersionsView({ name }: { name: string }) {
+  const versions = useAsync(() => listTargetBundleVersions(name), [name])
+  const rows = versions.data?.versions ?? []
+
+  return (
+    <div data-testid="target-versions-page" className="flex flex-col gap-3">
+      <div className="page-header flex flex-wrap items-center gap-3">
+        <h2 className="text-lg font-semibold">{t('Target /')} <span className="font-mono" lang="en">{name}</span></h2>
+        <ButtonAsChild variant="outline" size="sm" className="ml-auto">
+          <Link to="/artifactory/release-bundles/target">{t('← 返回 Target 列表')}</Link>
+        </ButtonAsChild>
+      </div>
+
+      {versions.status === 'loading' && <StateSkeleton lines={4} />}
+      {versions.status === 'error' && versions.error && <ErrorCard error={versions.error} onRetry={versions.reload} />}
+      {versions.status === 'forbidden' && <BundleDenied backTo="/artifactory/release-bundles/target" />}
+      {versions.status === 'ok' && rows.length === 0 && (
+        <EmptyState
+          testid="target-versions-empty"
+          illustration
+          message={t('该 Bundle 暂无 received 版本')}
+          hint={t('v2 received 版本面对 source-only BinFlow 实例返回空集。')}
+        />
+      )}
+      {versions.status === 'ok' && rows.length > 0 && (
+        <section className="card section" data-testid="target-versions-table">
+          <Table className="w-full text-dense">
+            <TableHeader>
+              <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('版本')}</TableHead>
+                <TableHead scope="col" className="px-3 py-2 font-medium">{t('接收时间')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => {
+                const version = row.release_bundle_version ?? row.version ?? ''
+                return (
+                  <TableRow key={version} data-testid={'target-version-row-' + version}>
+                    <TableCell className="px-3 py-1.5">
+                      <Link className="row-link font-mono" lang="en" to={'/artifactory/release-bundles/target/' + encodeURIComponent(name) + '/' + encodeURIComponent(version)}>{version}</Link>
+                    </TableCell>
+                    <TableCell className="px-3 py-1.5 font-mono" lang="en">{fmtUTC(row.received_at ?? row.created ?? '')}</TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </section>
+      )}
+    </div>
+  )
+}
+
+function TargetHistoryView({ name, version }: { name: string; version: string }) {
+  const record = useAsync(() => getTargetBundleRecord(name, version), [name, version])
+  const status = useAsync(() => getTargetBundleStatus(name, version), [name, version])
+  const recordMissing = record.status === 'error' && record.error?.status === 404
+  const statusMissing = status.status === 'error' && status.error?.status === 404
+  const missing = recordMissing && (status.status === 'loading' || statusMissing)
+
+  return (
+    <div data-testid="target-history-page" className="flex flex-col gap-3">
+      <div className="page-header flex flex-wrap items-center gap-3">
+        <h2 className="text-lg font-semibold">
+          {t('Target 历史 /')} <span className="font-mono" lang="en">{name}</span> / <span className="font-mono" lang="en">{version}</span>
+        </h2>
+        <ButtonAsChild variant="outline" size="sm" className="ml-auto">
+          <Link to={'/artifactory/release-bundles/target/' + encodeURIComponent(name)}>{t('← 返回版本列表')}</Link>
+        </ButtonAsChild>
+      </div>
+
+      {record.status === 'loading' && <StateSkeleton lines={5} />}
+      {!missing && record.status === 'error' && record.error && <ErrorCard error={record.error} onRetry={record.reload} />}
+      {missing && (
+        <EmptyState
+          testid="target-history-empty"
+          message={t('该版本没有 target 历史记录')}
+          hint={t('BinFlow 是 source-only 实例；v2 records/statuses 面如实返回 404，不伪造 Distribution 历史事件。')}
+        />
+      )}
+      {record.status === 'ok' && (
+        <section className="card section" data-testid="target-history-record">
+          <div className="kv"><span className="k">{t('记录')}</span><span className="font-mono" lang="en">{record.data?.release_bundle?.name ?? name}</span></div>
+          <div className="kv"><span className="k">{t('状态')}</span><span className="font-mono" lang="en">{status.data?.status ?? record.data?.status ?? '—'}</span></div>
+        </section>
+      )}
+      {!missing && status.status === 'error' && status.error && <ErrorCard error={status.error} onRetry={status.reload} />}
+    </div>
+  )
+}
+
+// URL router：source 三视图 + v2 target/history 三视图（显式路由优先）。
 export default function BundlesPage() {
   const { name, version } = useParams<{ name?: string; version?: string }>()
+  const { pathname } = useLocation()
+  const isTarget = pathname.startsWith('/bundles/target') || pathname.startsWith('/artifactory/release-bundles/target')
+
+  if (isTarget || pathname.endsWith('/artifactory/release-bundles/target-history')) {
+    if (name === undefined || pathname.endsWith('/target-history')) return <TargetBundlesView />
+    if (version === undefined) return <TargetBundleVersionsView name={name} />
+    return <TargetHistoryView name={name} version={version} />
+  }
+  if (name === 'source' && version === undefined) return <BundleNamesView />
   if (name === undefined) return <BundleNamesView />
   if (version === undefined) return <BundleVersionsView name={name} />
   return <BundleDetailView name={name} version={version} />

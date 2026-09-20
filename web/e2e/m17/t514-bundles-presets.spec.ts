@@ -302,14 +302,14 @@ test('③ admin render: nav entry + list/detail views + axe (light/dark)', async
   await loginAs(page, 'admin')
   // 导航入口：应用分组 Release Bundles 条目（T-514 挂靠——应用域）
   await page.goto('/binflow/ui/artifacts')
-  const navEntry = page.locator('[data-testid="app-nav"] a', { hasText: 'Release Bundles' })
+  const navEntry = page.locator('[data-testid="nav-entry-release-lifecycle"]')
   await expect(navEntry).toBeVisible()
   await navEntry.click()
-  await expect(page).toHaveURL(/\/binflow\/ui\/bundles$/)
+  await expect(page).toHaveURL('/binflow/ui/artifactory/release-lifecycle')
 
   // 名单视图：表头 + 本票夹具行（②建的 bundle——serial 序保证在场）
   await expect(page.locator('[data-testid="bundles-table"]')).toBeVisible()
-  await expect(page.locator('[data-testid="bundles-table"] th', { hasText: 'Bundle' })).toHaveCount(1)
+  await expect(page.locator('[data-testid="bundles-table"] th', { hasText: 'Release Bundle Name' })).toHaveCount(1)
   await expectA11yClean(page, testInfo, { include: '[data-testid="bundles-page"]' })
 
   // 深色主题再扫一腿（②已在默认主题扫过描述符视图——此处补名单面）。

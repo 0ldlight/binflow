@@ -21,88 +21,71 @@ test.beforeEach(async ({ request }) => {
   await provisionRoles()
 })
 
-/** 四分组全标签（nav-model.ts NAV_GROUPS——中文 label 逐字） */
-const GROUPS = ['核心', '运营', '安全', '管理'] as const
+/** Artifactory 7.161 application menu order (normative English labels). */
+const APP_ENTRIES = ['packages', 'builds', 'artifacts', 'release-lifecycle', 'dashboard'] as const
 
-/** 管理可达条目（label × 页面锚——18 条旧基线 + P3 解锁双页） */
-const ADMIN_ENTRIES: [string, string][] = [
-  ['仓库', 'repos-page'],
-  ['用户', 'users-page'],
-  ['组', 'groups-page'],
-  ['权限', 'perms-page'],
-  ['Access Tokens', 'tokens-page'], // M14 T-386
-  ['签名密钥', 'keypair-page'], // FE-Rewrite P3 解锁（API 10 op）
-  ['认证配置', 'authcfg-page'], // M11 T-307
-  ['审计日志', 'audit-page'],
-  ['配额', 'quotas-page'],
-  ['复制', 'repl-page'],
-  ['回收站', 'trash-page'], // M12 T-352
-  ['存储', 'storage-page'], // T-238
-  ['服务状态', 'status-page'], // T-459
-  ['系统日志', 'logs-page'], // T-459
-  ['系统信息', 'settings'], // T-459 归位监控组
-  ['维护（GC）', 'gc-page'], // T-459 迁监控组
-  ['备份 / 恢复', 'backup-page'], // T-459 迁监控组
-  ['Webhooks', 'wh-page'], // M13 T-366
-  ['设置', 'settings-page'], // FE-Rewrite P3 解锁（/v1/system/settings 六旋钮+QRL）
-  ['License & Add-ons', 'license-page'], // M10 T-288
+/** Existing BinFlow admin capabilities remain route-reachable after IA alignment. */
+const ADMIN_ROUTE_ANCHORS: [string, string][] = [
+  ['/admin/repositories/local', 'repos-page'],
+  ['/admin/security/users', 'users-page'],
+  ['/admin/security/groups', 'groups-page'],
+  ['/admin/security/permissions', 'perms-page'],
+  ['/admin/security/tokens', 'tokens-page'],
+  ['/admin/security/keypair', 'keypair-page'],
+  ['/admin/security/auth/ldap', 'authcfg-page'],
+  ['/admin/governance/audit', 'audit-page'],
+  ['/admin/governance/quotas', 'quotas-page'],
+  ['/admin/governance/replication', 'repl-page'],
+  ['/admin/governance/trash', 'trash-page'],
+  ['/admin/monitoring/storage', 'storage-page'],
+  ['/admin/monitoring/status', 'status-page'],
+  ['/admin/monitoring/logs', 'logs-page'],
+  ['/admin/monitoring/system-info', 'settings'],
+  ['/admin/monitoring/gc', 'gc-page'],
+  ['/admin/monitoring/backup', 'backup-page'],
+  ['/admin/general/webhooks', 'wh-page'],
+  ['/admin/monitoring/settings', 'settings-page'],
+  ['/admin/general/license', 'license-page'],
 ]
 
-/** 全可见条目（plain 用户同集——nav-model visibility:'all'） */
-const ALL_ENTRIES = ['仪表盘', 'Packages', '制品', '搜索', 'Builds', 'Release Bundles'] as const
-
-test('admin: four-group sidebar (26 entries) all reachable, keyboard-driven', async ({ page }) => {
+test('admin: Artifactory app order, administration switch, and capability routes', async ({ page }) => {
   await seedRepos(m8Client(), [{ key: REPO }])
-  await page.goto('/binflow/ui/')
-  await page.fill('[data-testid="login-username"]', roleFixturesFromEnv().admin.name)
-  await page.fill('[data-testid="login-password"]', roleFixturesFromEnv().admin.password)
-  await page.click('[data-testid="login-submit"]')
-
-  // 登录落点 = /artifacts（T-492 B-3.2：随即自动选中首仓库——前缀断言）
+  await loginAs(page, 'admin')
   await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
   const nav = page.locator('[data-testid="app-nav"]')
 
-  // 四分组齐见（分组即模式——admin 全景一屏）
-  for (const g of GROUPS) {
-    await expect(nav.locator('.nav-group-label', { hasText: g })).toBeVisible()
+  await expect(nav).toHaveAttribute('data-mode', 'platform')
+  await expect(nav.locator('a.nav-item')).toHaveCount(APP_ENTRIES.length)
+  for (const label of APP_ENTRIES) {
+    await expect(nav.locator(`[data-testid="nav-entry-${label}"]`)).toBeVisible()
   }
-  // 26 条目（核心 5 + 运营 5 + 安全 7 + 管理 9——nav-model 全表）
-  await expect(nav.locator('a.nav-item')).toHaveCount(26)
-  // 一级条目图标（T-388 N2/V5 承接）：25/25 在场；分组标签不配（档位不变）
-  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(26)
-  await expect(nav.locator('.nav-group-label [data-testid="nav-icon"]')).toHaveCount(0)
 
-  // 键盘驱动首条目：focus 仪表盘 → Enter 落 /dashboard
-  await page.focus('a.nav-item:text-is("仪表盘")')
+  // Keyboard navigation remains real link activation, not a custom menu shim.
+  await page.focus('[data-testid="nav-entry-release-lifecycle"]')
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(/\/binflow\/ui\/dashboard$/)
-  await expect(page.locator('[data-testid="dashboard"]')).toBeVisible()
+  await expect(page).toHaveURL('/binflow/ui/artifactory/release-lifecycle')
+  await expect(page.locator('[data-testid="bundles-page"]')).toBeVisible()
 
-  // 管理条目逐项可达（URL 落 /admin/** + 页面锚到达〔settings 系双锚族〕）
-  for (const [label, anchor] of ADMIN_ENTRIES) {
-    await page.click(`[data-testid="app-nav"] a.nav-item:text-is("${label}")`)
-    await expect(page).toHaveURL(/\/binflow\/ui\/admin\//)
+  await page.click('[data-testid="nav-mode-administration"]')
+  await expect(nav).toHaveAttribute('data-mode', 'administration')
+  for (const [route, anchor] of ADMIN_ROUTE_ANCHORS) {
+    await page.goto(`/binflow/ui${route}`)
     await expect(page.locator(`[data-testid="${anchor}"]`).first()).toBeVisible()
   }
-  // 面包屑（§1.3 承接：管理页层级表达）
-  await page.click(`[data-testid="app-nav"] a.nav-item:text-is("仓库")`)
-  await expect(page.locator('[data-testid="topbar-breadcrumb"]')).toContainText('仓库')
+
+  await page.goto('/binflow/ui/admin/repositories/local')
+  await expect(page.locator('[data-testid="topbar-breadcrumb"]')).toContainText('Repositories')
 })
 
-test('readonly_admin: four groups visible, readonly badge, no quick-create write entries', async ({
+test('readonly_admin: sees ordered admin tree, readonly badge, no quick-create write entries', async ({
   page,
 }) => {
-  await loginAs(page, 'readonly_admin') // 内含只读徽章断言
+  await loginAs(page, 'readonly_admin') // includes readonly badge assertion
 
-  // 管理面深链 + 分组可见（读姿态——分组即模式，无切换概念）
   await page.goto('/binflow/ui/admin/governance/audit')
   await expect(page.locator('[data-testid="audit-page"]')).toBeVisible()
-  const nav = page.locator('[data-testid="app-nav"]')
-  for (const g of GROUPS) {
-    await expect(nav.locator('.nav-group-label', { hasText: g })).toBeVisible()
-  }
+  await expect(page.locator('[data-testid="app-nav"]')).toHaveAttribute('data-mode', 'administration')
 
-  // 用户菜单（§2.3）：readonly_admin 不见快速建仓/新建写入口（L4 预收敛）
   await page.click('[data-testid="session-toggle"]')
   await expect(page.locator('[data-testid="quick-set-me-up"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="quick-new-user"]')).toHaveCount(0)
@@ -112,29 +95,23 @@ test('readonly_admin: four groups visible, readonly badge, no quick-create write
   await expect(page.locator('[data-testid="menu-edit-profile"]')).toHaveCount(0)
 })
 
-test('plain user: only all-visible entries; /admin/** deep link keeps shell + L2 convergence', async ({
+test('plain user: only Artifactory app entries; /admin/** deep link keeps shell + L2 convergence', async ({
   page,
 }) => {
   await loginAs(page, 'user')
 
-  // 全可见条目 6 项（核心 4 + 运营 2）；管理/安全分组整组不渲染（L1）
   const nav = page.locator('[data-testid="app-nav"]')
-  await expect(nav.locator('a.nav-item')).toHaveCount(6)
-  for (const label of ALL_ENTRIES) {
-    await expect(nav.locator(`a.nav-item:text-is("${label}")`)).toBeVisible()
+  await expect(nav.locator('a.nav-item')).toHaveCount(APP_ENTRIES.length)
+  for (const label of APP_ENTRIES) {
+    await expect(nav.locator(`[data-testid="nav-entry-${label}"]`)).toBeVisible()
   }
-  for (const label of ['仓库', '复制', 'Webhooks', '回收站', '用户', '组', '权限', '配额', '设置']) {
-    await expect(nav.locator(`a.nav-item:text-is("${label}")`)).toHaveCount(0)
-  }
-  await expect(nav.locator('.nav-group-label', { hasText: '安全' })).toHaveCount(0)
-  await expect(nav.locator('.nav-group-label', { hasText: '管理' })).toHaveCount(0)
+  await expect(page.locator('[data-testid="nav-mode-administration"]')).toBeDisabled()
+  await expect(nav.locator('.nav-group-label', { hasText: 'Administration' })).toHaveCount(0)
 
-  // /admin/** 直链：页面自身 403 收敛（§2.2 L2）；壳保留
   await page.goto('/binflow/ui/admin/security/users')
   await expect(page.locator('[data-testid="users-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="users-page"] [data-testid="empty-state"]')).toBeVisible()
 
-  // 用户菜单只有 编辑档案/主题/登出（无 Quick 写入口）
   await page.click('[data-testid="session-toggle"]')
   await expect(page.locator('[data-testid="quick-new-user"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="menu-edit-profile"]')).toBeVisible()

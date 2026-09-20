@@ -138,7 +138,7 @@ test.beforeAll(async () => {
 test('① Builds 三视图：导航入口 → 名单 → 号单 → run 详情（模块/制品/依赖 + 时间线）', async ({ page }) => {
   const f = fixture!
   await loginAs(page, 'admin')
-  await page.click('[data-testid="app-nav"] a.nav-item:text-is("Builds")')
+  await page.goto('/binflow/ui/builds')
   await expect(page).toHaveURL(/\/binflow\/ui\/builds$/)
   await expect(page.locator('[data-testid="builds-page"]')).toBeVisible()
 

@@ -1,22 +1,16 @@
-// 侧栏 IA 模型（frontend-rewrite-architecture §4：四分组 + 权限可见性）
-// ——页面路由全部保持现 URL（IA 重组=侧栏分组重组非路由重组）。
+// BinFlow navigation model aligned to Artifactory's interaction model, not a
+// literal clone of its licensed/enterprise information architecture.
 //
-// 分组重排裁定（architecture §4）：应用⇄管理双模式概念并入四分组——
-// Core / Operations / Security / Administration；去掉模式切换（分组即
-// 模式，权限门控可见性替代 nav-mode-switch）。条目标签保持旧侧栏的
-// 逐字文案（e2e 以 text-is 断言导航——m8/setmeup-deploy 等 spec 的
-// `a.nav-item:text-is("制品")` 链路不因重排断链）。
-//
-// 锚纪律：.nav-item / .nav-group-label / .app-nav 类钩与 app-nav 锚
-// 原样保留（§10.5 换栈零锚改名先例）；nav-mode-switch 锚随双模式概念
-// 退役（登记 console-ux §10.6 退役表——P2 批）。
+// Platform mode keeps the four in-scope Artifactory application entries in
+// captured order. Administration mode keeps Artifactory's section order, but
+// exposes every implemented BinFlow destination directly. Reference-only
+// Pro/Projects faces stay in nav-parity.yaml instead of becoming dead UI.
 import type { LucideIcon } from 'lucide-react'
 import {
   Activity,
   BadgeCheck,
   Boxes,
   ClipboardCopy,
-  FileSearch,
   FolderTree,
   Gauge,
   HardDrive,
@@ -25,28 +19,20 @@ import {
   Package,
   ScrollText,
   ShieldCheck,
-  Trash2,
   Users,
   Webhook,
 } from 'lucide-react'
 
-import { tr } from '@/i18n'
-
-const t = tr('console')
-
-/** 条目可见位（权限门控——服务端是唯一守门，这里只驱动呈现） */
 export type NavVisibility = 'all' | 'admin-sight'
 
 export interface NavItem {
   id: string
-  /** 目标路由（保持现 URL 形态） */
   to: string
   icon: LucideIcon
   visibility: NavVisibility
-  /** 导航条目标签（e2e text-is 契约——与旧侧栏逐字一致） */
   label: string
-  /** 仅精确匹配算 active（无子路由的叶子；默认前缀匹配覆盖子路径） */
   end?: boolean
+  children?: NavItem[]
 }
 
 export interface NavGroup {
@@ -55,56 +41,116 @@ export interface NavGroup {
   items: NavItem[]
 }
 
-/** 四分组全条目（Core / Operations / Security / Administration——§4 IA） */
-export const NAV_GROUPS: NavGroup[] = [
+const item = (
+  id: string,
+  label: string,
+  to: string,
+  icon: LucideIcon,
+  visibility: NavVisibility,
+  extra: Partial<NavItem> = {},
+): NavItem => ({ id, label, to, icon, visibility, ...extra })
+
+/** Platform mode: Artifactory first; BinFlow-only supplements stay terminal. */
+export const APP_NAV_GROUPS: NavGroup[] = [
   {
-    id: 'core',
-    label: t('核心'),
+    id: 'artifactory',
+    label: 'Artifactory',
     items: [
-      { id: 'dashboard', to: '/dashboard', icon: Gauge, visibility: 'all', label: t('仪表盘'), end: true },
-      { id: 'packages', to: '/packages', icon: Package, visibility: 'all', label: 'Packages' },
-      { id: 'artifacts', to: '/artifacts', icon: FolderTree, visibility: 'all', label: t('制品') },
-      { id: 'repositories', to: '/admin/repositories/local', icon: Boxes, visibility: 'admin-sight', label: t('仓库') },
-      { id: 'search', to: '/search', icon: FileSearch, visibility: 'all', label: t('搜索'), end: true },
+      item('packages', 'Packages', '/packages', Package, 'all'),
+      item('builds', 'Builds', '/builds', Activity, 'all'),
+      item('artifacts', 'Artifacts', '/artifacts', FolderTree, 'all'),
+      item('release-lifecycle', 'Release Lifecycle', '/artifactory/release-lifecycle', BadgeCheck, 'all'),
     ],
   },
   {
-    id: 'operations',
-    label: t('运营'),
+    id: 'binflow-platform',
+    label: 'BinFlow',
+    items: [item('dashboard', 'Dashboard', '/dashboard', Gauge, 'all', { end: true })],
+  },
+]
+
+/** Administration sections follow Artifactory order while remaining direct-use. */
+export const ADMIN_NAV_GROUPS: NavGroup[] = [
+  {
+    id: 'repositories',
+    label: 'Repositories',
+    items: [item('repositories', 'Repositories', '/admin/repositories', Boxes, 'admin-sight')],
+  },
+  {
+    id: 'user-management',
+    label: 'User Management',
     items: [
-      { id: 'builds', to: '/builds', icon: Activity, visibility: 'all', label: 'Builds' },
-      { id: 'bundles', to: '/bundles', icon: BadgeCheck, visibility: 'all', label: 'Release Bundles' },
-      { id: 'replication', to: '/admin/governance/replication', icon: ClipboardCopy, visibility: 'admin-sight', label: t('复制') },
-      { id: 'webhooks', to: '/admin/general/webhooks', icon: Webhook, visibility: 'admin-sight', label: 'Webhooks' },
-      { id: 'trash', to: '/admin/governance/trash', icon: Trash2, visibility: 'admin-sight', label: t('回收站') },
+      item('users', 'Users', '/admin/security/users', Users, 'admin-sight'),
+      item('groups', 'Groups', '/admin/security/groups', Users, 'admin-sight'),
+      item('permissions', 'Permissions', '/admin/security/permissions', Lock, 'admin-sight'),
+      item('access-tokens', 'Access Tokens', '/admin/security/tokens', KeyRound, 'admin-sight'),
     ],
+  },
+  {
+    id: 'authentication',
+    label: 'Authentication',
+    items: [item('ldap', 'LDAP', '/admin/security/auth/ldap', ShieldCheck, 'admin-sight')],
   },
   {
     id: 'security',
-    label: t('安全'),
+    label: 'Security',
+    items: [item('signing-keys', 'Signing Keys', '/admin/security/keypair', KeyRound, 'admin-sight')],
+  },
+  {
+    id: 'general-management',
+    label: 'General Management',
+    items: [item('general-settings', 'Settings', '/admin/monitoring/settings', Gauge, 'admin-sight')],
+  },
+  {
+    id: 'monitoring',
+    label: 'Monitoring',
     items: [
-      { id: 'users', to: '/admin/security/users', icon: Users, visibility: 'admin-sight', label: t('用户') },
-      { id: 'groups', to: '/admin/security/groups', icon: Users, visibility: 'admin-sight', label: t('组') },
-      { id: 'permissions', to: '/admin/security/permissions', icon: Lock, visibility: 'admin-sight', label: t('权限') },
-      { id: 'tokens', to: '/admin/security/tokens', icon: KeyRound, visibility: 'admin-sight', label: 'Access Tokens' },
-      { id: 'keypair', to: '/admin/security/keypair', icon: KeyRound, visibility: 'admin-sight', label: t('签名密钥') },
-      { id: 'auth', to: '/admin/security/auth/ldap', icon: ShieldCheck, visibility: 'admin-sight', label: t('认证配置') },
-      { id: 'audit', to: '/admin/governance/audit', icon: ScrollText, visibility: 'admin-sight', label: t('审计日志') },
+      item('service-status', 'Service Status', '/admin/monitoring/status', Activity, 'admin-sight'),
+      item('storage', 'Storage', '/admin/monitoring/storage', HardDrive, 'admin-sight'),
+      item('system-logs', 'System Logs', '/admin/monitoring/logs', ScrollText, 'admin-sight'),
+      item('system-info', 'System Info', '/admin/monitoring/system-info', Gauge, 'admin-sight'),
     ],
   },
   {
-    id: 'administration',
-    label: t('管理'),
+    id: 'artifactory-settings',
+    label: 'Artifactory Settings',
     items: [
-      { id: 'quotas', to: '/admin/governance/quotas', icon: Gauge, visibility: 'admin-sight', label: t('配额') },
-      { id: 'storage', to: '/admin/monitoring/storage', icon: HardDrive, visibility: 'admin-sight', label: t('存储') },
-      { id: 'status', to: '/admin/monitoring/status', icon: Activity, visibility: 'admin-sight', label: t('服务状态') },
-      { id: 'logs', to: '/admin/monitoring/logs', icon: ScrollText, visibility: 'admin-sight', label: t('系统日志') },
-      { id: 'gc', to: '/admin/monitoring/gc', icon: Trash2, visibility: 'admin-sight', label: t('维护（GC）') },
-      { id: 'backup', to: '/admin/monitoring/backup', icon: HardDrive, visibility: 'admin-sight', label: t('备份 / 恢复') },
-      { id: 'system-info', to: '/admin/monitoring/system-info', icon: Gauge, visibility: 'admin-sight', label: t('系统信息') },
-      { id: 'settings', to: '/admin/monitoring/settings', icon: Gauge, visibility: 'admin-sight', label: t('设置'), end: true },
-      { id: 'license', to: '/admin/general/license', icon: BadgeCheck, visibility: 'admin-sight', label: 'License & Add-ons' },
+      item('maintenance', 'Maintenance', '/admin/monitoring/gc', HardDrive, 'admin-sight'),
+      item('backups', 'Backups', '/admin/monitoring/backup', HardDrive, 'admin-sight'),
     ],
   },
 ]
+
+/** Terminal, clearly identified BinFlow-only capabilities. */
+export const BINFLOW_NAV_GROUPS: NavGroup[] = [
+  {
+    id: 'binflow-extensions',
+    label: 'BinFlow Extensions',
+    items: [
+      item('quotas', 'Quotas', '/admin/governance/quotas', Gauge, 'admin-sight'),
+      item('replication', 'Replication', '/admin/governance/replication', ClipboardCopy, 'admin-sight'),
+      item('trash', 'Trash', '/admin/governance/trash', HardDrive, 'admin-sight'),
+      item('audit-log', 'Audit Log', '/admin/governance/audit', ScrollText, 'admin-sight'),
+      item('webhooks', 'Webhooks', '/admin/general/webhooks', Webhook, 'admin-sight'),
+      item('license-addons', 'License & Add-ons', '/admin/general/license', BadgeCheck, 'admin-sight'),
+    ],
+  },
+]
+
+/** Backward-compatible complete model for the command palette and older consumers. */
+export const NAV_GROUPS: NavGroup[] = [...APP_NAV_GROUPS, ...ADMIN_NAV_GROUPS, ...BINFLOW_NAV_GROUPS]
+
+export function flattenNavItems(items: NavItem[]): NavItem[] {
+  return items.flatMap((entry) => [entry, ...flattenNavItems(entry.children ?? [])])
+}
+
+export function filterNavGroups(groups: NavGroup[], query: string): NavGroup[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return groups
+  return groups
+    .map((group) => ({
+    ...group,
+      items: group.items.filter((entry) => entry.label.toLowerCase().includes(q)),
+    }))
+    .filter((group) => group.items.length > 0)
+}

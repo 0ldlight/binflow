@@ -1,19 +1,19 @@
 {
-  "capturedAt": "2026-09-19T04:33:57.092Z",
+  "capturedAt": "2026-09-19T23:29:07.480Z",
   "theme": "dark",
   "pages": [
     {
       "route": "dashboard",
       "url": "http://127.0.0.1:5173/binflow/ui/dashboard",
       "violations": [],
-      "passes": 44,
+      "passes": 43,
       "incomplete": 1
     },
     {
       "route": "packages",
       "url": "http://127.0.0.1:5173/binflow/ui/packages",
       "violations": [],
-      "passes": 41,
+      "passes": 40,
       "incomplete": 1
     },
     {
@@ -40,19 +40,19 @@
       "route": "search",
       "url": "http://127.0.0.1:5173/binflow/ui/search",
       "violations": [],
-      "passes": 39,
+      "passes": 38,
       "incomplete": 1
     },
     {
       "route": "builds",
       "url": "http://127.0.0.1:5173/binflow/ui/builds",
       "violations": [],
-      "passes": 40,
+      "passes": 43,
       "incomplete": 1
     },
     {
-      "route": "repos-local",
-      "url": "http://127.0.0.1:5173/binflow/ui/admin/repositories/local",
+      "route": "repos",
+      "url": "http://127.0.0.1:5173/binflow/ui/admin/repositories",
       "violations": [
         {
           "id": "page-has-heading-one",
@@ -61,7 +61,7 @@
           "nodes": 1
         }
       ],
-      "passes": 43,
+      "passes": 46,
       "incomplete": 1
     },
     {
@@ -75,7 +75,7 @@
           "nodes": 1
         }
       ],
-      "passes": 38,
+      "passes": 41,
       "incomplete": 1
     },
     {
@@ -89,7 +89,7 @@
           "nodes": 1
         }
       ],
-      "passes": 38,
+      "passes": 41,
       "incomplete": 1
     },
     {

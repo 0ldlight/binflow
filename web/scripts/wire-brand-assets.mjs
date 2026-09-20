@@ -39,7 +39,7 @@ const fingerprintedName = (name, h) => {
 
 const entries = await readdir(brandDir).catch(() => null)
 if (!entries || entries.length === 0) {
-  console.error('wire-brand-assets: dist/brand/ is empty — web/public/brand/ missing? Run scripts/gen-brand-assets.mjs.')
+  console.error('wire-brand-assets: dist/brand/ is empty — canonical modular favicon/PWA assets are committed under web/public/brand/.')
   process.exit(1)
 }
 

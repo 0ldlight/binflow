@@ -1,3 +1,10 @@
+# Chinese is authoritative/default; English is a registered locale with
+# field-level fallback while translated pages are added incrementally.
+translations:
+  - lang: zh
+    default: true
+  - lang: en
+
 instances:
   - url: binflow.docs.buildwithfern.com
     custom-domain: docs.binflow.org

@@ -85,7 +85,7 @@ export default function CreateBundleDialog({
             </p>
             <div className="flex gap-2">
               <ButtonAsChild size="sm">
-                <Link to={`/bundles/${encodeURIComponent(name.trim())}/${encodeURIComponent(version.trim())}`}>
+                <Link to={`/artifactory/release-bundles/${encodeURIComponent(name.trim())}/${encodeURIComponent(version.trim())}`}>
                   {t('查看描述符 →')}
                 </Link>
               </ButtonAsChild>
