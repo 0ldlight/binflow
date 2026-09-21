@@ -60,7 +60,6 @@ registerEn('builds', {
   "预演消息（零副作用——无迁移、无历史行、无审计）：": "Dry-run messages (zero side effects — no migration, no history row, no audit):",
   "暂无可见的构建": "No visible builds",
   "执行晋升": "Execute promotion",
-  "制品数": "Artifacts",
   "追加合并": "Append merge",
   "追加一行 promotion 历史（现势 = 最新行，永不改写旧行）。": "Appends one promotion history row (current status = the newest row; old rows are never rewritten).",
   "最新启动": "Last Started",
@@ -72,4 +71,11 @@ registerEn('builds', {
   "ⓘ 发布走 API：PUT /api/build（body = build info JSON，name/number 在 body）；模块追加 POST /api/build/append/{name}/{number}（204）。本页「晋升」按钮即 POST /api/build/promote（P3 解锁——dryRun 预演先行）。": "ⓘ Publishing goes through the API: PUT /api/build (body = the build info JSON, name/number inside the body); module appends via POST /api/build/append/{name}/{number} (204). This page's Promote button is POST /api/build/promote (P3 unlock — dryRun preview first).",
   "promotion 历史（{v1} 条）": "Promotion history ({v1} entries)",
   "record-only 行：上传文档的路径未解析到本实例节点（无 repo 段/节点缺/sha256 相左）——行存不冒领关联": "Record-only row: the uploaded document's path did not resolve to a node on this instance (no repo segment / node missing / sha256 disagreement) — the row is stored without claiming the association",
+
+  "构建 /": "Builds /",
+  "备注": "Comment",
+  "CI 用户": "CI User",
+  "SHA-256": "SHA-256",
+  "作用域": "Scopes",
+  "SHA-1": "SHA-1",
 })

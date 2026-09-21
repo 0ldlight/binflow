@@ -4,6 +4,8 @@
 // dur-fast fade（§3.6「微交互/hover」档 × §4.2「dur-fast+fade」）；Radix
 // Presence 等 animationend 再卸载，关闭态同样走降级值。
 import * as DialogPrimitive from '@radix-ui/react-dialog'
+
+import { tr } from '@/i18n'
 import { X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type { ComponentProps } from 'react'
@@ -14,6 +16,8 @@ const Dialog = DialogPrimitive.Root
 const DialogTrigger = DialogPrimitive.Trigger
 const DialogPortal = DialogPrimitive.Portal
 const DialogClose = DialogPrimitive.Close
+
+const t = tr('common')
 
 function DialogOverlay({ className, ...props }: ComponentProps<typeof DialogPrimitive.Overlay>) {
   return (
@@ -62,7 +66,7 @@ function DialogContent({ className, children, ...props }: ComponentProps<typeof 
           className="absolute top-3.5 right-3.5 rounded-sm text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-2 focus-visible:outline-ring"
         >
           <X className="size-4" />
-          <span className="sr-only">Close</span>
+          <span className="sr-only">{t('关闭')}</span>
         </DialogPrimitive.Close>
       </DialogPrimitive.Content>
     </DialogPortal>

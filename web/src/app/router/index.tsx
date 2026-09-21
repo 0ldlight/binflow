@@ -192,7 +192,7 @@ export const appRoutes: RouteObject[] = [
           { path: 'artifacts/:tab/:key/*', element: lazyEl(ExplorerPage) },
           { path: 'artifacts/:key/*', element: lazyEl(ExplorerPage) },
           { path: 'search', element: lazyEl(SearchPage) },
-          // Builds / Bundles：P3 新栈重写（+promote/retention/create 写面解锁）
+          // Builds / Bundles：P3 新栈重写（Builds 写面 + Bundles 真实读面）
           { path: 'builds', element: lazyEl(BuildsPage) },
           { path: 'builds/:name', element: lazyEl(BuildsPage) },
           { path: 'builds/:name/:number', element: lazyEl(BuildsPage) },

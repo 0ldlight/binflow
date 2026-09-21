@@ -267,7 +267,7 @@ export function TreePanel({
             title={tt('只看收藏的仓库（收藏经仓库右键菜单标记，浏览器本地持久）')}
             onClick={() => onFavOnly(!favOnly)}
           >
-            {favOnly ? '★' : '☆'} My Favorites{favCount > 0 ? tt('（{favCount}）', { favCount }) : ''}
+            {favOnly ? '★' : '☆'} {tt('我的收藏')}{favCount > 0 ? tt('（{favCount}）', { favCount }) : ''}
           </Button>
         </div>
         <div className="toolband-row mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -278,8 +278,8 @@ export function TreePanel({
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 p-2" data-testid="tree-facet-pkg-panel" align="start">
-              <div className="toolband-facet-title mb-1 text-aux font-medium" lang="en">
-                Filter by Package Type
+              <div className="toolband-facet-title mb-1 text-aux font-medium">
+                {tt('按包类型过滤')}
               </div>
               {pkgTypes.length === 0 ? (
                 <p className="text-aux text-muted-foreground">{tt('（已加载集中没有带包类型的仓库）')}</p>

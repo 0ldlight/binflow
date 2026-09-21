@@ -209,7 +209,7 @@ export default function PropertiesTab({
           value 两输入 + Add 常驻；同名键 = 整体替换其值集） */}
       <div className="flex flex-wrap items-start gap-2" style={{ marginBottom: 6 }}>
         <div className="field" style={{ width: 220, marginBottom: 0 }}>
-          <label htmlFor="node-props-key-input">Property</label>
+          <label htmlFor="node-props-key-input">{t('属性')}</label>
           <Input
             id="node-props-key-input"
             className="w-full"
@@ -230,7 +230,7 @@ export default function PropertiesTab({
           )}
         </div>
         <div className="field" style={{ width: 280, marginBottom: 0 }}>
-          <label htmlFor={`node-props-values-input-${valuesAnchorSuffix}`}>Value</label>
+          <label htmlFor={`node-props-values-input-${valuesAnchorSuffix}`}>{t('值')}</label>
           <Input
             // 后缀 = 已敲键或 new（家族 node-props-values-input-<key>）——
             // 模板串内不得内联引号（对账器值类正则按引号截断，锚家族会

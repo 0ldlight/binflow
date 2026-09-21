@@ -55,7 +55,6 @@
   "预演消息（零副作用——无迁移、无历史行、无审计）：",
   "暂无可见的构建",
   "执行晋升",
-  "制品数",
   "追加合并",
   "追加一行 promotion 历史（现势 = 最新行，永不改写旧行）。",
   "最新启动",
@@ -66,5 +65,11 @@
   "failFast（缺省开：首个悬空关联即拒整单；关 = 跳过该行出 warning 继续）",
   "ⓘ 发布走 API：PUT /api/build（body = build info JSON，name/number 在 body）；模块追加 POST /api/build/append/{name}/{number}（204）。本页「晋升」按钮即 POST /api/build/promote（P3 解锁——dryRun 预演先行）。",
   "promotion 历史（{v1} 条）",
-  "record-only 行：上传文档的路径未解析到本实例节点（无 repo 段/节点缺/sha256 相左）——行存不冒领关联"
+  "record-only 行：上传文档的路径未解析到本实例节点（无 repo 段/节点缺/sha256 相左）——行存不冒领关联",
+  "构建 /",
+  "备注",
+  "CI 用户",
+  "SHA-256",
+  "作用域",
+  "SHA-1"
 ]

@@ -9,7 +9,7 @@ import { selectOptionValues } from '../support/shadcn'
 //   空态、replay 按钮仅 dead 行（mock 数据驱动）；
 // - Builds promote/retention 写面（解锁）：对话框打开 + 字段集 + failFast
 //   默认态；retention 对话框四字段；
-// - Bundles 创建面（解锁）：对话框打开 + 行编辑器增删；
+// - Bundles 读面：保持真实查询/空态，不伪造后端未开放的创建入口；
 // - axe 双主题：keypair + settings 页。
 import { expect, test } from '@playwright/test'
 import { expectA11yClean } from '../m8/support/a11y'
@@ -139,24 +139,12 @@ test.describe('P3 unlocked faces', () => {
     await expect(page.locator('[data-testid="build-retention-submit"]')).toBeDisabled()
   })
 
-  test('bundles: create dialog opens with manifest row editor', async ({ page }) => {
+  test('bundles: read face stays honest and has no fabricated create entry', async ({ page }) => {
     await loginAs(page, 'admin')
     await page.goto('/binflow/ui/bundles')
     await expect(page.locator('[data-testid="bundles-page"]')).toBeVisible()
-    await page.click('[data-testid="bundle-create"]')
-    await expect(page.locator('[data-testid="bundle-create-dialog"]')).toBeVisible()
-    await expect(page.locator('[data-testid="bundle-create-name"]')).toBeVisible()
-    await expect(page.locator('[data-testid="bundle-create-version"]')).toBeVisible()
-    // 行编辑器：首行三栏 + 加行/删行（首行删禁用）
-    await expect(page.locator('[data-testid="bundle-create-row-0"]')).toBeVisible()
-    await expect(page.locator('[data-testid="bundle-create-repo-0"]')).toBeVisible()
-    await expect(page.locator('[data-testid="bundle-create-path-0"]')).toBeVisible()
-    await expect(page.locator('[data-testid="bundle-create-sha-0"]')).toBeVisible()
-    await expect(page.locator('[data-testid="bundle-create-remove-0"]')).toBeDisabled()
-    await page.click('[data-testid="bundle-create-add"]')
-    await expect(page.locator('[data-testid="bundle-create-row-1"]')).toBeVisible()
-    // 提交门：名/版本/至少一行 repo+path
-    await expect(page.locator('[data-testid="bundle-create-submit"]')).toBeDisabled()
+    await expect(page.locator('[data-testid="bundle-create"]')).toHaveCount(0)
+    await expect(page.locator('[data-testid="bundle-create-dialog"]')).toHaveCount(0)
   })
 
   test('axe: keypair + settings pages clean in both themes', async ({ page }, testInfo) => {

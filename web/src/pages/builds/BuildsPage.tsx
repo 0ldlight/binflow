@@ -102,15 +102,19 @@ function BuildDenied() {
 
 function BuildNamesView() {
   const names = useAsync(listBuildNames, [])
+  // The wire face intentionally makes “no readable build names” and “no such
+  // name” indistinguishable (zero-leak oracle). On the names face that 404 is
+  // therefore an empty visible set, not an instance failure.
+  const visibleEmpty = names.status === 'error' && names.error?.status === 404
   return (
     <div data-testid="builds-page">
       <div className="page-header flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold">Builds</h2>
+        <h2 className="text-lg font-semibold">{t('构建')}</h2>
         <span className="text-aux text-muted-foreground">{t('CI 构建记录（构建名 → run 号 → run 详情；promote / 保留策略写面）')}</span>
       </div>
       {names.status === 'loading' && <StateSkeleton lines={5} />}
-      {names.status === 'error' && names.error && <ErrorCard error={names.error} onRetry={names.reload} />}
-      {names.status === 'ok' && (names.data?.builds.length ?? 0) === 0 && (
+      {names.status === 'error' && names.error && !visibleEmpty && <ErrorCard error={names.error} onRetry={names.reload} />}
+      {(names.status === 'ok' || visibleEmpty) && (names.data?.builds.length ?? 0) === 0 && (
         <EmptyState
           testid="builds-empty"
           illustration
@@ -118,7 +122,7 @@ function BuildNamesView() {
           hint={t('服务端按会话可见集过滤（r(buildRepo, buildName) 授予面）——空集如实呈现；CI 经 PUT /api/build 发布（jf rt build-publish 同形）。')}
         />
       )}
-      {names.status === 'ok' && (names.data?.builds.length ?? 0) > 0 && (
+      {names.status === 'ok' && !visibleEmpty && (names.data?.builds.length ?? 0) > 0 && (
         <section className="card section" data-testid="builds-table">
           <Table className="w-full text-dense">
             <TableHeader>
@@ -162,7 +166,7 @@ function BuildNumbersView({ name }: { name: string }) {
     <div data-testid="build-runs-page">
       <div className="page-header flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">
-          Builds / <span className="font-mono" lang="en">{name}</span>
+          {t('构建 /')} <span className="font-mono" lang="en">{name}</span>
         </h2>
         <span className="ml-auto flex gap-2">
           {adminWrite && (
@@ -233,9 +237,9 @@ function BuildStatuses({ statuses }: { statuses: BuildInfo['statuses'] }) {
             <TableHead scope="col" className="px-3 py-2 font-medium">{t('状态')}</TableHead>
             <TableHead scope="col" className="px-3 py-2 font-medium">{t('时间')}</TableHead>
             <TableHead scope="col" className="px-3 py-2 font-medium">{t('目标仓')}</TableHead>
-            <TableHead scope="col" className="px-3 py-2 font-medium">comment</TableHead>
-            <TableHead scope="col" className="px-3 py-2 font-medium">ciUser</TableHead>
-            <TableHead scope="col" className="px-3 py-2 font-medium">user</TableHead>
+            <TableHead scope="col" className="px-3 py-2 font-medium">{t('备注')}</TableHead>
+            <TableHead scope="col" className="px-3 py-2 font-medium">{t('CI 用户')}</TableHead>
+            <TableHead scope="col" className="px-3 py-2 font-medium">{t('用户')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -286,7 +290,7 @@ function BuildTimeline({ name, number, started }: { name: string; number: string
               <TableHead scope="col" className="px-3 py-2 font-medium">{t('动作')}</TableHead>
               <TableHead scope="col" className="px-3 py-2 font-medium">{t('时间')}</TableHead>
               <TableHead scope="col" className="px-3 py-2 font-medium">{t('操作者')}</TableHead>
-              <TableHead scope="col" className="px-3 py-2 font-medium">detail</TableHead>
+              <TableHead scope="col" className="px-3 py-2 font-medium">{t('详情')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -333,7 +337,7 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
   const header = (
     <div className="page-header flex flex-wrap items-center gap-2">
       <h2 className="text-lg font-semibold">
-        Builds / <span className="font-mono" lang="en">{name}</span> / <span className="font-mono" lang="en">{number}</span>
+        {t('构建 /')} <span className="font-mono" lang="en">{name}</span> / <span className="font-mono" lang="en">{number}</span>
       </h2>
       <span className="ml-auto flex gap-2">
         {adminWrite && info && (
@@ -420,7 +424,7 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
               <Table className="w-full text-dense">
                 <TableHeader>
                   <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
-                    <TableHead scope="col" className="px-3 py-2 font-medium">Module ID</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('模块 ID')}</TableHead>
                     <TableHead scope="col" className="px-3 py-2 font-medium">{t('类型')}</TableHead>
                     <TableHead scope="col" className="px-3 py-2 font-medium">{t('制品数')}</TableHead>
                     <TableHead scope="col" className="px-3 py-2 font-medium">{t('依赖数')}</TableHead>
@@ -431,7 +435,7 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
                     <TableRow key={m.id} className="border-b border-border/60 hover:bg-accent" data-testid={`build-module-row-${i}`}>
                       <TableCell className="px-3 py-1.5">
                         <span className="font-mono" lang="en">{m.id}</span>
-                        <CopyButton value={m.id} label="Module ID" />
+                        <CopyButton value={m.id} label={t('模块 ID')} />
                       </TableCell>
                       <TableCell className="px-3 py-1.5 font-mono" lang="en">{m.type || '—'}</TableCell>
                       <TableCell className="px-3 py-1.5 font-mono">{m.artifacts?.length ?? 0}</TableCell>
@@ -449,10 +453,10 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
               <Table className="w-full text-dense">
                 <TableHeader>
                   <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
-                    <TableHead scope="col" className="px-3 py-2 font-medium">Module ID</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('模块 ID')}</TableHead>
                     <TableHead scope="col" className="px-3 py-2 font-medium">{t('名称')}</TableHead>
                     <TableHead scope="col" className="px-3 py-2 font-medium">{t('路径')}</TableHead>
-                    <TableHead scope="col" className="px-3 py-2 font-medium">sha256</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('SHA-256')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -482,7 +486,7 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
                           {a.sha256 ? (
                             <>
                               <span className="font-mono" lang="en">{a.sha256.slice(0, 12)}…</span>
-                              <CopyButton value={a.sha256} label="sha256" />
+                              <CopyButton value={a.sha256} label={t('SHA-256')} />
                             </>
                           ) : (
                             <span className="text-muted-foreground">—</span>
@@ -502,11 +506,11 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
               <Table className="w-full text-dense">
                 <TableHeader>
                   <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
-                    <TableHead scope="col" className="px-3 py-2 font-medium">Module ID</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('模块 ID')}</TableHead>
                     <TableHead scope="col" className="px-3 py-2 font-medium">{t('依赖')}</TableHead>
                     <TableHead scope="col" className="px-3 py-2 font-medium">{t('类型')}</TableHead>
-                    <TableHead scope="col" className="px-3 py-2 font-medium">scopes</TableHead>
-                    <TableHead scope="col" className="px-3 py-2 font-medium">sha1</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('作用域')}</TableHead>
+                    <TableHead scope="col" className="px-3 py-2 font-medium">{t('SHA-1')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -520,7 +524,7 @@ function BuildDetailView({ name, number }: { name: string; number: string }) {
                         {d.sha1 ? (
                           <>
                             <span className="font-mono" lang="en">{d.sha1.slice(0, 12)}…</span>
-                            <CopyButton value={d.sha1} label="sha1" />
+                            <CopyButton value={d.sha1} label={t('SHA-1')} />
                           </>
                         ) : (
                           <span className="text-muted-foreground">—</span>

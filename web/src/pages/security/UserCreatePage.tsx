@@ -168,7 +168,7 @@ export default function UserCreatePage() {
             )}
           </div>
           <div className="field">
-            <label htmlFor="uf-email">Email *</label>
+            <label htmlFor="uf-email">{t('邮箱 *')}</label>
             <TextInput
               id="uf-email"
               type="email"

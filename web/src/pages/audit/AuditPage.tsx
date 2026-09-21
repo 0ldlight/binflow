@@ -420,7 +420,7 @@ role="menuitem"
                         <TableCell className="px-3 py-1.5">
                           {json ? (
                             <details className="relative inline-block">
-                              <summary className="cursor-pointer text-[length:var(--bf-fs-xs)] whitespace-nowrap text-primary">detail</summary>
+                              <summary className="cursor-pointer text-[length:var(--bf-fs-xs)] whitespace-nowrap text-primary">{tt('详情')}</summary>
                               <pre lang="en" className="absolute right-0 z-[var(--bf-z-dropdown)] m-0 mt-1 min-w-[260px] max-w-[420px] max-h-[220px] overflow-auto rounded-md border bg-surface-1 px-3 py-2 font-mono text-[length:var(--bf-fs-xs)] shadow-overlay whitespace-pre-wrap break-all">{json}</pre>
                             </details>
                           ) : (

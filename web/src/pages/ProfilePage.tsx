@@ -424,7 +424,7 @@ function IdentityTokenSection() {
 function SshKeysSection() {
   return (
     <section className="card section" data-testid="profile-ssh">
-      <h3 className="mb-2 text-dense font-semibold">SSH Keys</h3>
+      <h3 className="mb-2 text-dense font-semibold">{t('SSH 密钥')}</h3>
       <AlertBox severity="info" testid="profile-ssh-gap">
         {t('后端尚无 SSH 公钥端点（console-ux §9-R11 契约缺口）——如实缺位，不在此伪造增删入口； 端点落地后本卡提供 Key 别名 / 公钥的登记与删除（对位 7.161 Profile 的 Add New SSH Key）。')}
       </AlertBox>

@@ -18,8 +18,8 @@ test('release bundles: source/target route split and honest v2 target empty/hist
   await page.click('[data-testid="nav-entry-release-lifecycle"]')
   await expect(page).toHaveURL('/binflow/ui/release-lifecycle')
   await expect(page.locator('[data-testid="bundles-page"]')).toBeVisible()
-  await expect(page.locator('[data-testid="bundles-page"] h2')).toHaveText('Release Lifecycle')
-  await expect(page.locator('[data-testid="bundles-search"]')).toHaveAttribute('placeholder', 'Search Release Bundles')
+  await expect(page.locator('[data-testid="bundles-page"] h2')).toHaveText('发布生命周期')
+  await expect(page.locator('[data-testid="bundles-search"]')).toHaveAttribute('placeholder', '搜索发布包')
   await expect(page.locator('[data-testid="bundles-empty"]')).toBeVisible()
   await expect(page.locator('[data-testid="bundle-mode-tabs"]')).toHaveCount(0)
 
@@ -34,21 +34,21 @@ test('release bundles: source/target route split and honest v2 target empty/hist
   })
   await page.reload()
   await expect(page.locator('[data-testid="bundles-row-demo"] a')).toHaveAttribute('href', '/binflow/ui/release-bundles/demo')
-  await expect(page.locator('[data-testid="bundles-table"] th').nth(0)).toHaveText('Release Bundle Name')
-  await expect(page.locator('[data-testid="bundles-table"] th').nth(1)).toHaveText('Project')
-  await expect(page.locator('[data-testid="bundles-table"] th').nth(2)).toHaveText('Number of Versions')
-  await expect(page.locator('[data-testid="bundles-table"] th').nth(3)).toHaveText('Latest Version')
+  await expect(page.locator('[data-testid="bundles-table"] th').nth(0)).toHaveText('发布包名称')
+  await expect(page.locator('[data-testid="bundles-table"] th').nth(1)).toHaveText('项目')
+  await expect(page.locator('[data-testid="bundles-table"] th').nth(2)).toHaveText('版本数量')
+  await expect(page.locator('[data-testid="bundles-table"] th').nth(3)).toHaveText('最新版本')
   await page.unroute('**/binflow/api/release/bundles')
 
   await page.goto('/binflow/ui/release-bundles/target')
   await expect(page.locator('[data-testid="target-bundles-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="target-bundles-empty"]')).toBeVisible()
-  await expect(page.locator('[data-testid="target-bundles-empty"]')).toContainText('暂无 Received Release Bundle')
+  await expect(page.locator('[data-testid="target-bundles-empty"]')).toContainText('暂无接收到的发布包')
 
   await page.goto('/binflow/ui/release-bundles/target/audit-probe/1.0')
   await expect(page.locator('[data-testid="target-history-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="target-history-empty"]')).toBeVisible()
-  await expect(page.locator('[data-testid="target-history-empty"]')).toContainText('没有 target 历史记录')
+  await expect(page.locator('[data-testid="target-history-empty"]')).toContainText('该版本没有目标历史记录')
 
   // Legacy deep links remain a compatibility window while all shell navigation
   // and in-page links use the 同类控制台-shaped route family.

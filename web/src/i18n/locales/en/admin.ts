@@ -71,7 +71,6 @@ registerEn('admin', {
   "未生成——服务端尚无 SP 加密密钥对；可立即生成，或留待保存加密断言配置时自动生成。": "Not generated — the server has no SP encryption key pair yet; generate one now, or leave it to auto-generate when saving the encrypted assertion configuration.",
   "无权限读取 addon 清单": "No permission to read the addon list",
   "无权限读取认证配置": "No permission to read authentication configuration",
-  "无权限访问 License &amp; Add-ons": "No permission to access License &amp; Add-ons",
   "下一个认证请求": "next authentication request",
   "下载公钥证书（PEM）": "Download the public key certificate (PEM)",
   "卸载 license": "Uninstall license",
@@ -155,4 +154,10 @@ registerEn('admin', {
   "userDnPattern 留空时按 Search Filter + Search Base 定位用户 DN 再绑定验密；Manager DN 留空 = 匿名只读绑定。": "When userDnPattern is empty, the user DN is located via Search Filter + Search Base and then bound for password verification; an empty Manager DN means an anonymous read-only bind.",
   "Verify Audience Restriction（受众校验，默认开）": "Verify Audience Restriction (audience check, on by default)",
   "认证配置": "Authentication Configuration",
+
+  "无权限访问许可与扩展": "No permission to access License & Add-ons",
+  "扩展": "Add-ons",
+
+  "许可": "License",
+  "许可 ID": "License ID",
 })

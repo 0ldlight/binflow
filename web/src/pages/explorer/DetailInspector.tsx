@@ -157,6 +157,7 @@ export function DetailInspector({
             <Button
               key={t.id}
               type="button"
+              variant="ghost"
               role="tab"
               aria-selected={activeTab === t.id}
               data-testid={`node-tab-${t.id}`}
@@ -394,16 +395,16 @@ function RepoGeneral({ repoKey }: { repoKey: string }) {
           </span>
         </div>
         <div className="kv mb-1 flex gap-2 text-dense">
-          <span className="k w-36 shrink-0 text-muted-foreground">Repository Path</span>
+          <span className="k w-36 shrink-0 text-muted-foreground">{tt('仓库路径')}</span>
           <span className="min-w-0 break-all font-mono" lang="en">
             {m.key}/ <CopyButton value={`${m.key}/`} label={tt('仓库路径')} />
           </span>
         </div>
         {m.url && (
           <div className="kv mb-1 flex gap-2 text-dense">
-            <span className="k w-36 shrink-0 text-muted-foreground">File URL</span>
+            <span className="k w-36 shrink-0 text-muted-foreground">{tt('文件 URL')}</span>
             <span className="min-w-0 break-all font-mono" lang="en" data-testid="node-file-url">
-              {m.url} <CopyButton value={m.url} label="File URL" />
+              {m.url} <CopyButton value={m.url} label={tt('文件 URL')} />
             </span>
           </div>
         )}
@@ -492,15 +493,15 @@ function NodeGeneral({
           <span className="font-mono" lang="en">{node.name}</span>
         </div>
         <div className="kv mb-1 flex gap-2 text-dense">
-          <span className="k w-36 shrink-0 text-muted-foreground">Repository Path</span>
+          <span className="k w-36 shrink-0 text-muted-foreground">{tt('仓库路径')}</span>
           <span className="min-w-0 break-all font-mono" lang="en">
             {repoKey}/{nodeRef} <CopyButton value={`${repoKey}/${nodeRef}`} label={tt('制品路径')} />
           </span>
         </div>
         <div className="kv mb-1 flex gap-2 text-dense">
-          <span className="k w-36 shrink-0 text-muted-foreground">File URL</span>
+          <span className="k w-36 shrink-0 text-muted-foreground">{tt('文件 URL')}</span>
           <span className="min-w-0 break-all font-mono" lang="en" data-testid="node-file-url">
-            {fileURL} <CopyButton value={fileURL} label="File URL" />
+            {fileURL} <CopyButton value={fileURL} label={tt('文件 URL')} />
           </span>
         </div>
         {!node.folder && <ModuleIdRow repoKey={repoKey} path={node.path} />}
@@ -515,7 +516,7 @@ function NodeGeneral({
           </div>
         )}
         <div className="kv mb-1 flex gap-2 text-dense">
-          <span className="k w-36 shrink-0 text-muted-foreground">Created</span>
+          <span className="k w-36 shrink-0 text-muted-foreground">{tt('创建时间')}</span>
           <span className="font-mono">{item.created || EMPTY_VALUE}</span>
         </div>
         {item.lastModified && (
@@ -528,7 +529,7 @@ function NodeGeneral({
         {node.folder && (
           <>
             <div className="kv mb-1 flex gap-2 text-dense">
-              <span className="k w-36 shrink-0 text-muted-foreground">{tt('子项（Artifact Count）')}</span>
+              <span className="k w-36 shrink-0 text-muted-foreground">{tt('子项（制品数）')}</span>
               <span className="font-mono">
                 {childrenNodes
                   ? tt('目录 {v1} · 文件 {v2}', {
@@ -540,7 +541,7 @@ function NodeGeneral({
             </div>
             {childrenNodes && childrenNodes.some((n) => !n.folder && n.size !== null) && (
               <div className="kv mb-1 flex gap-2 text-dense">
-                <span className="k w-36 shrink-0 text-muted-foreground">{tt('Size（直系文件合计）')}</span>
+                <span className="k w-36 shrink-0 text-muted-foreground">{tt('大小（直系文件合计）')}</span>
                 <span className="font-mono">
                   {formatBytes(childrenNodes.reduce((acc, n) => acc + (!n.folder && n.size !== null ? n.size : 0), 0))}
                 </span>
@@ -554,7 +555,7 @@ function NodeGeneral({
         </div>
         {!node.folder && node.tags && node.tags.length > 0 && (
           <div className="kv mb-1 flex gap-2 text-dense">
-            <span className="k w-36 shrink-0 text-muted-foreground">tags</span>
+            <span className="k w-36 shrink-0 text-muted-foreground">{tt('标签')}</span>
             <span className="flex flex-wrap gap-1">
               {node.tags.map((tag) => (
                 <span
@@ -583,7 +584,7 @@ function ModuleIdRow({ repoKey, path }: { repoKey: string; path: string }) {
   if (props.status === 'loading') {
     return (
       <div className="kv mb-1 flex gap-2 text-dense">
-        <span className="k w-36 shrink-0 text-muted-foreground">Module ID</span>
+        <span className="k w-36 shrink-0 text-muted-foreground">{tt('模块 ID')}</span>
         <span className="font-mono" data-testid="node-module-id">{STATS_HINTS.loading}</span>
       </div>
     )
@@ -592,7 +593,7 @@ function ModuleIdRow({ repoKey, path }: { repoKey: string; path: string }) {
     const errTitle = `${tt('module 关联探测不可用（HTTP')} ${props.error?.status ?? 0}${tt('）')}`
     return (
       <div className="kv mb-1 flex gap-2 text-dense">
-        <span className="k w-36 shrink-0 text-muted-foreground">Module ID</span>
+        <span className="k w-36 shrink-0 text-muted-foreground">{tt('模块 ID')}</span>
         <span className="font-mono" data-testid="node-module-id" title={errTitle}>{EMPTY_VALUE}</span>
       </div>
     )
@@ -601,7 +602,7 @@ function ModuleIdRow({ repoKey, path }: { repoKey: string; path: string }) {
   if (!assoc) {
     return (
       <div className="kv mb-1 flex gap-2 text-dense">
-        <span className="k w-36 shrink-0 text-muted-foreground">Module ID</span>
+        <span className="k w-36 shrink-0 text-muted-foreground">{tt('模块 ID')}</span>
         <span className="font-mono" data-testid="node-module-id" title={tt('无 build 关联——节点未携带 build.* 属性族（CI 以矩阵参数部署时写入 build.name/build.number/build.timestamp）。')}>{EMPTY_VALUE}</span>
       </div>
     )
@@ -658,7 +659,7 @@ function ModuleIdProbe({
   }
   return (
     <div className="kv mb-1 flex gap-2 text-dense">
-      <span className="k w-36 shrink-0 text-muted-foreground" title={probeTitle}>Module ID</span>
+      <span className="k w-36 shrink-0 text-muted-foreground" title={probeTitle}>{tt('模块 ID')}</span>
       <span className="min-w-0 font-mono" title={probeTitle}>{body}</span>
     </div>
   )

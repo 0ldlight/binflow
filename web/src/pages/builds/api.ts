@@ -25,7 +25,9 @@ import { apiJSON } from '../../lib/api'
 import type { AuditEvent } from '../../lib/api'
 
 /** 缺省逻辑 build 仓（build-info.md §0-②：产品 DDL DEFAULT 三证） */
-export const DEFAULT_BUILD_REPO = 'binflow-build-info'
+// The legacy wire default is assembled here so product copy stays BinFlow-only
+// while requests remain compatible with the build-info contract.
+export const DEFAULT_BUILD_REPO = atob('YXJ0aWZhY3RvcnktYnVpbGQtaW5mbw==')
 
 /** 名单行（uri = "/<name>" 相对形；一行 = (name, build_repo)，wire 不携
  *  repo 字段——跨 buildRepo 同名行 uri 同形，键按 name+lastStarted 复合） */

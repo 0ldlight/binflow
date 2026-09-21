@@ -202,10 +202,10 @@ export default function TokensPage() {
     return (
       <div data-testid="tokens-page">
         <div className="page-header">
-          <h2 className="text-lg font-semibold">Access Tokens</h2>
+          <h2 className="text-lg font-semibold">{t('访问令牌')}</h2>
         </div>
         <EmptyState
-          message={t('无权限访问 Access Tokens')}
+          message={t('无权限访问令牌管理页')}
           hint={t('令牌管理页属管理面板（admin / 只读管理员）。普通用户的自助令牌：制品树任意仓库 → Set Me Up（生成接入令牌），或 REST POST /api/security/token。')}
         />
       </div>
@@ -215,7 +215,7 @@ export default function TokensPage() {
   return (
     <div data-testid="tokens-page">
       <div className="page-header flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold">Access Tokens</h2>
+        <h2 className="text-lg font-semibold">{t('访问令牌')}</h2>
         <span className="text-aux text-muted-foreground">{t('自铸 / 吊销 API 令牌（E-17 / E-18；scope 恒 api:*——携带主体全部权限）')}</span>
         <Button size="sm" className="ml-auto" data-testid="token-create" onClick={() => setDialogOpen(true)}>
           {t('生成令牌')}

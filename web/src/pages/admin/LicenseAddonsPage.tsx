@@ -134,7 +134,7 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
 
   return (
     <section className="card section" data-testid="license-card">
-      <h3>License</h3>
+      <h3>{t('许可')}</h3>
       {state.status === 'loading' && <StateSkeleton lines={5} />}
       {state.status === 'error' && state.error && <ErrorCard error={state.error} onRetry={state.reload} />}
       {state.status === 'ok' && state.data && (
@@ -159,7 +159,7 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
                 </span>
               </div>
               <div className="kv">
-                <span className="k">License ID</span>
+                <span className="k">{t('许可 ID')}</span>
                 <span className="font-mono" lang="en">{state.data.licenseId || '—'}</span>
               </div>
               <div className="kv">
@@ -302,10 +302,10 @@ export default function LicenseAddonsPage() {
     return (
       <div data-testid="license-page">
         <div className="page-header">
-          <h2 className="text-lg font-semibold">License &amp; Add-ons</h2>
+          <h2 className="text-lg font-semibold">{t('许可与扩展')}</h2>
         </div>
         <EmptyState
-          message={t('无权限访问 License &amp; Add-ons')}
+          message={t('无权限访问许可与扩展')}
           hint={t('license 与 addon 状态属于管理面（system:read，需 admin / readonly_admin）。')}
         />
       </div>
@@ -316,14 +316,14 @@ export default function LicenseAddonsPage() {
   return (
     <div data-testid="license-page">
       <div className="page-header flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold">License &amp; Add-ons</h2>
+        <h2 className="text-lg font-semibold">{t('许可与扩展')}</h2>
         <span className="text-aux text-muted-foreground">{t('档位 × addon 解锁矩阵（实时求值，与门控执行同源）')}</span>
       </div>
 
       <LicenseCard rev={rev} onChanged={bump} />
 
       <section className="card section" data-testid="addons-card">
-        <h3>Add-ons</h3>
+        <h3>{t('扩展')}</h3>
         {addons.status === 'loading' && <StateSkeleton lines={6} />}
         {addons.status === 'error' && addons.error && <ErrorCard error={addons.error} onRetry={addons.reload} />}
         {addons.status === 'forbidden' && (

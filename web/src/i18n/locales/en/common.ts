@@ -56,7 +56,6 @@ registerEn('common', {
   "调度": "Schedule",
   "动作": "Action",
   "对象": "Target",
-  "返回列表": "Back to the list",
   "服务端原文": "Server message",
   "服务状态": "Service Status",
   "复制": "Replication",
@@ -178,4 +177,16 @@ registerEn('common', {
   "新建仓库": "Create a Repository",
 
   "仓库类型": "Repository Type",
+  "发布生命周期": "Release Lifecycle",
+  "许可与扩展": "License & Add-ons",
+
+  "面包屑": "Breadcrumb",
+  "更多": "More",
+
+  "访问令牌": "Access Tokens",
+
+  "创建时间": "Created",
+
+  "制品数": "Artifacts",
+  "模块 ID": "Module ID",
 })

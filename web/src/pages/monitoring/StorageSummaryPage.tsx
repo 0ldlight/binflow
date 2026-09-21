@@ -209,7 +209,7 @@ export default function StorageSummaryPage() {
                 </TableHeader>
                 <TableBody>
                   <TableRow className="storage-total border-b border-border font-medium hover:bg-accent" data-testid="storage-total-row">
-                    <TableCell className="px-3 py-1.5"><b>TOTAL</b></TableCell>
+                    <TableCell className="px-3 py-1.5"><b>{tt('合计')}</b></TableCell>
                     <TableCell className="px-3 py-1.5"><span className="text-muted-foreground">—</span></TableCell>
                     <TableCell className="px-3 py-1.5"><span className="text-muted-foreground">—</span></TableCell>
                     <TableCell className="px-3 py-1.5 font-mono" lang="en">100%</TableCell>

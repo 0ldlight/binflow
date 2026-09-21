@@ -49,8 +49,8 @@ test('L27a: admin — nav entry, community floor card, live addons matrix', asyn
   await page.goto('/binflow/ui/admin/general/license')
   await expect(page.locator('[data-testid="license-page"]')).toBeVisible()
   // P3 四分组 IA：License & Add-ons 挂「管理」分组（旧「常规」组随重排退役）
-  await expect(page.locator('.nav-group-label', { hasText: '管理' })).toBeVisible()
-  const navEntry = page.locator('[data-testid="app-nav"] .nav-item', { hasText: 'License & Add-ons' })
+  await expect(page.locator('.nav-group-label', { hasText: 'BinFlow 扩展' })).toBeVisible()
+  const navEntry = page.locator('[data-testid="app-nav"] .nav-item', { hasText: '许可与扩展' })
   await expect(navEntry).toBeVisible()
   await expect(navEntry).toHaveAttribute('href', '/binflow/ui/admin/general/license')
 
@@ -129,7 +129,7 @@ test('L27c: readonly_admin read-only visible; plain user navigation unreachable'
   await loginAs(ro, 'readonly_admin')
   await ro.goto('/binflow/ui/admin/general/license')
   await expect(ro.locator('[data-testid="license-page"]')).toBeVisible()
-  await expect(ro.locator('[data-testid="app-nav"] .nav-item', { hasText: 'License & Add-ons' })).toBeVisible()
+  await expect(ro.locator('[data-testid="app-nav"] .nav-item', { hasText: '许可与扩展' })).toBeVisible()
   await expect(ro.locator('[data-testid="license-readonly-note"]')).toBeVisible()
   // 写面反断言（L4 预收敛；服务端 403 兜底）
   await expect(ro.locator('[data-testid="license-doc-input"]')).toHaveCount(0)
@@ -143,7 +143,7 @@ test('L27c: readonly_admin read-only visible; plain user navigation unreachable'
   // —— 普通 user：导航不可达 + 直链 L2 收敛 ——
   const user = await (await browser.newContext()).newPage()
   await loginAs(user, 'user')
-  await expect(user.locator('[data-testid="app-nav"] .nav-item', { hasText: 'License & Add-ons' })).toHaveCount(0)
+  await expect(user.locator('[data-testid="app-nav"] .nav-item', { hasText: '许可与扩展' })).toHaveCount(0)
   await user.goto('/binflow/ui/admin/general/license')
   await expect(user.locator('[data-testid="license-page"]')).toBeVisible()
   await expect(user.locator('[data-testid="license-page"] [data-testid="empty-state"]')).toBeVisible()
