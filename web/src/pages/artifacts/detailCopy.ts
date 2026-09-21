@@ -16,18 +16,18 @@ const t = tr('artifacts')
 
 /** 下载统计族标签（file 形态 General 页——消费 T-438 ?stats 面） */
 export const STATS_LABELS = {
-  downloads: 'Downloads',
-  lastDownloadedBy: 'Last Downloaded By',
-  lastDownloaded: 'Last Downloaded',
-  remoteDownloads: 'Remote Downloads',
+  downloads: t('下载次数'),
+  lastDownloadedBy: t('最后下载者'),
+  lastDownloaded: t('最后下载时间'),
+  remoteDownloads: t('远端下载次数'),
 } as const
 
 /** 仓视图字段族标签（repo 形态 General 页——FR-144.3） */
 export const REPO_FIELD_LABELS = {
-  repoLayout: 'Repository Layout',
-  description: 'Description',
-  created: 'Created',
-  artifactCount: 'Artifact Count',
+  repoLayout: t('仓库布局'),
+  description: t('描述'),
+  created: t('创建时间'),
+  artifactCount: t('制品数'),
 } as const
 
 /**
@@ -74,11 +74,11 @@ export const REMOTE_COPY = {
  */
 export const PROPS_COPY = {
   /** 常显键输入 placeholder（7.161.20 活体同文） */
-  keyPlaceholder: 'Property name',
+  keyPlaceholder: t('属性名'),
   /** 常显值输入 placeholder（7.161.20 活体同文；多值逗号分隔） */
-  valuePlaceholder: 'Property value',
+  valuePlaceholder: t('属性值'),
   /** Add 提交钮（B-2.9 解剖要素；同名键 = 整体替换其值集〔§11.40〕） */
-  addLabel: t('Add 属性'),
+  addLabel: t('添加属性'),
   /** 网格搜索（B-2.9 解剖要素——键/值子串过滤既有网格） */
   searchLabel: t('搜索属性'),
   searchPlaceholder: t('搜索键或值'),
@@ -108,8 +108,8 @@ export const DOWNLOAD_COPY = {
   verifyOk: t('✓ 下载落盘 sha256 与服务端一致'),
   verifyBad: t('✗ 不一致！下载内容与服务端登记的 checksum 不匹配'),
   /** checksum/mimeType 区（Q9：mimeType 与校验徽标块自 General 页收进伴随） */
-  checksumsHeader: 'Checksums',
-  mimeTypeLabel: 'mimeType',
+  checksumsHeader: t('校验和'),
+  mimeTypeLabel: t('MIME 类型'),
   /** 大文件指引（校验是浏览器内存路径——Blob 落盘的固有成本提示） */
   verifyHint: t('大文件建议直接下载（校验经浏览器内存路径）'),
 } as const

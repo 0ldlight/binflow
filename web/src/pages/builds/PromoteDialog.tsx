@@ -139,7 +139,7 @@ export default function PromoteDialog({
             <p className="field-hint">{t('追加一行 promotion 历史（现势 = 最新行，永不改写旧行）。')}</p>
           </div>
           <div className="field">
-            <label htmlFor="bp-comment">comment</label>
+            <label htmlFor="bp-comment">{t('备注')}</label>
             <TextInput
               id="bp-comment"
               value={f.comment}
@@ -149,7 +149,7 @@ export default function PromoteDialog({
             />
           </div>
           <div className="field">
-            <label htmlFor="bp-ciuser">ciUser</label>
+            <label htmlFor="bp-ciuser">{t('CI 用户')}</label>
             <TextInput
               id="bp-ciuser"
               mono

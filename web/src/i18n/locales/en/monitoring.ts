@@ -127,4 +127,6 @@ registerEn('monitoring', {
   "mode 经 POST 体的 BinFlow 承载位写入（disabled / enabled / simulation——进程生命周期态，重启回出厂 disabled）。桶数值不变（合并语义）。": "The mode rides the POST body's BinFlow carrier field (disabled / enabled / simulation — process-lifetime state; a restart returns to factory disabled). Bucket values are untouched (merge semantics).",
   "mode 是 BinFlow 的 POST 承载位（disabled / enabled / simulation——同类控制台 走 system.properties，BinFlow 无 properties 面）；文档为进程生命周期态，重启回出厂（DB 持久化是已登记缺口）。": "The mode is BinFlow's POST carrier field (disabled / enabled / simulation — reference console uses system.properties, which BinFlow lacks); the document is process-lifetime state, reset to factory on restart (DB persistence is a registered gap).",
   "Server Name / Base URL / 匿名读开关 / 数据目录 / 日志级别无查询端点（契约冻结）， 不展示、不伪造；控制台不含配置写入口（Logo / Custom Message 不建）。": "Server Name / Base URL / anonymous-read toggle / data directory / log level have no query endpoint (contract frozen) — not shown, not fabricated; the console has no configuration write entry (Logo / Custom Message are not built).",
+
+  "合计": "TOTAL",
 })

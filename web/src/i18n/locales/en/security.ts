@@ -253,7 +253,6 @@ registerEn('security', {
   "无 include 命中": "No include match",
   "无法删除组": "Cannot delete the group",
   "无管理范围内的权限目标": "No permission targets within the manage scope",
-  "无权限访问 Access Tokens": "No permission to access Access Tokens",
   "无权限访问签名密钥": "No permission to access signing keys",
   "无权限访问权限管理": "No permission to access permission management",
   "无权限访问用户管理": "No permission to access user management",
@@ -393,4 +392,12 @@ registerEn('security', {
   "user=按 permission target 授权；readonly_admin=管理面只读；admin=管理面全权。": "user = authorized by permission target; readonly_admin = read-only admin plane; admin = full rights on the admin plane.",
   "write = 部署位（7.161 标签 Deploy/Cache；wire 正名 deploy-cache，PUT 仍收 write 别名）；不携带 annotate——属性写需另勾 annotate 列": "write = the deployment bit (labeled Deploy/Cache in 7.161; wire name deploy-cache, PUT still accepts the write alias); does not carry annotate — property writes need the separate annotate column",
   "write = 部署位（7.161 标签 Deploy/Cache；wire 正名 deploy-cache；不携带 annotate）": "write = the deployment bit (labeled Deploy/Cache in 7.161; wire name deploy-cache; does not carry annotate)",
+
+  "无权限访问令牌管理页": "No permission to access token management",
+
+  "邮箱 *": "Email *",
+  "邮箱": "Email",
+  "权限名称": "Permission Name",
+
+  "返回列表": "Back to list",
 })

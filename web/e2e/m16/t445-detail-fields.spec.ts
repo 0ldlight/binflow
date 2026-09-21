@@ -169,8 +169,8 @@ test('file detail: File URL copy button, downloads family end-to-end via ?stats 
   // 字段序（reverse §3.2）：File URL 在 Repository Path 之后、部署者之前
   const labels = await detail.locator('.kv .k').allInnerTexts()
   const idx = (name: string) => labels.findIndex((l) => l === name)
-  expect(idx('File URL')).toBeGreaterThan(idx('Repository Path'))
-  expect(idx('File URL')).toBeLessThan(idx('部署者'))
+  expect(idx('文件 URL')).toBeGreaterThan(idx('仓库路径'))
+  expect(idx('文件 URL')).toBeLessThan(idx('部署者'))
 
   // 下载统计族：UI 呈现 == 同刻 ?stats 面（探针面计数继承下不赌绝对值）；
   // 面值 >= 3（内容面 GET 已落）；lastDownloadedBy = 内容面调用者（admin）
@@ -227,16 +227,16 @@ test('detail fields: Module ID renders honest-empty; virtual-association blocks 
   // Module ID：T-512（74174a07）按登记翻案落地——字段现在在场，无 build
   // 关联时如实呈现 '—'（不伪造值）。L025-2：从缺位反断言翻为诚实空断言
   //（值是异步装载——先呈 '…' 占位，poll 到位）。
-  expect(detailText, 'Module ID field must render (T-512 lift)').toContain('Module ID')
+  expect(detailText, 'Module ID field must render (T-512 lift)').toContain('模块 ID')
   await expect
     .poll(
       async () => {
         const t = await page.locator('[data-testid="node-detail"]').innerText()
-        return t.slice(t.indexOf('Module ID'), t.indexOf('Module ID') + 24)
+        return t.slice(t.indexOf('模块 ID'), t.indexOf('模块 ID') + 24)
       },
       { timeout: 10_000 },
     )
-    .toMatch(/Module ID\s*—/)
+    .toMatch(/模块 ID\s*—/)
   // 缺位登记反断言（仍不建的面）：Package Information / Dependency
   // Declaration / Virtual Repository Associations / Included Repositories
   // 块不建（BinFlow 无包信息域/仓关联面——不伪造）

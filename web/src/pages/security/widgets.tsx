@@ -39,7 +39,7 @@ export function PermSummaryTable({
     <Table className="perm-summary w-full text-dense" data-testid={`${rowTestidPrefix}-matrix`}>
       <TableHeader>
         <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
-          <TableHead scope="col" className="px-3 py-2 font-medium">Permission Name</TableHead>
+          <TableHead scope="col" className="px-3 py-2 font-medium">{t('权限名称')}</TableHead>
           <TableHead scope="col" className="px-3 py-2 font-medium">{t('应用途径')}</TableHead>
           {PERM_ACTIONS.map((a) => (
             <TableHead

@@ -190,7 +190,7 @@ export default function UserDetailPage() {
                 </div>
               </div>
               <div className="field">
-                <label htmlFor="ud-email">Email</label>
+                <label htmlFor="ud-email">{t('邮箱')}</label>
                 <TextInput
                   id="ud-email"
                   type="email"
@@ -341,7 +341,7 @@ export default function UserDetailPage() {
           <span className="font-mono" lang="en" data-testid="user-facts-role">{baseRole ?? '—'}</span>
         </div>
         <div className="kv">
-          <span className="k">Status</span>
+          <span className="k">{t('状态')}</span>
           <span>{d ? <StatusLabel enabled={d.enabled} /> : '—'}</span>
         </div>
         <div className="kv">

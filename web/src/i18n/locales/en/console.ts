@@ -233,14 +233,11 @@ registerEn('console', {
   "平台": "Platform",
   "管理": "Administration",
   "软件包": "Packages",
-  "发布生命周期": "Release Lifecycle",
-  "访问令牌": "Access Tokens",
   "LDAP": "LDAP",
   "签名密钥": "Signing Keys",
   "仓库设置": "Repository Settings",
   "BinFlow 扩展": "BinFlow Extensions",
   "Webhooks": "Webhooks",
-  "许可与扩展": "License & Add-ons",
   "用户管理": "User Management",
   "认证": "Authentication",
   "通用管理": "General Management",
@@ -255,4 +252,6 @@ registerEn('console', {
   "版本说明": "Release Notes",
 
   "关于": "About",
+
+  "SSH 密钥": "SSH Keys",
 })

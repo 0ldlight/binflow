@@ -45,10 +45,10 @@ type UserSortKey = 'name' | 'email' | 'groups' | 'role' | 'status' | 'lastLogin'
  *  操作列仅 admin 在场——非 admin 视图该列与菜单项同步剔除。 */
 const COLUMNS: ColumnDef[] = [
   { id: 'name', label: t('用户名'), anchor: 'users-columns-item-name' },
-  { id: 'email', label: 'Email', anchor: 'users-columns-item-email' },
+  { id: 'email', label: t('邮箱'), anchor: 'users-columns-item-email' },
   { id: 'groups', label: t('组'), anchor: 'users-columns-item-groups' },
   { id: 'role', label: t('角色'), anchor: 'users-columns-item-role' },
-  { id: 'status', label: 'Status', anchor: 'users-columns-item-status' },
+  { id: 'status', label: t('状态'), anchor: 'users-columns-item-status' },
   { id: 'lastLogin', label: t('最近登录'), anchor: 'users-columns-item-lastlogin' },
   { id: 'actions', label: t('操作'), anchor: 'users-columns-item-actions' },
 ]
@@ -200,10 +200,10 @@ role="menuitem"
               <TableHeader>
                 <TableRow className="border-b border-border text-left text-aux text-muted-foreground">
                   {cols.isVisible('name') && <SortTh label={t('用户名')} sortKey="name" sort={sort} onToggle={toggle} testid="users-sort-name" />}
-                  {cols.isVisible('email') && <SortTh label="Email" sortKey="email" sort={sort} onToggle={toggle} />}
+                  {cols.isVisible('email') && <SortTh label={COLUMNS[1].label} sortKey="email" sort={sort} onToggle={toggle} />}
                   {cols.isVisible('groups') && <SortTh label={t('组')} sortKey="groups" sort={sort} onToggle={toggle} />}
                   {cols.isVisible('role') && <SortTh label={t('角色')} sortKey="role" sort={sort} onToggle={toggle} />}
-                  {cols.isVisible('status') && <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} testid="users-sort-status" />}
+                  {cols.isVisible('status') && <SortTh label={COLUMNS[4].label} sortKey="status" sort={sort} onToggle={toggle} testid="users-sort-status" />}
                   {cols.isVisible('lastLogin') && <SortTh label={t('最近登录')} sortKey="lastLogin" sort={sort} onToggle={toggle} testid="users-sort-lastlogin" />}
                   {admin && cols.isVisible('actions') && <Th label={t('操作')} />}
                 </TableRow>

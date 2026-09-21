@@ -2,13 +2,17 @@
 // text-dense、中间段 hover accent、焦点环 outline 形态——§4.2 Breadcrumb☆
 // 末段实色/中间段 hover accent/溢出省略 Ellipsis 槽）。
 import { Slot } from '@radix-ui/react-slot'
+
+import { tr } from '@/i18n'
 import { ChevronRight, MoreHorizontal } from 'lucide-react'
 import type { ComponentProps } from 'react'
 
 import { cn } from '@/lib/utils'
 
+const t = tr('common')
+
 function Breadcrumb({ ...props }: ComponentProps<'nav'>) {
-  return <nav aria-label="breadcrumb" data-slot="breadcrumb" {...props} />
+  return <nav aria-label={t('面包屑')} data-slot="breadcrumb" {...props} />
 }
 
 function BreadcrumbList({ className, ...props }: ComponentProps<'ol'>) {
@@ -85,7 +89,7 @@ function BreadcrumbEllipsis({ className, ...props }: ComponentProps<'span'>) {
       {...props}
     >
       <MoreHorizontal className="size-4" />
-      <span className="sr-only">More</span>
+      <span className="sr-only">{t('更多')}</span>
     </span>
   )
 }

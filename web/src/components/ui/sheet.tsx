@@ -5,6 +5,8 @@
 // 随 side 变体注入，keyframes 不碰 transform（Radix 定位类零互踩）。
 import * as SheetPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
+
+import { tr } from '@/i18n'
 import type { ComponentProps } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 
@@ -14,6 +16,8 @@ const Sheet = SheetPrimitive.Root
 const SheetTrigger = SheetPrimitive.Trigger
 const SheetClose = SheetPrimitive.Close
 const SheetPortal = SheetPrimitive.Portal
+
+const t = tr('common')
 
 function SheetOverlay({ className, ...props }: ComponentProps<typeof SheetPrimitive.Overlay>) {
   return (
@@ -55,7 +59,7 @@ function SheetContent({
         {children}
         <SheetPrimitive.Close className="absolute top-3.5 right-3.5 rounded-sm text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-2 focus-visible:outline-ring">
           <X className="size-4" />
-          <span className="sr-only">Close</span>
+          <span className="sr-only">{t('关闭')}</span>
         </SheetPrimitive.Close>
       </SheetPrimitive.Content>
     </SheetPortal>

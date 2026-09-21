@@ -234,7 +234,7 @@ test('download: single 24px icon (direct download), verify capability + checksum
 
   // General 页不再平铺校验块（Q9 终裁「收进伴随形态」）
   await expect(page.locator('[data-testid="node-detail"]')).not.toContainText('sha256')
-  await expect(page.locator('[data-testid="node-detail"]')).not.toContainText('mimeType')
+  await expect(page.locator('[data-testid="node-detail"]')).not.toContainText('MIME 类型')
 
   // 伴随菜单：校验动作 + checksums（截断呈现）+ mimeType 全在菜单内
   await page.click('[data-testid="node-download-menu"]')
@@ -243,7 +243,7 @@ test('download: single 24px icon (direct download), verify capability + checksum
   await expect(page.locator('[data-testid="node-download-menu-verify"]')).toBeVisible()
   const sums = page.locator('[data-testid="node-download-checksums"]')
   await expect(sums).toContainText('sha256')
-  await expect(sums).toContainText('mimeType')
+  await expect(sums).toContainText('MIME 类型')
   // 拷贝不截断（§7.3）：sha256 完整值进剪贴板
   const item = (await api(page, 'GET', `/api/storage/${key}/docs/guide.md`)).json as {
     checksums: { sha256: string }
