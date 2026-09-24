@@ -1,5 +1,10 @@
 # 任务看板（BOARD）
 
+> **冻结通告（2026-09-25 章程）**：本文件自即日起冻结为**只读历史快照**——新票不再录入，票态不再流转。
+> 权威任务源迁移至 **Linear**（workspace `binfloow`，三层 Project → 业务闭环 Issue → 工程 Sub-issue）；
+> Linear MCP OAuth 验证完成前，新任务以 `reports/agents/T-<id>.md` + conductor 会话承载，验证后回填。
+> 在途收尾仍以尾部时序日志记账收口，不做结构性改动。
+>
 > 唯一事实来源。**只有主会话（conductor / Loop Engineer）可以写本文件**，所有 subagent 只读。
 > ticket 由 tech-lead 生成、主会话录入。**实态以里程碑分节 + 票行内状态标注 + 尾部时序日志承载**（头部分区仅索引）。
 > 当前里程碑：**M17（产品域扩张专程，16/35，W8 双票在途暂停候令）**。M1~M16 已完成（m16-done 2026-09-06）。
