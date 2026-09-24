@@ -55,3 +55,42 @@ grep -rn '每 10 轮|security-auditor|Playwright|axe|INTENTIONAL.*authority'（�
 grep -rn '落盘 BOARD|入 BOARD|写入 BOARD|录入 BOARD|写 BOARD|BOARD 移|更新 BOARD' .claude/agents/ .claude/commands/ TEAM.md
 grep -rn '18 阶段' --include='*.md' .（陈旧引用清查）
 ```
+
+---
+
+# 增量重审（2026-09-25，针对 commit 33fecb29）
+
+## 增量范围
+
+仅 33fecb29 一个提交、8 个文件（67+/8-）；worktree 中 T-520..T-523 在途 agent 的未提交分区不计入 PR 面。
+
+## 处置核对（对照首轮报告）
+
+| 项 | 处置 | 结论 |
+|---|---|---|
+| A-B1 sprint.md | 行 4 重锚 v3 六步闭环；行 8 复位改读 Linear/T-*.md；行 10 「只落盘 reports/iteration-NNN.md（BOARD.md 已冻结只读，不再写入）」 | **修复到位**，写入路径矛盾消除 |
+| A-B1 security-review.md:13 | 「即时录 Linear（未就绪期 T-<id>.md 承载；BOARD.md 已冻结只读不再入票）」 | **修复到位**（原危害最大处） |
+| A-B1 TEAM.md:105 | 「Loop v3 六步闭环（Linear 驱动，见 SPRINT-LOOP.md）」 | **修复到位** |
+| A-B1 读侧 ×2 | team-status.md:7（BOARD=冻结历史快照 + T-*.md 过渡载体）、compatibility-gap.md:8（BOARD 仅作冻结历史参照） | **修复到位** |
+| A-N1 | BOARD.md 冻结通告内追加失效声明半句，冻结正文未动（单行 amend，仍 blockquote，无结构改动） | **修复到位**，符合「不动冻结体」建议 |
+| A-N2 | v3 step 5 追加「质量门口径核对清单：六关键域 A/B 双审 + AC 与真实客户端矩阵 + 差分（或金样降级显式记账）+ 基线比对 + negative test + UAT smoke——任一回退即阻断合并」 | **超出建议**（内联核对清单强于指针行，且新增「任一回退即阻断合并」硬句） |
+| A-N3 | 知悉不改 | 符合处置建议 |
+
+## 首轮记录修正
+
+- 首轮 A-N2 称「PRODUCT 空壳守卫无落点」为漏看：该守卫一直存活于 `.claude/commands/sprint.md`（/sprint 命令面，本增量未动、已核实仍在）。据此 v2 收敛项**全部**有落点，「质量门一不减」无例外成立。
+
+## 残留清查（针对 33fecb29 提交树，避开在途 agent 未提交内容）
+
+- `git grep -E '落盘 BOARD|入 BOARD|写入 BOARD|录入 BOARD|写 BOARD|BOARD 移|更新 BOARD' 33fecb29 -- .claude/ TEAM.md CLAUDE.md` → 仅 tech-lead.md:37/137 两处**禁止性**表述（「绝不写 BOARD.md」「想直接写 BOARD→停」），与冻结一致，非矛盾。
+- `git grep '18 阶段' 33fecb29 -- '*.md' ':!reports/' ':!BOARD.md' ':!docs/ai-engineering/'` → **零残留**（排除项均为带日期历史快照/日志）。
+- sprint.md 提交树全文复核：五处改动到位，PRODUCT 空壳守卫存活。
+- 增量 diff 无新密钥/新配置面；markdown 结构（缩进/blockquote）正确；commit message conventional 且引报告路径。
+
+## 增量裁决
+
+**APPROVE**
+
+- A-B1 五处全部修复且与建议修法逐字吻合；A-N1/A-N2 处置到位；A-N3 知悉记录。
+- 五项原清单结论不变（增量未触及 settings.json/.gitignore；BOARD.md 仅通告区单行 amend，仍零删除冻结正文）。
+- Next（交 conductor）：无阻塞遗留。A-N3（settings.json 免确认执行面）作为 ruflo 取舍已记录在案，后续如收紧另开票。
