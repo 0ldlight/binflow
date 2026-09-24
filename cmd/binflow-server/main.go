@@ -99,9 +99,28 @@ const defaultConfigName = "binflow.yaml"
 // it is still effective (see warnDefaultAdminPassword).
 const defaultAdminPassword = "password"
 
-// errPostgresDisabled is the fail-fast startup refusal for
-// metadata.driver=postgres (FR-3-AC10). M1 ships SQLite only.
+// errPostgresDisabled is the fail-fast refusal for metadata.driver=postgres
+// (FR-3-AC10), shared by every subcommand that opens the metadata store —
+// see refusePostgresDriver.
 var errPostgresDisabled = errors.New("postgres support is not enabled")
+
+// refusePostgresDriver gates the metadata-opening subcommands (serve, gc,
+// export) behind the FR-3-AC10 refusal. The postgres Open path is enabled
+// (T-519: connect + migrate + seed run on pgx) but the sub-store query
+// layer is still sqlite-only, so an ungated gc/export would migrate and
+// seed the external database — including the default admin password — and
+// only then fail deep in a sqlite-only query (gc: the upload-session sweep;
+// export: the VACUUM INTO snapshot). Import needs no gate here: runImport
+// restores a SQLite snapshot file and refuses every non-sqlite driver on
+// its own.
+func refusePostgresDriver(cfg *config.Config, logger *slog.Logger) error {
+	if cfg.Metadata.Driver != config.DriverPostgres {
+		return nil
+	}
+	logger.Error("Postgres support is not enabled",
+		"message", "postgres support is not enabled in this build (the sub-store query layer is still sqlite-only); set metadata.driver: sqlite")
+	return fmt.Errorf("metadata.driver=%s: %w", cfg.Metadata.Driver, errPostgresDisabled)
+}
 
 // usage is the --help text.
 const usage = `binflow-server is the BinFlow artifact repository server.
@@ -998,13 +1017,10 @@ type stack struct {
 // of expired upload sessions happens inside storage.OpenEngine
 // (ADR-0006). Both are idempotent.
 func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*stack, error) {
-	if cfg.Metadata.Driver == config.DriverPostgres {
-		// FR-3-AC10: refuse to boot with a clear, greppable message. The
-		// config enum accepts postgres (pass-through), so this is the one
-		// gate; it runs before anything is opened.
-		logger.Error("Postgres support is not enabled",
-			"message", "postgres support is not enabled in this build (M1 ships SQLite only); set metadata.driver: sqlite")
-		return nil, fmt.Errorf("metadata.driver=%s: %w", cfg.Metadata.Driver, errPostgresDisabled)
+	// FR-3-AC10: refuse to boot before anything is opened. gc and export
+	// share the gate (refusePostgresDriver).
+	if err := refusePostgresDriver(cfg, logger); err != nil {
+		return nil, err
 	}
 
 	md, err := metadata.Open(ctx, metadata.Options{
@@ -2004,6 +2020,15 @@ func runGC(args []string, stderr io.Writer) error {
 	// reach the CLI surface here — gc's logger only exists deeper in.
 	writeStartupWarnings(stderr, cfg)
 
+	logger := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	// FR-3-AC10, shared with serve/export (refusePostgresDriver): fires
+	// before the maintenance lock and metadata.Open — an ungated open would
+	// migrate+seed the external database (T-519 postgres Open path) and only
+	// fail later in the sqlite-only storage sweep.
+	if err := refusePostgresDriver(cfg, logger); err != nil {
+		return fmt.Errorf("gc: %w", err)
+	}
+
 	// graceOverride remembers whether an explicit flag overrode the
 	// configured grace: the gc.run audit detail carries graceHours as null
 	// exactly when the run used storage.gc_grace (the same absent-vs-explicit
@@ -2052,7 +2077,6 @@ func runGC(args []string, stderr io.Writer) error {
 	}
 	defer func() { _ = lock.Release() }()
 
-	logger := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	// Metadata opens first so the storage engine can hand its upload_sessions
 	// store to the startup sweep (T-209: sessions are DB-backed).
 	md, err := metadata.Open(ctx, metadata.Options{
