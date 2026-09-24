@@ -75,8 +75,8 @@ one-to-one when the dialect lands):
   webhook_subscription_events child table (multi-event-type filters, the
   (subscription_id, event_type) pair keyed) and the webhook_deliveries
   outbox (status closed set, (status, next_attempt_at) queue index,
-  ON DELETE CASCADE from the subscription). Porting notes: booleans are
-  the INTEGER 0/1 convention on the sqlite side, BOOLEAN here; every id is
+  ON DELETE CASCADE from the subscription). Porting notes: booleans stay
+  INTEGER 0/1 in both dialects; every id is
   a uuid text primary key (no sequences), timestamps stay RFC3339 UTC
   text. (015~017 predate this entry and carry no postgres notes here —
   their sqlite files are the contract.)
@@ -84,8 +84,8 @@ one-to-one when the dialect lands):
   row (M15 T-422, FR-138.3 / replication.md §9.2-B) — replication_globals,
   ONE row with the id CHECK-pinned to 1 (the same single-row shape as
   012_license), the two direction flags and the last-flip bookkeeping.
-  Statements are dialect-common (booleans as 0/1 on the sqlite side,
-  BOOLEAN here).
+  Statements are dialect-common (booleans as INTEGER 0/1 in both
+  dialects).
 - 020_node_download_stats: the per-node download statistics widening of
   nodes (M16 T-438, FR-146.2 / ADR-0044 K69) — download_count /
   last_downloaded_at / last_downloaded_by / remote_download_count, all
@@ -108,7 +108,7 @@ one-to-one when the dialect lands):
   Artifactory descriptor fields without a BinFlow carrier (repository
   subsets, incremental, retention rotation, zip, mail-on-error) are
   deliberately absent. Nothing is preseeded. Statements are
-  dialect-common (booleans as 0/1 on the sqlite side, BOOLEAN here).
+  dialect-common (booleans as INTEGER 0/1 in both dialects).
 - 023_annotate_action: permission_principals.can_annotate INTEGER — the 'a'
   (annotate) action bit, the property-write half of the write verb's split
   (M16 T-444, FR-146.1 / ADR-0044 K68). Zero-privilege equivalence backfill:
