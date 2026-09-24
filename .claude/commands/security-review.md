@@ -10,4 +10,4 @@ description: 触发安全审计（旁路插入 security-auditor）
 - 联动：Security 相关在途票的 negative test 覆盖核对（DoD 硬门）。
 - 产出：`reports/security/<date>-audit.md`（风险清单：severity/CVSS 级估/复现路径/修复建议票面）。
 
-收编：Critical/High → P0/P1 缺陷票即时入 BOARD；红线类（对外暴露面）→ 上报用户。
+收编：Critical/High → P0/P1 缺陷票即时录 Linear（未就绪期间以 `reports/agents/T-<id>.md` 承载；BOARD.md 已冻结只读不再入票）；红线类（对外暴露面）→ 上报用户。

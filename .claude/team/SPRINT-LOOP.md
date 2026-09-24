@@ -57,6 +57,8 @@
    protocol/replication/migration 强制 A/B 双实例**，其余域单审）→ qa-engineer 按 AC + 真实客户端矩阵 →
    differential-qa-engineer 差分对照（参照断供 → 金样单边模式 mode=golden-only，confidence 上限 medium）→
    performance/security 面（性能敏感路径过基线比对；涉安票 negative test 硬门）。
+   质量门口径（相对 v2 只增不减的核对清单）：六关键域 A/B 双审 + AC 与真实客户端矩阵 +
+   差分（或金样降级显式记账）+ 基线比对 + negative test + UAT smoke——任一回退即阻断合并。
 
 6. **Deploy & Close（部署与收口）**：CircleCI 链（2026-09-24 起含 `uat_approval` 人工审批门）：build →
    approval → deploy_uat（原子换装+healthz+自动回滚）→ protocol_leg。矩阵翻态（候裁行按 BLOCKED 口径，
