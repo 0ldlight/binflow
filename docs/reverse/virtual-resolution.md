@@ -114,7 +114,7 @@
 
 ### 5.4 pom 级模块解析依赖
 
-virtual 对 path 的模块信息解析（判定 release/snapshot、GAVC 拆分）基于 virtual 自身 `repoLayout`；对每个成员的路径翻译见 §3 第 3 条。| 高 |
+virtual 对 path 的模块信息解析（判定 release/snapshot、GAVC 拆分）基于 virtual 自身 `repoLayout`；对每个成员的路径翻译见 §3 第 3 条。（置信度：高）
 
 ## 6. npm 特有（与聚合缓存）
 
@@ -142,7 +142,7 @@ virtual 对 path 的模块信息解析（判定 release/snapshot、GAVC 拆分�
 
 ### 7.2 REST 存储面（GET /api/storage/...）
 
-对 virtual 路径取 ItemInfo/FolderInfo/FileInfo 时按「**全部 local/federated 成员（展开序）→ 全部 cache 仓**」的序列取**第一个实际持有该 path 的成员**返回（不合并多成员的同名文件，目录才有 §7.1 合并）。| 高 | RepositoryServiceImpl.applyFunctionToLocalFederatedWithCaching（getResolvedLocalFederatedAndCachedRepos = locals → caches 拼接）。
+对 virtual 路径取 ItemInfo/FolderInfo/FileInfo 时按「**全部 local/federated 成员（展开序）→ 全部 cache 仓**」的序列取**第一个实际持有该 path 的成员**返回（不合并多成员的同名文件，目录才有 §7.1 合并）。（置信度：高；证据锚：`artifactory-core org/artifactory/repo/service/RepositoryServiceImpl.java` applyFunctionToLocalFederatedWithCaching——getResolvedLocalFederatedAndCachedRepos = locals → caches 拼接）
 
 ### 7.3 搜索域映射
 
