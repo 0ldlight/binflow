@@ -13,7 +13,10 @@
 #
 # Prerequisites configured in CircleCI project settings (user actions):
 #   - Project linked to github.com/lzwzzy/binflow
-#   - SSH key for the UAT host uploaded; its fingerprint in $UAT_SSH_FP
+#   - SSH key for the UAT host uploaded; its fingerprint in
+#     $SSH_KEY_FINGERPRINT_UAT (T-522: this header previously said
+#     $UAT_SSH_FP — a name that never existed; the add_ssh_keys step below
+#     reads $SSH_KEY_FINGERPRINT_UAT)
 #   - $UAT_HOST (default 52.79.109.153), $UAT_USER (default ubuntu),
 #     $UAT_HOME (default /opt/binflow-uat), $UAT_DOMAIN (default
 #     uat.binflow.org; "off" disables the T-478 TLS proxy layer)
@@ -158,6 +161,17 @@ jobs:
     parallelism: 2
     steps:
       - checkout_full
+      # T-522: OpenAPI drift gate — fern/openapi/binflow.json is GENERATED
+      # (tools/openapi-spec/build_spec.py; python3 only, no deps). The
+      # committed artifact must match the generator byte-for-byte; the
+      # 2026-09-20 de-brand pass (e0061292) hand-edited the json without
+      # touching the generator — exactly the rot class this gate catches.
+      # Same Makefile target as local and the GitHub face: one command,
+      # no drift between surfaces. Runs on both shards (parallelism 2) —
+      # idempotent, <1s, each shard's own workspace.
+      - run:
+          name: OpenAPI spec drift gate
+          command: make spec-check
       # T-473: module cache — path fixed (v1's /go/pkg/mod never existed in
       # cimg images, so every prior save stored nothing). Exact key first,
       # prefix fallback second.
@@ -637,6 +651,26 @@ jobs:
           key: go-build-v1-{{ checksum "go.sum" }}
           paths: ["/home/circleci/.cache/go-build"]
 
+  # T-522 nightly UI smoke — the UI-plane face of the nightly drift window
+  # (the gap the 2026-09-25 verification report flagged: nightly had race
+  # depth + protocol legs, nothing watching the console/docs faces).
+  # Probes the STANDING UAT (nightly posture: no deploy first) — healthz,
+  # the CE-01 console mount redirect, the SPA shell + its fingerprinted
+  # bundle (broken-embed/asset-rot class), the docs face, the version
+  # endpoint. Deliberately NOT the Playwright suite — that is the e2e
+  # job's domain (known-red spec debt family, parameter-gated off since
+  # L024-2/L026-4); a smoke answers "is the standing UI face alive", so a
+  # red here means deploy/config rot, not spec debt. Single script source
+  # ci/ui-smoke.sh (same env-driven shape as ci/protocol-matrix.sh — the
+  # https->plain-HTTP transition probe lives inside the script).
+  ui_smoke:
+    executor: go
+    steps:
+      - checkout_full
+      - run:
+          name: "UI smoke (standing UAT: shell + bundle + docs + version)"
+          command: bash ci/ui-smoke.sh
+
 workflows:
   version: 2
   # L025-2: trigger_source gates on BOTH sides of the nightly split. A
@@ -722,6 +756,10 @@ workflows:
     when: pipeline.trigger_source == "scheduled_pipeline"
     jobs:
       - race_full
+      # T-522: the UI face of the nightly window — see the ui_smoke job
+      # body. Same standing-UAT posture as the protocol legs: drift face,
+      # no deploy.
+      - ui_smoke
       - protocol_leg:
           matrix:
             parameters:

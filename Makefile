@@ -23,7 +23,7 @@ GOLANGCI := $(or $(shell command -v golangci-lint 2>/dev/null),$(shell $(GO) env
 export GOPROXY
 export GOTOOLCHAIN
 
-.PHONY: all build test lint fmt vet tidy run dev clean tools check-size docs docs-size console console-size \
+.PHONY: all build test lint fmt vet tidy spec spec-check run dev clean tools check-size docs docs-size console console-size \
 	check-deps goreleaser-check release-snapshot release release-verify \
 	test-m7-resume test-m7-resume-sigterm test-m7-rbac-matrix lint-baseline \
 	test-m10-matrix test-m10-invariant footprint help
@@ -226,12 +226,37 @@ vet:
 tidy:
 	$(GO) mod tidy
 
+## spec: regenerate fern/openapi/binflow.json — the OpenAPI 3.1 spec behind
+## the Fern API tab — from the generator in tools/openapi-spec/ (python3
+## only, no dependencies). The json is a build product: change the
+## generator, never the artifact, and commit both together.
+spec:
+	python3 tools/openapi-spec/build_spec.py
+
+## spec-check: OpenAPI drift gate (T-522) — regenerate the spec and fail if
+## the committed artifact differs from the generator's output. Prints a
+## diff summary on failure; the artifact is GENERATED, the fix is always
+## `make spec` + commit, never a hand-edit.
+spec-check: spec
+	@if git diff --quiet -- fern/openapi/binflow.json; then \
+		echo "spec-check: fern/openapi/binflow.json in sync with tools/openapi-spec/"; \
+	else \
+		echo "=== FAIL: fern/openapi/binflow.json drifted from tools/openapi-spec/ (T-522) ==="; \
+		git diff --stat -- fern/openapi/binflow.json; \
+		git diff -U0 -- fern/openapi/binflow.json | head -80; \
+		echo "=== the spec is GENERATED — never hand-edit the artifact ==="; \
+		echo "fix: make spec && git add fern/openapi/binflow.json (commit together with the generator change)"; \
+		exit 1; \
+	fi
+
 ## run: build then start the server locally (serve wiring lands in T-16).
 run: build
 	./$(BINARY) serve
 
-## dev: local development loop — vet+lint+test+build, the pre-push sanity gate.
-dev: vet lint test build
+## dev: local development loop — spec-check+vet+lint+test+build, the pre-push
+## sanity gate (spec-check first: the OpenAPI drift gate is <1s and fails
+## fastest, T-522).
+dev: spec-check vet lint test build
 
 ## clean: remove build artifacts and coverage output.
 clean:
