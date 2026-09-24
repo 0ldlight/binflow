@@ -1,20 +1,20 @@
-# Postgres migrations (placeholder)
+# Postgres migrations
 
-BinFlow M1 ships the SQLite dialect only (ADR-0005/0007, PRD FR-3-AC10:
-configuring `metadata.driver: postgres` makes `metadata.Open` fail with
-"Postgres support is not enabled").
+The postgres dialect of the metadata schema (ADR-0005/0007). Version
+numbers track the SQLite dialect one-to-one: `metadata.Open` with
+`driver: postgres` connects via `github.com/jackc/pgx/v5/stdlib` and applies
+this directory through the same version-table migrator
+(internal/metadata/migrate.go); the parity of the two version sets is
+pinned by the migrations dialect test. Dialect rules (established by the
+shipped files 009~028):
 
-When Postgres support lands, this directory must hold `NNN_*.sql` files whose
-version numbers track the SQLite dialect one-to-one (ADR-0007: both dialects
-evolve in lockstep; the logical schema contract is
-docs/design/architecture.md section 6). Rules for migration SQL:
-
-- timestamps stay RFC3339 UTC text, booleans stay dialect-common (0/1 vs
-  BOOLEAN is resolved per dialect file, never shared),
+- timestamps stay RFC3339 UTC text; booleans stay INTEGER 0/1 in both
+  dialects (the convention the shipped files 009/021/024 set and the Go
+  store layer's boolToInt binding writes),
 - no SQLite-only features in the postgres files and vice versa
-  (AUTOINCREMENT/RETURNING are already avoided on the sqlite side),
+  (AUTOINCREMENT/RETURNING are already avoided on the sqlite side);
 - `id` columns: SQLite uses the ROWID alias `INTEGER PRIMARY KEY`, Postgres
-  uses `SERIAL`/`GENERATED` (dialect-local choice recorded in the SQL files).
+  uses `SERIAL` (the dialect-local choice recorded in each SQL file).
 
 Version history of the sqlite dialect (postgres files must mirror these
 one-to-one when the dialect lands):
@@ -131,5 +131,12 @@ one-to-one when the dialect lands):
   001 convention this column family uses; nullable TEXT for the nodes
   association in both dialects — MATCH SIMPLE exempts NULL from the FK).
 
-The migrator currently embeds `migrations/sqlite/*.sql` only
-(see ../migrate.go).
+Both dialect directories are embedded (see ../migrate.go) and the migrator
+selects `migrations/sqlite` or `migrations/postgres` by driver; the
+schema_migrations version table has identical semantics on both sides.
+
+Known gap at the enablement step (T-519): the sub-store query layer still
+binds `?` placeholders and sqlite-isms (julianday in aqlquery.go, INSERT OR
+IGNORE in substores_docker.go, the PRAGMA faces in snapshot.go), so only the
+Open path (connect + migrate + seed) and dialect-common statements run on
+postgres until the sub-store dialect pass lands.

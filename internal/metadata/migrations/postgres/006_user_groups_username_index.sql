@@ -1,0 +1,15 @@
+-- 006_user_groups_username_index.sql (postgres dialect) — username-leading
+-- index on user_groups (M4, T-115 / T-97 architecture review NB1).
+--
+-- Mirrors the sqlite dialect file 006 one-to-one (ADR-0007 lockstep); the
+-- statement is inside the SQLite/Postgres common subset and carries over
+-- verbatim. GroupsOfUser (substores_console.go) runs WHERE ug.username = ?
+-- on every authentication; 004 gave the table only PRIMARY KEY
+-- (group_id, username) — group_id-leading, so it cannot serve a
+-- username-only lookup. See the sqlite file's header for the full contract.
+--
+-- Idempotence is the migrator's ledger, not statement shape: applied
+-- versions are skipped on reopen (ADR-0007), so a bare CREATE INDEX matches
+-- every earlier migration, and a re-run would fail loudly ("index ...
+-- already exists") — the wanted failure mode.
+CREATE INDEX idx_user_groups_username ON user_groups(username);
