@@ -1,6 +1,6 @@
 # L008-1b 差分复验报告：update-merge 实现票（ADR-0050 落地复验）
 
-- 双端：参照 = :8082（Artifactory pro 7.161.20，admin/JFrog@2026）；BinFlow = :8085（UAT `uat-l0081b-95b4acad`，`make release` + `build-release.sh`（REGISTRY= PUSH=0 ARCHES=amd64 VARIANTS=alpine）重建自工作树〔含本轨全部改动，基线 develop@95b4acad〕；独立验证容器 binflow-l0081b，不碰共享 binflow-ga〔彼时载 L008-2 镜像〕）
+- 双端：参照 = :8082（Artifactory pro 7.161.20，admin/<已脱敏>）；BinFlow = :8085（UAT `uat-l0081b-95b4acad`，`make release` + `build-release.sh`（REGISTRY= PUSH=0 ARCHES=amd64 VARIANTS=alpine）重建自工作树〔含本轨全部改动，基线 develop@95b4acad〕；独立验证容器 binflow-l0081b，不碰共享 binflow-ga〔彼时载 L008-2 镜像〕）
 - 取证/复验时间：2026-09-12
 - 任务源：ADR-0050 + docs/design/repo-update-merge.md §9.3 差分臂清单；台账 `rest/repo-config-update-merge-semantics`（BUG，authority = ADR-0050）
 - 脚本：`tools/difftest/l0081b/update-merge-arms.sh`（curl 双发对拍，归一化比对；本报告结论的证据载体）

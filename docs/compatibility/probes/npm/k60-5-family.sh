@@ -9,7 +9,7 @@
 #   L1   PUT /-/user/org.couchdb.user:<name> body 缺 name/password（④-① login 缺字段臂：DE 400 vs B ?）
 #   L2   PUT /-/user/org.couchdb.user:<name>/-rev/<rev>（④-② id+rev 臂：A 无路由 404 vs B ?）
 #
-# 前置：A=http://localhost:8082（admin/JFrog@2026）；B=http://127.0.0.1:8083（BINFLOW_ADMIN_PASSWORD
+# 前置：A=http://localhost:8082（admin/<已脱敏>）；B=http://127.0.0.1:8083（BINFLOW_ADMIN_PASSWORD
 #   取自 deploy/compose/.env，运行时 source，不落日志/输出）。双侧各建一次性 npm local 仓，用后删净。
 # 用法：bash docs/compatibility/probes/npm/k60-5-family.sh   （输出逐臂 status/CT/body 摘要）
 set -u
@@ -17,7 +17,7 @@ REPO=l0144-k605-local
 A=http://localhost:8082
 B=http://127.0.0.1:8083/binflow   # BinFlow 挂 /binflow 前缀（npm.md 挂载前缀；A 为 /artifactory）
 source /Users/lzw/dev-center/deploy/compose/.env.uat 2>/dev/null || source /Users/lzw/dev-center/deploy/compose/.env
-AAUTH="admin:JFrog@2026"
+AAUTH="admin:${ARTIFACTORY_REF_PASSWORD:?set env}"
 BAUTH="admin:${BINFLOW_ADMIN_PASSWORD:-}"
 NAME="l0144probe"
 OUT=/tmp/l0144; mkdir -p "$OUT"

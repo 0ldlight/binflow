@@ -102,7 +102,7 @@ BinFlow 已是一个月的兼容工程沉淀，**不从零开始**。对账终�
 | #2 domain/dependency | 2 yaml | 头注 ✓ YAML ✓ 零泄漏 ✓；465 边对 475 原始去重核可 |
 | #3 distribution | 4 件 + evidence 8 | 同上；「rollback/restore 无工具」为确证性结论 |
 | #4 logging | 3 件 + evidence 12 | 同上；测试资产删净（repo 400 / artifact 404 / storage 零残留） |
-| #5 enterprise | 4 件 | **返工一轮**：初版两个 yaml 实为 markdown-in-yaml（`---`/`## `/管道表）+ `admin/JFrog@2026` 明文落盘 3 处——conductor 脱敏 + 退回 agent 重构（表格→序列、散文→字符串字段/挪 md），复验 ruby 解析过、零凭据。**教训入收编纪律：yaml 交付必须附实跑解析证据，且以落盘终态为准** |
+| #5 enterprise | 4 件 | **返工一轮**：初版两个 yaml 实为 markdown-in-yaml（`---`/`## `/管道表）+ `admin/<已脱敏>` 明文落盘 3 处——conductor 脱敏 + 退回 agent 重构（表格→序列、散文→字符串字段/挪 md），复验 ruby 解析过、零凭据。**教训入收编纪律：yaml 交付必须附实跑解析证据，且以落盘终态为准** |
 | #6 派生三件 | 3 yaml | 头注 ✓ YAML ✓ 零泄漏 ✓；agent 自报修复过 1 处 colon-in-plain-scalar |
 | #7 目录化 | 7 件 | 三 yaml ✓；版本偏斜裁定执行（7.161 access MFE 新页只登记不回改 7.84.10 旧稿） |
 | #8 合成 | 3 yaml | 110/26/23 条目数 agent 自报与结构抽验一致；matrix.yaml 与 known-divergence.yaml 零改动（防双账裁定执行） |

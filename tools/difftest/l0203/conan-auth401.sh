@@ -7,7 +7,7 @@
 set -u
 W=/tmp/l0203/wire
 REPO=l0203-conan-auth
-AAUTH="${ARTI_AUTH:-admin:JFrog@2026}"
+AAUTH="${ARTI_AUTH:?set ARTI_AUTH admin:password}"
 source /Users/lzw/dev-center/deploy/compose/.env.uat
 BAUTH="admin:${BINFLOW_ADMIN_PASSWORD:?BINFLOW_ADMIN_PASSWORD unset}"
 

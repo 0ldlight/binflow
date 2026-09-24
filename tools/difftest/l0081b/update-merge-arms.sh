@@ -13,7 +13,7 @@ set -uo pipefail
 BF_BASE="${1:-http://localhost:8085/binflow}"
 BF_AUTH="${2:-admin:L0081bAdminPass}"
 REF_BASE="${3:-http://localhost:8082/artifactory}"
-REF_AUTH="${4:-admin:JFrog@2026}"
+REF_AUTH="${4:?pass AUTH as arg4 admin:password}"
 KEY="l0081b-m"
 
 # Per-end seed bodies: identical except the contentSynchronisation INPUT

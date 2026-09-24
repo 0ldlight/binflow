@@ -20,10 +20,10 @@ Normalize rules applied here (proposal fixtures/normalize.yaml#buildinfo):
   N6 JSON key order/whitespace ignored (parse). List-name endpoint assertion
      scoped to l023d- prefixed names (both instances carry foreign builds).
 """
-import hashlib, json, re, sys, urllib.request, urllib.error, base64
+import hashlib, json, re, sys, urllib.request, urllib.error, base64, os
 
-A = {"name": "a", "base": "http://172.16.58.130:8082/artifactory/api", "auth": "admin:JFrog@2026"}
-B = {"name": "b", "base": "http://172.16.58.130:8083/binflow/api", "auth": "admin:password"}
+A = {"name": "a", "base": "http://172.16.58.130:8082/artifactory/api", "auth": "admin:" + os.environ["ARTIFACTORY_REF_PASSWORD"]}
+B = {"name": "b", "base": "http://172.16.58.130:8083/binflow/api", "auth": "admin:" + os.environ["ARTIFACTORY_REF_PASSWORD"]}
 WIRE = "/Users/lzw/dev-center/reports/compatibility/l023d-wire"
 
 DROP_HDR = {"date", "server", "x-powered-by", "set-cookie", "x-request-id",
