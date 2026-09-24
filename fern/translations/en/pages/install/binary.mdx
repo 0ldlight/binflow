@@ -1,0 +1,106 @@
+# Single-binary installation
+
+BinFlow ships as a static Go binary with zero CGo—no runtime or system package dependencies. Download, extract, run.
+
+## Platform support
+
+| Operating system | Architecture | Artifact format |
+|---|---|---|
+| Linux | amd64, arm64 | `.tar.gz` |
+| macOS (darwin) | amd64, arm64 | `.tar.gz` |
+| Windows | amd64, arm64 | `.zip` |
+
+> The Windows leg is currently "documentation-verified" only—path separators and service mode may differ from Linux/macOS behavior; the commands below assume macOS/Linux.
+
+## Installation steps
+
+### 1. Download
+
+Download the archive and checksum file for your platform from GitHub Releases:
+
+```bash
+export VER=v1.0.0
+export OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+export ARCH=$(uname -m)
+case "$ARCH" in
+  x86_64|amd64) ARCH="amd64" ;;
+  aarch64|arm64) ARCH="arm64" ;;
+esac
+
+curl -fsSLO "https://github.com/example/binflow/releases/download/${VER}/binflow_${VER}_${OS}_${ARCH}.tar.gz"
+curl -fsSLO "https://github.com/example/binflow/releases/download/${VER}/binflow_${VER}_checksums.txt"
+```
+
+### 2. Verify the sha256
+
+```bash
+grep "binflow_${VER}_${OS}_${ARCH}.tar.gz" binflow_${VER}_checksums.txt | shasum -a 256 -c
+# binflow_v1.0.0_darwin_arm64.tar.gz: OK
+```
+
+If verification fails, stop immediately—do not extract.
+
+### 3. Extract
+
+```bash
+tar xzf "binflow_${VER}_${OS}_${ARCH}.tar.gz"
+# creates the directory binflow_<VER>_<OS>_<ARCH>/binflow-server (about 40 MB)
+```
+
+### 4. Start the server
+
+```bash
+cd "binflow_${VER}_${OS}_${ARCH}"
+./binflow-server serve
+```
+
+Default behavior: listens on `:8080` (all interfaces); data directory `./data/` (created automatically); admin password defaults to `password` (a WARN is logged at startup until changed); logs go to stderr.
+
+Custom configuration:
+
+```bash
+./binflow-server serve -c /path/to/binflow.yaml
+
+# environment-variable overrides (uppercase, dots to underscores, double underscore per level)
+BINFLOW_ADMIN_PASSWORD=my-secret \
+BINFLOW_STORAGE__DATA_DIR=/data/binflow \
+./binflow-server serve
+```
+
+### 5. Verify
+
+```bash
+curl -s http://127.0.0.1:8080/readyz
+# ok (HTTP 200; unauthenticated—checks the metadata store and that the storage directory is writable)
+
+./binflow-server --version
+# binflow-server v1.0.0 (abc1234)
+```
+
+## Running in the background
+
+```bash
+nohup ./binflow-server serve > binflow.log 2>&1 &
+```
+
+For production on bare-metal Linux, prefer systemd (see [systemd service](/install/systemd)); on Windows, start it from PowerShell with `.\binflow-server.exe serve`.
+
+## Directory conventions
+
+| Path | Purpose |
+|---|---|
+| `./binflow.yaml` | Default config file (when `-c` is not given, looked up in: current directory → `$BINFLOW_HOME/`) |
+| `./data/` | Default data directory (blobs + SQLite + sessions) |
+| `$BINFLOW_HOME/` | Alternate root for config and data (optional environment variable) |
+
+## Uninstall
+
+```bash
+pkill binflow-server
+rm -rf binflow_${VER}_${OS}_${ARCH}   # the binary
+rm -rf ./data                          # the data (careful)
+```
+
+## Next steps
+
+- [Run with Docker](/install/docker) · [systemd service](/install/systemd) · [Generic integration](/integrations/generic)

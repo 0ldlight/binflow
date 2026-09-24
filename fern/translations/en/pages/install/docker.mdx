@@ -1,0 +1,82 @@
+# Run with Docker
+
+BinFlow publishes two image variants; both run as a non-root user and are multi-arch (linux/amd64 + linux/arm64):
+
+| Variant | Image tag | Characteristics |
+|---|---|---|
+| **alpine** (default) | `binflow:v1.0.0-alpine` | Based on alpine:3.24; includes a shell + wget (HEALTHCHECK) + ca-certificates + tzdata |
+| **distroless** | `binflow:v1.0.0-distroless` | Based on distroless/static-debian13:nonroot; **no shell**, minimal attack surface, HEALTHCHECK runs a Go probe binary |
+
+## Prerequisites
+
+- Docker >= 24.0
+- Pull the image: `docker pull ghcr.io/lzwzzy/binflow:v1.0.0-alpine` (or `-distroless`)
+
+## Quick start
+
+```bash
+docker run -d \
+  --name binflow \
+  -p 127.0.0.1:8080:8080 \
+  -e BINFLOW_ADMIN_PASSWORD=change-me \
+  -v binflow-data:/var/lib/binflow \
+  ghcr.io/lzwzzy/binflow:v1.0.0-alpine
+```
+
+| Flag | Purpose |
+|---|---|
+| `-p 127.0.0.1:8080:8080` | Bind to loopback only—BinFlow serves plain HTTP; before binding to a non-loopback address, make sure the network is trusted (or front it with a TLS reverse proxy) |
+| `-e BINFLOW_ADMIN_PASSWORD` | Initial admin password (**required**, env-only, never written to YAML) |
+| `-v binflow-data:/var/lib/binflow` | Persistent data volume (blobs + SQLite + sessions) |
+
+The distroless variant takes the same flags—just change the tag. It has no shell, so `docker exec` debugging is unavailable; HEALTHCHECK is performed by the built-in probe `/usr/local/bin/healthcheck-probe`.
+
+## Verify
+
+```bash
+docker ps --filter name=binflow      # STATUS shows "(healthy)"
+curl -s http://127.0.0.1:8080/readyz  # ok
+docker logs -f binflow
+```
+
+## Custom configuration and resource limits
+
+All configuration is passed via environment variables (uppercase, dots to underscores, double underscore per level):
+
+```bash
+docker run -d --name binflow \
+  -p 127.0.0.1:8080:8080 \
+  -e BINFLOW_ADMIN_PASSWORD=my-secret \
+  -e BINFLOW_SECURITY_ANONYMOUS_ACCESS=false \
+  -e BINFLOW_LOGGING__LEVEL=debug \
+  -e BINFLOW_AUTH__TOKEN_DEFAULT_TTL_HOURS=168 \
+  --cpus 2 --memory 1g \
+  -v binflow-data:/var/lib/binflow \
+  ghcr.io/lzwzzy/binflow:v1.0.0-alpine
+```
+
+## Building the image from source
+
+```bash
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -f deploy/release/Dockerfile.alpine \
+  -t binflow:v1.0.0-alpine \
+  --build-arg BINFLOW_VER=v1.0.0 \
+  --build-arg BINFLOW_REVISION=$(git rev-parse --short HEAD) \
+  .
+```
+
+The build context must be the repository root (for distroless, use `Dockerfile.distroless`).
+
+## Uninstall
+
+```bash
+docker stop binflow
+docker rm binflow
+docker volume rm binflow-data   # deletes the data volume (careful)
+```
+
+## Next steps
+
+- [Docker Compose deployment](/install/compose) · [Helm charts](/install/helm) · [Generic integration](/integrations/generic)

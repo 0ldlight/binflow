@@ -40,6 +40,16 @@ jobs:
       - name: Check out
         uses: actions/checkout@v7
 
+      # T-522: OpenAPI drift gate — fern/openapi/binflow.json is generated
+      # by tools/openapi-spec/build_spec.py; the committed artifact must
+      # match the generator output byte-for-byte (the 2026-09-20 de-brand
+      # pass hand-edited the json without the generator — the rot class
+      # this catches). Same Makefile target as the CircleCI face and local
+      # runs: one command, no surface drift. Needs only python3 + git
+      # (ubuntu-latest ships both), so it runs before any toolchain setup.
+      - name: OpenAPI spec drift gate
+        run: make spec-check
+
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
