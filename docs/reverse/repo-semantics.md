@@ -217,7 +217,7 @@ repo 配置字段 `checksumPolicyType`，两个合法值：
 | virtual 配置了 `defaultDeploymentRepoRef` | PUT 路由到该 local 仓，后续与直接部署该仓一致（响应 Location 等用目标仓） | 高 |
 | virtual 未配 local deployment repo | **405** + `Allow: GET` 头，body `No local repository was configured as local deployment repository for the (<key>) virtual repository.` | 高 |
 | repoKey 不是 local/virtual（如 remote） | 404 `Could not find a local repository named <key> to deploy to.` | 高 |
-| DELETE virtual 下路径 | 逐成员查找实际持有者删除（M3 细节待逆向增补） | 中 |
+| DELETE virtual 下路径 | 仅删除 virtual 自身聚合缓存存储（`<key>-cache` 投影仓）中的该条目，**不删除任何成员仓中的实体制品**；virtual 存储中无此条目 → 404（ITEM_NOT_FOUND）。证据：`RepositoryServiceImpl#undeployInternal/undeployMultiTransactionInternal`（storingRepositoryByKey(virtual)→VirtualRepo）→ `VirtualRepo#undeploy`（仅 dbStorageMixin 自有存储）（勘误 2026-09-24，详见 virtual-resolution.md §7.5） | 高 |
 
 ### 8.3 per-protocol 的 virtual 聚合差异（关键：并非统一机制）
 
@@ -267,6 +267,6 @@ M3 增补（remote/virtual）：
 
 M3 新增待验证：
 
-5. virtual DELETE 逐成员删除的确切遍历与部分失败语义（§8.2，标中，未走读完整实现）。
+5. ~~virtual DELETE 逐成员删除的确切遍历与部分失败语义~~ 已收敛（T-516 勘误 2026-09-24，详见 §8.2 勘误行与 virtual-resolution.md §7.5：DELETE virtual 只删 virtual 自身聚合缓存条目，无条目 404）。
 6. remote 上游 5xx（非 404）的分支细节——走读确认与连接错误同路，但未逐分支复现（§7.6 标中）。
 7. cache 仓经 REST 直接访问（`GET /{key}-cache/...`）是否受权限/可见性约束（§8.4 标中）。
