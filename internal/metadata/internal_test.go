@@ -145,16 +145,45 @@ func TestOpenIdempotentMigration(t *testing.T) {
 	}
 }
 
-func TestOpenPostgresReturnsExplicitError(t *testing.T) {
-	_, err := Open(context.Background(), Options{Driver: "postgres", DSN: "postgres://localhost/x"})
+func TestOpenPostgresRejectsBadDSN(t *testing.T) {
+	// T-519: the postgres arm no longer refuses outright (errPostgresDisabled
+	// is gone); it validates the DSN the same way internal/config does and
+	// fails before dialing when the URL form is wrong.
+	tests := []struct {
+		name string
+		dsn  string
+		want string
+	}{
+		{"empty", "", "empty postgres DSN"},
+		{"not a URL", "host=db user=binflow", "must start with postgres:// or postgresql://"},
+		{"wrong scheme", "mysql://localhost/binflow", "must start with postgres:// or postgresql://"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Open(context.Background(), Options{Driver: "postgres", DSN: tt.dsn})
+			if err == nil {
+				t.Fatalf("Open(postgres, dsn=%q) must fail", tt.dsn)
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error %q lacks %q", err.Error(), tt.want)
+			}
+		})
+	}
+}
+
+func TestOpenPostgresUnreachable(t *testing.T) {
+	// Port 1 on loopback refuses immediately without a listener: the arm must
+	// surface the ping failure wrapped with context, and the error must not
+	// echo the DSN (postgres URLs can carry a password).
+	_, err := Open(context.Background(), Options{Driver: "postgres", DSN: "postgres://nobody:secret@127.0.0.1:1/binflow"})
 	if err == nil {
-		t.Fatal("Open(postgres) must fail in M1")
+		t.Fatal("Open(postgres) against a closed port must fail")
 	}
-	if !errors.Is(err, errPostgresDisabled) {
-		t.Fatalf("error %v does not wrap errPostgresDisabled", err)
+	if !strings.Contains(err.Error(), "metadata: pinging postgres") {
+		t.Fatalf("error %q lacks the ping context", err.Error())
 	}
-	if !strings.Contains(err.Error(), "postgres support is not enabled") {
-		t.Fatalf("error message %q lacks the required wording", err.Error())
+	if strings.Contains(err.Error(), "secret") {
+		t.Fatalf("error %q leaks the DSN credential", err.Error())
 	}
 }
 

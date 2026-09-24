@@ -11,8 +11,10 @@
 2. **area 不重叠**：同轮并行票 area 互斥；域 ownership 以 `docs/ai-engineering/agent-graph.yaml` 的 `owns` 为准。
 3. **并行度 ≤ 4**（tech-lead 建议的宽度也守此上限）。
 4. **无证据不推进**：回复里没有实际运行的命令与输出 = 未验证。禁止 "done / looks good / should work"。
+   测试结果四态 PASS / FAIL / BLOCKED / NOT_RUN（skip≠PASS，无证据=NOT_RUN）；不得为过门自动放宽超时/容差。
 5. **危险操作问用户**：删数据、外发数据、写密钥、对外发布（镜像/Chart/release）→ 停下确认。
-6. **git 由你统一管理**：qa 通过后 conventional commit（body 引票号）；里程碑打 tag；push 按既定授权。
+6. **git 由你统一管理**：conventional commit（body 引票号）提交在任务分支；合并走 PR（develop 收口）且须
+   独立评审（code-reviewer）通过——不得单人评审合入自己实现的代码；里程碑打 tag；push 仅 origin，按既定授权。
 7. **诚实汇报**：挂了说挂了；战报必含失败项与 Gap 增减（新回归/修复差异/新差异）。
 8. **禁止无意义 spawn**：只在并行独立任务/不同技术域/大规模独立探索/需隔离上下文/需独立 review 时派 agent；
    单文件小改、grep、简单 bug、强依赖串行任务、主会话已有全部上下文 → 自己做或不做。
@@ -37,7 +39,7 @@ Artifactory observable surface = X（matrix.yaml 冻结行集总数）
 BinFlow matched               = Y（✅ + 0.5×◐ + 0.5×超集 折算）
 Known divergence              = Z（known-divergence.yaml 开放条数，按四分类）
 Unknown                       = N（UNKNOWN 分类 + matrix ❌ 中未排票面）
-Compatibility Coverage        = Y / (X − ⛔)   （tools/difftest/score.sh 机读产出）
+Compatibility Coverage        = Y / (X − ⛔)   （tools/difftest/v2/score.sh 机读产出；v2 落地前 tools/difftest/score.sh 过渡）
 P0/P1/P2 Gap                  = 按域权重列清单（P0 权重×4）
 ```
 
@@ -94,8 +96,8 @@ migration）强制 A/B 双实例**——Reviewer A（correctness/并发/失败�
 
 ## 阶段 13 — Deploy UAT（部署）
 
-CircleCI 既有链：build → deploy_uat（原子换装+healthz+自动回滚）→ protocol_leg ×10。
-**部署票无 UAT smoke 不得 DONE。**
+CircleCI 链（2026-09-24 起加人工审批门）：build → **uat_approval（type: approval——确认后方可换装）**
+→ deploy_uat（原子换装+healthz+自动回滚）→ protocol_leg ×10。**部署票无 UAT smoke 不得 DONE。**
 
 ## 阶段 14 — UAT Verification（UAT 验证）
 
@@ -104,7 +106,8 @@ health / smoke / critical compatibility（差分核心集）/ regression 四面�
 ## 阶段 15 — Update Compatibility Matrix（矩阵更新）
 
 契约状态机翻态（VERIFIED/DIVERGENT/INTENTIONAL…）+ matrix.yaml 行级 changelog + Score 重算 +
-known-divergence 四分类裁定（INTENTIONAL 必须带 authority 引用）。**本阶段是收编的一部分，不得跳过。**
+known-divergence 四分类裁定（INTENTIONAL 必须带 authority 引用）。候裁态（DIVERGENT 候裁行）在裁定
+落账前按 BLOCKED 口径计量，禁止以「看起来一致」自行改判翻绿。**本阶段是收编的一部分，不得跳过。**
 
 ## 阶段 16 — Persist（落盘）
 

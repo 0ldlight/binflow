@@ -1,6 +1,6 @@
 # L006-1 差分复验报告（票 A：仓配置四域 round-trip / 票 B：经典路径别名）
 
-- 双端：参照 = :8082（Artifactory 7.161.20，admin/JFrog@2026）；BinFlow = :8083（UAT `uat-l0061c-f0edecef`，重建自 develop@f0edecef + 本轨改动含 Review A/B 返工；注：镜像含并行轨 L006-2 的 adapter/docker WIP——与本轨 REST 面无路由交集）
+- 双端：参照 = :8082（Artifactory 7.161.20，admin/<已脱敏>）；BinFlow = :8083（UAT `uat-l0061c-f0edecef`，重建自 develop@f0edecef + 本轨改动含 Review A/B 返工；注：镜像含并行轨 L006-2 的 adapter/docker WIP——与本轨 REST 面无路由交集）
 - 取证时间：2026-09-12（参照侧）；复验时间：2026-09-12（UAT 重建后；Review A/B 返工腿复跑于 uat-l0061c）
 - 方法：双端同 body PUT 建仓 → GET 回读逐字段比对；别名族逐端点双端对拍
 - 测试资产：双端 l006a*/l006a2*/l006b*/l006d*（仓/权限目标/用户）已删净（参照侧 l006a-lay 因创建即 400 本不存在）

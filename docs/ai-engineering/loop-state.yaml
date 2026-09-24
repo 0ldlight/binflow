@@ -1,18 +1,18 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-reference_environment: { relocated: 2026-09-15, http: "http://172.16.58.130:8082", version: "7.161.15", auth: "admin (凭据 env 注入)", ssh: "lzw@172.16.58.130 key-auth installed — docker ops run there", note: "旧本地容器已停；差分/probe 全指新参照；版本偏斜新记 B=7.161.15——结论标注源版本纪律不变" }
+reference_environment: { switched: 2026-09-24, http: "http://192.168.120.38:8082", version: "7.161.26 Enterprise+（UI 200 实测；system/version API 401 未认证——凭据通道 D3 裁定后活体复验）", auth: "admin（凭据 env 注入 ARTIFACTORY_REF_PASSWORD——禁落盘）", ssh: "lzw@172.16.58.130 key-auth（dev/docker 运维主机，与参照实例无关）", note: "2026-09-24 接管总令基准切换 B=7.161.26；matrix 既有行全部按 7.161.15 认证——翻绿/新结论须按 7.161.26 复验；旧参照 .130:8082（7.161.15 pro）退役备用；结论标注源版本纪律不变" }
 environment_topology: {
   corrected: "2026-09-15 用户术语纠正：UAT=uat.binflow.org；本地/dev=172.16.58.130:8083（自 Mac 迁来）",
   uat: "https://uat.binflow.org（52.79.109.153——真 UAT，HTTPS 308 跳转，version uat.72ae611）",
   dev: "http://172.16.58.130:8083（容器 binflow-dev〔原 binflow-uat 更名〕，卷 binflow-uat-data；**必须 --network binflow-net——主机默认 docker0 网桥 2026-09-16 起降级**（TCP 握手通数据丢/容器不可达网关），参照栈因自带用户网络不受影响）",
-  reference: "http://172.16.58.130:8082（Artifactory pro 7.161.15 + postgres）",
+  reference: "http://192.168.120.38:8082（Artifactory 7.161.26 Enterprise+ 目标基准——2026-09-24 切换，版本活体复验 pending D3）；旧 .130:8082（7.161.15 pro）退役备用",
   mac: "本地 docker 全退役（2026-09-15 用户指令：penpot 不再使用——Docker Desktop 已停，**不允许擅自启动**；penpot 栈容器随停，卷/镜像保留在盘待用户定夺删除）",
   discipline: "docker 一律远程执行（ssh lzw@172.16.58.130）——本地 docker 禁用；构建走本机交叉编译+远程换二进制（零拉取）；差分/probe 指 reference+dev；UAT 环境结论以 uat.binflow.org 为准"
 }
-updated: 2026-09-17T19:2x:00Z
+updated: 2026-09-24T00:00:00Z
 current_iteration: 028
-current_goal: "LOOP 028：nightly 首跑观察+零触发处置（09-18 11:17 CST——宿主恢复为前置）+ L027-4 欠账清偿（Mac 侧三 spec 复跑+全量 tsc/eslint）+ pending-rulings v2.8 呈批（+3 席 c42/c53/c55）+ 宿主失联恢复复核 + 批次 5a D06 轻面（R04/R05/R14）与 D03 三行差分落账（LOOP 024 遗留）+ design-baseline 金样方法票（run_e2e 重开前置）"
+current_goal: "LOOP 028（进行中）：2026-09-24 接管总令——基准切至 7.161.26@192.168.120.38:8082（E+），Phase A 基准&流程修复先行（凭据出库/T3 UAT 审批门/T5 配置格式规格/T9 key-cache 投影规格/T6 PostgreSQL 启用/T7 HA 证据包/T10 差分框架 v2）；D1–D5 未裁定子项按已公布默认推进；原 LOOP 028 观察项由 Phase A 吸收"
 iteration_027_seal: "闭卷（2026-09-17）：D08 六行翻绿（差分 55 case r7/r8 SAME 52——四 B BUG 随轮修复验证；88/63→94/57，Coverage 56.9%→60.3%〔+3.4pp〕；契约 7 条目 VERIFIED；known-divergence +3 候 v2.8）+ deb 条件键实现（v1 62/v2 21 键面）+ L025-7 FE 双臂退役 done-part（断点接管收编——闭包 tsc+断言闸+dist 证据；运行时腿欠账候 Mac 复跑）+ api-reference 英文化二波 + L026-2 三腿复检旗销旗；**环境事件×2：前会话 16:28 中断（L027-4 接管零损失）+宿主 172.16.58.130 整机 19:0x 失联（恢复复核为 LOOP 028 前置）**；nightly 首跑未到期（09-18 03:17 UTC）；commits 4efcb561..2ea971b7（10）"
 iteration_026_seal: "闭卷（2026-09-17）：批次 4 D08 实现面全落地（规格 64 探针→六行实现 R01-R06——差分被 dev community 档 license 门挡，**六行 absent 不虚翻，差分+落账归 027**）+ m-holder 读位投影（八处断言翻正，t215 账本 92→90——L025-7 后端根治）+ fe-rewrite 55 腿（2a 僵尸击落→2b 断点续作：18 spec+8 根因修，40 done/3 旗/10 未动）+ fern 英文化 979 处（docs.binflow.org 实证上线+产品语态长期规则）+ CI 三战（e2e 门控/metadata 预算腿/三连红→35185482672 全绿）；**工作流裁定：develop→main 一律 merge commit**（squash 历史分叉根治，PR #128=4c20553a 历史重聚）；UAT=uat.4c20553/dev=dev-3c0c3a87（真控制台）；matrix 88/63 不动（诚实口径）；commits f6058b1e..4c20553a（14+）"
 iteration_025_seal: "闭卷（2026-09-17）：批次 3 D02 配置族全行翻绿（八面归五行——compatible 83→88/absent 68→63）+ e2e 债族根因收口（pro 租约共享 helper 根修/五 spec 重钉/nightly 双向门）+ docs-site 全退役；G1 六面键表渲染器+四层键集面键名差=0；候批 31 席 v2.7；commits 6814c3d7..eaf5ab27（15+）"

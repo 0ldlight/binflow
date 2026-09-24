@@ -8,7 +8,7 @@ set -u
 W=/tmp/l0203/wire
 REPO=l0203-mvn-local
 G=l0203/test; AID=artver; V=1.0-SNAPSHOT
-AAUTH="${ARTI_AUTH:-admin:JFrog@2026}"
+AAUTH="${ARTI_AUTH:?set ARTI_AUTH admin:password}"
 source /Users/lzw/dev-center/deploy/compose/.env.uat
 BAUTH="admin:${BINFLOW_ADMIN_PASSWORD:?BINFLOW_ADMIN_PASSWORD unset}"
 METADIR="$W/maven-metadata.xml"

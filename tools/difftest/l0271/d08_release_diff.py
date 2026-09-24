@@ -24,9 +24,9 @@ stays with compatibility-engineer — modeled on search S1-S4 / buildinfo N1-N6)
 """
 import base64, json, os, re, sys, urllib.request, urllib.error
 
-A = {"name": "a", "base": "http://172.16.58.130:8082/artifactory/api", "auth": "admin:JFrog@2026"}
-B = {"name": "b", "base": "http://172.16.58.130:8083/binflow/api", "auth": "admin:password"}
-USER = "l027q-d08-user:U027q-Pass!1"          # non-admin, no grants (created/deleted per run)
+A = {"name": "a", "base": "http://172.16.58.130:8082/artifactory/api", "auth": "admin:" + os.environ["ARTIFACTORY_REF_PASSWORD"]}
+B = {"name": "b", "base": "http://172.16.58.130:8083/binflow/api", "auth": "admin:" + os.environ["ARTIFACTORY_REF_PASSWORD"]}
+USER = "l027q-d08-user:" + os.environ["BINFLOW_DIFTEST_USER_PASSWORD"]          # non-admin, no grants (created/deleted per run)
 NS = "l027q"                                   # difftest namespace
 WIRE = "/Users/lzw/dev-center/reports/compatibility/l027q-wire"
 DROP = {"date", "server", "x-powered-by", "set-cookie", "x-request-id", "x-artifactory-id",

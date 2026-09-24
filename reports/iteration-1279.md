@@ -5,7 +5,7 @@
 
 ## intake ⑨ 落地
 
-- **实例核实**：`http://127.0.0.1:8082` = Artifactory **7.161.20**（admin/JFrog@2026）——比 t226（7.84.10）新 77 个 minor；**addons 全开**（replication/curation/xray/release-bundle/federated/retention 等）。
+- **实例核实**：`http://127.0.0.1:8082` = Artifactory **7.161.20**（admin/<已脱敏>）——比 t226（7.84.10）新 77 个 minor；**addons 全开**（replication/curation/xray/release-bundle/federated/retention 等）。
 - **参照切换**：M16 parity 基线从 t226 切至本实例（HTTP 直连，无 SSH/TUN 障碍；memory 已存档）。
 - **前端已 TypeScript**（React+TSX 全树）——「使用typescript」确认满足。
 - **T-439**（在途）已获补充指令：表单形态以 7.161 实测为准。

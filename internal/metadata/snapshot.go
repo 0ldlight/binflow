@@ -29,7 +29,7 @@ import (
 // Export runs this BEFORE copying blobs (ADR-0015: the order is a hard rule
 // — snapshot first means blobs that land later can only be surplus, never
 // dangling references).
-func (s *sqliteStore) VacuumInto(ctx context.Context, dst string) error {
+func (s *sqlStore) VacuumInto(ctx context.Context, dst string) error {
 	dst = strings.TrimSpace(dst)
 	if dst == "" {
 		return fmt.Errorf("metadata: vacuum into: destination path is empty")
@@ -67,7 +67,7 @@ func (s *sqliteStore) VacuumInto(ctx context.Context, dst string) error {
 // metadataSnapshotter precedent). A future postgres store satisfies the
 // same interface with its own form (VACUUM ANALYZE) and never touches the
 // caller.
-func (s *sqliteStore) Vacuum(ctx context.Context) (before, after int64, err error) {
+func (s *sqlStore) Vacuum(ctx context.Context) (before, after int64, err error) {
 	size := func() (int64, error) {
 		var pages, pageSize int64
 		if err := s.db.QueryRowContext(ctx, "PRAGMA page_count").Scan(&pages); err != nil {

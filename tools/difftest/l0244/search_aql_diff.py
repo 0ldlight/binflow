@@ -13,11 +13,11 @@ Normalize (proposal fixtures/normalize.yaml#search):
      kept as shape (values differ by storage serialization? no—file bytes identical:
      X-Checksum-Md5/Sha1 compared literally; X-Checksum-Sha256 too if present)
 """
-import base64, hashlib, json, re, subprocess, sys, urllib.request, urllib.error
+import base64, hashlib, json, re, subprocess, sys, urllib.request, urllib.error, os
 
-A = {"name": "a", "base": "http://172.16.58.130:8082/artifactory/api", "auth": "admin:JFrog@2026",
+A = {"name": "a", "base": "http://172.16.58.130:8082/artifactory/api", "auth": "admin:" + os.environ["ARTIFACTORY_REF_PASSWORD"],
      "root": "http://172.16.58.130:8082/artifactory"}
-B = {"name": "b", "base": "http://172.16.58.130:8083/binflow/api", "auth": "admin:password",
+B = {"name": "b", "base": "http://172.16.58.130:8083/binflow/api", "auth": "admin:" + os.environ["ARTIFACTORY_REF_PASSWORD"],
      "root": "http://172.16.58.130:8083/binflow"}
 WIRE = "/Users/lzw/dev-center/reports/compatibility/l024d-wire"
 DROP = {"date", "server", "x-powered-by", "set-cookie", "x-request-id", "x-artifactory-id",

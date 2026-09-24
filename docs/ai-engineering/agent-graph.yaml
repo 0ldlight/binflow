@@ -65,14 +65,14 @@ agents:
     can_parallel_with: [dev-go-storage, dev-frontend, dev-registry-adapter, devops-engineer]
     owns: [internal/repo/, internal/metadata/, internal/auth/, internal/httpapi/]
     reads: [docs/reverse/, docs/compatibility/contracts/]
-    writes: [internal/{repo,metadata,auth,httpapi}/]
+    writes: ["internal/{repo,metadata,auth,httpapi}/"]
 
   dev-go-storage:
     depends_on: [architect, tech-lead]
     can_parallel_with: [dev-go-core, dev-frontend, dev-registry-adapter]
     owns: [internal/storage/, internal/remote/]
     reads: [docs/reverse/storage-layout.md, docs/reverse/s3-storage-layout.md]
-    writes: [internal/{storage,remote}/]
+    writes: ["internal/{storage,remote}/"]
 
   # ---------- Remote / Cache (G) · Package Protocol (H) ----------
   dev-registry-adapter:
@@ -160,6 +160,24 @@ agents:
     owns: [docs/user/, fern/]
     reads: [docs/compatibility/matrix.yaml, internal/httpapi/]
     writes: [docs/user/, fern/]
+
+  # ---------- Database Engineering (T) [新增 2026-09-24 总令] ----------
+  dba-engineer:
+    depends_on: [tech-lead]
+    can_parallel_with: [dev-go-core]        # 共面（internal/metadata/ 迁移）按票划界：dba 出方言 SQL 与迁移设计，票面具名执行者落码
+    owns: [docs/design/database-matrix.md]  # 新域新文件——DB 类型/版本矩阵、schema 版本化与升级恢复规格
+    reads: [internal/metadata/, docs/compatibility/, docs/reverse/]
+    writes: [docs/design/database-matrix.md]
+    note: PostgreSQL 纯 Go 驱动（pgx/v5 stdlib，零 CGo 构建门）；集成测试 gated on BINFLOW_TEST_POSTGRES_DSN；reverse-src 分析走 reverse-engineer 票
+
+  # ---------- High Availability / Federation (U) [新增 2026-09-24 总令] ----------
+  ha-engineer:
+    depends_on: [architect]
+    can_parallel_with: [dba-engineer]
+    owns: [docs/design/ha-federation.md]    # 新域新文件——HA/集群/联邦部署形态与语义对齐设计
+    reads: [docs/reverse/enterprise/, deploy/, internal/]
+    writes: [docs/design/ha-federation.md]
+    note: HA/联邦 day-one 总令（ADR-0049 推翻案在途）——docs/reverse/enterprise/ 证据包归 reverse-engineer owns（票级产出），ha-engineer 消费并落设计
 
   # ---------- Loop Engineer（conductor 本体，§六） ----------
   conductor:

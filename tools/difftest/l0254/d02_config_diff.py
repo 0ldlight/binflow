@@ -13,10 +13,10 @@ Normalize (proposal fixtures/normalize.yaml#d02-config):
      verdict-changing
   Q4 batch-delete reports[] = set-compare (A HashSet order unstable; B batch order)
 """
-import base64, json, re, urllib.request, urllib.error
+import base64, json, re, urllib.request, urllib.error, os
 
-A = {"name": "a", "base": "http://172.16.58.130:8082/artifactory/api", "auth": "admin:JFrog@2026"}
-B = {"name": "b", "base": "http://172.16.58.130:8083/binflow/api", "auth": "admin:password"}
+A = {"name": "a", "base": "http://172.16.58.130:8082/artifactory/api", "auth": "admin:" + os.environ["ARTIFACTORY_REF_PASSWORD"]}
+B = {"name": "b", "base": "http://172.16.58.130:8083/binflow/api", "auth": "admin:" + os.environ["ARTIFACTORY_REF_PASSWORD"]}
 PLAIN = "l025q-u:L025q-Pass!1"
 WIRE = "/Users/lzw/dev-center/reports/compatibility/l025q-wire"
 DROP = {"date", "server", "x-powered-by", "set-cookie", "x-request-id", "x-artifactory-id",

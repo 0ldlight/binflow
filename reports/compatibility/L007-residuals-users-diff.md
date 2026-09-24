@@ -1,6 +1,6 @@
 # L007-1 差分复验报告（票 1：permissions residuals 三臂 / 票 2：D04-R02 users/{name} 字段集）
 
-- 双端：参照 = :8082（Artifactory 7.161.20，admin/JFrog@2026）；BinFlow = :8084（独立验证实例 `binflow-l0071-verify`，镜像 `uat-l0071-c1193f5f`，自 develop@c1193f5f + 本轨改动重建——不碰共享 binflow-ga，该容器当时载并行轨 L007-2 的镜像）
+- 双端：参照 = :8082（Artifactory 7.161.20，admin/<已脱敏>）；BinFlow = :8084（独立验证实例 `binflow-l0071-verify`，镜像 `uat-l0071-c1193f5f`，自 develop@c1193f5f + 本轨改动重建——不碰共享 binflow-ga，该容器当时载并行轨 L007-2 的镜像）
 - 取证时间：2026-09-12（参照侧，三臂证据为活体重取，与 L006 记录一致无翻案）；复验时间：2026-09-12（本轨镜像）
 - 方法：双端同 body 对拍；错误臂比对状态码 + 错误体裁 + 文案；字段集臂比对键集与取值
 - 测试资产：双端 l007*（仓/权限目标/用户）已删净（参照侧 DELETE user/repo 皆 200；BinFlow 侧为一次性容器随验证即焚）

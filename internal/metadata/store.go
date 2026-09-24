@@ -13,12 +13,17 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" database/sql driver (pure Go, no CGo)
 	moderncsqlite "modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 )
 
 // sqliteDriverName is the database/sql driver registered by modernc.org/sqlite.
 const sqliteDriverName = "sqlite"
+
+// pgxDriverName is the database/sql driver registered by
+// github.com/jackc/pgx/v5/stdlib (pure Go: the zero-CGo build gate holds).
+const pgxDriverName = "pgx"
 
 // BusyTimeoutMs is the per-connection busy_timeout budget (T-54, up from
 // T-10's 5000). WAL serializes writers; a waiter retries inside this budget
@@ -35,10 +40,14 @@ const BusyTimeoutMs = 15000
 
 // Options configures Open.
 type Options struct {
-	// Driver selects the dialect. M1 supports "sqlite"; "postgres" returns
-	// errPostgresDisabled (PRD FR-3-AC10).
+	// Driver selects the dialect: "sqlite" (default) or "postgres". The
+	// postgres arm connects through pgx's pure-Go driver and applies the
+	// migrations/postgres set (T-519, ADR-0007 lockstep).
 	Driver string
-	// DSN is the sqlite file path. When empty, Path is used.
+	// DSN is the database address: a sqlite file path for the sqlite driver
+	// (Path is used when empty), or a postgres:// / postgresql:// URL for the
+	// postgres driver (empty is rejected; the URL form is the same contract
+	// internal/config validates).
 	DSN string
 	// Path is the sqlite file path used when DSN is empty. When both are
 	// empty the caller is expected to have resolved data_dir/binflow.db;
@@ -50,21 +59,17 @@ type Options struct {
 	AdminPassword string
 }
 
-// errPostgresDisabled marks the M1 postgres gap. The message is user-facing
-// log wording (FR-3-AC10).
-var errPostgresDisabled = errors.New("postgres support is not enabled in this build (M1 ships SQLite only)")
-
 // Open opens (creating if needed) the metadata database, applies pending
-// migrations and seeds the admin user. Reopening the same file is idempotent:
-// applied migrations are skipped and the admin seed only fires when no admin
-// row exists.
+// migrations and seeds the admin user. Reopening the same database is
+// idempotent: applied migrations are skipped and the admin seed only fires
+// when no admin row exists.
 func Open(ctx context.Context, opts Options) (Store, error) {
 	switch strings.ToLower(strings.TrimSpace(opts.Driver)) {
 	case "", "sqlite":
 	case "postgres":
-		return nil, fmt.Errorf("metadata: driver %q: %w", opts.Driver, errPostgresDisabled)
+		return openPostgres(ctx, opts)
 	default:
-		return nil, fmt.Errorf("metadata: unknown driver %q (supported: sqlite)", opts.Driver)
+		return nil, fmt.Errorf("metadata: unknown driver %q (supported: sqlite, postgres)", opts.Driver)
 	}
 
 	path := opts.DSN
@@ -97,15 +102,56 @@ func Open(ctx context.Context, opts Options) (Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	if err := migrate(ctx, db, Now()); err != nil {
+	if err := migrate(ctx, db, Now(), dialectSQLite); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
-	if err := seedAdmin(ctx, db, opts.AdminPassword); err != nil {
+	if err := seedAdmin(ctx, db, opts.AdminPassword, dialectSQLite); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
-	return &sqliteStore{db: db, path: path}, nil
+	return &sqlStore{db: db, path: path}, nil
+}
+
+// openPostgres is Open's postgres arm: pgx's pure-Go driver (the zero-CGo
+// build gate holds), the migrations/postgres set through the same versioned
+// migrator (ADR-0007 lockstep), and the same idempotent admin seed.
+//
+// Scope note (T-519 enablement): the sub-store query layer still binds ?
+// placeholders and sqlite-isms (julianday, INSERT OR IGNORE, PRAGMA faces),
+// so only this open path and dialect-common statements run against postgres
+// until the sub-store dialect pass lands.
+func openPostgres(ctx context.Context, opts Options) (Store, error) {
+	dsn := strings.TrimSpace(opts.DSN)
+	if dsn == "" {
+		return nil, errors.New("metadata: empty postgres DSN")
+	}
+	if !strings.HasPrefix(dsn, "postgres://") && !strings.HasPrefix(dsn, "postgresql://") {
+		return nil, errors.New("metadata: postgres DSN must start with postgres:// or postgresql://")
+	}
+	db, err := sql.Open(pgxDriverName, dsn)
+	if err != nil {
+		// The DSN itself is never echoed (it may carry a password).
+		return nil, fmt.Errorf("metadata: opening postgres: %w", err)
+	}
+	db.SetMaxOpenConns(NumCPUConcurrency())
+	db.SetMaxIdleConns(NumCPUConcurrency())
+	db.SetConnMaxLifetime(0)
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("metadata: pinging postgres: %w", err)
+	}
+	if err := migrate(ctx, db, Now(), dialectPostgres); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	if err := seedAdmin(ctx, db, opts.AdminPassword, dialectPostgres); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	// path is a display label, never the DSN: DBPath feeds health output and
+	// error text, and a postgres URL can carry a password.
+	return &sqlStore{db: db, path: "postgres"}, nil
 }
 
 // dsn builds the driver DSN in file:...?_pragma=... form.
@@ -223,13 +269,13 @@ const defaultAdminPassword = "password"
 // An existing admin row is never overwritten. The hash is computed only when
 // a seed will actually happen (argon2 costs ~50ms; no reason to pay it on
 // every restart of an already-seeded database).
-func seedAdmin(ctx context.Context, db *sql.DB, password string) error {
+func seedAdmin(ctx context.Context, db *sql.DB, password string, d dialect) error {
 	if password == "" {
 		password = defaultAdminPassword
 	}
 	var exists bool
-	if err := db.QueryRowContext(ctx,
-		`SELECT EXISTS (SELECT 1 FROM users WHERE username = 'admin')`).Scan(&exists); err != nil {
+	if err := db.QueryRowContext(ctx, rebind(d,
+		`SELECT EXISTS (SELECT 1 FROM users WHERE username = ?)`), "admin").Scan(&exists); err != nil {
 		return fmt.Errorf("metadata: checking admin seed: %w", err)
 	}
 	if exists {
@@ -240,31 +286,37 @@ func seedAdmin(ctx context.Context, db *sql.DB, password string) error {
 		return fmt.Errorf("metadata: hashing admin password: %w", err)
 	}
 	now := Now()
-	if _, err := db.ExecContext(ctx,
+	if _, err := db.ExecContext(ctx, rebind(d,
 		`INSERT INTO users (username, password_hash, is_admin, enabled, created_at, updated_at, provider, provider_id, role)
-		 VALUES ('admin', ?, 1, 1, ?, ?, 'local', '', 'admin')`,
+		 VALUES ('admin', ?, 1, 1, ?, ?, 'local', '', 'admin')`),
 		hash, now, now); err != nil {
 		return fmt.Errorf("metadata: seeding admin user: %w", err)
 	}
 	return nil
 }
 
-// sqliteStore implements Store over the pure-Go SQLite driver.
-type sqliteStore struct {
+// sqlStore implements Store over database/sql for any dialect (the pure-Go
+// SQLite driver and pgx's postgres driver both land here; ADR-0007).
+type sqlStore struct {
 	db   *sql.DB
 	path string
 }
 
-var _ Store = (*sqliteStore)(nil)
+// sqliteStore is the historical name of sqlStore; kept as an alias so
+// existing diagnostics and test assertions (st.(*sqliteStore).db) compile
+// unchanged.
+type sqliteStore = sqlStore
+
+var _ Store = (*sqlStore)(nil)
 
 // DBPath exposes the database file path for diagnostics (health output, test
 // file-scan assertions).
-func (s *sqliteStore) DBPath() string { return s.path }
+func (s *sqlStore) DBPath() string { return s.path }
 
 // RawConn acquires one pooled connection and hands it to fn. It exists for
 // diagnostics that must observe per-connection driver state (PRAGMA
 // assertions); normal code paths must go through the Store sub-stores.
-func (s *sqliteStore) RawConn(ctx context.Context, fn func(*sql.Conn) error) error {
+func (s *sqlStore) RawConn(ctx context.Context, fn func(*sql.Conn) error) error {
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("metadata: acquiring connection: %w", err)
@@ -273,49 +325,49 @@ func (s *sqliteStore) RawConn(ctx context.Context, fn func(*sql.Conn) error) err
 	return fn(conn)
 }
 
-func (s *sqliteStore) Repos() RepoStore             { return &repoStore{db: s.db} }
-func (s *sqliteStore) Nodes() NodeStore             { return &nodeStore{db: s.db} }
-func (s *sqliteStore) Blobs() BlobStore             { return &blobStore{db: s.db} }
-func (s *sqliteStore) Users() UserStore             { return &userStore{db: s.db} }
-func (s *sqliteStore) Tokens() TokenStore           { return &tokenStore{db: s.db} }
-func (s *sqliteStore) Permissions() PermissionStore { return &permissionStore{db: s.db} }
-func (s *sqliteStore) Audits() AuditStore           { return &auditStore{db: s.db} }
-func (s *sqliteStore) Docker() DockerStore          { return &dockerStore{db: s.db} }
-func (s *sqliteStore) Remote() RemoteStore          { return &remoteStore{db: s.db} }
-func (s *sqliteStore) Virtual() VirtualStore        { return &virtualStore{db: s.db} }
-func (s *sqliteStore) Groups() GroupStore           { return &groupStore{db: s.db} }
-func (s *sqliteStore) WebSessions() WebSessionStore { return &webSessionStore{db: s.db} }
-func (s *sqliteStore) UploadSessions() UploadSessionStore {
+func (s *sqlStore) Repos() RepoStore             { return &repoStore{db: s.db} }
+func (s *sqlStore) Nodes() NodeStore             { return &nodeStore{db: s.db} }
+func (s *sqlStore) Blobs() BlobStore             { return &blobStore{db: s.db} }
+func (s *sqlStore) Users() UserStore             { return &userStore{db: s.db} }
+func (s *sqlStore) Tokens() TokenStore           { return &tokenStore{db: s.db} }
+func (s *sqlStore) Permissions() PermissionStore { return &permissionStore{db: s.db} }
+func (s *sqlStore) Audits() AuditStore           { return &auditStore{db: s.db} }
+func (s *sqlStore) Docker() DockerStore          { return &dockerStore{db: s.db} }
+func (s *sqlStore) Remote() RemoteStore          { return &remoteStore{db: s.db} }
+func (s *sqlStore) Virtual() VirtualStore        { return &virtualStore{db: s.db} }
+func (s *sqlStore) Groups() GroupStore           { return &groupStore{db: s.db} }
+func (s *sqlStore) WebSessions() WebSessionStore { return &webSessionStore{db: s.db} }
+func (s *sqlStore) UploadSessions() UploadSessionStore {
 	return &uploadSessionStore{db: s.db}
 }
-func (s *sqliteStore) Usage() UsageStore        { return &usageStore{db: s.db} }
-func (s *sqliteStore) Licenses() LicenseStore   { return &licenseStore{db: s.db} }
-func (s *sqliteStore) NodeProps() NodePropStore { return &nodePropStore{db: s.db} }
-func (s *sqliteStore) AuthConfigs() AuthConfigStore {
+func (s *sqlStore) Usage() UsageStore        { return &usageStore{db: s.db} }
+func (s *sqlStore) Licenses() LicenseStore   { return &licenseStore{db: s.db} }
+func (s *sqlStore) NodeProps() NodePropStore { return &nodePropStore{db: s.db} }
+func (s *sqlStore) AuthConfigs() AuthConfigStore {
 	return &authConfigStore{db: s.db}
 }
 
-func (s *sqliteStore) GpgKeypairs() GpgKeypairStore {
+func (s *sqlStore) GpgKeypairs() GpgKeypairStore {
 	return &gpgKeypairStore{db: s.db}
 }
 
-func (s *sqliteStore) Schedules() ScheduleStore {
+func (s *sqlStore) Schedules() ScheduleStore {
 	return &scheduleStore{db: s.db}
 }
 
-func (s *sqliteStore) Backups() BackupStore {
+func (s *sqlStore) Backups() BackupStore {
 	return &backupStore{db: s.db}
 }
 
-func (s *sqliteStore) Builds() BuildStore {
+func (s *sqlStore) Builds() BuildStore {
 	return &buildStore{db: s.db}
 }
 
-func (s *sqliteStore) Bundles() BundleStore {
+func (s *sqlStore) Bundles() BundleStore {
 	return &bundleStore{db: s.db}
 }
 
-func (s *sqliteStore) Ping(ctx context.Context) error {
+func (s *sqlStore) Ping(ctx context.Context) error {
 	if err := s.db.PingContext(ctx); err != nil {
 		return fmt.Errorf("metadata: ping: %w", err)
 	}
@@ -328,7 +380,7 @@ func (s *sqliteStore) Ping(ctx context.Context) error {
 // pre-delete recheck consults, so it must stay a single-point existence
 // probe — never a rebuild of the referenced set. Both halves ride their
 // dedicated indexes (idx_nodes_blob, idx_docker_refs_blob).
-func (s *sqliteStore) IsReferenced(ctx context.Context, sha256 string) (bool, error) {
+func (s *sqlStore) IsReferenced(ctx context.Context, sha256 string) (bool, error) {
 	const stmt = `SELECT EXISTS(SELECT 1 FROM nodes WHERE sha256 = ?)
 		OR EXISTS(SELECT 1 FROM docker_refs WHERE blob_digest = ?)`
 	var referenced bool
@@ -338,7 +390,7 @@ func (s *sqliteStore) IsReferenced(ctx context.Context, sha256 string) (bool, er
 	return referenced, nil
 }
 
-func (s *sqliteStore) Close() error {
+func (s *sqlStore) Close() error {
 	if err := s.db.Close(); err != nil {
 		return fmt.Errorf("metadata: closing %s: %w", s.path, err)
 	}
