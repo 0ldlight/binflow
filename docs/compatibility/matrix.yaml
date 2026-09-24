@@ -98,11 +98,22 @@
 #   3 条（store-endpoint-race-family〔c42 A 侧竞态〕/preset-synthetic-rest-face〔c53 安全域路由〕/
 #   repo-delete-response-envelope〔c55 仓库管理域路由〕——全 UNKNOWN 候裁）；⑤ contracts/release-bundle.yaml
 #   七条目 IMPLEMENTED→VERIFIED（differential evidence 追锚）。195 冻结行集不增删（本批零新行）。
+# 基准切换（2026-09-24 接管总令，conductor）：reference 块新增——兼容基准 7.161.15 pro（.130:8082，退役备用）
+#   → 7.161.26 Enterprise+（192.168.120.38:8082）。既有行全部按 7.161.15 认证，翻绿/新结论须按 7.161.26
+#   复验（行级不回改——certification 口径见 reference.row_certification_note）。零行态变更、零新行、零重分类。
 
 ---
 schema: 1
 source_of_record: docs/compatibility/matrix.yaml（本文件——M3-1 起唯一事实源）
 demoted_snapshot: docs/reverse/rest-compat-matrix.md（历史冻结快照，不再承载行态更新）
+reference:
+  baseline:
+    version: 7.161.26 Enterprise+
+    instance: http://192.168.120.38:8082
+    switched: '2026-09-24'
+    verification: pending（UI 200 实测；system/version API 401 未认证——凭据通道裁定后活体复验）
+  retired: { instance: 'http://172.16.58.130:8082', version: 7.161.15 pro, retired: '2026-09-24', role: 备用 }
+  row_certification_note: 既有行（含 ✅/◐/超集）全部按 7.161.15 参照认证——翻绿与新结论须按 7.161.26 复验；未复验行按其标注源版本口径理解，不自动失效亦不自动继承
 frozen_rowset_v1:
   total: 195
   states:

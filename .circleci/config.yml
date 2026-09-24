@@ -655,8 +655,16 @@ workflows:
           filters:
             branches:
               only: [main]
-      - deploy_uat:
+      # 2026-09-24 takeover charter: UAT deploys sit behind a manual
+      # approval — a bare push to main no longer swaps the UAT host.
+      - uat_approval:
+          type: approval
           requires: [build]
+          filters:
+            branches:
+              only: [main]
+      - deploy_uat:
+          requires: [uat_approval]
           filters:
             branches:
               only: [main]

@@ -12,10 +12,11 @@ JFrog Artifactory 的可观察外部行为**，并持续部署 UAT，直到 Comp
 
 ## 2. Organization（组织形态）
 
-主会话 = **Loop Engineer / conductor**（总控，唯一 BOARD 写者）；其余 19 个角色为 `.claude/agents/`
-下的 subagent 定义。能力域 19 项（A~S）→ 角色映射见 `docs/ai-engineering/target-state.md` §2。
+主会话 = **Loop Engineer / conductor**（总控，唯一 BOARD 写者）；其余 21 个角色为 `.claude/agents/`
+下的 subagent 定义。能力域 A~S + 新增 T（数据库工程）/U（HA·联邦）→ 角色映射见
+`docs/ai-engineering/target-state.md` §2（2026-09-24 总令扩编）。
 
-## 3. Roles（角色总览：7 族 19 角色）
+## 3. Roles（角色总览：7 族 21 角色——2026-09-24 新增 dba-engineer / ha-engineer）
 
 | 族 | 角色 | 能力域 | 一句话使命 | 并行实例 |
 |---|---|---|---|---|
@@ -29,11 +30,13 @@ JFrog Artifactory 的可观察外部行为**，并持续部署 UAT，直到 Comp
 | 开发 | `dev-go-storage` | F/G | storage/remote（原子落盘/GC/缓存） | 1–2 |
 | 开发 | `dev-registry-adapter` | H/G | 13 协议适配器——**领域实例制**（票面具名协议） | 每协议 1 |
 | 开发 | `dev-frontend` | K | web/ 控制台（React+go:embed） | 按页面组 1–2 |
+| 开发 | `dba-engineer` | T(新) | 数据库矩阵/迁移方言/schema 版本化与升级恢复（票级授权进迁移面） | 1 |
 | 质量 | `qa-engineer` | L | 功能 AC 验证、真实客户端矩阵、Playwright/axe | 1–2 |
 | 质量 | `differential-qa-engineer` | **L** | Artifactory×BinFlow 双系统差分（L0~L12） | 1–2 |
 | 质量 | `code-reviewer` | B/L | 双审制度载体（A 正确性 / B 架构·兼容·覆盖） | 1–2 视角 |
 | 质量 | `performance-engineer` | **M** | 性能基线与回归门（P95 预算/bench） | 1 |
 | 工程 | `observability-engineer` | **N** | 指标/日志/审计/trace 完备性 | 1 |
+| 工程 | `ha-engineer` | U(新) | HA/集群/联邦 day-one 语义对齐与部署形态（证据包先行） | 1 |
 | 工程 | `devops-engineer` | O/P | 工具链/CI 质量闸门链/compose/kind | 1 |
 | 发布 | `release-engineer` | Q | 部署矩阵（versioned release+原子切换+回滚） | 1 |
 | 安全 | `security-auditor` | S | 威胁模型审计（只发现不改码） | 周期 1 |
@@ -66,6 +69,8 @@ SPRINT-LOOP 硬性规则 8）。共租机器上全量 race/性能类验证须净
 
 六关键域（storage/security/repository/remote cache/protocol/replication/migration）**强制双审**
 （Reviewer A correctness/并发/失败处理 + Reviewer B 架构/兼容/覆盖，conductor 裁决）；其余域单审。
+合并授权（2026-09-24 总令）：AI 可在任务分支 commit/push/开 PR；**合并须独立评审通过**（兼容域另需差分接受）；
+生产发布/公开镜像/公开 Chart 恒问用户。
 
 ## 9. Compatibility Policy（兼容策略）
 
@@ -84,6 +89,7 @@ Security 票无 negative test ≠ DONE；安全红线（删数据/外发/写密�
 UAT = **Compatibility Laboratory**：BinFlow UAT × Artifactory 参照双环境；每次部署执行
 health/smoke/critical compatibility/regression 四面；差分报告落 `reports/compatibility/`。
 部署=versioned release + 原子 symlink 切换 + health check + 自动回滚。
+UAT 审批门（2026-09-24 起）：CircleCI `deploy_uat` 前置 `uat_approval` 人工批准——换装需确认后执行。
 
 ## 12. Release Policy（发布策略）
 
