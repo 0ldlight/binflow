@@ -1,0 +1,88 @@
+# Docker Compose deployment
+
+`deploy/compose/docker-compose.yml` provides a ready-to-run stack: alpine/distroless variants, an optional nginx reverse-proxy profile, and named-volume persistence. From zero to `/readyz` returning 200 in under 15 minutes (including the image build).
+
+## Prerequisites
+
+- Docker >= 24.0 (with the `docker compose` plugin)
+- Run from the repository root
+
+## Installation steps
+
+### 1. Prepare the environment variables
+
+```bash
+cp deploy/compose/.env.example deploy/compose/.env
+# edit .env; at minimum set BINFLOW_ADMIN_PASSWORD
+```
+
+`.env` is gitignored; `.env.example` is the tracked template with every setting commented.
+
+### 2. Start
+
+```bash
+docker compose -f deploy/compose/docker-compose.yml up -d --build
+```
+
+The first run builds the image (console build + docs-site build + Go compile); subsequent starts use the cache.
+
+### 3. Verify
+
+```bash
+docker compose -f deploy/compose/docker-compose.yml ps
+# binflow-ga  STATUS shows "(healthy)" (the built-in HEALTHCHECK polls /readyz every 10s)
+curl -s http://127.0.0.1:8080/readyz
+# ok
+```
+
+## Optional: nginx TLS reverse proxy
+
+```bash
+docker compose -f deploy/compose/docker-compose.yml --profile nginx up -d --build
+```
+
+nginx terminates TLS on 443 and forwards `/v2/` and `/binflow/` to BinFlow (**no rewrites—paths pass through unchanged**, which the docker token handshake depends on). Ports are adjusted via `NGINX_BIND_ADDR` / `NGINX_BIND_PORT` in `.env`.
+
+## Configuration reference
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `BINFLOW_ADMIN_PASSWORD` | **required** (no default) | Initial admin password; compose refuses to start on an empty value |
+| `BINFLOW_IMAGE_VARIANT` | alpine | Image variant: alpine or distroless |
+| `BINFLOW_VER` | v1.0.0 | Version tag |
+| `BINFLOW_BIND_ADDR` | 127.0.0.1 | Host bind address |
+| `BINFLOW_BIND_PORT` | 8080 | Host bind port |
+| `BINFLOW_SECURITY_ANONYMOUS_ACCESS` | true | Anonymous reads |
+| `BINFLOW_AUTH__TOKEN_DEFAULT_TTL_HOURS` | 720 | Token lifetime (hours) |
+| `BINFLOW_LOGGING__FORMAT` / `BINFLOW_LOGGING__LEVEL` | console / info | Log format and level |
+| `BINFLOW_SERVER__GRACEFUL_TIMEOUT_SECONDS` | 30 | Graceful shutdown timeout |
+| `BINFLOW_STORAGE__SESSION_TTL_HOURS` | 24 | Upload session TTL |
+| `BINFLOW_STORAGE__GC_GRACE_HOURS` | 24 | GC grace period |
+| `BINFLOW_AUDIT__ENABLED` | true | Audit log |
+| `BINFLOW_CONSOLE__SESSION_TTL_HOURS` | 24 | Console session TTL |
+
+## Data persistence and logs
+
+The named volume `binflow-data` is mounted at `/var/lib/binflow`. `down` keeps the data volume; `down -v` destroys it (careful).
+
+```bash
+docker compose -f deploy/compose/docker-compose.yml logs -f   # live logs (json-file driver, 10MB×3 rotation)
+```
+
+## Security notes
+
+- The default bind is `127.0.0.1:8080`, local-only; exposing it publicly requires a trusted network or a TLS front.
+- `BINFLOW_ADMIN_PASSWORD` uses the `:?` mandatory syntax—compose refuses to start when it is unset or empty.
+- The container runs as a non-root user (alpine uid 10001, distroless nonroot).
+
+## Uninstall
+
+```bash
+docker compose -f deploy/compose/docker-compose.yml down       # keeps the data volume
+docker compose -f deploy/compose/docker-compose.yml down -v    # including the data volume (careful)
+docker rmi binflow:v1.0.0-alpine binflow:v1.0.0-distroless
+```
+
+## Next steps
+
+- [Run with Docker](/install/docker) · [Helm charts](/install/helm) · [Offline installation](/install/offline) · [Generic integration](/integrations/generic)

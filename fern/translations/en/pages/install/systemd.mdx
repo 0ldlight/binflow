@@ -1,0 +1,94 @@
+# systemd service (bare metal)
+
+For bare-metal Linux, BinFlow ships a standard systemd service unit plus install/uninstall scripts: runs as the non-root `binflow` user with `NoNewPrivileges`, `ProtectSystem`, and other hardening.
+
+## Install script (recommended)
+
+`contrib/systemd/install.sh` installs idempotently: checksum verification → system user creation → directory layout → binary installation → config installation → systemd unit registration → service start.
+
+Prerequisites: Linux (amd64/arm64) with systemd >= 250; root/sudo.
+
+```bash
+sudo bash contrib/systemd/install.sh                        # latest version
+sudo bash contrib/systemd/install.sh --version v1.0.0       # pin a version
+sudo bash contrib/systemd/install.sh --base-url https://releases.example.com/artifacts
+sudo bash contrib/systemd/install.sh --dry-run --version v1.0.0   # dry-run preview
+```
+
+What gets installed: the `binflow` system user, `/etc/binflow` (config), `/var/lib/binflow` (data), `/usr/local/bin/binflow-server`, plus the unit registered and `enable --now`.
+
+### Managing the configuration
+
+```bash
+sudo vim /etc/binflow/binflow.yaml    # skipped by the installer if it already exists (idempotent)
+```
+
+Optional environment-variable overrides: create `/etc/binflow/env`; the unit loads it via `EnvironmentFile=-/etc/binflow/env`:
+
+```ini
+BINFLOW_ADMIN_PASSWORD=my-secret
+BINFLOW_LOGGING__LEVEL=debug
+```
+
+## Manual installation
+
+```bash
+# user and directories
+sudo useradd -r -s /usr/sbin/nologin -M -d /var/lib/binflow binflow
+sudo mkdir -p /etc/binflow /var/lib/binflow
+sudo chown -R binflow:binflow /etc/binflow /var/lib/binflow
+
+# binary (download and verify as in the single-binary guide)
+sudo cp ./binflow-server /usr/local/bin/binflow-server
+sudo chmod 755 /usr/local/bin/binflow-server
+
+# config (reference template at dist/config.yaml in the source tree)
+# systemd unit
+sudo cp contrib/systemd/binflow.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now binflow
+```
+
+## Service management
+
+```bash
+sudo systemctl start|stop|restart binflow
+sudo systemctl status binflow
+sudo journalctl -u binflow -f                     # live logs
+sudo journalctl -u binflow --since "5 minutes ago"
+curl -s http://127.0.0.1:8080/readyz              # ok
+```
+
+## Hardening
+
+| Hardening | Effect |
+|---|---|
+| `User=binflow` / `Group=binflow` | Runs as non-root |
+| `NoNewPrivileges=yes` | Blocks setuid/capability escalation |
+| `ProtectSystem=strict` + `ReadWritePaths=/var/lib/binflow` | Only the data directory is writable (`/etc/binflow` read-only) |
+| `ProtectHome=yes` / `PrivateTmp=yes` / `PrivateDevices=yes` | Isolates /home, /tmp, /dev |
+| `RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX` | Network sockets only |
+| `CapabilityBoundingSet=` / `SystemCallFilter=@system-service` | Zero extra capabilities + syscall filtering |
+| `LimitNOFILE=65536` | File-descriptor limit |
+
+## Uninstall
+
+```bash
+sudo bash contrib/systemd/install.sh --uninstall             # keeps data + config
+sudo bash contrib/systemd/install.sh --uninstall --purge     # removes all data (careful)
+```
+
+Manual uninstall: `systemctl stop/disable` → remove the unit and binary → (after confirming nothing depends on it) `userdel binflow` → `rm -rf /var/lib/binflow /etc/binflow` (careful).
+
+## Directory layout
+
+| Path | Purpose |
+|---|---|
+| `/usr/local/bin/binflow-server` | The binary |
+| `/etc/binflow/binflow.yaml` | Configuration file |
+| `/etc/binflow/env` | Environment-variable file (optional) |
+| `/var/lib/binflow` | Data directory (blobs + SQLite + sessions) |
+
+## Next steps
+
+- [Single-binary installation](/install/binary) · [Docker Compose deployment](/install/compose) · [Backup and recovery](/admin/backup)
