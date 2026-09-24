@@ -10,7 +10,7 @@ set -u
 REPO=l0182-go-local
 MOD=example.com/l018mod
 VER=v1.0.0
-AAUTH="${ARTI_AUTH:-admin:JFrog@2026}"
+AAUTH="${ARTI_AUTH:?set ARTI_AUTH admin:password}"
 source /Users/lzw/dev-center/deploy/compose/.env.uat 2>/dev/null || source /Users/lzw/dev-center/deploy/compose/.env
 BAUTH="admin:${BINFLOW_ADMIN_PASSWORD:-}"
 W=/tmp/l0182; rm -rf "$W"; mkdir -p "$W/pkg"

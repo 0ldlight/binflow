@@ -752,6 +752,53 @@ func TestServePostgresRefusedToBoot(t *testing.T) {
 	}
 }
 
+// TestGcExportRefusePostgresDriver: gc and export share the serve-time
+// postgres refusal (refusePostgresDriver) and fail before anything is
+// opened — with the postgres Open path enabled (T-519), an ungated open
+// would migrate+seed the external database and only fail later in a
+// sqlite-only query (gc: the upload-session sweep; export: VACUUM INTO).
+// The export refusal fires before prepareBackupDir, so no backup directory
+// is left behind either.
+func TestGcExportRefusePostgresDriver(t *testing.T) {
+	for _, cmd := range []struct {
+		name string
+		args []string
+	}{
+		{name: "gc", args: []string{"gc"}},
+		{name: "export", args: []string{"export", "--output", "bk"}},
+	} {
+		t.Run(cmd.name, func(t *testing.T) {
+			dir := t.TempDir()
+			withEnv(t, map[string]string{
+				"BINFLOW_HOME":              "",
+				"BINFLOW_ADMIN_PASSWORD":    "test-admin-pw",
+				"BINFLOW_STORAGE__DATA_DIR": filepath.Join(dir, "data"),
+				"BINFLOW_METADATA__DRIVER":  "postgres",
+				"BINFLOW_METADATA__DSN":     "postgres://u:p@localhost:5432/binflow",
+			})
+			restore := chdirTemp(t)
+			defer restore()
+
+			var stdout, stderr bytes.Buffer
+			err := run(cmd.args, &stdout, &stderr)
+			if !errors.Is(err, errPostgresDisabled) {
+				t.Fatalf("run(%s) with env postgres driver error = %v, want errPostgresDisabled in the chain", cmd.name, err)
+			}
+			if !strings.Contains(stderr.String(), "Postgres support is not enabled") {
+				t.Errorf("stderr = %q, want the FR-3-AC10 message", stderr.String())
+			}
+			if _, err := os.Stat(filepath.Join(dir, "data", "binflow.db")); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("%s refusal must not create a database, stat err = %v", cmd.name, err)
+			}
+			if cmd.name == "export" {
+				if _, err := os.Stat("bk"); !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("export refusal must not create the backup dir, stat err = %v", err)
+				}
+			}
+		})
+	}
+}
+
 // TestServeAssembledStackPing (AC 5): the serve assembly chain (config ->
 // metadata -> storage -> auth/audit -> repo.Service -> httpapi) answers
 // /binflow/api/system/ping over a real listener, and the default-password

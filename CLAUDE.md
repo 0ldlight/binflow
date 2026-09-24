@@ -45,7 +45,14 @@ BinFlow：用 Go 重写的云原生制品仓库（对标 JFrog Artifactory，行
   接口驱动、依赖注入，不跨包摸内部结构。**新测试文件以被测单元/行为命名**（如 `auth_storm_test.go`），
   不用票号命名（票号写进文件头注释与报告即可——存量票号命名文件不回改，仅约束新增）。
 - **提交规范**：conventional commits（`feat:` / `fix:` / `test:` / `docs:` / `chore:` / `refactor:`），
-  由主会话在票通过 qa 后统一提交。
+  主会话在任务分支（task branch）上提交；合并走 PR（收口 develop）且须独立评审（code-reviewer）通过，
+  主会话不得单人评审合入自己实现的代码。
 - **验证优先**：声称"完成"必须附实际执行过的自测命令与关键输出（15 字段证据模板）。
   协议兼容性必须用真实客户端（docker/mvn/npm/pip/curl…）验证，不许只测 happy path。
 - **安全底线**：删除数据、外发数据、写密钥、对外发布镜像/Chart/二进制 → 停下来询问用户。
+  凭据一律经 SSH/凭据管理/环境变量注入获取，禁止写入 Git、文档、任务、截图、命令日志与报告。
+- **基准锚定（2026-09-24 总令）**：兼容目标基准 = JFrog Artifactory **7.161.26 Enterprise+**
+  （http://192.168.120.38:8082；版本活体复验 pending）。行为规格与差分结论必须标注认证所参照的源版本；
+  旧基准（7.161.15，.130:8082）认证的结论按其标注版本理解，不自动失效。
+- **测试四态**：PASS / FAIL / BLOCKED / NOT_RUN（skip≠PASS；无证据=NOT_RUN）；不得自动放宽超时/容差。
+- **UAT 审批门（2026-09-24 起）**：CircleCI `deploy_uat` 前置 `uat_approval` 人工批准；UAT 换装需确认后执行。

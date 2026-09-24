@@ -9,10 +9,10 @@ Normalize: header drop set + json-family equivalence (as buildinfo/search);
 absolute URL host -> <BASE> (archive miss URI carries contextPath
 /artifactory vs /binflow — the context token itself is preserved).
 """
-import base64, hashlib, json, re, urllib.request, urllib.error
+import base64, hashlib, json, re, urllib.request, urllib.error, os
 
-A = {"name": "a", "base": "http://172.16.58.130:8082/artifactory", "auth": "admin:JFrog@2026"}
-B = {"name": "b", "base": "http://172.16.58.130:8083/binflow", "auth": "admin:password"}
+A = {"name": "a", "base": "http://172.16.58.130:8082/artifactory", "auth": "admin:" + os.environ["ARTIFACTORY_REF_PASSWORD"]}
+B = {"name": "b", "base": "http://172.16.58.130:8083/binflow", "auth": "admin:" + os.environ["ARTIFACTORY_REF_PASSWORD"]}
 WIRE = "/Users/lzw/dev-center/reports/compatibility/l024e-wire"
 DROP = {"date", "server", "x-powered-by", "set-cookie", "x-request-id", "x-artifactory-id",
         "x-artifactory-node-id", "via", "x-jfrog-version", "content-length", "connection",

@@ -6,9 +6,11 @@
 // Layout:
 //
 //	api.go            Store interface, sub-store interfaces, row types, sentinels
-//	store.go          Open: driver dispatch, PRAGMAs, admin seed (sqliteStore)
-//	migrate.go        embedded migrator (transactions + schema_migrations ledger)
-//	migrations/       SQL per dialect; sqlite live, postgres placeholder
+//	store.go          Open: driver dispatch (sqlite pragmas / pgx postgres),
+//	                   PRAGMAs, admin seed (sqlStore)
+//	migrate.go        embedded dialect-aware migrator (transactions +
+//	                   schema_migrations ledger, ?/placeholder rebind)
+//	migrations/       SQL per dialect; sqlite and postgres in lockstep
 //	password.go       argon2id hash/verify (t=1, m=64MiB, p=4, PHC strings; auth re-exports)
 //	substores.go      RepoStore / NodeStore / BlobStore implementations
 //	substores_auth.go UserStore / TokenStore / PermissionStore / AuditStore

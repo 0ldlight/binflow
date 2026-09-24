@@ -17,7 +17,7 @@ T-462 取证注记（2026-09-05）
     全数清除，三面复核归零（schedules/backups/replications 均空）。
 
 [B] Artifactory 7.161 活体取证——降级（af-probe.mjs 未产出）
-    票面指定参照基线 :8082（admin/JFrog@2026，7.161.20）。实测：
+    票面指定参照基线 :8082（admin/<已脱敏>，7.161.20）。实测：
     - Docker Desktop 未起 → 启动后发现两个候选容器均异常：
       `artifactory`（pro:7.161.20）内部 router(8046) 永不就绪、多 sidecar
       FATAL（曾 OOM-killed，exit 137——重启一轮同症）；`t226-artifactory-784`

@@ -15,7 +15,7 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } })
 // login
 await page.goto(`${AF}/ui/login/`)
 await page.fill('input[name="username"]', 'admin')
-await page.fill('input[name="password"]', 'JFrog@2026')
+await page.fill('input[name="password"]', process.env.ARTIFACTORY_REF_PASSWORD || '')
 await page.click('button[type="submit"]')
 await page.waitForLoadState('networkidle')
 

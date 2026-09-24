@@ -99,6 +99,11 @@ type exportSummary struct {
 // row are identical whichever door called). out must not exist, or exist
 // empty; the kernel prepares and cleans up after itself.
 func exportSnapshot(ctx context.Context, cfg *config.Config, logger *slog.Logger, out string) (*exportSummary, error) {
+	// FR-3-AC10, shared with serve/gc (refusePostgresDriver): fires before
+	// prepareBackupDir so a refused run leaves no directory behind.
+	if err := refusePostgresDriver(cfg, logger); err != nil {
+		return nil, fmt.Errorf("export: %w", err)
+	}
 	if err := prepareBackupDir(out); err != nil {
 		return nil, fmt.Errorf("export: %w", err)
 	}
