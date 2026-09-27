@@ -88,7 +88,7 @@ def _leg(ctx, side):
 
         # --- release leg: exact bytes served back through the virtual/member
         asserts["release_pom_via_virtual"] = mavenlib.get_sha_verdict(
-            ctx, side, "%s/%s/%s-%s.pom" % (GDIR, REL, ART, REL),
+            ctx, side, "/%s%s/%s/%s-%s.pom" % (VIRT, GDIR, REL, ART, REL),
             mavenlib.sha256_hex(POM_REL))
         jar_rel_path = "%s/%s/%s-%s.jar" % (GDIR, REL, ART, REL)
         asserts["release_jar_on_local"] = mavenlib.get_sha_verdict(
@@ -113,7 +113,8 @@ def _leg(ctx, side):
                 return False
 
         status, body = mavenlib.poll_until(
-            ctx, side, "%s/%s/maven-metadata.xml" % (GDIR, SNAP), _snap_meta_ok)
+            ctx, side, "/%s%s/%s/maven-metadata.xml" % (VIRT, GDIR, SNAP),
+            _snap_meta_ok)
         raw["snapshot_metadata_status"] = status
         if status != 200:
             asserts["snapshot_version_metadata"] = "status=%d" % status
@@ -142,8 +143,11 @@ def _leg(ctx, side):
                 asserts["snapshot_jar_content"] = "no_jar_entry"
             else:
                 asserts["snapshot_landed_form"] = mavenlib.snapshot_form(jar_value)
+                # snapshotVersion <value> is the version string; the landed
+                # filename is <artifactId>-<value>.<ext> (maven-metadata spec).
                 asserts["snapshot_jar_content"] = mavenlib.get_sha_verdict(
-                    ctx, side, "/%s%s/%s" % (LOCAL, GDIR, SNAP) + "/" + jar_value,
+                    ctx, side, "/%s%s/%s/%s-%s.jar" % (LOCAL, GDIR, SNAP, ART,
+                                                        jar_value),
                     mavenlib.sha256_hex(JAR_SNAP))
 
         # --- group-level metadata (poll: pom upload -> async, §1.4)
@@ -156,7 +160,7 @@ def _leg(ctx, side):
                 return False
 
         status, body = mavenlib.poll_until(
-            ctx, side, "%s/maven-metadata.xml" % GDIR, _group_ok)
+            ctx, side, "/%s%s/maven-metadata.xml" % (VIRT, GDIR), _group_ok)
         raw["group_metadata_status"] = status
         if status != 200:
             asserts["group_metadata"] = "status=%d" % status
