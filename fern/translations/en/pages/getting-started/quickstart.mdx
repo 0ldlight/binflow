@@ -1,0 +1,100 @@
+# Five-minute quick start
+
+Goal: run the full loop—**create a repository → upload → download → verify**—in five steps. Two interchangeable paths are provided: a bare binary (no Docker required) and Docker Compose. The examples assume `bash`/`zsh`, `curl`, `jq`, and `sha256sum` are available (on macOS, `shasum -a 256` is the equivalent).
+
+Set the constants (adjust `BASE` if you changed the port):
+
+```bash
+export BASE=http://localhost:8080
+export ADMIN_PW=password    # evaluation default; see step 0 below to change it
+```
+
+> **Step 0 (recommended): set a real admin password before first startup.**
+> BinFlow seeds the `admin` account on first startup. If `BINFLOW_ADMIN_PASSWORD` is unset, the password is the documented default `password`—**evaluation only**. While the default is in effect, the server logs a continuous WARN. Setting the variable after first startup does not re-seed; rotate the password instead:
+>
+> ```bash
+> curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/security/password \
+>   -H 'Content-Type: application/json' \
+>   -d '{"oldPassword":"password","newPassword":"a-real-secret"}' \
+>   && export ADMIN_PW=a-real-secret
+> # Password has been successfully changed
+> ```
+
+## Path A — bare binary
+
+**1. Get it and start it**
+
+```bash
+make build
+# produces three binaries: bin/binflow-server, bin/bf (CLI), bin/bf-migrate (migration tool)
+./bin/binflow-server serve
+# ... binflow starting ... binflow listening addr=:8080
+```
+
+By default it listens on `:8080` and stores data in `./data` (created on demand). `Ctrl-C` shuts down gracefully. To install from a release artifact, see [Single-binary installation](/install/binary).
+
+**2. Check that it is alive**
+
+```bash
+curl -s $BASE/binflow/api/system/ping
+# OK
+```
+
+**3. Create a repository**
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/generic-local \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"local","packageType":"generic","description":"quick start"}'
+# Successfully created repository 'generic-local'
+```
+
+**4. Upload** (the server computes and returns the checksums)
+
+```bash
+echo "hello binflow" > hello.txt
+SHA=$(shasum -a 256 hello.txt | cut -d' ' -f1)
+curl -su admin:$ADMIN_PW -T hello.txt $BASE/binflow/generic-local/acme/hello.txt | jq .
+# {
+#   "repo": "generic-local",
+#   "path": "/acme/hello.txt",
+#   ...
+#   "checksums": { "sha1": "...", "md5": "...", "sha256": "<matches $SHA>" },
+#   ...
+# }
+```
+
+**5. Download and verify** (content-path GET is anonymously readable by default)
+
+```bash
+curl -s -o hello.dl.txt $BASE/binflow/generic-local/acme/hello.txt
+diff hello.txt hello.dl.txt && echo "content identical"
+shasum -a 256 hello.dl.txt   # == $SHA
+```
+
+## Path B — Docker Compose
+
+```bash
+cd deploy/dev
+cp .env.example .env
+# edit .env to set BINFLOW_ADMIN_PASSWORD — compose refuses to start without it
+cd -
+docker compose -f deploy/dev/docker-compose.yml up -d --build
+docker compose -f deploy/dev/docker-compose.yml ps
+# binflow-dev    Up ... (healthy)    127.0.0.1:8080->8080/tcp
+```
+
+Steps 2–5 are byte-for-byte identical to path A—that is the point of the uniform `/binflow` prefix.
+
+Data persists in a named volume (mounted at `/var/lib/binflow`): both `restart` and `down && up -d` (without `-v`) keep your artifacts; `down -v` wipes them. If host port 8080 is taken, set `BINFLOW_BIND_PORT=18080` in `.env` and adjust `BASE`.
+
+## What you just did
+
+- Ping, repository creation, an upload with checksum negotiation, a download with checksum verification, and an anonymous read—the fastest health-check chain against any instance.
+- Uploads are atomic (an interrupted upload is never visible); blobs are content-addressed by sha256 and deduplicated across paths and repositories; deletes are idempotent.
+
+## Next steps
+
+- Production deployment: the [Installation](/install/binary) guides (Docker / Compose / Helm / Kubernetes / systemd / offline).
+- Client integrations: [Docker](/integrations/docker) · [Maven](/integrations/maven) · [npm](/integrations/npm) · [PyPI](/integrations/pypi) · [Generic](/integrations/generic).
+- Web console: open `$BASE/binflow/ui/` in a browser; see the [Web console](/admin/console) guide.

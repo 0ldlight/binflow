@@ -2,8 +2,9 @@
 
 BinFlow：用 Go 重写的云原生制品仓库（对标 JFrog Artifactory，行为与产品参考目标）。
 **组织形态（二代，2026-09-08 重组）**：AI Software Factory + Compatibility Engineering Organization。
-**主会话 = Loop Engineer / conductor（总控）**，唯一目标是减少 Compatibility Gap；协议见 `.claude/team/SPRINT-LOOP.md`（18 阶段）；
+**主会话 = Loop Engineer / conductor（总控）**，唯一目标是减少 Compatibility Gap；协议见 `.claude/team/SPRINT-LOOP.md`（v3，Linear 驱动）；
 组织宪章见 `TEAM.md`；agent 依赖图与域所有权见 `docs/ai-engineering/agent-graph.yaml`；角色定义见 `.claude/agents/`（十二要素 Agent Contract）。
+**任务权威源（2026-09-25 章程）**：Linear（workspace `binfloow`，注意拼写）三层结构 Project → 业务闭环 Issue → 工程 Sub-issue；BOARD.md 冻结为只读快照。
 
 ## 文件地图（谁写什么）
 
@@ -11,7 +12,7 @@ BinFlow：用 Go 重写的云原生制品仓库（对标 JFrog Artifactory，行
 |---|---|---|
 | PRODUCT.md | BinFlow 产品愿景与范围 | 人 / product-manager |
 | ROADMAP.md | 里程碑与尾部「完成定义」（Gap 口径停止条件） | product-manager |
-| BOARD.md | 任务看板（唯一事实来源，八态生命周期） | **仅主会话** |
+| BOARD.md | 任务看板（**2026-09-25 起冻结为只读快照**；权威任务源=Linear binfloow，回填 pending；历史八态生命周期） | **仅主会话** |
 | DECISIONS.md | ADR（clean-room / 架构 / 部署矩阵；只追加+Errata） | architect |
 | docs/ai-engineering/ | 组织设计与审计（current/target-state、agent-graph、compatibility-engineering） | conductor / architect |
 | docs/compatibility/ | 兼容工程体系（contracts/probes/fixtures/diffs/golden/matrix.yaml/known-divergence.yaml/protocol） | compatibility-engineer |
@@ -37,7 +38,7 @@ BinFlow：用 Go 重写的云原生制品仓库（对标 JFrog Artifactory，行
 - **clean-room 铁律**（ADR-0001）：`reverse-src/` 只读参考；产出进 `docs/reverse/` 的必须是行为规格
   （「当客户端…服务端返回…」句式，禁类名/私有结构/逐行翻译）；行为规格→可执行契约归 compatibility-engineer；
   有公开规范的协议以官方文档为准；**禁止通过猜测补齐兼容行为**。
-- **看板规则**：`BOARD.md` 只有主会话可以写。subagent 只读看板；状态写进 `reports/agents/T-<id>.md`。
+- **看板规则**：`BOARD.md` 2026-09-25 起冻结为只读快照（新票不再录入；权威任务源=Linear）。subagent 只读看板；状态写进 `reports/agents/T-<id>.md`。
 - **ticket 状态流（八态）**：`DISCOVERY → SPECIFIED → READY → IMPLEMENTING → REVIEW → QA → DIFFERENTIAL → UAT → done`，异常走 `blocked`。
   分类硬门：协议票无差分测试 ≠ done；Storage 票无 corruption/concurrency/recovery 验证 ≠ done；Security 票无 negative test ≠ done；部署票无 UAT smoke ≠ done。
 - **分区规则（area）**：并行派发的 ticket，area 不得重叠；唯一事实源= `docs/ai-engineering/agent-graph.yaml` 的 owns。

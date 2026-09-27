@@ -1,0 +1,71 @@
+# Offline installation (air-gapped)
+
+For environments without internet access, use the offline bundle `binflow_offline_<VER>.tar.gz` (built with `make offline-bundle`). It contains the Docker images, the Helm chart, the Kubernetes manifests, the binaries, and an installer—after extraction, nothing touches the network.
+
+## Build the bundle (on a networked build machine)
+
+```bash
+make release
+bash deploy/release/build-release.sh
+helm package charts/binflow -d .
+make offline-bundle
+# artifact: deploy/offline/binflow_offline_v1.0.0.tar.gz (+ .sha256 checksum file)
+```
+
+Bundle layout: `images/` (docker-save artifacts of both variants), `charts/`, `k8s/`, `compose/`, `binaries/` (linux amd64/arm64 + checksums), `install-offline.sh`, `SHA256SUMS`.
+
+## Installation steps
+
+```bash
+# 1. transfer to the target machine (USB drive / internal share / scp)
+scp user@build-machine:/path/to/binflow_offline_v1.0.0.tar.gz .
+
+# 2. verify integrity
+shasum -a 256 binflow_offline_v1.0.0.tar.gz     # compare against the build machine's .sha256
+tar xzf binflow_offline_v1.0.0.tar.gz && cd binflow_offline_*
+shasum -a 256 -c SHA256SUMS                      # everything OK
+
+# 3. install (pick one of three modes)
+./install-offline.sh --compose    # default recommendation: single-host docker compose
+./install-offline.sh --kind       # kind cluster (testing)
+./install-offline.sh --helm       # existing Kubernetes cluster
+./install-offline.sh --dry-run --compose   # dry-run preview
+
+# 4. verify
+curl -s http://127.0.0.1:8080/readyz    # ok
+```
+
+| Mode | Prerequisites | Best for |
+|---|---|---|
+| **docker-compose** (default) | Docker >= 24.0 + compose plugin | Single host, simplest |
+| **kind** | Docker + kind >= 0.20 + kubectl | Kubernetes-in-Docker test environments |
+| **helm** | Docker + kubectl + helm >= 3.12 + an existing cluster | A real Kubernetes cluster |
+
+## Mode behavior notes
+
+- **compose**: verifies SHA256SUMS → `docker load` both images → generates a random admin password (written to `compose/.env`; view with `grep BINFLOW_ADMIN_PASSWORD compose/.env`) → `docker compose up -d` → waits for `/readyz` (up to 30s).
+- **kind**: creates the cluster (skipped if it exists) → `kind load docker-image` → `kubectl apply -k k8s/` → waits for readiness + port-forwards.
+- **helm**: verifies the kubectl context → `helm install binflow charts/binflow-<VER>.tgz` (upgrades if already installed) → waits for readiness. ImagePullPolicy is `IfNotPresent` (the images are already local via docker load).
+
+Failures roll back automatically (loaded images removed, compose stack stopped, helm release uninstalled, Kubernetes resources deleted).
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| Port 8080 already in use | Edit `BINFLOW_BIND_PORT` in `compose/.env` |
+| SHA256SUMS verification fails | The transfer was corrupted; transfer again |
+| Docker not running | Check the daemon with `docker info` |
+| Kubernetes connection failure | Check the context with `kubectl config current-context` |
+
+## Uninstall
+
+```bash
+docker compose -f compose/docker-compose.yml down -v   # compose mode
+kind delete cluster --name binflow-offline              # kind mode
+helm uninstall binflow                                  # helm mode
+```
+
+## Next steps
+
+- [Docker Compose deployment](/install/compose) · [Helm charts](/install/helm) · [Single-binary installation](/install/binary)

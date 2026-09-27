@@ -1,0 +1,114 @@
+# Helm charts (Kubernetes)
+
+`charts/binflow/` is a standard Helm chart: single-replica deployment, PVC persistence, optional Ingress, image pull secrets, resource limits, and an HPA (under the single-replica constraint).
+
+## Prerequisites
+
+- Kubernetes >= 1.28, Helm >= 3.12, kubectl configured with a context
+
+## Installation steps
+
+```bash
+# local chart directory (recommended for development/evaluation)
+helm install binflow ./charts/binflow --set admin.password=my-secret-password
+
+# or an OCI repository (once published)
+helm install binflow oci://ghcr.io/lzwzzy/charts/binflow --version 1.0.0
+```
+
+The default password is `password` (the values.yaml placeholder)—**always override it in production**.
+
+```bash
+# wait for readiness
+kubectl wait --for=condition=available --timeout=60s deployment/binflow
+
+# retrieve the admin password
+export BINFLOW_ADMIN_PASSWORD=$(kubectl get secret binflow-secret \
+  -o jsonpath="{.data.BINFLOW_ADMIN_PASSWORD}" | base64 -d)
+
+# port-forward and verify
+kubectl port-forward svc/binflow 8080:8080 &
+curl -s http://127.0.0.1:8080/readyz    # ok
+```
+
+## Custom values
+
+Common sections of `my-values.yaml`:
+
+```yaml
+admin:
+  password: "strong-password-here"
+
+image:
+  repository: ghcr.io/lzwzzy/binflow
+  tag: "v1.0.0-alpine"          # or v1.0.0-distroless (no shell, minimal attack surface)
+  pullPolicy: IfNotPresent
+
+persistence:
+  enabled: true
+  size: 50Gi                    # default 20Gi RWO; existingClaim reuses an existing PVC
+  storageClass: "standard"
+
+service:
+  type: ClusterIP               # ClusterIP / NodePort / LoadBalancer
+  port: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: binflow.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: binflow-tls
+      hosts:
+        - binflow.example.com
+
+resources:
+  limits: { cpu: 2000m, memory: 1Gi }
+  requests: { cpu: 100m, memory: 256Mi }
+```
+
+```bash
+helm install binflow ./charts/binflow -f my-values.yaml
+helm upgrade binflow ./charts/binflow -f my-values.yaml
+```
+
+## Key configuration notes
+
+- **Storage**: SQLite in WAL mode requires a single writer—multiple replicas sharing a PVC are explicitly forbidden; values.schema.json enforces `replicaCount <= 1`.
+- **Security context**: the Pod runs as non-root (distroless uid 65532); `securityContext` (runAsNonRoot / readOnlyRootFilesystem, and so on) is customizable in values.
+- **Ingress path requirements**: `/readyz` and `/healthz` are unprefixed; `/v2/` (docker) passes through at the root; `/binflow/` carries the management API and content paths. Recommended annotation: `nginx.ingress.kubernetes.io/proxy-body-size: "0"` (unlimited artifact uploads).
+
+## Chart layout
+
+```
+charts/binflow/
+├── Chart.yaml / values.yaml / values.schema.json
+└── templates/
+    ├── deployment.yaml   # single replica, Recreate strategy
+    ├── service.yaml / pvc.yaml / secret.yaml / configmap.yaml
+    ├── ingress.yaml / hpa.yaml / serviceaccount.yaml / NOTES.txt
+```
+
+## Uninstall and the data volume
+
+```bash
+helm uninstall binflow
+```
+
+**The PVC survives on purpose**: a PVC created by the chart carries the `helm.sh/resource-policy: keep` annotation (always injected, no option to disable)—`helm uninstall` removes only the workloads and keeps the data volume; reinstalling a release with the same name in the same namespace reuses the surviving PVC (PVC name = `<release>-binflow`). To delete the data for good, remove the volume manually:
+
+```bash
+kubectl delete pvc --namespace <ns> binflow-binflow
+# or by label
+kubectl delete pvc -l app.kubernetes.io/instance=binflow
+```
+
+This does not apply to deployments using `persistence.existingClaim` (the chart does not manage that volume's lifecycle).
+
+## Next steps
+
+- [Native Kubernetes manifests](/install/kubernetes) · [Offline installation](/install/offline) · [Backup and recovery](/admin/backup)

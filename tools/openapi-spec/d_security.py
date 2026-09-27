@@ -22,8 +22,8 @@ def build():
                   "401": ERR_401, "403": ERR_403})
 
     op("/api/security/users", "post", "userCreatePost", "users", "Create a user (collection route, create-only)",
-       "Canonical path: `POST /binflow/api/security/users` (**a BinFlow-native collection route** — official "
-       "Artifactory has no such face; create-or-replace goes through `PUT /api/security/users/{name}`). Create-only: "
+       "Canonical path: `POST /binflow/api/security/users` (**a BinFlow-native collection route** — the "
+       "reference API has no such face; create-or-replace goes through `PUT /api/security/users/{name}`). Create-only: "
        "the body must include `name` (missing, or the reserved name `_system_` → 400 plain text `Unable to create "
        "user.`); an existing name → **409 plain text** `The user already exists: <name>` (no path to key-replace — "
        "partial updates live at `POST /api/security/users/{name}`). Mixed-case usernames are rejected 400 plain text "
@@ -258,7 +258,7 @@ def build():
     op("/api/v1/admin/security/keypair/generate", "post", "keypairGenerate", "keypairs",
        "Generate a key pair server-side (BinFlow-native face)",
        "Canonical path: `POST /binflow/api/v1/admin/security/keypair/generate` (201 echoes a summary; duplicate name "
-       "409) — official Artifactory REST has no keygen; this endpoint is a BinFlow-native management face.",
+       "409) — the reference API has no keygen; this endpoint is a BinFlow-native management face.",
        req_body=body("Generation input", schema=S("KeyPairGenerateInput"), required=True),
        responses={"201": r("KeyPairSummary", schema=S("KeyPairSummary")), "409": r("Duplicate name")})
 

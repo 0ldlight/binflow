@@ -14,7 +14,7 @@ This documentation applies to **BinFlow v1.0.0**.
 
 The licensing rule is simple: **reads are never hijacked**. A missing or expired license only blocks repository creation (400) and write verbs (403 plus an `X-Binflow-License-Required: <addon>` response header). `GET /binflow/api/v1/addons` reports the current status of every slot. See [License and add-ons](/admin/license).
 
-Every package type supports the three repository classes: **local**, **remote** (pull-through proxy cache), and **virtual** (aggregation). Docker virtual aggregation is not yet supported.
+Every package type supports the three repository classes: **local**, **remote** (pull-through proxy cache), and **virtual** (aggregation). Docker virtual repositories aggregate reads; pushes are rejected with `405`—push to a local member repository instead.
 
 ## URL topology
 
@@ -43,4 +43,4 @@ Every application URL shares the `/binflow` prefix:
 - **Administration**: console, repositories, permissions, tokens, governance, scheduled jobs, backups, storage, authentication, licensing, artifact operations, webhooks, and monitoring.
 - **Search and properties**: the property system and AQL search.
 - **Tools and migration**: the `bf` CLI and `bf-migrate` for the reference repository migration.
-- [API reference](/api-reference/binflow-api) · [FAQ and troubleshooting](/faq), including an the reference repository migration comparison table.
+- [API reference](/api-reference/binflow-api) · [FAQ and troubleshooting](/faq), including a reference-repository migration comparison table.

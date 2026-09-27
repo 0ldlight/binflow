@@ -43,7 +43,7 @@ def build():
         "info": {
             "title": "BinFlow API",
             "version": "1.0.0",
-            "summary": "BinFlow artifact repository REST API — the Artifactory-compatible surface, the native /api/v1 surface, and protocol client surfaces",
+            "summary": "BinFlow artifact repository REST API — the compatibility surface, the native /api/v1 surface, and protocol client surfaces",
             "description": (
                 "The BinFlow API spans four surfaces:\n\n"
                 "1. **Artifact content paths** (no `/api` prefix): `/binflow/<repoKey>/<path>` — upload, download and "

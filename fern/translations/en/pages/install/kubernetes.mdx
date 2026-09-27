@@ -1,0 +1,70 @@
+# Native Kubernetes manifests
+
+When Helm is not an option, `deploy/k8s/` provides complete Kustomize manifests—deploy with `kubectl apply -k`.
+
+## Prerequisites
+
+- Kubernetes >= 1.28, kubectl >= 1.28
+- The image pushed to a registry reachable from the cluster (default `ghcr.io/lzwzzy/binflow`)
+
+## Installation steps
+
+### 1. Prepare the Secret
+
+Edit `deploy/k8s/secret.yaml` and replace the admin password placeholder:
+
+```yaml
+stringData:
+  BINFLOW_ADMIN_PASSWORD: "<replace-with-a-strong-password>"
+```
+
+Optional: generate a remote-proxy credentials key with `openssl rand -base64 32` and fill `BINFLOW_REMOTE_CREDENTIALS_KEY` (usage in [Repository management](/admin/repositories)).
+
+### 2. Configure the image
+
+In `deploy/k8s/kustomization.yaml`:
+
+```yaml
+images:
+  - name: binflow
+    newName: ghcr.io/lzwzzy/binflow
+    newTag: v1.0.0-distroless   # or v1.0.0-alpine (has a shell, easier to debug)
+```
+
+For the alpine variant, switch the probe from `exec` to `httpGet` (path `/readyz`, port `http`).
+
+### 3. Apply and verify
+
+```bash
+kubectl apply -k deploy/k8s/
+# creation order: secret → pvc (RWO 20Gi) → deployment (single replica, Recreate) → service (ClusterIP 8080)
+
+kubectl rollout status deployment/binflow
+# deployment "binflow" successfully rolled out
+
+kubectl port-forward svc/binflow 8080:8080 &
+curl -s http://127.0.0.1:8080/readyz                    # ok
+kubectl get secret binflow-secret -o jsonpath="{.data.BINFLOW_ADMIN_PASSWORD}" | base64 -d
+```
+
+## Optional: Ingress and overlays
+
+- `deploy/k8s/ingress.yaml` is commented out by default—uncomment its line in `kustomization.yaml` and edit the host.
+- GitOps-friendly: create `deploy/k8s/overlays/prod/kustomization.yaml` (resources pointing at `../../.`, patches changing host/image), then `kubectl apply -k deploy/k8s/overlays/prod`. Note that SQLite is single-writer—replicas > 1 is not valid for production.
+
+## Security notes
+
+- `enableServiceLinks: false`—avoids collisions between Kubernetes Service environment variables and the `BINFLOW_` configuration namespace.
+- `runAsNonRoot: true`; the password is injected via `secretKeyRef`, never in plain text in the Pod spec.
+- Single replica (Recreate strategy): SQLite in WAL mode requires a single writer.
+
+## Uninstall
+
+```bash
+kubectl delete -k deploy/k8s/
+kubectl delete pvc binflow-data   # the PVC is not removed by kustomize; clean it up manually
+```
+
+## Next steps
+
+- [Helm charts](/install/helm) · [Offline installation](/install/offline) · [Backup and recovery](/admin/backup)

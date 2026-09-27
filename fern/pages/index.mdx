@@ -14,7 +14,7 @@ BinFlow 是一个用 Go 从零实现的**云原生制品仓库**，架构与概�
 
 档位语义一句话：**读永不劫持**——license 缺失/过期只关闭建仓（400）与写动词（403 + `X-Binflow-License-Required: <addon>` 头）；`GET /binflow/api/v1/addons` 返回逐槽位实时判定。详见 [License 与 Add-ons](/admin/license)。
 
-每种包型都支持 **local / remote（pull-through 代理缓存）/ virtual（聚合）** 三种仓型（docker 的 virtual 聚合暂不支持）。
+每种包型都支持 **local / remote（pull-through 代理缓存）/ virtual（聚合）** 三种仓型（docker 的 virtual 聚合读已可用；推送返回 `405`——请推到 local 成员仓）。
 
 ## URL 拓扑
 

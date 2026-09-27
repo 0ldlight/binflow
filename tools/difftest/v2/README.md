@@ -75,7 +75,7 @@ def run(ctx):
             "evidence": ["evidence/<case-id>/0-curl.json"]}
 ```
 
-`ctx` 提供：`ctx.sides["a"|"b"]`（`.base` / `.user` / `.password`，全部来自 env）、
+`ctx` 提供：`ctx.sides["a"|"b"]`（dict：`["base"]` / `["user"]` / `["password"]`，全部来自 env）、
 `ctx.http(side, method, path, body=None, headers=None)`（同 runner 双发腿，含 Basic auth）、
 `ctx.timeout_s`、`ctx.write_evidence(name, payload)`（写 JSON 证据，返回相对路径）。
 `run(ctx)` 必须返回 `{"status": PASS|FAIL|BLOCKED, "reason": str, ...}`；抛异常 → 用例记 BLOCKED（带异常信息），不拖垮整批。
@@ -118,6 +118,21 @@ bash tools/difftest/v2/score.sh tools/difftest/v2/run/demo/results.json
 - runner 退出码：`0` = 本轮跑完（含 FAIL——状态走 results.json/score.sh）；`2` = 用法/发现层错误（坏用例文件、未知 `--case`）。runner 自己**不因 FAIL 非零**，CI 门用 score.sh 的 JSON。
 - 超时：每请求独立超时，`--timeout`（默认 30s，写死于 `runner.py` 的 `DEFAULT_TIMEOUT_S` 并记入 results.json）或用例 `timeout_s` 显式覆盖；**永不自动放宽**。
 - 证据：每个请求的 A/B 原始响应（status / headers / body，Authorization 脱敏）落 `run/evidence/<case-id>/`，`results.json` 逐用例带相对路径，结论可反向对到证据。
+
+## Maven 首批用例（T-523）
+
+`cases/maven_*.py` 四例（共享助手 `cases/_mavenlib.py`，`_` 前缀不参与发现）：
+
+| case id | 层 | 行为依据（docs/reverse/） |
+|---|---|---|
+| `maven-virtual-deploy` | L5 | repo-semantics §8.2 L217（defaultDeploymentRepo 写路由）+ maven-npm-pypi §1.1/§1.3/§1.4/§1.5 + virtual-resolution §5.2（pom 清洗对无 repositories 的 fixture 为 no-op）；真实客户端腿 = `mvn deploy:deploy-file`（RELEASE+SNAPSHOT），settings.xml 用 `${env.DIFFTEST_MVN_USER/PASS}` 插值，凭据零落盘 |
+| `maven-resolve-remote-cache` | L6 | remote-cache-projection §2.1 L56/§3/§4 + virtual-resolution §2；上游 fixture = Maven Central `javax.annotation-api-1.3.2.pom`（sha256 常量内嵌）；缓存命中判据 = `<remote>-cache` 投影仓直 GET 200 + 双拉字节精确（wire 级 HIT 证明需实例日志，v2 首批不做） |
+| `maven-virtual-metadata-merge` | L7 | virtual-resolution §5.1：versions 并集重排、latest/release 重算、合并结果不写 `<virtual>-cache`；成员 metadata 异步计算（maven-npm-pypi §1.4）→ 用例内 poll（15s 预算，不自动放宽） |
+| `maven-virtual-delete-passthrough` | L7 | repo-semantics §8.2 L220 / virtual-resolution §7.5：virtual DELETE 只作用于自身聚合缓存 → 404 且成员制品存活；对照腿 = 成员直删 204 |
+
+- 判定口径：断言值来自行为规格推导（`EXPECTED` 字典），双端各自对照规格 + A/B 互比；`PASS` = 双端全部断言命中规格。不是「捕获即真相」。
+- 命名空间：所有临时仓 key 以 `difftest-mvn-` 前缀，用例 finally 双端清理。
+- 无凭据时的接线自检：`python3 _smoke_mock.py <port>` 起哑端点（非差分 oracle，只证明 runner→case→mvn 子进程→evidence 管线），配 `A_BASE/B_BASE` 指向本机两端口实跑——用例应稳定 FAIL（断言值记录 404 等），不应 BLOCKED/崩溃。
 
 ## score.sh 输出
 

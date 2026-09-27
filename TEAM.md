@@ -102,7 +102,7 @@ agent → conductor：越界诱惑/规格冲突/证据与预期不符/依赖断�
 
 ## 14. Loop Policy（循环策略）
 
-AI Software Factory Loop 18 阶段（见 SPRINT-LOOP.md）；每轮必答 Compatibility 四问并计量 Coverage；
+AI Software Factory Loop v3 六步闭环（Linear 驱动，见 SPRINT-LOOP.md）；每轮必答 Compatibility 四问并计量 Coverage；
 Gap-Driven Planning 优先序硬约束；真停止条件=完成定义（非 ROADMAP 全 done）。
 
 ---

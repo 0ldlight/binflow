@@ -84,7 +84,7 @@ def build():
        "Get FileInfo / FolderInfo JSON",
        "Canonical path: `GET /binflow/api/storage/{repoKey}/{path}`. Query arms:\n"
        "- `?properties=K1,K2*` returns properties (key filter + trailing `*` wildcard; no matches = 200 `{\"properties\":{}}` — "
-       "a BinFlow ruling, not Artifactory's 404; nonexistent node = 404);\n"
+       "a BinFlow compatibility ruling, not a 404; nonexistent node = 404);\n"
        "- `?stats` returns download statistics (counts visible on all tiers — the item-info read gate; "
        "`lastDownloadedBy` is returned only to admin / readonly_admin, omitted on lower tiers, never fabricated; "
        "the probe itself is not counted);\n"

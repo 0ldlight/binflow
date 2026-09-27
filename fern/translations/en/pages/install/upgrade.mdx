@@ -1,0 +1,91 @@
+# Upgrade
+
+BinFlow follows [semver](https://semver.org/): **MAJOR** = incompatible changes, **MINOR** = compatible feature additions, **PATCH** = compatible bug fixes (pre-release tags like `v1.0.0-rc.1` exist).
+
+The upgrade strategy in one sentence: **within a MAJOR, swap the binary/image and let startup run the automatic migrations; across MAJORs, use export/import**.
+
+## Upgrade commands per deployment
+
+### Binary / systemd
+
+```bash
+# 1. back up (recommended)
+binflow-server export -c binflow.yaml --output /backup/bf-pre-upgrade
+
+# 2. download the new version and verify (see the single-binary guide)
+# 3. stop → replace the binary → start → verify
+sudo systemctl stop binflow
+sudo cp binflow-server /usr/local/bin/binflow-server
+sudo systemctl start binflow
+curl -s http://127.0.0.1:8080/readyz    # ok
+```
+
+### Docker / compose
+
+```bash
+docker pull ghcr.io/lzwzzy/binflow:v1.0.1-alpine
+docker compose -f deploy/compose/docker-compose.yml up -d --build
+curl -s http://127.0.0.1:8080/readyz
+```
+
+### Helm
+
+```bash
+helm upgrade binflow ./charts/binflow \
+  --set image.tag=v1.0.1-alpine \
+  --set admin.password=$(kubectl get secret binflow-secret -o jsonpath="{.data.BINFLOW_ADMIN_PASSWORD}" | base64 -d)
+kubectl rollout status deployment/binflow
+```
+
+### Native Kubernetes
+
+```bash
+# edit the image tag in kustomization.yaml / deployment.yaml
+kubectl apply -k deploy/k8s/ && kubectl rollout status deployment/binflow
+```
+
+## Automatic metadata migrations
+
+The server runs metadata migrations automatically at startup (idempotent and re-entrant; on failure the process exits instead of serving; the log shows `applied migration NN`). Migrations run in numbered order and are all backward compatible (tables, columns, and indexes added; data backfilled):
+
+| Number | Scope |
+|---|---|
+| 001 | Initial schema: repositories, blobs, nodes, users, tokens, permission targets, audit, and more |
+| 002 | Docker domain: docker_manifests, docker_tags, docker_refs |
+| 003 | Remote-domain extensions: TTL/private-network fields, cache-expiry index, blobs sha1 index |
+| 004 | Console/governance domain: users email, groups, user_groups, web_sessions, repo_usage |
+| 005 | Quota backfill (nodes SUM → repo_usage) |
+| 006 | user_groups(username) index |
+| 007 | Folder-row backfill (materialized directory-level nodes) |
+
+Only the SQLite driver is currently supported (the Postgres directory is a placeholder).
+
+## Across MAJOR versions: export/import
+
+When the metadata format is incompatible (a MAJOR upgrade), export/import is the **only** migration path:
+
+```bash
+binflow-server export -c old-binflow.yaml --output /backup/bf-v1-data
+sudo systemctl stop binflow
+rm -rf /var/lib/binflow/data && mkdir -p /var/lib/binflow/data
+binflow-server import -c new-binflow.yaml --input /backup/bf-v1-data --verify full
+sudo systemctl start binflow
+```
+
+Replacing the binary and relying on the automatic migrations only works for MINOR/PATCH upgrades within the same MAJOR.
+
+## Rollback and recommended procedure
+
+```bash
+sudo systemctl stop binflow
+sudo cp /usr/local/bin/binflow-server.bak /usr/local/bin/binflow-server
+sudo systemctl start binflow
+```
+
+Caution: if the new version ran an irreversible migration, rolling back to the old version may fail to start—always export a backup before upgrading production.
+
+Recommended procedure: read the release notes → export a backup → stage it first → schedule a downtime window (seconds for MINOR/PATCH; proportional to data size for MAJOR) → confirm `/readyz` 200 + an artifact PUT/GET smoke test → keep the old binary and backup as the rollback plan.
+
+## Next steps
+
+- [Backup and recovery](/admin/backup) · [FAQ and troubleshooting](/faq)
