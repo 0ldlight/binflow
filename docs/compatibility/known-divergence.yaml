@@ -1247,3 +1247,88 @@ entries:
   authority: { type: pending, ref: "差分定谳（有聚合缓存条目臂 A 面实形——T-524 裁定遗留差分项，无先行 authority）" }
   review_gate: BIN-M1 后续批次差分用例（双端先构造 virtual 聚合缓存条目再 DELETE 对拍：状态码/条目消失/成员存活）；偏参照即实现票 + 复验后 resolved
   evidence: reports/agents/T-524.md（裁定闭环「不引入新语义」段——遗留登记承诺）+ reports/compatibility/L028-maven-v2-batch1-diff.md D-2 + reports/compatibility/L029-maven-v2-batch1-reverify.md（D-2 关闭经过——覆盖面=无条目臂）
+- id: maven/virtual-member-metadata-snapshotversions-ua-gate
+  surface: maven version 级 maven-metadata.xml 的 <snapshotVersions> M3 能力谓词（virtual 合并腿 + local 成员腿——java-agent UA 剥除 vs BinFlow 无条件照发）
+  classification: BUG
+  rationale: >-
+    L030 Case 1（BIN-16 主臂，2026-09-28，A 7.161.26 Enterprise+ @ :8082 经 relay × B 本地构建 04847e27，
+    r2/r3 连续两轮逐 case 一致）：A 面 live 行为与规格 §5.1 逐字吻合——条件合并=系统开关
+    （mvn.metadata.version3.enabled 默认开）+ 快照级路径 + 客户端 M3 能力谓词（UA 判定：空 UA=支持；
+    Ivy/Wharf 与 [Jj]ava/(.+) 全匹配=不支持），谓词不满足则剥除 <snapshotVersions>（<snapshot> 块保留）；
+    BinFlow internal/adapter/maven 的 mergeSnapshotVersioning 无条件并入且成员仓服务路径同样无 M3 谓词
+    ——同一根因两个暴露面（b_spec_violations：virt_m3no_sv / member_m3no_sv 双 present——java-agent 腿
+    B 照发 2 条 vs A 剥除 0 条，virtual 合并腿与成员仓控制腿皆然）。capable 腿双面完全同形（bn 大者胜、
+    per ext+classifier 取较新——合并算法本体已对齐，维持正向无回归）。**fix in flight R3（T-542/BIN-25）**；
+    系统开关形态是否对齐 mvn.metadata.version3.enabled（默认 true）随票定契约。
+  authority: { type: spec_ruling, ref: "docs/reverse/virtual-resolution.md §5.1（L90 合并表，高置信：v3 记号仅当系统开关+快照 metadata+客户端 M3 谓词齐备才合并，否则剥除）+ docs/reverse/maven-npm-pypi.md L90（mvnMetadataVersion3Enabled 默认开）" }
+  review_gate: R3 实现票 T-542/BIN-25 in flight（clientSupportsM3SnapshotVersions 谓词落 virtual 合并与 local 成员两个服务路径）；修后以 L030 Case 1 复验翻绿 → resolved
+  evidence: reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md Case 1（r2/r3 双轮稳定；wire 证据 run/l030-r1..r3 宿主本地）
+- id: maven/deploy-gav-mismatch-pom-consistency-check
+  surface: 'maven deploy pom 坐标↔目标路径一致性校验（GAV 失配臂：A 409 拒绝未落盘 vs B 201 落盘）'
+  classification: BUG
+  rationale: >-
+    L030 Case 2（D-4 反向用例，2026-09-28，r2/r3 稳定）：POM 内容 GAV=com.diff:right-lib vs 部署路径
+    com/diff/wrong-lib/…——A **409** errors[] 形（message 逐字在案，body sha256 278e10be…）+ 路径 GET
+    404（未落盘）+ 真实 mvn deploy-file exit 1（tail 409 Conflict）；B **201** created-envelope 落盘
+    （路径 GET 200、mvn exit 0）——四违例（put_mismatch_status/put_mismatch_get/mvn_mismatch_exit/
+    mvn_mismatch_path_get）。BinFlow 在 repo 配置投影面渲染了 suppressPomConsistencyChecks 旋钮
+    （internal/httpapi/repo_config_render.go，默认 false）但 internal/ 无任何执行点——「宣称了旋钮却
+    无校验」。一致控制腿双端 201（无误报）。**fix in flight R3（T-543/BIN-26）**。
+  authority: { type: spec_ruling, ref: "docs/reverse/virtual-resolution.md §5.2 L108（上传侧注：经 virtual 落 defaultDeploymentRepo 的 pom 做 pom 坐标↔目标路径一致性校验，不一致按 suppressPomConsistencyChecks 决定拒绝与否——Maven 仓通用校验）" }
+  review_gate: R3 实现票 T-543/BIN-26 in flight（校验执行点落地 + suppressPomConsistencyChecks 旋钮接线）；修后以 L030 Case 2 复验翻绿 → resolved
+  evidence: reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md Case 2（409 体逐字+sha256 双锚，r2/r3）
+- id: npm/remote-upstream-wire-identity-mapping
+  surface: npm remote 上游 wire 路径映射（存储布局 identity 映射 vs registry 方言翻译——UpstreamPath facet 缺席）
+  classification: UNKNOWN
+  rationale: >-
+    T-538 遗留漂移点 A（2026-09-28，pre-existing 非该票引入）：BinFlow npm remote 的上游 wire 路径=
+    存储布局 identity 映射（无 UpstreamPath facet——goproxy/cargo/nuget/conan 有而 npm 无）；remote
+    直指 registry.npmjs.org 时 packument 取 <name>/packument.json 得 404（npmjs 真实端点=/<name>）。
+    T-538 B 面单边验证经布局翻译代理适配（real npmjs 字节、BinFlow 路径）达成——**A 面 npm remote
+    直连上游的 wire 翻译实形未取证**（参照是否做 registry 方言翻译未知），禁猜测补齐故裁定待定：
+    若 A 翻译则 BinFlow 缺翻译=BUG（wire 翻译票 / UpstreamPath facet 候选，T-538 Next ②）；若 A 亦
+    identity 则按参照语义重评。产品默认远程面不受本账影响（B 面验证代理仅测试环境适配）。
+  authority: { type: pending, ref: "差分定谳（A 面 npm remote 直连 registry.npmjs.org 的 packument/tarball wire 路径实形——未取证，无 ADR/规格/pending-ruling 可引）" }
+  review_gate: 差分腿/探针覆盖（A 面 npm remote 直指 npmjs 的 wire 取证）→ 定 BUG（UpstreamPath facet/wire 翻译票）或按参照语义登记；限期两程内升级
+  evidence: reports/agents/T-538.md Compatibility 漂移点 A + Risks ① + Next ②
+- id: npm/virtual-member-ledger-desync-after-delete
+  surface: DELETE 成员仓后 virtual 配置回显与 member ledger 失同步（GET /api/repositories/<virtual> 仍显旧成员清单）
+  classification: UNKNOWN
+  rationale: >-
+    T-538 遗留漂移点 B（2026-09-28，pre-existing）：BinFlow DELETE 成员 remote 仓后 GET
+    /api/repositories/<virtual> 仍显示旧成员清单（读 config JSON）而 member ledger 已失同步——virtual
+    聚合静默退化为剩余成员（读路径行为面=剩余成员聚合），POST 重存 virtual 才恢复一致。观察面经 npm
+    virtual 得出，机制疑为 repo virtual 域协议无关（配置投影与 ledger 双源）；**A 面同序列行为未取证**
+    （参照删成员后 virtual 配置回显/聚合是否即时收敛未知），按纪律 UNKNOWN：若参照即时收敛则 B=BUG
+    （配置/ledger 单源化或联动清理票）；若参照同样保留悬空引用则按其语义登记。T-538 Next ④ 已列
+    巡检/差分关注项。
+  authority: { type: pending, ref: "差分定谳（A 面删成员仓后 virtual 配置回显与聚合收敛行为——未取证，无 ADR/规格/pending-ruling 可引）" }
+  review_gate: 差分腿覆盖（双端 DELETE 成员仓 → GET virtual 配置回显 + 聚合行为对拍）→ 定 BUG（单源化/联动清理票）或按参照语义登记；限期两程内升级
+  evidence: reports/agents/T-538.md Compatibility 漂移点 B + Next ④
+- id: maven/deploy-created-envelope-uri-missing-context-prefix
+  surface: deploy 201 created-envelope 的 uri/downloadUri 缺实例 contextPath 前缀（B 裸根 vs A 带 /artifactory——L030 顺带观察 1）
+  classification: BUG
+  rationale: >-
+    L030 顺带观察 1（2026-09-28，附带裁量登记——报告自记「非本票断言面」移交）：B 面 maven deploy
+    201 created-envelope 的 uri/downloadUri 渲染为 http://127.0.0.1:18080/<repo>/…，**缺 /binflow 产品
+    前缀**；A 面对应体带 /artifactory 前缀。与 #d01/context-path-interpolation（D01 尾面、双侧各带各自
+    前缀的 token 内插、PN-ctx 归一候选）结构不同——本面 B 侧 token 整体缺席而非拼写差，PN-ctx 占位化
+    不适用（无从占位）；自指 URI 缺根前缀即客户端按图索骥脱靶（envelope URI 可解析性差分臂待核）。
+    裁量：双端活体在案、A 方向明确（自指含 contextPath）、无任何 authority 覆盖缺席面 → BUG。泛化面
+    未取证（created-envelope 渲染点是否各协议 deploy 共用未核——按观察面限定 maven deploy）。
+  authority: { type: differential, ref: "reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md 顺带观察 1（B 侧 d01 条目同款根前缀设计语境——本面为 token 缺席非内插差）" }
+  review_gate: 差分腿覆盖（deploy envelope uri/downloadUri 双端对拍 + B 渲染点补 /binflow 前缀微票 + envelope URI 可解析性臂）→ 复验后 resolved
+  evidence: reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md 顺带观察 1
+- id: maven/bare-directory-get-400-vs-404
+  surface: 目录形态路径裸 GET（无文件名——/<repo>/com/diff/right-lib 三段）应答码（A 404 vs B 400——L030 顺带观察 2）
+  classification: BUG
+  rationale: >-
+    L030 顺带观察 2（2026-09-28，附带裁量登记——报告自记「目录级 GET 语义，后续 L2/L3 批次可立案」，
+    本账提前收编裁定）：对不存在目录的裸 GET，A **404**、B **400**。观察臂=不存在目录；存在目录的
+    裸 GET 臂双端均未取证（差分扩臂确认存在性语义是否先于布局判定）。裁量：A 语义明确（资源不存在
+    →404 家族）、无 authority 覆盖 B 的 400 → BUG。与 #maven/non-gav-upload-acceptance（R-24b，PUT
+    布局容忍轴）疑共享 B 侧布局守卫根因，但动词与 A 侧语义均不同（201 容忍 vs 404 不存在），不构成
+    重复登记；R-24b 若裁「维持布局强制」不自动吸收本面（GET 不存在资源的 404 语义独立成立）。
+  authority: { type: differential, ref: "reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md 顺带观察 2" }
+  review_gate: 差分腿覆盖（L2/L3 批次目录 GET 臂：不存在+存在目录双臂对拍）→ 对齐微票（裸 GET 不存在 → 404）+ 复验后 resolved；R-24b 批复联动注记
+  evidence: reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md 顺带观察 2

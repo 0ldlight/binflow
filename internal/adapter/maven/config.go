@@ -48,6 +48,11 @@ type RepoConfig struct {
 	// errata: SnapshotPolicyException carries 409).
 	HandleReleases  bool
 	HandleSnapshots bool
+	// SuppressPomConsistencyChecks skips the pom-coordinates-vs-path
+	// consistency gate on deploy (T-543, L030 case 2): a .pom whose content
+	// GAV disagrees with the deployment path is 409-refused unless this is
+	// set — the knob httpapi renders (default false = the check runs).
+	SuppressPomConsistencyChecks bool
 }
 
 // ParseRepoConfig reads the config blob of a repository row. An empty,
@@ -61,10 +66,11 @@ func ParseRepoConfig(config string) RepoConfig {
 		HandleSnapshots:  true,
 	}
 	var raw struct {
-		ChecksumPolicyType      string `json:"checksumPolicyType"`
-		SnapshotVersionBehavior string `json:"snapshotVersionBehavior"`
-		HandleReleases          *bool  `json:"handleReleases"`
-		HandleSnapshots         *bool  `json:"handleSnapshots"`
+		ChecksumPolicyType           string `json:"checksumPolicyType"`
+		SnapshotVersionBehavior      string `json:"snapshotVersionBehavior"`
+		HandleReleases               *bool  `json:"handleReleases"`
+		HandleSnapshots              *bool  `json:"handleSnapshots"`
+		SuppressPomConsistencyChecks *bool  `json:"suppressPomConsistencyChecks"`
 	}
 	if err := json.Unmarshal([]byte(config), &raw); err != nil {
 		return rc // not our shape (remote/virtual canonical forms, "{}", garbage): defaults
@@ -85,6 +91,9 @@ func ParseRepoConfig(config string) RepoConfig {
 	}
 	if raw.HandleSnapshots != nil {
 		rc.HandleSnapshots = *raw.HandleSnapshots
+	}
+	if raw.SuppressPomConsistencyChecks != nil {
+		rc.SuppressPomConsistencyChecks = *raw.SuppressPomConsistencyChecks
 	}
 	return rc
 }

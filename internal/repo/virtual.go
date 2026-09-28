@@ -949,6 +949,53 @@ func (s *service) getCacheProjection(ctx context.Context, p *Principal, projKey,
 	return rc, node, nil
 }
 
+// listCacheRows is the <K>-cache projection face's listing channel: the
+// parent remote's STORED rows under the prefix — listRows minus the
+// remote-browse fold. ADR-0051 Errata 一-③ (F1-residual): the upstream
+// enumeration merge hangs on the remote key's own browse face alone
+// (remote-browsing.md §1); the projection key reads with local semantics,
+// so listRemoteFolderItems=true on the parent must never add rows — or
+// upstream contact — here.
+func (s *service) listCacheRows(ctx context.Context, parent, prefix string) ([]*metadata.Node, error) {
+	nodes, err := s.md.Nodes().ListByPrefix(ctx, parent, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("list %s/%s: %w", parent, prefix, err)
+	}
+	return nodes, nil
+}
+
+// resolveCacheProjectionMeta is ResolveMeta's <K>-cache branch under local
+// semantics (ADR-0051 Errata 一-③): the addressed spelling exact-matched on
+// the parent's STORED rows only — never the remote-browse fold, so a file
+// miss answers ErrNodeNotFound with zero upstream contact. The read gate
+// evaluates on the PARENT key (section 2.2's ACL mapping, getCacheProjection's
+// posture) and the children-prove-the-folder display marker is the shape the
+// delegated walk produced (a non-local miss with stored descendants).
+func (s *service) resolveCacheProjectionMeta(ctx context.Context, p *Principal, projKey, parent, path string) (*metadata.Node, error) {
+	if !s.allow(ctx, p, parent, path, ActionRead) {
+		if p == nil {
+			return nil, fmt.Errorf("read %s/%s: %w", projKey, path, ErrUnauthorized)
+		}
+		return nil, fmt.Errorf("read %s/%s: %w", projKey, path, ErrForbidden)
+	}
+	nodes, err := s.listCacheRows(ctx, parent, strings.TrimSuffix(path, "/"))
+	if err != nil {
+		return nil, err
+	}
+	for _, n := range nodes {
+		if n.Path == path {
+			return n, nil
+		}
+	}
+	folder := strings.TrimSuffix(path, "/") + "/"
+	for _, n := range nodes {
+		if strings.HasPrefix(n.Path, folder) {
+			return &metadata.Node{RepoKey: projKey, Path: folder}, nil
+		}
+	}
+	return nil, fmt.Errorf("node %s/%s: %w", projKey, path, ErrNodeNotFound)
+}
+
 // cacheProjectionFolder is the projection face's folder spelling: the
 // cached folder row answers directly; a folder with only cached CHILDREN
 // (the pre-ADR-0016 landing shape) is proven by them and answers the

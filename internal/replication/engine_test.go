@@ -256,6 +256,23 @@ func (f *engineFixture) waitTask(t *testing.T, pred func(*replication.Replicatio
 	return nil
 }
 
+// waitAudit polls the sink until n events land. The task row's terminal
+// flip and the audit append are separate side effects; a loaded runner can
+// surface the first before the second (CI run 36392573067), so the exact
+// content assertions below need the event count settled first.
+func (f *engineFixture) waitAudit(t *testing.T, n int) []audit.Event {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if events := f.audit.collected(); len(events) >= n {
+			return events
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %d audit events", n)
+	return nil
+}
+
 // status returns the newest task's row (list index 0, newest first).
 func (f *engineFixture) newestTask(t *testing.T) *replication.ReplicationTask {
 	t.Helper()
@@ -372,7 +389,7 @@ func TestPushHappyPath(t *testing.T) {
 	if auth != wantAuth {
 		t.Fatalf("Authorization = %q, want the decrypted Basic credential", auth)
 	}
-	events := f.audit.collected()
+	events := f.waitAudit(t, 1)
 	if len(events) != 1 || events[0].Action != replication.AuditActionPush {
 		t.Fatalf("audit events = %+v, want one replication.push", events)
 	}
@@ -453,7 +470,7 @@ func TestRetryBackoffSchedule(t *testing.T) {
 	if !strings.Contains(task.LastError, "500") {
 		t.Fatalf("LastError = %q, want the target status in the diagnosis", task.LastError)
 	}
-	events := f.audit.collected()
+	events := f.waitAudit(t, 1)
 	if len(events) != 1 || events[0].Action != replication.AuditActionPushFailed {
 		t.Fatalf("audit events = %+v, want one replication.push.failed", events)
 	}
@@ -622,7 +639,7 @@ func TestCronRevivalAfterBackoffBurnout(t *testing.T) {
 	// The burnout terminal state happened first: exactly one failed-audit
 	// event (the cycle's end) followed by one success event (the revived
 	// push). A task that never burned out would show a single success.
-	events := f.audit.collected()
+	events := f.waitAudit(t, 2)
 	if len(events) != 2 ||
 		events[0].Action != replication.AuditActionPushFailed ||
 		events[1].Action != replication.AuditActionPush {
