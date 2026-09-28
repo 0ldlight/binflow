@@ -1,4 +1,4 @@
-# PR-152 Review — T-531（reviewer-b / architecture 形态）
+# PR-156 Review — T-531（reviewer-b / architecture 形态）
 
 ```
 Ticket:        T-531 [P0] Maven virtual 聚合的 Facet 消费（四桶序 cache 投影跳过 + 级别键控 handle* 跳过）

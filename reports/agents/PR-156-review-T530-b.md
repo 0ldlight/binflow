@@ -1,4 +1,4 @@
-# PR-152 · T-530 Reviewer B（architecture 形态）评审报告
+# PR-156 · T-530 Reviewer B（architecture 形态）评审报告
 
 ```
 Ticket:        T-530 [P0] virtual 四桶解析序实现 + <K>-cache 直访缝（F1）+ virtual DELETE 404 语义修复（D-2）
@@ -19,7 +19,7 @@ Security:      F1 面 ACL：内容面拦截在 authorize 中间件 a.Can 之前�
 Performance:   B 形态记录：每请求 O(V+E) 重算维持（FR-15-AC6，I12 有锚）；plainSteps 线性过滤与 cache 步常量阶合成为新增全部成本，同阶；cache 步命中免回源对上游净减少；无新共享状态/goroutine（A 形态 -race 未跑的判断成立）
 Risks:         ① O1 段内 real-local 先于 cache（I4）为推演实现，ADR-0051 Errata 预登记在案（设计稿层面），差分腿重点臂（Next ②）——合理；② timestamped snapshot 路径（无 -SNAPSHOT 段）不触发 cache 跳过（isSnapshotResolutionPath virtual.go:342 启发式），与非快照路径下 *-SNAPSHOT.bin 误跳同族，见 non-blocking 3；③ gate-day（storeArtifactsLocally=false 可存储日）walk 侧 cache 步不感知 gate（结构性合成），见 non-blocking 6
 Blockers:      无（取证全部可跑；adapter 五包失败为被评审改动的确定归因，非环境障碍）
-Next:          ①【上报 conductor】D-2/Facet 缝变更的 adapter 消费面收口必须建票或并入 T-531 扩围（五包钉子翻新 + deb/conan 两面 adapter 层 405 拦截移除），PR-152 合并前须落地——见 blocking 1；② PUT 措辞族漂移与 §2.1 派生直查缺口建议交 compatibility-engineer 评估 known-divergence 落账（差分腿后）；③ 建议 architect 在 virtual-four-bucket.md 补 Errata 注记：§5.1「cache 步 priority/handle* 从投影注册表读」已被 conductor 钉 a 的结构性处理取代（walk 不消费注册表，priority 单源自成员行 config 同字段），设计文档现与实现读起来不一致；④ 差分腿 O1/O2/O3 重点臂 + timestamped snapshot 观察臂
+Next:          ①【上报 conductor】D-2/Facet 缝变更的 adapter 消费面收口必须建票或并入 T-531 扩围（五包钉子翻新 + deb/conan 两面 adapter 层 405 拦截移除），PR-156 合并前须落地——见 blocking 1；② PUT 措辞族漂移与 §2.1 派生直查缺口建议交 compatibility-engineer 评估 known-divergence 落账（差分腿后）；③ 建议 architect 在 virtual-four-bucket.md 补 Errata 注记：§5.1「cache 步 priority/handle* 从投影注册表读」已被 conductor 钉 a 的结构性处理取代（walk 不消费注册表，priority 单源自成员行 config 同字段），设计文档现与实现读起来不一致；④ 差分腿 O1/O2/O3 重点臂 + timestamped snapshot 观察臂
 ```
 
 ## 评审报告 T-530（形态: reviewer-b）
@@ -32,7 +32,7 @@ Next:          ①【上报 conductor】D-2/Facet 缝变更的 adapter 消费面
     - `internal/adapter/npm` TestVirtualRenderSeams：`virtual unpublish = 404, want 405`（virtual_render_test.go:150）+ `repeat tarball X-BinFlow-Cache = "", want HIT`（:120）——前者钉 D-2 旧 405，后者钉两桶时代「重复下载经 FR-20 得 HIT 头」的可观测面；
     - `internal/adapter/pypi` 同文件同族（virtual_render_test.go:101 repeat 头）；
     - `internal/adapter/helm`（virtual_test.go:186）、`internal/adapter/cargo`（virtual_test.go:283）、`internal/adapter/rpm`（virtual_test.go:397）各一例 `virtual DELETE = 404, want 405`；
-    - 全部是被 D-2/Facet 新语义取代的过期断言，非运行时缺陷；但 PR-152 以树为合并单元，红树不可过闸。
+    - 全部是被 D-2/Facet 新语义取代的过期断言，非运行时缺陷；但 PR-156 以树为合并单元，红树不可过闸。
   - **deb/conan 两协议面仍活在旧契约下**：`internal/adapter/deb/virtual.go:188/199/210` 三处与 `internal/adapter/conan/virtual.go:170` 在 **adapter 层**自答 405（`refuseVirtualDelete`，deb:746 注释自认「the repo package's own refusal, restated」），DELETE 根本不落 service 层——repo 层拒答已删、adapter 层复述仍在，deb/conan 的 wire 面 virtual DELETE 依旧 405，与 §7.5（404+成员存活）及本票 L028 D-2 闭环声称形成**按协议分叉**；且这两包测试仍绿，无任何红灯提示 conductor。日志 Compatibility 行「wire 面已由 httpapi 测试固化（D-2 404…）」只覆盖 generic 路径，对 deb/conan 不成立。
   - **T-530 日志门不完备**：Commands 只跑 repo+httpapi 两包（声称如实、可复现，非虚假证据），但改动爆炸半径含 15 个 adapter 消费文件（设计 §1 as-built 表自列），五包红面与 deb/conan 分叉未在日志 Risks/Next 出现。
   - → 建议改法（最小）：conductor 建 adapter 翻新票或扩 T-531 范围——(a) 五包钉子按 D-2 新语义与 cache-facet 可观测面翻新（参照 T-530 已翻新的 `internal/repo/virtual_test.go` 手法：mark 保持原断言意图）；(b) 删除 deb:746/conan:182 的 adapter 层 `refuseVirtualDelete` 及其四处调用，让 DELETE 落 service 层统一语义；(c) T-530 日志补记 adapter 红面与分叉。PR 内收口后再转 QA。
