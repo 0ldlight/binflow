@@ -28,7 +28,7 @@ Commands:      cd /Users/lzw/dev-center/.claude/worktrees/clever-grothendieck-a3
                7. go test ./internal/repo/ -race -run 'TestFourBucket|TestVirtualCacheFacet|TestVirtualSnapshotPath|TestVirtualDelete|TestCacheProjection|TestVirtualResolutionMatrix|TestVirtualTrueMiss|TestVirtualMemberFaults|TestVirtualExploratory' -count=1 → ok 114.828s
                8. grep -rn "CacheProjection|ProjectionRegistry|remote.CacheSuffix" internal/repo/（非测试）→ 仅 virtual.go:890 常量别名（钉子 a 结构性证据）
                9. grep -rn "Repos().Create|Repos().Upsert" internal/ cmd/（非测试）→ service.go:2424（CreateRepo 内，已防护）+ trash.go:358（固定系统 key，非绕过）
-Outputs:       reports/agents/PR-152-review-T530-a.md（本文件）
+Outputs:       reports/agents/PR-156-review-T530-a.md（本文件）
 Compatibility: 与 docs/design/virtual-four-bucket.md §2/§3/§8 逐条核对：四段装配、展开算法、cache 语义 1/2/3/4/6 条全部
                落实；第 5 条（跳过规则）的 §3.6 半边落实、§3.4 handle* 半边未实现（N4，与存量成员级 handle* 缺口同源）；
                §7.5 DELETE 勘误（高置信）按规格实现；remote-cache-projection §1.3 建改仓 400 / §2.1 直访 GET / §2.2 ACL
@@ -51,7 +51,7 @@ Next:          ① 建议登记小票：N1 裸 "-cache" key 建仓放行（对�
                登记为 F1 残余缝或随 F2/F4 面一起收；③ N4（walk 层 handle* 跳过规则半边）建议随 F8 深水语义票登记；
                ④ 差分腿 O1/O2/O3 重点臂复跑（mvn CLI + curl 双发）；⑤ I11 落点在 T-531（adapter Facet 消费），PR-152
                合并前确认 T-531 评审覆盖之；⑥ 本票为关键域（repository/remote cache/protocol）——双审 Reviewer B
-               （architecture 形态）应并行出具 PR-152-review-T530-b.md
+               （architecture 形态）应并行出具 PR-156-review-T530-b.md
 ```
 
 ## 评审报告 T-530（形态: reviewer-a）

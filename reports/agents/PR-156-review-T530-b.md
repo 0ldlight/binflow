@@ -13,7 +13,7 @@ Commands:      go test ./internal/repo/ -run 'TestFourBucket|TestVirtualCacheFac
                go test ./internal/adapter/docker/ -count=1 → ok 193.418s
                go build ./... → 通过；gofmt -l internal/repo internal/httpapi → 空
                grep -rn '"-cache"|CacheSuffix|CacheProjection|ProjectionRegistry' internal/repo internal/httpapi（非测试）→ 唯一拼接源=virtual.go:890 remote.CacheSuffix 别名，无第二处字面量
-Outputs:       reports/agents/PR-152-review-T530-b.md（本文件）
+Outputs:       reports/agents/PR-156-review-T530-b.md（本文件）
 Compatibility: 规格符合度总判：四段序=§2 逐段符合（含 §1 分桶收集前提下的段内三遍扫描=§2「cache 与 remote 不相邻」推演）；快照跳过=§3.6 walk 层统一；D-2=§7.5 高置信直译（404+成员存活+own-storage drift 行删除）；F1 GET/HEAD=§2.1 高置信行直译（字节精确/零上游/ACL 父 key/列表不含投影）；PUT 落标准 404=与参照状态码同、措辞族异——登记属实但仅在工作日志（T-530.md Compatibility 行），known-divergence.yaml 无条目（建议补，non-blocking 1）；GET /api/repositories/<K>-cache 派生直查未实现=与登记一致（留缝+Next ③ 小票），确认无越权实现；§7.2 locals→caches 序（F2）确认未动：ResolveMeta→listVirtual 仍走四段 plain 序而非 §7.2 序，缝保持
 Security:      F1 面 ACL：内容面拦截在 authorize 中间件 a.Can 之前（router.go:2289），实际判定在 getCacheProjection:926 以父 key 求值（§2.2），401/403/父授权三态有测试；/api/storage 面 routeAuth{} 无内容 action（router.go:1204 等），判定同样落 service 委托父 key——中间件对投影 key 无 a.Can 求值路径，无越权面；cache 步零上游=不可探测驱动的拉取；-cache 建改仓 400 挡实体化冒名；D-2 gate 在 virtual key ActionDelete（403 测试固化）；无凭证入日志
 Performance:   B 形态记录：每请求 O(V+E) 重算维持（FR-15-AC6，I12 有锚）；plainSteps 线性过滤与 cache 步常量阶合成为新增全部成本，同阶；cache 步命中免回源对上游净减少；无新共享状态/goroutine（A 形态 -race 未跑的判断成立）

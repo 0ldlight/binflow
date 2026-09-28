@@ -10,7 +10,7 @@ Changes:       projection.go 175 行逐行 + projection_test.go 283 行逐行；
 Files:         internal/remote/projection.go — PASS（正确性无缺陷，见结论区）；internal/remote/projection_test.go — PASS（覆盖充分，2 条 non-blocking 增强建议）；internal/remote/fetcher.go — 零改动证实；reports/agents/T-529.md — 声称的命令全部复跑复现，无虚假证据
 Tests:         `go test ./internal/remote/ -run TestCacheProjection -v` = 6/6 函数 PASS（15 个叶子用例：Derivation 5 + KeySuffix 1 + Gate 3 + Unknown/NonRemote 4 + Reload 1 + Concurrent 1）；`go test -race -run TestCacheProjection ./internal/remote/` = ok 51.485s；`go vet ./internal/remote/...` = 干净；`golangci-lint run ./internal/remote/...` = `0 issues.`；`gofmt -l internal/remote` = 空
 Commands:      上述五条原文；`git diff --stat internal/remote/fetcher.go`（空输出，exit 0）；`git status --porcelain internal/remote/`（仅 ?? projection.go / ?? projection_test.go）；`grep -rn '"-cache"' --include='*.go'`（全仓字面量清点）；`git log --oneline -1 -- internal/replication/probe.go`（aae43683，T-422 遗留）
-Outputs:       reports/agents/PR-152-review-T529-a.md（本文件）
+Outputs:       reports/agents/PR-156-review-T529-a.md（本文件）
 Compatibility: 本视角核对了 remote-cache-projection.md §1.1/§1.2/§1.3 逐行：派生字段表、固定值（client-checksums/unique 落注释不落字段）、`<K>-cache` 恒定拼接、storeArtifactsLocally gate、无持久实体——全部一致；无 clean-room 嫌疑（实现是 BinFlow 惯用的 store 现读派生，非 Java 逐行翻译）
 Security:      攻击面=只读 + 日志。remoteKey 直拼日志/拼接 Key 无注入面（非 SQL/非 HTML 语境）；store 错误文本进 WARN 无凭据外泄（metadata 层错误不含 secret）；无路径穿越面（不触文件系统）
 Performance:   每调用一次 `Repos().Get`（单行主键 SELECT）+ 一次 `json.Unmarshal`（config blob KB 级）——与既有 fetcher `loadRepo`/repo 侧探针同量级，四桶序每 remote 成员一次，无锁竞争点（不触 Engine.mu/clients）；O(1) 无分配热点
