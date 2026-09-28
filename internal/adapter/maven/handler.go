@@ -116,10 +116,23 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // a single member's first-hit copy).
 func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	p *repo.Principal, repoKey, relPath string, l Layout) {
-	if row, err := h.class.Get(ctx, repoKey); err == nil && row.Type == repo.TypeVirtual {
+	var rowType string
+	if row, err := h.class.Get(ctx, repoKey); err == nil {
+		rowType = row.Type
+	}
+	if rowType == repo.TypeVirtual {
 		if h.serveVirtualMetadata(ctx, w, r, repoKey, relPath, l) {
 			return
 		}
+	}
+	// T-542 (BIN-16, L030 case 1's member control leg): a LOCAL repository
+	// serves its own SNAPSHOT version document with <snapshotVersions>
+	// stripped to a client the M3 capability predicate rejects — the member
+	// plane of the same §5.1 rider the virtual merge applies above.
+	if rowType == repo.TypeLocal && l.Kind == KindMetadata && l.File == metadataFileName &&
+		isSnapshotLevelMetadata(l) && !clientSupportsM3SnapshotVersions(r.UserAgent()) &&
+		h.serveSnapshotMetadataStripped(ctx, w, r, p, repoKey, relPath) {
+		return
 	}
 	if l.Kind == KindSidecar {
 		// A REMOTE repository never serves checksum files, cached or
@@ -127,7 +140,7 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 		// step 2): the request dies before any engine involvement, and it
 		// must die for anonymous readers too — hence the class seam, not
 		// the authenticated GetRepo face.
-		if row, err := h.class.Get(ctx, repoKey); err == nil && row.Type == repo.TypeRemote {
+		if rowType == repo.TypeRemote {
 			writeError(w, http.StatusNotFound, "Checksums are not downloadable.")
 			return
 		}

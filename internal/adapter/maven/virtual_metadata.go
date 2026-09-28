@@ -50,6 +50,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -88,8 +89,8 @@ func (h *Handler) serveVirtualMetadata(ctx context.Context, w http.ResponseWrite
 			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
 			return true
 		}
-		body := renderMetadata(mergeMetadataDocs(docs, l))
-		h.writeMergedMetadata(w, r, body, newestDocTime(docs))
+		body := renderVirtualMetadata(docs, l, r.UserAgent())
+		h.writeDerivedMetadata(w, r, body, newestDocTime(docs))
 		return true
 	}
 	if l.Kind == KindSidecar && l.TargetKind == KindMetadata {
@@ -111,8 +112,8 @@ func (h *Handler) serveVirtualMetadata(ctx context.Context, w http.ResponseWrite
 			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
 			return true
 		}
-		body := renderMetadata(mergeMetadataDocs(docs, l))
-		h.writeMergedSidecar(w, r, body, l.Algo)
+		body := renderVirtualMetadata(docs, l, r.UserAgent())
+		h.writeDerivedSidecar(w, r, body, l.Algo)
 		return true
 	}
 	return false
@@ -419,13 +420,98 @@ func maxLastUpdated(docs []memberMetadataDoc) string {
 	return best
 }
 
-// writeMergedMetadata serves the merged document with the transfer plane's
-// header habits: the digests are computed over the MERGED bytes (a client
-// checksum-verification must hold against exactly what was served), ETag is
-// the unquoted sha1, and If-None-Match short-circuits 304. No Range: the
-// document is a small derivation, and advertising ranges it cannot honor
-// would be the worse lie.
-func (h *Handler) writeMergedMetadata(w http.ResponseWriter, r *http.Request, body []byte, lastMod time.Time) {
+// javaAgentUA matches the bare java-agent User-Agent spellings
+// ("Java/1.8.0_391", "java/17.0.2") — the [Jj]ava/(.+) full-match family.
+var javaAgentUA = regexp.MustCompile(`^[Jj]ava/.+`)
+
+// clientSupportsM3SnapshotVersions is the §5.1 merge rider's client-side
+// predicate (virtual-resolution.md section 5.1 row 4: snapshotVersions —
+// the v3 markers — merge only when the client declares M3 snapshot-marker
+// support). Evidence: L030 case 1 (dual, A = 7.161.26) — a Maven 3 UA
+// ("Apache-Maven/3.9.16 (Java …)") gets the merge, a bare java-agent UA
+// ("Java/1.8.0_391", full-match of the reference's [Jj]ava/(.+) family)
+// gets the document WITHOUT <snapshotVersions>; the report's advisory
+// (decompile-anchored) adds the corners: an absent User-Agent defaults to
+// capable, and Ivy/Wharf deployers are not.
+func clientSupportsM3SnapshotVersions(ua string) bool {
+	ua = strings.TrimSpace(ua)
+	if ua == "" {
+		return true
+	}
+	if javaAgentUA.MatchString(ua) {
+		return false
+	}
+	// Ivy/Wharf product token: the name before the version slash
+	// ("Apache Ivy/2.5.2", "Ivy/2.4.0", "Wharf/1.0").
+	product := ua
+	if i := strings.IndexByte(product, '/'); i >= 0 {
+		product = product[:i]
+	}
+	product = strings.ToLower(strings.TrimSpace(product))
+	return !strings.HasSuffix(product, "ivy") && !strings.HasSuffix(product, "wharf")
+}
+
+// isSnapshotLevelMetadata reports whether l addresses (or sidecars) the
+// SNAPSHOT version-directory metadata document — the level the §5.1
+// snapshotVersions rider keys on, under the same suffix heuristic the
+// merge algorithm splits on.
+func isSnapshotLevelMetadata(l Layout) bool {
+	return strings.HasSuffix(l.Module, snapshotSuffix)
+}
+
+// renderVirtualMetadata merges the member documents and applies the §5.1
+// M3 rider (T-542, BIN-16 / L030 case 1): a client the capability
+// predicate rejects is served the snapshot-level merge WITHOUT
+// <snapshotVersions> — the <snapshot> block survives, module-level
+// documents pass untouched (they carry no snapshotVersions to begin with).
+func renderVirtualMetadata(docs []memberMetadataDoc, l Layout, ua string) []byte {
+	doc := mergeMetadataDocs(docs, l)
+	if isSnapshotLevelMetadata(l) && !clientSupportsM3SnapshotVersions(ua) {
+		doc.Versioning.SnapshotVersions = nil
+	}
+	return renderMetadata(doc)
+}
+
+// serveSnapshotMetadataStripped serves a LOCAL repository's own SNAPSHOT
+// version document with the <snapshotVersions> section removed — the member
+// plane of the same §5.1 rider (T-542; L030 case 1's member control leg:
+// the A side strips there too). It reports false to fall back to the
+// verbatim transfer plane: every svc.Get error maps exactly as serveFile
+// maps it (including the canonical 404), and an unreadable or unparseable
+// document is served as stored — the skip-not-fatal posture of the merge
+// face.
+func (h *Handler) serveSnapshotMetadataStripped(ctx context.Context, w http.ResponseWriter,
+	r *http.Request, p *repo.Principal, repoKey, relPath string) bool {
+	rc, node, err := h.svc.Get(ctx, p, repoKey, relPath)
+	if err != nil {
+		return false
+	}
+	defer rc.Close() //nolint:errcheck // read-only fd
+	raw, rerr := io.ReadAll(io.LimitReader(rc, metadataReadLimit))
+	if rerr != nil {
+		slog.WarnContext(ctx, "maven: member snapshot metadata unreadable — serving verbatim",
+			slog.String("repo", repoKey), slog.String("path", relPath), slog.String("error", rerr.Error()))
+		return false
+	}
+	var doc metadataXML
+	if uerr := xml.Unmarshal(raw, &doc); uerr != nil {
+		slog.WarnContext(ctx, "maven: member snapshot metadata unparseable — serving verbatim",
+			slog.String("repo", repoKey), slog.String("path", relPath), slog.String("error", uerr.Error()))
+		return false
+	}
+	doc.Versioning.SnapshotVersions = nil
+	h.writeDerivedMetadata(w, r, renderMetadata(doc), nodeTime(node))
+	return true
+}
+
+// writeDerivedMetadata serves a server-derived metadata body — the virtual
+// merge, or a member document with a serving transform (T-542's strip) —
+// with the transfer plane's header habits: the digests are computed over
+// the DERIVED bytes (a client checksum-verification must hold against
+// exactly what was served), ETag is the unquoted sha1, and If-None-Match
+// short-circuits 304. No Range: the document is a small derivation, and
+// advertising ranges it cannot honor would be the worse lie.
+func (h *Handler) writeDerivedMetadata(w http.ResponseWriter, r *http.Request, body []byte, lastMod time.Time) {
 	sums := digestsOfBody(body)
 	hdr := w.Header()
 	hdr.Set("Content-Type", metadataMime)
@@ -448,10 +534,11 @@ func (h *Handler) writeMergedMetadata(w http.ResponseWriter, r *http.Request, bo
 	_, _ = w.Write(body)
 }
 
-// writeMergedSidecar serves the computed checksum of the MERGED document —
-// the same server-computed contract the local sidecar face upholds, with
-// the merged body as its target.
-func (h *Handler) writeMergedSidecar(w http.ResponseWriter, r *http.Request, body []byte, algo string) {
+// writeDerivedSidecar serves the computed checksum of a DERIVED metadata
+// document (the merged, or the stripped) — the same server-computed
+// contract the local sidecar face upholds, with the derived body as its
+// target.
+func (h *Handler) writeDerivedSidecar(w http.ResponseWriter, r *http.Request, body []byte, algo string) {
 	sums := digestsOfBody(body)
 	digest := map[string]string{"sha256": sums.sha256, "sha1": sums.sha1, "md5": sums.md5}[algo]
 	hdr := w.Header()
