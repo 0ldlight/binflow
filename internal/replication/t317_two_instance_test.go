@@ -184,8 +184,10 @@ func TestT317ReplicaIsolation(t *testing.T) {
 		t.Fatalf("GET on B replica face: status %d, want 200", gresp.StatusCode)
 	}
 
-	// Clause 2 — writes to the face are refused: 405 with the EXACT spec
-	// wording (repo-semantics 8.2, high confidence).
+	// Clause 2 — uploads to the face are refused: 405 with the EXACT spec
+	// wording (repo-semantics 8.2, high confidence). DELETE follows the D-2
+	// ruling (virtual-resolution §7.5 errata, T-524 2026-09-28): 404
+	// ITEM_NOT_FOUND; clause 4 below re-GETs the member as the survival check.
 	presp, pbody := b.do(http.MethodPut, "/binflow/replica/repl/other.bin", "admin", "pw-target", []byte("x"))
 	if presp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("PUT on B replica face: status %d, want 405 (body %s)", presp.StatusCode, pbody)
@@ -194,9 +196,12 @@ func TestT317ReplicaIsolation(t *testing.T) {
 	if !bytes.Contains(pbody, []byte(wantWording)) {
 		t.Fatalf("405 body %q does not carry the spec wording %q", pbody, wantWording)
 	}
-	dresp, _ := b.do(http.MethodDelete, "/binflow/replica/repl/img-1.0.bin", "admin", "pw-target", nil)
-	if dresp.StatusCode != http.StatusMethodNotAllowed {
-		t.Fatalf("DELETE on B replica face: status %d, want 405", dresp.StatusCode)
+	dresp, dbody := b.do(http.MethodDelete, "/binflow/replica/repl/img-1.0.bin", "admin", "pw-target", nil)
+	if dresp.StatusCode != http.StatusNotFound {
+		t.Fatalf("DELETE on B replica face: status %d, want 404", dresp.StatusCode)
+	}
+	if !bytes.Contains(dbody, []byte("Could not locate artifact. Path: 'replica/repl/img-1.0.bin'.")) {
+		t.Fatalf("DELETE on B replica face: body %s, want ITEM_NOT_FOUND wording", dbody)
 	}
 
 	// Clause 3 — the backing local remains DIRECTLY writable: ADR-0025
