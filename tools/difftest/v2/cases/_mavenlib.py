@@ -17,6 +17,7 @@ the password never lands on disk or argv.
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -24,8 +25,13 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import xml.etree.ElementTree as ET
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MVN_SERVER_ID = "difftest-mvn"
 
@@ -231,6 +237,14 @@ def mvn_deploy_file(ctx, side: str, repo_url: str, workdir: str,
     env = dict(os.environ)
     env["DIFFTEST_MVN_USER"] = ctx.sides[side]["user"]
     env["DIFFTEST_MVN_PASS"] = ctx.sides[side]["password"]
+    # Harness environment fix (2026-09-28, T-550): modern OpenJDK on macOS
+    # routes HTTP through the SYSTEM proxy (clash on 127.0.0.1:7897) even
+    # with useSystemProxies unset, and that proxy 502s internal 192.168.x —
+    # mvn legs to A died with "transfer failed ... 502 Bad Gateway". The
+    # repository host must be excluded from JVM proxying explicitly.
+    host = urllib.parse.urlsplit(repo_url).hostname or ""
+    bypass = "-Dhttp.nonProxyHosts=%s|localhost|127.0.0.1" % host
+    env["MAVEN_OPTS"] = (env.get("MAVEN_OPTS", "") + " " + bypass).strip()
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True,
                               timeout=ctx.timeout_s, env=env)
@@ -256,6 +270,68 @@ def put_pom(ctx, side: str, repo: str, group: str, artifact: str,
             hashlib.md5(body).hexdigest(),  # noqa: S324 - Maven wire convention
     })
     return {"path": path, "status": resp["status"]}
+
+
+# ------------------------------------------------------------------ forwarder
+
+def start_forward_proxy(target_base: str, user: str, password: str):
+    """Transparent method-complete HTTP forwarder for real-client legs whose
+    HTTP stack cannot reach the target directly (T-550, 2026-09-28: on this
+    host the macOS system proxy is imported into the JVM as http.proxyHost,
+    the JDK's nonProxyHosts matcher cannot read the CIDR exception list, and
+    the proxy 502s internal 192.168.x — wagon dies with 502/NoHttpResponse).
+    The forwarder listens on 127.0.0.1 (exempt everywhere), relays verbatim
+    and injects preemptive Basic auth FROM MEMORY: no credential lands in a
+    file, argv or evidence payload. Returns (server, port); caller must
+    shutdown() + server_close()."""
+
+    token = base64.b64encode(("%s:%s" % (user, password)).encode()).decode()
+    upstream = target_base.rstrip("/")
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def _relay(self):
+            length = int(self.headers.get("Content-Length") or 0)
+            body = self.rfile.read(length) if length else None
+            req = urllib.request.Request(upstream + self.path, data=body,
+                                         method=self.command)
+            for k, v in self.headers.items():
+                if k.lower() in ("connection", "transfer-encoding",
+                                 "content-length", "host", "authorization",
+                                 "proxy-connection", "keep-alive"):
+                    continue
+                req.add_header(k, v)
+            req.add_header("Authorization", "Basic " + token)
+            try:
+                with urllib.request.urlopen(req, timeout=90) as r:
+                    payload = r.read()
+                    status, headers = r.status, r.headers
+            except urllib.error.HTTPError as e:
+                payload = e.read()
+                status, headers = e.code, e.headers or {}
+            except Exception:  # noqa: BLE001 - relay failure is a 502, not a crash
+                payload, status, headers = b"", 502, {}
+            self.send_response(status)
+            for k, v in headers.items():
+                if k.lower() not in ("connection", "transfer-encoding",
+                                     "content-length"):
+                    self.send_header(k, v)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            if self.command != "HEAD" and payload:
+                self.wfile.write(payload)
+
+        do_GET = do_HEAD = do_PUT = do_POST = do_DELETE = _relay
+
+        def log_message(self, fmt, *a):  # keep evidence/output clean
+            pass
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True,
+                     name="difftest-forward-proxy").start()
+    return srv, port
 
 
 # ------------------------------------------------------------------ verdict

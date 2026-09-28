@@ -94,9 +94,9 @@ func (f *npmVirtualFixture) packument(t *testing.T, repoKey, name string) (int, 
 // TestVirtualPackumentMergeMatrix is the AC's table: the same package name
 // spread over several members merges — first member the base, later
 // versions putIfAbsent, dist-tags/time unions, generic fields first-wins,
-// latest recomputed — computed per request, never cached. demo-pkg carries
-// the local-member rows; up-pkg (which ONLY the remote member knows) the
-// remote-union rows.
+// latest passing through while its target survives (T-548's conditional)
+// — computed per request, never cached. demo-pkg carries the local-member
+// rows; up-pkg (which ONLY the remote member knows) the remote-union rows.
 func TestVirtualPackumentMergeMatrix(t *testing.T) {
 	f := newNPMVirtualFixture(t, `{"repositories":["npmv-a","npmv-b","npmv-rem"]}`)
 
@@ -153,7 +153,7 @@ func TestVirtualPackumentMergeMatrix(t *testing.T) {
 		t.Errorf("dist-tags union lost the remote member's up-next: %v", tags)
 	}
 	if tags["latest"] != "3.0.0" {
-		t.Errorf("recomputed latest = %q, want 3.0.0 (the union's greatest)", tags["latest"])
+		t.Errorf("remote-based latest = %q, want 3.0.0 (the base member's original, which here is also the union's greatest)", tags["latest"])
 	}
 	if tm := mapOf(doc["time"]); tm["3.0.0"] == nil {
 		t.Errorf("time union lost the remote member's 3.0.0: %v", tm)

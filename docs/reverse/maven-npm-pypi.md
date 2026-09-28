@@ -194,6 +194,7 @@ PUT 一个 `-SNAPSHOT` 文件名时按 repo 配置改写落盘路径（`UploadSe
 ### 2.6 virtual 仓的 metadata 合并
 
 - 按解析顺序遍历成员仓；local 成员无 `.npm/{name}/package.json` 跳过；每仓取包文档后并入：**首个仓为基底，后续仓版本 `putIfAbsent`（先到先得，同版本不覆盖）**；`time`/`dist-tags` 并集，通用字段（description 等）取先到者；被排除模式过滤后最新版本与 `latest` 标签重算。高。
+  - 差分交叉引用（T-549 加注，2026-09-28——不改上文措辞）：上句「重算」的**条件性读法**（无排除模式时保留 base 成员标签原值）与 L031 live 行为吻合（A 面 7.161.26：上游 latest 回拨至非最大版本时保留 1.0.0 原值）——差异已登 known-divergence#npm/virtual-packument-merge-latest-tag（BUG，fix in flight T-548/BIN-30）；措辞细化（条件性 vs 无条件）待规格票。
 - 合并结果缓存进 virtual cache 仓：路径 `.npm/{name}/package-{hash}-{STRATEGY}.json`（STRATEGY=FULL/SLIM/RT/FULL_STREAM），TTL = virtual 仓 `virtualRetrievalCachePeriodSecs`，**< 600s 视为禁用**（只警告不缓存）。高。
 - 并发：同一 cache path 走 work queue 单飞 + 120s 冲突锁；锁超时/失败回退旧合并实现。高。
 - tarball 下载（virtual）：按搜索顺序首命中即服务（§8 repo-semantics）。中。
