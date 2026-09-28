@@ -628,13 +628,13 @@ func TestT324PeriodZeroAndScopedRuns(t *testing.T) {
 	e := newCleanupEnv(t, time.Nanosecond)
 	u := newUpstream(t)
 	ctx := context.Background()
-	mustRemote(t, e, "off-cache", u.srv.URL, 0) // off (the product default)
-	mustRemote(t, e, "on-cache", u.srv.URL, 24)
-	land(t, e, "off-cache", "a.bin")
-	land(t, e, "on-cache", "b.bin")
+	mustRemote(t, e, "sweep-off", u.srv.URL, 0) // off (the product default)
+	mustRemote(t, e, "sweep-on", u.srv.URL, 24)
+	land(t, e, "sweep-off", "a.bin")
+	land(t, e, "sweep-on", "b.bin")
 	e.clk.Advance(48 * time.Hour)
 
-	// Full run: only on-cache carries a policy row; both repos appear in
+	// Full run: only sweep-on carries a policy row; both repos appear in
 	// the report (visibility, not just action).
 	rep, err := e.eng.RunOnce(ctx, repo.CleanupRunOptions{Apply: true})
 	if err != nil {
@@ -643,10 +643,10 @@ func TestT324PeriodZeroAndScopedRuns(t *testing.T) {
 	if len(rep.Repos) != 2 {
 		t.Fatalf("repo rows = %d, want both remote repos reported", len(rep.Repos))
 	}
-	if !nodeExists(t, e, "off-cache", "a.bin") {
+	if !nodeExists(t, e, "sweep-off", "a.bin") {
 		t.Fatal("period-0 repo was cleaned")
 	}
-	if nodeExists(t, e, "on-cache", "b.bin") {
+	if nodeExists(t, e, "sweep-on", "b.bin") {
 		t.Fatal("period repo was not cleaned")
 	}
 
@@ -655,11 +655,11 @@ func TestT324PeriodZeroAndScopedRuns(t *testing.T) {
 	if _, err := e.eng.RunOnce(ctx, repo.CleanupRunOptions{Repo: "no-such-repo"}); err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Fatalf("scoped unknown repo = %v, want not-found", err)
 	}
-	rep, err = e.eng.RunOnce(ctx, repo.CleanupRunOptions{Repo: "off-cache"})
+	rep, err = e.eng.RunOnce(ctx, repo.CleanupRunOptions{Repo: "sweep-off"})
 	if err != nil {
-		t.Fatalf("scoped off-cache: %v", err)
+		t.Fatalf("scoped sweep-off: %v", err)
 	}
-	if len(rep.Repos) != 1 || rep.Repos[0].Repo != "off-cache" {
+	if len(rep.Repos) != 1 || rep.Repos[0].Repo != "sweep-off" {
 		t.Fatalf("scoped report = %+v", rep.Repos)
 	}
 }

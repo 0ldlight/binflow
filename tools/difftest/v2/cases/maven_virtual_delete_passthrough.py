@@ -33,12 +33,12 @@ POM = mavenlib.pom_fixture(GROUP, ART, VER)
 POM_PATH = "/%s/%s/%s/%s-%s.pom" % (GROUP.replace(".", "/"), ART, VER, ART, VER)
 
 EXPECTED = {
-    "put_pom_on_member": "201",
+    "put_pom_on_member": "status=201",
     "virt_resolve_before": "200+sha256-ok",
-    "delete_via_virtual": "404",
-    "member_artifact_survives": "200",
-    "direct_member_delete": "204",
-    "virt_resolve_after": "404",
+    "delete_via_virtual": "status=404",
+    "member_artifact_survives": "status=200",
+    "direct_member_delete": "status=204",
+    "virt_resolve_after": "status=404",
 }
 
 

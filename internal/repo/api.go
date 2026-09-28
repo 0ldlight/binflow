@@ -495,7 +495,9 @@ type Service interface {
 	// walk the members THEMSELVES — a merge cannot stop at the first hit
 	// the way the download resolver does. The three methods below expose
 	// exactly the T-71 resolution machinery the aggregations need, in the
-	// two-bucket order, with the caller's read gate already satisfied on
+	// four-bucket order (T-530: declaration-order DFS expansion, locals
+	// before remotes, cache facets interleaved per segment), with the
+	// caller's read gate already satisfied on
 	// the VIRTUAL key: members are resolution internals (getVirtual's own
 	// posture), so these reads do NOT re-gate the principal per member —
 	// a caller authorized on the virtual sees the merged member state even
@@ -503,12 +505,20 @@ type Service interface {
 	// method (the member must sit in the virtual's current order) is what
 	// keeps the ungated reads from ever addressing an arbitrary repository.
 
-	// VirtualMemberOrder returns the two-bucket resolution order of one
-	// virtual repository, computed fresh off the member ledger on every
-	// call (member changes are immediately effective, FR-15-AC6). Each
-	// entry carries the member's class and its priority-bucket mark (the
-	// maven foundByPriority short-circuit keys on it). A non-virtual or
-	// unknown key answers ErrRepoNotFound / ErrInvalidRepoType.
+	// VirtualMemberOrder returns the four-bucket resolution order of one
+	// virtual repository (T-530, virtual-resolution.md sections 1-2),
+	// computed fresh off the member ledger on every call (member changes
+	// are immediately effective, FR-15-AC6): nested virtuals expand in
+	// declaration-order DFS, the expansion buckets locals before remotes,
+	// and each remote member contributes TWO steps — a FacetCache step
+	// (standing-copy read, local semantics) in the local-class segment and
+	// a FacetPlain body step (the FR-20 pull-through chain) in the remote
+	// segment. Each entry carries the member's class, its facet and its
+	// priority mark (the maven foundByPriority short-circuit keys on it;
+	// cache facets inherit their remote's mark). Row-addressing consumers
+	// (browse/copy-move/v2) fold the cache steps away — same namespace as
+	// the body step. A non-virtual or unknown key answers ErrRepoNotFound /
+	// ErrInvalidRepoType.
 	VirtualMemberOrder(ctx context.Context, virtualKey string) ([]VirtualMember, error)
 	// ReadVirtualMember reads one member's copy of ONE metadata document
 	// path (the maven metadata node, an npm packument node, a remote
@@ -802,12 +812,14 @@ func NewStatusError(code int, message string, header http.Header, cause error) *
 // NewRepoLookup is the same precedent). Callers map
 // metadata.ErrRepoNotFound onto their protocol's not-found wording.
 //
-// T-367 widening note: exactly one consumer additionally reads the row's
-// canonical CONFIG JSON through this seam — the helm virtual face's member
-// rewriting resolves the member's chartsBaseUrl (a public, non-protected
-// field; the canonical remote form never carries a password). The class
-// stays the seam's routing payload; the config read is that one consumer's
-// own, documented at its call site (helm memberContext).
+// T-367 widening note (multi-consumer since T-531): consumers additionally
+// read the row's canonical CONFIG JSON through this seam — the helm virtual
+// face's member rewriting resolves the member's chartsBaseUrl, and the maven
+// virtual face reads handleReleases/handleSnapshots (public, non-protected
+// fields; the canonical remote form never carries a password). The class
+// stays the seam's routing payload; the config reads are each consumer's
+// own, documented at their call sites (helm memberContext, maven
+// virtual_metadata).
 type ClassReader interface {
 	// Get returns the repository row for repoKey; only Type (the class)
 	// crosses this seam by contract. ErrRepoNotFound (the metadata sentinel)

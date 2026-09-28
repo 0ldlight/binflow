@@ -16,12 +16,16 @@ import (
 // end-to-end virtual fixture (local member first, remote member second,
 // counting mock upstream):
 //
-//   - a *repo.StatusError renders verbatim — the RE-08 DELETE refusal's own
-//     405 + Allow: GET (the T-71 bug: the adapter swallowed it into the
-//     ErrRepoTypeNotSupported arm's 400),
 //   - a hinted body stream contributes X-BinFlow-Resolved-From (and the
 //     remote member's X-BinFlow-Cache beneath it) to artifact and sidecar
-//     responses alike.
+//     responses alike — the MISS path through the FR-20 body step; the
+//     REPEAT path serves through the cache-facet step with local
+//     semantics (design §3, T-530): byte-exact, zero upstream, no cache
+//     verdict header;
+//   - DELETE through the virtual is virtual-own-storage only: a path the
+//     virtual does not hold answers 404 ITEM_NOT_FOUND, members survive
+//     (virtual-resolution.md §7.5 errata; the pre-T-524 405 refusal is
+//     retired — T-531 refresh of this leg).
 func TestVirtualRenderSeams(t *testing.T) {
 	hs := newHarness(t)
 	ctx := context.Background()
@@ -85,18 +89,29 @@ func TestVirtualRenderSeams(t *testing.T) {
 		t.Errorf("remote hit body = %q", body)
 	}
 
-	// Repeat: the member's cached copy serves (HIT), the upstream stays
-	// frozen — the header merge is not a one-shot artifact of the MISS path.
+	// Repeat: the four-bucket order serves the standing copy through the
+	// remote's cache-facet step with LOCAL semantics (design §3: zero
+	// upstream, no freshness window) — byte-exact content, the member still
+	// named, the upstream frozen, and NO X-BinFlow-Cache header (the cache
+	// engine's fetch verdict header only rides the FR-20 body path; a
+	// local-semantics read carries none, exactly like the local-member leg
+	// above — the header family split is the observable face of the two
+	// distinct resolution steps one remote now contributes).
 	resp = hs.serve(http.MethodGet, "/mv-virt/com/acme/up/2.0.0/up-2.0.0.jar", nil, nil, true)
-	if got := resp.Header.Get("X-BinFlow-Cache"); got != "HIT" {
-		t.Errorf("repeat X-BinFlow-Cache = %q, want HIT", got)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("repeat GET = %d (%s)", resp.StatusCode, drain(t, resp))
+	}
+	if got := resp.Header.Get("X-BinFlow-Cache"); got != "" {
+		t.Errorf("repeat X-BinFlow-Cache = %q, want none (cache-facet local-semantics serve)", got)
 	}
 	if got := resp.Header.Get(repo.HdrResolvedFrom); got != "mv-rem" {
 		t.Errorf("repeat Resolved-From = %q, want mv-rem", got)
 	}
-	drain(t, resp)
+	if rb := string(drain(t, resp)); rb != "upstream-jar-bytes" {
+		t.Errorf("repeat body = %q, want the byte-exact upstream copy", rb)
+	}
 	if got := hits.Load(); got != 1 {
-		t.Errorf("upstream hits = %d, want 1", got)
+		t.Errorf("upstream hits = %d, want 1 (the cache-facet step adds none, I9)", got)
 	}
 
 	// The checksum sidecar face carries the same resolution hint as its
@@ -111,25 +126,32 @@ func TestVirtualRenderSeams(t *testing.T) {
 	}
 	drain(t, resp)
 
-	// DELETE through the virtual repository: the RE-08 refusal's own 405 +
-	// Allow: GET with the C5 wording — the exact case T-71 measured as a
-	// 400 on this face (the StatusError fell into the adapter's
-	// non-PUT/POST arm).
+	// DELETE through the virtual repository: the delete touches ONLY the
+	// virtual's own aggregation storage — a path the virtual itself does
+	// not hold answers 404 (ITEM_NOT_FOUND), and no member's entity is
+	// touched (virtual-resolution.md §7.5, the 2026-09-24/09-28 errata
+	// that retired repo-semantics §8.2's member-walk delete: the pre-T-524
+	// 405 "no local deployment repository" refusal no longer exists on
+	// this face — the reverse assertion below pins its retirement).
 	resp = hs.serve(http.MethodDelete, "/mv-virt/"+localJar, nil, nil, true)
-	if resp.StatusCode != http.StatusMethodNotAllowed {
-		t.Fatalf("virtual DELETE = %d, want 405 (%s)", resp.StatusCode, drain(t, resp))
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("virtual DELETE = %d, want 404 ITEM_NOT_FOUND (%s)", resp.StatusCode, drain(t, resp))
 	}
-	if got := resp.Header.Get("Allow"); got != "GET" {
-		t.Errorf("virtual DELETE Allow = %q, want GET", got)
+	if got := resp.Header.Get("Allow"); got != "" {
+		t.Errorf("virtual DELETE Allow = %q, want none (no 405 refusal anymore)", got)
 	}
-	if msg := string(drain(t, resp)); !strings.Contains(msg,
-		"No local repository was configured as local deployment repository for the (mv-virt) virtual repository.") {
+	msg := string(drain(t, resp))
+	if !strings.Contains(msg,
+		"Could not locate artifact. Path: 'mv-virt/com/acme/lib/1.0.0/lib-1.0.0.jar'.") {
 		t.Errorf("virtual DELETE body = %s", msg)
+	}
+	if strings.Contains(msg, "No local repository was configured") {
+		t.Errorf("virtual DELETE body carries the retired 405 wording: %s", msg)
 	}
 
 	// The member's node survived: deletes never propagate through the
-	// virtual resolution.
+	// virtual resolution (§7.5 — the delete never even looked at members).
 	if resp := hs.serve(http.MethodGet, "/mv-loc/"+localJar, nil, nil, true); resp.StatusCode != http.StatusOK {
-		t.Fatalf("member GET after refused delete = %d", resp.StatusCode)
+		t.Fatalf("member GET after virtual delete = %d", resp.StatusCode)
 	}
 }

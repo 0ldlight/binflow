@@ -203,16 +203,14 @@ func TestM03VirtualREST(t *testing.T) {
 		{"missing repositories", `{"rclass":"virtual","packageType":"maven"}`, "repositories is required"},
 		{"empty member array", `{"rclass":"virtual","packageType":"maven","repositories":[]}`, "repositories is required"},
 		{"unknown member", `{"rclass":"virtual","packageType":"maven","repositories":["no-such-repo"]}`, "does not exist"},
-		{"nested virtual", `{"rclass":"virtual","packageType":"maven","repositories":["generic-local","outer"]}`, "nested virtual"},
+		// T-530: the "nested virtual" refusal row is GONE — nested virtual
+		// members are first-class (the acceptance + runtime DFS live in
+		// internal/repo's virtual_four_bucket_test.go).
 		{"default targets remote member", `{"rclass":"virtual","packageType":"maven","repositories":["generic-local","maven-remote-x"],"defaultDeploymentRepo":"maven-remote-x"}`, "must be a local repository member"},
 	}
 	for _, tt := range refusals {
 		t.Run(tt.name, func(t *testing.T) {
 			h := seedVirtualFixture(t)
-			// The nesting target must exist for the nested-virtual case.
-			if s, b := putRepoStatus(t, h, "outer", `{"rclass":"virtual","packageType":"maven","repositories":["generic-local"]}`); s != http.StatusOK {
-				t.Fatalf("seed outer virtual: %d %s", s, b)
-			}
 			status, body := putRepoStatus(t, h, "bad-virtual", tt.body)
 			if status != http.StatusBadRequest {
 				t.Fatalf("status = %d; body=%s", status, body)
@@ -222,6 +220,18 @@ func TestM03VirtualREST(t *testing.T) {
 			}
 		})
 	}
+
+	// T-530: the nested virtual member is ACCEPTED on the wire now — the
+	// outer virtual nests over the shared local member.
+	t.Run("nested virtual accepted", func(t *testing.T) {
+		h := seedVirtualFixture(t)
+		if s, b := putRepoStatus(t, h, "outer", `{"rclass":"virtual","packageType":"maven","repositories":["generic-local"]}`); s != http.StatusOK {
+			t.Fatalf("seed outer virtual: %d %s", s, b)
+		}
+		if s, b := putRepoStatus(t, h, "nest-virtual", `{"rclass":"virtual","packageType":"maven","repositories":["outer","generic-local"]}`); s != http.StatusOK {
+			t.Fatalf("nested virtual create = %d %s, want 200", s, b)
+		}
+	})
 }
 
 // ---- M04: the list filters (FR-15-AC5) ----

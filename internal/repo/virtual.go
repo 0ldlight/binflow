@@ -17,26 +17,37 @@ import (
 )
 
 // The virtual repository resolution subdomain (T-71, FR-21, ADR-0013 as
-// amended by the T-79 errata): two-bucket member ordering, first-hit-stops
-// download resolution, and the optional write route onto a local deployment
-// member. Everything here computes PER REQUEST off the member ledger — there
-// is deliberately no resolution cache, so a member-list or priority-mark
-// change is visible to the very next request (FR-15-AC6's second half).
+// amended by the T-79 errata; four-bucket order since T-530 per
+// docs/design/virtual-four-bucket.md / virtual-resolution.md sections 1-2):
+// declaration-order member expansion, the four-segment resolution order,
+// first-hit-stops download resolution, and the optional write route onto a
+// local deployment member. Everything here computes PER REQUEST off the
+// member ledger — there is deliberately no resolution cache, so a
+// member-list or priority-mark change is visible to the very next request
+// (FR-15-AC6's second half).
 //
-// Two-bucket order (PRD C3, the BinFlow simplification of repo-semantics
-// section 8.1's four buckets): Artifactory interleaves each remote's
-// `<key>-cache` shadow repository with the remote itself; BinFlow has no
-// shadow projection (ADR-0012 — cache nodes land in the remote repository's
-// own namespace), so the four buckets collapse into two with identical
-// client-observable behavior:
+// Four-segment order (T-530, the spec's four buckets over BinFlow's
+// ADR-0012 single-namespace caches — cache rows land in the remote's own
+// namespace, so a remote member's cache projection is a LOCAL-semantics
+// probe of that namespace):
 //
-//	bucket 1: members marked priorityResolution=true, declaration order;
-//	bucket 2: every other member, declaration order.
+//	segment 1: priority local members + the cache projections of priority
+//	           remote members (real locals first, cache facets after, each
+//	           in declaration/encounter order);
+//	segment 2: priority remote bodies, declaration order;
+//	segment 3: the non-priority twin of segment 1;
+//	segment 4: non-priority remote bodies, declaration order.
+//
+// The expansion (virtual-resolution.md section 1) is declaration-order DFS
+// over nested virtuals with visitedKeys cycle cutting, first-occurrence
+// key dedup, silent-drop of missing members, and a type-bucketed result —
+// locals always precede remotes regardless of declaration interleaving.
 //
 // priorityResolution is a PER-REPOSITORY field (Artifactory semantics,
 // repo-semantics sections 7.1/8.1, default false): local members carry the
 // mark in their caller-owned config JSON, remote members in the canonical
-// remote form — one probe reads both.
+// remote form — one probe reads both, and a remote's cache facet INHERITS
+// the remote's mark (remote-cache-projection.md section 1.2).
 
 // HdrResolvedFrom names the member that served a virtual resolution
 // (ADR-0013): the diagnostic surface for "I got the older copy" complaints —
@@ -61,87 +72,155 @@ func refuseVirtualWrite(virtualKey string) error {
 	}
 }
 
-// refuseVirtualDelete is DELETE-on-virtual's refusal. BinFlow deliberately
-// does NOT replicate Artifactory's member-wise virtual delete (spec
-// section 8.2 lists it medium confidence, M4 re-evaluation): cache deletes
-// belong to the remote member itself (RE-06), artifact deletes to the member
-// repository that holds them. The un-routed shape keeps the C5 message so
-// M52's equality assertion holds for DELETE too; a routed repository gets
-// the truthful wording instead (claiming "no local repository was
-// configured" about one that IS would be a lie).
-func refuseVirtualDelete(virtualKey string, routed bool) error {
-	message := msgNoDeploymentRepo(virtualKey)
-	if routed {
-		message = fmt.Sprintf(
-			"Deletes are not propagated through the virtual repository '%s'; delete the artifact in its member repository directly.", virtualKey)
-	}
-	return &StatusError{
-		Code:    http.StatusMethodNotAllowed,
-		Message: message,
-		Header:  http.Header{"Allow": []string{http.MethodGet}},
-		cause:   fmt.Errorf("%w: virtual repository deletes are not propagated", ErrRepoTypeNotSupported),
-	}
-}
-
 // ---- read resolution ----
 
-// virtualMember is one resolution step: the member key plus its class. The
-// priority mark is consumed by the ordering pass and not carried. pkg/cfg
-// are the member row's package type and config JSON — the T-448 browse fold
-// reads the optional档 mark from them without a second repository load; the
-// resolution walk itself ignores them.
+// Facet distinguishes the two resolution entities one remote member
+// contributes (virtual-resolution.md section 1, "mixed members": the
+// remote's `<key>-cache` projection joins the LOCAL bucket, the remote
+// body the remote bucket). Protocol adapters that have not grown facet
+// awareness treat a cache facet as an ordinary remote member — the
+// documented degraded mode (design section 5.3's compatibility promise).
+type Facet uint8
+
+const (
+	// FacetPlain is a local member, or a remote member's body (the FR-20
+	// pull-through chain).
+	FacetPlain Facet = iota
+	// FacetCache is a remote member's `<key>-cache` projection: the
+	// standing copies in the remote's own namespace, read with LOCAL
+	// semantics — zero upstream, no freshness window (design section 3).
+	FacetCache
+)
+
+// virtualMember is one resolution step: the member key plus its class, the
+// cache-facet mark, and the priority mark. pkg/cfg are the member row's
+// package type and config JSON — the T-448 browse fold reads the optional
+// browse flag from them without a second repository load; the resolution
+// walk itself ignores them.
 type virtualMember struct {
-	key string
-	typ string // TypeLocal | TypeRemote
-	pkg string
-	cfg string
+	key      string
+	typ      string // TypeLocal | TypeRemote
+	pkg      string
+	cfg      string
+	facet    Facet // FacetCache only on TypeRemote steps
+	priority bool  // the member's priorityResolution mark (cache facets inherit the remote's)
 }
 
-// virtualMemberOrder computes the two-bucket resolution order of one virtual
-// repository, fresh off the ledger on every call (member changes are
-// immediately effective — the FR-15-AC6 contract this resolver serves).
-//
-// Drift tolerance: the ledger and the repositories rows are kept consistent
-// by the config-time validations and the FK cascades, but a member that has
-// vanished or drifted virtual between write and read (delete plus recreate
-// races) is SKIPPED with a WARN rather than failing the whole repository —
-// one stale member must not turn every virtual read into an outage. Any
-// other lookup failure is a store fault and propagates.
-func (s *service) virtualMemberOrder(ctx context.Context, virtualKey string) ([]virtualMember, error) {
+// expandVirtualMembers is the declaration-order DFS of one virtual's member
+// list (virtual-resolution.md section 1): nested virtuals expand AFTER
+// their own registration (direct members before their subtrees), visitedKeys
+// cuts cycles and dedups keys at first occurrence, missing members drop
+// silently with a WARN, and the result lands in two type buckets — locals
+// and remotes, each in encounter order, locals FOREMOST (the spec's
+// bucketed collection; the assembly below interleaves them back per
+// priority class).
+func (s *service) expandVirtualMembers(ctx context.Context, virtualKey string, visited map[string]bool, locals, remotes *[]virtualMember) error {
 	rows, err := s.md.Virtual().ListMembers(ctx, virtualKey)
 	if err != nil {
-		return nil, fmt.Errorf("virtual %s members: %w", virtualKey, err)
+		return fmt.Errorf("virtual %s members: %w", virtualKey, err)
 	}
-	priority, rest := make([]virtualMember, 0, len(rows)), make([]virtualMember, 0, len(rows))
 	for _, row := range rows {
 		member, err := s.md.Repos().Get(ctx, row.MemberRepo)
 		if err != nil {
 			if errors.Is(err, metadata.ErrRepoNotFound) {
+				// Missing member: silently dropped, warn only — one stale
+				// reference must not turn every virtual read into an outage.
 				slog.WarnContext(ctx, "repo: virtual member listed but missing — skipped",
 					"virtual", virtualKey, "member", row.MemberRepo)
 				continue
 			}
-			return nil, fmt.Errorf("virtual %s member %s: %w", virtualKey, row.MemberRepo, err)
+			return fmt.Errorf("virtual %s member %s: %w", virtualKey, row.MemberRepo, err)
+		}
+		if visited[row.MemberRepo] {
+			continue // key dedup (first occurrence wins) and cycle cut in one check
+		}
+		step := virtualMember{
+			key:      member.RepoKey,
+			typ:      member.Type,
+			pkg:      member.PackageType,
+			cfg:      member.Config,
+			priority: memberPriorityResolution(member.Config),
 		}
 		switch member.Type {
-		case TypeLocal, TypeRemote:
-			m := virtualMember{key: member.RepoKey, typ: member.Type, pkg: member.PackageType, cfg: member.Config}
-			if memberPriorityResolution(member.Config) {
-				priority = append(priority, m)
-			} else {
-				rest = append(rest, m)
+		case TypeLocal:
+			visited[member.RepoKey] = true
+			*locals = append(*locals, step)
+		case TypeRemote:
+			visited[member.RepoKey] = true
+			*remotes = append(*remotes, step)
+		case TypeVirtual:
+			// T-530: nested virtuals expand (declaration-order DFS). The key
+			// registers BEFORE the recursion, so a cycle back to this member
+			// terminates at the visited check above.
+			visited[member.RepoKey] = true
+			if err := s.expandVirtualMembers(ctx, member.RepoKey, visited, locals, remotes); err != nil {
+				return err
 			}
 		default:
-			// Nested virtuals are refused at config time; reaching one here
-			// means the member was recreated as virtual after validation.
-			slog.WarnContext(ctx, "repo: virtual member drifted virtual — skipped (nested virtual repositories are not supported)",
-				"virtual", virtualKey, "member", row.MemberRepo)
+			slog.WarnContext(ctx, "repo: virtual member of unknown class — skipped",
+				"virtual", virtualKey, "member", row.MemberRepo, "type", member.Type)
 		}
 	}
-	order := make([]virtualMember, 0, len(priority)+len(rest))
-	order = append(order, priority...)
-	order = append(order, rest...)
+	return nil
+}
+
+// virtualMemberOrder computes the four-segment resolution order of one
+// virtual repository, fresh off the ledger on every call (member changes
+// are immediately effective — the FR-15-AC6 contract this resolver serves).
+//
+// Per priority class (priority first, then the rest) the expansion is
+// scanned three times — real locals, then cache facets, then remote bodies
+// — which yields the spec's segments 1..4 with real locals ahead of cache
+// facets inside each local-class segment (design section 2.3 / invariant
+// I4). The remote-suppression gate (virtual `artifactoryRequestsCan-
+// RetrieveRemoteArtifacts=false` + a peer Artifactory header) keeps its
+// seam here: BinFlow has no configuration face for it yet, so it never
+// suppresses (design seam F7).
+func (s *service) virtualMemberOrder(ctx context.Context, virtualKey string) ([]virtualMember, error) {
+	var locals, remotes []virtualMember
+	// The root key pre-registers: a self-listing is refused at config time,
+	// and a recreated-member cycle back to the root terminates here.
+	visited := map[string]bool{virtualKey: true}
+	if err := s.expandVirtualMembers(ctx, virtualKey, visited, &locals, &remotes); err != nil {
+		return nil, err
+	}
+	order := make([]virtualMember, 0, len(locals)+2*len(remotes))
+	for _, prio := range [2]bool{true, false} {
+		for i := range locals {
+			if locals[i].priority == prio {
+				order = append(order, locals[i])
+			}
+		}
+		for i := range remotes {
+			if remotes[i].priority == prio {
+				cacheStep := remotes[i]
+				cacheStep.facet = FacetCache
+				order = append(order, cacheStep)
+			}
+		}
+		for i := range remotes {
+			if remotes[i].priority == prio {
+				order = append(order, remotes[i])
+			}
+		}
+	}
 	return order, nil
+}
+
+// plainSteps drops the cache facets from an order — the row-addressing
+// walks (folder browse, listing, copy/move source resolution, the v2 plane)
+// probe member NAMESPACES, and a remote's cache facet and body facet address
+// the same namespace; the plain body step answers both (design section 5.1:
+// the file/folder first-hit rule is facet-insensitive).
+func plainSteps(order []virtualMember) []virtualMember {
+	out := make([]virtualMember, 0, len(order))
+	for _, m := range order {
+		if m.facet == FacetCache {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 // memberPriorityResolution reads the per-repository priorityResolution mark
@@ -160,37 +239,47 @@ func memberPriorityResolution(config string) bool {
 	return probe.PriorityResolution
 }
 
-// getVirtual is the Get branch of a virtual repository: walk the two-bucket
-// member order, first hit wins. The read gate has already run on the VIRTUAL
-// key at Get's top (authorization addresses the repository the caller named,
-// members are resolution internals — the same posture as the remote branch:
-// an unauthorized principal must not aim BinFlow at member upstreams).
+// getVirtual is the Get branch of a virtual repository: walk the
+// four-segment member order, first hit wins. The read gate has already run
+// on the VIRTUAL key at Get's top (authorization addresses the repository
+// the caller named, members are resolution internals — the same posture as
+// the remote branch: an unauthorized principal must not aim BinFlow at
+// member upstreams).
 //
 // The FOLDER spelling (trailing slash) never enters the walk: it is the
 // aggregate browse's question, answered from the members' stored rows by
 // getVirtualFolder (T-412, FR-136.1) — a folder has no body to resolve, so
 // first-hit-stops has nothing to decide.
 //
-// Member semantics per class on the FILE face:
+// Member semantics per step on the FILE face (design section 3):
 //
-//   - local: a plain node lookup. A folder row is NOT a download hit — it
-//     carries no body — so folder-only members keep the walk moving toward a
-//     member that actually holds the artifact.
-//   - remote: the full FR-20 proxy chain (cache, stale downgrade, guarded
-//     upstream contact — M50's upstream-package case depends on it). The
-//     engine's classified outcome drives the R10 stale/miss rule: a RESULT
-//     (success, which always carries a copy — fresh, landed or expired) is
-//     this member's answer and stops the walk, even when the copy is stale;
-//     only an UNFOUND miss (negative cache, no copy, offline without a copy)
-//     continues to the next member. A classified NON-unfound failure (the
-//     SSRF chain's 400, hardFail's 502) propagates verbatim: the strict
-//     reading of "only a true 404 continues" — masking a security refusal or
-//     a demanded hard failure as a virtual-wide 404 would hide a configured
-//     behavior, and RE-08/QA surface both through the member's own wording.
+//   - local member: a plain node lookup. A folder row is NOT a download
+//     hit — it carries no body — so folder-only members keep the walk
+//     moving toward a member that actually holds the artifact.
+//   - remote CACHE facet: the standing copies in the remote's own
+//     namespace, probed with the local member's semantics — zero upstream,
+//     no freshness window, an expired copy still serves (virtual-
+//     resolution section 2's local bucket; design section 3, risk item
+//     O2). Snapshot-family paths skip ALL cache facets (section 3.6: the
+//     snapshots are the remote body's own business) — one walk-layer
+//     rule, protocol-agnostic.
+//   - remote BODY facet: the full FR-20 proxy chain (cache, stale
+//     downgrade, guarded upstream contact — M50's upstream-package case
+//     depends on it). The engine's classified outcome drives the R10
+//     stale/miss rule: a RESULT (success, which always carries a copy —
+//     fresh, landed or expired) is this member's answer and stops the
+//     walk, even when the copy is stale; only an UNFOUND miss (negative
+//     cache, no copy, offline without a copy) continues to the next
+//     member. A classified NON-unfound failure (the SSRF chain's 400,
+//     hardFail's 502) propagates verbatim: the strict reading of "only a
+//     true 404 continues" — masking a security refusal or a demanded hard
+//     failure as a virtual-wide 404 would hide a configured behavior, and
+//     RE-08/QA surface both through the member's own wording.
 //
 // An exploratory miss leaves NO cache residue behind (ADR-0013: virtual
 // member scans must not pollute the members' caches) — see
-// clearProbedNegative.
+// clearProbedNegative. The cache facet is residue-free by construction
+// (it writes nothing).
 func (s *service) getVirtual(ctx context.Context, p *Principal, virtualKey, path string) (io.ReadSeekCloser, *metadata.Node, error) {
 	order, err := s.virtualMemberOrder(ctx, virtualKey)
 	if err != nil {
@@ -203,27 +292,35 @@ func (s *service) getVirtual(ctx context.Context, p *Principal, virtualKey, path
 		// about which member leads).
 		return s.getVirtualFolder(ctx, p, virtualKey, path, order)
 	}
+	skipCaches := isSnapshotResolutionPath(path)
 	for _, m := range order {
 		var (
 			rc   io.ReadSeekCloser
 			node *metadata.Node
 			hit  bool
 		)
-		if m.typ == TypeRemote {
+		switch {
+		case m.facet == FacetCache && skipCaches:
+			continue // snapshot-family path: no cache facet participates
+		case m.facet == FacetCache:
+			// The remote's standing copies, local semantics (zero upstream).
+			rc, node, hit, err = s.probeLocalMember(ctx, m.key, path)
+		case m.typ == TypeRemote:
 			rc, node, hit, err = s.probeRemoteMember(ctx, virtualKey, m.key, path)
-		} else {
+		default:
 			rc, node, hit, err = s.probeLocalMember(ctx, m.key, path)
 		}
 		if err != nil {
 			return nil, nil, err
 		}
 		if !hit {
-			continue // member miss: next bucket entry
+			continue // member miss: next segment entry
 		}
 		// The via-virtual arm (K69 arm 2): the audit row addresses the
 		// VIRTUAL surface, the count lands on the MEMBER's row — and a
 		// member that is itself a remote repository served this download
-		// from its cache, so its row takes the remote column too.
+		// from its cache (either facet), so its row takes the remote column
+		// too.
 		s.markDownload(ctx, p, downloadMark{
 			auditRepo: virtualKey, auditPath: path,
 			countRepo: m.key, countPath: path,
@@ -234,6 +331,24 @@ func (s *service) getVirtual(ctx context.Context, p *Principal, virtualKey, path
 		return withResolvedFrom(rc, m.key), node, nil
 	}
 	return nil, nil, fmt.Errorf("node %s/%s: %w", virtualKey, path, ErrNodeNotFound)
+}
+
+// isSnapshotResolutionPath reports the snapshot-family path spellings
+// virtual-resolution.md section 3.6 names: a Maven snapshot path (a
+// "-SNAPSHOT" path segment) or the [INTEGRATION] token. Cache facets never
+// participate in resolving these — the remote body handles its own
+// snapshot caching. The check is deliberately walk-layer and
+// protocol-agnostic: one spelling family, one code path.
+func isSnapshotResolutionPath(path string) bool {
+	if strings.Contains(path, "[INTEGRATION]") {
+		return true
+	}
+	for _, seg := range strings.Split(path, "/") {
+		if strings.HasSuffix(seg, "-SNAPSHOT") {
+			return true
+		}
+	}
+	return false
 }
 
 // probeLocalMember looks the path up in a local member's namespace. The
@@ -281,6 +396,10 @@ func (s *service) probeLocalMember(ctx context.Context, member, path string) (io
 // leaves every member exactly as it found it, ADR-0013), so the synthesized
 // row is display-only and carries no provenance it cannot honestly claim.
 func (s *service) getVirtualFolder(ctx context.Context, p *Principal, virtualKey, path string, order []virtualMember) (io.ReadSeekCloser, *metadata.Node, error) {
+	// The folder face addresses member namespaces; cache facets and body
+	// facets of one remote are the same namespace, so the plain steps
+	// answer everything (plainSteps drops the cache duplicates).
+	order = plainSteps(order)
 	dir := strings.TrimSuffix(path, "/")
 	for _, m := range order {
 		n, err := s.md.Nodes().Get(ctx, m.key, path)
@@ -368,6 +487,10 @@ func (s *service) listVirtual(ctx context.Context, p *Principal, virtualKey, pre
 	if err != nil {
 		return nil, "", err
 	}
+	// Same-namespace rule as getVirtualFolder: the plain steps cover every
+	// member namespace; dropping the cache duplicates keeps one listing per
+	// member (and one remote-browse fold per remote member).
+	order = plainSteps(order)
 	merged := make(map[string]*metadata.Node)
 	cachedPaths := make(map[string]bool)
 	var degraded []string
@@ -491,14 +614,19 @@ func (s *service) clearProbedNegative(ctx context.Context, virtualKey, member, p
 
 // ---- the T-72 aggregation seam ----
 
-// VirtualMember is one step of a virtual repository's two-bucket order in
-// the shape the protocol metadata aggregations consume (T-72): the member
-// key, its class (local members answer from their nodes, remote members
-// through the FR-20 pull-through chain) and the priority-bucket mark the
-// maven foundByPriority short-circuit keys on.
+// VirtualMember is one step of a virtual repository's four-segment
+// resolution order in the shape the protocol metadata aggregations consume
+// (T-72; facet dimension since T-530): the member key (cache facets carry
+// the REMOTE key), its class (local members answer from their nodes, remote
+// members through the FR-20 pull-through chain), the facet mark (a remote
+// member contributes a FacetCache step AND a FacetPlain body step — a
+// cache step answers from the remote's standing copies with local
+// semantics), and the priority mark the maven foundByPriority short-circuit
+// keys on (cache facets inherit their remote's mark).
 type VirtualMember struct {
 	Key      string
 	Type     string // TypeLocal | TypeRemote
+	Facet    Facet  // FacetPlain | FacetCache (FacetCache only with Type=remote)
 	Priority bool
 }
 
@@ -510,22 +638,9 @@ func (s *service) VirtualMemberOrder(ctx context.Context, virtualKey string) ([]
 	}
 	out := make([]VirtualMember, 0, len(order))
 	for _, m := range order {
-		out = append(out, VirtualMember{Key: m.key, Type: m.typ, Priority: s.memberIsPriority(ctx, m.key)})
+		out = append(out, VirtualMember{Key: m.key, Type: m.typ, Facet: m.facet, Priority: m.priority})
 	}
 	return out, nil
-}
-
-// memberIsPriority re-reads one member's priority mark for the exported
-// order. virtualMemberOrder consumed the same probe internally but does not
-// carry the flag; a member whose row vanished between the two reads answers
-// false (the unmarked bucket), which only reorders a member that is about to
-// disappear from the ledger anyway.
-func (s *service) memberIsPriority(ctx context.Context, member string) bool {
-	row, err := s.md.Repos().Get(ctx, member)
-	if err != nil {
-		return false
-	}
-	return memberPriorityResolution(row.Config)
 }
 
 // ReadVirtualMember implements Service.ReadVirtualMember: one member's copy
@@ -736,13 +851,6 @@ func virtualRouteTarget(config string) string {
 	return ""
 }
 
-// virtualWriteRouted reports whether the virtual repository's config
-// carries a write route (the DELETE refusal picks its wording on it — see
-// refuseVirtualDelete).
-func virtualWriteRouted(config string) bool {
-	return virtualRouteTarget(config) != ""
-}
-
 // resolveWriteRepo resolves the repository a content write actually lands
 // in. Virtual repositories route onto their configured local deployment
 // member first (T-71): the returned row is then the TARGET's, so everything
@@ -770,4 +878,100 @@ func (s *service) resolveWriteRepo(ctx context.Context, repoKey string) (string,
 		return "", nil, err
 	}
 	return repoKey, row, nil
+}
+
+// ---- the <K>-cache projection face (T-530, F1) ----
+
+// cacheProjectionSuffix is the derived cache repository's reserved key
+// spelling (remote-cache-projection.md section 1.1: constant concatenation,
+// no configurable). Single source = internal/remote's CacheSuffix export
+// (T-529's projection registry); this alias is the one consumption site of
+// the resolution layer.
+const cacheProjectionSuffix = remote.CacheSuffix
+
+// CacheProjectionTarget maps one repository key onto its projection parent:
+// ok only when the key carries the -cache suffix AND a non-empty parent
+// remains after stripping it ("<k>-cache" → "<k>"). Callers resolve the
+// parent row themselves and decide whether a projection exists (a parent
+// that is not a remote repository has none).
+func CacheProjectionTarget(repoKey string) (parent string, ok bool) {
+	if !strings.HasSuffix(repoKey, cacheProjectionSuffix) {
+		return "", false
+	}
+	parent = strings.TrimSuffix(repoKey, cacheProjectionSuffix)
+	if parent == "" {
+		return "", false
+	}
+	return parent, true
+}
+
+// getCacheProjection is Get's <K>-cache branch: the derived cache key of a
+// remote repository addresses that remote's cached namespace with LOCAL
+// semantics (remote-cache-projection.md section 2.1's direct-download row,
+// high confidence): a standing copy serves byte-exact, a miss is the
+// ordinary 404, and the upstream is NEVER contacted — the pull-through
+// machinery belongs to the remote key alone (the projection presents as a
+// LOCAL-class repository, section 1.1). Authorization evaluates on the
+// PARENT key (section 2.2's ACL mapping: strip the suffix, then evaluate
+// the remote's permission targets) and the download statistics land on the
+// parent too (section 2.1: stats and curation attach to the parent remote).
+//
+// storeArtifactsLocally gate seam (design section 4): the projection
+// exists only while the remote stores copies locally. BinFlow's remote
+// engine always lands copies (the wire face defaults the flag to true and
+// no false spelling exists yet, design section 1's as-built); when a
+// non-landing face lands, a false value must refuse HERE — no projection
+// without stored copies.
+func (s *service) getCacheProjection(ctx context.Context, p *Principal, projKey, parent, path string) (io.ReadSeekCloser, *metadata.Node, error) {
+	if !s.allow(ctx, p, parent, path, ActionRead) {
+		// The 401-vs-403 split the content plane keys on (rest-api 1.4).
+		if p == nil {
+			return nil, nil, fmt.Errorf("read %s/%s: %w", projKey, path, ErrUnauthorized)
+		}
+		return nil, nil, fmt.Errorf("read %s/%s: %w", projKey, path, ErrForbidden)
+	}
+	if isFolderNode(path) {
+		return s.cacheProjectionFolder(ctx, projKey, parent, path)
+	}
+	rc, node, hit, err := s.probeLocalMember(ctx, parent, path)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !hit {
+		return nil, nil, fmt.Errorf("node %s/%s: %w", projKey, path, ErrNodeNotFound)
+	}
+	s.markDownload(ctx, p, downloadMark{
+		auditRepo: projKey, auditPath: path,
+		countRepo: parent, countPath: path,
+		origin:       downloadOriginRemote,
+		remoteServed: true,
+	})
+	return rc, node, nil
+}
+
+// cacheProjectionFolder is the projection face's folder spelling: the
+// cached folder row answers directly; a folder with only cached CHILDREN
+// (the pre-ADR-0016 landing shape) is proven by them and answers the
+// display-only synthesized marker — getVirtualFolder's posture, minus the
+// members and minus the upstream-derived rows (the projection face never
+// touches the upstream). Nothing is written.
+func (s *service) cacheProjectionFolder(ctx context.Context, projKey, parent, path string) (io.ReadSeekCloser, *metadata.Node, error) {
+	if n, err := s.md.Nodes().Get(ctx, parent, path); err == nil {
+		return nil, n, fmt.Errorf("get %s/%s: %w", projKey, path, ErrIsFolder)
+	} else if !errors.Is(err, metadata.ErrNodeNotFound) {
+		return nil, nil, fmt.Errorf("node %s/%s: %w", parent, path, err)
+	}
+	dir := strings.TrimSuffix(path, "/")
+	kids, err := s.md.Nodes().ListByPrefix(ctx, parent, dir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list %s/%s: %w", parent, dir, err)
+	}
+	for _, k := range kids {
+		if strings.HasPrefix(k.Path, dir+"/") {
+			return nil, &metadata.Node{
+				RepoKey: projKey, Path: path, Sha256: emptyFolderSHA, Size: 0,
+			}, fmt.Errorf("get %s/%s: %w", projKey, path, ErrIsFolder)
+		}
+	}
+	return nil, nil, fmt.Errorf("node %s/%s: %w", projKey, path, ErrNodeNotFound)
 }

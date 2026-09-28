@@ -181,9 +181,16 @@ func TestVirtualWriteRouting(t *testing.T) {
 	if status, body, _ = s.get("/binflow/helm-v/routed-1.0.0.tgz"); status != http.StatusOK || sha256Hex([]byte(body)) != sha256Hex(chart) {
 		t.Errorf("virtual read-back = %d, want the routed bytes", status)
 	}
-	// DELETE never propagates (C5): the truthful routed wording.
-	if status, body, _ = s.delete("/binflow/helm-v/routed-1.0.0.tgz"); status != http.StatusMethodNotAllowed || !strings.Contains(body, "not propagated") {
-		t.Fatalf("virtual DELETE = (%d, %s), want the C5 405", status, body)
+	// DELETE through the virtual touches only the virtual's own
+	// aggregation storage — a path it does not hold answers 404
+	// (helm's ITEM_NOT_FOUND wording) and the member's entity survives
+	// (virtual-resolution.md section 7.5 errata; the pre-T-524 405
+	// refusal is retired — maven T-531's precedent).
+	if status, body, _ = s.delete("/binflow/helm-v/routed-1.0.0.tgz"); status != http.StatusNotFound || !strings.Contains(body, "'helm-v/routed-1.0.0.tgz' not found") {
+		t.Fatalf("virtual DELETE = (%d, %s), want the 404", status, body)
+	}
+	if status, _, _ = s.get("/binflow/helm-l/routed-1.0.0.tgz"); status != http.StatusOK {
+		t.Fatalf("member chart after the virtual delete = %d, want 200 (deletes never propagate)", status)
 	}
 	// A .prov sidecar routes the same way.
 	prov := "-----BEGIN PGP SIGNED MESSAGE-----\nprov\n"

@@ -50,6 +50,15 @@ jobs:
       - name: OpenAPI spec drift gate
         run: make spec-check
 
+      # T-526: Fern en-pages ratchet — the English docs surface (T-521) may
+      # only grow. Fails on count drift in EITHER direction: a drop is
+      # coverage loss, a rise requires bumping fern/en-pages.count (make
+      # fern-en-baseline) so the new floor is locked in. Same Makefile
+      # target as the CircleCI face and local runs: one command, no surface
+      # drift. bash+find only — runs before any toolchain setup, <0.1s.
+      - name: Fern en-pages ratchet
+        run: make fern-en-ratchet
+
       - name: Set up Go
         uses: actions/setup-go@v7
         with:

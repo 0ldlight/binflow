@@ -207,8 +207,9 @@ func TestVirtualDualDomainChain(t *testing.T) {
 }
 
 // TestVirtualFirstSeenShadowing (AC1): the same tag on two members — the
-// two-bucket order decides (first-seen semantics), and a member reorder
-// moves the winner.
+// four-bucket order decides (first-seen semantics within a bucket; the
+// local class precedes the remote class regardless of declaration order —
+// ADR-0051, T-530), and a reorder cannot move the winner ACROSS buckets.
 func TestVirtualFirstSeenShadowing(t *testing.T) {
 	down, _, _, _, manifestUp, _, _ := newVirtualFixture(t)
 	// The local member shadows the upstream's 0.1.0 with its own body.
@@ -226,17 +227,23 @@ func TestVirtualFirstSeenShadowing(t *testing.T) {
 		t.Errorf("shadowed X-BinFlow-Resolved-From = %q, want virt-local (declaration order)", got)
 	}
 
-	// Reorder the members: the remote member leads, its pull-through wins.
+	// Reorder the members — remote first. Under the four-bucket order
+	// (ADR-0051, T-530) the bucket CLASS dominates declaration order:
+	// local members always precede remote members (spec
+	// virtual-resolution.md section 1, design section 2.2), so the local
+	// member STILL shadows the remote's standing copy after the reorder —
+	// a reorder only moves the winner WITHIN one bucket. First-seen
+	// semantics now live there.
 	if err := down.md.Virtual().SetMembers(context.Background(), "helmoci-virt", []string{"virt-remote", "virt-local"}); err != nil {
 		t.Fatalf("reorder members: %v", err)
 	}
 	status, body, hdr = down.do(http.MethodGet, "/v2/helmoci-virt/helmoci-local/upchart/manifests/0.1.0", "", "", nil,
 		map[string]string{"Accept": mtOCIManifest})
-	if status != http.StatusOK || body != string(manifestUp) {
-		t.Fatalf("reordered pull = (%d, %d bytes), want the remote member's %d bytes", status, len(body), len(manifestUp))
+	if status != http.StatusOK || body != string(manifestLocal) {
+		t.Fatalf("reordered pull = (%d, %d bytes), want the local member's %d bytes (locals precede remotes)", status, len(body), len(manifestLocal))
 	}
-	if got := hdr.Get("X-BinFlow-Resolved-From"); got != "virt-remote" {
-		t.Errorf("reordered X-BinFlow-Resolved-From = %q, want virt-remote", got)
+	if got := hdr.Get("X-BinFlow-Resolved-From"); got != "virt-local" {
+		t.Errorf("reordered X-BinFlow-Resolved-From = %q, want virt-local (the local bucket wins regardless of declaration order)", got)
 	}
 }
 

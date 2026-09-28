@@ -350,15 +350,25 @@ func TestVirtualWriteRoute(t *testing.T) {
 		t.Errorf("merged revisions after routed write = (%d, %s)", code, body)
 	}
 
-	// Deletes never propagate through the virtual.
+	// Deletes through the virtual touch only its own storage — the honest
+	// 404, members survive (section 7.5's errata, D-2; the dedicated
+	// virtual_delete_test pins the full face).
 	for _, path := range []string{
 		"hello/1.0/myuser/stable",
 		"hello/1.0/myuser/stable/revisions/" + rrevNew,
 	} {
 		code, body, _ = f.delete(v2("vv", path))
-		if code != http.StatusMethodNotAllowed {
-			t.Errorf("virtual DELETE %s = (%d, %q), want 405", path, code, body)
+		if code != http.StatusNotFound {
+			t.Errorf("virtual DELETE %s = (%d, %q), want 404", path, code, body)
 		}
+	}
+	// Member A's own index and file survived both deletes.
+	if doc := f.memberIndexDoc(t, "va"); len(doc.Revisions) == 0 {
+		t.Error("member va's index vanished after the virtual deletes")
+	}
+	if _, _, err := f.svc.Get(context.Background(), adminPrincipal(), "va",
+		recipeFile(f.rf.coordinateRoot(), rrevNew, "conanfile.py")); err != nil {
+		t.Errorf("member va's file did not survive the virtual deletes: %v", err)
 	}
 }
 

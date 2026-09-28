@@ -209,9 +209,24 @@ func TestVirtualRemoteMemberChain(t *testing.T) {
 	if got := hdr.Get("X-BinFlow-Cache"); got != "MISS" {
 		t.Errorf("first virtual download cache state = %q, want MISS", got)
 	}
-	status, _, hdr = s.get(repoPath("cargo-v") + "/v1/crates/faraway/0.4.0/download")
-	if status != http.StatusOK || hdr.Get("X-BinFlow-Cache") != "HIT" {
-		t.Fatalf("second virtual download must be a cache HIT (got %d, %q)", status, hdr.Get("X-BinFlow-Cache"))
+	// Repeat: the four-bucket order serves the standing copy through the
+	// remote's cache-facet step with LOCAL semantics (design
+	// virtual-four-bucket.md section 3, T-530) — byte-exact content, the
+	// member still named, and NO X-BinFlow-Cache header (the fetch verdict
+	// header only rides the FR-20 body path; a local-semantics read
+	// carries none — maven T-531's precedent).
+	status, body, hdr = s.get(repoPath("cargo-v") + "/v1/crates/faraway/0.4.0/download")
+	if status != http.StatusOK {
+		t.Fatalf("second virtual download = %d", status)
+	}
+	if got := hdr.Get("X-BinFlow-Cache"); got != "" {
+		t.Errorf("second virtual download X-BinFlow-Cache = %q, want none (cache-facet local-semantics serve)", got)
+	}
+	if got := hdr.Get(repo.HdrResolvedFrom); got != "cargo-rem" {
+		t.Errorf("second virtual download Resolved-From = %q, want cargo-rem", got)
+	}
+	if body != string(crate) {
+		t.Errorf("second virtual download body = %d bytes, want the byte-exact upstream crate", len(body))
 	}
 
 	// The search merge: the remote member's row arrives through its
@@ -225,8 +240,9 @@ func TestVirtualRemoteMemberChain(t *testing.T) {
 // TestVirtualWriteRouting: a ROUTED virtual publish lands in the
 // deployment member (crate, sidecar and index rewrite all addressed there)
 // and is immediately visible through the aggregate; an un-routed virtual
-// answers the C5 405 on every write face; DELETE never propagates — routed
-// and un-routed each keep their truthful wording.
+// answers the C5 405 on every write face; DELETE through the virtual
+// touches only its own storage — the honest 404 when it holds nothing,
+// members survive (section 7.5's errata, D-2).
 func TestVirtualWriteRouting(t *testing.T) {
 	s := newVirtualStack(t)
 	s.seedRepo(t, "cargo-unrouted", repo.TypeVirtual)
@@ -277,14 +293,27 @@ func TestVirtualWriteRouting(t *testing.T) {
 		t.Fatalf("un-routed bare PUT = (%d, %s), want the C5 405", status, body)
 	}
 
-	// DELETE never propagates, whatever the route.
+	// DELETE through the virtual touches only the virtual's own
+	// aggregation storage — a path it does not hold answers 404
+	// (cargo's ITEM_NOT_FOUND envelope) and no member's entity is
+	// touched, whatever the route (virtual-resolution.md section 7.5
+	// errata; the pre-T-524 405 refusals are retired — maven T-531's
+	// precedent).
 	status, body, _ = s.delete(repoPath("cargo-unrouted") + "/index/ro/ut/routed")
-	if status != http.StatusMethodNotAllowed || !strings.Contains(body, "No local repository was configured") {
-		t.Fatalf("un-routed virtual DELETE = (%d, %s), want the C5 405", status, body)
+	if status != http.StatusNotFound || !strings.Contains(body, `"detail":"not found"`) {
+		t.Fatalf("un-routed virtual DELETE = (%d, %s), want the 404 envelope", status, body)
 	}
 	status, body, _ = s.delete(repoPath("cargo-v") + "/index/ro/ut/routed")
-	if status != http.StatusMethodNotAllowed || !strings.Contains(body, "Deletes are not propagated through the virtual repository") {
-		t.Fatalf("routed virtual DELETE = (%d, %s), want the truthful 405", status, body)
+	if status != http.StatusNotFound || !strings.Contains(body, `"detail":"not found"`) {
+		t.Fatalf("routed virtual DELETE = (%d, %s), want the 404 envelope", status, body)
+	}
+	// The members survived both deletes: A still carries the routed crate
+	// (index row and file), B is still without it.
+	if status, body, _ = s.get(repoPath("cargo-a") + "/index/ro/ut/routed"); status != http.StatusOK || !strings.Contains(body, `"vers":"0.1.0"`) {
+		t.Fatalf("member A's index after the virtual deletes = (%d, %s), want the routed row", status, body)
+	}
+	if status, _, _ = s.get(repoPath("cargo-b") + "/index/ro/ut/routed"); status != http.StatusNotFound {
+		t.Fatalf("member B must still carry nothing (got %d)", status)
 	}
 }
 

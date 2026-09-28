@@ -92,16 +92,25 @@ func TestVirtualRenderSeams(t *testing.T) {
 		t.Errorf("remote hit body = %q", body)
 	}
 
-	// Repeat: the member's cached copy serves (HIT), the upstream frozen.
+	// Repeat: the four-bucket order serves the standing copy through the
+	// remote's cache-facet step with LOCAL semantics (design
+	// virtual-four-bucket.md section 3, T-530: zero upstream, no freshness
+	// window) — byte-exact content, the member still named, the upstream
+	// frozen, and NO X-BinFlow-Cache header (the fetch verdict header only
+	// rides the FR-20 body path; a local-semantics read carries none —
+	// maven T-531's precedent).
 	status, body, hdr = s.get("/binflow/api/pypi/pyv-virt/packages/up-pkg/1.0.0/up_pkg-1.0.0.tar.gz")
 	if status != http.StatusOK {
 		t.Fatalf("repeat virtual GET = %d", status)
 	}
-	if got := hdr.Get("X-BinFlow-Cache"); got != "HIT" {
-		t.Errorf("repeat X-BinFlow-Cache = %q, want HIT", got)
+	if got := hdr.Get("X-BinFlow-Cache"); got != "" {
+		t.Errorf("repeat X-BinFlow-Cache = %q, want none (cache-facet local-semantics serve)", got)
+	}
+	if got := hdr.Get(repo.HdrResolvedFrom); got != "pyv-rem" {
+		t.Errorf("repeat Resolved-From = %q, want pyv-rem", got)
 	}
 	if body != "upstream-sdist" {
-		t.Errorf("repeat body = %q", body)
+		t.Errorf("repeat body = %q, want the byte-exact upstream copy", body)
 	}
 	if got := hits.Load(); got != 1 {
 		t.Errorf("upstream hits = %d, want 1", got)

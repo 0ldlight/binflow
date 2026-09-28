@@ -121,16 +121,16 @@ func TestT324RESTDryRunDefaultAndApply(t *testing.T) {
 	ctx := context.Background()
 
 	if _, err := h.svc.CreateRepo(ctx, t324Admin(), &metadata.Repo{
-		RepoKey: "rest-cache", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
+		RepoKey: "rest-cleanup", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
 		Config: `{"url":"https://up.example.org","unusedArtifactsCleanupPeriodHours":24}`,
 	}); err != nil {
 		t.Fatalf("CreateRepo(remote): %v", err)
 	}
-	stale := t324SeedCacheNode(t, h, "rest-cache", "stale.bin", "legacy-bytes", -48*time.Hour)
-	t324SeedCacheNode(t, h, "rest-cache", "kept.bin", "kept-bytes", -48*time.Hour)
+	stale := t324SeedCacheNode(t, h, "rest-cleanup", "stale.bin", "legacy-bytes", -48*time.Hour)
+	t324SeedCacheNode(t, h, "rest-cleanup", "kept.bin", "kept-bytes", -48*time.Hour)
 	// kept.bin stays: a download event inside the window.
 	if err := audit.New(h.md, true).Append(ctx, audit.Event{
-		Action: audit.ActionDownload, Repo: "rest-cache", Path: "kept.bin", Actor: "admin",
+		Action: audit.ActionDownload, Repo: "rest-cleanup", Path: "kept.bin", Actor: "admin",
 	}); err != nil {
 		t.Fatalf("seed download event: %v", err)
 	}
@@ -143,11 +143,11 @@ func TestT324RESTDryRunDefaultAndApply(t *testing.T) {
 	if body["apply"] != false {
 		t.Fatalf("default run apply = %v, want false", body["apply"])
 	}
-	row := t324RepoRow(t, body, "rest-cache")
+	row := t324RepoRow(t, body, "rest-cleanup")
 	if row["candidates"].(float64) != 1 || row["deleted"].(float64) != 0 {
 		t.Fatalf("dry row = %v, want 1 candidate 0 deleted", row)
 	}
-	if t324NodeOf(t, h, "rest-cache", "stale.bin") == nil {
+	if t324NodeOf(t, h, "rest-cleanup", "stale.bin") == nil {
 		t.Fatal("dry run removed the node")
 	}
 
@@ -156,14 +156,14 @@ func TestT324RESTDryRunDefaultAndApply(t *testing.T) {
 	if st != http.StatusOK {
 		t.Fatalf("apply POST status = %d", st)
 	}
-	row = t324RepoRow(t, body, "rest-cache")
+	row = t324RepoRow(t, body, "rest-cleanup")
 	if row["deleted"].(float64) != 1 {
 		t.Fatalf("apply row = %v, want 1 deleted", row)
 	}
-	if t324NodeOf(t, h, "rest-cache", "stale.bin") != nil {
+	if t324NodeOf(t, h, "rest-cleanup", "stale.bin") != nil {
 		t.Fatal("apply left the stale node behind")
 	}
-	if t324NodeOf(t, h, "rest-cache", "kept.bin") == nil {
+	if t324NodeOf(t, h, "rest-cleanup", "kept.bin") == nil {
 		t.Fatal("apply reaped the used node")
 	}
 	// Zero-orphan, blob half, through the physical walk the gc face's
@@ -275,16 +275,16 @@ func TestT324RESTScopedRun(t *testing.T) {
 	h := t324Harness(t)
 	ctx := context.Background()
 	if _, err := h.svc.CreateRepo(ctx, t324Admin(), &metadata.Repo{
-		RepoKey: "scoped-cache", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
+		RepoKey: "scoped-cleanup", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
 		Config: `{"url":"https://up.example.org","unusedArtifactsCleanupPeriodHours":24}`,
 	}); err != nil {
 		t.Fatalf("CreateRepo(remote): %v", err)
 	}
-	st, body := t324POST(t, h, `{"repo":"scoped-cache"}`, adminUser, adminPass)
+	st, body := t324POST(t, h, `{"repo":"scoped-cleanup"}`, adminUser, adminPass)
 	if st != http.StatusOK {
 		t.Fatalf("scoped POST = %d", st)
 	}
-	t324RepoRow(t, body, "scoped-cache")
+	t324RepoRow(t, body, "scoped-cleanup")
 
 	st, _ = t324POST(t, h, `{"repo":"no-such"}`, adminUser, adminPass)
 	if st != http.StatusNotFound {
@@ -366,12 +366,12 @@ func TestT324MetricsGauges(t *testing.T) {
 	h := t324HarnessMetrics(t, true)
 	ctx := context.Background()
 	if _, err := h.svc.CreateRepo(ctx, t324Admin(), &metadata.Repo{
-		RepoKey: "metrics-cache", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
+		RepoKey: "metrics-cleanup", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
 		Config: `{"url":"https://up.example.org","unusedArtifactsCleanupPeriodHours":24}`,
 	}); err != nil {
 		t.Fatalf("CreateRepo(remote): %v", err)
 	}
-	t324SeedCacheNode(t, h, "metrics-cache", "gone.bin", "metrics-bytes-0123456789", -48*time.Hour)
+	t324SeedCacheNode(t, h, "metrics-cleanup", "gone.bin", "metrics-bytes-0123456789", -48*time.Hour)
 
 	if st, body := t324POST(t, h, `{"apply":true}`, adminUser, adminPass); st != http.StatusOK {
 		t.Fatalf("apply POST = %d (%v)", st, body)
