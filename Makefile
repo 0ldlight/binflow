@@ -23,7 +23,7 @@ GOLANGCI := $(or $(shell command -v golangci-lint 2>/dev/null),$(shell $(GO) env
 export GOPROXY
 export GOTOOLCHAIN
 
-.PHONY: all build test lint fmt vet tidy spec spec-check run dev clean tools check-size docs docs-size console console-size \
+.PHONY: all build test lint fmt vet tidy spec spec-check fern-en-ratchet fern-en-baseline run dev clean tools check-size docs docs-size console console-size \
 	check-deps goreleaser-check release-snapshot release release-verify \
 	test-m7-resume test-m7-resume-sigterm test-m7-rbac-matrix lint-baseline \
 	test-m10-matrix test-m10-invariant footprint help
@@ -249,14 +249,30 @@ spec-check: spec
 		exit 1; \
 	fi
 
+## fern-en-ratchet: Fern en-pages ratchet gate (T-526) — the English docs
+## surface (T-521) may only grow. Fails when the count of rendered page
+## files under fern/translations/en/pages/ (md+mdx) differs from the
+## committed baseline fern/en-pages.count in EITHER direction: a drop is
+## coverage loss, a rise means the baseline must be bumped to lock in the
+## new floor. Count-only by design — content/bilingual parity is T-521's
+## follow-up gate, not this one.
+fern-en-ratchet:
+	bash scripts/fern-en-ratchet.sh
+
+## fern-en-baseline: regenerate fern/en-pages.count from the tree (T-526).
+## Run after INTENTIONALLY adding en pages; commit the bump together with
+## the pages themselves. Never hand-edit without the matching tree change.
+fern-en-baseline:
+	bash scripts/fern-en-ratchet.sh --write
+
 ## run: build then start the server locally (serve wiring lands in T-16).
 run: build
 	./$(BINARY) serve
 
-## dev: local development loop — spec-check+vet+lint+test+build, the pre-push
-## sanity gate (spec-check first: the OpenAPI drift gate is <1s and fails
-## fastest, T-522).
-dev: spec-check vet lint test build
+## dev: local development loop — spec-check+fern-en-ratchet+vet+lint+test+build,
+## the pre-push sanity gate (spec-check and fern-en-ratchet first: both drift
+## gates are <1s and fail fastest, T-522 / T-526).
+dev: spec-check fern-en-ratchet vet lint test build
 
 ## clean: remove build artifacts and coverage output.
 clean:
