@@ -54,7 +54,7 @@ func (s *service) FetchExternal(ctx context.Context, p *Principal, repoKey, path
 // FetchVirtualExternal implements RemoteExternalPlane: the virtual face's
 // member twin. The read gate has already run on the VIRTUAL key (the
 // adapter's route); the guard here is membership — the member must
-// currently sit in the virtual's two-bucket order AND be a remote
+// currently sit in the virtual's four-bucket order AND be a remote
 // repository, the ReadVirtualMember posture (a local member has no egress
 // face; the walk skips it before ever calling in). The landing goes into
 // the MEMBER's cache namespace; the audit row is addressed to the virtual

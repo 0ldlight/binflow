@@ -513,15 +513,18 @@ func (pl *cmPipeline) resolveSource(ctx context.Context) error {
 }
 
 // resolveVirtualSource routes a virtual source onto its holding member:
-// two-bucket order, first member holding the FILE row (or the remote cache
-// row) wins for a file source; first member holding the FOLDER row wins for
-// a folder source. A miss answers the same 400 as a plain missing item.
+// four-bucket order with the cache facets folded away (cache steps address
+// the same namespace as their remote body — plainSteps keeps one probe per
+// member key), first member holding the FILE row (or the remote cache row)
+// wins for a file source; first member holding the FOLDER row wins for a
+// folder source. A miss answers the same 400 as a plain missing item.
 func (pl *cmPipeline) resolveVirtualSource(ctx context.Context) (string, error) {
 	s := pl.svc
 	order, err := s.virtualMemberOrder(ctx, pl.srcRepo)
 	if err != nil {
 		return "", err
 	}
+	order = plainSteps(order)
 	folderPath := pl.srcPath + "/"
 	for _, m := range order {
 		if pl.srcPath != "" {

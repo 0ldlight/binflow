@@ -351,7 +351,9 @@ func TestM03VirtualValidation(t *testing.T) {
 		{"empty object", `{}`, "repositories is required"},
 		{"empty member list", `{"repositories":[]}`, "repositories is required"},
 		{"unknown member", `{"repositories":["no-such-repo"]}`, `"no-such-repo" does not exist`},
-		{"nested virtual", `{"repositories":["maven-local","wrap"]}`, "nested virtual"},
+		// T-530: the "nested virtual" refusal row is GONE — nested virtual
+		// members are first-class now (virtual-four-bucket.md 5.1); the
+		// acceptance + runtime expansion live in virtual_four_bucket_test.go.
 		{"duplicate member", `{"repositories":["maven-local","maven-local"]}`, "more than once"},
 		{"default targets non-member", `{"repositories":["maven-local"],"defaultDeploymentRepo":"maven-remote-x"}`, "is not a member"},
 		{"default targets remote member", `{"repositories":["maven-local","maven-remote-x"],"defaultDeploymentRepo":"maven-remote-x"}`, "must be a local repository member"},

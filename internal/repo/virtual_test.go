@@ -16,10 +16,12 @@ import (
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
-// The T-71 virtual resolution suite: two-bucket ordering, first-hit-stops
-// downloads over local/remote members, the R10 stale/miss rule, the
-// exploratory-miss cache hygiene, and the write plane's route-or-405 — the
-// service-layer shape of M50 through M53.
+// The T-71 virtual resolution suite, renovated for the T-530 four-bucket
+// order (virtual-resolution.md sections 1-2): locals-first expansion,
+// cache-facet steps, first-hit-stops downloads over local/remote members,
+// the R10 stale/miss rule, the exploratory-miss cache hygiene, and the
+// write plane's route-or-refuse — the service-layer shape of M50 through
+// M53.
 
 // memberSpec declares one virtual member for the matrix builders.
 type memberSpec struct {
@@ -176,12 +178,15 @@ func TestVirtualResolutionMatrix(t *testing.T) {
 			wantBody: "A", wantFrom: "rem-a", wantCache: "MISS",
 		},
 		{
-			name: "remote before local both present: remote wins (two buckets, no implicit local-first)",
+			// T-530/I1: within one priority class the local-class entities
+			// (real locals, then cache facets) come before every remote
+			// body — the two-bucket declaration-order mixing is gone.
+			name: "remote declared before local, both present: the local wins (I1, locals-first buckets)",
 			members: []memberSpec{
 				{key: "rem-a", remote: true, files: map[string]string{"/" + path: "from-remote"}},
 				{key: "loc-b", files: map[string]string{path: "from-local"}},
 			},
-			wantBody: "from-remote", wantFrom: "rem-a", wantCache: "MISS",
+			wantBody: "from-local", wantFrom: "loc-b",
 		},
 		{
 			name: "priority mark promotes the later member (AC9)",
@@ -217,14 +222,17 @@ func TestVirtualResolutionMatrix(t *testing.T) {
 			wantBody: "from-local", wantFrom: "loc-b",
 		},
 		{
-			name: "mixed marks: marked pair first in declaration order, then the rest",
+			// T-530/I4: inside the priority segment the real local precedes
+			// the marked remote's cache facet (and its body) — the segment
+			// rule, not the declaration interleaving, decides.
+			name: "mixed marks: the marked local wins the priority segment ahead of the marked remote (I4)",
 			members: []memberSpec{
 				{key: "loc-a", files: map[string]string{path: "rest-a"}},
 				{key: "rem-b", remote: true, mark: true, files: map[string]string{"/" + path: "prio-rem"}},
 				{key: "loc-c", mark: true, files: map[string]string{path: "prio-loc"}},
 				{key: "loc-d", files: map[string]string{path: "rest-d"}},
 			},
-			wantBody: "prio-rem", wantFrom: "rem-b", wantCache: "MISS",
+			wantBody: "prio-loc", wantFrom: "loc-c",
 		},
 	}
 	for _, tt := range tests {
@@ -274,33 +282,44 @@ func TestVirtualFolderMembersKeepWalking(t *testing.T) {
 
 // ---- the R10 stale/miss rule (FR-21-AC7) ----
 
-// TestVirtualRemoteStaleHitDoesNotSkip: a remote member holding an EXPIRED
-// copy that the upstream no longer serves is STILL that member's result
-// (expired-but-serving, STALE + X-Binflow-Upstream-Error) — the walk must
-// not fall through to a later member that holds fresher content. This is
-// the core R10/C3 assertion.
+// TestVirtualRemoteStaleHitDoesNotSkip (renovated for T-530): the R10 stale
+// rule is observable on the SNAPSHOT plane, where the cache facets are
+// skipped (I10) and the walk is pure body steps in declaration order — a
+// remote member holding an EXPIRED copy that the upstream no longer serves
+// is STILL that member's result (expired-but-serving, STALE +
+// X-Binflow-Upstream-Error); the walk must not fall through to the later
+// member holding fresher content. On non-snapshot paths the standing copy
+// is served by the cache facet instead (zero upstream, no revalidation —
+// virtual_cache_facet_test.go pins that face).
 func TestVirtualRemoteStaleHitDoesNotSkip(t *testing.T) {
-	const path = "junit/junit/4.13.2/junit-4.13.2.jar"
+	const path = "junit/junit/4.13.2-SNAPSHOT/junit-4.13.2.jar"
 	files := map[string]string{"/" + path: "old-copy"}
 	e := newEnv(t)
 	fx := buildVirtual(t, e, "virt", "", []memberSpec{
 		{key: "rem-short-ttl", remote: true, files: files, extra: `,"retrievalCachePeriodSecs":1`},
-		{key: "loc-fresher", files: map[string]string{path: "fresher-local"}},
+		{key: "rem-fresher", remote: true, files: map[string]string{"/" + path: "fresher-remote"}},
 	})
 
-	// Warm the remote member's cache through the virtual itself (a MISS
-	// landing in the member's namespace — the M50 flow).
-	if body, _ := mustGetVirtual(t, fx, path); body != "old-copy" {
-		t.Fatalf("warm-up body = %q", body)
+	// Warm both members' caches: the first through the virtual (the body
+	// step's MISS landing), the second directly (its own namespace).
+	if body, hints := mustGetVirtual(t, fx, path); body != "old-copy" || hints.Get(repo.HdrResolvedFrom) != "rem-short-ttl" {
+		t.Fatalf("warm-up body = %q from %q", body, hints.Get(repo.HdrResolvedFrom))
 	}
-	// Expire the copy, then break the upstream's knowledge of the path.
+	if _, _, err := e.svc.Get(context.Background(), admin(), "rem-fresher", path); err != nil {
+		t.Fatalf("warm rem-fresher directly: %v", err)
+	}
+	warmFresher := fx.hits["rem-fresher"].Load()
+
+	// Expire the first member's copy, then break its upstream's knowledge
+	// of the path.
 	e.clk.Advance(2 * time.Second)
 	delete(files, "/"+path)
 
-	// The stale copy still serves from the remote member.
+	// The stale copy still serves from the first remote member — the walk
+	// never reaches the second.
 	body, hints := mustGetVirtual(t, fx, path)
 	if body != "old-copy" {
-		t.Fatalf("stale-resolution body = %q, want the expired copy (must not fall through to the fresher local member)", body)
+		t.Fatalf("stale-resolution body = %q, want the expired copy (must not fall through to the fresher member)", body)
 	}
 	if got := hints.Get(repo.HdrResolvedFrom); got != "rem-short-ttl" {
 		t.Fatalf("%s = %q, want the stale remote member", repo.HdrResolvedFrom, got)
@@ -311,16 +330,19 @@ func TestVirtualRemoteStaleHitDoesNotSkip(t *testing.T) {
 	if got := hints.Get("X-Binflow-Upstream-Error"); got == "" {
 		t.Fatalf("X-Binflow-Upstream-Error missing on a stale serve")
 	}
+	if got := fx.hits["rem-fresher"].Load(); got != warmFresher {
+		t.Fatalf("fresher member upstream hits = %d, want the warm-up's %d (the stale hit must stop the walk)", got, warmFresher)
+	}
 
 	// Composition note (pinned deliberately): the upstream 404 that served
 	// the stale copy also wrote the member's NEGATIVE row (the six-step
 	// order T-66 pinned: the negative check precedes the local copy). The
 	// NEXT request inside that window is therefore a TRUE member miss and
-	// DOES continue down the buckets — C3's enumeration lists the negative
+	// DOES continue down the order — C3's enumeration lists the negative
 	// cache as a continue case.
 	body, hints = mustGetVirtual(t, fx, path)
-	if body != "fresher-local" || hints.Get(repo.HdrResolvedFrom) != "loc-fresher" {
-		t.Fatalf("post-negative body = %q from %q, want the local member after the negative window opened", body, hints.Get(repo.HdrResolvedFrom))
+	if body != "fresher-remote" || hints.Get(repo.HdrResolvedFrom) != "rem-fresher" {
+		t.Fatalf("post-negative body = %q from %q, want the second member after the negative window opened", body, hints.Get(repo.HdrResolvedFrom))
 	}
 }
 
@@ -332,8 +354,11 @@ func TestVirtualTrueMissFallsThrough(t *testing.T) {
 
 	t.Run("upstream 404 without a copy", func(t *testing.T) {
 		e := newEnv(t)
+		// The remote carries the priority mark so its BODY step runs ahead
+		// of the non-priority local (I3) — the miss then falls through to
+		// the local exactly as before.
 		fx := buildVirtual(t, e, "virt", "", []memberSpec{
-			{key: "rem-miss", remote: true},
+			{key: "rem-miss", remote: true, mark: true},
 			{key: "loc-has", files: map[string]string{path: "local-copy"}},
 		})
 		body, hints := mustGetVirtual(t, fx, path)
@@ -341,7 +366,7 @@ func TestVirtualTrueMissFallsThrough(t *testing.T) {
 			t.Fatalf("body = %q from %q, want the local member behind the missing remote", body, hints.Get(repo.HdrResolvedFrom))
 		}
 		if got := fx.hits["rem-miss"].Load(); got != 1 {
-			t.Fatalf("miss upstream hits = %d, want 1", got)
+			t.Fatalf("miss upstream hits = %d, want 1 (the cache step adds none)", got)
 		}
 	})
 
@@ -399,7 +424,9 @@ func TestVirtualMemberFaultsPropagate(t *testing.T) {
 		e := newEnv(t)
 		// A remote member pointing at a loopback address WITHOUT the
 		// exemption: the guarded dial refuses before any upstream traffic.
-		mustCreateRemote(t, e, "rem-guarded", `{"url":"http://127.0.0.1:1/m2"}`)
+		// The priority mark puts its BODY step ahead of the local (I3) —
+		// the fault must reach the client, not be masked by the local copy.
+		mustCreateRemote(t, e, "rem-guarded", `{"url":"http://127.0.0.1:1/m2","priorityResolution":true}`)
 		mustCreateRepo(t, e, "loc-has")
 		put(t, e, admin(), "loc-has", path, "local-copy")
 		if _, err := e.svc.CreateRepo(context.Background(), admin(), &metadata.Repo{
@@ -420,8 +447,10 @@ func TestVirtualMemberFaultsPropagate(t *testing.T) {
 
 	t.Run("hardFail without a copy", func(t *testing.T) {
 		e := newEnv(t)
+		// The priority mark keeps the hardFail BODY step ahead of the local
+		// member (I3) so the 502 propagates (T-530 renovation).
 		fx := buildVirtual(t, e, "virt", "", []memberSpec{
-			{key: "rem-hard", remote: true, extra: `,"hardFail":true`},
+			{key: "rem-hard", remote: true, mark: true, extra: `,"hardFail":true`},
 			{key: "loc-has", files: map[string]string{path: "local-copy"}},
 		})
 		fx.upstreams["rem-hard"].Close()
@@ -441,8 +470,11 @@ func TestVirtualExploratoryMissLeavesNoNegativeRow(t *testing.T) {
 	const path = "org/app/1.0/app-1.0.jar"
 	ctx := context.Background()
 	e := newEnv(t)
+	// The priority mark keeps the remote's BODY step ahead of the local
+	// (I3), so the virtual actually probes the member (T-530 renovation:
+	// the cache facet probes it too, with zero upstream traffic — I9).
 	fx := buildVirtual(t, e, "virt", "", []memberSpec{
-		{key: "rem-miss", remote: true},
+		{key: "rem-miss", remote: true, mark: true},
 		{key: "loc-has", files: map[string]string{path: "local-copy"}},
 	})
 
@@ -550,8 +582,11 @@ func msg405Of(key string) string {
 	return "No local repository was configured as local deployment repository for the (" + key + ") virtual repository."
 }
 
-// TestVirtualWriteUnrouted405: PUT-family and DELETE on a virtual without a
-// defaultDeploymentRepo answer the C5 405 with the exact errata wording.
+// TestVirtualWriteUnrouted405: the PUT family on a virtual without a
+// defaultDeploymentRepo answers the C5 405 with the exact errata wording.
+// DELETE left the 405 family in T-530 (D-2): it now addresses the virtual's
+// OWN storage and answers the not-found — virtual_delete_test.go carries
+// the full chain.
 func TestVirtualWriteUnrouted405(t *testing.T) {
 	const path = "com/acme/x/1.0.0/x-1.0.0.jar"
 	ctx := context.Background()
@@ -583,7 +618,10 @@ func TestVirtualWriteUnrouted405(t *testing.T) {
 	check("PutFromBlob", err)
 	_, err = e.svc.PutLandedBlob(ctx, admin(), "virt", path, storage.BlobRef{Sha256: shaOf("x")}, "")
 	check("PutLandedBlob", err)
-	check("Delete", e.svc.Delete(ctx, admin(), "virt", path))
+	// D-2 (T-530): the unrouted Delete is the own-storage 404, never a 405.
+	if err := e.svc.Delete(ctx, admin(), "virt", path); !errors.Is(err, repo.ErrNodeNotFound) {
+		t.Fatalf("unrouted virtual Delete = %v, want ErrNodeNotFound (D-2)", err)
+	}
 
 	// A raw-seeded virtual row (adapter harnesses write `{}` configs
 	// directly into the store) answers the same 405, not a parse failure.
@@ -695,32 +733,11 @@ func TestVirtualWriteRoutedToDeploymentRepo(t *testing.T) {
 	}
 }
 
-// TestVirtualDeleteNeverPropagates: DELETE on a virtual is the 405 whether
-// or not a write route is configured — BinFlow's deliberate incompatibility
-// (RE-08); a routed repository gets the truthful wording instead of
-// claiming no deployment repository is configured.
-func TestVirtualDeleteNeverPropagates(t *testing.T) {
-	ctx := context.Background()
-	e := newEnv(t)
-	buildVirtual(t, e, "virt", "loc-target", []memberSpec{{key: "loc-target"}})
-	put(t, e, admin(), "loc-target", "a.bin", "content")
-
-	err := e.svc.Delete(ctx, admin(), "virt", "a.bin")
-	var se *repo.StatusError
-	if !errors.As(err, &se) || se.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("routed virtual Delete = %v, want 405", err)
-	}
-	if got := se.Header.Get("Allow"); got != http.MethodGet {
-		t.Fatalf("Allow = %q, want GET", got)
-	}
-	if strings.Contains(se.Message, "No local repository was configured") || !strings.Contains(se.Message, "not propagated") {
-		t.Fatalf("routed Delete message = %q, want the not-propagated wording", se.Message)
-	}
-	// The member's artifact is untouched.
-	if _, err := e.md.Nodes().Get(ctx, "loc-target", "a.bin"); err != nil {
-		t.Fatalf("member node must survive the virtual delete refusal: %v", err)
-	}
-}
+// TestVirtualDeleteNeverPropagates was RETIRED by T-530 (D-2): the virtual
+// Delete no longer answers the RE-08 405 — it addresses the virtual's OWN
+// storage (virtual-resolution.md section 7.5) and answers the not-found
+// while members stay untouched. virtual_delete_test.go carries the full
+// chain (not-found + member survives + member direct delete + re-resolve).
 
 // TestVirtualWriteRouteTargetDrift: a write route naming a repository that
 // no longer exists surfaces the honest not-found, not a silent landing.

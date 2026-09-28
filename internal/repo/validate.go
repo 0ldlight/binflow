@@ -62,6 +62,19 @@ func validateRepoKey(key string) error {
 	return nil
 }
 
+// refuseCacheProjectionKey is the create/update guard for the derived cache
+// face (T-530, remote-cache-projection.md section 1.3): any repository key
+// ending in "-cache" is the read projection of its parent remote — no rclass
+// may claim it as an entity. The message shape mirrors the reference refusal.
+func refuseCacheProjectionKey(rclass, key string) error {
+	if parent, ok := CacheProjectionTarget(key); ok {
+		return fmt.Errorf(
+			"%w: unable to create a %s repository %q with '-cache' suffix (the derived cache face of %q)",
+			ErrInvalidRepoConfig, rclass, key, parent)
+	}
+	return nil
+}
+
 // validateRclass checks the repository-class closed set (the piece of
 // validateRepoType the T-283 dynamic overlay reuses — a registry-known
 // package type still demands one of the three classes).
