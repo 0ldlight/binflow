@@ -62,6 +62,11 @@ func TestPackumentWalkCacheFacetDedup(t *testing.T) {
 			want:  []string{"npmv-rem", "npmv-b-rem"},
 		},
 		{
+			name:  "local + cache steps, no remote body (the F7 branch): kept verbatim",
+			steps: []repo.VirtualMember{locA, remCache, remBcache},
+			want:  []string{"npmv-a", "npmv-rem", "npmv-b-rem"},
+		},
+		{
 			name:  "two-bucket shape (all plain) is the identity transform",
 			steps: []repo.VirtualMember{locA, remBody},
 			want:  []string{"npmv-a", "npmv-rem"},
