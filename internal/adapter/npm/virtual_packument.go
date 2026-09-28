@@ -21,8 +21,15 @@ package npm
 //     would serve anyway);
 //   - dist-tags and time are key-wise unions under the same first-wins
 //     rule;
-//   - latest is RECOMPUTED off the merged version set (the union may crown
-//     a version no single member would have tagged).
+//   - latest follows the §2.6 CONDITIONAL ("被排除模式过滤后最新版本与
+//     `latest` 标签重算", L031 r2≡r3 live evidence): the base member's
+//     tag value passes through untouched while its target survives the
+//     merged version set — with no exclusion pattern in effect the
+//     reference (Artifactory 7.161.26) keeps latest even when it points
+//     below the union's greatest; the recompute (repoint at the greatest
+//     visible version) fires only when the target is no longer in the
+//     version set. The unconditional recompute T-538 shipped was a
+//     misreading of that clause (T-548).
 //
 // Failure policy (the PRD gives npm no explicit member-failure clause; the
 // ruling follows the collection posture of the pypi face, its closest
@@ -186,11 +193,12 @@ func dedupeCacheFacetSteps(ctx context.Context, order []repo.VirtualMember) []re
 
 // mergeVirtualPackuments folds the member documents (two-bucket order)
 // into one: base identity and generic fields, putIfAbsent versions, the
-// dist-tags/time unions, latest recomputed.
+// dist-tags/time unions, latest repointed only when its target is gone
+// (repointFilteredLatest below).
 func mergeVirtualPackuments(members []memberPackument) map[string]any {
 	base := copyDoc(members[0].doc)
 	if len(members) == 1 {
-		recomputeLatestTag(base)
+		repointFilteredLatest(base)
 		return base
 	}
 	versions := versionsOf(base)
@@ -227,8 +235,37 @@ func mergeVirtualPackuments(members []memberPackument) map[string]any {
 	if tm != nil {
 		base["time"] = tm
 	}
-	recomputeLatestTag(base)
+	repointFilteredLatest(base)
 	return base
+}
+
+// repointFilteredLatest is the merge's CONDITIONAL latest rule (spec
+// section 2.6 "被排除模式过滤后……重算"; L031 r2≡r3: with no exclusion
+// pattern in effect the reference keeps the base member's latest even when
+// it points below the union's greatest — the recompute T-538 shipped
+// unconditionally was a misreading, T-548): the base member's tag value
+// passes through untouched while its target survives the merged version
+// set; the recompute fires only when the target is gone from the version
+// set (an exclusion filter removed it, or the base document itself
+// dangles), repointing at the greatest visible version. An ABSENT latest
+// stays absent at the merge — the read-time crown (crownLatest,
+// disttag.go) owns that projection on every read face.
+func repointFilteredLatest(doc map[string]any) {
+	tags := mapOf(doc["dist-tags"])
+	if tags == nil {
+		return
+	}
+	latest := stringOf(tags["latest"])
+	if latest == "" {
+		return
+	}
+	versions := versionsOf(doc)
+	if versions[latest] != nil {
+		return // the target survived: the base member's original value stands
+	}
+	if best := latestVersion(versions); best != "" {
+		tags["latest"] = best
+	}
 }
 
 // recomputeLatestTag points the latest tag at the greatest merged version
