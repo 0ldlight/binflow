@@ -110,7 +110,7 @@ func (e *Engine) TestTarget(ctx context.Context, cfg *ReplicationConfig, ov Targ
 	}
 
 	// §9.2-C-4 verbatim: a remote cache repository is not a legal target.
-	if strings.HasSuffix(targetRepo, "-cache") {
+	if strings.HasSuffix(targetRepo, remote.CacheSuffix) {
 		return TestResult{Message: "Replication to remote cache repositories is not allowed."}, nil
 	}
 

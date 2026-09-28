@@ -94,6 +94,7 @@ cache facet 是解析层对「`<K>-cache` 投影仓参与 local 桶」的等价�
 3. **过期副本亦服务**：cache 步不检查检索窗。依据 = §2 结构（cache 投影是 local 桶参与者，local 桶参与者无再验证机械）与 §3.8（virtual 缓存裁决以 lastModified 比较、无新鲜度语言）；§2「远端抑制」行（remote 本体被禁后 cache 投影仍参与）同向佐证。**此条是本设计最高风险的语义断言**，预登记差分项 O2（§8）。
 4. **负缓存行不影响 cache 步**：负缓存是 remote 本体的回源机械。并存态（新鲜负缓存 + 过期 standing copy）经 virtual 的表现 = cache 步服务 standing copy，与直读 remote 面（负缓存期内 404）不同——差分项 O3（§8）。
 5. **跳过规则**（§3.4/§3.6）：路径可解析出 release 模块信息且投影继承 `handleReleases=false` → 跳过该 cache 步；Maven 快照路径/`[INTEGRATION]` → **跳过全部 cache 步**（walk 层统一实施，协议无关同一代码路径）。
+   > **Errata 一-①（ADR-0051，2026-09-28）**：`handleReleases=false` 跳 cache 步的半边**降级为 F8 缝票**——remote canonical 配置不持久化 handle\*（恒读 true/true），该状态当前不可达、无观测差；快照跳过半边（T-530）已实现维持。F8 票口径与验收面见 ADR-0051 Errata 一-①。
 6. remote 本体 facet（段2/段4）= 既有 `probeRemoteMember` FR-20 全链原样（cache miss 后到达时才回源；stale 服务、403 透传、硬失败传播全部维持）。
 
 ## 4. 投影注册表（dev-go-storage 域）
@@ -134,6 +135,7 @@ type ProjectionRegistry interface {
 | 文件 | 改动 |
 |---|---|
 | `internal/repo/virtual.go:100-145` | `virtualMemberOrder` 重写为 §2 展开 + 四段拼接两函数；cache 步的 priority/handle* 从投影注册表读 |
+| （Errata 一-⑤，ADR-0051，2026-09-28） | 上行「从投影注册表读」已按 conductor 钉 a 结构性处理取代：walk 不消费投影注册表，cache 步由成员 ledger 行直接合成，priority 单源 = 成员行 config 同字段；handle\* 的注册表读取座位保留，walk 消费推迟到 F8 票 |
 | `internal/repo/virtual.go:194-237` | `getVirtual` walk 增 facet 分支：cache 步 = 对 remote key 复用 `probeLocalMember`；本体步 = 既有 `probeRemoteMember`；快照路径过滤 cache 步（§3.6） |
 | `internal/repo/virtual.go:134-139` | drift 分支（成员漂移为 virtual）从「warn 跳过」改为「递归展开」 |
 | `internal/repo/api.go:506-512` | `VirtualMember` 增 `Facet` 字段 + `VirtualMemberOrder` 契约注释翻新（两桶→四段）；`Priority` 语义不变 |
@@ -159,7 +161,15 @@ type ProjectionRegistry interface {
 | `internal/adapter/npm/virtual_packument.go` | 缓存仓去重：序列含任一 remote 本体 → 滤掉全部 cache 投影（防同仓双查） | §6 |
 | pypi/cargo/goproxy/deb/nuget×5/conan/rpm/helm 各 `virtual*.go` | 逐个核对：聚合遍历遇 `FacetCache` 步的处理（多数应跳过——协议聚合的成员语义以 remote 本体为单元） | §6 同源规则 |
 
-**兼容承诺**：`VirtualMember` 加字段是结构体字段追加，既有 `Key/Type/Priority` 读取方零破坏；未处理 `Facet` 的 adapter 行为 = cache 步按普通 remote 成员走 `ReadVirtualMember`（FR-20 全链）——即退回两桶时代的成员语义，无错误放大。
+**兼容承诺**：`VirtualMember` 加字段是结构体字段追加，既有 `Key/Type/Priority` 读取方零破坏；~~未处理 `Facet` 的 adapter 行为 = cache 步按普通 remote 成员走 `ReadVirtualMember`（FR-20 全链）——即退回两桶时代的成员语义，无错误放大~~（**Errata 一-④，ADR-0051，2026-09-28 作废替换**：walk 层（T-530）对 cache 步走 `probeLocalMember` 零上游读，未消费 Facet 的 adapter 经 `svc.Get`/walk 的读面自动获得新语义；「退回成员级语义」仅在 adapter 自行遍历 `VirtualMemberOrder` 且把 FacetCache 步当普通 remote 成员处理的聚合面成立——即 §5.3 必要动作要修的双读。后果：经 virtual 重复下载由 cache facet 服务、`X-BinFlow-Cache` 头不再出现，存量钉子翻新归 adapter 收口票）。
+
+**npm Facet 验收口径声明（Errata 一-④，ADR-0051；澄清不改 §5.3 npm 行语义，供 T-538 消费）**：
+
+1. 规则字面 = 虚拟解析规格 §6 行 1（filterCacheRepositoriesDuplication）：packument 合并遍历的成员序列含**任一** remote 本体步 → 滤掉**全部** cache 投影（滤除对象是全部 FacetCache 步，不限同 remote；防同仓双查是规则结果非规则本身）。
+2. 按字面实现，不做「恒滤」简化——F7（远端抑制）落地后存在「无本体步、cache 投影为唯一 remote 来源」的非平凡分支（序列不含本体步 → 不滤，cache 步保留参与合并）。
+3. 可观测锚：合并遍历对同仓不双读（cache 命中与回源命中可区分，I11 的 npm 面）；repeat tarball 经 virtual 由 cache facet 零上游服务、`X-BinFlow-Cache` 头消失（旧钉子断言按此翻新）。
+4. 边界（T-538 不做）：`<virtual>-cache` 聚合缓存写入（F5 维持每请求重算）、packument TTL/缓存行为、版本合并语义本身（putIfAbsent/dist-tags 并集既有规格不动）。
+5. 验证载体：npm CLI（npm install 经 virtual 拉包）+ curl 双发差分腿。
 
 ## 6. Maven 语义耦合点
 
@@ -211,12 +221,14 @@ type ProjectionRegistry interface {
 - O3：新鲜负缓存 + 过期 standing copy 并存时经 virtual 的表现。
 - O4：嵌套 + 混布局的路径翻译正确性（§3.3/§5.4 面）。
 - O5：browse 聚合 display 归属次序（§7.1 的 local 覆盖 remote 展示值未在本票实现，随 browse 面后续票）。
+- O6（Errata 一-③，ADR-0051，2026-09-28 新增）：`GET /api/storage/<K>-cache/<folder>` 在父 remote 开 listRemoteFolderItems=true 时的列表内容——本设计裁定为仅已缓存行（结构性读法：投影呈现 LOCAL 类 + 枚举合并挂 remote key 浏览面），规格无直接行为行；差分若证参照在 `-cache` 面合并远端行 → Errata 翻案回填。
 
 ## 9. 后续缝（不实现，留接口）
 
 | # | 缝 | 依据 |
 |---|---|---|
 | F1 | `GET /<K>-cache/<path>` 直访 + 投影 key 可寻址 | remote-cache-projection.md §2.1 |
+| （Errata 一-③ 残余，ADR-0051，2026-09-28） | F1 残余：`GET /api/storage/<K>-cache/...` 委托臂在父 remote 开 listRemoteFolderItems=true 时折入未缓存上游行——收口 = 投影分支改本地语义读取（已存行 only、miss 404 零上游），验收面与 O6 见 ADR-0051 Errata 一-③ | 评审 A N3 |
 | F2 | REST 存储面 locals→caches 取序 | §7.2 |
 | F3 | 搜索域 remote→cache key 映射 | §7.3 |
 | F4 | 统计路径重写 `<remote>-cache`（含 virtual 永不做统计主体） | §7.4 |
@@ -224,3 +236,4 @@ type ProjectionRegistry interface {
 | F6 | virtual patterns 三层过滤（§4 ①②③） | §4 |
 | F7 | 远端抑制 header + `artifactoryRequestsCanRetrieveRemoteArtifacts` 配置面（算法 gate 位已留） | §2「远端抑制」 |
 | F8 | §3 深水语义（非精确候选回退、403 透传、`[RELEASE]` 跨成员、virtual 缓存裁决/删除联动） | §3.4-3.9 |
+| （Errata 一-① 归并，ADR-0051，2026-09-28） | F8 扩面：§3 第 5 条 handle\* 半边（handleReleases/handleSnapshots=false 的成员级本体步 + 投影级 cache 步跳过）随本缝同收——前置 = canonical config 持久化 handle\* 两键；验收面见 ADR-0051 Errata 一-① | §3.4/评审 A N4 |

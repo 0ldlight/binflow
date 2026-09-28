@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -22,6 +23,7 @@ import (
 type npmVirtualFixture struct {
 	s        *stack
 	upstream *httptest.Server
+	hits     atomic.Int64
 }
 
 func newNPMVirtualFixture(t *testing.T, virtualConfig string) *npmVirtualFixture {
@@ -31,6 +33,7 @@ func newNPMVirtualFixture(t *testing.T, virtualConfig string) *npmVirtualFixture
 
 	f := &npmVirtualFixture{s: s}
 	f.upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f.hits.Add(1)
 		switch r.URL.Path {
 		case "/up-pkg/packument.json":
 			_, _ = w.Write([]byte(`{"_id":"up-pkg","name":"up-pkg",` +
