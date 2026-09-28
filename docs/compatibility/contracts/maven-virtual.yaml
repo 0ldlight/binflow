@@ -1,0 +1,178 @@
+# BinFlow 兼容契约——maven virtual/deploy 面（§5.1 M3 rider + version3 开关 + §5.2 GAV 门）
+# schema: compat-contract/1 —— 同域多条目单文件（沿 goproxy/npm 先例），条目键面全集：
+#   id/feature/surface/request/authentication/expect/side_effects/error_behavior/unobserved_reference_arms/
+#   binflow_state/version/evidence/confidence/status（divergence_ref 于 DIVERGENT/INTENTIONAL 时必填）。
+# 转写源：docs/reverse/virtual-resolution.md §5.1（合并表行 4）/§5.2（上传侧注）+
+#   docs/reverse/maven-npm-pypi.md §1.4（mvnMetadataVersion3Enabled 默认开）——契约与规格双向交叉引用
+#   （§5.1 表后已加回指注记，T-549/BIN-31，2026-09-28）。
+# 证据链：L030（A=7.161.26 Enterprise+ × B，r2/r3 双轮）测得 BIN-16/D-4 两 FAIL → f21f1c09（T-542/T-543）
+#   修复 → L030 case1/case2 双端复跑各连续两轮 PASS（reports/iteration-1542.md「L030 修复验收」；
+#   wire 宿主本地 run/r3-t542、run/r3-stab）→ 本文件 rider/GAV 两条目直上 VERIFIED（L018-2 同款定级口径：
+#   双端差分复验稳定 + 真客户端腿在册）。开关条目反向：off 臂双端零取证 → SPECIFIED/medium，禁猜。
+# 本文件 scope 收窄：仅 §5.1 M3 rider（snapshotVersions 条件性）、version3 开关生效序、§5.2 GAV 一致性门
+#   三面；§5.1 合并算法本体（versions 并集/latest/release 重算/snapshot 取大）不逐行重立断言——其差分
+#   对拍由 L030 case1 capable 腿「完全同形」背书，扩面留后续契约票。golden 候选（A 面 capable 腿 merged
+#   输出）需先定时间戳 normalize（fixtures/normalize.yaml 尚无 maven 域）——入金前置条件，本票仅登记。
+domain: maven
+scope: 'version 级 maven-metadata.xml 的 <snapshotVersions> M3 能力谓词（virtual 合并面 + local 成员服务面）、
+  mvn.metadata.version3.enabled 系统开关生效序、.pom 部署坐标↔路径一致性门（suppressPomConsistencyChecks）。
+  不含：模块级 metadata 合并全算法、[RELEASE]/[INTEGRATION] 记号、pom 引用清洗策略（§5.2 下载侧变换族）。'
+reference_instance: 'Artifactory 7.161.26 Enterprise+（192.168.120.38:8082，L030 经 127.0.0.1:18099 环回 relay
+  活体认证；version API 复验=7.161.26）'
+binflow_tested_instance: 'claude/r3-fixes 构建（f21f1c09 修复 + 3b58b082 复核加固；随 PR #163 合入 develop）——
+  L030 case1/case2 复验两轮 PASS（r3-t542 / r3-stab）'
+client_anchor: '真实 Apache Maven 3.9.16（deploy:deploy-file 构造腿 6 次/轮全 exit 0；GAV 失配腿双端 exit≠0）+
+  curl 可控 UA 腿（Apache-Maven/3.9.16 (Java 17.0.11; Mac OS X 15.0) 与 Java/1.8.0_391 两形态）'
+contracts:
+# ── §5.1 M3 能力谓词 rider（T-542/BIN-16 修复面）────────────────────────────────
+- id: maven/virtual-snapshot-versions-m3-rider
+  feature: 'version 级 maven-metadata.xml 的 <snapshotVersions> 按客户端 M3 能力谓词条件携带（virtual 合并面
+    + local 成员服务面同 rider；<snapshot> 块恒保留）'
+  surface: 'GET /{repoKey}/{orgPath}/{module}/{baseVer}-SNAPSHOT/maven-metadata.xml（+ .sha1/.md5 旁车）——
+    repoKey 为 virtual（合并响应）或 local（存储文档服务响应）'
+  request:
+    method: GET
+    path: '/{repoKey}/{orgPath}/{module}/{baseVer}-SNAPSHOT/maven-metadata.xml'
+    headers: { Authorization: 'Basic <valid>', User-Agent: '<判定输入——见 expect.rider_ua_family>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    rider_ua_family: '服务端对请求 User-Agent 头的求值（按序，行为句式）：① 未携带 User-Agent，或值经两端
+      空白裁剪后为空 → 判定「支持」；② 值全匹配 ^[Jj]ava/.+（Java/ 或 java/ 开头、斜杠后至少一字符——裸
+      java-agent 形态，如 Java/1.8.0_391）→ 判定「不支持」；③ 产品 token——首个 / 之前的名称段，经空白裁剪
+      并小写化——以 ivy 或 wharf 结尾（Apache Ivy/2.5.2、Ivy/2.4.0、Wharf/1.0）→ 判定「不支持」；④ 其余
+      一切 UA（Apache-Maven/3.9.16 (Java …)、Gradle、curl、自定义工具）→ 判定「支持」。'
+    arms:
+    - when: '判定「支持」+ 请求为快照级路径（…/{baseVer}-SNAPSHOT/maven-metadata.xml）'
+      status: 200
+      body: { format: xml, note: '携带 <snapshotVersions>：virtual 面=合并算法按同 (extension, classifier) 取较新成员值；local 面=存储文档原值。<snapshot>（buildNumber/timestamp）按各自既有规则（合并面取成员较大 bn）' }
+    - when: '判定「不支持」（族 ②/③）+ 快照级路径'
+      status: 200
+      body: { format: xml, note: '<snapshotVersions> 整体剥除（元素缺席，非置空）；<snapshot> 块（buildNumber/timestamp）保留。作用面=virtual 合并响应体与 local 成员仓自身文档响应体两平面（同一 rider）' }
+    - when: '判定「不支持」+ 同文档 .sha1/.md5 旁车 GET'
+      status: 200
+      body: { format: text, note: '摘要=剥离后 body 的对应摘要（body 与旁车自洽——同一 GET 对不互相矛盾）；.sha256 不在旁车契约面（见 unobserved）' }
+    - when: '模块级（版本组目录 {orgPath}/{module}/maven-metadata.xml）请求'
+      status: 200
+      body: { format: xml, note: 'rider 不适用（模块级文档本无 <snapshotVersions>），任一 UA 原样服务' }
+    level_note: '快照级判定=路径模块段以 -SNAPSHOT 结尾（与合并算法的层级切分同型）；本 rider 仅作用 version 级文档。'
+  side_effects: []
+  error_behavior: []
+  unobserved_reference_arms:
+    - '判定族 ①③④ 的非 Maven 形态（空 UA / Ivy / Wharf / Gradle / curl）A 面 wire 取证——现证据=反编译 advisory（L030 报告处置建议）+ B 面 table 测试钉住；L030 仅实测 Apache-Maven 与 Java/1.8.0_391 两形态'
+    - 'remote 仓直 GET 的 rider 适用性（A 面未取证；BinFlow 未实现——T-542 漂移点 c）'
+    - 'local 成员仓 .sha256 旁车在 java-agent 腿的形态（A 面未取证；BinFlow 三摘要模型外恒 404）'
+  binflow_state:
+    verdict: 'VERIFIED（L030 case1 修复后双端复跑连续两轮 PASS：java-agent UA 下 virtual/member 两面剥除、
+      M3-capable 合并——B 腿 asserts 与 A 腿逐键一致〔virt_m3cap_sv=present / virt_m3no_sv=stripped /
+      member_m3no_sv=stripped / snapshot bn 存活〕；Apache Maven 3.9.16 真腿验收）'
+    detail: 'f21f1c09（T-542）：谓词落 virtual 合并与 local 成员两个服务路径；3b58b082（评审加固）：成员面
+      .sha1/.md5 旁车=剥离后 body 派生摘要（双向断言配对一致）。台账 known-divergence#
+      maven/virtual-member-metadata-snapshotversions-ua-gate（BUG）已随本契约回填 resolved（T-549）。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'claude/r3-fixes f21f1c09+3b58b082（PR #163 → develop）' }
+  evidence:
+    - { kind: probe, report: docs/reverse/virtual-resolution.md, anchor: '§5.1 合并表行 4（v3 记号仅当系统开关+快照 metadata+客户端 M3 谓词齐备才合并，否则剥除——高置信）', date: '2026-09-28' }
+    - { kind: difftest, report: reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md, anchor: 'Case 1（r2/r3 双轮稳定：A 面 live 条件合并与 §5.1 逐字吻合；B 修复前违例双暴露面）', date: '2026-09-28' }
+    - { kind: implementation, report: reports/agents/T-542.md, anchor: 'UA 判定族 + 双服务面 + 旁车派生（Tests/Outputs：TestClientSupportsM3SnapshotVersions 十行 table + TestSnapshotVersionsUAStripping 真栈四腿）', date: '2026-09-28' }
+    - { kind: difftest, report: reports/agents/T-542.md, anchor: 'Outputs 段（复跑两轮 PASS：r3-t542 + r3-stab，与 A 腿逐键一致）+ reports/iteration-1542.md「L030 修复验收」节', date: '2026-09-28' }
+  confidence: high
+  status: VERIFIED
+# ── mvn.metadata.version3.enabled 开关（T-549 定契约面）────────────────────────
+- id: maven/metadata-version3-system-switch
+  feature: '系统开关 mvn.metadata.version3.enabled（反编译常量名 mvnMetadataVersion3Enabled，默认开）对
+    <snapshotVersions> 面的门控与生效序（开关 vs UA 谓词 vs 路径层级）'
+  surface: '系统级配置（Java 系统属性族——非 HTTP 路由面）；作用面=maven-metadata.xml 生成计算、virtual 合并、
+    version 级文档服务'
+  request: { method: none, note: '开关面无 wire 请求——观测面为开关两态下的 version 级 maven-metadata.xml 响应' }
+  authentication: { type: system_property, role: operator }
+  expect:
+    composition: '生效序结论：开关与客户端 UA 谓词之间**无优先序——纯合取门**。version 级文档响应携带
+      <snapshotVersions> 当且仅当「开关开启 ∧ 请求路径为快照级 metadata ∧ 客户端判定支持（见
+      maven/virtual-snapshot-versions-m3-rider 判定族）」三条件同时成立；任一不成立 → <snapshotVersions>
+      剥除（<snapshot> 块不受影响）。不存在「开关关但 capable 客户端仍获得」或反之的覆盖臂——两条件位
+      独立、地位对等。'
+    default_state: '开（true）——A 面 7.161.26 实例默认开态下 L030 已 live 验证 UA 两腿（capable=携带 /
+      java-agent=剥除，virtual+member 两面）。'
+    off_state: '关（false）臂**双端零取证**（A 实例全程默认开运行；差分从未切换系统属性）：virtual 合并面
+      按 §5.1 行 4 真值表推演为剥除；local 成员服务面与生成面（§1.4）在关态下的形态规格未展开——不立
+      断言，登记于 evidence_gaps。'
+    knob_independence: '与 suppressPomConsistencyChecks 零交互：后者是 PUT 侧仓级配置旋钮（pom 坐标↔路径
+      一致性，见 maven/deploy-pom-path-consistency-gate），本开关是 GET/生成侧系统级开关——不同面不同
+      层，无生效序可言（T-549 票面问题的否定性结论）。'
+    evidence_gaps:
+      - '点分拼写 mvn.metadata.version3.enabled 未在 docs/reverse/ 落锚（docs/reverse 只记常量名
+        mvnMetadataVersion3Enabled——maven-npm-pypi.md §1.4；点分记法首见 L030 报告措辞）→ 开关名置信 medium'
+      - '§5.1 合并面「系统开关」与 §1.4 生成面 mvnMetadataVersion3Enabled 是否同一开关配置源——两处规格各自
+        高置信，但「同一开关」的联结系推定（T-544 台账 authority 采此联结）→ medium'
+      - '关臂在 local 成员服务面/生成面的行为：§5.1 只覆盖合并拦截器面，L030 成员腿证据采于开态 → UNKNOWN，待差分'
+  side_effects: []
+  error_behavior: []
+  unobserved_reference_arms:
+    - '开关=关臂的一切 A 面行为（virtual 合并面/local 成员面/生成面）——双端未取证，禁猜'
+    - '开关切换（开↔关）后已存聚合缓存/存储文档的失效联动（npm 域有 zap/evict 先例，maven 面规格未覆盖）'
+  binflow_state:
+    verdict: 'SPECIFIED（关臂零证据不停留高态；开臂行为已由 maven/virtual-snapshot-versions-m3-rider 条目
+      VERIFIED 间接钉住）'
+    detail: 'BinFlow **无开关配置面**——行为恒等「开」臂（T-542 显式按默认开实现，漂移点 a 移交本票定
+      契约）。off-face 缺位是否立案（系统属性操作面是否属 BinFlow parity 范围）为产品裁定候选，本票不裁；
+      若裁「需对齐」，实现面为系统配置席位 + 关臂三面行为 + 差分对拍（A 侧需可切换属性的操作窗口）。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'n/a（无开关实现；开臂见 rider 条目）' }
+  evidence:
+    - { kind: probe, report: docs/reverse/virtual-resolution.md, anchor: '§5.1 合并表行 4（三条件合取真值表——高置信，反编译可逐分支复读）', date: '2026-09-28' }
+    - { kind: probe, report: docs/reverse/maven-npm-pypi.md, anchor: '§1.4 SNAPSHOT 版本目录规则（<snapshotVersions> 默认开启〔mvnMetadataVersion3Enabled〕，每 (ext, classifier) 取最新——高置信）', date: '2026-09-28' }
+    - { kind: difftest, report: reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md, anchor: 'Case 1（A 面默认开态两 UA 腿 live——开关存在性与默认值的行为学证据）', date: '2026-09-28' }
+  confidence: medium
+  status: SPECIFIED
+# ── §5.2 GAV 一致性门（T-543/D-4 修复面）──────────────────────────────────────
+- id: maven/deploy-pom-path-consistency-gate
+  feature: '.pom 部署的 POM 坐标↔目标路径一致性校验（失配 409 拒绝零落盘；仓级旋钮
+    suppressPomConsistencyChecks 默认 false=校验开）'
+  surface: 'PUT /{repoKey}/{orgPath}/{module}/{ver}/{module}-{ver}.pom（local 直达，或经 virtual 路由至
+    defaultDeploymentRepo——旋钮绑定落库仓配置）'
+  request:
+    method: PUT
+    path: '/{repoKey}/{orgPath}/{module}/{ver}/{module}-{ver}.pom'
+    headers: { Authorization: 'Basic <valid>' }
+    body: 'Maven POM（XML；坐标取 <groupId>/<artifactId>/<version>，groupId/version 可经 <parent> 继承，artifactId 恒取项目自身）'
+  authentication: { type: basic, role: user }
+  expect:
+    arms:
+    - when: 'POM 坐标（继承后）与路径 GAV（orgPath/module/ver 三段）一致'
+      status: 201
+      body: { format: json, note: 'created envelope（uri/downloadUri/repo…）——与通用 deploy 201 同族' }
+    - when: '失配（如 POM=com.diff:right-lib:1.0.0 vs 路径 com/diff/wrong-lib/1.0.0/wrong-lib-1.0.0.pom）'
+      status: 409
+      body:
+        format: json
+        literal_pattern: "errors[] 单元素；message=\"The target deployment path '<目标路径>' does not match
+          the POM's expected path prefix '<orgPath>/<module>/<ver>'. Please verify your POM content for
+          correctness and make sure the source path is a valid Maven repository root path.\"（A 面 7.161.26
+          活体全文锚 body sha256=278e10beabc3d90ea5f797a6fe80d1a39d8eef376a6f4cb301030fce5d63247b）"
+      followup: '拒绝件零落盘（同路径 GET 404）；真实 mvn deploy:deploy-file exit 1（客户端侧 409 Conflict）'
+    - when: '落库仓 suppressPomConsistencyChecks=true（默认 false）'
+      status: 201
+      body: { format: json, note: '同失配 PUT 回 201 created envelope（A 面活体取证，T-543 前置）；旋钮语义绑定落库仓——经 virtual 部署取 defaultDeploymentRepo 成员配置' }
+  side_effects: []
+  error_behavior:
+    - { when: '失配且旋钮 false', status: 409, body_literal: '见 arms 失配臂（errors[] 信封 + 路径前缀模板）' }
+  unobserved_reference_arms:
+    - 'POM 不可解析或坐标不全（继承后 groupId/artifactId/version 任一空）的受理形态（A 未取证；BinFlow 按不拒实现——T-543 显式不猜臂）'
+    - 'body>4MiB 的行为（BinFlow 流式放行+WARN；A 面未取证）'
+    - 'X-Checksum-Deploy（零字节 pom）腿过门形态（无内容可校；A 面未取证）'
+    - '<parent> 跨文件外部 parent 引用的坐标继承（BinFlow 按声明值取，不解析外部 parent pom）'
+    - '409 Content-Type 字符集（A=application/json;charset=ISO-8859-1 vs B=application/json——T-543 漂移点 a，归一候选未对齐）与 JSON 缩进风格（A " : " 惯例 vs B 统一信封）'
+  binflow_state:
+    verdict: 'VERIFIED（L030 case2 修复后双端复跑连续两轮 PASS：put_mismatch_status=409 /
+      put_mismatch_get=404 / mvn_mismatch_exit=nonzero / mvn_mismatch_path_get=404——B 腿与 A 腿逐键一致；
+      一致控制腿双端 201 无误报）'
+    detail: 'f21f1c09（T-543）：落库前门（unique-snapshot 改名与存储之前——拒绝件零落盘）+
+      suppressPomConsistencyChecks 死旋钮接活（config.go 解析默认 false）。台账 known-divergence#
+      maven/deploy-gav-mismatch-pom-consistency-check（BUG）已随本契约回填 resolved（T-549）。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'claude/r3-fixes f21f1c09（PR #163 → develop）' }
+  evidence:
+    - { kind: probe, report: docs/reverse/virtual-resolution.md, anchor: '§5.2 上传侧注 L108（pom 坐标↔目标路径一致性校验，按 suppressPomConsistencyChecks 决定拒绝与否——Maven 仓通用校验）', date: '2026-09-28' }
+    - { kind: difftest, report: reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md, anchor: 'Case 2（r2/r3 稳定：A 409 errors[] sha256 双锚 + 路径 GET 404 + mvn exit 1；B 修复前 201 落盘四违例）', date: '2026-09-28' }
+    - { kind: implementation, report: reports/agents/T-543.md, anchor: '门实现 + 旋钮接活 + 前置活体取证（suppress=true 失配 201 臂 A 面 wire 捕获）+ 复跑两轮 PASS（r3-t543 / r3-stab）', date: '2026-09-28' }
+    - { kind: difftest, report: reports/iteration-1542.md, anchor: '「L030 修复验收」节（case2 双端复跑 PASS：错误体与 A 逐字节一致含尾句、零落盘、旋钮接活默认 false/true 两态）', date: '2026-09-28' }
+  confidence: high
+  status: VERIFIED

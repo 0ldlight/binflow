@@ -1263,6 +1263,7 @@ entries:
   authority: { type: spec_ruling, ref: "docs/reverse/virtual-resolution.md §5.1（L90 合并表，高置信：v3 记号仅当系统开关+快照 metadata+客户端 M3 谓词齐备才合并，否则剥除）+ docs/reverse/maven-npm-pypi.md L90（mvnMetadataVersion3Enabled 默认开）" }
   review_gate: R3 实现票 T-542/BIN-25 in flight（clientSupportsM3SnapshotVersions 谓词落 virtual 合并与 local 成员两个服务路径）；修后以 L030 Case 1 复验翻绿 → resolved
   evidence: reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md Case 1（r2/r3 双轮稳定；wire 证据 run/l030-r1..r3 宿主本地）
+  resolved: { date: '2026-09-28', evidence: 'reports/iteration-1542.md「L030 修复验收」（T-542/BIN-25 f21f1c09：L030 case1 双端复跑 PASS 连续两轮——java-agent UA 下 virtual/member 两面 <snapshotVersions> 剥除、<snapshot> 块保留，M3-capable 合并，Apache Maven 3.9.16 真腿验收；r3-t542+r3-stab wire 宿主本地；评审加固 3b58b082 成员面 sidecar 派生摘要配对一致）+ 契约化 contracts/maven-virtual.yaml#maven/virtual-snapshot-versions-m3-rider（VERIFIED/high，UA 判定族已形式化——T-549/BIN-31）' }
 - id: maven/deploy-gav-mismatch-pom-consistency-check
   surface: 'maven deploy pom 坐标↔目标路径一致性校验（GAV 失配臂：A 409 拒绝未落盘 vs B 201 落盘）'
   classification: BUG
@@ -1277,6 +1278,7 @@ entries:
   authority: { type: spec_ruling, ref: "docs/reverse/virtual-resolution.md §5.2 L108（上传侧注：经 virtual 落 defaultDeploymentRepo 的 pom 做 pom 坐标↔目标路径一致性校验，不一致按 suppressPomConsistencyChecks 决定拒绝与否——Maven 仓通用校验）" }
   review_gate: R3 实现票 T-543/BIN-26 in flight（校验执行点落地 + suppressPomConsistencyChecks 旋钮接线）；修后以 L030 Case 2 复验翻绿 → resolved
   evidence: reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md Case 2（409 体逐字+sha256 双锚，r2/r3）
+  resolved: { date: '2026-09-28', evidence: 'reports/iteration-1542.md「L030 修复验收」（T-543/BIN-26 f21f1c09：L030 case2 双端复跑 PASS——GAV 失配 PUT 409+errors[]（错误体与 A 面活体逐字节一致含 "…valid Maven repository root path." 尾）、拒绝路径零落盘 GET 404、真实 mvn exit 1、suppressPomConsistencyChecks 死旋钮接活〔默认 false=校验开，true→201——suppress=true 臂 A 面活体取证 T-543 前置〕）+ 契约化 contracts/maven-virtual.yaml#maven/deploy-pom-path-consistency-gate（VERIFIED/high——T-549/BIN-31）' }
 - id: npm/remote-upstream-wire-identity-mapping
   surface: npm remote 上游 wire 路径映射（存储布局 identity 映射 vs registry 方言翻译——UpstreamPath facet 缺席）
   classification: UNKNOWN
@@ -1332,3 +1334,23 @@ entries:
   authority: { type: differential, ref: "reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md 顺带观察 2" }
   review_gate: 差分腿覆盖（L2/L3 批次目录 GET 臂：不存在+存在目录双臂对拍）→ 对齐微票（裸 GET 不存在 → 404）+ 复验后 resolved；R-24b 批复联动注记
   evidence: reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md 顺带观察 2
+- id: npm/virtual-packument-merge-latest-tag
+  surface: npm virtual packument 合并的 dist-tags.latest 语义（上游 latest 指向非最大版本时：A 保留 base 成员标签原值 vs B 重算为最大版本——L031 三 case 同根）
+  classification: BUG
+  rationale: >-
+    L031（2026-09-28，A 7.161.26 Enterprise+ @ :8082 经直连 8081 上游拓扑 × B claude/r3-fixes 51c1a1c4 构建，
+    r2≡r3 双轮逐断言值稳定、双客户端〔curl + npm CLI 11.19.0/node v24.20.0〕一致）：virtual packument 合并
+    的 dist-tags.latest——上游 dist-tags 刻意回拨 latest→1.0.0（同时存在 2.0.0）时，A 面**保留产出成员
+    （base）的标签原值 1.0.0**，B 面**无条件重算为最大版本 2.0.0**（T-538 FacetCache 合并实现注释「latest
+    重算」的无条件读法）；三 case（curl packument 臂 / cache 成员布局臂 / npm view dist-tags 臂）一致复现
+    同一根因，其余键（stable 标签并集、版本并集、shadow locals 恒先、tarball 字节保真、404 族）双端全绿。
+    规格侧 docs/reverse/maven-npm-pypi.md §2.6「被排除模式过滤后……latest 标签重算」的**条件性读法与
+    A 面 live 吻合**（无排除模式时不重算）。严重度低（真实 registry 的 latest 恒为最大版本，两语义仅在
+    手工维护/时间窗发布的内部源上分叉）。**fix in flight R4（T-548/BIN-30）**，修复面=internal/adapter/npm
+    聚合 latest 规则改条件性重算（仅排除模式生效时）。去重注记：与 #npm/dist-tags-latest-recompute
+    （local 仓 dist-tags 端点 DELETE latest 读时重算，L012 域，已 resolved）及 #npm/packument-latest-recompute
+    （local 仓 packument GET 读时重算，L013-r15，已 resolved）均为**不同面**（virtual packument 合并 vs
+    local 读时重算）——local 面两账的「读时重算」语义不受本账影响，非重复登记。
+  authority: { type: differential, ref: "reports/compatibility/L031-npm-v2-facet-filter.md 批次汇总（唯一实质差异节：r2≡r3 稳定判据成立，三 case 同根）+ docs/reverse/maven-npm-pypi.md §2.6 条件性读法（规格锚）" }
+  review_gate: R4 实现票 T-548/BIN-30 in flight（聚合 latest 规则条件性重算）；修后以 L031 复验翻绿 → resolved（滞后一轮回填节奏，同 BIN-16/D-4 先例——T-549 本票不抢跑）
+  evidence: reports/compatibility/L031-npm-v2-facet-filter.md（Case 1/2/3 + 批次汇总；wire 证据 run/l031-npm-r{2,3} 宿主本地）

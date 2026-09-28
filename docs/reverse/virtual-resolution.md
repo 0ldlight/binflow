@@ -93,6 +93,13 @@
 | 不缓存 | 合并结果不写 `<virtual>-cache`（区别于 npm，见 §6）；每请求重算 | 高 |
 | 索引例外 | Maven 索引文件（`.index`）不走合并，恒返回 virtual 自身缓存副本（若缓存里没有则按普通文件解析） | 高 | MavenMetadataInterceptor.shouldReturnCachedResource |
 
+> 契约化交叉引用（T-549/BIN-31，2026-09-28，compatibility-engineer 加注——不改上文断言）：本节行 4 的
+> 客户端 M3 能力谓词判定族（空 UA=支持；`^[Jj]ava/.+` 全匹配=不支持；Ivy/Wharf 产品 token=不支持；其余=
+> 支持）与「系统开关」的生效序（开关 × 快照级路径 × UA 谓词=纯合取门，无优先序；off 臂零取证）已形式化为
+> 可执行契约：`docs/compatibility/contracts/maven-virtual.yaml`（rider VERIFIED / 开关 SPECIFIED——
+> 开关点分拼写 mvn.metadata.version3.enabled 与 §1.4 生成面常量名的同一性联结为推定，证据缺口在契约内
+> 如实标注）。
+
 ### 5.2 pom 引用清洗（下载侧变换）
 
 当客户端经 virtual 下载 `.pom` 文件（Maven/Gradle 系包型），服务端按 virtual 的 `pomRepositoryReferencesCleanupPolicy` 现场改写 pom（`artifactory-core org/artifactory/repo/virtual/interceptor/PomInterceptor.java` + `.../interceptor/transformer/PomTransformer.java`）：
