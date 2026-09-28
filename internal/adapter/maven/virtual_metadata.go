@@ -189,8 +189,9 @@ type metadataWalkStep struct {
 // carries the cache semantics — one remote, one read, never the standing
 // copy too), and a member whose policy refuses the level's class does not
 // contribute (snapshot-level documents skip handleSnapshots=false members
-// — §5.1 explicit; module-level lists skip handleReleases=false, the
-// adapter-side mirror of the walk layer's release skip, §3.4). The
+// — §5.1 explicit; module-level lists skip handleReleases=false, §3.4's
+// release skip — the adapter-side mirror of the walk layer's T-541
+// implementation, same rule, same member-row source). The
 // foundByPriority short-circuit is NOT applied here: it keys on document
 // production, which only the walk observes.
 func filterMetadataSteps(steps []metadataWalkStep, level metadataLevel) []metadataWalkStep {
@@ -203,6 +204,12 @@ func filterMetadataSteps(steps []metadataWalkStep, level metadataLevel) []metada
 			continue
 		}
 		if level == levelModule && !s.HandleReleases {
+			// T-531's drift point 1, still standing as a differential
+			// candidate: §5.1 names only the snapshot-level skip — this
+			// module-level branch is §3.4's mirror, implemented in the
+			// walk layer too since T-541 (internal/repo getVirtual). A
+			// differential refutation flips BOTH sites together, never
+			// this branch alone.
 			continue
 		}
 		out = append(out, s)

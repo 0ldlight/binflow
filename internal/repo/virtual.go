@@ -104,6 +104,13 @@ type virtualMember struct {
 	cfg      string
 	facet    Facet // FacetCache only on TypeRemote steps
 	priority bool  // the member's priorityResolution mark (cache facets inherit the remote's)
+	// handleReleases/handleSnapshots are the member's policy pair the
+	// release/snapshot walk skips key on (T-541, virtual-resolution.md
+	// sections 3.4/3.6 — design section 3 rule 5's formerly unimplemented
+	// half). Absent = true, the Artifactory default; a cache facet inherits
+	// the remote's pair by construction (the step is a copy of the remote's).
+	handleReleases  bool
+	handleSnapshots bool
 }
 
 // expandVirtualMembers is the declaration-order DFS of one virtual's member
@@ -134,12 +141,15 @@ func (s *service) expandVirtualMembers(ctx context.Context, virtualKey string, v
 		if visited[row.MemberRepo] {
 			continue // key dedup (first occurrence wins) and cycle cut in one check
 		}
+		handleReleases, handleSnapshots := memberHandlePolicy(member.Config)
 		step := virtualMember{
-			key:      member.RepoKey,
-			typ:      member.Type,
-			pkg:      member.PackageType,
-			cfg:      member.Config,
-			priority: memberPriorityResolution(member.Config),
+			key:             member.RepoKey,
+			typ:             member.Type,
+			pkg:             member.PackageType,
+			cfg:             member.Config,
+			priority:        memberPriorityResolution(member.Config),
+			handleReleases:  handleReleases,
+			handleSnapshots: handleSnapshots,
 		}
 		switch member.Type {
 		case TypeLocal:
@@ -239,6 +249,36 @@ func memberPriorityResolution(config string) bool {
 	return probe.PriorityResolution
 }
 
+// memberHandlePolicy reads the handleReleases/handleSnapshots pair out of a
+// member row's config JSON — the policy the walk's release/snapshot skips
+// key on (T-541; virtual-resolution.md sections 3.4/3.6, design section 3
+// rule 5). The seats are pointers so an explicit false stays distinct from
+// absent: absent = TRUE, the Artifactory default the projection registry
+// also inherits (remote-cache-projection.md section 1.2); a probe failure
+// (hand-mangled row) keeps the same lenient pair — the memberPriorityReso-
+// lution posture. The remote canonical form carries no seats today
+// (ADR-0051 Errata 一-①: parseRemoteConfig drops them), so canonical remote
+// rows read true/true and never skip — the policy is live for the rows that
+// spell the pair (local passthrough blobs — reachable through the ordinary
+// write plane — and remote rows seeded once the canonical seats land).
+func memberHandlePolicy(config string) (handleReleases, handleSnapshots bool) {
+	var probe struct {
+		HandleReleases  *bool `json:"handleReleases"`
+		HandleSnapshots *bool `json:"handleSnapshots"`
+	}
+	handleReleases, handleSnapshots = true, true
+	if err := json.Unmarshal([]byte(config), &probe); err != nil {
+		return handleReleases, handleSnapshots
+	}
+	if probe.HandleReleases != nil {
+		handleReleases = *probe.HandleReleases
+	}
+	if probe.HandleSnapshots != nil {
+		handleSnapshots = *probe.HandleSnapshots
+	}
+	return handleReleases, handleSnapshots
+}
+
 // getVirtual is the Get branch of a virtual repository: walk the
 // four-segment member order, first hit wins. The read gate has already run
 // on the VIRTUAL key at Get's top (authorization addresses the repository
@@ -262,7 +302,9 @@ func memberPriorityResolution(config string) bool {
 //     resolution section 2's local bucket; design section 3, risk item
 //     O2). Snapshot-family paths skip ALL cache facets (section 3.6: the
 //     snapshots are the remote body's own business) — one walk-layer
-//     rule, protocol-agnostic.
+//     rule, protocol-agnostic. Release-resolvable paths whose projection
+//     inherits handleReleases=false skip the cache step too (section 3.4
+//     via design section 3 rule 5, T-541).
 //   - remote BODY facet: the full FR-20 proxy chain (cache, stale
 //     downgrade, guarded upstream contact — M50's upstream-package case
 //     depends on it). The engine's classified outcome drives the R10
@@ -275,6 +317,20 @@ func memberPriorityResolution(config string) bool {
 //     true 404 continues" — masking a security refusal or a demanded hard
 //     failure as a virtual-wide 404 would hide a configured behavior, and
 //     RE-08/QA surface both through the member's own wording.
+//
+// The handle* policy skips run BEFORE any probe (T-541, the design
+// section 3 rule 5 half ADR-0051 Errata 一-① collects here): a member
+// whose handleReleases=false is dropped from a release-resolvable path —
+// body step AND cache projection both — and a member whose handleSnap-
+// shots=false is dropped from a snapshot-family path beside the cache
+// facets T-530 already skips there (virtual-resolution sections 3.4/3.6).
+// "Release-resolvable" is the walk's binary family split — not
+// snapshot-family and not a checksum sidecar — the same structural
+// reading isSnapshotResolutionPath itself is; §3.4's checksum-sidecar
+// exemption (the 旁车 clause) keeps a release-refusing member serving
+// digest files. A skipped member costs zero upstream contact; the skips
+// are unreachable through the remote canonical write plane today (no
+// handle* seats), so default-configured repositories behave identically.
 //
 // An exploratory miss leaves NO cache residue behind (ADR-0013: virtual
 // member scans must not pollute the members' caches) — see
@@ -292,16 +348,30 @@ func (s *service) getVirtual(ctx context.Context, p *Principal, virtualKey, path
 		// about which member leads).
 		return s.getVirtualFolder(ctx, p, virtualKey, path, order)
 	}
-	skipCaches := isSnapshotResolutionPath(path)
+	snapshotPath := isSnapshotResolutionPath(path)
+	// The release-skip family: neither snapshot-family nor a checksum
+	// sidecar. The walk's structural approximation of §3.4's "路径可解析出
+	// release 模块信息" — no GAVC/layout parser, the same binary family
+	// split isSnapshotResolutionPath itself is.
+	releasePath := !snapshotPath && !isChecksumSidecarPath(path)
 	for _, m := range order {
+		// The handle* policy skips (T-541, sections 3.4/3.6): a cache facet
+		// inherits the remote's pair, so a release-refusing member loses
+		// BOTH its steps; a snapshot-refusing member loses its body step
+		// beside the cache facets the snapshot plane already drops.
+		if m.facet == FacetCache {
+			if snapshotPath || (releasePath && !m.handleReleases) {
+				continue
+			}
+		} else if (snapshotPath && !m.handleSnapshots) || (releasePath && !m.handleReleases) {
+			continue
+		}
 		var (
 			rc   io.ReadSeekCloser
 			node *metadata.Node
 			hit  bool
 		)
 		switch {
-		case m.facet == FacetCache && skipCaches:
-			continue // snapshot-family path: no cache facet participates
 		case m.facet == FacetCache:
 			// The remote's standing copies, local semantics (zero upstream).
 			rc, node, hit, err = s.probeLocalMember(ctx, m.key, path)
@@ -349,6 +419,19 @@ func isSnapshotResolutionPath(path string) bool {
 		}
 	}
 	return false
+}
+
+// isChecksumSidecarPath reports whether the path addresses a checksum
+// sidecar — §3.4's exemption from the release skip (the 旁车 clause): a
+// member that refuses releases still serves the digest files beside them,
+// so a client's checksum repair never depends on the member's release
+// policy. The digest spelling set is the content plane's own sidecar
+// family (splitMemberChecksumSuffix, the three-digest model); a file
+// genuinely named "*.sha1" reads the same way — the ambiguity the archive
+// face already registered, same posture.
+func isChecksumSidecarPath(path string) bool {
+	_, algo := splitMemberChecksumSuffix(path)
+	return algo != ""
 }
 
 // probeLocalMember looks the path up in a local member's namespace. The
