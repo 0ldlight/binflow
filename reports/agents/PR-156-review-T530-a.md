@@ -1,4 +1,4 @@
-# PR-152 Reviewer A — T-530 virtual 四桶解析序 + F1 直访 + D-2 DELETE（correctness 形态）
+# PR-156 Reviewer A — T-530 virtual 四桶解析序 + F1 直访 + D-2 DELETE（correctness 形态）
 
 ```
 Ticket:        T-530 [P0] virtual 四桶解析序实现 + <K>-cache 直访缝（F1）+ virtual DELETE 404 语义修复（D-2）
@@ -49,7 +49,7 @@ Blockers:      无（全部取证命令可跑、全部通过）
 Next:          ① 建议登记小票：N1 裸 "-cache" key 建仓放行（对齐 §1.3 全后缀拒绝）+ N2 cacheProjectionFolder 的 folder
                判据对齐 emptyFolderSHA；② 建议把 N3（api/storage/-cache 在 listRemoteFolderItems 开启时折入上游枚举行）
                登记为 F1 残余缝或随 F2/F4 面一起收；③ N4（walk 层 handle* 跳过规则半边）建议随 F8 深水语义票登记；
-               ④ 差分腿 O1/O2/O3 重点臂复跑（mvn CLI + curl 双发）；⑤ I11 落点在 T-531（adapter Facet 消费），PR-152
+               ④ 差分腿 O1/O2/O3 重点臂复跑（mvn CLI + curl 双发）；⑤ I11 落点在 T-531（adapter Facet 消费），PR-156
                合并前确认 T-531 评审覆盖之；⑥ 本票为关键域（repository/remote cache/protocol）——双审 Reviewer B
                （architecture 形态）应并行出具 PR-156-review-T530-b.md
 ```

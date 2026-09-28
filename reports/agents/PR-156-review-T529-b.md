@@ -1,4 +1,4 @@
-# PR-152 · T-529 评审报告（Reviewer B / architecture 形态）
+# PR-156 · T-529 评审报告（Reviewer B / architecture 形态）
 
 Ticket:        T-529 [P0] `<K>-cache` 投影派生注册表（virtual 四桶解析 remote 侧底座）
 Role:          code-reviewer (reviewer-b)
