@@ -392,9 +392,17 @@ func TestVirtualWriteRouting(t *testing.T) {
 	if status, body, _ := f.put("/binflow/"+f.vkey+"/repodata/repomd.xml", []byte("x"), nil); status != http.StatusForbidden {
 		t.Fatalf("virtual repomd PUT = (%d, %s), want 403", status, body)
 	}
-	// DELETE never propagates through the virtual.
-	if status, _, _ := f.delete("/binflow/" + f.vkey + "/routed-1.0-1.noarch.rpm"); status != http.StatusMethodNotAllowed {
-		t.Fatalf("virtual DELETE = %d, want the never-propagates 405", status)
+	// DELETE through the virtual touches only the virtual's own
+	// aggregation storage — a path it does not hold answers 404 (rpm's
+	// ITEM_NOT_FOUND wording) and the member's entity survives
+	// (virtual-resolution.md section 7.5 errata; the pre-T-524 405
+	// refusal is retired — maven T-531's precedent).
+	if status, body, _ := f.delete("/binflow/" + f.vkey + "/routed-1.0-1.noarch.rpm"); status != http.StatusNotFound ||
+		!strings.Contains(body, "'"+f.vkey+"/routed-1.0-1.noarch.rpm' not found") {
+		t.Fatalf("virtual DELETE = (%d, %s), want the 404", status, body)
+	}
+	if status, _, _ := s.get("/binflow/m1/routed-1.0-1.noarch.rpm"); status != http.StatusOK {
+		t.Fatalf("member package after the virtual delete = %d, want 200 (deletes never propagate)", status)
 	}
 }
 

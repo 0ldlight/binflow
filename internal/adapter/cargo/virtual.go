@@ -118,9 +118,10 @@ func (h *Handler) serveVirtual(ctx context.Context, w http.ResponseWriter, r *ht
 		case http.MethodPut:
 			h.serveVirtualDerivedWrite(ctx, w, r, p, repoKey, segIndex+"/"+rt.pkgPath)
 		case http.MethodDelete:
-			// Deletes never propagate through a virtual repository: the
-			// service's own refusal (the routed/un-routed wording pair) is
-			// the honest answer, rendered verbatim.
+			// Delete touches only the virtual's own aggregation storage
+			// (section 7.5's errata, T-530's D-2): a path the virtual does
+			// not hold answers the service's ITEM_NOT_FOUND 404 — deletes
+			// never reach the members.
 			if err := h.svc.Delete(ctx, p, repoKey, segIndex+"/"+rt.pkgPath); err != nil {
 				h.writeError(w, err, repoKey, segIndex+"/"+rt.pkgPath)
 				return

@@ -39,8 +39,9 @@ package deb
 //     C5 405 answers there), and the background recompute targets the
 //     MEMBER (the index belongs to it). The generated family refuses
 //     direct writes with DB-3's 403 (the aggregate is as server-owned
-//     as the local engine's output); DELETE never propagates through a
-//     virtual (RE-08).
+//     as the local engine's output); DELETE goes to the service, whose
+//     virtual branch owns the section 7.5 semantics (own storage only,
+//     members untouched).
 //
 // Member failures follow the npm/pypi/conan aggregation rule: an
 // unfound member contributes nothing; a CLASSIFIED failure (the remote
@@ -185,7 +186,7 @@ func (h *Handler) serveVirtual(ctx context.Context, w http.ResponseWriter, r *ht
 		case http.MethodPut:
 			h.serveUploadDeb(ctx, w, r, repoKey, rel, props, h.recomputeTarget(ctx, repoKey))
 		case http.MethodDelete:
-			h.refuseVirtualDelete(w, repoKey)
+			h.serveVirtualDelete(ctx, w, repoKey, rel)
 		default:
 			h.methodNotAllowed(w, r, "GET, HEAD, PUT, DELETE")
 		}
@@ -196,7 +197,7 @@ func (h *Handler) serveVirtual(ctx context.Context, w http.ResponseWriter, r *ht
 		case http.MethodPut:
 			h.serveUploadDsc(ctx, w, r, repoKey, rel, props, h.recomputeTarget(ctx, repoKey))
 		case http.MethodDelete:
-			h.refuseVirtualDelete(w, repoKey)
+			h.serveVirtualDelete(ctx, w, repoKey, rel)
 		default:
 			h.methodNotAllowed(w, r, "GET, HEAD, PUT, DELETE")
 		}
@@ -207,7 +208,7 @@ func (h *Handler) serveVirtual(ctx context.Context, w http.ResponseWriter, r *ht
 		case http.MethodPut:
 			h.servePlainFile(ctx, w, r, repoKey, rel)
 		case http.MethodDelete:
-			h.refuseVirtualDelete(w, repoKey)
+			h.serveVirtualDelete(ctx, w, repoKey, rel)
 		default:
 			h.methodNotAllowed(w, r, "GET, HEAD, PUT, DELETE")
 		}
@@ -743,23 +744,21 @@ func sha256OfBody(body []byte) string {
 
 // ---- the write family ----
 
-// refuseVirtualDelete answers DELETE on a virtual repository: deletes
-// never propagate through the member resolution (RE-08), the wording
-// keyed on whether a write route exists (the repo package's own
-// refusal, restated — the conan posture).
-func (h *Handler) refuseVirtualDelete(w http.ResponseWriter, repoKey string) {
-	w.Header().Set("Allow", http.MethodGet)
-	routed := false
-	if h.repos != nil {
-		if row, err := h.repos.Get(context.Background(), repoKey); err == nil {
-			routed = debRouteTarget(row.Config) != ""
-		}
+// serveVirtualDelete answers DELETE on a virtual repository: the delete
+// goes to the SERVICE, whose virtual branch touches only the virtual's
+// own aggregation storage (virtual-resolution.md section 7.5's errata,
+// T-530's D-2) — BinFlow persists no aggregate-cache rows, so the honest
+// answer is the 404 ITEM_NOT_FOUND below; a raw-seeded own-storage row
+// (drift) drops and answers 204. No index recompute follows: the
+// aggregates are computed per request, there is no member index to
+// refresh. The in-handler 405 refusal this arm used to carry (the repo
+// package's pre-T-524 wording, restated) is retired with it.
+func (h *Handler) serveVirtualDelete(ctx context.Context, w http.ResponseWriter, repoKey, rel string) {
+	if err := h.svc.Delete(ctx, adapter.PrincipalFrom(ctx), repoKey, rel); err != nil {
+		h.writeError(w, err, repoKey, rel)
+		return
 	}
-	msg := fmt.Sprintf("No local repository was configured as local deployment repository for the (%s) virtual repository.", repoKey)
-	if routed {
-		msg = fmt.Sprintf("Deletes are not propagated through the virtual repository '%s'; delete the artifact in its member repository directly.", repoKey)
-	}
-	writeText(w, http.StatusMethodNotAllowed, msg)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // debRouteTarget is the tolerant write-route probe of a virtual

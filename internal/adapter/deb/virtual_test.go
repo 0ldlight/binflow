@@ -188,8 +188,9 @@ func TestVirtualSourcesMerge(t *testing.T) {
 
 // TestVirtualWrites: the un-routed debPUT answers the C5 405; a routed
 // debPUT lands in the member, the member's OWN index recomputes, and
-// the aggregate immediately reflects it; DELETE never propagates; the
-// generated family refuses direct writes.
+// the aggregate immediately reflects it; DELETE through the virtual
+// touches only its own storage (404 + members survive, section 7.5);
+// the generated family refuses direct writes.
 func TestVirtualWrites(t *testing.T) {
 	s := newStack(t)
 	seedVirtualMembers(t, s, "deb-va", "deb-vb", false)
@@ -223,14 +224,20 @@ func TestVirtualWrites(t *testing.T) {
 		}
 	}
 
-	// DELETE never propagates — the routed wording.
+	// DELETE through the virtual touches only the virtual's own storage —
+	// the honest 404 when it holds nothing, the member's entity survives
+	// (section 7.5's errata, D-2 — the dedicated virtual_delete_test pins
+	// the full face).
 	status, body, _ = s.delete("/binflow/deb-virt/pool/main/g/gamma/gamma_1.0_amd64.deb")
-	if status != http.StatusMethodNotAllowed || !strings.Contains(body, "Deletes are not propagated") {
-		t.Fatalf("virtual DELETE = (%d, %s)", status, body)
+	if status != http.StatusNotFound || !strings.Contains(body, "'deb-virt/pool/main/g/gamma/gamma_1.0_amd64.deb' not found") {
+		t.Fatalf("virtual DELETE = (%d, %s), want the 404", status, body)
 	}
 	status, body, _ = s.delete("/binflow/deb-noroute/pool/main/a/alpha/alpha_1.0_amd64.deb")
-	if status != http.StatusMethodNotAllowed || !strings.Contains(body, "No local repository was configured") {
-		t.Fatalf("un-routed virtual DELETE = (%d, %s)", status, body)
+	if status != http.StatusNotFound || !strings.Contains(body, "'deb-noroute/pool/main/a/alpha/alpha_1.0_amd64.deb' not found") {
+		t.Fatalf("un-routed virtual DELETE = (%d, %s), want the 404", status, body)
+	}
+	if status, _, _ = s.get("/binflow/deb-va/pool/main/g/gamma/gamma_1.0_amd64.deb"); status != http.StatusOK {
+		t.Fatalf("member deb after the virtual delete = %d, want 200 (deletes never propagate)", status)
 	}
 
 	// The generated family refuses direct writes (DB-3 on the aggregate).
