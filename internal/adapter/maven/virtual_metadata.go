@@ -5,7 +5,11 @@ package maven
 // section 8.3, high confidence): a GET of the standard metadata document
 // through a VIRTUAL repository is intercepted BEFORE the first-hit download
 // resolution and answered from an IN-MEMORY MERGE of the members' own
-// documents, walked in the two-bucket order.
+// documents, walked in the four-bucket seam's order (T-531: the walk
+// consumes the Facet discriminant of design virtual-four-bucket.md §2.1 —
+// cache-facet steps are skipped, virtual-resolution.md §5.1 "跳过所有 cache
+// 仓": the remote 本体 step carries the cache semantics, one remote merges
+// as ONE unit, never also its standing copy).
 //
 // Merge rules (the spec's four, plus the MNG-5180 rider):
 //
@@ -114,22 +118,157 @@ func (h *Handler) serveVirtualMetadata(ctx context.Context, w http.ResponseWrite
 	return false
 }
 
-// collectVirtualMetadata walks the two-bucket order reading every member's
-// copy of the addressed metadata path. The foundByPriority short-circuit
-// stops the walk before the non-priority bucket once a marked member has
-// produced a document.
-func (h *Handler) collectVirtualMetadata(ctx context.Context, virtualKey, path string) ([]memberMetadataDoc, error) {
+// memberFacet is this face's mirror of the four-bucket seam's Facet
+// discriminant (repo.FacetPlain / repo.FacetCache on repo.VirtualMember —
+// T-530, design virtual-four-bucket.md §2.1). The mirror keeps the walk
+// step self-contained for the pure traversal tests; the seam crossing is
+// the explicit mapping in facetOfStep.
+type memberFacet uint8
+
+const (
+	facetPlain memberFacet = iota
+	facetCache
+)
+
+// facetOfStep maps the four-bucket seam's facet onto this face's mirror.
+// Explicit cases, never a bare type conversion: an unknown future facet
+// value degrades to plain WITH a WARN — the step then walks the FR-20
+// body semantics (visible behavior, one read of the remote), never a
+// silent numeric coincidence (fail-open guard, Reviewer B②).
+func facetOfStep(ctx context.Context, m repo.VirtualMember) memberFacet {
+	switch m.Facet {
+	case repo.FacetPlain:
+		return facetPlain
+	case repo.FacetCache:
+		return facetCache
+	default:
+		slog.WarnContext(ctx, "maven: unknown virtual member facet — treated as plain",
+			slog.String("member", m.Key), slog.Uint64("facet", uint64(m.Facet)))
+		return facetPlain
+	}
+}
+
+// metadataLevel classifies the addressed metadata document for the §5.1
+// traversal skips. The version directory's spelling decides (the same
+// suffix heuristic mergeMetadataDocs splits the merge algorithm on): a
+// -SNAPSHOT directory is the snapshot-level document; every other
+// metadata document — the module version list — merges at module level.
+type metadataLevel uint8
+
+const (
+	levelModule metadataLevel = iota
+	levelSnapshot
+)
+
+// metadataLevelOf classifies a repository-relative metadata path.
+func metadataLevelOf(path string) metadataLevel {
+	dir, _ := splitDirFile(path)
+	if strings.HasSuffix(dir, snapshotSuffix) {
+		return levelSnapshot
+	}
+	return levelModule
+}
+
+// metadataWalkStep is one member step of the aggregation walk, in the
+// shape the four-bucket seam delivers it (design §2.1's ResolutionStep),
+// plus the maven policy flags the §5.1 level skips key on. Cache-facet
+// steps carry the REMOTE's key and the lenient flag defaults — the facet
+// check alone drops them before any flag is consulted, so no row read
+// happens on their account (N3).
+type metadataWalkStep struct {
+	Key             string
+	Facet           memberFacet
+	Priority        bool
+	HandleReleases  bool
+	HandleSnapshots bool
+}
+
+// filterMetadataSteps applies the §5.1 traversal skips for one addressed
+// level: a cache-facet step never participates (the remote 本体 step
+// carries the cache semantics — one remote, one read, never the standing
+// copy too), and a member whose policy refuses the level's class does not
+// contribute (snapshot-level documents skip handleSnapshots=false members
+// — §5.1 explicit; module-level lists skip handleReleases=false, the
+// adapter-side mirror of the walk layer's release skip, §3.4). The
+// foundByPriority short-circuit is NOT applied here: it keys on document
+// production, which only the walk observes.
+func filterMetadataSteps(steps []metadataWalkStep, level metadataLevel) []metadataWalkStep {
+	out := make([]metadataWalkStep, 0, len(steps))
+	for _, s := range steps {
+		if s.Facet == facetCache {
+			continue
+		}
+		if level == levelSnapshot && !s.HandleSnapshots {
+			continue
+		}
+		if level == levelModule && !s.HandleReleases {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+// virtualMetadataSteps materializes the aggregation walk: the four-bucket
+// member order with each step's facet (the facetOfStep seam mapping) and
+// the maven policy flags read off the member's own row through the
+// ClassReader config seam (the T-367 precedent: helm's memberContext
+// reads a public canonical field the same way — handle* is routing data,
+// not a protected field). A cache-facet step gets NO row read (N3): it
+// never survives filterMetadataSteps — the facet alone drops it — and its
+// key is the remote's, whose body step reads that same row once anyway.
+// A member whose row read fails walks with the lenient defaults (both
+// handles true): a flaky row read must not silently drop a member's
+// contributions.
+func (h *Handler) virtualMetadataSteps(ctx context.Context, virtualKey string) ([]metadataWalkStep, error) {
 	order, err := h.svc.VirtualMemberOrder(ctx, virtualKey)
 	if err != nil {
 		return nil, err
 	}
-	docs := make([]memberMetadataDoc, 0, len(order))
-	sawPriorityDoc := false
+	steps := make([]metadataWalkStep, 0, len(order))
 	for _, m := range order {
-		if !m.Priority && sawPriorityDoc {
+		s := metadataWalkStep{
+			Key:      m.Key,
+			Facet:    facetOfStep(ctx, m),
+			Priority: m.Priority,
+			// lenient defaults; the row read below refines them
+			HandleReleases:  true,
+			HandleSnapshots: true,
+		}
+		if s.Facet == facetCache {
+			steps = append(steps, s) // dropped by the facet check; no row read
+			continue
+		}
+		if row, rerr := h.class.Get(ctx, m.Key); rerr == nil {
+			rc := ParseRepoConfig(row.Config)
+			s.HandleReleases, s.HandleSnapshots = rc.HandleReleases, rc.HandleSnapshots
+		} else {
+			slog.WarnContext(ctx, "maven: virtual member row unreadable — policy flags defaulted",
+				slog.String("virtual", virtualKey), slog.String("member", m.Key),
+				slog.String("error", rerr.Error()))
+		}
+		steps = append(steps, s)
+	}
+	return steps, nil
+}
+
+// collectVirtualMetadata walks the filtered member order reading every
+// step's copy of the addressed metadata path. The foundByPriority
+// short-circuit stops the walk before the non-priority bucket once a
+// marked member has produced a document.
+func (h *Handler) collectVirtualMetadata(ctx context.Context, virtualKey, path string) ([]memberMetadataDoc, error) {
+	steps, err := h.virtualMetadataSteps(ctx, virtualKey)
+	if err != nil {
+		return nil, err
+	}
+	steps = filterMetadataSteps(steps, metadataLevelOf(path))
+	docs := make([]memberMetadataDoc, 0, len(steps))
+	sawPriorityDoc := false
+	for _, s := range steps {
+		if !s.Priority && sawPriorityDoc {
 			break // foundByPriority: the marked member's document is authoritative
 		}
-		rc, node, err := h.svc.ReadVirtualMember(ctx, virtualKey, m.Key, path)
+		rc, node, err := h.svc.ReadVirtualMember(ctx, virtualKey, s.Key, path)
 		if err != nil {
 			if errors.Is(err, repo.ErrNodeNotFound) {
 				continue // member has no document at this path
@@ -142,21 +281,21 @@ func (h *Handler) collectVirtualMetadata(ctx context.Context, virtualKey, path s
 		_ = rc.Close() //nolint:errcheck // read-only fd; the bytes are already in hand
 		if rerr != nil {
 			slog.WarnContext(ctx, "maven: virtual member metadata unreadable — skipped",
-				slog.String("virtual", virtualKey), slog.String("member", m.Key),
+				slog.String("virtual", virtualKey), slog.String("member", s.Key),
 				slog.String("path", path), slog.String("error", rerr.Error()))
 			continue
 		}
 		var doc metadataXML
 		if uerr := xml.Unmarshal(raw, &doc); uerr != nil {
 			slog.WarnContext(ctx, "maven: virtual member metadata unparseable — skipped",
-				slog.String("virtual", virtualKey), slog.String("member", m.Key),
+				slog.String("virtual", virtualKey), slog.String("member", s.Key),
 				slog.String("path", path), slog.String("error", uerr.Error()))
 			continue
 		}
-		if m.Priority {
+		if s.Priority {
 			sawPriorityDoc = true
 		}
-		docs = append(docs, memberMetadataDoc{member: m.Key, doc: doc, node: mavenNodeFacts{lastModified: nodeTime(node)}})
+		docs = append(docs, memberMetadataDoc{member: s.Key, doc: doc, node: mavenNodeFacts{lastModified: nodeTime(node)}})
 	}
 	return docs, nil
 }
