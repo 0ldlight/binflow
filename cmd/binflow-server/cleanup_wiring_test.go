@@ -63,7 +63,7 @@ func TestT324WiringCronOverRealStack(t *testing.T) {
 		t.Fatalf("Put local: %v", err)
 	}
 	if _, err := st.svc.CreateRepo(ctx, admin, &metadata.Repo{
-		RepoKey: "w-cache", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
+		RepoKey: "w-remote", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
 		Config: `{"url":"` + up.URL + `","allowPrivateUpstream":true,"unusedArtifactsCleanupPeriodHours":1}`,
 	}); err != nil {
 		t.Fatalf("CreateRepo(remote): %v", err)
@@ -90,14 +90,14 @@ func TestT324WiringCronOverRealStack(t *testing.T) {
 	// the repo-package suite with its injectable clock — here a landing
 	// through svc.Get would stamp a download event at wall now, which the
 	// oracle would (correctly) read as use inside the window.
-	staleNode := seedCacheNode(t, st, "w-cache", "stale.bin", "upstream-body-of:stale.bin", -2*time.Hour)
-	seedCacheNode(t, st, "w-cache", "used.bin", "upstream-body-of:used.bin", -2*time.Hour)
+	staleNode := seedCacheNode(t, st, "w-remote", "stale.bin", "upstream-body-of:stale.bin", -2*time.Hour)
+	seedCacheNode(t, st, "w-remote", "used.bin", "upstream-body-of:used.bin", -2*time.Hour)
 
 	// Use signal INSIDE the window for used.bin: a download event 30
 	// minutes old — the audit fact every real GET records; the stale path
 	// has none since its (aged) landing.
 	if err := st.auditLog.Append(ctx, audit.Event{
-		Action: audit.ActionDownload, Repo: "w-cache", Path: "used.bin", Actor: "admin",
+		Action: audit.ActionDownload, Repo: "w-remote", Path: "used.bin", Actor: "admin",
 		Time: time.Now().UTC().Add(-30 * time.Minute).Format(time.RFC3339),
 	}); err != nil {
 		t.Fatalf("seed use event: %v", err)
@@ -112,13 +112,13 @@ func TestT324WiringCronOverRealStack(t *testing.T) {
 	// The trigger chain: wait for a scheduled run to reap the stale path.
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		_, nodeErr := st.md.Nodes().Get(ctx, "w-cache", "stale.bin")
+		_, nodeErr := st.md.Nodes().Get(ctx, "w-remote", "stale.bin")
 		if nodeErr != nil && eng.LastReport() != nil {
 			break // reaped AND the run's snapshot landed
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	if _, err := st.md.Nodes().Get(ctx, "w-cache", "stale.bin"); err == nil {
+	if _, err := st.md.Nodes().Get(ctx, "w-remote", "stale.bin"); err == nil {
 		t.Fatal("the scheduled run never reaped the stale cache node")
 	}
 	if eng.LastReport() == nil || eng.LastReport().Trigger != repo.CleanupTriggerCron {
@@ -128,13 +128,13 @@ func TestT324WiringCronOverRealStack(t *testing.T) {
 	// ---- zero-orphan reconciliation over the three tables ----
 	// index: the stale path has neither node nor validator row; the used
 	// path and the local repo keep both.
-	if _, err := st.md.Nodes().Get(ctx, "w-cache", "stale.bin"); err == nil {
+	if _, err := st.md.Nodes().Get(ctx, "w-remote", "stale.bin"); err == nil {
 		t.Fatal("stale node row survived")
 	}
-	if _, err := st.md.Remote().GetCache(ctx, "w-cache", "stale.bin"); err == nil {
+	if _, err := st.md.Remote().GetCache(ctx, "w-remote", "stale.bin"); err == nil {
 		t.Fatal("stale validator row survived (index orphan)")
 	}
-	if _, err := st.md.Nodes().Get(ctx, "w-cache", "used.bin"); err != nil {
+	if _, err := st.md.Nodes().Get(ctx, "w-remote", "used.bin"); err != nil {
 		t.Fatalf("used node reaped: %v", err)
 	}
 	if _, err := st.md.Nodes().Get(ctx, "w-local", "keep.bin"); err != nil {
