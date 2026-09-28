@@ -108,6 +108,16 @@
 #   200→201 行、compatible 94→95、last_difftest_non_null 50→51。D-1 线上腿注意项：差分宿主 clash fake-ip
 #   DNS 使上游解析为 ULA，SSRF 防护默认拒——经仓库级 allowPrivateUpstream（NFR-S13 一等旋钮）豁免后验证；
 #   产品默认姿态不变（详见 L029 报告 D-1 节）。遗留 D-3/D-4/N1-N4 台账级跟踪不入行态。
+# T-549（LOOP 1543 R4，2026-09-28，compatibility-engineer / BIN-31）三件：① 新契约首文件
+#   contracts/maven-virtual.yaml（maven 域首，3 条目：M3 能力谓词 rider VERIFIED/high——§5.1 UA 判定族
+#   形式化〔空 UA=支持；^[Jj]ava/.+ 全匹配=不支持；Ivy/Wharf 产品 token=不支持；其余=支持〕；version3
+#   系统开关 SPECIFIED/medium——生效序=与 UA 谓词纯合取无优先序、off 臂双端零取证如实标注、与
+#   suppressPomConsistencyChecks 零交互；GAV 一致性门 VERIFIED/high）；② known-divergence：BIN-16/
+#   D-4 两 BUG 回填 resolved（L030 case1/2 修复后双端复跑连续两轮 PASS——iteration-1542「L030 修复
+#   验收」+ f21f1c09/3b58b082）+ L031 latest 语义新账 BUG fix-in-flight（T-548/BIN-30，滞后一轮回填）；
+#   ③ D12-R18 落 contract_ref + last_difftest 补 L030 修复链、D12-R05 last_difftest/note 补 L031。
+#   行态零变更（compatible 维持——臂级差异走台账）；summary 同步 contract_ref 37→38。195 冻结行集
+#   不增删（本批零新行）。
 
 ---
 schema: 1
@@ -257,9 +267,9 @@ summary:
     D14:
       rows: 1
       not_applicable: 1
-  contract_ref_non_null: 37  # L027-2 同步：前置 31（L025-10 收官后）+ 本批 D08-R01..R06 六行 → 实计 37（逐行 ruby 对账通过；指向 contracts/release-bundle.yaml 条目号锚）
-  golden_ref_non_null: 1     # D12-R01（empty-blob-synthetic / pull-sequence）——storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 / L024-4 §5 提金候选（l023d-wire/a/、l024d-wire/a/）在册待采，本批零金样变更
-  last_difftest_non_null: 51 # L029-1 同步：前置 50（L027-6）+ 本批 D12-R18 新行 → 实计 51（L028/L029 差分报告回填）
+  contract_ref_non_null: 38  # T-549 同步：前置 37（L027-2）+ 本批 D12-R18 落 contracts/maven-virtual.yaml（M3 rider/version3 开关/GAV 门 3 条目）→ 实计 38
+  golden_ref_non_null: 1     # D12-R01（empty-blob-synthetic / pull-sequence）——storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 / L024-4 §5 提金候选（l023d-wire/a/、l024d-wire/a/）在册待采，本批零金样变更（L030 提金候选 A 面 capable 腿 merged 输出待时间戳 normalize——maven 域 golden 前置）
+  last_difftest_non_null: 51 # L029-1 同步：前置 50（L027-6）+ 本批 D12-R18 新行 → 实计 51（L028/L029 差分报告回填）；T-549 批 D12-R18/D12-R05 两行 last_difftest 内容增补（L030/L031 链）——两行原已非空，计数不变
 rows:
 - row_id: D01-R01
   domain: D01
@@ -2611,7 +2621,7 @@ rows:
   confidence: high
   contract_ref: contracts/npm.yaml
   golden_ref:
-  last_difftest: reports/compatibility/L012-dist-tags-diff.md
+  last_difftest: reports/compatibility/L012-dist-tags-diff.md + reports/compatibility/L031-npm-v2-facet-filter.md（L031，2026-09-28：virtual packument 合并/cache 成员布局/CLI tarball 保真三 case r2≡r3——唯一实质差异=latest 标签语义，台账立案 fix in flight；余键双端全绿）
   priority_class: P1
   layer: A
   source_row: "§11.1 行 5"
@@ -2619,7 +2629,10 @@ rows:
     L012-2b 收官（2026-09-13）：六对齐面全落（D2 latest 读时重算/D3-D4 文案/D5 400+中性/D6 bulk 405/D7
     Cache-Control）→ 差分终版 20 格零未裁定 drift（基线 8 实差）；CLI 15 用例同退出码向量；契约 8/8
     VERIFIED；台账 npm 域 6 条 resolved。V-7 清偿：npm 10.9.8 全族 100% 显式端点族。残余=packument 面
-    latest 重算未裁定（known-divergence 新账 gate LOOP 013）+版本 CRUD 子集未契约化（下批）。
+    latest 重算未裁定（known-divergence 新账 gate LOOP 013）+版本 CRUD 子集未契约化（下批）。L031
+    （2026-09-28）补证落账：virtual packument 合并 latest 语义差分立案 known-divergence#
+    npm/virtual-packument-merge-latest-tag（BUG，fix in flight T-548/BIN-30，R4）——臂级账不占行态
+    （local 面 latest 读时重算两账维持 resolved 不受影响）。
 - row_id: D12-R06
   domain: D12
   capability: PyPI（simple 索引/包页、packages 直下、upload）
@@ -2765,14 +2778,17 @@ rows:
   capability: Maven virtual 内容面（virtual 解析四桶〔local/remote 混合成员、cache 逻辑投影〕+ remote 首拉写 <K>-cache + DELETE 经 virtual 404/成员存活 + deploy 与元数据合并经 virtual）
   state: compatible
   confidence: high
-  contract_ref:
+  contract_ref: contracts/maven-virtual.yaml
   golden_ref:
-  last_difftest: reports/compatibility/L028-maven-v2-batch1-diff.md + reports/compatibility/L029-maven-v2-batch1-reverify.md（L028 r3/r4 测得 D-1/D-2 FAIL → PR #156〔T-529/T-530/T-531 四桶实现+cache 投影+DELETE 语义〕→ L029 r5 关 D-2、r6/r7 双轮稳关 D-1——D-1 线上腿系 SSRF 防护拒 clash fake-ip ULA 环境因，经仓库级 allowPrivateUpstream 豁免（NFR-S13 一等旋钮）后双面一致；真实 mvn 客户端 + 上游 sha256 逐字节比对）
+  last_difftest: reports/compatibility/L028-maven-v2-batch1-diff.md + reports/compatibility/L029-maven-v2-batch1-reverify.md（L028 r3/r4 测得 D-1/D-2 FAIL → PR #156〔T-529/T-530/T-531 四桶实现+cache 投影+DELETE 语义〕→ L029 r5 关 D-2、r6/r7 双轮稳关 D-1——D-1 线上腿系 SSRF 防护拒 clash fake-ip ULA 环境因，经仓库级 allowPrivateUpstream 豁免（NFR-S13 一等旋钮）后双面一致；真实 mvn 客户端 + 上游 sha256 逐字节比对）+ reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md + reports/iteration-1542.md「L030 修复验收」（L030 r2/r3 测得 BIN-16〔snapshotVersions M3 谓词缺失〕/D-4〔GAV 失配 201 vs 409〕两 FAIL → f21f1c09〔T-542/T-543〕修复 + 3b58b082 评审加固 → case1/case2 双端复跑各连续两轮 PASS——台账两 BUG 已 resolved〔T-549 回填〕，rider/GAV 两面契约化 VERIFIED）
   priority_class: P1
   layer: A
   source_row: "新行提案（L029-1，2026-09-28 conductor 派票授权——L005-3/L007-4 冻结行集外新行先例款）"
-  note: 遗留不入行态：D-3 非空仓 DELETE 语义分歧（known-divergence 登记候选）、D-4 POM GAV
-    校验 B 面覆盖（反向用例候选）、N1/N3/N4 三缝隙（BIN-18→F2/F4/F8 缝票）——均台账级跟踪。
+  note: 遗留不入行态：D-3 非空仓 DELETE 语义分歧（known-divergence 登记候选）、N1/N3/N4 三缝隙
+    （BIN-18→F2/F4/F8 缝票）——均台账级跟踪；D-4 已闭（L030 case2 修复后双端复跑 PASS，台账 T-549
+    回填 resolved，契约 contracts/maven-virtual.yaml#maven/deploy-pom-path-consistency-gate）。
+    contract_ref 覆盖面注记（T-549）：本行 capability 中仅 M3 rider / GAV 门两面契约化（maven-virtual.yaml
+    3 条目），解析四桶/cache 投影/DELETE 语义仍由 L028/L029 差分报告直接背书——扩面契约化留后续票。
 - row_id: D13-R01
   domain: D13
   capability: UI 内部面（/ui/api/v1 树浏览/Tab/制品动作/首页 widget/验证/SetMeUp/登录屏 ≈470 op）

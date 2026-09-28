@@ -134,7 +134,7 @@ func TestNpmVirtualClientSuite(t *testing.T) {
 
 	// M55: the merge observable — demo-pkg exists in BOTH members (1.0.0
 	// local, 2.0.0 upstream), and `npm view` through the virtual reports
-	// the union with latest recomputed.
+	// the union.
 	if out, err := runClient(t, npmBin, proj, "view", "demo-pkg", "versions", "--json"); err != nil {
 		t.Fatalf("M55 npm view through the virtual failed: %s", out)
 	} else {

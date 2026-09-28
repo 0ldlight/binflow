@@ -63,9 +63,9 @@ agents:
   dev-go-core:
     depends_on: [architect, tech-lead]
     can_parallel_with: [dev-go-storage, dev-frontend, dev-registry-adapter, devops-engineer]
-    owns: [internal/repo/, internal/metadata/, internal/auth/, internal/httpapi/]
+    owns: [internal/repo/, internal/metadata/, internal/auth/, internal/httpapi/, internal/replication/]
     reads: [docs/reverse/, docs/compatibility/contracts/]
-    writes: ["internal/{repo,metadata,auth,httpapi}/"]
+    writes: ["internal/{repo,metadata,auth,httpapi,replication}/"]
 
   dev-go-storage:
     depends_on: [architect, tech-lead]

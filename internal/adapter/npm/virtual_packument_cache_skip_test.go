@@ -158,7 +158,7 @@ func TestVirtualPackumentAggregationSkipsCacheFacetSteps(t *testing.T) {
 		t.Errorf("remote member's versions lost from the union: %v", versions)
 	}
 	if tags := distTagsOf(doc); tags["latest"] != "3.0.0" {
-		t.Errorf("recomputed latest = %q, want 3.0.0", tags["latest"])
+		t.Errorf("latest = %q, want 3.0.0 (the base member's original, which here is also the union's greatest)", tags["latest"])
 	}
 	if got := f.hits.Load(); got != 1 {
 		t.Errorf("upstream reads for one remote member = %d, want 1 (the cache step adds none)", got)
