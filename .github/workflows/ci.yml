@@ -106,8 +106,14 @@ jobs:
       # run the race suite ~2x slower than idle metal (repo alone 772s on
       # run 33881407081) — the 20m wall clock tripped mid-suite with every
       # package healthy, purely capacity (peer-session forensics).
+      # 60m (run 36411042188): httpapi's race suite grew to ~1300s nominal
+      # (72% of 30m) and every package — including R3-untouched auth/search
+      # (+26%/+91%) — slowed uniformly on that runner, tipping httpapi past
+      # the per-binary 30m budget with no single hung test. Budget follows
+      # the suite's real size; the structural fix (parallel test lanes on
+      # separate runners) is the devops follow-up.
       - name: Test
-        run: make test TEST_TIMEOUT=30m
+        run: make test TEST_TIMEOUT=60m
 
       # GC concurrency stress (ADR-0031 / architecture section 14.2 point 6
       # and section 14.5-5): the T-232 race legs — uploads (and
