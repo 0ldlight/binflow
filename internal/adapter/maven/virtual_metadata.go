@@ -472,35 +472,48 @@ func renderVirtualMetadata(docs []memberMetadataDoc, l Layout, ua string) []byte
 	return renderMetadata(doc)
 }
 
-// serveSnapshotMetadataStripped serves a LOCAL repository's own SNAPSHOT
-// version document with the <snapshotVersions> section removed — the member
-// plane of the same §5.1 rider (T-542; L030 case 1's member control leg:
-// the A side strips there too). It reports false to fall back to the
-// verbatim transfer plane: every svc.Get error maps exactly as serveFile
-// maps it (including the canonical 404), and an unreadable or unparseable
-// document is served as stored — the skip-not-fatal posture of the merge
-// face.
-func (h *Handler) serveSnapshotMetadataStripped(ctx context.Context, w http.ResponseWriter,
-	r *http.Request, p *repo.Principal, repoKey, relPath string) bool {
+// strippedSnapshotMetadata reads a LOCAL repository's SNAPSHOT version
+// document and produces its §5.1 rider transform — the document without
+// <snapshotVersions> — for a client the capability predicate rejects. It
+// reports the derived body and the stored node's timestamp; a nil body means
+// "not servable as derived — fall back to the verbatim transfer plane"
+// (svc.Get error mapped by the caller, unreadable or unparseable document:
+// the skip-not-fatal posture of the merge face).
+func (h *Handler) strippedSnapshotMetadata(ctx context.Context, p *repo.Principal,
+	repoKey, relPath string) ([]byte, time.Time) {
 	rc, node, err := h.svc.Get(ctx, p, repoKey, relPath)
 	if err != nil {
-		return false
+		return nil, time.Time{}
 	}
 	defer rc.Close() //nolint:errcheck // read-only fd
 	raw, rerr := io.ReadAll(io.LimitReader(rc, metadataReadLimit))
 	if rerr != nil {
 		slog.WarnContext(ctx, "maven: member snapshot metadata unreadable — serving verbatim",
 			slog.String("repo", repoKey), slog.String("path", relPath), slog.String("error", rerr.Error()))
-		return false
+		return nil, time.Time{}
 	}
 	var doc metadataXML
 	if uerr := xml.Unmarshal(raw, &doc); uerr != nil {
 		slog.WarnContext(ctx, "maven: member snapshot metadata unparseable — serving verbatim",
 			slog.String("repo", repoKey), slog.String("path", relPath), slog.String("error", uerr.Error()))
-		return false
+		return nil, time.Time{}
 	}
 	doc.Versioning.SnapshotVersions = nil
-	h.writeDerivedMetadata(w, r, renderMetadata(doc), nodeTime(node))
+	return renderMetadata(doc), nodeTime(node)
+}
+
+// serveSnapshotMetadataStripped serves a LOCAL repository's own SNAPSHOT
+// version document with the <snapshotVersions> section removed — the member
+// plane of the same §5.1 rider (T-542; L030 case 1's member control leg:
+// the A side strips there too). It reports false to fall back to the
+// verbatim transfer plane.
+func (h *Handler) serveSnapshotMetadataStripped(ctx context.Context, w http.ResponseWriter,
+	r *http.Request, p *repo.Principal, repoKey, relPath string) bool {
+	body, lastMod := h.strippedSnapshotMetadata(ctx, p, repoKey, relPath)
+	if body == nil {
+		return false
+	}
+	h.writeDerivedMetadata(w, r, body, lastMod)
 	return true
 }
 

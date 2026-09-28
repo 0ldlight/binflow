@@ -144,6 +144,23 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 			writeError(w, http.StatusNotFound, "Checksums are not downloadable.")
 			return
 		}
+		// T-542 review follow-up: the member plane's strip reaches the
+		// sidecar face too — a capability-rejected client's .sha1/.md5
+		// answers the digest of the STRIPPED document (the derived-body
+		// contract writeDerivedMetadata upholds), or the same GET pair
+		// contradicts itself. sha512 stays on serveSidecar's 404 (no
+		// honest computed body under the three-digest model); a nil body
+		// falls back to the verbatim plane below.
+		if rowType == repo.TypeLocal && l.TargetKind == KindMetadata && l.Algo != "sha512" &&
+			!clientSupportsM3SnapshotVersions(r.UserAgent()) {
+			if tl, perr := Parse(l.Target); perr == nil && tl.Kind == KindMetadata &&
+				tl.File == metadataFileName && isSnapshotLevelMetadata(tl) {
+				if body, _ := h.strippedSnapshotMetadata(ctx, p, repoKey, l.Target); body != nil {
+					h.writeDerivedSidecar(w, r, body, l.Algo)
+					return
+				}
+			}
+		}
 		h.serveSidecar(ctx, w, r, p, repoKey, relPath, l)
 		return
 	}

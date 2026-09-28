@@ -70,7 +70,7 @@ func TestSnapshotVersionsUAStripping(t *testing.T) {
 		{"member M3-capable UA serves whole", mmeta, capableUA, true, []string{"<buildNumber>1</buildNumber>"}},
 		{"member java-agent UA strips", mmeta, agentUA, false, []string{"<buildNumber>1</buildNumber>"}},
 	}
-	var strippedVirtual string
+	var strippedVirtual, strippedMember, wholeMember string
 	for _, tc := range legs {
 		resp := f.hs.serve(http.MethodGet, tc.path, nil, map[string]string{"User-Agent": tc.ua}, true)
 		body := string(drain(t, resp))
@@ -88,8 +88,13 @@ func TestSnapshotVersionsUAStripping(t *testing.T) {
 		if strings.Contains(body, "<snapshot>") != true {
 			t.Errorf("%s: the <snapshot> block must survive either way\n%s", tc.name, body)
 		}
-		if tc.name == "virtual java-agent UA strips" {
+		switch tc.name {
+		case "virtual java-agent UA strips":
 			strippedVirtual = body
+		case "member java-agent UA strips":
+			strippedMember = body
+		case "member M3-capable UA serves whole":
+			wholeMember = body
 		}
 	}
 
@@ -102,5 +107,24 @@ func TestSnapshotVersionsUAStripping(t *testing.T) {
 	if resp.StatusCode != http.StatusOK || sidecar != hex.EncodeToString(sum[:]) {
 		t.Errorf("stripped virtual sidecar = (%d, %s), want sha1 of the stripped body %s",
 			resp.StatusCode, sidecar, hex.EncodeToString(sum[:]))
+	}
+
+	// The MEMBER sidecar of the stripped face follows the same derived-body
+	// contract (T-542 review follow-up): a java-agent client's .sha1 is the
+	// digest of the stripped document — not the stored one — while a
+	// capable client's sidecar still pairs with the whole document.
+	agentSum := sha1.Sum([]byte(strippedMember)) //nolint:gosec // test digest
+	resp = f.hs.serve(http.MethodGet, mmeta+".sha1", nil, map[string]string{"User-Agent": "Java/1.8.0_391"}, true)
+	sidecar = strings.TrimSpace(string(drain(t, resp)))
+	if resp.StatusCode != http.StatusOK || sidecar != hex.EncodeToString(agentSum[:]) {
+		t.Errorf("stripped member sidecar = (%d, %s), want sha1 of the stripped body %s",
+			resp.StatusCode, sidecar, hex.EncodeToString(agentSum[:]))
+	}
+	capSum := sha1.Sum([]byte(wholeMember)) //nolint:gosec // test digest
+	resp = f.hs.serve(http.MethodGet, mmeta+".sha1", nil, map[string]string{"User-Agent": capableUA}, true)
+	sidecar = strings.TrimSpace(string(drain(t, resp)))
+	if resp.StatusCode != http.StatusOK || sidecar != hex.EncodeToString(capSum[:]) {
+		t.Errorf("whole member sidecar = (%d, %s), want sha1 of the whole body %s",
+			resp.StatusCode, sidecar, hex.EncodeToString(capSum[:]))
 	}
 }
