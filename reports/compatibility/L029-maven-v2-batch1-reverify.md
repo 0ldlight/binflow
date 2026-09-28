@@ -22,7 +22,7 @@
 
 **L028 归因**（"virtual→remote 解析与 `<K>-cache` 投影未实现"）只对了一半：
 
-1. **F1 缓存投影缺失**（`GET /<remote>-cache/<path>` = 404）确系产品缺口——T-529/T-530（PR #156）实现后 r5 已翻绿。
+1. **F1 缓存投影缺失**（`GET /<remote>-cache/<path>` = 404）确系产品缺口——T-529/T-530（PR #156）实现后 r6 起翻绿（r5 时该 case 仍 FAIL，cache_projection_artifact b=404）。
 2. **首拉 400 的真实根因是环境 × 安全控制交互，非解析缺失**：r5 复验仍 400，手工复现取回错误体真相——
    `Cannot fetch 'difftest-mvn-remote/javax/annotation/...pom': upstream target refused — private or suppressed upstream (remote difftest-mvn-remote: hop 0: upstream target repo1.maven.org rejected: private_ula address fdfe:dcba:9876::22)`
    ——差分宿主 Mac 的 clash TUN fake-ip DNS 将 repo1.maven.org 解析为私网 ULA（fdfe:dcba:9876::22），BinFlow 的 NFR-S13 SSRF 防护**正确拒绝**私网/ULA 上游（与 L028 记录的 400 体 sha256 d05e3e0a… 逐字节一致——L028 时即是此因，当时误归因为"解析未实现"）。四桶 walk 本身此前已有单测证明（TestVirtualTrueMissFallsThrough 等）。
