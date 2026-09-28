@@ -3,8 +3,12 @@ package npm
 // The virtual-repository packument merge (T-72, FR-21-AC5; maven-npm-pypi.md
 // section 2.6, high confidence): a package document read through a VIRTUAL
 // repository is the in-memory merge of every member's own packument, walked
-// in the two-bucket order — computed PER REQUEST (the Artifactory virtual
-// cache's TTL-600 optimization is deliberately not replicated; the PRD's
+// in the four-bucket order with the §5.3 cache dedup applied (T-538: the
+// walk consumes the Facet discriminant of design virtual-four-bucket.md
+// §2.1 — every cache-facet step is dropped whenever the order carries any
+// remote body step, so one remote merges as ONE unit, never also its
+// standing copy) — computed PER REQUEST (the Artifactory virtual cache's
+// TTL-600 optimization is deliberately not replicated; the PRD's
 // "语义等价，缓存优化 M4" ruling).
 //
 // Merge rules:
@@ -75,6 +79,7 @@ func (h *Handler) loadVirtualPackument(ctx context.Context, repoKey, name string
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	order = dedupeCacheFacetSteps(ctx, order)
 	var (
 		members []memberPackument
 		failure *repo.StatusError
@@ -127,6 +132,56 @@ func (h *Handler) loadVirtualPackument(ctx context.Context, repoKey, name string
 		// Sha256 deliberately empty: the ETag must hash the RENDERED merge.
 	}
 	return merged, node, members[0].hints, nil
+}
+
+// cacheFacetOfStep classifies one walk step's facet — the seam crossing the
+// maven face's facetOfStep shares the shape of (T-531): explicit cases,
+// never a bare comparison an unknown future facet value could silently
+// coincide with. An unrecognized facet degrades to plain WITH a WARN: the
+// step then walks as the ordinary member read (visible behavior), never a
+// silent numeric accident (fail-open guard, maven's Reviewer B②).
+func cacheFacetOfStep(ctx context.Context, m repo.VirtualMember) bool {
+	switch m.Facet {
+	case repo.FacetPlain:
+		return false
+	case repo.FacetCache:
+		return true
+	default:
+		slog.WarnContext(ctx, "npm: unknown virtual member facet — treated as plain",
+			slog.String("member", m.Key), slog.Uint64("facet", uint64(m.Facet)))
+		return false
+	}
+}
+
+// dedupeCacheFacetSteps applies the §5.3 cache dedup to one packument walk
+// (design virtual-four-bucket.md §5.3 npm row): a member order that carries
+// ANY remote body step drops EVERY cache-facet step — the body step's FR-20
+// chain already holds the remote's cache semantics, and ReadVirtualMember
+// matches members BY KEY (facet-insensitive), so walking both steps would
+// query the same repository twice (同仓双查) and merge its document twice.
+// An order with no remote body step keeps its cache steps: the only producer
+// of such orders (design §2.3's far-end suppression gate, seam F7) does not
+// exist yet, but the rule is stated against the sequence, so it already
+// holds when that seam lands.
+func dedupeCacheFacetSteps(ctx context.Context, order []repo.VirtualMember) []repo.VirtualMember {
+	isCache := make([]bool, len(order))
+	hasRemoteBody := false
+	for i, m := range order {
+		isCache[i] = cacheFacetOfStep(ctx, m)
+		if m.Type == repo.TypeRemote && !isCache[i] {
+			hasRemoteBody = true
+		}
+	}
+	if !hasRemoteBody {
+		return order
+	}
+	out := make([]repo.VirtualMember, 0, len(order))
+	for i, m := range order {
+		if !isCache[i] {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // mergeVirtualPackuments folds the member documents (two-bucket order)
