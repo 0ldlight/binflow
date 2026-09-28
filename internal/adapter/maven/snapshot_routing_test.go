@@ -59,12 +59,17 @@ func TestSnapshotRewriteWriteOnlyPrincipal(t *testing.T) {
 	const dir = "com/acme/demo-app/2.0.0-SNAPSHOT"
 	ci := &auth.Principal{Name: "ci-bot"}
 
-	putPom := func(v string) *http.Response {
+	// The pom content must carry the directory's GAV — T-543's consistency
+	// gate (the spec'd A behavior) refuses a disagreeing pom — so the trip
+	// marker rides a non-GAV element instead of the version line.
+	putPom := func(marker string) *http.Response {
 		t.Helper()
-		return hs.serveAs(http.MethodPut, "/maven-local/"+dir+"/demo-app-2.0.0-SNAPSHOT.pom", pomB(v), nil, ci)
+		pom := []byte("<project><groupId>com.acme</groupId><artifactId>demo-app</artifactId>" +
+			"<version>2.0.0-SNAPSHOT</version><name>" + marker + "</name></project>")
+		return hs.serveAs(http.MethodPut, "/maven-local/"+dir+"/demo-app-2.0.0-SNAPSHOT.pom", pom, nil, ci)
 	}
 
-	resp := putPom("2.0.0-SNAPSHOT")
+	resp := putPom("trip-1")
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("write-only PUT trip 1 = %d (%s)", resp.StatusCode, drain(t, resp))
 	}
@@ -78,7 +83,7 @@ func TestSnapshotRewriteWriteOnlyPrincipal(t *testing.T) {
 
 	// the pom re-put opens the NEXT trip under this principal too — the
 	// ungated facts seam, not the denied read, decides the numbering
-	resp = putPom("2.0.0-SNAPSHOT-r2")
+	resp = putPom("trip-2-r2")
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("write-only PUT trip 2 = %d (%s)", resp.StatusCode, drain(t, resp))
 	}

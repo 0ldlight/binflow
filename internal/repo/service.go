@@ -586,10 +586,13 @@ func (s *service) ResolveMeta(ctx context.Context, p *Principal, repoKey, path s
 	}
 	// The <K>-cache read face (T-530/F1): a projection key addresses the
 	// parent remote's own namespace — resolve the meta there (remote-cache-
-	// projection.md section 2.1: the projection is read-addressable).
+	// projection.md section 2.1: the projection is read-addressable) with
+	// LOCAL semantics (ADR-0051 Errata 一-③, T-540): stored rows only, a
+	// miss 404, zero upstream — the parent's own ResolveMeta would fold the
+	// listRemoteFolderItems enumeration in.
 	if parent, ok := CacheProjectionTarget(repoKey); ok {
 		if prow, perr := s.loadRepoRow(ctx, parent); perr == nil && prow.Type == TypeRemote {
-			return s.ResolveMeta(ctx, p, parent, path)
+			return s.resolveCacheProjectionMeta(ctx, p, repoKey, parent, path)
 		}
 	}
 	row, err := s.loadRepoRow(ctx, repoKey)
@@ -1730,10 +1733,24 @@ func (s *service) listRowsChecked(ctx context.Context, p *Principal, repoKey, pr
 	}
 	// The <K>-cache read face (T-530/F1): List on a projection key lists the
 	// parent remote's rows (remote-cache-projection.md section 2.1 — the
-	// projection is a read view of the parent's namespace, no entity rows).
+	// projection is a read view of the parent's namespace, no entity rows)
+	// with LOCAL semantics (ADR-0051 Errata 一-③, T-540): stored rows only,
+	// zero upstream — the parent's own walk would fold the
+	// listRemoteFolderItems enumeration in. The gate evaluates on the PARENT
+	// key (section 2.2's ACL mapping), the delegation arm's own posture.
 	if parent, ok := CacheProjectionTarget(repoKey); ok {
 		if prow, perr := s.loadRepoRow(ctx, parent); perr == nil && prow.Type == TypeRemote {
-			return s.listRowsChecked(ctx, p, parent, prefix)
+			if !s.allow(ctx, p, parent, prefix, ActionRead) {
+				if p == nil {
+					return nil, "", fmt.Errorf("read %s/%s: %w", repoKey, prefix, ErrUnauthorized)
+				}
+				return nil, "", fmt.Errorf("read %s/%s: %w", repoKey, prefix, ErrForbidden)
+			}
+			nodes, err := s.listCacheRows(ctx, parent, prefix)
+			if err != nil {
+				return nil, "", err
+			}
+			return nodes, "", nil
 		}
 	}
 	row, err := s.loadRepoRow(ctx, repoKey)

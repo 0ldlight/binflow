@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -242,6 +244,36 @@ func (h *Handler) putChecksumDeploy(ctx context.Context, w http.ResponseWriter, 
 // key — equal to repoKey everywhere else).
 func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	p *repo.Principal, repoKey, factsKey, relPath string, l Layout, cfg RepoConfig) {
+	var body io.Reader = r.Body
+	// T-543 (D-4, L030 case 2): the pom-coordinates-vs-path consistency
+	// gate — a .pom deploy whose content GAV disagrees with the deployment
+	// path is 409-refused BEFORE anything lands (the reference's message
+	// verbatim, captured live on 7.161.26), unless the landing repository
+	// sets suppressPomConsistencyChecks (default false). The pom is
+	// buffered for the parse and replayed into the store chain below; a
+	// body past the ceiling streams on unchecked (pom documents are KBs —
+	// a >4MiB "pom" is not a parse anyone trusts) and an unparseable or
+	// coordinate-incomplete one deploys unchecked (the evidence pins only
+	// the mismatch refusal — refusing anything else would be guessing).
+	if l.Kind == KindArtifact && strings.HasSuffix(l.File, ".pom") && !cfg.SuppressPomConsistencyChecks {
+		buf, rerr := io.ReadAll(io.LimitReader(r.Body, maxPomConsistencyBytes+1))
+		if rerr != nil {
+			writeError(w, http.StatusBadRequest, "read pom body: "+rerr.Error())
+			return
+		}
+		if int64(len(buf)) > maxPomConsistencyBytes {
+			slog.WarnContext(ctx, "maven: pom body past the consistency-check ceiling — deploying unchecked",
+				slog.String("repo", repoKey), slog.String("path", relPath),
+				slog.Int64("bytes", int64(len(buf))))
+			body = io.MultiReader(bytes.NewReader(buf), r.Body)
+		} else {
+			if msg, refuse := pomPathMismatch(relPath, l, buf); refuse {
+				writeError(w, http.StatusConflict, msg)
+				return
+			}
+			body = bytes.NewReader(buf)
+		}
+	}
 	// L014-2 BUG 1: under snapshotVersionBehavior=unique a -SNAPSHOT file
 	// name is rewritten to the timestamped spelling BEFORE the bytes land
 	// (the 201 Location, the storage node and the calculator trigger all
@@ -270,7 +302,6 @@ func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Re
 		declared = storage.BlobRef{}
 	}
 
-	var body io.Reader = r.Body
 	// Client metadata re-PUTs are routine (every mvn deploy refreshes the
 	// artifact-level document), and a metadata re-send with IDENTICAL
 	// bytes must never trip anything: buffering the (small) body to pass
@@ -410,6 +441,51 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 
 // maxSidecarBytes is the checksum-file size ceiling (rest-api.md 1.5).
 const maxSidecarBytes = 1024
+
+// maxPomConsistencyBytes bounds the pom buffering of the T-543 consistency
+// gate (pom documents are KBs; past the ceiling the deploy streams on
+// unchecked rather than buffering an unbounded "pom" in memory).
+const maxPomConsistencyBytes = 4 << 20 // 4 MiB
+
+// pomPathMismatch parses the pom body's coordinates and compares them with
+// the deployment path's GAV (Maven model semantics: groupId/version may be
+// inherited from <parent>; artifactId is always the project's own). It
+// returns the reference's refusal message (captured on 7.161.26, virtual
+// and local legs identical) when the pom's expected path prefix disagrees
+// with the addressed one; an unparseable or coordinate-incomplete pom
+// returns no refusal — the evidence pins only the mismatch shape.
+func pomPathMismatch(relPath string, l Layout, pom []byte) (string, bool) {
+	var p struct {
+		GroupID    string `xml:"groupId"`
+		ArtifactID string `xml:"artifactId"`
+		Version    string `xml:"version"`
+		Parent     *struct {
+			GroupID string `xml:"groupId"`
+			Version string `xml:"version"`
+		} `xml:"parent"`
+	}
+	if err := xml.Unmarshal(pom, &p); err != nil {
+		return "", false
+	}
+	if p.GroupID == "" && p.Parent != nil {
+		p.GroupID = p.Parent.GroupID
+	}
+	if p.Version == "" && p.Parent != nil {
+		p.Version = p.Parent.Version
+	}
+	if p.GroupID == "" || p.ArtifactID == "" || p.Version == "" {
+		return "", false
+	}
+	want := strings.ReplaceAll(p.GroupID, ".", "/") + "/" + p.ArtifactID + "/" + p.Version
+	got := strings.ReplaceAll(l.OrgPath, ".", "/") + "/" + l.Module + "/" + l.VersionDir
+	if want == got {
+		return "", false
+	}
+	return fmt.Sprintf(
+		"The target deployment path '%s' does not match the POM's expected path prefix '%s'. "+
+			"Please verify your POM content for correctness and make sure the source path is a valid Maven repository root path.",
+		relPath, want), true
+}
 
 // deployPropsOf lifts the request's matrix-parameter set into the option
 // shape (nil for a path without any — the plain-deploy options).
