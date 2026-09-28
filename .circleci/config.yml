@@ -172,6 +172,17 @@ jobs:
       - run:
           name: OpenAPI spec drift gate
           command: make spec-check
+      # T-526: Fern en-pages ratchet — the English docs surface (T-521) may
+      # only grow. Fails on count drift in EITHER direction: a drop is
+      # coverage loss, a rise requires bumping fern/en-pages.count (make
+      # fern-en-baseline) so the new floor is locked in — CI never edits
+      # tracked files, every ratchet move is a reviewed commit. Same
+      # Makefile target as the GitHub face and local runs: one command, no
+      # surface drift. Runs on both shards (parallelism 2) — idempotent,
+      # <0.1s, each shard's own workspace.
+      - run:
+          name: Fern en-pages ratchet
+          command: make fern-en-ratchet
       # T-473: module cache — path fixed (v1's /go/pkg/mod never existed in
       # cimg images, so every prior save stored nothing). Exact key first,
       # prefix fallback second.

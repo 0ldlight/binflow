@@ -46,7 +46,7 @@ UPSTREAM_SHA256 = ("46a4a251ca406e78e4853d7a2bae83282844a4992851439"
 
 EXPECTED = {
     "first_resolve": "200+sha256-ok",
-    "cache_projection_artifact": "200",
+    "cache_projection_artifact": "status=200",
     "second_resolve": "200+sha256-ok",
 }
 

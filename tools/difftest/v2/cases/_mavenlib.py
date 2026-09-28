@@ -83,9 +83,15 @@ def jar_fixture(label: str) -> bytes:
 # ------------------------------------------------------------------ repos
 
 def repo_delete(ctx, side: str, key: str):
-    """Best-effort DELETE; any status accepted (200/404 both fine)."""
+    """Best-effort DELETE; any status accepted (200/404 both fine).
+
+    BinFlow refuses DELETE on a non-empty repository with 400 + a
+    deleteContent=true hint (an A/B divergence recorded in the batch
+    report); retry with the hint so cleanup cannot strand keyspace."""
     try:
-        ctx.http(side, "DELETE", "/api/repositories/" + key)
+        resp = ctx.http(side, "DELETE", "/api/repositories/" + key)
+        if resp.get("status") == 400:
+            ctx.http(side, "DELETE", "/api/repositories/%s?deleteContent=true" % key)
     except Exception:  # noqa: BLE001 - cleanup must never mask the verdict
         pass
 

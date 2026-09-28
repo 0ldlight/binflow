@@ -277,14 +277,23 @@ func TestTwoInstancePushReplication(t *testing.T) {
 			dresp.StatusCode, dresp.Header.Get("X-Checksum-Sha256"), sha)
 	}
 
-	// The replica view is read-only: PUT and DELETE answer 405 (AC ③ leg 2).
+	// The replica view refuses new uploads with 405 (AC ③ leg 2). DELETE
+	// through the virtual follows the D-2 ruling (virtual-resolution §7.5
+	// errata, T-524 2026-09-28): 404 ITEM_NOT_FOUND, backing member survives.
 	presp, _ := b.do(http.MethodPut, "/binflow/replica/org/other.bin", "admin", "pw-target", []byte("x"))
 	if presp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("PUT on B replica: status %d, want 405", presp.StatusCode)
 	}
-	dresp2, _ := b.do(http.MethodDelete, "/binflow/replica/org/app/1.0/app-1.0.bin", "admin", "pw-target", nil)
-	if dresp2.StatusCode != http.StatusMethodNotAllowed {
-		t.Fatalf("DELETE on B replica: status %d, want 405", dresp2.StatusCode)
+	dresp2, d2body := b.do(http.MethodDelete, "/binflow/replica/org/app/1.0/app-1.0.bin", "admin", "pw-target", nil)
+	if dresp2.StatusCode != http.StatusNotFound {
+		t.Fatalf("DELETE on B replica: status %d, want 404", dresp2.StatusCode)
+	}
+	if !bytes.Contains(d2body, []byte("Could not locate artifact. Path: 'replica/org/app/1.0/app-1.0.bin'.")) {
+		t.Fatalf("DELETE on B replica: body %s, want ITEM_NOT_FOUND wording", d2body)
+	}
+	dresp3, _ := b.do(http.MethodGet, "/binflow/replica-local/org/app/1.0/app-1.0.bin", "", "", nil)
+	if dresp3.StatusCode != http.StatusOK {
+		t.Fatalf("GET on B replica-local after virtual DELETE: status %d, want 200 (member survives)", dresp3.StatusCode)
 	}
 }
 

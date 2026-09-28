@@ -388,6 +388,17 @@ func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (
 	if err := validateNodePath(path); err != nil {
 		return nil, nil, err
 	}
+	// The <K>-cache projection face (T-530, F1): a remote repository's
+	// derived cache key resolves onto that remote's namespace with local
+	// semantics. A parent that is not a remote repository has no projection
+	// — the ordinary resolution below answers (a stored row with the
+	// spelling, if any, keeps serving; the config-time guard makes new ones
+	// impossible).
+	if parent, ok := CacheProjectionTarget(repoKey); ok {
+		if row, perr := s.loadRepoRow(ctx, parent); perr == nil && row.Type == TypeRemote {
+			return s.getCacheProjection(ctx, p, repoKey, parent, path)
+		}
+	}
 	row, err := s.loadRepoRow(ctx, repoKey)
 	if err != nil {
 		return nil, nil, err
@@ -572,6 +583,14 @@ func (s *service) getRemote(ctx context.Context, p *Principal, repoKey, path str
 func (s *service) ResolveMeta(ctx context.Context, p *Principal, repoKey, path string) (*metadata.Node, error) {
 	if err := validateNodePath(path); err != nil {
 		return nil, err
+	}
+	// The <K>-cache read face (T-530/F1): a projection key addresses the
+	// parent remote's own namespace — resolve the meta there (remote-cache-
+	// projection.md section 2.1: the projection is read-addressable).
+	if parent, ok := CacheProjectionTarget(repoKey); ok {
+		if prow, perr := s.loadRepoRow(ctx, parent); perr == nil && prow.Type == TypeRemote {
+			return s.ResolveMeta(ctx, p, parent, path)
+		}
 	}
 	row, err := s.loadRepoRow(ctx, repoKey)
 	if err != nil {
@@ -1377,8 +1396,11 @@ func isUniqueViolation(err error) bool {
 // same delete grant as local; a path with nothing cached answers the
 // idempotent 404.
 //
-// M3 (T-71): a VIRTUAL repository delete is ALWAYS the 405 — deletes do not
-// propagate through the member resolution (see refuseVirtualDelete).
+// M3 (T-71) → T-530 (D-2): a VIRTUAL repository delete touches only the
+// virtual's OWN namespace (the aggregate-cache plane of
+// virtual-resolution.md section 7.5) — members are never touched, and a
+// virtual with no own rows answers the idempotent 404 (see
+// deleteVirtualOwnStorage).
 //
 // M12 (T-345, FR-106): a LOCAL repository delete is trash-captured first
 // when the feature is on (ConfigureTrash + the license gate): the node tree
@@ -1405,12 +1427,15 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 		return s.deleteRemoteCache(ctx, p, repoKey, path)
 	}
 	if row.Type == TypeVirtual {
-		// T-71: deletes never propagate through a virtual repository —
-		// cache deletes belong to the remote member itself (RE-06), artifact
-		// deletes to the member that holds them. Even a configured write
-		// route does not change this (BinFlow's deliberate incompatibility,
-		// PRD section 2.2 / RE-08).
-		return refuseVirtualDelete(row.RepoKey, virtualWriteRouted(row.Config))
+		// T-530 (D-2; virtual-resolution.md section 7.5's errata over
+		// repo-semantics section 8.2 — A-side behavior confirmed live by
+		// L028 / the T-524 ruling): a virtual delete touches ONLY the
+		// virtual's own aggregate storage, never the members'. BinFlow
+		// computes its aggregations per request and persists no
+		// aggregate-cache entries, so the honest answer is the reference's
+		// ITEM_NOT_FOUND 404; rows that DO sit under the virtual key
+		// (raw-seeded drift) are the own storage and drop.
+		return s.deleteVirtualOwnStorage(ctx, p, row.RepoKey, path)
 	}
 	if !s.allow(ctx, p, repoKey, path, ActionDelete) {
 		return fmt.Errorf("delete %s/%s: %w", repoKey, path, ErrForbidden)
@@ -1539,6 +1564,65 @@ func (s *service) deleteRemoteCache(ctx context.Context, p *Principal, repoKey, 
 	return nil
 }
 
+// deleteVirtualOwnStorage is Delete's virtual branch (T-530, D-2):
+// virtual-resolution.md section 7.5 — the delete addresses the virtual's
+// OWN aggregate storage only; members are never touched (the spec's
+// A-side-confirmed behavior: 404 + member artifacts alive). BinFlow's
+// aggregations are computed per request, so the own namespace is normally
+// empty and the walk answers the idempotent ErrNodeNotFound the adapter
+// plane renders as the DELETE 404; raw-seeded drift rows under the virtual
+// key ARE the own storage and drop (a folder spelling takes its subtree,
+// the local plane's directory rule).
+func (s *service) deleteVirtualOwnStorage(ctx context.Context, p *Principal, virtualKey, path string) error {
+	if !s.allow(ctx, p, virtualKey, path, ActionDelete) {
+		return fmt.Errorf("delete %s/%s: %w", virtualKey, path, ErrForbidden)
+	}
+	dropSubtree := func(dir string) error {
+		rows, err := s.md.Nodes().ListByPrefix(ctx, virtualKey, dir)
+		if err != nil {
+			return fmt.Errorf("list %s/%s: %w", virtualKey, dir, err)
+		}
+		for _, n := range rows {
+			if n.Path != dir+"/" && !strings.HasPrefix(n.Path, dir+"/") {
+				continue // ListByPrefix's LIKE also matches sibling spellings
+			}
+			if err := s.md.Nodes().Delete(ctx, virtualKey, n.Path); err != nil && !errors.Is(err, metadata.ErrNodeNotFound) {
+				return fmt.Errorf("delete %s/%s: %w", virtualKey, n.Path, err)
+			}
+		}
+		return nil
+	}
+	if n, err := s.md.Nodes().Get(ctx, virtualKey, path); err == nil {
+		if err := s.md.Nodes().Delete(ctx, virtualKey, path); err != nil {
+			return fmt.Errorf("delete %s/%s: %w", virtualKey, path, err)
+		}
+		if n.Sha256 == emptyFolderSHA { // the folder row's spelling takes the subtree too
+			if err := dropSubtree(strings.TrimSuffix(path, "/")); err != nil {
+				return err
+			}
+		}
+	} else if errors.Is(err, metadata.ErrNodeNotFound) {
+		// The slash-append spelling (a folder addressed without its slash).
+		folder := strings.TrimSuffix(path, "/") + "/"
+		if _, ferr := s.md.Nodes().Get(ctx, virtualKey, folder); ferr != nil {
+			if errors.Is(ferr, metadata.ErrNodeNotFound) {
+				return fmt.Errorf("node %s/%s: %w", virtualKey, path, ErrNodeNotFound)
+			}
+			return fmt.Errorf("node %s/%s: %w", virtualKey, folder, ferr)
+		}
+		if err := dropSubtree(strings.TrimSuffix(path, "/")); err != nil {
+			return err
+		}
+	} else {
+		return fmt.Errorf("node %s/%s: %w", virtualKey, path, err)
+	}
+	s.audit(ctx, AuditEvent{
+		Actor: p.Name, Action: AuditActionDelete, Repo: virtualKey, Path: path,
+		Detail: `{"virtualOwnStorage":true}`,
+	})
+	return nil
+}
+
 // pruneEmptyParents walks from path's parent upward, deleting folder rows
 // that no longer have any child. The folder row itself is deleted last, so a
 // crash midway can only over-retain folders, never over-delete files.
@@ -1642,6 +1726,14 @@ func (s *service) listRowsChecked(ctx context.Context, p *Principal, repoKey, pr
 		}
 		if err := validateNodePath(prefix); err != nil {
 			return nil, "", err
+		}
+	}
+	// The <K>-cache read face (T-530/F1): List on a projection key lists the
+	// parent remote's rows (remote-cache-projection.md section 2.1 — the
+	// projection is a read view of the parent's namespace, no entity rows).
+	if parent, ok := CacheProjectionTarget(repoKey); ok {
+		if prow, perr := s.loadRepoRow(ctx, parent); perr == nil && prow.Type == TypeRemote {
+			return s.listRowsChecked(ctx, p, parent, prefix)
 		}
 	}
 	row, err := s.loadRepoRow(ctx, repoKey)
@@ -2252,6 +2344,11 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 	if err := validateRepoKey(r.RepoKey); err != nil {
 		return nil, err
 	}
+	// T-530 (remote-cache-projection.md 1.3): every -cache-suffixed key is
+	// the derived projection face of its parent — never a creatable entity.
+	if err := refuseCacheProjectionKey(r.Type, r.RepoKey); err != nil {
+		return nil, err
+	}
 	// M10 T-283 (D3, weave point 2): the legality question rides the
 	// dynamic overlay — registry-known slots extend the static enum, and a
 	// known-but-locked slot refuses the create with the pointed clause.
@@ -2431,11 +2528,11 @@ func (s *service) validateVirtualMembers(ctx context.Context, p *Principal, virt
 			// every reader of the virtual key.
 			return fmt.Errorf("%w: virtual repository member %q is the system trash can", ErrInvalidRepoConfig, m)
 		}
-		if row.Type == TypeVirtual {
-			return fmt.Errorf(
-				"%w: virtual repository member %q is itself virtual (nested virtual repositories are not supported)",
-				ErrInvalidRepoConfig, m)
-		}
+		// T-530: nested virtual members are now FIRST-CLASS — the resolution
+		// layer expands them (virtual.go expandVirtualMembers, declaration-
+		// order DFS with visitedKeys cycle cut); config-level graph-wide cycle
+		// detection is deliberately NOT done (members mutate independently;
+		// the runtime cut is the terminal guard — virtual-four-bucket.md 5.1).
 		if cfg.DefaultDeploymentRepo != "" && m == cfg.DefaultDeploymentRepo && row.Type != TypeLocal {
 			return fmt.Errorf(
 				"%w: defaultDeploymentRepo %q must be a local repository member, not %s",
@@ -2619,6 +2716,12 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		return nil, err
 	}
 	if err := validateRepoKey(r.RepoKey); err != nil {
+		return nil, err
+	}
+	// T-530 (remote-cache-projection.md 1.3): -cache keys are projection
+	// faces, not entities — the update refuses BEFORE the existence lookup so
+	// the answer is the config 400, not a 404 on a key that never existed.
+	if err := refuseCacheProjectionKey(r.Type, r.RepoKey); err != nil {
 		return nil, err
 	}
 	current, err := s.md.Repos().Get(ctx, r.RepoKey)

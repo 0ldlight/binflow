@@ -37,9 +37,9 @@ import (
 //     defaultDeploymentRepo onto the member and an un-routed virtual
 //     answers the C5 405 there; the registration tail's index read is
 //     member-targeted (below) so a routed write never copies the other
-//     members' revisions into the target. DELETE refuses in-handler — the
-//     local arms open with a subtree probe and svc.List does not serve
-//     the virtual class.
+//     members' revisions into the target. DELETE goes to the service,
+//     whose virtual branch owns the section 7.5 semantics (own storage
+//     only, members untouched).
 //
 // Member failures follow the npm/pypi aggregation rule: an unfound member
 // contributes nothing; a CLASSIFIED failure (the remote engine's SSRF 400,
@@ -167,33 +167,41 @@ func (h *Handler) serveVirtual(ctx context.Context, cw *capWriter, r *http.Reque
 		if !h.requireMethod(cw, r, http.MethodDelete) {
 			return
 		}
-		h.refuseVirtualDelete(cw, repoKey)
+		h.serveVirtualDelete(ctx, cw, p, repoKey, rt)
 
 	default:
 		writePlain(cw, http.StatusNotFound, "not found")
 	}
 }
 
-// refuseVirtualDelete answers the DELETE family on a virtual repository:
-// deletes never propagate through the member resolution (RE-08 / T-71),
-// with the wording keyed on whether a write route exists — the repo
-// package's own refusal, restated because the local arms' subtree probe
-// (a svc.List) does not serve the virtual class.
-func (h *Handler) refuseVirtualDelete(cw *capWriter, repoKey string) {
-	cw.Header().Set("Allow", http.MethodGet)
-	routed := false
-	if h.repos != nil {
-		if row, err := h.repos.Get(context.Background(), repoKey); err == nil {
-			routed = conanDeploymentTarget(row.Config) != ""
-		}
+// serveVirtualDelete answers the v2 DELETE family on a virtual
+// repository: the delete goes to the SERVICE, whose virtual branch
+// touches only the virtual's own aggregation storage
+// (virtual-resolution.md section 7.5's errata, T-530's D-2) — BinFlow
+// persists no rows under the virtual key, so the honest answer is the
+// 404 below; an own-storage row (raw-seeded drift) drops and answers
+// 200. The in-handler 405 refusal this arm used to carry (the repo
+// package's pre-T-524 wording, restated) is retired with it — the local
+// arms' subtree probe cannot serve the virtual class, but svc.Delete
+// can and owns the section 7.5 semantics. The local arms' index-row
+// maintenance never runs here: the virtual holds no index of its own.
+func (h *Handler) serveVirtualDelete(ctx context.Context, cw *capWriter, p *repo.Principal, repoKey string, rt route) {
+	var target string
+	switch rt.kind {
+	case kindV2RecipeDelete:
+		target = rt.ref.coordinateRoot() + "/"
+	case kindV2RevDelete:
+		target = rt.ref.coordinateRoot() + "/" + rt.rRev + "/"
+	case kindV2PackagesDelete:
+		target = rt.ref.coordinateRoot() + "/" + rt.rRev + "/" + dirPackage + "/"
+	case kindV2PkgRevDelete:
+		target = pkgFilePrefix(rt.ref.coordinateRoot(), rt.rRev, rt.pid, rt.pRev)
 	}
-	msg := fmt.Sprintf(
-		"No local repository was configured as local deployment repository for the (%s) virtual repository.", repoKey)
-	if routed {
-		msg = fmt.Sprintf(
-			"Deletes are not propagated through the virtual repository '%s'; delete the artifact in its member repository directly.", repoKey)
+	if err := h.svc.Delete(ctx, p, repoKey, target); err != nil {
+		h.writeError(cw, err, repoKey, target)
+		return
 	}
-	writePlain(cw, http.StatusMethodNotAllowed, msg)
+	cw.WriteHeader(http.StatusOK)
 }
 
 // conanDeploymentTarget is the tolerant write-route probe of a virtual

@@ -74,14 +74,21 @@ func (s *service) v2VirtualGuard(ctx context.Context, virtualKey, member string)
 
 // ---- the adapter seam (V2VirtualPlane) ----
 
-// V2MemberOrder implements V2VirtualPlane: the two-bucket member order of
-// one registry-v2 family virtual repository, fresh off the ledger on every
-// call (member changes are immediately effective, FR-15-AC6).
+// V2MemberOrder implements V2VirtualPlane: the member order of one
+// registry-v2 family virtual repository, fresh off the ledger on every
+// call (member changes are immediately effective, FR-15-AC6). The v2 plane
+// addresses rows, so the cache facets fold away (T-530: a cache facet and
+// its remote body probe the same namespace — one step per member key).
 func (s *service) V2MemberOrder(ctx context.Context, virtualKey string) ([]VirtualMember, error) {
-	if _, err := s.loadV2VirtualRepo(ctx, virtualKey); err != nil {
+	order, err := s.v2VirtualWalkOrder(ctx, virtualKey)
+	if err != nil {
 		return nil, err
 	}
-	return s.VirtualMemberOrder(ctx, virtualKey)
+	out := make([]VirtualMember, 0, len(order))
+	for _, m := range order {
+		out = append(out, VirtualMember{Key: m.key, Type: m.typ, Facet: m.facet, Priority: m.priority})
+	}
+	return out, nil
 }
 
 // V2MemberManifest implements V2VirtualPlane: one member's local fact base
@@ -587,10 +594,16 @@ func (s *service) listV2VirtualImages(ctx context.Context, virtualKey string, n 
 }
 
 // v2VirtualWalkOrder is the virtual arms' shared preamble: the family gate
-// plus the fresh member order.
+// plus the fresh member order. The v2 plane addresses rows (manifest/tag
+// lookups), so the cache facets fold away — a cache step and its remote body
+// probe the same namespace (T-530).
 func (s *service) v2VirtualWalkOrder(ctx context.Context, virtualKey string) ([]virtualMember, error) {
 	if _, err := s.loadV2VirtualRepo(ctx, virtualKey); err != nil {
 		return nil, err
 	}
-	return s.virtualMemberOrder(ctx, virtualKey)
+	order, err := s.virtualMemberOrder(ctx, virtualKey)
+	if err != nil {
+		return nil, err
+	}
+	return plainSteps(order), nil
 }

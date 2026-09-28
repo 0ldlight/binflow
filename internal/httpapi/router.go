@@ -2277,6 +2277,29 @@ func (s *Server) dispatchContent(w http.ResponseWriter, r *http.Request, _ strin
 		action, required = "", false
 	}
 
+	// The <K>-cache direct-download face (T-530/F1, remote-cache-projection.md
+	// section 2.1): a GET/HEAD whose first segment is a cache projection key
+	// dispatches through the PARENT remote's adapter with the projection
+	// spelling intact — the adapter's svc.Get lands on the service's
+	// projection branch (local semantics: a standing copy serves byte-exact,
+	// a miss is the ordinary 404, the upstream is never contacted). The
+	// intercept sits BEFORE the enforce wrapper on purpose: the authorize
+	// middleware evaluates a.Can on the FIRST URL segment, and a projection
+	// key has no permission target of its own (the ACL mapping is "strip the
+	// suffix, evaluate the parent", section 2.2 — getCacheProjection's allow
+	// does exactly that). Non-GET verbs are NOT intercepted: they fall
+	// through to the standard chain, whose repo lookup misses the
+	// nonexistent projection row and answers the envelope 404 (section 2.1:
+	// no uploads through the projection face).
+	if r.Method == http.MethodGet || r.Method == http.MethodHead {
+		if row, ok := s.cacheProjectionParent(r); ok {
+			if h, mounted := s.adapters[row.PackageType]; mounted {
+				h.ServeHTTP(w, withStrippedPrefix(r, p))
+				return
+			}
+		}
+	}
+
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		repoKey, _ := splitFirstSegment(r)
 		row, err := s.deps.Repos.Get(r.Context(), repoKey)
@@ -2324,6 +2347,24 @@ func (s *Server) dispatchContent(w http.ResponseWriter, r *http.Request, _ strin
 		required: required,
 		action:   action,
 	}, inner)
+}
+
+// cacheProjectionParent resolves a content request whose first URL segment
+// carries the -cache suffix onto the PARENT remote's row (T-530/F1): ok only
+// when the parent exists and IS a remote — any other spelling has no
+// projection and falls back to the standard chain, whose repo lookup answers
+// the ordinary not-found envelope.
+func (s *Server) cacheProjectionParent(r *http.Request) (*metadata.Repo, bool) {
+	repoKey, _ := splitFirstSegment(r)
+	parent, ok := repo.CacheProjectionTarget(repoKey)
+	if !ok {
+		return nil, false
+	}
+	row, err := s.deps.Repos.Get(r.Context(), parent)
+	if err != nil || row.Type != repo.TypeRemote {
+		return nil, false
+	}
+	return row, true
 }
 
 // writeRepoLookupError maps a repo lookup failure onto the envelope:

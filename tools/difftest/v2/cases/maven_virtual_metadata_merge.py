@@ -41,7 +41,7 @@ EXPECTED = {
     "versions_union_order": "|".join(EXPECTED_ORDER),
     "latest_recomputed": "3.0.0-SNAPSHOT",
     "release_recomputed": "2.0.0",
-    "virtual_cache_not_merged": "404",
+    "virtual_cache_not_merged": "status=404",
 }
 
 

@@ -16,14 +16,21 @@ import (
 // end-to-end virtual fixture (local member first, remote member second,
 // counting mock upstream):
 //
-//   - a *repo.StatusError renders verbatim — publish (PUT) and unpublish
-//     (DELETE) through an un-routed virtual repository answer the service's
-//     own 405 + Allow: GET + C5 wording (the T-71 bug: npm had no
-//     ErrRepoTypeNotSupported arm at all, so both fell into the default
-//     500),
+//   - a *repo.StatusError renders verbatim — publish (PUT) through an
+//     un-routed virtual repository answers the service's own 405 +
+//     Allow: GET + C5 wording (the T-71 bug: npm had no
+//     ErrRepoTypeNotSupported arm at all, so it fell into the default
+//     500); DELETE (unpublish) through the virtual is the D-2 flip: the
+//     delete touches only the virtual's own aggregation storage, so a
+//     path it does not hold answers 404 and members survive
+//     (virtual-resolution.md section 7.5 errata, T-524's ruling — the
+//     pre-T-524 405 refusal is retired, maven T-531's precedent),
 //   - a hinted body stream contributes X-BinFlow-Resolved-From (and the
 //     remote member's X-BinFlow-Cache beneath it) to the packument and
-//     tarball responses alike.
+//     tarball responses alike; the REPEAT pull serves through the
+//     remote's cache-facet step with LOCAL semantics (design
+//     virtual-four-bucket.md section 3, T-530) — byte-exact, zero
+//     upstream, no cache verdict header.
 func TestVirtualRenderSeams(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -115,9 +122,24 @@ func TestVirtualRenderSeams(t *testing.T) {
 	if body := bodyOf(rr); body != "REMOTE-TARBALL" {
 		t.Errorf("remote tarball body = %q", body)
 	}
+	// Repeat: the four-bucket order serves the standing copy through the
+	// remote's cache-facet step with LOCAL semantics (design section 3:
+	// zero upstream, no freshness window) — byte-exact content, the member
+	// still named, the upstream frozen, and NO X-BinFlow-Cache header (the
+	// fetch verdict header only rides the FR-20 body path; a
+	// local-semantics read carries none — T-530, maven T-531's precedent).
 	rr = s.call(http.MethodGet, "/npmv-virt/remote-pkg/-/remote-pkg-1.0.0.tgz", "", adminPrincipal, nil)
-	if got := rr.Header().Get("X-BinFlow-Cache"); got != "HIT" {
-		t.Errorf("repeat tarball X-BinFlow-Cache = %q, want HIT", got)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("repeat tarball = %d; body=%s", rr.Code, bodyOf(rr))
+	}
+	if got := rr.Header().Get("X-BinFlow-Cache"); got != "" {
+		t.Errorf("repeat tarball X-BinFlow-Cache = %q, want none (cache-facet local-semantics serve)", got)
+	}
+	if got := rr.Header().Get(repo.HdrResolvedFrom); got != "npmv-rem" {
+		t.Errorf("repeat tarball Resolved-From = %q, want npmv-rem", got)
+	}
+	if body := bodyOf(rr); body != "REMOTE-TARBALL" {
+		t.Errorf("repeat tarball body = %q, want the byte-exact upstream copy", body)
 	}
 	if got := hits.Load(); got != 3 { // T-72: the local-pkg packument now MERGES, so its
 		// walk also probes the remote member (a miss, +1 upstream request whose
@@ -141,19 +163,27 @@ func TestVirtualRenderSeams(t *testing.T) {
 		t.Errorf("virtual publish body = %s", body)
 	}
 
-	// Unpublish DELETE through the virtual: the RE-08 refusal's own 405
-	// (was the default arm's 500). The whole-package DELETE first resolves
-	// the packument off the local member, then the folder delete hits the
-	// virtual's refusal.
+	// Unpublish DELETE through the virtual: the delete touches ONLY the
+	// virtual's own aggregation storage — a path the virtual itself does
+	// not hold answers 404 (npm's ITEM_NOT_FOUND face) and no member's
+	// entity is touched (virtual-resolution.md section 7.5, the errata
+	// that retired repo-semantics section 8.2's member-walk delete; the
+	// pre-T-524 405 "no local deployment repository" refusal no longer
+	// exists on this face — the reverse assertion below pins its
+	// retirement, maven T-531's precedent).
 	rr = s.call(http.MethodDelete, "/npmv-virt/local-pkg/-rev/1-deadbeef", "", adminPrincipal, nil)
-	if rr.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("virtual unpublish = %d, want 405; body=%s", rr.Code, bodyOf(rr))
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("virtual unpublish = %d, want 404; body=%s", rr.Code, bodyOf(rr))
 	}
-	if got := rr.Header().Get("Allow"); got != "GET" {
-		t.Errorf("virtual unpublish Allow = %q, want GET", got)
+	if got := rr.Header().Get("Allow"); got != "" {
+		t.Errorf("virtual unpublish Allow = %q, want none (no 405 refusal anymore)", got)
 	}
-	if body := bodyOf(rr); !strings.Contains(body, "npmv-virt") {
-		t.Errorf("virtual unpublish body = %s", body)
+	body := bodyOf(rr)
+	if !strings.Contains(body, `"message": "not found"`) {
+		t.Errorf("virtual unpublish body = %s, want npm's 404 envelope", body)
+	}
+	if strings.Contains(body, "No local repository was configured") {
+		t.Errorf("virtual unpublish body carries the retired 405 wording: %s", body)
 	}
 
 	// The member's nodes survived: deletes never propagate.
