@@ -62,8 +62,17 @@ def _leg(ctx, side):
     # fresh cache each run: delete-first (deleting a remote wipes its cache,
     # remote-cache-projection.md §1.4), then create remote + virtual.
     mavenlib.cleanup_repos(ctx, side, [VIRT, REMOTE])
+    remote_cfg = {"rclass": "remote", "packageType": "maven", "url": CENTRAL}
+    if side == "b":
+        # Harness environment only, not a product divergence: the difftest
+        # host's DNS (clash TUN fake-ip) resolves repo1.maven.org to a
+        # private ULA, which the NFR-S13 SSRF guard refuses by default.
+        # Grant the repository-level allowPrivateUpstream exemption (the
+        # first-class admin knob, admin-granted + audited) so the B leg
+        # reaches the same upstream as A.
+        remote_cfg["allowPrivateUpstream"] = True
     mavenlib.ensure_repos(ctx, side, [
-        (REMOTE, {"rclass": "remote", "packageType": "maven", "url": CENTRAL}),
+        (REMOTE, remote_cfg),
         mavenlib.maven_virtual(VIRT, [REMOTE]),
     ])
 
