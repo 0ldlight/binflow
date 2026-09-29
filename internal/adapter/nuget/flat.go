@@ -252,7 +252,9 @@ func writeText(w http.ResponseWriter, status int, body string) {
 // sidecars, 201 with no Location header (T-567, L036 section 2: the A
 // face's multipart push 201 carries NONE — the former repo-relative
 // Location was a mis-anchored value whose client-side resolution pointed
-// at a doubly-stacked flatcontainer path).
+// at a doubly-stacked flatcontainer path) and no X-Checksum-Sha256
+// (L037 Arm 2: the A face's v2/v3 push 201 carries none — that header
+// is the bare-content plane's own, serveBareContent).
 //
 // Two URL shapes reach here: the addressed form
 // (flatcontainer/<id>/<version>, the PRD's carrier and the curl surface)
@@ -330,7 +332,7 @@ func (h *Handler) servePush(ctx context.Context, w http.ResponseWriter, r *http.
 		writePlain(w, http.StatusInternalServerError, msgSpoolRewindFailed)
 		return
 	}
-	node, perr := h.svc.Put(ctx, p, repoKey, target.nupkg(), sp.file, storage.BlobRef{}, "application/octet-stream")
+	_, perr := h.svc.Put(ctx, p, repoKey, target.nupkg(), sp.file, storage.BlobRef{}, "application/octet-stream")
 	if perr != nil {
 		if existed && errors.Is(perr, repo.ErrForbidden) {
 			// Arm ② (section 5.4 A1/A5): the official wording, verbatim.
@@ -356,11 +358,10 @@ func (h *Handler) servePush(ctx context.Context, w http.ResponseWriter, r *http.
 		h.warnSidecar(ctx, repoKey, target.sha512(), err)
 	}
 
-	// No Location on the 201 (the T-567 note above): the A face's push
-	// 201 carries none, and the checksum header stays the only extra.
-	if node != nil && node.Sha256 != "" {
-		w.Header().Set(hdrChecksumSha256, node.Sha256)
-	}
+	// No Location and no X-Checksum-Sha256 on the 201 (T-567 plus L037
+	// Arm 2): the A face's v2/v3 push 201 carries neither — the checksum
+	// header is the bare-content plane's own (serveBareContent), never
+	// the push faces'.
 	w.WriteHeader(http.StatusCreated)
 }
 
@@ -493,9 +494,10 @@ func (h *Handler) serveDelete(ctx context.Context, w http.ResponseWriter, _ *htt
 }
 
 // serveBareContent is the raw storage face (no plane segment): GET/HEAD
-// stream the node, PUT lands bytes verbatim (its 201 Location is the
-// absolute, context-prefixed address, T-567), DELETE removes — the curl
-// and debug reachability the other adapters' content planes give.
+// stream the node, PUT lands bytes verbatim (its 201 renders the absolute,
+// context-prefixed Location, T-567, and the always-on X-Checksum-Sha256 of
+// the artifact's effective sha256, L037 Arm 2 / T-575), DELETE removes —
+// the curl and debug reachability the other adapters' content planes give.
 func (h *Handler) serveBareContent(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, rel string) {
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
@@ -515,9 +517,20 @@ func (h *Handler) serveBareContent(ctx context.Context, w http.ResponseWriter, r
 			writePlain(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		if _, err := h.svc.Put(ctx, p, repoKey, rel, r.Body, expect, "application/octet-stream"); err != nil {
+		node, err := h.svc.Put(ctx, p, repoKey, rel, r.Body, expect, "application/octet-stream")
+		if err != nil {
 			h.writeError(w, err, repoKey, rel)
 			return
+		}
+		// The 201 ALWAYS renders X-Checksum-Sha256 = the artifact's
+		// EFFECTIVE sha256 (L037 Arm 2, T-575): with a client header that
+		// passes validation the value is the client's own; without one the
+		// server's measurement fills in. Both paths read node.Sha256 — a
+		// declared disagreement dies at storage's 409 below and never
+		// reaches this 201, so the node's value is the effective one on
+		// every leg that gets here.
+		if node != nil && node.Sha256 != "" {
+			w.Header().Set(hdrChecksumSha256, node.Sha256)
 		}
 		w.Header().Set("Location", requestBase(r)+productPrefix+"/"+repoKey+"/"+escapePath(rel))
 		w.WriteHeader(http.StatusCreated)
@@ -560,8 +573,8 @@ func escapePath(rel string) string {
 // THROUGH the context path — absolute, path part the deployment path
 // unchanged; the bare repo-relative form is a mis-anchored value a client
 // resolves against the wrong base. (The probe's companion X-Checksum-Sha256
-// on that A face is NOT added here — unfaced surface, out of ticket
-// scope.) Same render rule as adapter/maven's T-563 and adapter/generic's
-// T-564 productPrefix — kept as this package's own constant, no
-// cross-package import.
+// on that A face is rendered since T-575 / L037 Arm 2 — in the PUT arm
+// above, not here at render-time.) Same render rule as adapter/maven's
+// T-563 and adapter/generic's T-564 productPrefix — kept as this package's
+// own constant, no cross-package import.
 const productPrefix = "/binflow"
