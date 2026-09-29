@@ -118,6 +118,38 @@
 #   ③ D12-R18 落 contract_ref + last_difftest 补 L030 修复链、D12-R05 last_difftest/note 补 L031。
 #   行态零变更（compatible 维持——臂级差异走台账）；summary 同步 contract_ref 37→38。195 冻结行集
 #   不增删（本批零新行）。
+# T-551 stage 1（LOOP 1544 R5，2026-09-29，compatibility-engineer / BIN-33）契约修订 + L032 台账批：
+#   ① contracts/maven-virtual.yaml 修订扩条：M3 rider 条目旁车臂收编 .sha256（L032 Arm 6 match×3 A 面
+#   live 取证）+ 修订注记（body/digest 面 L032 复验无回归 14/17 维一致，status 维持 VERIFIED）；新增
+#   第 4 条目 maven/derived-sidecar-validator-family（DIVERGENT/high——A 面 live 实形：自身 LM+IMS→304、
+#   不发 ETag；B 面三处分歧，divergence_ref 挂台账新账）。② known-divergence 五件：新账
+#   maven/derived-sidecar-validator-family（BUG，fix in flight T-551 stage 2）+ rest/kcache-deploy-404-
+#   wording 扩展（L032 Arm 2 live 确认 + remote 本体 405 腿并入，fix in flight T-553）+ L031 npm/
+#   virtual-packument-merge-latest-tag 回填 resolved（T-548 双端三 case 连续两轮 PASS，锚
+#   reports/agents/T-548.md）+ conan/v1-packages-delete-virtual-plain-404 实形更新（Arm 4：A=400+errors
+#   envelope，三重分歧维持，licensed B 复测待许可）+ D-3 ruling-ready 注记（维持 UNKNOWN，终裁=用户/ADR）。
+#   ③ D12-R18 note/last_difftest 补 L032 链。行态零变更（compatible 维持——臂级差异走台账）；X=201
+#   不变；summary 计数零变动（contract_ref 38 / last_difftest 51——D12-R18 两字段原已非空）。四问 Z
+#   复算：总 81 = 34 resolved + 4 gated + 43 open（+1 新账 sidecar、+1 L031 回填；kcache 并入不增账）。
+#   195 冻结行集不增删（本批零新行）。
+# T-551 卫生款（同批）：三处存量 plain scalar「 #」截断加引号修复（内容零变更，L001-2 加引号先例款）——
+#   D12-R18 last_difftest（「PR #156」起 L030/L032 链曾整体落注释区）、known-divergence#
+#   docker/remote-ping-credential-class-message-granularity review_gate（「#2」）、#rest/security-read-
+# T-551 终批第二半（R5，2026-09-29，conductor 指令）——L033 三 resolved 落账 + 首个 maven 域金样挂链：
+#   ① known-divergence 三翻 resolved（锚 reports/compatibility/L033-r5-fix-verification.md）：maven/
+#   virtual-metadata-modulereleases-skip（T-556/BIN-38——「T-556 修复验证」节 r5≡r6 面级 b==a 双轮，
+#   hwm 两维 404→200+versions 双列；walk 层 vacuous 面零行为损失如实保留）、maven/derived-sidecar-
+#   validator-family（T-551 stage 2 / BIN-33——Arm A 17/17 PASS×3；跨秒 LM 残差单立 maven/derived-
+#   sidecar-lm-per-request-stamp UNKNOWN 不随翻，两态并存）、rest/kcache-deploy-404-wording（T-553/
+#   BIN-35——Arm B 三腿逐字 PASS×3）。同批第一半已落 +4 新 UNKNOWN（L033 Arm C 提案①②③ + 跨秒
+#   LM——authority pending，review_gate 两程内升级默认）。
+#   ② D12-R18 golden_ref 回填 golden/maven/derived-sidecar-validators（首个 maven 域金样：A 腿参照
+#   实形 17 维双报告 live 对账；契约条目 maven/derived-sidecar-validator-family 随翻 VERIFIED——
+#   evidence 补 L033 Arm A difftest + golden-capture 两锚）。行态零变更（compatible 维持）；X=201
+#   不变；summary：golden_ref_non_null 1→2（D12-R18 回填），contract_ref 38 / last_difftest 51 不变。
+#   四问 Z 终算：总 85 = 37 resolved + 4 gated + 44 open（open 四类 BUG 7 / UNKNOWN 35 /
+#   INTENTIONAL 1 / UNSUPPORTED 1）。注：第一半报告 Next 行曾预期「total 88 = 37+4+47」系口径笔误
+#   （翻态只移 open→resolved 不改总数，85 为台账条目实数）——以本实算为准。195 冻结行集不增删。
 
 ---
 schema: 1
@@ -268,7 +300,7 @@ summary:
       rows: 1
       not_applicable: 1
   contract_ref_non_null: 38  # T-549 同步：前置 37（L027-2）+ 本批 D12-R18 落 contracts/maven-virtual.yaml（M3 rider/version3 开关/GAV 门 3 条目）→ 实计 38
-  golden_ref_non_null: 1     # D12-R01（empty-blob-synthetic / pull-sequence）——storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 / L024-4 §5 提金候选（l023d-wire/a/、l024d-wire/a/）在册待采，本批零金样变更（L030 提金候选 A 面 capable 腿 merged 输出待时间戳 normalize——maven 域 golden 前置）
+  golden_ref_non_null: 2     # 前置 1（D12-R01）+ 本批 D12-R18 回填 golden/maven/derived-sidecar-validators（T-551 终批第二半——首个 maven 域金样；L030 提金候选 merged 输出时间戳 normalize 仍在册待采）；storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 / L024-4 §5 提金候选（l023d-wire/a/、l024d-wire/a/）在册待采
   last_difftest_non_null: 51 # L029-1 同步：前置 50（L027-6）+ 本批 D12-R18 新行 → 实计 51（L028/L029 差分报告回填）；T-549 批 D12-R18/D12-R05 两行 last_difftest 内容增补（L030/L031 链）——两行原已非空，计数不变
 rows:
 - row_id: D01-R01
@@ -2779,8 +2811,8 @@ rows:
   state: compatible
   confidence: high
   contract_ref: contracts/maven-virtual.yaml
-  golden_ref:
-  last_difftest: reports/compatibility/L028-maven-v2-batch1-diff.md + reports/compatibility/L029-maven-v2-batch1-reverify.md（L028 r3/r4 测得 D-1/D-2 FAIL → PR #156〔T-529/T-530/T-531 四桶实现+cache 投影+DELETE 语义〕→ L029 r5 关 D-2、r6/r7 双轮稳关 D-1——D-1 线上腿系 SSRF 防护拒 clash fake-ip ULA 环境因，经仓库级 allowPrivateUpstream 豁免（NFR-S13 一等旋钮）后双面一致；真实 mvn 客户端 + 上游 sha256 逐字节比对）+ reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md + reports/iteration-1542.md「L030 修复验收」（L030 r2/r3 测得 BIN-16〔snapshotVersions M3 谓词缺失〕/D-4〔GAV 失配 201 vs 409〕两 FAIL → f21f1c09〔T-542/T-543〕修复 + 3b58b082 评审加固 → case1/case2 双端复跑各连续两轮 PASS——台账两 BUG 已 resolved〔T-549 回填〕，rider/GAV 两面契约化 VERIFIED）
+  golden_ref: golden/maven/derived-sidecar-validators   # T-551 终批第二半回填（首个 maven 域金样——validator 族 A 腿参照实形，锚契约#maven/derived-sidecar-validator-family）
+  last_difftest: 'reports/compatibility/L028-maven-v2-batch1-diff.md + reports/compatibility/L029-maven-v2-batch1-reverify.md（L028 r3/r4 测得 D-1/D-2 FAIL → PR #156〔T-529/T-530/T-531 四桶实现+cache 投影+DELETE 语义〕→ L029 r5 关 D-2、r6/r7 双轮稳关 D-1——D-1 线上腿系 SSRF 防护拒 clash fake-ip ULA 环境因，经仓库级 allowPrivateUpstream 豁免（NFR-S13 一等旋钮）后双面一致；真实 mvn 客户端 + 上游 sha256 逐字节比对）+ reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md + reports/iteration-1542.md「L030 修复验收」（L030 r2/r3 测得 BIN-16〔snapshotVersions M3 谓词缺失〕/D-4〔GAV 失配 201 vs 409〕两 FAIL → f21f1c09〔T-542/T-543〕修复 + 3b58b082 评审加固 → case1/case2 双端复跑各连续两轮 PASS——台账两 BUG 已 resolved〔T-549 回填〕，rider/GAV 两面契约化 VERIFIED）+ reports/compatibility/L032-t550-followup-arms.md（Arm 6 member sidecar 17 维取证：digest 内容契约双端一致复验、validator 族三处分歧立新账〔T-551 stage 1 契约修订 + stage 2 修复在途〕——r1≡r2≡r3）'  # T-551 卫生款：原无引号 plain scalar 中「PR #156」的 # 被 YAML 当注释起始，L029-1 落账起本字段加载即截断于 139 字符（L030/L032 链曾整体落入注释区）——加引号修复，内容零变更
   priority_class: P1
   layer: A
   source_row: "新行提案（L029-1，2026-09-28 conductor 派票授权——L005-3/L007-4 冻结行集外新行先例款）"
@@ -2789,6 +2821,9 @@ rows:
     回填 resolved，契约 contracts/maven-virtual.yaml#maven/deploy-pom-path-consistency-gate）。
     contract_ref 覆盖面注记（T-549）：本行 capability 中仅 M3 rider / GAV 门两面契约化（maven-virtual.yaml
     3 条目），解析四桶/cache 投影/DELETE 语义仍由 L028/L029 差分报告直接背书——扩面契约化留后续票。
+    T-551 stage 1 注记（2026-09-29）：maven-virtual.yaml 扩至 4 条目
+    （+maven/derived-sidecar-validator-family，DIVERGENT——旁车 validator 族分歧走台账新账与
+    stage 2 修复票，不入行态）；rider 条目旁车臂收编 .sha256（L032 live 取证）。
 - row_id: D13-R01
   domain: D13
   capability: UI 内部面（/ui/api/v1 树浏览/Tab/制品动作/首页 widget/验证/SetMeUp/登录屏 ≈470 op）

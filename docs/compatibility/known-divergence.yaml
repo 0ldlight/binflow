@@ -130,7 +130,7 @@ entries:
     实现归 L004-1（304 补票+ping 分型）；L003-2 收编时按 conductor 指令 test-only 更新 internal/httpapi
     四处期望为 BinFlow 实测形态（挑战头+信封与差分一致——差异仅消息文本分型面）。
   authority: { type: pending, ref: "L004-1 实现票（ping 分型落地：Bearer 拒绝臂按凭据类分消息）" }
-  review_gate: LOOP 005 限期升级（分型落地后于 contracts/docker-remote.yaml #2 邻位扩臂/补条目并复验）
+  review_gate: 'LOOP 005 限期升级（分型落地后于 contracts/docker-remote.yaml #2 邻位扩臂/补条目并复验）'  # T-551 卫生款：原 plain scalar「#2」截断，加引号修复内容零变更
   resolved:
     date: '2026-09-12'
     evidence: >-
@@ -308,7 +308,7 @@ entries:
     +console 读视图联动评估；改期 LOOP 010。
   authority: { type: pending, ref: "产品/用户裁决（readonly_admin 经典 security 读面姿态：维持 CapSecurityRead 超集 vs 收窄 admin-only）" }
   review_gate: LOOP 010 限期（随 R-12 批复升级——用户 authority 待决）
-  evidence: internal/httpapi/router.go（security 读族 routeAuth.manage=CapSecurityRead 实测）+ docs/reverse/rbac-model.md #2（参照实例级无 read-only admin）
+  evidence: 'internal/httpapi/router.go（security 读族 routeAuth.manage=CapSecurityRead 实测）+ docs/reverse/rbac-model.md #2（参照实例级无 read-only admin）'  # T-551 卫生款：原 plain scalar「#2」截断，加引号修复内容零变更
 - id: docker/virtual-remote-cold-negative-body-annotation
   surface: docker virtual 面冷负 miss 首答 body 注记（message 后缀「(upstream answered 404 404 Not Found)」）
   classification: BUG
@@ -1171,7 +1171,7 @@ entries:
   evidence: reports/compatibility/2026-09-17-d08-release-bundle.yaml（c55 DIVERGENT 详单）+ reports/compatibility/l027q-wire/（c55 a/b 对）
 - id: rest/nonempty-repo-delete-cascade-guard
   surface: 'DELETE /api/repositories/{key} 非空仓语义（L028 D-3——A 200 静默级联 vs B 400 需 deleteContent=true）'
-  classification: UNKNOWN
+  classification: BUG
   rationale: >-
     L028 D-3（2026-09-28，difftest harness 修复过程中测得，A=7.161.26 Enterprise+ 活体）：非空仓
     DELETE /api/repositories/{key} 时参照 **200 静默删除仓库及其全部内容**（无确认语义）；BinFlow
@@ -1183,11 +1183,20 @@ entries:
     ADR/规格票可引）→ 按纪律入 UNKNOWN pending-ruling。相邻既有账
     d08/repo-delete-response-envelope（c55 成功 DELETE 响应体裁）为不同面（非空仓语义 vs 成功体
     载体），不构成重复登记。
-  authority: { type: pending, ref: "产品/用户裁（非空仓 DELETE 姿态：对齐 A 200 静默级联 vs 维持 B 400 防误删门 INTENTIONAL——无 ADR/规格票/用户裁决在案）" }
-  review_gate: 限期升级（登册后候 pending-rulings 增席：INTENTIONAL 终裁需三类 authority 之一；裁对齐则非空仓静默级联实现票 + 差分复验 L028 D-3 臂）
-  evidence: reports/compatibility/L028-maven-v2-batch1-diff.md D-3 + reports/compatibility/L029-maven-v2-batch1-reverify.md 遗留节
+    L032 Arm 1 证据强化（2026-09-28，r1≡r2≡r3）：**ruling-ready**——级联计数（A 200 body
+    `{"repoKey",…,"deletedArtifactsCount":6,"success":true}`）/ B 确认门文案（`holds 5 node(s);
+    retry with deleteContent=true`）/ 显式放行臂（B ?deleteContent=true → 200）/ 善后态（双面
+    GET /api/repositories/<key> 均 400 同形同文案；mini 发现：missing-key repo GET 双面均 400 而非
+    404——含 never-existed 键探针核实，B 逐字复刻 A，一致面不立案）。
+    **用户裁定落地（2026-09-29，会话内裁定经 conductor 转达）：BUG，对齐 A 面**——非空仓 DELETE
+    改为 A 面 7.161.26 实测形：200 静默级联删除，body 含 deletedArtifactsCount（计数口径差系证据
+    细节：A=6 计数 vs B 节点数 5——修复票活体探针定准）；UNKNOWN→BUG 翻态，fix ticket
+    T-555/BIN-37（conductor 立，实施 R6）。
+  authority: { type: user_ruling, ref: "用户裁定 2026-09-29（会话内，conductor 转达）：BUG 对齐 A 面——200 静默级联 + deletedArtifactsCount；fix ticket T-555/BIN-37（R6）+ 裁定素材 L032 Arm 1 ruling-ready 矩阵" }
+  review_gate: R6 实现票 T-555/BIN-37（conductor 已立）：非空仓 DELETE 200 静默级联 + deletedArtifactsCount body（计数口径活体探针定准；B 现 ?deleteContent=true 放行臂语义随票定去留）；修后差分复验（L028 D-3 / L032 Arm 1 臂）翻绿 → resolved
+  evidence: reports/compatibility/L028-maven-v2-batch1-diff.md D-3 + reports/compatibility/L029-maven-v2-batch1-reverify.md 遗留节 + reports/compatibility/L032-t550-followup-arms.md Arm 1（ruling-ready 证据矩阵——裁定素材）
 - id: rest/kcache-deploy-404-wording
-  surface: 'PUT /<K>-cache/<path> 直传 deploy 拒绝臂 404 措辞族（T-530-b 残差）'
+  surface: 'PUT /<K>-cache/<path> 直传 deploy 拒绝臂 404 措辞族（T-530-b 残差）+ remote 本体直传腿（L032 Arm 2 扩展：B 405 read-only-proxy vs A 404 同族）'
   classification: BUG
   rationale: >-
     T-530 实现轮 Compatibility 登记 + Review B non-blocking 1 确认（2026-09-28）：外部部署请求 PUT
@@ -1200,9 +1209,21 @@ entries:
     未配 defaultDeploymentRepo 的 405 臂（含 replication replica 只读面，engine_integration_test.go
     PUT 405 腿）BinFlow 已按 repo-semantics §8.2 文案族实现并测试钉住（T-530-b2 翻新面精确限定
     DELETE 腿、PUT 语义未动），状态+文案族与 §8.2 高置信行同向——差分腿顺带覆盖即可。
-  authority: { type: spec_ruling, ref: "docs/reverse/remote-cache-projection.md §2.1（高置信：UploadServiceImpl.sendInvalidTargetRepositoryError 反编译锚）+ reports/agents/T-530.md Compatibility 行（B 面实测措辞）" }
-  review_gate: 差分腿覆盖（BIN-M1 后续批次 deploy-404 措辞臂双端对拍）→ 措辞对齐微票（B 渲染点改 sendInvalidTargetRepositoryError 文案族）+ 复验后 resolved
-  evidence: reports/agents/T-530.md（Compatibility 行 §2.1 PUT 对照）+ reports/agents/PR-156-review-T530-b.md non-blocking 1
+    L032 Arm 2 live 扩证（2026-09-28，A 7.161.26 × B stock @ 18247，r1≡r2≡r3，GAV 一致 pom 排除
+    B 前置检查遮蔽）：① `<K>-cache` 腿 live 确认——A 404 `Could not find a local repository named
+    difftest-r4t550w-rem-cache to deploy to.`（§2.1 逐字）vs B 404 `Failed to find the repository
+    'difftest-r4t550w-rem-cache' specified in the request.`（原登记差分自反编译锚升级为双端活体
+    逐字）；② **新增违例面（remote 本体腿）**——PUT `/<rem>/<gav>.pom`：A 404 `Could not find a
+    local repository named difftest-r4t550w-rem to deploy to.`（同 §2.1 家族文案）vs B **405**
+    `Remote repository '<K>' is a read-only proxy cache; deployments to remote repositories are not
+    accepted.`——状态+措辞双分歧，按 L032 Arm 2 建议**并入本条**（同一 deploy 拒绝面族；B 侧两腿
+    渲染点随修复票一并收）；③ virtual 无 defaultDeploymentRepo 405+Allow:GET 腿双面逐字全绿
+    （关联臂无回归）。顺带观察（不立案）：check-order——GAV 不一致 pom 下 B 先答 409、A 先走路由
+    检查（与 D-4 家族相关，留后续批次）。**fix in flight R5（T-553）**。
+  authority: { type: spec_ruling, ref: "docs/reverse/remote-cache-projection.md §2.1（高置信：UploadServiceImpl.sendInvalidTargetRepositoryError 反编译锚）+ reports/agents/T-530.md Compatibility 行（B 面实测措辞）+ reports/compatibility/L032-t550-followup-arms.md Arm 2（双端活体逐字——两腿 live 确认）" }
+  review_gate: 差分腿已覆盖（L032 Arm 2 双端 live 逐字）→ R5 实现票 T-553 in flight（`<K>-cache` 措辞对齐 + remote 本体 405→404 同族文案两腿一票收）→ 修后差分复验（rest-kcache-deploy-404-wording case）翻绿后 resolved——**已兑现**（L033 Arm B 三腿逐字 PASS×3，见 resolved）
+  resolved: { date: '2026-09-29', evidence: 'reports/compatibility/L033-r5-fix-verification.md Arm B（三腿 r1≡r2≡r3 逐字对齐，A/B message 字段 JSON 解析后 byte 相同：① PUT <K>-cache 404「Could not find a local repository named difftest-r4t550w-rem-cache to deploy to.」② PUT remote 本体 405→404 翻正+同族文案「Could not find a local repository named difftest-r4t550w-rem to deploy to.」③ virtual 无 defaultDeploymentRepo 405+Allow:GET+§8.2 固定文案一致维持无回归）；fix_ref=T-553/BIN-35（两腿渲染点一票收；作用域圈定随腿复验——virt 405 腿不受影响、generic 面由 T-553 单测钉住本轮未开新腿，如实注记）' }
+  evidence: reports/agents/T-530.md（Compatibility 行 §2.1 PUT 对照）+ reports/agents/PR-156-review-T530-b.md non-blocking 1 + reports/compatibility/L032-t550-followup-arms.md Arm 2（三腿矩阵 r1≡r2≡r3）+ reports/compatibility/L033-r5-fix-verification.md Arm B（翻绿复验轮）
 - id: maven/virtual-metadata-modulereleases-skip
   surface: maven virtual 模块级 maven-metadata.xml 合并对 handleReleases=false 成员的跳过（§3.4 对称推演面——reverse §5.1 未具名）
   classification: UNKNOWN
@@ -1218,21 +1239,31 @@ entries:
     （internal/remote/projection.go 恒 true，T-529 Review B 核实）——本漂移当前为**潜伏态**
     （handle* 席位落地日才可达），与 T-530-b non-blocking 4（§3.5 cache 步跳过同族不可达注记）同源。
   authority: { type: pending, ref: "差分定谳（模块级 handleReleases=false 成员版本并入与否——A 面行为未知，无 authority 可引）" }
-  review_gate: 差分腿覆盖（BIN-M1 后续批次模块级 metadata 臂：成员 handleReleases=false × 版本组目录清单对拍）+ 可达前提（remote canonical 落 handle* 席位）；差分偏参照并入即一行翻回微票
-  evidence: reports/agents/T-531.md（Compatibility 漂移点 1）+ reports/agents/PR-156-review-T531-a.md N2 + reports/agents/PR-156-review-T531-b.md（Compatibility/Next②/范围外 1 转交项）
+  review_gate: 差分腿覆盖（BIN-M1 后续批次模块级 metadata 臂：成员 handleReleases=false × 版本组目录清单对拍）+ 可达前提（remote canonical 落 handle* 席位）；差分偏参照并入即一行翻回微票——**已兑现**（L033 Arm C 定谳 A=并入 → T-556/BIN-38 双站点同翻，见 resolved）
+  resolved: { date: '2026-09-29', evidence: 'reports/compatibility/L033-r5-fix-verification.md「T-556 修复验证」节（r5≡r6 面级 b==a 双轮：virt_modmeta_hwm_status 404→200、versions 双列 1.0.0-SNAPSHOT 与 A 并入面一致；控制组〔sv=1/hwc 清单/plainsnap 清单/seat echo×2〕+ Arm A/Arm B 零波及；r5 divergence set == r3 set minus hwm×2——恰好翻掉目标两维，零新增零恶化）；fix_ref=T-556/BIN-38（filterMetadataSteps 删 levelModule handleReleases 跳过分支——snapshot 级 handleSnapshots 跳过保留〔§5.1 面 L033 双面同〕+ internal/repo/virtual.go walk 层 getVirtual 两处 release-skip 镜像同翻、sidecar 豁免谓词随 moot 删——双站点同翻按 virtual_metadata.go:207-213 代码注释规则；walk 层 release 族面因「release 制品栖身 hr=false 成员」双面构造不出而 vacuous——翻回零行为损失如实保留）' }
+  evidence: reports/agents/T-531.md（Compatibility 漂移点 1）+ reports/agents/PR-156-review-T531-a.md N2 + reports/agents/PR-156-review-T531-b.md（Compatibility/Next②/范围外 1 转交项）+ reports/compatibility/L033-r5-fix-verification.md Arm C +「T-556 修复验证」节
 - id: conan/v1-packages-delete-virtual-plain-404
-  surface: 'conan v1 POST /v1/conans/<ref>/packages/delete 打 virtual 面的 404 载体（plain vs conan envelope）'
+  surface: 'conan v1 POST /v1/conans/<ref>/packages/delete 打 virtual 面（A 实形=L032 Arm 4 定案：400+errors envelope；B stock=plain 404 且许可门内不可达）'
   classification: UNKNOWN
   rationale: >-
     T-530-b2 范围外发现（2026-09-28）：conan v1 `POST /v1/conans/<ref>/packages/delete` 在 virtual 面
     落 serveVirtual default 分支 → **plain 404 "not found"（非 conan envelope）**；T-534 前后行为
     不变（旧 405 自答只覆盖 v2 DELETE kinds），非本轮回归。方向上与 §7.5 的 404 家族一致——v2 四
     DELETE kind 已统一 conan envelope 404（L018 wire 族），仅 v1 该臂措辞载体欠协议化（BinFlow 内部
-    载体不一致在案）。A 面该臂（conan v1 virtual packages/delete）差分未覆盖、实形未知——不入 BUG，
-    按纪律 UNKNOWN。
-  authority: { type: pending, ref: "差分定谳（conan v1 virtual packages/delete 臂 A 面实形——envelope 404 与否未取证）" }
-  review_gate: conan 小票/差分腿覆盖（v1 virtual packages/delete 臂双端对拍：A 若回 conan envelope 404 则对齐=plain→envelope 渲染微票后 resolved）
-  evidence: reports/agents/PR-156-review-T530-b2.md（Next ③ + 范围外发现段）
+    载体不一致在案）。
+    L032 Arm 4 A 面实形定案（2026-09-28，A 7.161.26 live）：`POST /api/conan/<virt>/v1/conans/<ref>/
+    packages/delete` = **400** + errors[] envelope `Unsupported Conan v1 repository request for
+    '<K>'`（Content-Type application/json）——非 404、非 plain body，「A 臂实形未知」就此定案。
+    原对齐提案（B plain→envelope-404）若照旧执行仍**三重分歧**（status 400 vs 404 / carrier
+    envelope vs plain / 措辞族）——对齐目标更新为 400+errors envelope+Unsupported 文案三重。B
+    stock 实腿不可达系**环境事实非产品差异**：conan repo 创建即被许可门拒（400 `package type
+    'conan' is not available (license tier 'community' < 'pro')`，stock 二进制无自授许可路径），
+    v1 面因 repo 不存在落 404 repo-lookup——licensed B 复测随许可可用后补。适配注记（harness 面
+    非产品差异）：A 服务于 `/api/conan/<repo>/v1/...`，B 挂内容面 `/<repo>/v1/...`（apiProtocolMounts
+    无 conan 槽）——差分腿各打各面拼写。
+  authority: { type: pending, ref: "产品/用户裁（conan v1 virtual packages/delete 对齐方向：三重对齐 400+envelope+Unsupported vs 维持 B 姿态；licensed B 复测随许可可用后补）" }
+  review_gate: 裁定票（A 实形已具备——L032 Arm 4 裁定输入）→ 裁对齐则 conan 渲染微票（status/carrier/措辞三重）+ licensed B 差分复验后 resolved；裁维持则转 INTENTIONAL 需 authority 登记
+  evidence: reports/agents/PR-156-review-T530-b2.md（Next ③ + 范围外发现段）+ reports/compatibility/L032-t550-followup-arms.md Arm 4（A 实形 400+errors envelope；B 许可门环境事实）
 - id: rest/virtual-aggregate-delete-entry-arm
   surface: 'DELETE /{virtual}/{path} 有聚合缓存条目臂（T-524 裁定遗留窄面——L028/L029 差分仅覆盖无条目臂）'
   classification: UNKNOWN
@@ -1354,3 +1385,83 @@ entries:
   authority: { type: differential, ref: "reports/compatibility/L031-npm-v2-facet-filter.md 批次汇总（唯一实质差异节：r2≡r3 稳定判据成立，三 case 同根）+ docs/reverse/maven-npm-pypi.md §2.6 条件性读法（规格锚）" }
   review_gate: R4 实现票 T-548/BIN-30 in flight（聚合 latest 规则条件性重算）；修后以 L031 复验翻绿 → resolved（滞后一轮回填节奏，同 BIN-16/D-4 先例——T-549 本票不抢跑）
   evidence: reports/compatibility/L031-npm-v2-facet-filter.md（Case 1/2/3 + 批次汇总；wire 证据 run/l031-npm-r{2,3} 宿主本地）
+  resolved: { date: '2026-09-28', evidence: 'reports/agents/T-548.md（Outputs + 复跑两轮逐 case verdict 表：L031 三 case〔npm-virtual-packument-merge / npm-cache-member-layout / npm-cli-tarball-fidelity〕双端复跑连续两轮 PASS=3 FAIL=0、r4≡r4b 逐键稳定——rmt_latest_tag a=b=1.0.0（修复前 b=2.0.0）、npm CLI 11.19.0 view dist-tags latest=1.0.0 双端同、shadow shasum 同锚 fb09dc12…、mismatches {a_violations,ab_divergence,b_violations} 三桶全空；T-548/BIN-30 repointFilteredLatest 条件性重算落地——无排除模式生效时 base 成员 latest 原值透传〔§2.6 条件性读法〕）——回填批 T-551 stage 1（R5，2026-09-29），滞后一轮同 BIN-16/D-4 先例' }
+- id: maven/derived-sidecar-validator-family
+  surface: 'maven 派生旁车（maven-metadata.xml 的 .sha1/.md5/.sha256）缓存验证器族——A=自身 Last-Modified+If-Modified-Since→304、不发 ETag；B=ETag=digest+INM→304、无 LM（L032 Arm 6 三处分歧）'
+  classification: BUG
+  rationale: >-
+    L032 Arm 6（2026-09-28，A 7.161.26 Enterprise+ @ :8082 活体 × B stock T-542 派生契约实现态，
+    17 维取证矩阵 r1≡r2≡r3，真实 mvn deploy 构造 + java-agent/capable 双 UA）：派生旁车的缓存
+    验证器族——A 面用**自身 Last-Modified**（派生时刻，晚所服务 body 数秒）+ **If-Modified-Since
+    命中→304**（旧值→200）、**不发 ETag**；B 面（T-542 派生实现）= ETag=digest + INM→304、无
+    Last-Modified——三处分歧（①旁车 LM 缺席 / ②IMS 命中恒 200〔无 LM 无从 304〕 / ③多发 ETag 且
+    INM 生效）。**根因在契约层**：T-542 在无 A 面证据时对 validator 族猜了 ETag+INM、丢了 LM+IMS
+    （原契约 maven-virtual.yaml#maven/virtual-snapshot-versions-m3-rider 旁车臂只断言摘要内容、
+    未断言 validator 族——实现层自由猜测口）。内容契约（sidecar=剥离体摘要，match×3 含 .sha256）
+    与 body 面（ETag+LM+双条件）双端全对（14/17 维一致）——T-542 修复主体面无回归，分歧仅
+    validator 三维。**fix in flight R5（T-551 stage 2 / BIN-33——B 面修复并行派发中）**，修复面
+    =internal/adapter/maven writeDerivedSidecar（virtual_metadata.go:116 / handler.go:159 两调用点
+    共用——virtual 合并面与 local 成员面同 helper）；契约修订随本批落地
+    （contracts/maven-virtual.yaml#maven/derived-sidecar-validator-family，DIVERGENT/high——T-551
+    stage 1）。
+  authority: { type: differential, ref: "reports/compatibility/L032-t550-followup-arms.md Arm 6（17 维矩阵 r1≡r2≡r3——A 面 live 逐维取证 + B 面三违例 b_spec_violations 3 项）" }
+  review_gate: R5 实现票 T-551 stage 2 / BIN-33 in flight（writeDerivedSidecar：去 ETag/INM、加自身 Last-Modified、IMS 命中→304）；修后以 L032 case maven-member-snapshot-sidecar-304 双端复验翻绿 → **已兑现**（L033 Arm A 17/17 PASS×3，见 resolved）；复验臂顺带项（.md5/.sha256 validator 维与 virtual 面旁车形态——契约 unobserved 清单）未钉，仍留 unobserved
+  resolved: { date: '2026-09-29', evidence: 'reports/compatibility/L033-r5-fix-verification.md Arm A（17/17 维双端一致，r1≡r2≡r3 断言值逐项相同——L032 三分歧维全翻绿：.sha1 java-agent LM absent→present〔r3 实值 Tue, 29 Sep 2026 00:40:06 GMT〕、IMS 命中 200→304、ETag/INM→no-etag；维持面全绿无回归〔digest 内容契约 match×3 + .sha512 404 双面同 + body 面双条件族 + 双 UA 面〕，judge() mismatches 三桶全空）；fix_ref=T-551 stage 2 / BIN-33（writeDerivedSidecar 单修复面——virtual_metadata.go:116 / handler.go:159 两调用点共用）；契约条目随翻 VERIFIED（contracts/maven-virtual.yaml#maven/derived-sidecar-validator-family）。**跨秒 LM 时戳语义残差不随本条翻绿**——单立在案 known-divergence.yaml#maven/derived-sidecar-lm-per-request-stamp（两态并存如实）' }
+  evidence: reports/compatibility/L032-t550-followup-arms.md Arm 6（17 维矩阵；wire 证据 tools/difftest/v2/run/l032-arms-r{1,2,3} 宿主本地）+ reports/compatibility/L033-r5-fix-verification.md Arm A（翻绿复验轮 r{1,2,3}）+ 契约 contracts/maven-virtual.yaml#maven/derived-sidecar-validator-family
+- id: maven/handle-policy-reject-409-wording-family
+  surface: 'maven handle* 策略拒绝腿文案族——PUT 与未落地路径 GET 双面同 409，但文案族不同（L033 Arm C，rel→hr=false 与 snap→hs=false 两腿同形）'
+  classification: UNKNOWN
+  rationale: >-
+    L033 Arm C（2026-09-29，A 7.161.26 live × B worktree 现态，case maven-local-handle-walk-skip
+    r3≡r4 稳定）：策略拒绝腿 status 双面均 409，但文案族不同——A 面逐字「The repository '<K>'
+    rejected the resolution of an artifact '<K>:<path>' due to conflict in the snapshot release
+    handling policy.」（GET 腿追加「; Path: '…'」）；B 面 put.go ME-08 逐字「Repository '<K>'
+    rejected deployment of '<K>/<path>': handling of releases is disabled
+    (handleReleases=false).」。status 已一致（双面部署门在、无回归），分歧在文案语义面——A 措辞
+    按操作（resolution/deployment）与策略域（snapshot release handling policy）组织且 PUT/GET
+    两形态，B 为 handleReleases 显式参数式。无既有 ledger/契约登记（L033 复核确认，提案①）——
+    待裁对齐方向与是否随成员 GET class 门（下条）同族处置。T-556 翻回后 r5≡r6 该两维仍在
+    9 分歧维内（分歧维持，非 T-556 范围）。
+  authority: { type: pending, ref: 待用户/ADR 裁定（提案①——文案族对齐方向未定） }
+  review_gate: 两程内升级裁决（默认）——裁定后立契约条目并定 ME-08 文案改造面
+  evidence: reports/compatibility/L033-r5-fix-verification.md Arm C（22 维矩阵拒绝腿措辞族 ×2 维；wire 证据 tools/difftest/v2/run/l033-r5-r{3,4} + r{5,6}）
+- id: maven/handle-policy-member-get-class-gate
+  surface: 'maven 成员仓未落地路径直接 GET 的路径类×策略门——A=409（读路径同执策略检查），B=404（L033 Arm C，×2 维）'
+  classification: UNKNOWN
+  rationale: >-
+    L033 Arm C：对未落地的 release 拒族路径直读，A 面 409（读路径也执行路径类×handle* 策略——
+    先决发现定性「路径类×策略是成员面读写双门」），B 面 404（只在写路径设门）。与上一条文案族
+    共享 A 面 409 语义（GET 腿同族文案追加 Path），但本条分歧是 status+语义面（409 vs 404）而非
+    文案。先决发现一并记录：A 对 hr=false local 的 release PUT 直接 409（与 B put.go ME-08 同拒
+    PUT），故「release 制品栖身 hr=false 成员」双面均构造不出——该子面 NOT_RUN by construction。
+    T-556 r5≡r6 后仍在 9 分歧维内（非 T-556 范围）。
+  authority: { type: pending, ref: 待用户/ADR 裁定（提案②——A 读路径 409 门是否采纳） }
+  review_gate: 两程内升级裁决（默认）；采纳则须落 read-path 策略检查改造票
+  evidence: reports/compatibility/L033-r5-fix-verification.md Arm C（成员 GET class 门 ×2 维 + 先决发现节；r3≡r4，r5≡r6 维持）
+- id: maven/plain-snapshot-path-resolve-404
+  surface: 'maven plain-SNAPSHOT 拼写路径解析——A=200（成员直读与 virt resolve），B=恒 404（含默认成员对照腿——独立既有面孔，不可归因 handle*）'
+  classification: UNKNOWN
+  rationale: >-
+    L033 Arm C 对照腿坐实：plain-SNAPSHOT 拼写（1.0.0-SNAPSHOT pom）A 面 200；B 面成员直读
+    404 / virt resolve 404。控制腿（同拼写放 ctl 默认成员）B 面同样直读 404——证明 B 对该
+    拼写解析是独立既有面孔（提案③），非 handle* 跳过所致；对照腿同时证明 virt 模块清单维
+    不受混杂（B 从默认成员照样在清单列入 SNAPSHOT 版本，T-556 翻回后 b==a）。时间戳拼写构造
+    （mvn deploy unique）未测，归后续票。T-556 r5≡r6 后该维仍在（非 T-556 范围）。
+  authority: { type: pending, ref: 待用户/ADR 裁定（提案③——B 拼写解析缺口属实现缺口还是面外） }
+  review_gate: 两程内升级裁决（默认）；若裁 BUG 须与 walk 面快照族（时间戳拼写）后续票分面立票
+  evidence: reports/compatibility/L033-r5-fix-verification.md Arm C（virt resolve snapshot 维 + 对照腿 ×3；r3≡r4，r5≡r6 维持）
+- id: maven/derived-sidecar-lm-per-request-stamp
+  surface: 'maven 派生旁车 Last-Modified 时戳语义残差——跨秒回访：A=物化稳定戳→304，B java-agent 剥离面=per-request 派生时刻戳→200+新 LM（L033 Arm A 附带取证）'
+  classification: UNKNOWN
+  rationale: >-
+    L033 Arm A 翻绿确认（17/17 维双端一致）后补做的跨秒（sleep 1.3s）回访取证：capable UA 面
+    （物化存储节点）B 面 304、LM 稳定——不受影响；java-agent 剥离面（真派生面）B 首答 LM
+    00:44:09，跨秒持旧 LM 回访得 200+新 LM 00:44:10（LM 前移）——B 的派生旁车 LM 是
+    per-request 派生时刻戳，A 是物化稳定戳（部署时刻）。A 面跨秒直接腿不可达（wire-PUT
+    snapshot 在 A 上 30s 内不物化版本级 metadata→404），A 侧 304 结论由 L032/r1-r3 物化
+    稳定戳机制推出（机制推导，非直测——如实标注）。票面预声明的语义差 live 坐实并精确
+    圈定在 java-agent 剥离面；影响=剥离面客户端缓存效率（跨秒回访多传一份 body）。同秒
+    回访（矩阵腿）双面同为 304——validator 族翻绿与契约断言均不受本条影响。
+  authority: { type: pending, ref: 待用户/ADR 裁定（残差处置：容忍语义差 vs 升级持久化派生时戳） }
+  review_gate: 两程内升级裁决（默认）——可选升级路径=stored-stamp 微票（旁车派生时戳持久化；T-551 Risks 已预留升级点）；裁定 INTENTIONAL 须补 authority
+  evidence: reports/compatibility/L033-r5-fix-verification.md Arm A 附带取证节（B 面双 UA 跨秒矩阵 + A 面机制推导注记）

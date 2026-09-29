@@ -1,0 +1,35 @@
+# 金样期望响应——maven 派生旁车 validator 族（A 腿参照实形；详细断言复用契约，此处存档矩阵级观测）
+# schema: golden-response/1；契约锚 contracts/maven-virtual.yaml#maven/derived-sidecar-validator-family
+legs:
+- leg: body 面基线（maven-metadata.xml 本体）
+  observed:
+    status: 200
+    headers_present: [Etag, Last-Modified, X-Checksum-Md5, X-Checksum-Sha1, X-Checksum-Sha256]
+    conditionals: { IMS-命中: 304, IMS-旧值: '200（重发 body）', INM: 304 }
+    note: 双端一致面（L032 起维持，L033 无回归）——body/旁车自洽：旁车 digest=剥离后 body 摘要
+- leg: 旁车 .sha1 无前置（java-agent 面）
+  observed:
+    status: 200
+    headers_present: [Last-Modified, Content-Type]
+    headers_absent: [Etag]
+    note: >-
+      LM=自身派生时刻（L033 r3 实值 Tue, 29 Sep 2026 00:40:06 GMT，晚 body 数秒）；修复前 B 面
+      缺 LM/多发 ETag+INM 三分歧（L032），修复后双端一致（17/17）。
+- leg: 旁车 IMS-命中（同秒回访）
+  observed: { status: 304, note: '双端一致（修复前 B 面 200——L032 分歧②）' }
+- leg: 旁车 IMS-旧值
+  observed: { status: '200（重发旁车）' }
+- leg: 旁车跨秒回访（sleep 1.3s 持旧 LM）
+  observed:
+    a_face: '304（物化稳定戳——机制推导值，A 跨秒直接腿不可达，见 metadata known_gaps）'
+    b_face_java_agent: '200+新 LM（per-request 派生时刻戳，LM 前移）——在案残差，非本金样一致面'
+    b_face_capable: '304（物化存储节点，不受影响）'
+- leg: 旁车 .md5/.sha256
+  observed: { status: 200, digest: '剥离后 body 对应摘要 match×3（内容维双端一致）', note: 'validator 维推定与 .sha1 同构（未单独取证）' }
+- leg: 旁车 .sha512
+  observed: { status: 404, note: 双面同（算法面外——两报告一致） }
+matrix_outcome:
+  dims: 17
+  l032: '14/17 一致 + 3 分歧（validator 三维——BUG 在案 maven/derived-sidecar-validator-family）'
+  l033: '17/17 双端一致（r1≡r2≡r3 断言值逐项相同；T-551 stage 2 修复验收）'
+verdict_witness: 'L033 Arm A PASS×3 翻绿确认；judge() mismatches 三桶全空'
