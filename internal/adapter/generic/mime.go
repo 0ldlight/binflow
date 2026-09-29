@@ -1,93 +1,122 @@
 package generic
 
 import (
-	"mime"
 	"path"
 	"strings"
 )
 
-// extensionMimes is the deterministic extension→Content-Type table for
-// generic deploys that declare no Content-Type. It takes precedence over the
-// standard library's database so the wire contract is identical on every
-// host — mime.TypeByExtension consults the OS mime database for extensions
-// outside Go's builtin table and can answer those differently on darwin vs a
-// bare linux container.
+// extensionMimes is the extension→Content-Type table for the generic
+// storage plane: a byte-for-byte transcription of Artifactory's shipped
+// factory table (mimetypes.xml v17, docs/reverse/mime-ownership.md
+// section 2). Per the BIN-53 / T-571 ownership ruling this table is the
+// ONLY mime authority on the storage faces: PUT stores the table value
+// for the deployed path (the request's declared Content-Type is ignored),
+// and GET/FileInfo look the path up here again at render time. Extensions
+// the table does not list answer application/octet-stream; there is no
+// stdlib fallback — mime.TypeByExtension consults the OS mime database
+// and answers differently per host, a drift family the reference does not
+// have (every table-miss is octet-stream there).
 //
-// Values are aligned to Artifactory's shipped mimetypes.xml (factory table
-// v17) per docs/reverse/mime-ownership.md section 2 — including the
-// deliberate deviations from RFC spellings: bare text/* values without a
-// charset parameter, .md/.yaml → text/plain, .gz → application/x-gzip, and
-// no .csv entry at all (falls through to octet-stream). BIN-52 / T-570.
-// .info/.mod are NOT in the table: the goproxy protocol face owns their
-// spellings (adjacent divergence, ruled separately).
+// Local-copy policy (the requestBase precedent): internal/adapter/maven
+// and internal/httpapi keep their own copies of this table; keep the
+// three in lockstep when the rule changes again.
+//
+// Factory quirks kept verbatim on purpose: bare text/* values without a
+// charset parameter, .md/.yml/.yaml → text/plain, .gz → application/x-gzip,
+// .swift → "text/x-swift " (trailing space — the factory spelling,
+// live-confirmed on FileInfo, T-571), .xsl double-registered in the
+// factory table under both text/xsl and application/xml (the text/xsl
+// registration wins, live-confirmed T-571), and no .csv/.pdf/.svg/.sha512
+// entries (all fall to octet-stream).
+//
+// The factory table also lists multi-segment spellings — tar.gz/tar.bz2 →
+// the same value as their final segment, tar.xz/nar.xz → x-xz, and
+// jar.pack.gz → application/x-java-pack200 — but the reference parses the
+// LAST segment only (live-confirmed: a .jar.pack.gz deploy renders
+// application/x-gzip, not pack200; T-571), so under that rule every
+// compound spelling collapses onto its final segment's entry and none of
+// them is a key here.
 var extensionMimes = map[string]string{
-	".json":       "application/json",
-	".xml":        "application/xml",
-	".txt":        "text/plain",
-	".md":         "text/plain",
-	".properties": "text/plain",
-	".log":        "text/plain",
-	".tf":         "text/plain",
+	".7z":         "application/x-7z-compressed",
+	".apk":        "application/vnd.android.package-archive",
 	".asc":        "text/plain",
-	".html":       "text/html",
-	".htm":        "text/html",
-	".yaml":       "text/plain",
-	".yml":        "text/plain",
-	".gz":         "application/x-gzip",
-	".tgz":        "application/x-gzip",
-	".zip":        "application/zip",
-	".tar":        "application/x-tar",
-	".jar":        "application/java-archive",
-	".war":        "application/java-archive",
+	".box":        "application/x-vagrant-box",
+	".bz2":        "application/x-bzip2",
+	".c":          "text/x-c",
+	".cc":         "text/x-c",
+	".conda":      "application/x-conda",
+	".cpp":        "text/x-c",
+	".cs":         "text/x-csharp.sh",
+	".css":        "text/css",
+	".ddeb":       "application/x-debian-package",
+	".deb":        "application/x-debian-package",
+	".dtd":        "application/xml-dtd",
 	".ear":        "application/java-archive",
-	".sar":        "application/java-archive",
+	".ent":        "application/xml-external-parsed-entity",
+	".fx":         "text/x-javafx-source",
+	".gem":        "application/x-rubygems",
+	".gradle":     "text/x-groovy-source",
+	".groovy":     "text/x-groovy-source",
+	".gz":         "application/x-gzip",
+	".h":          "text/x-c",
 	".har":        "application/java-archive",
 	".hpi":        "application/java-archive",
+	".htm":        "text/html",
+	".html":       "text/html",
+	".info":       "application/json+info",
+	".ivy":        "application/x-ivy+xml",
+	".jar":        "application/java-archive",
+	".java":       "text/x-java-source",
+	".jardiff":    "application/x-java-archive-diff",
+	".jnlp":       "application/x-java-jnlp-file",
 	".jpi":        "application/java-archive",
-	".pom":        "application/x-maven-pom+xml",
-	".nuspec":     "application/x-nuspec+xml",
+	".json":       "application/json",
+	".log":        "text/plain",
+	".md":         "text/plain",
+	".md5":        "application/x-checksum",
+	".mf":         "text/plain",
+	".mod":        "text/plain+mod",
 	".nupkg":      "application/x-nupkg",
-	".deb":        "application/x-debian-package",
-	".ddeb":       "application/x-debian-package",
+	".nuspec":     "application/x-nuspec+xml",
+	".pom":        "application/x-maven-pom+xml",
+	".properties": "text/plain",
+	".py":         "text/x-python",
+	".rar":        "application/x-rar-compressed",
+	".rb":         "text/x-ruby-source",
 	".rpm":        "application/x-rpm",
+	".rz":         "application/x-ruby-marshal",
+	".sar":        "application/java-archive",
+	".scala":      "text/x-scala-source",
+	".sh":         "text/x-script.sh",
 	".sha1":       "application/x-checksum",
 	".sha256":     "application/x-checksum",
-	".md5":        "application/x-checksum",
+	".swift":      "text/x-swift ", // trailing space: factory spelling, verbatim
+	".tar":        "application/x-tar",
+	".tf":         "text/plain",
+	".tgz":        "application/x-gzip",
+	".txt":        "text/plain",
+	".war":        "application/java-archive",
+	".xhtml":      "application/xhtml+xml",
+	".xml":        "application/xml",
+	".xsi":        "application/xml",
+	".xsl":        "text/xsl",
+	".xslt":       "text/xslt",
+	".xsd":        "application/xml-schema",
+	".xz":         "application/x-xz",
+	".yml":        "text/plain",
+	".yaml":       "text/plain",
+	".zip":        "application/zip",
 }
 
-// mimeByExtension maps a dot-prefixed extension (case-insensitive) to a
-// Content-Type: BinFlow's table first, then the standard library (builtin
-// table + OS database, covering png/pdf/svg/...), "" when unknown.
-func mimeByExtension(ext string) string {
-	ext = strings.ToLower(ext)
+// mimeByPath is the storage-plane mime authority: the path's (lowercased)
+// final extension against extensionMimes, application/octet-stream for
+// every miss — unknown extensions, no extension, folder markers. The
+// lookup is case-insensitive (factory keys compare lowercase) and the
+// value never depends on the request or the stored row.
+func mimeByPath(relPath string) string {
+	ext := strings.ToLower(path.Ext(relPath))
 	if m, ok := extensionMimes[ext]; ok {
 		return m
 	}
-	return mime.TypeByExtension(ext)
-}
-
-// mimeByPath infers the mime of a deploy from its path: known extensions
-// map per extensionMimes/the stdlib database, everything else — no
-// extension, unknown extension, folder markers — stays
-// application/octet-stream (FR-4-AC13 unchanged).
-func mimeByPath(relPath string) string {
-	if m := mimeByExtension(path.Ext(relPath)); m != "" {
-		return m
-	}
 	return "application/octet-stream"
-}
-
-// mimeForNode resolves the Content-Type a stored node renders with. The
-// stored value wins: it is either the client's declared Content-Type or the
-// extension inference made at upload time, and keeping it authoritative is
-// what makes the download header, the upload FileInfo body and (via the
-// same stored column) /api/storage agree without a second mapping. Only a
-// theoretically empty stored value — not producible through this adapter,
-// belt-and-braces for hand-migrated rows — falls back to extension
-// inference, then octet-stream.
-func mimeForNode(relPath, stored string) string {
-	if strings.TrimSpace(stored) != "" {
-		return stored
-	}
-	return mimeByPath(relPath)
 }

@@ -519,7 +519,7 @@ func (s *Server) fileInfoOf(ctx context.Context, base, repoKey string, node *met
 		ModifiedBy:   node.CreatedBy,
 		LastUpdated:  isoMillisUTC(modified),
 		Size:         strconv.FormatInt(node.Size, 10),
-		MimeType:     mimeOrDefault(node.Mime),
+		MimeType:     mimeForNode(node.Path, node.Mime),
 		Checksums:    sums,
 		// /api/storage is not an upload context: the stored triple is the
 		// best echo available for originalChecksums (the same rule the
@@ -554,14 +554,6 @@ func (s *Server) nodePropsOf(ctx context.Context, node *metadata.Node) map[strin
 		return nil
 	}
 	return props
-}
-
-// mimeOrDefault defaults an absent stored mime (FR-4-AC13 posture).
-func mimeOrDefault(m string) string {
-	if strings.TrimSpace(m) == "" {
-		return "application/octet-stream"
-	}
-	return m
 }
 
 // writeFolderInfo renders FolderInfo for an explicit folder node row:

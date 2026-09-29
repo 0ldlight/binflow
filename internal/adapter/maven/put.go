@@ -215,10 +215,11 @@ func (h *Handler) putChecksumDeploy(ctx context.Context, w http.ResponseWriter, 
 		return
 	}
 
-	mime := r.Header.Get("Content-Type")
-	if mime == "" {
-		mime = mimeForPath(relPath, "")
-	}
+	// The path's extension owns the stored mime (BIN-53 / T-571): the
+	// factory-table lookup runs for every deploy and the declared
+	// Content-Type header takes no part in it (the 7.161.26 18-leg matrix
+	// answered every explicit declaration from the table).
+	mime := mimeForPath(relPath)
 	ref := storage.BlobRef{Sha256: sha256, Sha1: sha1v, Md5: md5v}
 	node, err := h.svc.PutFromBlob(ctx, p, repoKey, relPath, ref, mime)
 	if err != nil {
@@ -283,10 +284,10 @@ func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Re
 			l.File, l.Timestamped = name, true
 		}
 	}
-	mime := r.Header.Get("Content-Type")
-	if mime == "" {
-		mime = mimeForPath(relPath, "")
-	}
+	// Same ownership rule as the checksum-deploy chain above: the extension
+	// table answers, the declared header has no vote — the relPath here is
+	// the post-unique-rewrite spelling, the same node the GET face serves.
+	mime := mimeForPath(relPath)
 
 	declared, err := declaredDigests(r.Header)
 	if err != nil {
@@ -663,7 +664,7 @@ func (h *Handler) itemInfo(base, repoKey, relPath string, node *metadata.Node,
 		Created:     node.CreatedAt,
 		CreatedBy:   node.CreatedBy,
 		Size:        strconv.FormatInt(node.Size, 10),
-		MimeType:    mimeForPath(relPath, node.Mime),
+		MimeType:    mimeForPath(relPath),
 	}
 	if !isFolder(node) {
 		info.Checksums = &checksums{Sha1: sums.sha1, Md5: sums.md5, Sha256: sums.sha256}
