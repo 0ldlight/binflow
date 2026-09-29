@@ -150,6 +150,28 @@
 #   四问 Z 终算：总 85 = 37 resolved + 4 gated + 44 open（open 四类 BUG 7 / UNKNOWN 35 /
 #   INTENTIONAL 1 / UNSUPPORTED 1）。注：第一半报告 Next 行曾预期「total 88 = 37+4+47」系口径笔误
 #   （翻态只移 open→resolved 不改总数，85 为台账条目实数）——以本实算为准。195 冻结行集不增删。
+# L034 收官批（R6 轮末 / LOOP 1545，2026-09-29，conductor 授权翻面——锚 reports/compatibility/
+#   L034-r6.md 六面双轮 PASS×2 @ 23b70a82）：① known-divergence 七翻 resolved + 一立账——翻面
+#   rest/nonempty-repo-delete-cascade-guard（T-555/6812f271，Arm 1）+ d08/repo-delete-response-
+#   envelope 成功体半边（同上，release-bundles 系统仓臂席位保留）+ T-558 四条 maven/handle-policy-
+#   reject-409-wording-family / handle-policy-member-get-class-gate / plain-snapshot-path-resolve-404
+#   （存储面）/ derived-sidecar-lm-per-request-stamp（T-559/531ea002，Arms 2-5）+ maven/deploy-
+#   created-envelope-uri-missing-context-prefix（T-561/23b70a82，Arm 6）；立账 maven/deploy-201-
+#   location-header-context-prefix（BUG——L034 Arm 8：A Location==uri 带 contextPath、B 裸根跟随
+#   404；渲染点 put.go requestBase×2；fix ticket T-563/BIN-45 在途，review_gate=mini 差分 Location
+#   臂双轮 PASS）。plain-SNAPSHOT walk 族（T-562/BIN-44 fence 面）不翻——L034 明示 ctl 三维维持红。
+#   ② 契约翻 VERIFIED：contracts/repositories.yaml#rest/repo-delete-nonempty-cascade（计数口径回填
+#   =文件+folder 全量、根不计；带参/空仓/virtual 三 unobserved 项随 L034 取证回填）+
+#   maven-virtual.yaml ⑤⑥⑦⑧ 四条目（⑧ confidence medium→high——A 面跨秒直接腿 L034 实测，
+#   机制推导 caveat 清偿；`; Path:` 填充 unobserved 回填=逐字节同无截断〔634 字符长路径定谳：
+#   300 上限系 L033 harness 截断〕；LM 值级残差〔A later vs B equal〕raw 记契约 unobserved 不裁）。
+#   ③ 金样四组入 golden/：rest/repo-delete-report-body（报告体四臂 A 腿）+ maven/handle-policy-
+#   409-wording-family（message×4+长路径锚）+ maven/deploy-201-envelope-uri-location（三形同源锚）
+#   + maven/derived-sidecar-crosssec-304（跨秒 304×3——⑧ 置信升级锚）。④ D02-R05 回填
+#   last_difftest + golden_ref（行态 compatible 维持）；D12-R18 last_difftest/note 补 L034 链（行态
+#   维持）；summary 同步 last_difftest_non_null 51→52 / golden_ref_non_null 2→3。195 冻结行集
+#   不增删（本批零新行、零行态变更）。台账实数：87 条 = 44 resolved（含 resolved 块）+ 43 无
+#   resolved 块（其中 4 INTENTIONAL resolved-by-*/parity 闭态 + 1 UNSUPPORTED 维持不做闭态）。
 
 ---
 schema: 1
@@ -300,8 +322,8 @@ summary:
       rows: 1
       not_applicable: 1
   contract_ref_non_null: 38  # T-549 同步：前置 37（L027-2）+ 本批 D12-R18 落 contracts/maven-virtual.yaml（M3 rider/version3 开关/GAV 门 3 条目）→ 实计 38
-  golden_ref_non_null: 2     # 前置 1（D12-R01）+ 本批 D12-R18 回填 golden/maven/derived-sidecar-validators（T-551 终批第二半——首个 maven 域金样；L030 提金候选 merged 输出时间戳 normalize 仍在册待采）；storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 / L024-4 §5 提金候选（l023d-wire/a/、l024d-wire/a/）在册待采
-  last_difftest_non_null: 51 # L029-1 同步：前置 50（L027-6）+ 本批 D12-R18 新行 → 实计 51（L028/L029 差分报告回填）；T-549 批 D12-R18/D12-R05 两行 last_difftest 内容增补（L030/L031 链）——两行原已非空，计数不变
+  golden_ref_non_null: 3     # 前置 2（D12-R01 + D12-R18）+ L034 收官批 D02-R05 回填 golden/rest/repo-delete-report-body（A 腿报告体四臂）；其余 maven 金样三组（409 文案族/envelope 三形/跨秒 304）经契约 evidence golden-capture 锚挂链、不占行字段（D12-R18 golden_ref 单值已占用）；storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 / L024-4 §5 提金候选（l023d-wire/a/、l024d-wire/a/）在册待采
+  last_difftest_non_null: 52 # L034 收官批同步：前置 51 + 本批 D02-R05 回填（L034 Arm 1）→ 实计 52；D12-R18 为内容增补（原已非空，计数不变）
 rows:
 - row_id: D01-R01
   domain: D01
@@ -918,12 +940,16 @@ rows:
   capability: DELETE /api/repositories/{key}
   state: compatible
   confidence: high
-  contract_ref: 
-  golden_ref: 
-  last_difftest: 
+  contract_ref: docs/compatibility/contracts/repositories.yaml#rest/repo-delete-nonempty-cascade
+  golden_ref: golden/rest/repo-delete-report-body   # L034 收官批回填（A 腿报告体四臂——nested/flag/empty/virtual，锚 L034 Arm 1）
+  last_difftest: reports/compatibility/L034-r6.md Arm 1（case rest-nonempty-repo-delete-cascade 重写版 r1≡r2 双轮 PASS×2：五腿逐字段同形——nested 200+count 6 / 善后 GET 400 / flag 同树带参 200 count=3 冗余同形 / empty 200 count=0 / virtual 200 count=0+plain 措辞+成员存活；计数口径=文件+folder 全量、根不计，双端活体对齐；前置链 L028 D-3 首测 + L032 Arm 1 ruling-ready r1≡r2≡r3）
   priority_class: P0
   layer: A
   source_row: "§3 行 5"
+  note: 'L034 收官批（2026-09-29）：T-555/BIN-37 修复（6812f271）L034 双轮 PASS——契约
+    rest/repo-delete-nonempty-cascade 翻 VERIFIED、台账 rest/nonempty-repo-delete-cascade-guard
+    resolved；相邻账 d08/repo-delete-response-envelope 成功体半边同批 resolved（JSON 报告体裁一体
+    兑现；release-bundles 系统仓臂席位保留）。'
 - row_id: D02-R06
   domain: D02
   capability: GET /api/repositories/configurations?packageType=&repoType=（admin）
@@ -2812,7 +2838,7 @@ rows:
   confidence: high
   contract_ref: contracts/maven-virtual.yaml
   golden_ref: golden/maven/derived-sidecar-validators   # T-551 终批第二半回填（首个 maven 域金样——validator 族 A 腿参照实形，锚契约#maven/derived-sidecar-validator-family）
-  last_difftest: 'reports/compatibility/L028-maven-v2-batch1-diff.md + reports/compatibility/L029-maven-v2-batch1-reverify.md（L028 r3/r4 测得 D-1/D-2 FAIL → PR #156〔T-529/T-530/T-531 四桶实现+cache 投影+DELETE 语义〕→ L029 r5 关 D-2、r6/r7 双轮稳关 D-1——D-1 线上腿系 SSRF 防护拒 clash fake-ip ULA 环境因，经仓库级 allowPrivateUpstream 豁免（NFR-S13 一等旋钮）后双面一致；真实 mvn 客户端 + 上游 sha256 逐字节比对）+ reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md + reports/iteration-1542.md「L030 修复验收」（L030 r2/r3 测得 BIN-16〔snapshotVersions M3 谓词缺失〕/D-4〔GAV 失配 201 vs 409〕两 FAIL → f21f1c09〔T-542/T-543〕修复 + 3b58b082 评审加固 → case1/case2 双端复跑各连续两轮 PASS——台账两 BUG 已 resolved〔T-549 回填〕，rider/GAV 两面契约化 VERIFIED）+ reports/compatibility/L032-t550-followup-arms.md（Arm 6 member sidecar 17 维取证：digest 内容契约双端一致复验、validator 族三处分歧立新账〔T-551 stage 1 契约修订 + stage 2 修复在途〕——r1≡r2≡r3）'  # T-551 卫生款：原无引号 plain scalar 中「PR #156」的 # 被 YAML 当注释起始，L029-1 落账起本字段加载即截断于 139 字符（L030/L032 链曾整体落入注释区）——加引号修复，内容零变更
+  last_difftest: 'reports/compatibility/L028-maven-v2-batch1-diff.md + reports/compatibility/L029-maven-v2-batch1-reverify.md（L028 r3/r4 测得 D-1/D-2 FAIL → PR #156〔T-529/T-530/T-531 四桶实现+cache 投影+DELETE 语义〕→ L029 r5 关 D-2、r6/r7 双轮稳关 D-1——D-1 线上腿系 SSRF 防护拒 clash fake-ip ULA 环境因，经仓库级 allowPrivateUpstream 豁免（NFR-S13 一等旋钮）后双面一致；真实 mvn 客户端 + 上游 sha256 逐字节比对）+ reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md + reports/iteration-1542.md「L030 修复验收」（L030 r2/r3 测得 BIN-16〔snapshotVersions M3 谓词缺失〕/D-4〔GAV 失配 201 vs 409〕两 FAIL → f21f1c09〔T-542/T-543〕修复 + 3b58b082 评审加固 → case1/case2 双端复跑各连续两轮 PASS——台账两 BUG 已 resolved〔T-549 回填〕，rider/GAV 两面契约化 VERIFIED）+ reports/compatibility/L032-t550-followup-arms.md（Arm 6 member sidecar 17 维取证：digest 内容契约双端一致复验、validator 族三处分歧立新账〔T-551 stage 1 契约修订 + stage 2 修复在途〕——r1≡r2≡r3）+ reports/compatibility/L034-r6.md（R6 收官轮 @ 23b70a82，六面双轮 PASS×2：T-559 四面〔409 措辞族/class 门/sidecar LM 跨秒戳/plain 存储面——531ea002〕+ T-561 envelope uri〔23b70a82〕翻绿；新面孔取证=Location 头裸根〔立账 T-563/BIN-45〕+ unique 家园 walk 族 forensics〔喂 T-562/BIN-44 规格票，ctl 维 expected divergence 维持红非回归〕）+ reports/compatibility/L034-r6.md 末尾「Location mini-diff」节（T-563/BIN-45 修复 4481359f 验收：六臂〔pom/jar/maven-metadata 字节部署+X-Checksum-Deploy 零传输+checksum-file .sha1/.md5 注册式〕r3≡r4 双轮 PASS——Location==uri 带 contextPath / 注册式==带前缀 TARGET+body 空；台账 maven/deploy-201-location-header-context-prefix resolved，差分门 601b15ac）'  # T-551 卫生款：原无引号 plain scalar 中「PR #156」的 # 被 YAML 当注释起始，L029-1 落账起本字段加载即截断于 139 字符（L030/L032 链曾整体落入注释区）——加引号修复，内容零变更；L034 链同引号形态追加
   priority_class: P1
   layer: A
   source_row: "新行提案（L029-1，2026-09-28 conductor 派票授权——L005-3/L007-4 冻结行集外新行先例款）"
@@ -2824,6 +2850,16 @@ rows:
     T-551 stage 1 注记（2026-09-29）：maven-virtual.yaml 扩至 4 条目
     （+maven/derived-sidecar-validator-family，DIVERGENT——旁车 validator 族分歧走台账新账与
     stage 2 修复票，不入行态）；rider 条目旁车臂收编 .sha256（L032 live 取证）。
+    L034 收官批（2026-09-29）：maven-virtual.yaml 扩至 9 条目，其中 ⑤⑥⑦⑧ 四面随 T-559 修复
+    （531ea002）L034 双轮 PASS 翻 VERIFIED（409 措辞族/class 门/plain 存储面/sidecar LM 跨秒戳
+    ——后两账分面：walk 族红半边归 T-562/BIN-44、LM 值级残差记契约 unobserved 不裁）；T-561
+    envelope uri 前缀（23b70a82）resolved；新面孔立账 maven/deploy-201-location-header-context-prefix
+    （BUG，T-563/BIN-45 修复在途——review_gate=mini 差分 Location 臂双轮 PASS）。行态 compatible
+    维持（臂级差异走台账）。
+    L034 Location mini-diff 复工微腿（2026-09-29 同日）：T-563 修复（4481359f）六臂 r3≡r4 双轮
+    PASS——该账 resolved（review_gate 满足）；金样 deploy-201-envelope-uri-location 组内增补
+    checksum-file .sha1/.md5 注册式臂（rest-api §1.5 该面首个双端活体锚）。台账实数更新：87 条 =
+    45 resolved + 42 无 resolved 块（open BUG 5）。
 - row_id: D13-R01
   domain: D13
   capability: UI 内部面（/ui/api/v1 树浏览/Tab/制品动作/首页 widget/验证/SetMeUp/登录屏 ≈470 op）

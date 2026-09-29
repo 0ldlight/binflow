@@ -1,0 +1,15 @@
+# 金样请求——maven derived sidecar LM 物化稳定戳·跨秒 IMS 304 族（L034 Arm 4）
+# schema: golden-request/1（矩阵型：request=构造+腿数组；逐腿响应入 response.yaml）
+feature: '派生 digest 旁车（.sha1/.md5/.sha256）的 LM=物化稳定戳语义——跨秒持旧 IMS 304 + virtual 合并/剥离面同构'
+client: mvn deploy 构造 + curl wire 腿（Basic admin；IMS=If-Modified-Since 带值）
+repo_setup: >-
+  maven local 成员仓 + virtual 仓（聚合该成员）各一（difftest-l034-*）；mvn-deploy 构造
+  com/diff/…/<artifact>-1.0.0.{pom,jar} 与三算法旁车；善后 difftest-* 命名空间清理。
+steps:
+- { seq: 1, leg: mvn deploy 构造, method: PUT, path: 'mvn deploy（pom+jar+metadata）→ 旁车三算法派生', note: '制品+旁车同场落库' }
+- { seq: 2, leg: 成员剥离腿 ×3, method: GET, path: '/{local}/{gav}.pom{.sha1,.md5,.sha256}', note: 'GET 旁车 → sha256 验体（剥离体摘要 match）' }
+- { seq: 3, leg: 基线 GET 取 LM, method: GET, path: '/{local}/{gav}.pom.sha1（等旁车）', note: '记录响应 Last-Modified' }
+- { seq: 4, leg: 跨秒 IMS 304 ×3, method: GET, headers: 'If-Modified-Since: <seq3 LM 值>', path: '/{local}/{gav}.pom{.sha1,.md5,.sha256}', note: '间隔 1.3s（跨秒）——A 面直接腿（304 判定主锚）' }
+- { seq: 5, leg: virtual 合并面 304, method: GET, headers: 'If-Modified-Since: <LM>', path: '/{virtual}/{gav}.pom.sha1', note: 'virtual 聚合路径同语义' }
+- { seq: 6, leg: virtual 剥离面 304, method: GET, headers: 'If-Modified-Since: <LM>', path: '/{virtual}/{gav}.pom{.sha256}', note: 'virtual 旁车剥离同构' }
+expected_client_outcome: 'seq2/6 验体 match；seq4/5/6 全 304（持旧 LM）'

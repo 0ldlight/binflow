@@ -1,0 +1,21 @@
+# 金样期望响应——maven derived sidecar LM 物化稳定戳·跨秒 IMS 304 族（A 腿参照实形）
+# schema: golden-response/1；契约锚 contracts/maven-virtual.yaml#maven/derived-sidecar-lm-materialized-stamp（confidence high）
+legs:
+- leg: 成员剥离腿 ×3（.sha1/.md5/.sha256）
+  observed:
+    status: 200
+    note: 'GET 旁车 200 + 剥离体摘要 sha256 验体 match×3（双端）'
+- leg: 跨秒 IMS 304 ×3（成员直接腿，间隔 1.3s）
+  observed:
+    status: 304
+    note: '持旧 LM 判 304（LM=物化稳定戳，不随派生请求刷新）——A 面跨秒直接腿实测
+      （L034 Arm 4；L033 遗留「跨秒直接腿不可达」caveat 系 wire-PUT 构造限制，mvn-deploy 构造下已清偿）'
+- leg: virtual 合并面 304
+  observed: { status: 304, note: 'virtual 聚合路径同语义（双端）' }
+- leg: virtual 剥离面 304
+  observed: { status: 304, note: 'virtual 旁车剥离同构（双端）' }
+value_level_residual: 'A 旁车 LM 晚 body ~2s vs B 相等（raw 如实不裁——LM 精确值断言面外；契约 value_level_note）'
+matrix_outcome:
+  l033: 'LM 语义族 DIVERGENT（B 面 per-request 戳——旁车 LM 随每次派生刷新，跨秒 304 失效）'
+  l034: '翻案维双端 PASS×2（T-559 修复 531ea002 验收）——台账 resolved + 契约 VERIFIED·confidence high（本档=升级锚）'
+verdict_witness: 'L034 Arm 4 r1≡r2：304×3 + virtual 两面全绿、逐项断言值相同'

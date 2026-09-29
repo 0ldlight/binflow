@@ -1,0 +1,90 @@
+# BinFlow 兼容契约——仓库管理 REST 面（DELETE /api/repositories/{key} 起步）
+# schema: compat-contract/1 —— 同域多条目单文件（沿 maven-virtual 先例），条目键面全集同
+#   docs/ai-engineering/compatibility-engineering.md §2（id/feature/surface/request/authentication/
+#   expect/side_effects/error_behavior/unobserved_reference_arms/binflow_state/version/evidence/
+#   confidence/status + divergence_ref）。
+# 落点说明（T-558/BIN-40，2026-09-29）：contracts/ 此前无仓库管理域文件（GET/PUT/POST 仓配置面
+#   由 matrix.yaml D02 冻结行承载、无契约文件落锚）；本票按 D-3/T-555（BIN-37，R6 并行实现票）
+#   契约先行要求新建本文件，首条目=非空仓 DELETE 级联语义。
+# 证据链：L028 D-3 首测 + L032 Arm 1 ruling-ready 矩阵（r1≡r2≡r3，A=7.161.26 Enterprise+ live）；
+#   authority=user_ruling 2026-09-29（会话内裁定经 conductor 转达）——BUG 对齐 A 面（台账
+#   rest/nonempty-repo-delete-cascade-guard 已先本票翻 BUG，fix ticket T-555/BIN-37 in flight）。
+# L034 收官批（R6 轮末 / T-560 差分收官，conductor 授权翻面，2026-09-29）：T-555 修复（6812f271）
+#   L034 Arm 1 双轮 PASS×2 翻 VERIFIED——五腿（nested/善后/flag/empty/virtual）逐字段同形；计数
+#   口径回填=文件+folder 全量、根不计（6/3/0/0 兑现）；带参臂/空仓/virtual 措辞三 unobserved 项随
+#   L034 取证回填移出；台账 rest/nonempty-repo-delete-cascade-guard + d08/repo-delete-response-envelope
+#   成功体半边同批 resolved；金样 golden/rest/repo-delete-report-body 入库（A 腿报告体四臂）。
+domain: rest
+scope: '仓库管理 REST API 的 DELETE /api/repositories/{key} 面（非空仓级联语义 + deleteContent 参数
+  受理形态 + 善后态注记）。不含：GET/PUT/POST 仓配置面（matrix.yaml D02 冻结行承载）、
+  release-bundles 系统仓臂（d08/repo-delete-response-envelope——c55 体裁面，相邻账）、仓库根内容
+  DELETE 面（repo-semantics.md:265 开放问题项——另行挂账）。'
+reference_instance: 'Artifactory 7.161.26 Enterprise+（192.168.120.38:8082；L028/L032 活体取证）'
+binflow_tested_instance: 'worktree 现态 @ 23b70a82（T-555 修复 6812f271 在树；L034 Arm 1 r1/r2 翻绿轮）'
+client_anchor: 'curl 差分腿（L028/L032 harness；admin 凭据 env 注入零落盘）'
+contracts:
+# ── 非空仓 DELETE 级联语义（D-3 / T-555 / BIN-37——契约先行）──────────────────────
+- id: rest/repo-delete-nonempty-cascade
+  feature: 'DELETE 仓库端点对非空仓的语义：200 静默级联删除仓库及其全部内容（无确认门），
+    body 回 JSON 报告体含 deletedArtifactsCount'
+  surface: 'DELETE /api/repositories/{key}（目标仓非空——含已存制品/节点）'
+  request:
+    method: DELETE
+    path: '/api/repositories/{key}'
+    headers: { Authorization: 'Basic <admin>', Content-Type: 'application/json' }
+    query: { deleteContent: '可选 true——受理且与无参同形（见 arms 第二臂）' }
+  authentication: { type: basic, role: admin }
+  expect:
+    semantics: '行为句式（A 面 7.161.26 live，L032 Arm 1 r1≡r2≡r3 定形、L034 Arm 1 r1≡r2 双轮
+      差分兑现）：当管理员 DELETE 一个非空仓时，服务端返回 200 并**静默级联删除该仓库及其全部
+      内容**（无确认语义、不要求任何参数），body 为 JSON 报告体（键含 repoKey、statusMsg、
+      deletedArtifactsCount、success）。当请求带 ?deleteContent=true 时服务端受理并回同形 200
+      级联结果（参数为兼容接受的冗余位，不构成门——L034 flag 臂实测逐字段同形）。'
+    arms:
+    - when: '非空仓 DELETE（无参）'
+      status: 200
+      body:
+        format: json
+        shape: '{"repoKey": "<key>", …, "deletedArtifactsCount": <int>, "success": true}——A 面
+          实测形（L032 例：deletedArtifactsCount=6；L034 nested 腿同）。**计数口径已回填（T-555
+          活体探针 + L034 四臂兑现）：文件+folder 全量计数、仓库根不计**（nested=6〔3 文件+3
+          folder〕/ flag=3 / empty=0 / virtual=0）'
+    - when: '非空仓 DELETE ?deleteContent=true'
+      status: 200
+      body: { format: json, note: '与无参臂同形（级联结果报告体）——L034 flag 臂实测：同树带参
+        200 count=3 逐字段同形（旗=冗余同形位，已取证回填）' }
+    followup_state: '善后态（双端一致面，不立案）：删除后 GET /api/repositories/{key} 双面均 400 同形
+      同文案（含 never-existed 键——missing-key repo GET 双面 400 而非 404，B 逐字复刻 A，
+      L032 Arm 1 mini 发现；L034 善后腿复验维持）'
+    adjacent_observed: 'L034 追加腿（scope 外实测注记，不扩断言面）：空仓 DELETE → 200 count=0
+      content 措辞；virtual 仓 DELETE（活成员有内容）→ 200 count=0 plain 措辞、成员存活
+      （rclass 措辞二分）；A 面 statusMsg 原文字节锚 golden/rest/repo-delete-report-body 与
+      wire run/l034-r6-r{1,2}'
+  side_effects:
+  - '仓库定义删除；仓内全部制品/节点级联删除（不可逆——差分腿以 difftest-* 专属仓构造，不触
+    用户数据）'
+  error_behavior: []
+  unobserved_reference_arms:
+  - '级联删除的异步性/最终一致窗口（A 面未观测；B 语义=同步完成——L034 未开异步性臂）'
+  - 'release-bundles 系统仓臂（scope 排除，相邻账 d08/repo-delete-response-envelope 席位保留——
+    该条成功体半边已 resolved，系统仓臂仍未覆盖）'
+  binflow_state:
+    verdict: 'VERIFIED（L034 Arm 1：T-555 修复后 case rest-nonempty-repo-delete-cascade 重写版
+      ——nested/善后/flag/empty/virtual 五腿逐字段同形，r1≡r2 双轮 PASS×2 断言值逐项相同；
+      计数口径 6/3/0/0 双端活体对齐）'
+    detail: '修复=T-555/BIN-37（6812f271——非空仓 DELETE 静默级联 + A 形 200 JSON 报告体；计数
+      口径按活体探针定准=文件+folder 全量、根不计）。台账 known-divergence.yaml#
+      rest/nonempty-repo-delete-cascade-guard 已 resolved（2026-09-29，锚 L034 Arm 1）；相邻账
+      d08/repo-delete-response-envelope 成功体半边同批 resolved（本条 body 断言与体裁面一体兑现
+      ——「体裁待裁定联动」分支就此关闭：JSON 报告体即裁定结果）。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态 @ 23b70a82（T-555 修复 6812f271 在树，L034 r1/r2 翻绿轮）' }
+  evidence:
+  - { kind: difftest, report: reports/compatibility/L028-maven-v2-batch1-diff.md, anchor: 'D-3（首测：A 200 静默级联 vs B 400 确认门）', date: '2026-09-28' }
+  - { kind: difftest, report: reports/compatibility/L032-t550-followup-arms.md, anchor: 'Arm 1 ruling-ready 矩阵（r1≡r2≡r3：A 200 body {repoKey,…,deletedArtifactsCount:6,success:true} / B 400 holds 5 node(s) 文案 / B ?deleteContent=true→200 / 善后双面 400 同形 + missing-key GET 400 mini 发现）', date: '2026-09-28' }
+  - { kind: probe, report: docs/reverse/repo-semantics.md, anchor: ':265 开放问题项（仓库根内容 DELETE 面——自记需与 repo 删除区分；佐证本面规格缺口如实，行为以 live 证据为准）', date: '2026-09-28' }
+  - { kind: implementation, report: reports/agents/T-555.md, anchor: '活体探针矩阵（difftest-d3-* 9 腿：计数口径定准文件+folder 全量、根不计 + L032 A=6-vs-B=5 之谜定案〔A 写路径自动物化 metadata 恒 +1/目录〕）', date: '2026-09-29' }
+  - { kind: difftest, report: reports/compatibility/L034-r6.md, anchor: 'Arm 1（翻绿轮 r1≡r2 双轮 PASS×2 五腿逐字段同形——generic 树构造规避 maven 自动元物化面污染计数；wire run/l034-r6-r{1,2}）', date: '2026-09-29' }
+  - { kind: golden-capture, report: docs/compatibility/golden/rest/repo-delete-report-body, anchor: 'A 腿报告体四臂参照实形（L034 收官批入金——nested/flag/empty/virtual）', date: '2026-09-29' }
+  confidence: high
+  status: VERIFIED
+  divergence_ref: known-divergence.yaml#rest/nonempty-repo-delete-cascade-guard   # 历史指针（该条已 resolved 2026-09-29——L034 Arm 1 + fix 6812f271）

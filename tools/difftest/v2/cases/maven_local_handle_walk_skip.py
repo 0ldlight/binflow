@@ -1,27 +1,20 @@
-"""T-554 Arm C (ledger maven/virtual-metadata-modulereleases-skip + T-541
-walk-layer handle*): the handle* seat is unreachable on the REMOTE face
-(BinFlow's remote canonical does not persist handle* — the seat probe's
-b=true), but the LOCAL face persists the seat on BOTH sides, and A's live
-behavior there is a live oracle, not a guess.
+"""T-554 Arm C lineage -> L034 arms 2/3 (T-558 contracts / T-559 fix
+verification): handle* seat via LOCAL members, now with BYTE-EXACT message
+comparison and the long-path truncation leg that settles t559's
+"300-char ceiling" extrapolation.
 
-Live A finding that shaped this case (manual probe, 2026-09-29, deleted
-afterwards): a local maven repo with handleReleases=false REFUSES a release
-pom PUT with 409 — and even a direct GET of a release path answers 409
-(path-class vs handle-policy is a read+write gate on the member face in A).
-So "a release artifact homed in a handleReleases=false member" is NOT
-constructable on either side (BinFlow put.go ME-08 refuses the same PUT);
-that sub-face stays NOT_RUN by construction, recorded honestly.
-
-What IS constructable: a handleReleases=false local member holding a
-SNAPSHOT (its handleSnapshots stays true) and a handleSnapshots=false local
-member holding a release. Then, through a virtual [hr, hs, ctl]:
-  - the walk-layer release/snapshot family skips (internal/repo/virtual.go,
-    T-541) and the module-level merge skip (virtual_metadata.go
-    filterMetadataSteps — the §3.4 drift candidate: does A still list the
-    handleReleases=false member's snapshot version in the merged module
-    maven-metadata.xml? A behavior UNKNOWN = the ledger item's open
-    authority) — every dimension is judged b == live-a (dual oracle);
-    any a != b lands in ab_divergence and feeds the ruling, never guessed.
+History: L033 r3-r6 pinned the divergence (9 dims); T-558/BIN-40 ruled the
+three faces BUG; T-559/BIN-41 implemented the aligned wording family
+(put.go ME-08 replacement + handler.go read-path class gate). This case now
+judges:
+  - the four message dims as FULL parsed strings (dual oracle: byte-exact
+    a vs b — L033's harness-side 300-char body capture hid the tail, the
+    extrapolated "no server-side truncation, closing quote + envelope"
+    gets direct-tested here via the long-path leg);
+  - the member GET class gate (409 not 404) on both unlanded legs;
+  - the pre-existing plainsnap control legs (expected to stay red until
+    T-562/BIN-44 — the walk-family resolve face, OUT of T-559 scope);
+  - module/version metadata merge + resolution legs (L033/T-556 lineage).
 """
 import importlib.util
 import json
@@ -35,16 +28,16 @@ _spec.loader.exec_module(mavenlib)
 
 CASE = {
     "id": "maven-local-handle-walk-skip",
-    "title": "handle* walk/merge skips via LOCAL members (seat persisted) — "
-             "release/snapshot family resolution + module-level listing, "
-             "live A oracle",
+    "title": "handle* via LOCAL members — 409 wording family byte-exact, "
+             "member GET class gate, long-path truncation ruling, "
+             "walk/merge legs (plainsnap controls expected divergent)",
     "layer": "L7",
     "domain": "maven",
     "auth": True,
     "timeout_s": 150,
 }
 
-TAG = "r5t554"
+TAG = "l034"
 HR = "difftest-%s-hr" % TAG    # local maven, handleReleases=false
 HS = "difftest-%s-hs" % TAG    # local maven, handleSnapshots=false
 CTL = "difftest-%s-ctl" % TAG  # local maven, defaults
@@ -54,41 +47,49 @@ GP = GROUP.replace(".", "/")
 
 SNAP = "1.0.0-SNAPSHOT"
 
-# every dimension is dual-oracle (expected = live a); no static pins.
+# long group path: 16 segments x 12 chars = 207 chars of group, pushing the
+# '<K>:<path>' artifact reference (and the whole message) far past any
+# 300-char ceiling — the truncation ruling leg.
+GP_LONG = "/".join(["g" * 12] * 16)
+LONG_PATH = "/%s/%s/lp/1.0.0/lp-1.0.0.pom" % (HR, GP_LONG)
+
 DUAL_KEYS = (
     "seat_hr_echo", "seat_hs_echo",
-    "put_rel_to_hr_status", "put_rel_to_hr_family",
-    "put_snap_to_hs_status", "put_snap_to_hs_family",
+    "put_rel_to_hr_status", "put_rel_to_hr_msg",
+    "put_snap_to_hs_status", "put_snap_to_hs_msg",
     "member_hr_modulemeta_versions",
-    "direct_get_relpath_hr_status", "direct_get_relpath_hr_family",
-    "direct_get_snappath_hs_status", "direct_get_snappath_hs_family",
+    "direct_get_relpath_hr_status", "direct_get_relpath_hr_msg",
+    "direct_get_snappath_hs_status", "direct_get_snappath_hs_msg",
+    "longpath_get_status", "longpath_get_msg", "longpath_msg_len",
+    "longpath_fill_identity",
     "virt_resolve_snap_from_hr", "virt_resolve_rel_from_ctl",
     "virt_snapmeta_from_hr_status", "virt_snapmeta_from_hr_sv",
     "virt_modmeta_hwm_status", "virt_modmeta_hwm_versions",
     "virt_modmeta_hwc_status", "virt_modmeta_hwc_versions",
-    # confound controls (r1 finding): B 404s plain-SNAPSHOT pom GETs even
-    # from a DEFAULT member — virt_resolve_snap_from_hr's divergence is
-    # handle-unattributable unless these controls PASS (b == a).
+    # confound controls (L033 r1 finding): B 404s plain-SNAPSHOT pom GETs
+    # even from a DEFAULT member — expected divergent until T-562/BIN-44.
     "control_direct_get_plainsnap",
     "control_virt_get_plainsnap",
     "control_virt_modmeta_plainsnap",
 )
 
-FAMILY_REFUSAL = "handling of"  # BinFlow ME-08 family; A wording unknown
+A_TEMPLATE_MARK = "due to conflict in the snapshot release handling policy."
 
 
-def _families(status, body):
-    if status == 409:
-        return ("refusal-409:" +
-                (FAMILY_REFUSAL if FAMILY_REFUSAL in body else "other-409"))
-    return "status=%d" % status
+def _parse_message(body_text):
+    """Extract errors[0].message from an errors[] envelope, full string."""
+    try:
+        doc = json.loads(body_text)
+        return doc["errors"][0]["message"]
+    except Exception:  # noqa: BLE001 - forensic, never raise
+        return "(unparseable)%s" % body_text[:200]
 
 
 def _versions(body):
     try:
         md = mavenlib.parse_metadata(body)
         return ",".join(md["versions"]) or "(empty)"
-    except Exception:  # noqa: BLE001 - forensic, never raise
+    except Exception:  # noqa: BLE001
         return "parse-error"
 
 
@@ -133,29 +134,22 @@ def _leg(ctx, side):
     asserts["seat_hs_echo"] = _seat(ctx, side, HS, "handleSnapshots")
 
     # ---- construction legs
-    # C1: release pom into handleReleases=false member — the face that must
-    # NOT land on either side (A live: 409; B ME-08: 409). Status recorded;
-    # a landed 201 poisons this leg only (ab_divergence tells the truth).
     st, _ = _put_pom_status(ctx, side, HR, "hwr", "1.0.0")
     raw["put_rel_to_hr_status"] = st
     asserts["put_rel_to_hr_status"] = "status=%d" % st
-    # re-GET the exact body for the family judgement (put_pom drops it)
     pr = ctx.http(side, "PUT", "/%s/%s/hwr/1.0.0/hwr-1.0.0.pom" % (HR, GP),
                   body=mavenlib.pom_fixture(GROUP, "hwr", "1.0.0"),
                   headers={"Content-Type": "application/xml"})
-    raw["put_rel_to_hr_body"] = pr["body"][:300].decode("utf-8", "replace")
-    asserts["put_rel_to_hr_family"] = _families(
-        pr["status"], raw["put_rel_to_hr_body"])
-    # C2: snapshot pom into handleSnapshots=false member — same expectation.
+    raw["put_rel_to_hr_body_full"] = pr["body"].decode("utf-8", "replace")
+    asserts["put_rel_to_hr_msg"] = _parse_message(raw["put_rel_to_hr_body_full"])
     st, _ = _put_pom_status(ctx, side, HS, "hws", SNAP)
     raw["put_snap_to_hs_status"] = st
     asserts["put_snap_to_hs_status"] = "status=%d" % st
     ps = ctx.http(side, "PUT", "/%s/%s/hws/%s/hws-%s.pom" % (HS, GP, SNAP, SNAP),
                   body=mavenlib.pom_fixture(GROUP, "hws", SNAP),
                   headers={"Content-Type": "application/xml"})
-    raw["put_snap_to_hs_body"] = ps["body"][:300].decode("utf-8", "replace")
-    asserts["put_snap_to_hs_family"] = _families(
-        ps["status"], raw["put_snap_to_hs_body"])
+    raw["put_snap_to_hs_body_full"] = ps["body"].decode("utf-8", "replace")
+    asserts["put_snap_to_hs_msg"] = _parse_message(raw["put_snap_to_hs_body_full"])
 
     # C3: SNAPSHOT into the handleReleases=false member (constructable face)
     st, _ = _put_pom_status(ctx, side, HR, "hwm", SNAP)
@@ -172,17 +166,14 @@ def _leg(ctx, side):
         raise mavenlib.SetupError("control release PUT failed side %r: %d"
                                   % (side, st))
     # C5: confound control — the SAME plain-SNAPSHOT spelling homed in the
-    # DEFAULT member (r1: B 404s this spelling everywhere; the walk-face
-    # snapshot leg above is handle-attributable only if these agree).
+    # DEFAULT member (expected divergent until T-562/BIN-44).
     st, _ = _put_pom_status(ctx, side, CTL, "plainsnap", SNAP)
     raw["put_plainsnap_to_ctl_status"] = st
     if st not in (200, 201):
         raise mavenlib.SetupError("plainsnap control PUT failed side %r: %d"
                                   % (side, st))
 
-    # ---- settle member-level metadata calc (async, both sides) before the
-    # virtual probes: member hwm module listing carries 1.0.0-SNAPSHOT, and
-    # the control member hwc listing carries 1.0.0.
+    # ---- settle member-level metadata calc (async, both sides)
     def _ready_hwm(status, body):
         if status != 200:
             return False
@@ -213,20 +204,37 @@ def _leg(ctx, side):
         ctx, side, "/%s/%s/plainsnap/maven-metadata.xml" % (CTL, GP),
         _ready_hwm, budget_s=30.0)
 
-    # ---- member-face class-policy GET legs (no artifact needed: the class
-    # gate is the question, not the bytes)
+    # ---- member-face class-policy GET legs (full message capture)
     g1 = _get(ctx, side, "/%s/%s/hwr/1.0.0/hwr-1.0.0.pom" % (HR, GP))
     raw["direct_get_relpath_hr_status"] = g1["status"]
-    raw["direct_get_relpath_hr_body"] = g1["body"][:300].decode("utf-8", "replace")
+    raw["direct_get_relpath_hr_body_full"] = g1["body"].decode("utf-8", "replace")
     asserts["direct_get_relpath_hr_status"] = "status=%d" % g1["status"]
-    asserts["direct_get_relpath_hr_family"] = _families(
-        g1["status"], raw["direct_get_relpath_hr_body"])
+    asserts["direct_get_relpath_hr_msg"] = _parse_message(
+        raw["direct_get_relpath_hr_body_full"])
     g2 = _get(ctx, side, "/%s/%s/hws/%s/hws-%s.pom" % (HS, GP, SNAP, SNAP))
     raw["direct_get_snappath_hs_status"] = g2["status"]
-    raw["direct_get_snappath_hs_body"] = g2["body"][:300].decode("utf-8", "replace")
+    raw["direct_get_snappath_hs_body_full"] = g2["body"].decode("utf-8", "replace")
     asserts["direct_get_snappath_hs_status"] = "status=%d" % g2["status"]
-    asserts["direct_get_snappath_hs_family"] = _families(
-        g2["status"], raw["direct_get_snappath_hs_body"])
+    asserts["direct_get_snappath_hs_msg"] = _parse_message(
+        raw["direct_get_snappath_hs_body_full"])
+
+    # ---- long-path truncation ruling leg (t559 extrapolation -> direct
+    # test): unlanded release path, '<K>:<path>' pushes the message far
+    # past 300 chars. Judge: full message, its length, and whether the
+    # "; Path:" fill is byte-identical to the inner artifact reference.
+    g3 = _get(ctx, side, LONG_PATH)
+    raw["longpath_get_status"] = g3["status"]
+    raw["longpath_get_body_full"] = g3["body"].decode("utf-8", "replace")
+    msg = _parse_message(raw["longpath_get_body_full"])
+    asserts["longpath_get_status"] = "status=%d" % g3["status"]
+    asserts["longpath_get_msg"] = msg
+    asserts["longpath_msg_len"] = "%d" % len(msg)
+    ref = "%s:%s" % (HR, LONG_PATH[len("/%s/" % HR):])
+    fill = "; Path: '%s'" % ref
+    cut = msg.find("; Path: ")
+    asserts["longpath_fill_identity"] = (
+        "identical" if cut > 0 and msg.endswith(fill) and
+        ("'%s'" % ref) in msg[:cut] else "other")
 
     # ---- virtual resolution legs
     v1 = _get(ctx, side, "/%s/%s/hwm/%s/hwm-%s.pom" % (V, GP, SNAP, SNAP))
@@ -249,21 +257,16 @@ def _leg(ctx, side):
         _versions(c3["body"]) if c3["status"] == 200 else "status=%d" % c3["status"])
 
     # ---- virtual metadata legs
-    # version-level (snapshot) metadata from the hr member: §5.1 skip keys
-    # on handleSnapshots — hr keeps snapshots, so the member contributes.
     v3 = _get(ctx, side, "/%s/%s/hwm/%s/maven-metadata.xml" % (V, GP, SNAP))
     raw["virt_snapmeta_from_hr_status"] = v3["status"]
     asserts["virt_snapmeta_from_hr_status"] = "status=%d" % v3["status"]
     asserts["virt_snapmeta_from_hr_sv"] = (
         _sv_count(v3["body"]) if v3["status"] == 200 else "status=%d" % v3["status"])
-    # module-level listing from the hr member (THE drift question): does the
-    # handleReleases=false member's snapshot version survive the merge?
     v4 = _get(ctx, side, "/%s/%s/hwm/maven-metadata.xml" % (V, GP))
     raw["virt_modmeta_hwm_status"] = v4["status"]
     asserts["virt_modmeta_hwm_status"] = "status=%d" % v4["status"]
     asserts["virt_modmeta_hwm_versions"] = (
         _versions(v4["body"]) if v4["status"] == 200 else "status=%d" % v4["status"])
-    # module-level listing for the control member's artifact (sanity).
     v5 = _get(ctx, side, "/%s/%s/hwc/maven-metadata.xml" % (V, GP))
     raw["virt_modmeta_hwc_status"] = v5["status"]
     asserts["virt_modmeta_hwc_status"] = "status=%d" % v5["status"]
@@ -291,22 +294,17 @@ def run(ctx):
     status, reason, mism = mavenlib.judge(per_side, expected)
     ev = ctx.write_evidence("summary.json", {
         "expected": expected, "a": a, "b": b, "mismatches": mism,
-        "note": "dual oracle: expected = live a per dimension; every "
-                "a != b lands in ab_divergence and feeds the ruling "
-                "(module-level handleReleases=false member skip = the "
-                "ledger drift question; release-in-hr=false sub-face is "
-                "NOT constructable — deploy-time 409 refusal on both "
-                "sides, statuses recorded in put_rel_to_hr_* / "
-                "put_snap_to_hs_*). Attribution rule (r1 finding): the "
-                "walk-face snapshot leg virt_resolve_snap_from_hr is "
-                "handle-attributable ONLY if control_virt_get_plainsnap "
-                "agrees (b == a); B 404s the plain-SNAPSHOT spelling from "
-                "a default member too — that spelling divergence is a "
-                "separate, pre-existing face"})
+        "note": "dual oracle: expected = live a per dimension. Message dims "
+                "are FULL parsed strings (L033's 300-char harness capture "
+                "hidden the tail — longpath leg rules on server-side "
+                "truncation directly). plainsnap control dims are the "
+                "registered walk-family face (T-562/BIN-44) and are "
+                "EXPECTED divergent; release-in-hr sub-face NOT construct-"
+                "able (deploy-time 409 on both sides)"})
     return {"status": status, "reason": reason,
             "evidence": [ev, "evidence/%s/a-leg.json" % CASE["id"],
                          "evidence/%s/b-leg.json" % CASE["id"]],
             "requests": [{"step": "create local hr=false/hs=false/ctl + "
-                                  "virtual; wire-PUT 4 constructions; "
-                                  "member/virtual GET resolution + "
-                                  "module/version metadata probes"}]}
+                                  "virtual; wire-PUT constructions; member/"
+                                  "virtual GET resolution + module/version "
+                                  "metadata probes + long-path 409 leg"}]}

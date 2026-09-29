@@ -678,22 +678,20 @@ func seedRemoteContent(t TB, e *env, repoKey, path string) {
 	}
 }
 
-// TestFR15AC6RemoteDeleteCascades: deleteContent=true removes the nodes AND
-// the remote_cache rows; afterwards the repository (and its config row) is
-// gone and content reads answer the repository-not-found branch.
+// TestFR15AC6RemoteDeleteCascades: the delete cascades — nodes AND the
+// remote_cache rows go with the row (T-555/BIN-37: silent cascade, the
+// deleteContent flag accepted and ignored); afterwards the repository (and
+// its config row) is gone and content reads answer the repository-not-found
+// branch.
 func TestFR15AC6RemoteDeleteCascades(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
 	mustCreateRemote(t, e, "generic-remote", `{"url":"http://127.0.0.1:9099"}`)
 	seedRemoteContent(t, e, "generic-remote", "dir/up.bin")
 
-	// Non-empty without the flag: the nodes demand deleteContent.
-	if err := e.svc.DeleteRepo(ctx, admin(), "generic-remote", false); !errors.Is(err, repo.ErrRepoNotEmpty) {
-		t.Fatalf("DeleteRepo(no flag) error = %v, want ErrRepoNotEmpty", err)
-	}
-
-	if err := e.svc.DeleteRepo(ctx, admin(), "generic-remote", true); err != nil {
-		t.Fatalf("DeleteRepo(deleteContent): %v", err)
+	// Non-empty without the flag: cascades all the same (D-3 ruling).
+	if err := e.svc.DeleteRepo(ctx, admin(), "generic-remote", false); err != nil {
+		t.Fatalf("DeleteRepo(no flag): %v", err)
 	}
 	if _, err := e.svc.GetRepo(ctx, admin(), "generic-remote"); !errors.Is(err, repo.ErrRepoNotFound) {
 		t.Fatalf("GetRepo after delete = %v, want ErrRepoNotFound", err)

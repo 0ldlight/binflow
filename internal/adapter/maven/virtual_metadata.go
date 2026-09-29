@@ -113,7 +113,7 @@ func (h *Handler) serveVirtualMetadata(ctx context.Context, w http.ResponseWrite
 			return true
 		}
 		body := renderVirtualMetadata(docs, l, r.UserAgent())
-		h.writeDerivedSidecar(w, r, body, l.Algo)
+		h.writeDerivedSidecar(w, r, body, l.Algo, newestDocTime(docs))
 		return true
 	}
 	return false
@@ -555,22 +555,32 @@ func (h *Handler) writeDerivedMetadata(w http.ResponseWriter, r *http.Request, b
 // document (the merged, or the stripped) — the same server-computed
 // contract the local sidecar face upholds, with the derived body as its
 // target. The sidecar is a derivation of ITS OWN (T-551, L032 Arm 6's
-// live A-face ruling, 7.161.26): it carries its own Last-Modified (the
-// derivation moment — A materializes the sidecar seconds after the body's
-// stamp; BinFlow derives per request, so the moment is now, second
-// precision like the body face) and NO ETag — the BODY face answers
-// ETag/If-None-Match, the SIDECAR face answers Last-Modified/
-// If-Modified-Since (a value at or after the stamp is fresh: 304; older:
-// 200). An If-None-Match has no served ETag to match and therefore never
-// short-circuits — the empty etag argument leaves it inert, so no false
-// 304 (the pre-T-551 bug: ETag=digest with INM answered 304).
-func (h *Handler) writeDerivedSidecar(w http.ResponseWriter, r *http.Request, body []byte, algo string) {
+// live A-face ruling, 7.161.26): it carries its own Last-Modified and NO
+// ETag — the BODY face answers ETag/If-None-Match, the SIDECAR face
+// answers Last-Modified/If-Modified-Since (a value at or after the stamp
+// is fresh: 304; older: 200). An If-None-Match has no served ETag to
+// match and therefore never short-circuits — the empty etag argument
+// leaves it inert, so no false 304 (the pre-T-551 bug: ETag=digest with
+// INM answered 304).
+//
+// T-559 (BIN-41, contract maven/derived-sidecar-lm-materialized-stamp):
+// the stamp is MATERIALIZED-STABLE, not per-request — the caller passes
+// the derivation INPUT's own timestamp (the stored node's stamp on the
+// member strip face, the newest contributor's node stamp on the virtual
+// merge face), so the same sidecar answers the same Last-Modified across
+// requests while the input state stands, and a cross-second revisit
+// holding the previously observed stamp earns its 304 instead of a
+// 200 + forwarded stamp (the per-request clock was the L033 residual:
+// LM advanced 00:44:09→00:44:10 between two GETs). A zero stamp omits
+// the header (the body face's habit; the conditional then never fires).
+func (h *Handler) writeDerivedSidecar(w http.ResponseWriter, r *http.Request, body []byte, algo string, lastMod time.Time) {
 	sums := digestsOfBody(body)
 	digest := map[string]string{"sha256": sums.sha256, "sha1": sums.sha1, "md5": sums.md5}[algo]
-	lastMod := time.Now()
 	hdr := w.Header()
 	hdr.Set("Content-Type", sidecarContentType)
-	hdr.Set("Last-Modified", lastMod.UTC().Format(http.TimeFormat))
+	if !lastMod.IsZero() {
+		hdr.Set("Last-Modified", lastMod.UTC().Format(http.TimeFormat))
+	}
 	hdr.Set(hdrChecksumSha256, sums.sha256)
 	hdr.Set(hdrChecksumSha1, sums.sha1)
 	if evalConditional(r, "", lastMod) {

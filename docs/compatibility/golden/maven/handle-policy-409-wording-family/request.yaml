@@ -1,0 +1,15 @@
+# 金样请求——maven handle* 拒绝 409 文案族（L033 Arm C / L034 Arms 2/3）
+# schema: golden-request/1（矩阵型：request=构造+腿数组；逐腿响应入 response.yaml）
+feature: '成员 local 仓 handle* 相斥路径的 PUT/GET 409 拒绝文案族（PUT/GET 两形态同模板 + 长路径无截断面）'
+client: curl wire 腿（Basic admin；PUT 腿任意 body——策略拒绝先于存储；GET 腿无 body）
+repo_setup: >-
+  maven local 成员仓两枚：handleReleases=false（hr）与 handleSnapshots=false（hs）；L033/L034 差分
+  命名 difftest-l034-{hr,hs}；相斥路径=com/diff/hwr/1.0.0/hwr-1.0.0.pom（release 类）与 snapshot 类
+  对应拼写；长路径腿=group 段 16 组×12 字符。
+steps:
+- { seq: 1, leg: PUT rel→hr, method: PUT, path: '/{hr}/com/diff/hwr/1.0.0/hwr-1.0.0.pom', note: 'release 类路径 × handleReleases=false——PUT 形态主锚' }
+- { seq: 2, leg: PUT snap→hs, method: PUT, path: '/{hs}/<snapshot 类路径>', note: 'snapshot 类 × handleSnapshots=false——同形性判定' }
+- { seq: 3, leg: GET rel@hr 未落地, method: GET, path: '/{hr}/com/diff/hwr/1.0.0/hwr-1.0.0.pom', note: '读路径 class 门（409 非 404）+ GET 形态文案' }
+- { seq: 4, leg: GET snap@hs 未落地, method: GET, path: '/{hs}/<snapshot 类路径>', note: '同上 ×2 维' }
+- { seq: 5, leg: 长路径腿, method: 'PUT/GET 同上相斥构造', path: 'group 段 16×12 字符（<K>:<path> 251 字符、全 message 634 字符）', note: '截断裁定锚——t559 留验点' }
+expected_client_outcome: '四腿均 409 + errors[] 信封；message 逐字节见 response.yaml'

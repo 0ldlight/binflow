@@ -1,0 +1,23 @@
+# 金样元数据——maven derived sidecar LM 物化稳定戳·跨秒 IMS 304 族（L034 收官批入金 G4）
+schema: golden/1
+id: maven/derived-sidecar-crosssec-304
+contract_ref: contracts/maven-virtual.yaml#maven/derived-sidecar-lm-materialized-stamp   # 本档即该契约 confidence medium→high 的 golden-capture 锚（L034 Arm 4 A 面跨秒直接腿已实测）
+matrix_ref: matrix.yaml#D12-R18
+capture:
+  mode: live-captured               # A 腿跨秒 304×3 live（mvn-deploy 构造下 1.3s 间隔直接腿）
+  captured_at: '2026-09-29（L034 r1；r2 复验同绿）'
+  capture_instance: 'A: Artifactory 7.161.26 Enterprise+ @ 192.168.120.38:8082；B: worktree 现态 @ 23b70a82'
+  capture_commands: >-
+    mvn-deploy 构造制品+digest 旁车（.sha1/.md5/.sha256）→ 成员剥离腿（GET 旁车 → sha256 验体）→
+    基线 GET 取 LM → sleep 1.3s → 旁车 GET 带值 IMS（304 判定）→ virtual 合并面/virtual 剥离面同构腿；case
+    maven-derived-sidecar-lm，runner 轮次 l034-r6-r{1,2}
+  raw_response_archive: reports/compatibility/L034-r6.md Arm 4（304×3 计数 + 跨秒直接腿观测段）；wire tools/difftest/v2/run/l034-r6-r{1,2}/
+  history: live-captured（L033 立账——LM 语义族 DIVERGENT 之一）→ live-captured（T-559 修复 531ea002 + L034 Arm 4 翻绿入金；「跨秒直接腿不可达」遗留 caveat 同场清偿）
+instance_versions:
+  artifactory_ref: Artifactory 7.161.26 Enterprise+（http://192.168.120.38:8082）
+  binflow_tested: worktree 现态 @ 23b70a82（T-559 修复在树，L034 r1/r2 翻绿轮）
+confidence: high                   # 304×3 双轮 PASS×2 + A 面跨秒直接腿（1.3s 间隔）实测持旧 LM
+known_gaps:
+- 'LM 值级残差：A 旁车 LM 晚 body ~2s vs B 相等（raw 如实不裁——断言面外；见契约 value_level_note）'
+- 'stored-stamp 更新时机（旁车文件 mtime 语义）未逐面取证（契约 unobserved 维持）'
+review: L034 收官批入金评审（2026-09-29，conductor 授权 L034 提金候选④）——A 腿观测以 L034 报告记录为准未自行改写

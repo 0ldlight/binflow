@@ -1,0 +1,26 @@
+# 金样元数据——maven deploy 201 envelope 三形同源（uri/downloadUri/Location，L034 收官批入金 G3）
+schema: golden/1
+id: maven/deploy-201-envelope-uri-location
+contract_ref: known-divergence.yaml#maven/deploy-created-envelope-uri-missing-context-prefix   # envelope uri 面（T-561 resolved）+ #maven/deploy-201-location-header-context-prefix（T-563 resolved @ 4481359f——uri/Location 同源关系是本金样核心锚，两账并挂均已闭）
+matrix_ref: matrix.yaml#D12-R18
+capture:
+  mode: live-captured               # A 腿参照值 live（L034 Arm 6 envelope + Arm 8 Location 取证 + mini-diff 六臂复验）
+  captured_at: '2026-09-28（L030 顺带观察 1 立账源）→ 2026-09-29（L034 Arm 6 翻绿 + Arm 8 取证入金 + 同日 Location mini-diff〔T-563 修复验收 r3/r4〕）'
+  capture_instance: 'A: Artifactory 7.161.26 Enterprise+ @ 192.168.120.38:8082（context root /artifactory）；B: worktree @ 4481359f（/binflow 前缀——T-561 uri 修复 23b70a82 + T-563 Location 修复均在树；mini-diff 自 4481359f 重建 scratch 验证）'
+  capture_commands: >-
+    主批四臂 deploy（pom wire PUT / jar / maven-metadata.xml 客户端上传 / checksum-deploy 零传输+pom 预播种）
+    + envelope uri GET 可解析性 + Location 独立探针（locprobe）；mini-diff case maven-deploy-201-location-header
+    六臂 ×2 轮（pom/jar/maven-metadata.xml 字节部署 + X-Checksum-Deploy 零传输〔loc2〕+ checksum-file
+    .sha1/.md5 注册式〔TARGET 预播种〕）；runner 轮次 l034-r6-r{1,2}（主批）+ r{3,4}（mini-diff）
+  raw_response_archive: reports/compatibility/L034-r6.md Arm 6（四臂表）+ Arm 8（Location 取证段）+ 末尾「Location mini-diff」节（六臂表）；wire tools/difftest/v2/run/l034-r6-r{1,2,3,4}/
+  history: live-captured（L030 顺带观察 1——B envelope uri 裸根立账）→ live-captured（T-561 修复 23b70a82 + L034 Arm 6 四臂 PASS×2 入金；Arm 8 同场取证出 Location 新面孔）→ live-captured（T-563 修复 4481359f + mini-diff 六臂 PASS×2——B 裸根消除、组内增补 checksum-file 注册式臂）
+instance_versions:
+  artifactory_ref: Artifactory 7.161.26 Enterprise+（http://192.168.120.38:8082）
+  binflow_tested: worktree @ 4481359f（T-561+T-563 修复在树；Location 面 mini-diff r3/r4 双轮 PASS 验收）
+confidence: high                   # 主批四臂 + mini-diff 六臂均双轮 PASS×2；三形同源（Location==uri）与 checksum-file 注册式（Location==TARGET）A 面定谳
+known_gaps:
+- 'Location 面 B 修复前裸根形态见 L034 Arm 8 与本组 response.b_face_location_pre_fix 存档（修复后形态为现行断言面）'
+- 'checksum-file 臂 Location 全串以 L034 mini-diff 表形+wire r{3,4} 为准（表内省略号省 host/组段——逐字符实值锚 wire，不造值）'
+- '泛化面未取证：其他协议 deploy 201 envelope/Location 渲染是否同构（generic/deb/rpm/helm 独立渲染器——T-561 提交注记「无跨协议波及面」为代码侧声明，wire 未逐协议取证）'
+- 'checksum-deploy 臂 A 面首次以预播种构造跑通（零传输链）——metadata 非客户端上传臂的字节服务端可重算性只钉 GET=200（r3 首跑 meta_loc_get 失配=case 侧误钉字节，T-561 口径只钉 200，非 Location 脸）'
+review: L034 收官批入金评审（2026-09-29，提金候选③）+ 复工微腿增补（提金候选⑤ checksum-file 注册式臂并入本组，rest-api §1.5 该面首个双端活体锚）——A 腿原文以 L034 报告记录为准未自行改写
