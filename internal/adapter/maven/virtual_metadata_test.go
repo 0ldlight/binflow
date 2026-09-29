@@ -221,25 +221,36 @@ func TestVirtualMetadataComputedPerRequest(t *testing.T) {
 
 // TestVirtualMetadataSidecarAndConditional: the checksum sidecars of the
 // merged document are computed over the MERGED bytes, and If-None-Match
-// short-circuits 304.
+// short-circuits 304 on the BODY (the sidecar's own validator family —
+// Last-Modified, no ETag — is TestDerivedSidecarValidatorFamily's).
 func TestVirtualMetadataSidecarAndConditional(t *testing.T) {
 	f := newVirtualFixture(t, `{"repositories":["mv-a","mv-b"]}`)
 	f.deployReleasePom(t, "mv-a", "1.0.0")
 	f.deployReleasePom(t, "mv-b", "1.1.0")
+
+	// The body's ETag is the validator the body face answers INM with.
+	bodyResp := f.hs.serve(http.MethodGet, "/mv-virt/com/acme/lib/maven-metadata.xml", nil, nil, true)
+	if bodyResp.StatusCode != http.StatusOK {
+		t.Fatalf("merged document = %d (%s)", bodyResp.StatusCode, drain(t, bodyResp))
+	}
+	etag := bodyResp.Header.Get("ETag")
+	if etag == "" {
+		t.Fatal("merged document carries no ETag")
+	}
+	drain(t, bodyResp)
 
 	resp := f.hs.serve(http.MethodGet, "/mv-virt/com/acme/lib/maven-metadata.xml.sha1", nil, nil, true)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("merged sidecar = %d (%s)", resp.StatusCode, drain(t, resp))
 	}
 	sha1Body := strings.TrimSpace(string(drain(t, resp)))
-	if sha1Body != resp.Header.Get("X-Checksum-Sha1") || sha1Body != resp.Header.Get("ETag") {
+	if sha1Body != resp.Header.Get("X-Checksum-Sha1") {
 		t.Errorf("sidecar body %q disagrees with headers %+v", sha1Body, resp.Header)
 	}
 	if resp.Header.Get("X-Checksum-Sha256") == "" {
 		t.Errorf("merged response missing the sha256 header")
 	}
 
-	etag := resp.Header.Get("ETag")
 	cond := f.hs.serve(http.MethodGet, "/mv-virt/com/acme/lib/maven-metadata.xml", nil,
 		map[string]string{"If-None-Match": etag}, true)
 	if cond.StatusCode != http.StatusNotModified {

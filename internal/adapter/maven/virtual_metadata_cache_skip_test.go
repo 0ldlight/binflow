@@ -5,10 +5,12 @@ package maven
 // (virtual-resolution.md §5.1 "跳过所有 cache 仓": the remote 本体 step
 // carries the cache semantics — one remote merges as ONE unit, its
 // standing copy is never read too; design virtual-four-bucket.md §5.3
-// maven row, invariant I11), and the level-keyed policy skips apply
+// maven row, invariant I11), and the snapshot-level policy skip applies
 // (snapshot-level documents skip handleSnapshots=false members, §5.1
-// explicit; module-level lists skip handleReleases=false, the §3.4
-// mirror).
+// explicit — L033 Arm C kept that face double-sided). The module-level
+// handleReleases skip was REMOVED in T-556: L033 Arm C's differential
+// (live A 7.161.26, r3≡r4) proved the reference INCLUDES a
+// handleReleases=false member's SNAPSHOT version in the module list.
 //
 // Two legs: the cache-facet FILTER runs on seam-shaped step tables
 // (design §2.1's ResolutionStep form) for the table-driven matrix, and
@@ -92,8 +94,10 @@ func TestMetadataWalkCacheFacetSkip(t *testing.T) {
 }
 
 // TestMetadataWalkLevelPolicySkip: the level-keyed member skips. Snapshot
-// level keys on handleSnapshots, module level on handleReleases — and the
-// cache-facet drop holds at BOTH levels regardless of the flags.
+// level keys on handleSnapshots; module level consults NO handle flag
+// since T-556 (L033 Arm C: live A includes the handleReleases=false
+// member's versions) — and the cache-facet drop holds at BOTH levels
+// regardless of the flags.
 func TestMetadataWalkLevelPolicySkip(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -103,7 +107,7 @@ func TestMetadataWalkLevelPolicySkip(t *testing.T) {
 	}{
 		{name: "snapshot level, handleSnapshots=false: skipped", step: metadataWalkStep{Key: "m", Facet: facetPlain, HandleReleases: true, HandleSnapshots: false}, level: levelSnapshot, want: false},
 		{name: "snapshot level, handleSnapshots=true: kept", step: metadataWalkStep{Key: "m", Facet: facetPlain, HandleReleases: false, HandleSnapshots: true}, level: levelSnapshot, want: true},
-		{name: "module level, handleReleases=false: skipped", step: metadataWalkStep{Key: "m", Facet: facetPlain, HandleReleases: false, HandleSnapshots: true}, level: levelModule, want: false},
+		{name: "module level, handleReleases=false: kept (T-556 — the pre-flip skip dropped it)", step: metadataWalkStep{Key: "m", Facet: facetPlain, HandleReleases: false, HandleSnapshots: true}, level: levelModule, want: true},
 		{name: "module level, handleReleases=true: kept", step: metadataWalkStep{Key: "m", Facet: facetPlain, HandleReleases: true, HandleSnapshots: false}, level: levelModule, want: true},
 		{name: "cache facet, snapshot level, both handles true: still skipped", step: metadataWalkStep{Key: "m", Facet: facetCache, HandleReleases: true, HandleSnapshots: true}, level: levelSnapshot, want: false},
 		{name: "cache facet, module level, both handles true: still skipped", step: metadataWalkStep{Key: "m", Facet: facetCache, HandleReleases: true, HandleSnapshots: true}, level: levelModule, want: false},
@@ -182,19 +186,25 @@ func TestVirtualMetadataSnapshotPolicySkip(t *testing.T) {
 	}
 }
 
-// TestVirtualMetadataModulePolicySkip: the real stack — a member with
-// handleReleases=false does not contribute to the module version list
-// (the adapter-side mirror of the walk layer's §3.4 release skip;
-// projection-inherited spellings arrive identically because cache steps
-// carry the remote's key).
-func TestVirtualMetadataModulePolicySkip(t *testing.T) {
+// TestVirtualMetadataModuleLevelIgnoresHandleReleases: the real stack —
+// the module version list keeps a handleReleases=false member's versions
+// (T-556, L033 Arm C's differential refutation: live A 7.161.26, r3≡r4,
+// INCLUDES the hr=false member's SNAPSHOT version in the virtual module
+// list — the pre-T-556 skip answered 404 there). The leg mirrors the
+// evidenced spelling — a SNAPSHOT version contributed by the refusing
+// member; the release-pom twin is unconstructible through the ordinary
+// plane on the reference (A 409s release PUTs to hr=false locals), and
+// the walk layer's release-skip mirror flipped with this face (both
+// sites, one rule).
+func TestVirtualMetadataModuleLevelIgnoresHandleReleases(t *testing.T) {
 	f := newVirtualFixture(t, `{"repositories":["mv-a","mv-b"]}`)
 	f.deployReleasePom(t, "mv-a", "1.0.0")
-	f.deployReleasePom(t, "mv-b", "1.1.0")
+	f.deploySnapshotPom(t, "mv-b", "20240101.120000", 1)
 
-	// mv-b refuses releases: its version vanishes from the module-level
-	// merge; mv-a's list is the whole answer (latest/release recompute
-	// over the surviving union, not the refused member's 1.1.0).
+	// mv-b refuses releases: its SNAPSHOT version STAYS in the module
+	// list (no handle filter at module level); latest/release recompute
+	// over the whole union — 1.0.0 stays latest (a -SNAPSHOT qualifier
+	// ranks below its release, the comparator's own rule).
 	if _, err := f.hs.svc.UpdateRepo(context.Background(), adminP, &metadata.Repo{
 		RepoKey: "mv-b", Type: repo.TypeLocal, PackageType: Protocol,
 		Config: `{"handleReleases":false}`,
@@ -203,11 +213,11 @@ func TestVirtualMetadataModulePolicySkip(t *testing.T) {
 	}
 	status, body := f.hs.getMeta("mv-virt", "com.acme", "lib", "")
 	if status != http.StatusOK {
-		t.Fatalf("module-level merge with one refusing member = %d (%s)", status, body)
+		t.Fatalf("module-level merge with one release-refusing member = %d (%s)", status, body)
 	}
-	mustContain(t, "module-level policy skip", body,
-		[]string{"<version>1.0.0</version>", "<latest>1.0.0</latest>", "<release>1.0.0</release>"},
-		[]string{"<version>1.1.0</version>", "<latest>1.1.0</latest>"})
+	mustContain(t, "module-level ignores handleReleases", body,
+		[]string{"<version>1.0.0</version>", "<version>1.0-SNAPSHOT</version>", "<latest>1.0.0</latest>", "<release>1.0.0</release>"},
+		nil)
 }
 
 // TestVirtualMetadataAggregationSkipsCacheFacetSteps: the REAL four-bucket
