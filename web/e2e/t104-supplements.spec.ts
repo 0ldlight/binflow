@@ -134,7 +134,7 @@ test('seed docker-ui-local via real docker client (dind push)', async () => {
   expect(out).toMatch(/digest: sha256:[0-9a-f]{64}/)
 })
 
-test('W12c + W11: docker tree shows manifest node; non-empty delete two-stage; content 404', async ({ page }) => {
+test('W12c + W11: docker tree shows manifest node; non-empty cascade delete; content 404', async ({ page }) => {
   const errors = watchServerErrors(page)
   await page.goto('/binflow/ui/')
   await login(page)
@@ -166,18 +166,12 @@ test('W12c + W11: docker tree shows manifest node; non-empty delete two-stage; c
   const hexRows = rowIds.filter((id) => /^tree-row-[0-9a-f]{64}$/.test(id))
   expect(hexRows.length).toBeGreaterThanOrEqual(1)
 
-  // W11 两段流（非空仓）：不勾 deleteContent → 400 原因可见；勾选 → 成功
+  // W11 级联删除（T-555 语义）：一次确认即删仓+内容，恒 200 报告体
   await page.goto(`/binflow/ui/admin/repositories/${DOCKER_REPO}`)
   await page.click('[data-testid="repo-delete-button"]')
   await page.fill('[data-testid="repo-delete-confirm-key"]', DOCKER_REPO)
   await page.click('[data-testid="confirm-accept"]')
-  await expect(page.locator('[data-testid="repo-delete-reason"]')).toContainText('node(s)')
-  expect((await api(page, 'GET', `/api/repositories/${DOCKER_REPO}`)).status).toBe(200) // 仓仍在
-
-  await page.fill('[data-testid="repo-delete-confirm-key"]', DOCKER_REPO)
-  await page.check('[data-testid="repo-delete-content"]')
-  await page.click('[data-testid="confirm-accept"]')
-  await expect(page.locator('[data-testid="toast"]')).toContainText('deleted successfully')
+  await expect(page.locator('[data-testid="toast"]')).toContainText('removed successfully')
 
   // 内容面 404（W11 收口）：storage 树与 v2 tags 双腿
   const gone = await api(page, 'GET', `/api/storage/${DOCKER_REPO}/t104img/manifests`)

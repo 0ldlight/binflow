@@ -7,7 +7,7 @@ import { m8Client, sessionApi } from './support/seed'
 // T-240（FR-73 / console-m8 §6.6~§6.8 / UI-08/09）：仓库管理域重排的
 // 交互断言——三 Tab 列表 / 包类型网格建仓向导 / 单页分区表单 / 详情三
 // Tab（概要/配置/Replications）+ quota 行内编辑（CanManageRepo 语义）/
-// 删仓强确认（输入 key + deleteContent 两段流）/ readonly 与 m-holder 腿
+// 删仓强确认（输入 key；T-555 起级联一次成型，无确认旗）/ readonly 与 m-holder 腿
 // （T-218 仓库域债随本票收口）。
 //
 // 断言口径 = ADR-0029 决策 3（交互断言制；锚 = data-testid，不随路由改名）。
@@ -200,9 +200,9 @@ test('admin: three-tab subroutes, per-type rows, column sort, count + pager, fil
   }
 })
 
-// ---- 3. 删仓强确认（列表行入口；非空仓 deleteContent 两段流） ----------------
+// ---- 3. 删仓强确认（列表行入口；级联删除一次确认） ----------------
 
-test('admin: row-level delete strong-confirm (typed key, deleteContent two-stage, reconcile)', async ({ page }) => {
+test('admin: row-level delete strong-confirm (typed key, silent cascade, reconcile)', async ({ page }) => {
   const client = m8Client()
   const key = uniq('t240del')
   await client.request('PUT', `/binflow/api/repositories/${key}`, {
@@ -225,15 +225,13 @@ test('admin: row-level delete strong-confirm (typed key, deleteContent two-stage
   await page.fill('[data-testid="repo-delete-confirm-key"]', 'wrong-key')
   await expect(page.locator('[data-testid="confirm-accept"]')).toBeDisabled()
 
-  // 正确 key 但不勾 deleteContent → 400 原因（含 node 数）带回 + 预勾选
-  await page.fill('[data-testid="repo-delete-confirm-key"]', key)
-  await page.click('[data-testid="confirm-accept"]')
-  await expect(page.locator('[data-testid="repo-delete-reason"]')).toContainText('holds 2 node(s)')
-  await expect(page.locator('[data-testid="repo-delete-content"]')).toBeChecked()
+  // 正确 key → 一次确认即级联删除（T-555：非空仓无 400 门，恒 200 报告体；
+  // 计数口径 1 文件 + 1 祖先目录 = 已删除 2 项——T-565 UI 对齐）
   await page.fill('[data-testid="repo-delete-confirm-key"]', key)
   await page.click('[data-testid="confirm-accept"]')
 
-  await expect(page.locator('[data-testid="toast"]')).toContainText('deleted successfully')
+  await expect(page.locator('[data-testid="toast"]')).toContainText('removed successfully')
+  await expect(page.locator('[data-testid="toast"]')).toContainText('（已删除 2 项内容）')
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local$/)
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toHaveCount(0)
   // L025-6 后 v1 详读面对未知 key 答参照 quirk：400 "Bad Request"（非 404）

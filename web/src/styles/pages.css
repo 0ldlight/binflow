@@ -436,17 +436,6 @@ legend.field-label {
   border-color: var(--bf-accent);
 }
 
-.modal .server-reason {
-  margin-top: var(--bf-sp-2);
-  padding: var(--bf-sp-2);
-  border: 1px solid color-mix(in srgb, var(--bf-danger) 45%, transparent);
-  border-radius: var(--bf-r-sm);
-  background: color-mix(in srgb, var(--bf-danger) 7%, transparent);
-  font-family: var(--bf-mono);
-  font-size: var(--bf-fs-xs);
-  overflow-wrap: anywhere;
-}
-
 /* ---- 存储概要页（T-238 / console-m8 §6.18；area: pages/monitoring）---- */
 
 /* 刷新行：「数据最近刷新于 <ts>」+ 刷新按钮（reverse §3.11 骨架首行） */
