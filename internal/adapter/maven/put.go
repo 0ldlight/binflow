@@ -408,6 +408,19 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 	rc, node, err := h.svc.Get(ctx, p, factsKey, l.Target)
 	if err != nil {
 		if errors.Is(err, repo.ErrNodeNotFound) || errors.Is(err, repo.ErrIsFolder) {
+			// T-574 / BIN-56 (maven/checksum-put-404-wording): the
+			// {.sha1,.md5,.sha256} family answers the checksum family's
+			// own miss wording — 7.161.26 verbatim, colon-separated
+			// repo:target, domain-agnostic (L037 Arm 1 pinned it on the
+			// generic and maven legs alike). .sha512 sits OUTSIDE the
+			// family (the reference deploys it as an ordinary file); its
+			// miss keeps this plane's pre-T-574 shape — its A form is
+			// unprobed, so it is not guessed.
+			if l.Algo != "sha512" {
+				writeError(w, http.StatusNotFound,
+					fmt.Sprintf("Target file to set checksum on doesn't exist: %s:%s", repoKey, l.Target))
+				return
+			}
 			writeError(w, http.StatusNotFound,
 				fmt.Sprintf("Could not locate artifact. Path: '%s/%s'.", repoKey, l.Target))
 			return
@@ -424,9 +437,16 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 	// against pre-recalculation bytes may legitimately disagree already.
 	if measured, ok := h.digestOf(ctx, node, l.Algo); ok && measured != declared {
 		if cfg.ChecksumPolicy == ChecksumPolicyClient && l.TargetKind != KindMetadata {
+			// T-574 / BIN-56 (maven/checksum-put-404-wording, the 409
+			// half): the reference's path quotes the PUT TARGET (suffix
+			// included) WITHOUT the repository prefix — L037 Arm 1's live
+			// wording. The rejected value's write-through into
+			// originalChecksums is the blocked persistence seam (ledger
+			// maven/checksum-put-409-write-through), so this refusal still
+			// lands nothing.
 			writeError(w, http.StatusConflict, fmt.Sprintf(
-				"Checksum error for '%s/%s': received '%s' but actual is '%s'",
-				repoKey, relPath, declared, measured))
+				"Checksum error for '%s': received '%s' but actual is '%s'",
+				relPath, declared, measured))
 			return
 		}
 	}
@@ -441,6 +461,25 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 
 // maxSidecarBytes is the checksum-file size ceiling (rest-api.md 1.5).
 const maxSidecarBytes = 1024
+
+// clientChecksumPutSuffixes is the client-checksum PUT interception family
+// (T-574 / BIN-56, L037 Arm 1): a terminal .sha1/.md5/.sha256 routes the
+// PUT as a client-checksum write on the stripped source. .sha512 is NOT
+// family — the reference deploys it as an ordinary file — so it keeps
+// this plane's legacy sidecar handling.
+var clientChecksumPutSuffixes = []string{".sha1", ".md5", ".sha256"}
+
+// checksumPutTarget strips the family suffix off a PUT path, reporting
+// the source artifact path the client-checksum write addresses.
+func checksumPutTarget(relPath string) (src string, ok bool) {
+	file := relPath[strings.LastIndexByte(relPath, '/')+1:]
+	for _, sfx := range clientChecksumPutSuffixes {
+		if strings.HasSuffix(file, sfx) && len(file) > len(sfx) {
+			return strings.TrimSuffix(relPath, sfx), true
+		}
+	}
+	return "", false
+}
 
 // maxPomConsistencyBytes bounds the pom buffering of the T-543 consistency
 // gate (pom documents are KBs; past the ceiling the deploy streams on

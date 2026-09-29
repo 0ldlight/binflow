@@ -96,19 +96,45 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 
-	// A client that declares a Content-Type keeps it verbatim (Artifactory
-	// honors the header too); an absent declaration is where the extension
-	// mapping applies (T-36): curl -T sends no Content-Type at all, so
-	// PUT x.json stores application/json and HEAD answers with it.
-	mime := r.Header.Get("Content-Type")
-	if mime == "" {
-		mime = mimeByPath(relPath)
-	}
+	// The path's extension owns the stored mime (BIN-53 / T-571): the
+	// factory-table lookup runs for every PUT and the request's declared
+	// Content-Type takes no part in it — the 7.161.26 18-leg matrix shows
+	// every explicit declaration answered from the table (the earlier
+	// "Artifactory honors the header too" note here was wrong, corrected
+	// with the flip). curl -T's absent header and a declared one land
+	// identically: PUT x.json stores application/json either way.
+	mime := mimeByPath(relPath)
 
 	// X-Checksum-Deploy: zero-transfer deploy against an existing blob.
 	if deploy, ok := headerBool(r.Header, hdrChecksumDeploy); ok && deploy {
 		h.handleChecksumDeploy(ctx, w, r, p, repoKey, relPath, mime)
 		return
+	}
+
+	// T-574 / BIN-56 (generic/checksum-terminal-suffix-put-routing; L037
+	// Arm 1's A model, 7.161.26 dual-round): a PUT whose path TERMINATES
+	// in .sha1/.md5/.sha256 is a client-checksum write on the stripped
+	// source artifact, never a file deploy — content, source extension
+	// and source spelling are all irrelevant to the routing. The model's
+	// storage half (originalChecksums write-through plus the GET echo of
+	// the stored client value) needs a client-checksum persistence seam
+	// repo.Service does not expose yet — that half is the ticket's
+	// registered handoff, so today only the SOURCE-MISSING arm
+	// intercepts: a checksum for nothing registers nothing (404, the
+	// reference's wording verbatim, no sidecar node). A live source keeps
+	// the ordinary deploy chain below as an explicitly interim state.
+	if src, ok := checksumPutSource(relPath); ok {
+		// LOCAL-only (R9 reviews A+B blocking): the probe is svc.Get, and
+		// on a remote plane that PULLS THROUGH — a write verb warming the
+		// cache — while an upstream miss would answer the checksum 404 in
+		// place of the plane's own 405 read-only refusal (RE-05). Virtual
+		// and remote planes keep their ordinary chain; same posture as the
+		// maven arm's local gate.
+		if row, rerr := h.class.Get(r.Context(), repoKey); rerr == nil && row.Type == repo.TypeLocal {
+			if h.interceptMissingChecksumPut(ctx, w, r, p, repoKey, src) {
+				return
+			}
+		}
 	}
 
 	expect, err := declaredDigests(r.Header)
@@ -131,6 +157,47 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 	h.writeCreated(w, r, repoKey, relPath, node, uploadContext{declared: declaredSet(expect)})
+}
+
+// terminalChecksumSuffixes is the client-checksum PUT interception family
+// (T-574 / BIN-56, L037 Arm 1): the path's TERMINAL suffix alone routes —
+// .sha512, .asc and compound tails like .sha1.bak are ordinary deploys.
+var terminalChecksumSuffixes = []string{".sha1", ".md5", ".sha256"}
+
+// checksumPutSource strips the terminal checksum suffix off a PUT path,
+// reporting the source artifact path the client-checksum write addresses.
+func checksumPutSource(relPath string) (src string, ok bool) {
+	file := relPath[strings.LastIndexByte(relPath, '/')+1:]
+	for _, sfx := range terminalChecksumSuffixes {
+		if strings.HasSuffix(file, sfx) && len(file) > len(sfx) {
+			return strings.TrimSuffix(relPath, sfx), true
+		}
+	}
+	return "", false
+}
+
+// interceptMissingChecksumPut answers the terminal-checksum PUT whose
+// SOURCE artifact does not exist: 404 "Target file to set checksum on
+// doesn't exist: <repo>:<src>" (7.161.26 verbatim, L037 Arm 1 — rendered
+// for every body shape, the routing is content-blind; a folder source
+// lumps into the same miss). It reports whether the request was answered;
+// a live source — or any lookup error with its own shape, e.g. the
+// remote-plane refusals — returns false so the caller continues down the
+// ordinary chain unchanged.
+func (h *Handler) interceptMissingChecksumPut(ctx context.Context, w http.ResponseWriter,
+	r *http.Request, p *repo.Principal, repoKey, src string) bool {
+	rc, _, err := h.svc.Get(ctx, p, repoKey, src)
+	if err == nil {
+		_ = rc.Close() //nolint:errcheck // read-only probe; only existence is needed
+		return false
+	}
+	if !errors.Is(err, repo.ErrNodeNotFound) && !errors.Is(err, repo.ErrIsFolder) {
+		return false
+	}
+	_, _ = io.Copy(io.Discard, r.Body)
+	writeError(w, http.StatusNotFound,
+		fmt.Sprintf("Target file to set checksum on doesn't exist: %s:%s", repoKey, src))
+	return true
 }
 
 // handleChecksumDeploy implements X-Checksum-Deploy (rest-api.md 1.3):
@@ -331,7 +398,11 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 		hdr.Set("Last-Modified", lastMod.UTC().Format(http.TimeFormat))
 	}
 	hdr.Set("Accept-Ranges", "bytes")
-	hdr.Set("Content-Type", mimeForNode(relPath, node.Mime))
+	// Render-time ownership (BIN-53 / T-571): the table lookup answers for
+	// the path; the stored mime column takes no part, so rows stored under
+	// the old model (or by another adapter's constants) re-render per the
+	// table exactly like fresh deploys.
+	hdr.Set("Content-Type", mimeByPath(relPath))
 
 	// Conditional requests first: a fresh store answers 304 with no body.
 	if evalConditional(r, sums.sha1, lastMod) {
@@ -529,9 +600,11 @@ func isHex(s string, n int) bool {
 	return true
 }
 
-// mimeForNode (see mime.go) supersedes the old octet-stream-only default:
-// absent stored mime now infers from the path extension, unknown extensions
-// still fall through to application/octet-stream (FR-4-AC13 unchanged).
+// mimeByPath (see mime.go) is the storage-plane mime authority: the
+// extension table answers for the path at render time, unknown extensions
+// still fall through to application/octet-stream (FR-4-AC13 unchanged),
+// and neither the declared Content-Type nor the stored mime column has a
+// vote (BIN-53 / T-571).
 
 // headerBool parses an optional boolean-ish header; ok=false means absent.
 func headerBool(hdr http.Header, name string) (val, ok bool) {

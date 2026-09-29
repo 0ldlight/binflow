@@ -133,7 +133,7 @@ func newStackOpt(t *testing.T, opt stackOptions) *stack {
 		Tokens:    authSvc,
 		DataDir:   dataDir,
 		Console:   console.Handler(),
-		Adapters:  []adapter.Handler{generic.New(svc, md.Blobs()), handler},
+		Adapters:  []adapter.Handler{generic.New(svc, md.Repos(), md.Blobs()), handler},
 		Version:   "1.0.0-test",
 		Revision:  "t287",
 	}

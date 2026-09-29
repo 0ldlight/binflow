@@ -106,7 +106,7 @@ func newT345Stack(t *testing.T) *t345Stack {
 		ReposSvc: svc,
 		License:  mgr,
 		Addons:   productionManifest(),
-		Adapters: []adapter.Handler{generic.New(svc, md.Blobs())},
+		Adapters: []adapter.Handler{generic.New(svc, md.Repos(), md.Blobs())},
 	}, nil)
 	ts := httptest.NewServer(s.Handler())
 	t.Cleanup(ts.Close)

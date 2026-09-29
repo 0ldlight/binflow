@@ -96,7 +96,7 @@ func newStackCfg(t *testing.T, mutate func(*config.Config)) *stack {
 		Tokens:    authSvc,
 		DataDir:   dataDir,
 		Console:   console.Handler(),
-		Adapters:  []adapter.Handler{generic.New(svc, md.Blobs()), pypiHandler},
+		Adapters:  []adapter.Handler{generic.New(svc, md.Repos(), md.Blobs()), pypiHandler},
 		Version:   "1.0.0-test",
 		Revision:  "t70",
 	}, nil)

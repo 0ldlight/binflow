@@ -435,7 +435,7 @@ func newT420Source(t *testing.T, repos []*metadata.Repo) *t420Source {
 		Config: cfg, Auth: authSvc, Authz: authSvc, Metadata: md,
 		Repos: md.Repos(), ReposSvc: svc, Passwords: authSvc, Tokens: authSvc,
 		GC: st, DataDir: dataDir,
-		Adapters:          []adapter.Handler{generic.New(svc, md.Blobs())},
+		Adapters:          []adapter.Handler{generic.New(svc, md.Repos(), md.Blobs())},
 		Version:           "test",
 		Replication:       store,
 		ReplicationCipher: cipher,

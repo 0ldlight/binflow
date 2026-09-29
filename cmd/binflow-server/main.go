@@ -1359,7 +1359,7 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		authSvc:        authSvc,
 		auditLog:       auditLog,
 		svc:            svc,
-		genericHandler: generic.New(svc, md.Blobs()),
+		genericHandler: generic.New(svc, md.Repos(), md.Blobs()),
 		authCfg:        authCfgMgr,
 		keypairs:       keypairMgr,
 		signer:         keypairSigner,

@@ -230,7 +230,7 @@ func newVirtualClientStack(t *testing.T) (*httptest.Server, string, *countingUps
 		Tokens:    authSvc,
 		DataDir:   dataDir,
 		Console:   console.Handler(),
-		Adapters:  []adapter.Handler{generic.New(svc, md.Blobs()), npmHandler},
+		Adapters:  []adapter.Handler{generic.New(svc, md.Repos(), md.Blobs()), npmHandler},
 		Version:   "t72-client-suite",
 		Revision:  "test",
 	}, nil)
