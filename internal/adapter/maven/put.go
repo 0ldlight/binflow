@@ -577,8 +577,21 @@ func escapePath(rel string) string {
 	return strings.Join(segs, "/")
 }
 
+// productPrefix is the instance context path every self-referential body
+// URL carries: ADR-0008's single product namespace /binflow, the same wire
+// constant httpapi routes the content plane on (the adapter itself sees the
+// path stripped, so the prefix lives here as a render-time fact). The
+// deploy envelope's uri/downloadUri address the artifact THROUGH the prefix
+// the way Artifactory's envelope carries its contextPath (T-561/BIN-42,
+// known-divergence deploy-created-envelope-uri-missing-context-prefix: B
+// bare-root vs A /artifactory-prefixed, L030 incidental observation 1).
+const productPrefix = "/binflow"
+
 // writeCreated renders the 201 of an artifact/metadata deploy: Location,
 // X-Checksum-Sha256 and the FileInfo ItemCreated body (rest-api.md 1.2).
+// The body's uri/downloadUri carry the /binflow prefix; the Location header
+// keeps the bare content-plane address — the observed face (L030) pins the
+// envelope fields only, so Location is not guessed at.
 func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, relPath string,
 	node *metadata.Node, declared map[string]bool) {
 	sums := h.digestTriple(r.Context(), node)
@@ -601,9 +614,10 @@ func isFolder(n *metadata.Node) bool {
 // subset of the upload.
 func (h *Handler) itemInfo(base, repoKey, relPath string, node *metadata.Node,
 	sums digestTriple, declared map[string]bool) fileInfo {
+	self := base + productPrefix + "/" + repoKey + "/" + escapePath(relPath)
 	info := fileInfo{
-		URI:         base + "/" + repoKey + "/" + escapePath(relPath),
-		DownloadURI: base + "/" + repoKey + "/" + escapePath(relPath),
+		URI:         self,
+		DownloadURI: self,
 		Repo:        repoKey,
 		Path:        "/" + relPath,
 		Created:     node.CreatedAt,
