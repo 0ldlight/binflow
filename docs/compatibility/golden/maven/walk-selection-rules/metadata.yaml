@@ -1,0 +1,23 @@
+# 金样元数据——maven walk 选择规则（R7 walk 批入金 ②，L035 W2 提金候选）
+schema: golden/1
+id: maven/walk-selection-rules
+contract_ref: contracts/maven-virtual.yaml#maven/plain-snapshot-unique-walk-resolve
+matrix_ref: matrix.yaml#D12-R18
+capture:
+  mode: live-captured               # A 腿 target 形态入册（B 腿待 walk 实现后补——治理注记见 known_gaps）
+  captured_at: '2026-09-29（L035 r2≡r3 两有效轮；r1 tie 四臂系 case 侧路径 bug 作废——诚实纪律在案）'
+  capture_instance: 'A: Artifactory 7.161.26 Enterprise+ @ 192.168.120.38:8082；B: worktree HEAD 0c17635a scratch @ 127.0.0.1:18080 /binflow'
+  capture_commands: >-
+    同 version 目录多候选构造（fresh keyspace per scenario）→ plain GET 逐场景取服务胜者；case
+    maven-walk-selection-tiebreak，runner 轮次 run/l035-r7-r{2,3}；复跑入口 bash /tmp/l035-run.sh rN
+  raw_response_archive: reports/compatibility/L035-r7-walk-forensics.md W2（s1-s5+s2b 场景矩阵）+ tools/difftest/v2/run/l035-r7-r{2,3}/evidence/maven-walk-selection-tiebreak/
+  history: live-captured（L035 W2 A oracle 两有效轮——r1 四 tie 臂 409 假象系 case 侧缺 version 目录〔A layout-GAV 门正确拒绝〕，修复后 r2/r3 有效；本档 A 腿 target 形态入金）
+instance_versions:
+  artifactory_ref: Artifactory 7.161.26 Enterprise+（http://192.168.120.38:8082）
+  binflow_tested: worktree HEAD 0c17635a scratch @ 127.0.0.1:18080（walk 缺席期取证——B 腿参照值待 T-562 stage 2 落地后补入本组）
+confidence: high                   # r2≡r3 断言值逐项相同 + s1+s2b 双杀 mtime/上传序模型 + s3 否定词典序
+known_gaps:
+- 'B 腿参照值未入册（walk 未实现；T-562 stage 2 落地后补 B 腿并升双端对账形）'
+- 'ts 并列且 bn 并列的末位 tiebreak（同 ts 同 bn 撞名=同文件，构造不出——不立断言）'
+- '跨目录（非同 version 目录）候选不参与（候选域定义即同目录——边界未单拍，按定义域闭合）'
+review: R7 walk 批入金评审（2026-09-29，conductor 四裁定配套——L035 提金候选②）——A 腿胜者逐场景转录自 L035 W2 矩阵；「八场景」口径=六场景八断言（s4/s5 各两 GET）

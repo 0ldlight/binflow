@@ -1,0 +1,20 @@
+# 金样请求——maven plain-SNAPSHOT walk 触发矩阵（L035 W1）
+# schema: golden-request/1（矩阵型：request=构造+腿数组；逐腿响应入 response.yaml）
+feature: 'unique 家园 plain-SNAPSHOT 拼写请求的 resolve（walk）触发全集——GET/HEAD/Range/旁车四形态 + 边界腿'
+client: curl wire 腿（Basic admin；构造=unique 家园 wire PUT plain pom+jar）
+repo_setup: >-
+  maven local 仓 snapshotVersionBehavior=unique（unique 家园）；wire PUT plain 拼写
+  {module}-1.0-SNAPSHOT.{pom,jar}（双端 201；Location=时间戳改写拼写 {module}-1.0-20260929.053709-1.*，
+  A 改写 ts 取 UTC）；t10 腿另设单成员 virtual=[member]。L035 差分命名 difftest-l035-* 家园。
+steps:
+- { seq: 1, leg: t1 GET plain .pom, method: GET, path: '/{repo}/{org}/{module}/1.0-SNAPSHOT/{module}-1.0-SNAPSHOT.pom', note: '主锚——服务改写版字节（w1pom）' }
+- { seq: 2, leg: t2 HEAD plain .pom, method: HEAD, path: '同上', note: 'HEAD 同走 walk——CL/ETag=目标文件的' }
+- { seq: 3, leg: t3 GET plain .jar, method: GET, path: '…/{module}-1.0-SNAPSHOT.jar', note: 'jar 扩展同走' }
+- { seq: 4, leg: t4 GET plain + Range, method: GET, path: '同 t1', headers: 'Range: bytes=0-15', note: 'resolve 后实体上切片' }
+- { seq: 5, leg: t5 GET plain .pom.sha1, method: GET, path: '…-SNAPSHOT.pom.sha1', note: 'checksum 旁车 walk——body=解析目标 sha1' }
+- { seq: 6, leg: t6 GET plain .pom.md5, method: GET, path: '…-SNAPSHOT.pom.md5', note: '同上 md5' }
+- { seq: 7, leg: t7 GET version 级 metadata（plain 目录）, method: GET, path: '…/1.0-SNAPSHOT/maven-metadata.xml', note: '边界腿——元数据直读不走 walk' }
+- { seq: 8, leg: t8 GET 非 SNAPSHOT 拼写, method: GET, path: '…/1.0-SNAPSHOT/{module}-3.0.pom（目录有 ts 候选）', note: 'walk 门边界——A 404 honest miss（B 现 400 parse 门，分面 ⑪）' }
+- { seq: 9, leg: t9 GET plain .pom（目录仅 .jar ts 候选）, method: GET, path: '独立构造：jar-only 候选目录', note: '扩展族匹配——无跨扩展兜底，双端 404 一致' }
+- { seq: 10, leg: t10 HEAD plain 经 virtual（单成员）, method: HEAD, path: '/{virt}/{org}/{module}/1.0-SNAPSHOT/…-SNAPSHOT.pom', note: 'virtual 层透传成员 walk' }
+expected_client_outcome: 't1-t6/t10 A 腿 200/206（见 response.yaml）；t7 双端一致 200；t8 A=404（B 现 400——对齐已裁 404 化）；t9 双端一致 404'

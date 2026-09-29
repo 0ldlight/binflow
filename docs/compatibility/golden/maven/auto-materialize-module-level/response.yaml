@@ -1,0 +1,21 @@
+# 金样期望响应——maven auto-materialize 物化口径（A 腿参照实形；口径全文复用契约 ⑨，此处存档逐臂观测）
+# schema: golden-response/1；契约锚 contracts/maven-virtual.yaml#maven/deploy-put-version-metadata-auto-materialize
+legs:
+- { leg: m0 release 1.0.0 → version 级, a_face: '404@30s（release 不物化 version 级）', b_face_current: '404@30s 同', outcome: 一致 }
+- { leg: m1 module 级, a_face: '200@0.1s——versions=[1.0.0]、latest=release=1.0.0、lastUpdated 时间戳形态', b_face_current: '200@0s 同形（读时派生）', outcome: '一致（内容/合并行为）' }
+- { leg: m2 合并 1.1.0, a_face: 'versions=[1.0.0,1.1.0]、latest=release=1.1.0', b_face_current: 同, outcome: 一致 }
+- { leg: m3 version 级 1.1.0, a_face: '404@30s（release 恒不物化）', b_face_current: '404@30s', outcome: 一致 }
+- { leg: m4 DELETE 回收, a_face: 'module 列表立即降为 [1.1.0]；1.0.0 version 级仍 404', b_face_current: '同（2.1s 内）', outcome: 一致 }
+- { leg: m5 .sha1 旁车, a_face: '200=metadata 体摘要（r1 raw）', b_face_current: '（m0 未触发时跳过；A 侧已证）', outcome: 一致（A 侧） }
+- { leg: m6 SNAPSHOT version 级（**否证锚**）, a_face: '目录清单 GET 前即含 maven-metadata.xml（lastModified=pom 后 **39ms**）→ 写路径同步物化；结构 snapshot{timestamp=20260929.054234, buildNumber=1}+snapshotVersions[pom→3.0-…-1]', b_face_current: '同构（58ms，GET 前已在清单；结构同形）', outcome: '一致——B 已在写路径物化 SNAPSHOT version 级 metadata' }
+- leg: 追加 deep-list（物理节点面——**残余分歧本体**）
+  a_face: 'files=〔pom + /com/diff/mc/maven-metadata.xml **物理节点**〕——恒 +1/module'
+  b_face_current: 'files=〔pom〕**无 metadata 节点**（读时派生）'
+  ruling: 'conductor 裁定 4（R7）：BUG 对齐 A——B 落 module 级写路径物化（+1/module）；L032 计数口径差随之消失'
+l033_falsification_anchor:
+  premise: 'L033 曾记「A snapshot 30s 不物化 version 级」（本仓 docs/compatibility 侧引用已被勘误回填）'
+  falsified_by: 'm6 双轮直接观测——unique 家园 plain PUT 下 A 写路径同步物化（39ms，GET 前在清单）×2 轮稳定'
+  explained_by: 'pom 前置（§1.1）：version 级 metadata 生成需同目录有 pom——L033 观测疑为 snapshot wire PUT 无 pom 所致（推定口径，如实标注）'
+matrix_outcome:
+  l035: 'm0-m6 读路径 PASS ×3 轮（r1≡r2≡r3 case 级）；追加臂分歧=存储节点存在面（计数面）'
+verdict_witness: 'L035 Part 2 矩阵 + tools/difftest run/l035-r7-r{1,2,3} results.json（case 级 PASS）'

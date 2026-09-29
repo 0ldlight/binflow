@@ -1,0 +1,24 @@
+# 金样元数据——maven plain-SNAPSHOT walk 触发矩阵（R7 walk 批入金 ①，L035 W1 提金候选）
+schema: golden/1
+id: maven/walk-trigger-matrix
+contract_ref: contracts/maven-virtual.yaml#maven/plain-snapshot-unique-walk-resolve
+matrix_ref: matrix.yaml#D12-R18
+capture:
+  mode: live-captured               # A 腿 target 形态入册（B 腿待 walk 实现后补——治理注记见 known_gaps）
+  captured_at: '2026-09-29（L035 r1≡r2≡r3 三轮稳定）'
+  capture_instance: 'A: Artifactory 7.161.26 Enterprise+ @ 192.168.120.38:8082（批首 api/system/version 活体复验）；B: worktree HEAD 0c17635a scratch @ 127.0.0.1:18080 /binflow'
+  capture_commands: >-
+    unique 家园 wire PUT plain pom+jar（双端 201、Location=时间戳改写拼写）→ 触发矩阵十腿取证
+    （GET/HEAD/Range/旁车/metadata/非 SNAPSHOT 拼写/跨扩展/virtual）；case maven-walk-trigger-matrix，
+    runner 轮次 run/l035-r7-r{1,2,3}；复跑入口 bash /tmp/l035-run.sh rN
+  raw_response_archive: reports/compatibility/L035-r7-walk-forensics.md W1（t1-t10 逐腿矩阵 + Location 改写/UTC ts 形态）+ tools/difftest/v2/run/l035-r7-r{1,2,3}/evidence/maven-walk-trigger-matrix/
+  history: live-captured（L035 W1 A oracle 三轮——walk 红半边取证腿，B 侧全 404 系登记 fence 面 T-562/BIN-44 本体，非批内回归；本档 A 腿 target 形态入金）
+instance_versions:
+  artifactory_ref: Artifactory 7.161.26 Enterprise+（http://192.168.120.38:8082，revision 86126900）
+  binflow_tested: worktree HEAD 0c17635a scratch @ 127.0.0.1:18080（walk 缺席期取证——B 腿参照值待 T-562 stage 2 落地后补入本组）
+confidence: high                   # r1≡r2≡r3 断言值逐项相同 + F1/F2/F5/F6 前批复证锚
+known_gaps:
+- 'B 腿参照值未入册（walk 未实现——plain resolve 恒 404；T-562 stage 2 落地后补 B 腿并升双端对账形）'
+- 't8 非快照拼写 PUT 面、.sha256 旁车、remote/cache 投影 walk 未取证（L035 NOT_RUN 清单，契约 unobserved）'
+- 'Location 改写 ts 的 UTC 形态为观察锚（053709 vs 本地 13:37）——逐值随构造时刻变，normalize 不锚具体值'
+review: R7 walk 批入金评审（2026-09-29，conductor 四裁定配套——L035 提金候选①）——A 腿 t1-t10 逐腿值转录自 L035 W1 矩阵，未自行改写

@@ -1,0 +1,24 @@
+# 金样元数据——maven auto-materialize 物化口径（R7 walk 批入金 ④，L035 Part 2 提金候选，含 L033 否证锚）
+schema: golden/1
+id: maven/auto-materialize-module-level
+contract_ref: contracts/maven-virtual.yaml#maven/deploy-put-version-metadata-auto-materialize
+matrix_ref: matrix.yaml#D12-R18
+capture:
+  mode: live-captured               # A 腿 target 形态入册（读路径 m0-m6 双端已对齐；物理节点存在面 B 未实现——见 known_gaps）
+  captured_at: '2026-09-29（L035 case maven-auto-materialize-probe r1≡r2≡r3 case 级 PASS + 追加 deep-list 手工 mc 探针）'
+  capture_instance: 'A: Artifactory 7.161.26 Enterprise+ @ 192.168.120.38:8082；B: worktree HEAD 0c17635a scratch @ 127.0.0.1:18080 /binflow'
+  capture_commands: >-
+    default maven local 仓 wire PUT pom（release 1.0.0/1.1.0 + unique 家园 SNAPSHOT 3.0-SNAPSHOT）→ 逐臂
+    GET/列目录/deep-list 取物化形态；case maven-auto-materialize-probe，runner 轮次 run/l035-r7-r{1,2,3}；
+    复跑入口 bash /tmp/l035-run.sh rN
+  raw_response_archive: reports/compatibility/L035-r7-walk-forensics.md Part 2（m0-m6+追加臂矩阵）+ tools/difftest/v2/run/l035-r7-r{1,2,3}/evidence/maven-auto-materialize-probe/
+  history: live-captured（L033 曾记「A snapshot 30s 不物化 version 级」——被本组 m6 否证；勘误已回填 known-divergence 与 golden/maven/derived-sidecar-validators）
+instance_versions:
+  artifactory_ref: Artifactory 7.161.26 Enterprise+（http://192.168.120.38:8082）
+  binflow_tested: worktree HEAD 0c17635a scratch @ 127.0.0.1:18080（读时派生无物理节点——module 级写路径物化待 T-562 stage 2 对齐）
+confidence: high                   # m0-m6 读路径双端 PASS ×3 轮 + 物理节点面 deep-list 手工探针直接观测
+known_gaps:
+- '物理节点存在面（追加臂）B 未实现（读时派生）——T-562 stage 2 落地 module 级写路径物化后本组升双端对账形'
+- 'm5 旁车臂 B 侧 m0 未触发时跳过（A 侧 r1 raw 已证）——B 补测随 stage 2'
+- '多 module 非递归边界、覆盖 PUT 重算面 NOT_RUN（L033/L035 均未拍——留后续票）'
+review: R7 walk 批入金评审（2026-09-29，conductor 四裁定之裁定 4 配套——L035 提金候选④）——A 腿逐臂转录自 L035 Part 2 矩阵；**否证锚**=m6 直接推翻 L033「30s 不物化」记录

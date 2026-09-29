@@ -1,0 +1,13 @@
+# 金样期望响应——maven virtual 跨成员 walk 择取（A 腿参照实形；分层分键全文复用契约 ⑫，此处存档胜者矩阵）
+# schema: golden-response/1；契约锚 contracts/maven-virtual.yaml#maven/virtual-plain-walk-cross-member-selection
+rule: 'virtual 层跨成员择取键=候选**存储 mtime**（last-write-wins）；成员内择取仍=filename (ts, bn)
+  max 键——两层分键不可混用（conductor 裁定 2：另层另键，独立立契）'
+legs:
+- { leg: v1 基线（m1 ts 新先传、m2 ts 旧后传）, a_serves: m2 候选, model_note: 'mtime ✓ / filename-ts ✓（本场景两键同选 m2——单独不否证）' }
+- { leg: v2 否证 filename-ts（m1 ts 新先传、m2 ts 旧后传）, a_serves: m2 候选, model_note: '**mtime ✓ / filename-ts ✗**——ts 新的 m1 落选，filename-ts 键被否证' }
+- { leg: v3 否证声明序（写入序与声明序交叉）, a_serves: 后写者候选, model_note: '**mtime ✓ / 声明序 ✗**——非先声明成员胜，声明序键被否证' }
+- { leg: 人工 8 形态（ts 新旧 × 上传先后 × 成员归属穷举）, a_serves: 8/8 后写者, model_note: '全中 mtime；与 v1-v3 合计 13/13 观测零例外' }
+matrix_outcome:
+  l035: 'r4≡r5 双轮逐项相同；A oracle 13/13 观测全中 mtime（last-write-wins）；两大竞争键（filename-ts、声明序）各被专设场景否证'
+  layering_note: '成员内部（W2 键）与 virtual 跨成员（本组键）为不同层不同键——契约 ⑩ 与 ⑫ 分立承载，本组仅锚 ⑫ 面'
+verdict_witness: 'L035 W4 矩阵 + 人工 8 形态表 + ALL_STABLE True（r4 vs r5）'
