@@ -1,0 +1,30 @@
+# R6 PR #174 Review A（correctness 视角）
+
+Ticket:        PR #174（0ldlight/binflow，claude/r6-payload → develop，HEAD 434a1207）——T-555 非空仓 DELETE 静默级联 / T-559 maven 四面孔 / T-561+T-563 envelope uri + Location 前缀 / T-560 台账收官
+Role:          code-reviewer (reviewer-a)
+Area:          repository management REST（repo service + httpapi）、maven adapter（handler/put/virtual_metadata）、difftest cases
+Input:         conductor 派发（PR 面 + 四维度职责）；通读 diff origin/develop(369b9cbf)..HEAD(434a1207) 全量 52 文件，产品码逐行（service.go DeleteRepo / api.go / repositories.go / repo_batch_write.go / maven handler.go+put.go+virtual_metadata.go / virtual.go），上下游追读：metadata/substores.go（ListByPrefix/DeleteByPrefix/likePrefix）、httpapi/router.go（/binflow 挂载与 dispatch）、adapter/generic（对照面）、rangecond.go evalConditional、config.go ParseRepoConfig、api.go ClassReader seam；difftest 4 case 全读
+Changes:       产品码 8 文件 + 测试 9 文件 + difftest 4 case + 契约/金样/台账/matrix + agent 报告 8 份；追读深度至存储层 SQL 与路由挂载（Location 前缀可解析性的根因链）
+Files:         internal/repo/service.go——门删除净（images 计数随之消亡，无孤儿引用），级联顺序（nodes→docker→remote cache→row→refs sweep→audit）不动，部分失败语义=先前 deleteContent=true 路径既有语义，无回归；PASS。internal/repo/api.go——ErrRepoNotEmpty 全仓清干净（仅测试注释存史）；接口注释如实更新；PASS。internal/httpapi/repositories.go——handleRepoDelete 改 GetRepo（404 臂前置）→count→DeleteRepo(true)，repoDeleteStatusMsg 按 rclass 二分与契约/金样一致；PASS。internal/httpapi/repo_batch_write.go——ErrRepoNotEmpty 臂移除后 fallthrough=500 generic 正确；countRepoArtifacts 改全节点计数（含 folder 哨兵行）=契约口径（文件+folder、根不计；根本无 node 行，ListByPrefix("") 语义自洽）；PASS。internal/adapter/maven/handler.go——GET class 门：class.Get 失败时 rowType="" 恒不触发（缺仓落 404）；ParseRepoConfig 垃圾配置 fail-open=默认 true=门不咬（与 PUT 门同形）；分类 `l.Snapshot||l.Timestamped` 与 put.go:92 逐字一致；词族模板+GET 追加段与金样逐字节一致；PASS（两条观察见 Risks）。internal/adapter/maven/put.go——409 双腿共模板；productPrefix 拼接顺序 requestBase+prefix+/repo+escapePath（先转义后拼前缀，正确）；三个渲染点（putSidecar Location / writeCreated Location / itemInfo uri+downloadUri）全覆盖且 Location==uri 同源；PASS。internal/adapter/maven/virtual_metadata.go——time.Now() 移除后时戳链：strip 面=nodeTime(node)（存储行时戳），merge 面=newestDocTime(docs)（非空 docs 的最大贡献者时戳）；零值路径：writeDerivedSidecar 跳过 LM 头且 evalConditional 以 `!lastModified.IsZero()` 守卫 IMS——零戳永不 304、退化 200，安全；PASS。internal/repo/virtual.go——仅注释更新（B's 口径面），无行为改动；PASS。
+Tests:         复跑全绿（命令见 Commands）；新测试真咬合：count 断言 6/3/0/1（只有 folder 行入计才能过，回退文件计数即 FAIL）、409 文案逐字节、Location==uri 且 GET Location 回 200+字节回流、LM 跨秒稳定+IMS 304；无 map 随机序依赖、无时间竞态（1.1s sleep 是单向必要条件非 flaky 源）；-count=2/3 重跑稳定（无跨测状态泄漏）
+Commands:      cd $WT && go build ./internal/... ./cmd/... → rc=0；go vet ./internal/adapter/maven/ ./internal/httpapi/ ./internal/repo/ → rc=0；go test ./internal/adapter/maven/ → ok 24.395s；go test ./internal/httpapi/ -run 'TestRepositoryDeleteCascade|TestRepositoriesCRUD|TestCurlCompatReposAndStorage' -v → 5 测试全 PASS；go test ./internal/repo/ -run 'TestDeleteRepoBranches|TestDockerDeleteRepoCascades|TestFR15AC6RemoteDeleteCascades|TestVirtualHandlePolicy' -v → 4 测试全 PASS；go test -race ./internal/httpapi/ -run 'TestRepositoryDeleteCascade' → ok 16.268s；go test -race ./internal/adapter/maven/ -run 'TestDerivedSidecar|TestHandlePolicy|TestDeployCreatedEnvelope|TestChecksumDeployCreatedEnvelope|TestChecksumFileDeployLocation|TestPlainSnapshot' → ok 15.676s；go test ./internal/httpapi/ -run 'TestRepositoryDelete' -count=2 → ok；go test ./internal/adapter/maven/ -run 'TestDerivedSidecarStampStable' -count=3 → ok；gofmt -l 三包 → 空输出
+Outputs:       reports/agents/R6-pr174-review-a.md（本文件）
+Compatibility: 本视角核对的契约↔实现一致性：rest/repo-delete-nonempty-cascade（200+四键 JSON/计数口径/flag 同形/rclass 措辞/成员存活）与实现逐点吻合；handle-policy 409 词族 PUT/GET 两形与金样逐字节吻合；deploy-201-envelope-uri-location 三形同源（Location==uri==downloadUri）与实现同构。台账 8 条 resolved 的 fix_ref 提交（6812f271/531ea002/23b70a82/4481359f）均在本分支祖先链（merge-base --is-ancestor 验证）
+Security:      攻击面走查：DELETE 路由 CapRepoWrite 门 + service requireAdmin 双门（TestRepositoryDeleteCascadeForbidden 证非管理员 403 且仓存活）；repoKey 走 guardSystemRepo/validateRepoKey 既有链；409 消息无回显注入面（fmt.Sprintf 定参）；Location 拼接经 escapePath 逐段 url.PathEscape；无越权新增面。一条低敏观察见 Risks#1
+Performance:   DELETE 级联：ListByPrefix(全节点)+DeleteByPrefix(两条 SQL)+逐 image DeleteImage（原样，未加扫）；新增成本=count 前置一次 ListByPrefix（O(n) 读，报告必需）；GET class 门每请求多一次 class.Get+ParseRepoConfig（内存 parse 小 JSON，与既有 remote-sidecar 404 面同量级）；无锁新增、无分配热点
+Risks:         ① GET class 门先于读权限检查（h.svc.Get 之前）经匿名 class seam 409——无读权限者可探测 handle* 配置（409/404 oracle）；敏感性低（仅策略旗标、无数据面）且同 seam 的 remote-sidecar 404 先例即为"匿名也答"设计，A 面未认证腿未观测——建议契约 unobserved_reference_arms 补记或加一腿探针；② maven-metadata.xml 的 sidecar（.xml.sha1）按 KindSidecar 落在两门内（PUT 既有、GET 新镜像）——ME-06 豁免是否覆盖 metadata sidecar 双端未观测（镜像一致性是本票自身规则，无回归）；③ refs sweep 在 row 删除后失败（仅 infra 故障可达）则 404 重试不可达、残留 ref 行钉 GC——T-35 既有设计注释已自认此窗口，非本 diff 引入；④ remote 仓有缓存内容时 deletedArtifactsCount 计 cache 节点，A 面该臂未探（本票仅空 remote 臂有锚）；⑤ count（httpapi）与 removedNodes（service audit）为两次独立 ListByPrefix，并发写放下可互异——报告可观测性级别
+Blockers:      无（测试环境完备，全部取证命令可跑）
+Next:          ① 范围外发现：generic adapter（internal/adapter/generic/handler.go:245、iteminfo.go:63-64）201 Location/uri 仍裸根——T-563 已在其 Next 自记"generic 裸根 Location 同族核查票候选"，建议 conductor 立票；② Risks#1 未认证 409 oracle 可作差分 probe 腿补观测；③ api.go:47-51 ClassReader 注释仍称"Only row.Type crosses that seam"——T-559 后 row.Config 亦过该 seam，注释漂移待 B 视角裁定是否收口
+范围外:        generic adapter 裸根 Location/uri（同族未修面）；api.go seam 注释漂移
+
+## 评审报告 R6-PR#174（形态: reviewer-a）
+结论: APPROVE
+
+### 必须修改（blocking）
+- 无
+
+### 建议改进（non-blocking）
+- internal/adapter/maven/handler.go:141-147 GET class 门位于 h.svc.Get（读权限）之前：建议在契约 maven/handle-policy-member-get-class-gate 的 unobserved_reference_arms 补记"未认证腿 409/404 oracle 未观测"，或后续差分加匿名腿取证
+- internal/adapter/maven/handler.go:141 `l.Kind != KindMetadata` 使 maven-metadata.xml 的 checksum sidecar 落入门内（与 PUT 门同分类）：双端该面未观测，建议随下次 maven 批差分补一腿
+- internal/adapter/maven/api.go:50-51 ClassReader seam 契约注释（"Only row.Type crosses"）已过时：row.Config 现也过 seam，一句话更新即可
+- internal/httpapi/repositories.go:837-846 count 与 DeleteRepo 两次 ListByPrefix 非原子（并发写下计数可小于实删）：可观测性级别，参考面同构，不动亦可
