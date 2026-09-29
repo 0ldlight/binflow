@@ -62,6 +62,45 @@ func TestUploadHappyPath(t *testing.T) {
 	}
 }
 
+// TestUploadResponseHeaders pins the T-568 header contract (L036 ②): a
+// twine-shaped upload answers the uniform 200 with a Location header in the
+// aligned absolute form (scheme+host from the request, /binflow prefix, repo
+// key, storage-layout path <name>/<version>/<filename>) and X-Checksum-Sha256
+// equal to the sha256 of the exact uploaded bytes. A's Content-Type on this
+// face is ItemCreated+json; B keeps its empty text/plain body — the CT
+// divergence is a recorded ruling, pinned here as text/plain until
+// differential evidence reopens it.
+func TestUploadResponseHeaders(t *testing.T) {
+	s := newStack(t)
+	content := testWheelBytes(t, "Demo_Pkg-0.1.0", "", true)
+
+	body, ct := multipartForm(t, map[string]string{
+		":action":          "file_upload",
+		"protocol_version": "1",
+		"name":             "Demo_Pkg",
+		"version":          "0.1.0",
+		"filetype":         "bdist_wheel",
+		"pyversion":        "py3",
+	}, "Demo_Pkg-0.1.0-py3-none-any.whl", content, false)
+	resp := s.do(http.MethodPost, "/binflow/api/pypi/pypi-local", adminUser, adminPass, body,
+		map[string]string{"Content-Type": ct})
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, body %s", resp.StatusCode, readAll(t, resp))
+	}
+
+	wantLoc := s.srv.URL + "/binflow/pypi-local/Demo_Pkg/0.1.0/Demo_Pkg-0.1.0-py3-none-any.whl"
+	if got := resp.Header.Get("Location"); got != wantLoc {
+		t.Fatalf("Location = %q, want %q", got, wantLoc)
+	}
+	if got := resp.Header.Get("X-Checksum-Sha256"); got != sha256Hex(content) {
+		t.Fatalf("X-Checksum-Sha256 = %q, want %q", got, sha256Hex(content))
+	}
+	if got := resp.Header.Get("Content-Type"); got != "text/plain; charset=utf-8" {
+		t.Fatalf("Content-Type = %q, want the pinned empty-body text/plain", got)
+	}
+}
+
 // TestUploadTrailingSlashAndBareMount: twine posts to the repository root
 // without a slash, but the slash form and the bare content mount address
 // the same endpoint.

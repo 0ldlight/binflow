@@ -16,11 +16,14 @@ import (
 // Content-Type always wins verbatim; unknown/no extensions stay
 // application/octet-stream (FR-4-AC13 unchanged).
 //
-// Table entries pair with extensionMimes in mime.go plus two stdlib-backed
-// extensions (.png via the builtin table) — asserting them here would make
-// the test host-dependent (the OS database may not know png on a bare
-// container), so the deterministic BinFlow table is what gets asserted
-// end-to-end; see TestMimeByExtension for the fallback probe.
+// Table entries pair with extensionMimes in mime.go (aligned to
+// Artifactory's shipped mimetypes.xml v17, BIN-52/T-570). .csv is
+// deliberately absent from the deterministic list: the factory table has
+// no csv entry (A answers octet-stream), but until BIN-53 removes the
+// stdlib fallback Go's builtin table answers "text/csv; charset=utf-8"
+// on every host (R8 review correction: .csv is builtin, not OS-derived)
+// — a host-stable value, just not the A shape, so asserting it ahead of
+// the flip would only pin a value BIN-53 deletes.
 func TestContentTypeMapping(t *testing.T) {
 	e := newEnv(t)
 
@@ -28,19 +31,33 @@ func TestContentTypeMapping(t *testing.T) {
 	deterministic := []struct{ ext, want string }{
 		{".json", "application/json"},
 		{".xml", "application/xml"},
-		{".txt", "text/plain; charset=utf-8"},
-		{".csv", "text/csv; charset=utf-8"},
-		{".md", "text/markdown; charset=utf-8"},
-		{".html", "text/html; charset=utf-8"},
-		{".htm", "text/html; charset=utf-8"},
-		{".yml", "application/yaml"},
-		{".yaml", "application/yaml"},
-		{".gz", "application/gzip"},
-		{".tgz", "application/gzip"},
+		{".txt", "text/plain"},
+		{".md", "text/plain"},
+		{".properties", "text/plain"},
+		{".log", "text/plain"},
+		{".tf", "text/plain"},
+		{".asc", "text/plain"},
+		{".html", "text/html"},
+		{".htm", "text/html"},
+		{".yml", "text/plain"},
+		{".yaml", "text/plain"},
+		{".gz", "application/x-gzip"},
+		{".tgz", "application/x-gzip"},
 		{".zip", "application/zip"},
 		{".tar", "application/x-tar"},
 		{".jar", "application/java-archive"},
 		{".war", "application/java-archive"},
+		{".ear", "application/java-archive"},
+		{".sar", "application/java-archive"},
+		{".har", "application/java-archive"},
+		{".hpi", "application/java-archive"},
+		{".jpi", "application/java-archive"},
+		{".pom", "application/x-maven-pom+xml"},
+		{".nuspec", "application/x-nuspec+xml"},
+		{".nupkg", "application/x-nupkg"},
+		{".deb", "application/x-debian-package"},
+		{".ddeb", "application/x-debian-package"},
+		{".rpm", "application/x-rpm"},
 		{".sha1", "application/x-checksum"},
 		{".sha256", "application/x-checksum"},
 		{".md5", "application/x-checksum"},
@@ -125,7 +142,7 @@ func TestContentTypeMapping(t *testing.T) {
 	})
 
 	// .tar.gz chains: only the last extension is consulted ("gz" ->
-	// application/gzip), the same one-extension rule as mime.Ext and
+	// application/x-gzip), the same one-extension rule as mime.Ext and
 	// Artifactory's mimetypes lookup.
 	t.Run("compound extension uses the final segment", func(t *testing.T) {
 		resp := e.do(t, http.MethodPut, "/binflow/generic-local/mime/bundle.tar.gz", strings.NewReader("x"), nil)
@@ -133,8 +150,8 @@ func TestContentTypeMapping(t *testing.T) {
 		if err := json.Unmarshal([]byte(body(t, resp)), &fi); err != nil {
 			t.Fatalf("FileInfo: %v", err)
 		}
-		if fi.MimeType != "application/gzip" {
-			t.Fatalf("mimeType = %q, want application/gzip", fi.MimeType)
+		if fi.MimeType != "application/x-gzip" {
+			t.Fatalf("mimeType = %q, want application/x-gzip", fi.MimeType)
 		}
 	})
 
@@ -173,10 +190,11 @@ func TestContentTypeMapping(t *testing.T) {
 func TestMimeByExtension(t *testing.T) {
 	// The deterministic table is served identically regardless of host.
 	for ext, want := range map[string]string{
-		".yml":   "application/yaml",
-		".md":    "text/markdown; charset=utf-8",
+		".yml":   "text/plain",
+		".md":    "text/plain",
 		".sha1":  "application/x-checksum",
-		".tgz":   "application/gzip",
+		".tgz":   "application/x-gzip",
+		".pom":   "application/x-maven-pom+xml",
 		".noext": "application/octet-stream", // unknown -> fallback
 	} {
 		if got := mimeOfPath(t, ext); got != want {

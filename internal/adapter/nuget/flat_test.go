@@ -130,9 +130,12 @@ func TestV3FlatPushDuplicateArm(t *testing.T) {
 					t.Errorf("409 body = %q, want the exact official wording %q", got, msgPushDuplicate)
 				}
 			case http.StatusCreated:
-				wantPath := lowerASCII(tc.id) + "/1.0.0/" + lowerASCII(tc.id) + ".1.0.0" + suffixNupkg
-				if loc := hdr.Get("Location"); loc != wantPath {
-					t.Errorf("201 Location = %q, want %q", loc, wantPath)
+				// T-567 / L036 section 2: the A face's push 201 carries NO
+				// Location — the former flatcontainer/<id>/<version>/<file>
+				// value was mis-anchored (a client-relative resolution
+				// stacked a second flatcontainer path) and is removed.
+				if loc := hdr.Get("Location"); loc != "" {
+					t.Errorf("201 Location = %q, want none (T-567)", loc)
 				}
 			}
 			if tc.downloadWant {
