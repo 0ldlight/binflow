@@ -14,4 +14,5 @@ legs:
 - { leg: s5（断言②sources.jar）, a_serves: bn1 sources, model_note: '唯一 sources 候选照常服务——不因 max-ts 构建缺 sources 落空、不跨族错配' }
 matrix_outcome:
   l035: 'r2≡r3 断言值逐项相同（全 PUT 201）；r1 tie 四臂作废注记在案（case 侧缺 version 目录→A layout-GAV 门 409）——r1v 验证修复后 r2/r3 为有效两轮'
-verdict_witness: 'L035 W2 矩阵 + ALL_STABLE True（r2 vs r3）'
+  r7_closeout: 'B 腿补录（run/l035-r7-impl-r{1,2}，B=fd2d0606 构建）：八断言全键 A==B 同胜者——w2s1 s1-newts / w2s2 s2-bn2 / w2s2b s2b-bn2 / w2s3 s3-bn10 / s4 jar-newts+pom-oldts 各家族独立 / s5 pom-bn2+sources-bn1；双轮 PASS×2 + final-r1 同'
+verdict_witness: 'L035 W2 矩阵 + ALL_STABLE True（r2 vs r3）+ impl-r{1,2}/final-r1 results.json case PASS'

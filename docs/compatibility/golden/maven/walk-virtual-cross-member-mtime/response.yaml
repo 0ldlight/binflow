@@ -9,5 +9,6 @@ legs:
 - { leg: 人工 8 形态（ts 新旧 × 上传先后 × 成员归属穷举）, a_serves: 8/8 后写者, model_note: '全中 mtime；与 v1-v3 合计 13/13 观测零例外' }
 matrix_outcome:
   l035: 'r4≡r5 双轮逐项相同；A oracle 13/13 观测全中 mtime（last-write-wins）；两大竞争键（filename-ts、声明序）各被专设场景否证'
+  r7_closeout: 'B 腿补录（run/l035-r7-impl-r{1,2}，B=fd2d0606 构建）：三判别逐键 A==B——v1 vNEW / v2 vOLD / v3 vNEW；双轮 PASS×2 + final-r1 同（B serveVirtualWalk 跨成员 storage mtime 键落地，秒粒度平手取 walk 序靠后成员）'
   layering_note: '成员内部（W2 键）与 virtual 跨成员（本组键）为不同层不同键——契约 ⑩ 与 ⑫ 分立承载，本组仅锚 ⑫ 面'
-verdict_witness: 'L035 W4 矩阵 + 人工 8 形态表 + ALL_STABLE True（r4 vs r5）'
+verdict_witness: 'L035 W4 矩阵 + 人工 8 形态表 + ALL_STABLE True（r4 vs r5）+ impl-r{1,2}/final-r1 results.json case PASS'

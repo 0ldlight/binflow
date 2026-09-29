@@ -58,6 +58,12 @@
 #   UNKNOWN→BUG 翻面、t8 新账 maven/non-snapshot-spelling-400-vs-404、walk 主条目 review_gate「规格闭合，
 #   实现票在途」。金样四组入 golden/maven/（walk-trigger-matrix / walk-selection-rules / walk-virtual-
 #   cross-member-mtime / auto-materialize-module-level——A 腿 target 形态入册，B 腿待实现后补）。
+# R7 台账收官批（2026-09-29，T-562 stage 2 + T-566 已实现并收编 fd2d0606）：⑩⑪⑫ 随 walk 实现
+#   翻 VERIFIED（mini 差分 l035-r7-impl-r{1,2} 四 case ×8 双轮 PASS + 终态二进制一致性轮
+#   l035-r7-final-r1 四 case PASS——t1-t10/s1-s5+s2b/c1-c4/v1-v3 逐键一致、t8=404）；⑨ 随 T-566
+#   module 级写路径同步物化翻 VERIFIED（l035-r7-t566-r{1,2} 双轮 PASS + 计数面 module+1 deep list
+#   live 实测同形；残余如实：DELETE 回收 async 窗口维持、m5 旁车臂 B 侧仍跳过——均注记在案）。
+#   台账三处随翻 resolved（fix_ref=fd2d0606）；金样四组补 B 腿升双端对账形。
 domain: maven
 scope: 'version 级 maven-metadata.xml 的 <snapshotVersions> M3 能力谓词（virtual 合并面 + local 成员服务面）、
   mvn.metadata.version3.enabled 系统开关生效序、.pom 部署坐标↔路径一致性门（suppressPomConsistencyChecks）。
@@ -572,27 +578,39 @@ contracts:
   - { when: 'release version 级 metadata GET（PUT 后 30s 界）', status: 404, body_literal: '（双端一致——非分歧臂，锚定物化边界）' }
   unobserved_reference_arms:
   - '多 module 布局的物化非递归边界与同 version 覆盖 PUT 的 metadata 重算（未测——L035 NOT_RUN 清单）'
-  - 'B 复刻落地后的旁车同步性与计数面复验臂（实现票差分 case maven-auto-materialize-probe 复跑门）'
+  - '「B 复刻落地后的计数面复验臂」已回填（R7 收官批：t566-r{1,2} 双轮 PASS + deep list live 同形）；
+    m5 旁车臂 B 侧两轮差分均跳过（m0 未触发口径同 L035）——留复验'
   binflow_state:
-    verdict: 'DIVERGENT（残余分歧=module 级物理节点/计数面：A +1/module vs B 读时派生无节点；读路径
-      行为 m0-m6 双端全对齐——L035 case 级 PASS×3。对齐方向已裁：BUG 对齐 A〔conductor 裁定 4，R7
-      2026-09-29〕——B 落地 module 级写路径物化，实现票在途）'
+    verdict: 'VERIFIED（R7 台账收官批 2026-09-29：T-566/BIN-48 落地 module 级写路径同步物化〔afterArtifactDeploy
+      pom 腿 recalcAsync→recalcSync——PUT 响应返回前物理节点必然落地〕；mini 差分 l035-r7-t566-r{1,2}
+      case maven-auto-materialize-probe 连续两轮双端 PASS——B 腿 asserts 与 A 逐键一致：m0 404@30s /
+      m1 versions=[1.0.0] / m2 [1.0.0,1.1.0] latest|release=1.1.0|1.1.0 / m3 404 / m4 [1.1.0]+被删版本 404 /
+      m6 200@0s 且 GET 前目录清单已含节点；计数面 module+1 实测同形〔deep list 即时含物理节点，18080
+      终态二进制 live〕。fix_ref=fd2d0606）'
     detail: '台账 known-divergence.yaml#maven/deploy-put-version-metadata-auto-materialize 已随 L035+
       裁定 4 翻 BUG（UNKNOWN→BUG，R7）；surface 修订：物化层级 version→module 级（T-555 计数归因勘误）；
       release version 级 404@30s 与 SNAPSHOT version 级同步物化两亚面双端一致（原 unobserved 定案收编）。
       与 M3 rider（读时派生/合并面，VERIFIED）关系：对齐后写路径物化节点为 rider 的作用对象之一
       （L032 Arm 6 mvn deploy 构造即客户端上传节点的 rider 面，同构叠加，不冲突）；与派生旁车族
       （validator/LM 面）不重叠。mvn deploy 客户端腿的 version 级 metadata 由客户端上传（L032 Arm 6
-      构造），与 wire PUT 服务端物化不同源。'
-  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree HEAD 0c17635a scratch @ 127.0.0.1:18080（L035 B 腿——读时派生现态取证）' }
+      构造），与 wire PUT 服务端物化不同源。
+      R7 收官批注记（2026-09-29，翻 VERIFIED）：台账随翻 resolved（fix_ref=fd2d0606）。T-566 前置实证
+      勘误——L035「B files=[pom] 无节点」实为 async 竞态窗口（pre-T-566 二进制实测 PUT 后 51ms 即在
+      deep list 可见），非完全无节点；本票对齐动作=async→sync（计数面确定性 +1/module）。残余如实
+      两点不静默：①DELETE 回收维持 async（~10ms-2.1s 窗口内立即计数观测可能见旧列表 vs A 立即——
+      case 轮询口径内一致 PASS，响应内确定性回收属后续面，T-566 Risks 在案）；②m5 旁车臂 B 侧本轮
+      case 仍跳过（m0 未触发口径），留复验。L032 A=6-vs-B=5 计数口径差随 +1/module 同形自然消解
+      （rest/repo-delete-nonempty-cascade 臂复验 conductor 已列 T-566 Next）。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree HEAD 0c17635a scratch @ 127.0.0.1:18080（L035 B 腿——读时派生现态取证）；R7 收官批复验=worktree fd2d0606 构建 @ 127.0.0.1:18080（t566-r{1,2}）' }
   evidence:
   - { kind: difftest, report: reports/compatibility/L035-r7-walk-forensics.md, anchor: 'Part 2 副探 m0-m6+追加（r1≡r2≡r3 case 级 PASS：module 级物化/合并/回收 + release version 404@30s + SNAPSHOT version 同步物化目录清单-before-GET 锚 + A 侧 .sha1 旁车 + deep list 计数面 +1/module）', date: '2026-09-29' }
+  - { kind: difftest, report: 'tools/difftest/v2/run/l035-r7-t566-r{1,2}', anchor: 'T-566 验证轮：case maven-auto-materialize-probe 双端连续两轮 PASS（B 腿 asserts 与 A 逐键一致——见 binflow_state.verdict）；计数面 module+1 deep list live 实测见 reports/agents/T-566.md Compatibility 节', date: '2026-09-29' }
   - { kind: probe, report: reports/agents/T-555.md, anchor: '活体探针矩阵（difftest-d3-* 9 腿 2026-09-29：s0 files=2 / s4 files=3 含自动 maven-metadata.xml；善后残留 NONE）+ Outputs 漂移注记①（L032 A=6-vs-B=5 之谜定案——level 归因随 L035 勘误为 module 级）', date: '2026-09-29' }
   - { kind: difftest, report: reports/compatibility/L032-t550-followup-arms.md, anchor: 'Arm 1（r1≡r2≡r3：A 200 body deletedArtifactsCount=6 / B 400 holds 5 node(s)——原始计数差证据）', date: '2026-09-28' }
   - { kind: golden-capture, report: docs/compatibility/golden/maven/auto-materialize-module-level, anchor: 'A 腿 module 级物化/合并/回收 + SNAPSHOT 同步物化锚 + L033 否证锚（R7 入金）', date: '2026-09-29' }
   confidence: high
-  status: DIVERGENT
-  divergence_ref: known-divergence.yaml#maven/deploy-put-version-metadata-auto-materialize   # 台账已翻 BUG 对齐 A（R7 裁定 4）——resolved 待实现+复验
+  status: VERIFIED
+  divergence_ref: known-divergence.yaml#maven/deploy-put-version-metadata-auto-materialize   # 历史指针（该条已 resolved 2026-09-29——T-566/BIN-48 落地 + t566-r{1,2} 双轮 PASS + 计数面 live 实测；fix fd2d0606）
 # ── plain-SNAPSHOT unique 家园 walk resolve——成员面（T-562 stage 1 / BIN-44——L035 W1/W2/W3，
 #    conductor 裁定 1：BUG 对齐 A，规格闭合 READY 进实现）──────────────────────────────────
 - id: maven/plain-snapshot-unique-walk-resolve
@@ -663,24 +681,29 @@ contracts:
   - '.sha256 旁车 walk（t5/t6 仅 .sha1/.md5；旁车族推定同构，未单拍）'
   - 'plain DELETE 的 resolve 语义（NOT_RUN）'
   binflow_state:
-    verdict: 'DIVERGENT（L035 walk 四 case：B 面 unique 家园 plain resolve 恒 404——GET/HEAD/Range/旁车/
-      virtual 全维度缺席，即 walk 红半边本体。对齐方向已裁：BUG 对齐 A〔conductor 裁定 1，R7 2026-09-29〕
-      ——规格闭合，READY 进实现，实现票 T-562 stage 2 / BIN-44 在途）'
+    verdict: 'VERIFIED（R7 台账收官批 2026-09-29：T-562 stage 2/BIN-44 落地 walk.go〔isPlainSnapshotArtifact
+      触发门 + 四元组家族过滤 + max(ts, bn) 选择 + servePlainWalk miss 触发 + serveNode 统一渲染出口〕；
+      mini 差分 l035-r7-impl-r{1,2} 四 case 连续两轮双端 PASS×8 + 终态二进制一致性轮 l035-r7-final-r1
+      四 case PASS——trigger t1-t10 / selection s1-s5+s2b / sameface c1-c4 逐键一致；fix_ref=fd2d0606）'
     detail: '本条即实现票的可执行规格（触发全集 W1 + 选择规则 W2 + same-face 并票 W3 三要素齐备）。
       翻面锚=internal/adapter/maven plain_snapshot_resolve_test.go TestPlainSnapshotUniqueHomeBoundary
-      （plain GET=404 断言随 stage 2 落地翻红即翻面——测试自带注记指向本票）。台账承载=known-divergence#
-      maven/plain-snapshot-path-resolve-404 resolved note 残余段（walk 红半边），review_gate 已更新
-      「规格闭合，实现票在途」。'
-  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree HEAD 0c17635a scratch @ 127.0.0.1:18080（L035 B 腿——walk 缺席期取证）' }
+      （已随 stage 2 落地翻绿——plain GET=200 walk-resolved、-SNAPSHOT sidecar=解析目标摘要）；新增
+      plain_snapshot_walk_test.go 四族测试（trigger-matrix/selection/non-snapshot-gate/live-resolve）。
+      台账承载=known-divergence#maven/plain-snapshot-path-resolve-404 resolved note 残余段（walk 红半边
+      已随本批收口翻绿注记，fix_ref=fd2d0606）。金样 B 腿已补（walk-trigger-matrix / walk-selection-rules
+      双端对账形）。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree HEAD 0c17635a scratch @ 127.0.0.1:18080（L035 B 腿——walk 缺席期取证）；R7 收官批复验=worktree fd2d0606 构建 @ 127.0.0.1:18080（impl-r{1,2} + final-r1）' }
   evidence:
   - { kind: difftest, report: reports/compatibility/L035-r7-walk-forensics.md, anchor: 'W1 触发矩阵 t1-t10（r1≡r2≡r3：GET/HEAD/Range 206/旁车摘要四形态全走 resolve、验证器回显目标、metadata 直读不走、无跨扩展兜底）', date: '2026-09-29' }
   - { kind: difftest, report: reports/compatibility/L035-r7-walk-forensics.md, anchor: 'W2 选择规则 s1-s5+s2b（r2≡r3：filename-ts 键、bn 数值比较、tie-break=bn 本身与上传序无关、四元组分族独立、mtime/上传序双杀）', date: '2026-09-29' }
   - { kind: difftest, report: reports/compatibility/L035-r7-walk-forensics.md, anchor: 'W3 sameface c1-c3（r1≡r2≡r3：plain/ts GET 逐字节同、二次 PUT 活体翻新、HEAD 验证器回显、真实 mvn 3.9 deploy 构造同 walk）', date: '2026-09-29' }
-  - { kind: golden-capture, report: docs/compatibility/golden/maven/walk-trigger-matrix, anchor: 'A 腿触发矩阵 t1-t10 + Location 改写/UTC ts 形态（R7 入金）', date: '2026-09-29' }
-  - { kind: golden-capture, report: docs/compatibility/golden/maven/walk-selection-rules, anchor: 'A 腿六场景八断言（tie/numeric-bn/classifier/extension 锚——R7 入金）', date: '2026-09-29' }
+  - { kind: difftest, report: 'tools/difftest/v2/run/l035-r7-impl-r{1,2}', anchor: 'T-562 stage 2 验证轮：四 case（trigger-matrix/selection-tiebreak/sameface-mvn/virtual-walk-selection）双端连续两轮 PASS——summary 断言值 A==B==expected（t1 w1pom/t2 len=280/t4 206;len=16/t5+t6 200=sha_of_pom/t7 200/t8 404/t9 404；s1-s5+s2b 全键；c1 byte-identical/c2 etag_eq/c3 成员=virtual=mvn-pom）+ reports/agents/T-562-stage2-impl.md', date: '2026-09-29' }
+  - { kind: difftest, report: tools/difftest/v2/run/l035-r7-final-r1, anchor: '终态二进制（fd2d0606=T-562+T-566 合并态）四 walk case 一致性补充轮 PASS×4', date: '2026-09-29' }
+  - { kind: golden-capture, report: docs/compatibility/golden/maven/walk-trigger-matrix, anchor: 'A 腿触发矩阵 t1-t10 + Location 改写/UTC ts 形态（R7 入金）；R7 收官批补 B 腿（impl-r1）升双端对账形', date: '2026-09-29' }
+  - { kind: golden-capture, report: docs/compatibility/golden/maven/walk-selection-rules, anchor: 'A 腿六场景八断言（tie/numeric-bn/classifier/extension 锚——R7 入金）；R7 收官批补 B 腿（impl-r1，八断言全键同胜者）升双端对账形', date: '2026-09-29' }
   confidence: high
-  status: DIVERGENT
-  divergence_ref: known-divergence.yaml#maven/plain-snapshot-path-resolve-404   # walk 红半边承载于该条 resolved note 残余段（存储面已 resolved；红半边规格闭合 T-562 stage 2 在途）
+  status: VERIFIED
+  divergence_ref: known-divergence.yaml#maven/plain-snapshot-path-resolve-404   # 历史指针（存储面+walk 红半边均已收口 resolved 2026-09-29——impl-r{1,2}+final-r1；fix fd2d0606）
 # ── 非 SNAPSHOT 拼写 GET 门 404（T-562 stage 1 / BIN-44——L035 W1 t8 新亚面，
 #    conductor 裁定 3：BUG 对齐 A〔404 化〕，并入 walk 实现票）──────────────────────────────
 - id: maven/non-snapshot-spelling-get-gate-404
@@ -710,17 +733,19 @@ contracts:
   - '非 SNAPSHOT 文件名 **PUT** 的 A 受理形态（t8 对应写面——NOT_RUN，未测不猜）'
   - '非 maven 家园（generic 仓）同形态 GET 的门次序（未测，不外推）'
   binflow_state:
-    verdict: 'DIVERGENT（L035 t8：A=404 vs B=400——parse 门次序/状态面新亚面。conductor 裁定 3〔R7
-      2026-09-29〕：BUG 对齐 A〔404 化〕，并入 walk 实现票 T-562 stage 2 / BIN-44 范围）'
-    detail: '台账新账 known-divergence.yaml#maven/non-snapshot-spelling-400-vs-404（BUG，R7 立）。
+    verdict: 'VERIFIED（R7 台账收官批 2026-09-29：T-562 stage 2 落地读面 404 化〔ServeHTTP 解析门 GET/HEAD
+      失败→404 notFoundMessage；PUT/DELETE 维持 400——A 的 PUT 面未观测不猜，unobserved 臂保留〕；mini
+      差分 impl-r{1,2}+final-r1 t8 臂双端 404 逐键一致；fix_ref=fd2d0606）'
+    detail: '台账 maven/non-snapshot-spelling-400-vs-404 已随本批翻 resolved（fix_ref=fd2d0606）。
       实现面=L035 stage 2 建议第 4 条：「unparseable 文件名的 GET」的状态对齐（parse 门次序随票定，
       方向已裁 404）。'
-  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree HEAD 0c17635a scratch @ 127.0.0.1:18080（L035 t8 腿）' }
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree HEAD 0c17635a scratch @ 127.0.0.1:18080（L035 t8 腿）；R7 收官批复验=worktree fd2d0606 构建 @ 127.0.0.1:18080（impl-r{1,2} + final-r1）' }
   evidence:
   - { kind: difftest, report: reports/compatibility/L035-r7-walk-forensics.md, anchor: 'W1 t8（非 SNAPSHOT 拼写：A=404 honest miss vs B=400 layout parse 门——新亚面，r1≡r2≡r3）', date: '2026-09-29' }
+  - { kind: difftest, report: 'tools/difftest/v2/run/l035-r7-impl-r{1,2}', anchor: 'T-562 stage 2 验证轮：t8_nonsnap_plain_in_snap_dir 双端 status=404 连续两轮 + final-r1 同（B 的 400 parse 门已消除）', date: '2026-09-29' }
   confidence: high
-  status: DIVERGENT
-  divergence_ref: known-divergence.yaml#maven/non-snapshot-spelling-400-vs-404
+  status: VERIFIED
+  divergence_ref: known-divergence.yaml#maven/non-snapshot-spelling-400-vs-404   # 历史指针（该条已 resolved 2026-09-29——fix fd2d0606）
 # ── virtual plain-SNAPSHOT walk 跨成员择取（T-562 stage 1 / BIN-44——L035 W4，
 #    conductor 裁定 2：跨成员键=候选存储 mtime，与成员内 filename-ts 分条目）──────────────────
 - id: maven/virtual-plain-walk-cross-member-selection
@@ -759,17 +784,20 @@ contracts:
   - 'remote 成员/缓存投影成员参与跨成员择取时 mtime 键的取值源（remote 拉取落库时刻推定，未取证）'
   - '跨成员 mtime 并列（同秒）的 tiebreak（未构造——mtime 粒度受存储时戳精度限，留后续差分臂）'
   binflow_state:
-    verdict: 'DIVERGENT（L035 t10/W4：B 面 virtual plain GET 404——walk 缺席本体；跨成员择取键规格随
-      本条闭合，walk 实现票落地时成员迭代内 resolve 出候选后跨成员按 mtime 择取）'
+    verdict: 'VERIFIED（R7 台账收官批 2026-09-29：T-562 stage 2 落地 serveVirtualWalk〔成员内 W2 选择后
+      跨成员按候选 storage mtime 择取；节点 mtime 秒粒度（RFC3339），秒级平手取 walk 序靠后成员——代码
+      注记在案〕；mini 差分 impl-r{1,2}+final-r1 case maven-virtual-walk-selection 双端 PASS：v1 vNEW /
+      v2 vOLD / v3 vNEW 逐键一致（mtime 键三判别全过）；fix_ref=fd2d0606）'
     detail: 'conductor 裁定 2（R7 2026-09-29）：W4 择取键=候选存储 mtime（最后落库者胜，13/13 观察+
       专设否证）——与成员内 filename (ts,bn) 不同层不同键，契约分条目写清（本条与 ⑩ 互引）。台账
-      承载同 walk 红半边（known-divergence#maven/plain-snapshot-path-resolve-404 残余段，virtual 面
-      红维 L034 ctl/virt 维系其一）。'
-  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree HEAD 0c17635a scratch @ 127.0.0.1:18080（L035 W4 腿）' }
+      承载同 walk 红半边（known-divergence#maven/plain-snapshot-path-resolve-404 残余段）——已随本批
+      收口翻绿（fix_ref=fd2d0606）；金样 B 腿已补（walk-virtual-cross-member-mtime 双端对账形）。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree HEAD 0c17635a scratch @ 127.0.0.1:18080（L035 W4 腿）；R7 收官批复验=worktree fd2d0606 构建 @ 127.0.0.1:18080（impl-r{1,2} + final-r1）' }
   evidence:
   - { kind: difftest, report: reports/compatibility/L035-r7-walk-forensics.md, anchor: 'W4（case maven-virtual-walk-selection r4≡r5：v1-v3 三场景专设否证 + 手工 8 形剖析——mtime 13/13；作废轮与修复重跑留痕）', date: '2026-09-29' }
   - { kind: difftest, report: reports/compatibility/L035-r7-walk-forensics.md, anchor: 'W1 t10（单成员 virtual 透传成员 walk——HEAD plain 200 len=280）', date: '2026-09-29' }
-  - { kind: golden-capture, report: docs/compatibility/golden/maven/walk-virtual-cross-member-mtime, anchor: 'A 腿三场景+手工 8 形注记（R7 入金）', date: '2026-09-29' }
+  - { kind: difftest, report: 'tools/difftest/v2/run/l035-r7-impl-r{1,2}', anchor: 'T-562 stage 2 验证轮：B 腿 asserts v1=vNEW/v2=vOLD/v3=vNEW 与 A 逐键一致连续两轮 + final-r1 同（mtime 键判别全过）+ reports/agents/T-562-stage2-impl.md', date: '2026-09-29' }
+  - { kind: golden-capture, report: docs/compatibility/golden/maven/walk-virtual-cross-member-mtime, anchor: 'A 腿三场景+手工 8 形注记（R7 入金）；R7 收官批补 B 腿（impl-r1）升双端对账形', date: '2026-09-29' }
   confidence: high
-  status: DIVERGENT
-  divergence_ref: known-divergence.yaml#maven/plain-snapshot-path-resolve-404   # 同 walk 红半边承载（virtual 面）
+  status: VERIFIED
+  divergence_ref: known-divergence.yaml#maven/plain-snapshot-path-resolve-404   # 历史指针（virtual 面 walk 红半边已收口 resolved 2026-09-29——impl-r{1,2}+final-r1；fix fd2d0606）

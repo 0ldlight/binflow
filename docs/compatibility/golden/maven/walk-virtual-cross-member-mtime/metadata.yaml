@@ -4,20 +4,21 @@ id: maven/walk-virtual-cross-member-mtime
 contract_ref: contracts/maven-virtual.yaml#maven/virtual-plain-walk-cross-member-selection
 matrix_ref: matrix.yaml#D12-R18
 capture:
-  mode: live-captured               # A 腿 target 形态入册（B 腿待 walk 实现后补——治理注记见 known_gaps）
-  captured_at: '2026-09-29（L035 v1/v2/v3 三场景双轮 r4≡r5 + 针对性 8 形态人工否证腿）'
-  capture_instance: 'A: Artifactory 7.161.26 Enterprise+ @ 192.168.120.38:8082；B: worktree HEAD 0c17635a scratch @ 127.0.0.1:18080 /binflow'
+  mode: live-captured               # 双端对账形（R7 台账收官批补 B 腿——见 history）
+  captured_at: '2026-09-29（A 腿=L035 v1/v2/v3 双轮 r4≡r5 + 针对性 8 形态人工否证腿；B 腿=R7 收官批 run/l035-r7-impl-r{1,2} 双轮 + final-r1）'
+  capture_instance: 'A: Artifactory 7.161.26 Enterprise+ @ 192.168.120.38:8082；B: worktree fd2d0606 构建 scratch @ 127.0.0.1:18080 /binflow（T-562 stage 2 落地二进制）'
   capture_commands: >-
     virtual=[m1,m2] 双 local 成员 plain PUT 时间戳拼写候选（fresh keyspace per scenario）→ virtual 面 plain
-    GET 取服务胜者；case maven-virtual-walk-selection，runner 轮次 run/l035-r7-r{4,5}；复跑入口 bash /tmp/l035-run.sh rN
-  raw_response_archive: reports/compatibility/L035-r7-walk-forensics.md W4（v1/v2/v3 矩阵+人工 8 形态表）+ tools/difftest/v2/run/l035-r7-r{4,5}/evidence/maven-virtual-walk-selection/
-  history: live-captured（L035 W4 A oracle 两轮 + 13/13 观测/否证合计——v2 否证 filename-ts、v3 否证声明序；本档 A 腿 target 形态入金）
+    GET 取服务胜者；case maven-virtual-walk-selection，runner 轮次 run/l035-r7-r{4,5}（A 腿）与
+    run/l035-r7-impl-r{1,2}（B 腿复验）；复跑入口 bash /tmp/l035-run.sh rN
+  raw_response_archive: reports/compatibility/L035-r7-walk-forensics.md W4（A 腿矩阵+人工 8 形态表）+ reports/agents/T-562-stage2-impl.md（B 腿差分矩阵）+ tools/difftest/v2/run/l035-r7-impl-r{1,2}/evidence/maven-virtual-walk-selection/{a,b}-leg.json
+  history: live-captured A 腿 target 形态（L035 W4 两轮 + 13/13 观测/否证合计）→ live-captured 双端对账形（R7 台账收官批 2026-09-29 补 B 腿：v1 vNEW / v2 vOLD / v3 vNEW 三判别全过，与 A 逐键一致）
 instance_versions:
   artifactory_ref: Artifactory 7.161.26 Enterprise+（http://192.168.120.38:8082）
-  binflow_tested: worktree HEAD 0c17635a scratch @ 127.0.0.1:18080（walk 缺席期取证——B 腿参照值待 T-562 stage 2 落地后补入本组）
-confidence: high                   # 13/13 观测全中 mtime 键 + 两大竞争键各被专设场景否证
+  binflow_tested: worktree fd2d0606 构建 scratch @ 127.0.0.1:18080（R7 收官批复验轮 impl-r{1,2} + final-r1；节点 mtime 秒粒度 RFC3339——秒级平手取 walk 序靠后成员，代码注记在案）
+confidence: high                   # A 腿 13/13 观测 + B 腿 impl-r1≡r2 三判别逐键同值 + final-r1 终态一致
 known_gaps:
-- 'B 腿参照值未入册（walk 未实现；T-562 stage 2 落地后补 B 腿并升双端对账形）'
 - '存储 mtime 键在跨主机部署下的语义（各成员 mtime 由本机文件系统承载——分布式时钟偏移面未取证，超出本批域）'
-- '同 mtime 并列的末位 tiebreak（构造不出稳定同 mtime——不立断言）'
-review: R7 walk 批入金评审（2026-09-29，conductor 四裁定之裁定 2 配套——L035 提金候选③）——A 腿胜者逐场景转录自 L035 W4 矩阵；择取键=候选存储 mtime（last-write-wins）
+- '同 mtime 并列的末位 tiebreak（B 实现注记：秒粒度平手取 walk 序靠后成员——亚秒并列 A 面未单拍，维持不立断言）'
+- 'remote 成员/缓存投影成员参与跨成员择取时 mtime 键取值源（双端同 NOT_RUN——契约 ⑫ unobserved 维持）'
+review: R7 walk 批入金评审（2026-09-29，conductor 四裁定之裁定 2 配套——L035 提金候选③，A 腿胜者转录自 L035 W4 矩阵）+ R7 台账收官批 B 腿补录评审（2026-09-29——B 腿值转录自 run/l035-r7-impl-r1 b-leg.json asserts：v1_decl_old_new_upload_old_new=vNEW / v2_decl_new_old_upload_new_old=vOLD / v3_decl_new_old_upload_old_new=vNEW）
