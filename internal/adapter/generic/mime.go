@@ -9,8 +9,9 @@ import (
 // extensionMimes is the deterministic extension→Content-Type table for
 // generic deploys that declare no Content-Type. It takes precedence over the
 // standard library's database so the wire contract is identical on every
-// host — mime.TypeByExtension consults the OS mime database and would answer
-// ".xml" differently on darwin vs a bare linux container.
+// host — mime.TypeByExtension consults the OS mime database for extensions
+// outside Go's builtin table and can answer those differently on darwin vs a
+// bare linux container.
 //
 // Values are aligned to Artifactory's shipped mimetypes.xml (factory table
 // v17) per docs/reverse/mime-ownership.md section 2 — including the

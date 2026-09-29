@@ -19,10 +19,11 @@ import (
 // Table entries pair with extensionMimes in mime.go (aligned to
 // Artifactory's shipped mimetypes.xml v17, BIN-52/T-570). .csv is
 // deliberately absent from the deterministic list: the factory table has
-// no csv entry (A answers octet-stream), but the stdlib fallback is still
-// in place until BIN-53 and answers host-dependently (darwin:
-// "text/csv; charset=utf-8", bare linux: likely ""), so there is no
-// host-stable value to assert yet.
+// no csv entry (A answers octet-stream), but until BIN-53 removes the
+// stdlib fallback Go's builtin table answers "text/csv; charset=utf-8"
+// on every host (R8 review correction: .csv is builtin, not OS-derived)
+// — a host-stable value, just not the A shape, so asserting it ahead of
+// the flip would only pin a value BIN-53 deletes.
 func TestContentTypeMapping(t *testing.T) {
 	e := newEnv(t)
 
