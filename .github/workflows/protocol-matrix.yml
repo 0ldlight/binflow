@@ -55,7 +55,7 @@ jobs:
         leg: [generic, maven, gradle, npm, pypi, docker, nuget, go, helm, conan]
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Transition probe (the 5c36c80e lesson, GH face): the https default
       # strands every leg while DNS is still NXDOMAIN — probe and fall back
