@@ -39,4 +39,28 @@ Followups:    ①docs/user 镜像面未在本块（area 排他）——api-refer
               ④en 树无 admin 页，若后续 en 扩面到 admin，本三页需双语同步
 Lessons:      spec-check 门禁比对的是 git index 而非 HEAD——「不 commit」约束下的过闸姿势=make spec 后 git add 生成产物（门禁自身 fix 提示即此流程），收编者随票一并提交；
               文档消费面清尾除派发点名的三处外，console.mdx 的 UI 确认描述也是同语义面——全树 grep「同时删除内容/非空仓」比只搜 deleteContent 多抓到一处
+
+---
+
+## docs/user 收尾弧（conductor 追加派发，block ① 落地 e6f186b0 后）
+
+前提：T-565①（web 控制台）已收编——最终形态=退役 deleteContent 复选框、保留输入 key 强确认、成功 toast=statusMsg+（已删除 N 项内容）；③ 块预写的 console.mdx:74 三点全中，未改。
+docs/user 无独立 build 门——按派发要求逐处列 文件:行号+原文摘句+新文摘句：
+
+| 文件:行 | 原文摘句 | 新文摘句 |
+|---|---|---|
+| docs/user/api-reference.md:347 | 「Delete a repository (optional `?deleteContent=true`; admin only, not delegated)」 | 「**Silent cascade** — the repository and all of its content are removed, empty or not; always 200 with the JSON report `{repoKey, statusMsg, deletedArtifactsCount, success}` (`deletedArtifactsCount` = files + folder rows removed, repository root not counted; `statusMsg` follows the repository class — virtual reports the plain removal). `?deleteContent=true` is accepted for compatibility and changes nothing. Unknown key 404. Admin only, not delegated」 |
+| docs/user/admin/remote-virtual.md:166 | 「整仓清空：删仓时带 `?deleteContent=true`（缓存 node 一并删除后重建仓），或按路径逐个 DELETE」 | 「整仓清空：删仓即级联——`DELETE /binflow/api/repositories/<key>` 连仓带全部内容一并移除，空仓/非空仓同应 200 + JSON 报告体（含 `deletedArtifactsCount` 删除计数）；`?deleteContent=true` 仍被接受但行为与之完全相同。需要保留仓配置只清缓存时，按路径逐个 DELETE（清完可原配置重建仓）」 |
+| docs/user/admin/remote-virtual.md:167 | 「删仓：`DELETE /binflow/api/repositories/<key>?deleteContent=true`」 | 「删仓：`DELETE /binflow/api/repositories/<key>`（恒级联；`?deleteContent=true` 冗余同形）」 |
+| docs/user/admin/trash-can.md:37 | 「`DELETE /api/repositories/{key}?deleteContent` 仓拆除、docker manifest/tag 删除（索引随行恢复语义归后续票）」 | 「`DELETE /api/repositories/{key}` 仓拆除（级联移除的全部内容一律不进回收站）、docker manifest/tag 删除」——顺带删去「归后续票」组织内幕措辞（产品口径纪律） |
+| docs/user/console.md:189 | 「两段强确认——非空仓必须勾选 `同时删除内容` + **输入 repo key 确认**（不勾选直接删非空仓会被服务端 400 拒绝）」 | 「强确认——**输入 repo key 确认**（删除即级联：仓与全部制品一并永久删除，无『同时删除内容』勾选）；成功反馈携带报告体的级联计数（`statusMsg` + 已删除 N 项内容）」——对齐已落地 UI（e6f186b0） |
+| docs/user/compatibility-path-map.md:33 | 「BinFlow 更强确认：非空仓须勾选『同时删除内容』+ **输入 repo key**」 | 「BinFlow 更强确认：**输入 repo key**（删除即级联——仓与全部内容一并移除，成功反馈携带删除计数）」 |
+| tools/openapi-spec/helpers.py:3-7（头注） | contract sources 只列 api-reference.md verbatim / router.go / system_*.go 三源 | 增列第 4 源：internal/httpapi/repositories.go（DELETE handler）——repoDelete spec 条目与 api-reference.md DELETE 行同源、措辞变动两侧同步（失谐解除：api-reference.md:347 已先翻新至同款级联口径） |
+
+核查与门禁（收尾弧）：
+- 残余 grep（docs/user 全树 × deleteContent/非空仓须/同时删除内容/非空仓必须）= 仅剩四处新口径自指（remote-virtual.md:166-167、console.md:189、api-reference.md:347），无陈旧残留；「400×删仓」面（license.md:31/176、trash-can.md:41、faq.md:123）逐处核对=均为包型档位/保留字 400，与本语义无关，未动。
+- make spec-check：PASS「in sync」（helpers.py 注释变更再生成=字节同形，112/158/20/55/326968 不变）；make fern-en-ratchet：PASS（current=10 baseline=10）。
+- 产品口径：新文零票号/零里程碑/零组织内幕；trash-can.md:37 顺带清除一处既有「归后续票」内幕措辞。存量 M3/M9/M14 等里程碑标记系历史遗留、非本语义面，未在本弧处理（见 Followups⑤）。
+
+Followups 增补：⑤docs/user 存量里程碑标记（M3/M9/M14 等）与产品口径纪律的全面清洗是独立工作面，建议单独开票；⑥console.md:189 已按落地 UI 终态对齐，无需再 UAT 复核（coordinator 已确认 e6f186b0 为终态）。
 ```

@@ -6,6 +6,9 @@
 #   2. internal/httpapi/router.go   — route inventory cross-check.
 #   3. internal/httpapi/system_{maintenance,backups,schedules}.go — the
 #      maintenance/backup/schedule families (ahead of the contract page).
+#   4. internal/httpapi/repositories.go (DELETE handler) — the repo-delete
+#      silent-cascade op: the spec's repoDelete entry and the api-reference.md
+#      DELETE row share this source; keep both sides in lockstep on wording.
 
 from collections import OrderedDict
 
