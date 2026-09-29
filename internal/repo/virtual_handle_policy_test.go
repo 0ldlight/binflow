@@ -1,15 +1,19 @@
 package repo_test
 
-// T-541: the handle* policy skips of the virtual resolution walk
+// T-541 planted the handle* policy skips of the virtual resolution walk
 // (virtual-resolution.md sections 3.4/3.6 — design virtual-four-bucket.md
 // section 3 rule 5's formerly unimplemented half, ADR-0051 Errata 一-①'s
-// F8 seam collection): a member whose handleReleases=false is dropped from
-// a release-resolvable path — body step AND cache projection both — a
-// member whose handleSnapshots=false is dropped from a snapshot-family
-// path, and §3.4's checksum-sidecar clause keeps a release-refusing member
-// serving digest files. The four-quadrant matrix pins both facets of one
-// remote member plus the local-member face; skipped families must resolve
-// to the honest 404 with ZERO upstream contact.
+// F8 seam collection); T-556 (BIN-38, L033 Arm C's differential, live A
+// 7.161.26 r3≡r4) removed the §3.4 RELEASE half — the measurable face of
+// the rule family, the maven module-level metadata merge, INCLUDES a
+// handleReleases=false member's SNAPSHOT version on the reference, and
+// this walk face is unconstructible on both sides (a release artifact
+// cannot sit in a handleReleases=false member: A 409s the PUT and the
+// direct GET, B's ME-08 refuses the PUT). What remains: a member whose
+// handleSnapshots=false is dropped from a snapshot-family path (§3.6,
+// L033 Arm C kept that face double-sided); release-resolvable paths
+// consult no handle flag. Skipped snapshot families resolve to the
+// honest 404 with ZERO upstream contact.
 
 import (
 	"context"
@@ -49,12 +53,16 @@ func seedRemoteHandlePolicy(t *testing.T, e *env, key string, releases, snapshot
 	}
 }
 
-// TestVirtualHandlePolicyMatrix: the four handle* quadrants on one REMOTE
+// TestVirtualHandlePolicyMatrix: the handle* quadrants on one REMOTE
 // member — both facets of the member live in the walk (cache projection
-// and body). A family the pair refuses resolves to the 404 with zero
-// upstream hits (both steps skipped); a family it accepts resolves through
-// the body's pull-through (exactly one upstream hit, the cache step misses
-// on a cold namespace without touching the upstream).
+// and body). Since T-556 the RELEASE family resolves in every quadrant
+// (the §3.4 release skip was removed after L033 Arm C's refutation of
+// the rule family's measurable face; the walk face itself is vacuous —
+// constructibility note in the file header): through the body's
+// pull-through on a cold namespace (exactly one upstream hit, the cache
+// step's miss probe touches nothing). The SNAPSHOT family stays keyed on
+// handleSnapshots (§3.6, double-sided per L033): refused quadrants
+// resolve to the 404 with zero upstream hits.
 func TestVirtualHandlePolicyMatrix(t *testing.T) {
 	const rel = "org/lib/1.0/org-lib-1.0.jar"
 	const snap = "org/lib/1.1-SNAPSHOT/org-lib-1.1-SNAPSHOT.jar"
@@ -62,13 +70,12 @@ func TestVirtualHandlePolicyMatrix(t *testing.T) {
 		name            string
 		handleReleases  bool
 		handleSnapshots bool
-		wantRelease     bool
 		wantSnapshot    bool
 	}{
-		{name: "true/true: both families resolve", handleReleases: true, handleSnapshots: true, wantRelease: true, wantSnapshot: true},
-		{name: "true/false: release resolves, snapshot refused", handleReleases: true, handleSnapshots: false, wantRelease: true, wantSnapshot: false},
-		{name: "false/true: release refused, snapshot resolves", handleReleases: false, handleSnapshots: true, wantRelease: false, wantSnapshot: true},
-		{name: "false/false: both families refused", handleReleases: false, handleSnapshots: false, wantRelease: false, wantSnapshot: false},
+		{name: "true/true: both families resolve", handleReleases: true, handleSnapshots: true, wantSnapshot: true},
+		{name: "true/false: release resolves, snapshot refused", handleReleases: true, handleSnapshots: false, wantSnapshot: false},
+		{name: "false/true: release STILL resolves (T-556 flip), snapshot resolves", handleReleases: false, handleSnapshots: true, wantSnapshot: true},
+		{name: "false/false: release STILL resolves (T-556 flip), snapshot refused", handleReleases: false, handleSnapshots: false, wantSnapshot: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -82,26 +89,20 @@ func TestVirtualHandlePolicyMatrix(t *testing.T) {
 			seedRemoteHandlePolicy(t, e, "rem", tt.handleReleases, tt.handleSnapshots)
 			hits := int64(0)
 
-			// The release family.
+			// The release family: resolves in EVERY quadrant (T-556 —
+			// handleReleases consults nothing on release paths), through
+			// the body step's pull-through (one upstream hit; the cold
+			// cache facet's probe misses without upstream contact).
 			body, _, _, err := getVirtual(t, fx, rel)
-			if tt.wantRelease {
-				if err != nil {
-					t.Fatalf("release Get: %v", err)
-				}
-				if body != "rel-body" {
-					t.Fatalf("release body = %q, want rel-body", body)
-				}
-				hits++
-				if got := fx.hits["rem"].Load(); got != hits {
-					t.Fatalf("release upstream hits = %d, want %d (the body step's pull-through)", got, hits)
-				}
-			} else {
-				if !errors.Is(err, repo.ErrNodeNotFound) {
-					t.Fatalf("refused release Get = %v, want ErrNodeNotFound", err)
-				}
-				if got := fx.hits["rem"].Load(); got != hits {
-					t.Fatalf("refused release upstream hits = %d, want %d (both steps skipped)", got, hits)
-				}
+			if err != nil {
+				t.Fatalf("release Get under handleReleases=%v: %v", tt.handleReleases, err)
+			}
+			if body != "rel-body" {
+				t.Fatalf("release body = %q, want rel-body", body)
+			}
+			hits++
+			if got := fx.hits["rem"].Load(); got != hits {
+				t.Fatalf("release upstream hits = %d, want %d (the body step's pull-through)", got, hits)
 			}
 
 			// The snapshot family.
@@ -129,16 +130,18 @@ func TestVirtualHandlePolicyMatrix(t *testing.T) {
 	}
 }
 
-// TestVirtualReleaseSkipDropsCacheFacet: the projection-level half of the
-// release skip — a STANDING COPY in the refusing member's namespace must
-// not serve through the virtual (the cache facet inherits the refusal):
-// the 404 stands beside a copy the direct face just proved is there, with
-// zero further upstream contact. (The §3.4 sidecar exemption's remote face
-// is structurally unreachable — the FR-20 engine refuses checksum-suffix
+// TestVirtualReleaseCacheFacetServes: the projection half of the T-556
+// flip — a STANDING COPY in a release-refusing member's namespace SERVES
+// through the virtual (the pre-flip skip 404'd beside a copy the direct
+// face had just proven was there; handleReleases consults nothing on
+// release paths since L033 Arm C's refutation of the rule family). The
+// copy answers with ZERO further upstream contact, and the same member's
+// snapshot family still keys on handleSnapshots (the §3.6 skip survives
+// the flip). (The former §3.4 sidecar exemption's remote face stays
+// structurally unreachable — the FR-20 engine refuses checksum-suffix
 // fetches outright, so a remote member's namespace never holds sidecar
-// rows; the exemption's observable face is the LOCAL member, pinned in
-// TestVirtualLocalReleaseSkipSidecarExempt.)
-func TestVirtualReleaseSkipDropsCacheFacet(t *testing.T) {
+// rows.)
+func TestVirtualReleaseCacheFacetServes(t *testing.T) {
 	const rel = "org/lib/2.0/org-lib-2.0.jar"
 	const snap = "org/lib/2.1-SNAPSHOT/org-lib-2.1-SNAPSHOT.jar"
 	e := newEnv(t)
@@ -162,18 +165,19 @@ func TestVirtualReleaseSkipDropsCacheFacet(t *testing.T) {
 		t.Fatalf("warm-up upstream hits = %d, want 1 (the MISS landing)", hits)
 	}
 
-	// The release artifact: refused — the cache facet is skipped beside the
-	// body, the standing copy does not serve, the upstream is not asked.
-	if _, _, _, err := getVirtual(t, fx, rel); !errors.Is(err, repo.ErrNodeNotFound) {
-		t.Fatalf("virtual Get of refused release = %v, want ErrNodeNotFound (the standing copy must not serve)", err)
+	// The release artifact: SERVED from the standing copy — the cache
+	// facet probes it, zero upstream contact, body step never reached.
+	body, _, _, gerr := getVirtual(t, fx, rel)
+	if gerr != nil || body != "rel-body" {
+		t.Fatalf("virtual Get under handleReleases=false = (%q, %v), want rel-body served from the standing copy", body, gerr)
 	}
 	if got := fx.hits["rem"].Load(); got != hits {
-		t.Fatalf("refused release upstream hits = %d, want unchanged %d", got, hits)
+		t.Fatalf("served-release upstream hits = %d, want unchanged %d (the standing copy answers)", got, hits)
 	}
 
-	// The same member's snapshot family still resolves (the policy is
-	// family-keyed, not member-wide): the body step pulls through.
-	body, _ := mustGetVirtual(t, fx, snap)
+	// The same member's snapshot family still keys on handleSnapshots (§3.6
+	// survives the flip): the body step pulls through.
+	body, _ = mustGetVirtual(t, fx, snap)
 	if body != "snap-body" {
 		t.Fatalf("snapshot body = %q, want snap-body (handleSnapshots=true still resolves)", body)
 	}
@@ -185,8 +189,10 @@ func TestVirtualReleaseSkipDropsCacheFacet(t *testing.T) {
 // TestVirtualLocalHandlePolicyMatrix: LOCAL members carry handle* in their
 // caller-owned passthrough config — the one spelling REACHABLE through the
 // ordinary write plane today (UpdateRepo keeps the blob verbatim; the
-// remote canonical form drops the pair). The four quadrants against the
-// local member's node rows.
+// remote canonical form drops the pair). Release paths resolve in every
+// quadrant since the T-556 flip (L033 Arm C refuted the rule family's
+// measurable face; the walk face is vacuous on both sides — see the file
+// header); the snapshot family keys on handleSnapshots.
 func TestVirtualLocalHandlePolicyMatrix(t *testing.T) {
 	const rel = "com/acme/lib/1.0/lib-1.0.jar"
 	const snap = "com/acme/lib/1.1-SNAPSHOT/lib-1.1-SNAPSHOT.jar"
@@ -194,13 +200,12 @@ func TestVirtualLocalHandlePolicyMatrix(t *testing.T) {
 		name            string
 		handleReleases  bool
 		handleSnapshots bool
-		wantRelease     bool
 		wantSnapshot    bool
 	}{
-		{name: "true/true: both families resolve", handleReleases: true, handleSnapshots: true, wantRelease: true, wantSnapshot: true},
-		{name: "true/false: release resolves, snapshot refused", handleReleases: true, handleSnapshots: false, wantRelease: true, wantSnapshot: false},
-		{name: "false/true: release refused, snapshot resolves", handleReleases: false, handleSnapshots: true, wantRelease: false, wantSnapshot: true},
-		{name: "false/false: both families refused", handleReleases: false, handleSnapshots: false, wantRelease: false, wantSnapshot: false},
+		{name: "true/true: both families resolve", handleReleases: true, handleSnapshots: true, wantSnapshot: true},
+		{name: "true/false: release resolves, snapshot refused", handleReleases: true, handleSnapshots: false, wantSnapshot: false},
+		{name: "false/true: release STILL resolves (T-556 flip), snapshot resolves", handleReleases: false, handleSnapshots: true, wantSnapshot: true},
+		{name: "false/false: release STILL resolves (T-556 flip), snapshot refused", handleReleases: false, handleSnapshots: false, wantSnapshot: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -221,15 +226,13 @@ func TestVirtualLocalHandlePolicyMatrix(t *testing.T) {
 				t.Fatalf("set the local member's handle policy: %v", err)
 			}
 
+			// Release: resolves in every quadrant (T-556).
 			body, _, _, gerr := getVirtual(t, fx, rel)
-			if tt.wantRelease {
-				if gerr != nil || body != "rel-body" {
-					t.Fatalf("release Get = (%q, %v), want rel-body", body, gerr)
-				}
-			} else if !errors.Is(gerr, repo.ErrNodeNotFound) {
-				t.Fatalf("refused release Get = %v, want ErrNodeNotFound", gerr)
+			if gerr != nil || body != "rel-body" {
+				t.Fatalf("release Get under handleReleases=%v = (%q, %v), want rel-body", tt.handleReleases, body, gerr)
 			}
 
+			// Snapshot: keyed on handleSnapshots (§3.6 survives).
 			body, _, _, gerr = getVirtual(t, fx, snap)
 			if tt.wantSnapshot {
 				if gerr != nil || body != "snap-body" {
@@ -242,11 +245,17 @@ func TestVirtualLocalHandlePolicyMatrix(t *testing.T) {
 	}
 }
 
-// TestVirtualLocalReleaseSkipSidecarExempt: §3.4's sidecar clause on the
-// local face — the release-refusing member still serves the digest beside
-// the release artifact it refuses, and its own direct face is untouched
-// (the policy governs the virtual walk only).
-func TestVirtualLocalReleaseSkipSidecarExempt(t *testing.T) {
+// TestVirtualLocalHandleReleasesFalseServesAllPaths: the former §3.4
+// sidecar exemption is moot since the T-556 flip removed the release skip
+// wholesale — a release-refusing member serves BOTH the release artifact
+// and the digest beside it through the virtual (one ordinary path family,
+// no special sidecar case remains), and its own direct face is untouched
+// (the policy governs the virtual walk only). On the reference this face
+// is unconstructible through the ordinary plane (A 409s release PUTs to
+// handleReleases=false locals) — the seeded-row leg pins the flipped
+// walk's parity with the adapter's module-merge face, which IS evidenced
+// (L033 Arm C hwm).
+func TestVirtualLocalHandleReleasesFalseServesAllPaths(t *testing.T) {
 	const rel = "com/acme/lib/2.0/lib-2.0.jar"
 	const side = rel + ".sha1"
 	e := newEnv(t)
@@ -260,16 +269,17 @@ func TestVirtualLocalReleaseSkipSidecarExempt(t *testing.T) {
 		t.Fatalf("set handleReleases=false: %v", err)
 	}
 
-	if _, _, _, err := getVirtual(t, fx, rel); !errors.Is(err, repo.ErrNodeNotFound) {
-		t.Fatalf("virtual Get of refused release = %v, want ErrNodeNotFound", err)
+	body, _, _, err := getVirtual(t, fx, rel)
+	if err != nil || body != "rel-body" {
+		t.Fatalf("virtual Get of the release under handleReleases=false = (%q, %v), want rel-body", body, err)
 	}
-	body, _ := mustGetVirtual(t, fx, side)
+	body, _ = mustGetVirtual(t, fx, side)
 	if body != "digest" {
-		t.Fatalf("sidecar body = %q, want the exempt digest", body)
+		t.Fatalf("sidecar body = %q, want digest (no sidecar special case remains)", body)
 	}
 	rc, _, err := e.svc.Get(context.Background(), admin(), "loc", rel)
 	if err != nil {
-		t.Fatalf("direct member Get of the refused release: %v (the policy governs the virtual walk only)", err)
+		t.Fatalf("direct member Get of the release under handleReleases=false: %v (the policy governs the virtual walk only)", err)
 	}
 	rc.Close() //nolint:errcheck // read-only fd
 }

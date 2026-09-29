@@ -224,6 +224,16 @@ jobs:
       - save_cache:
           key: go-build-v1-{{ checksum "go.sum" }}
           paths: ["/home/circleci/.cache/go-build"]
+      # T-552 (BIN-34, 2026-09-29): the GitHub face split its full -race
+      # Test step into five parallel lanes (one per heavy package —
+      # httpapi/repo/auth/search — plus the light complement), closing the
+      # 10m -> 30m -> 60m TEST_TIMEOUT doubling sequence (runs 33881407081,
+      # 36411042188, first green at 60m on 36431243387; no third raise —
+      # suite growth buys lanes, not timeout). This face needs no
+      # equivalent split: the main-push test leg below is the -short FAST
+      # suite (split 2 by timings, minutes), and the -race depth face is
+      # nightly race_full — ALREADY sharded x4 by timings. The Test-shape
+      # asymmetry between the two CI faces is deliberate and on record.
       - run:
           name: Vet + lint + fast tests
           command: |

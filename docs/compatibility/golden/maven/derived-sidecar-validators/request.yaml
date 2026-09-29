@@ -1,0 +1,15 @@
+# 金样请求——maven 成员面 SNAPSHOT 派生旁车 validator 族（L032 Arm 6 / L033 Arm A）
+# schema: golden-request/1（矩阵型：request=构造+探测腿数组；逐腿响应入 response.yaml）
+feature: 'maven 成员仓 SNAPSHOT maven-metadata.xml 派生旁车（.sha1/.md5/.sha256）缓存验证器族'
+client: 真实 Apache Maven 3.9.16 deploy 构造（capable UA）+ 降级 UA 探测（java-agent 形 UA `Java/1.8.0_391`——剥离 Accept-Encoding/Fingerprint 族头）；取证 GET 双面直连 curl
+repo_setup: >-
+  local maven 仓（A: difftest 命名仓经 API 建；B: 等价仓）；mvn deploy 1.0.0-SNAPSHOT 每面各一
+  （A 经 forward-proxy 使 UA 可替换；B 直连）。版本级 maven-metadata.xml 物化后取证。
+steps:
+- { seq: 1, leg: body-面基线, method: GET, path: '/<repo>/<groupPath>/<artifact>/1.0.0-SNAPSHOT/maven-metadata.xml', note: 'body 面对照腿（ETag+LM+双条件族）' }
+- { seq: 2, leg: 旁车无前置 ×3, method: GET, path: '…/maven-metadata.xml.sha1（.md5/.sha256 同构）', note: 'validator 维主取证腿' }
+- { seq: 3, leg: 旁车 IMS-命中, method: GET, headers: 'If-Modified-Since: <首答 LM>', path: '…/maven-metadata.xml.sha1', note: '同秒回访（矩阵腿）；跨秒腿见 known_gaps' }
+- { seq: 4, leg: 旁车 IMS-旧值, method: GET, headers: 'If-Modified-Since: <首答 LM -1s>', path: '…/maven-metadata.xml.sha1' }
+- { seq: 5, leg: 旁车 .sha512, method: GET, path: '…/maven-metadata.xml.sha512', note: '算法面外对照——双面 404' }
+- { seq: 6, leg: UA 双面, note: 'capable（Apache-Maven/3.9.16）与 java-agent（Java/1.8.0_391）双 UA 各跑上述腿——java-agent 面为真派生面' }
+expected_client_outcome: 旁车 digest 内容 = 剥离后 body 对应摘要；validator 族见 response.yaml
