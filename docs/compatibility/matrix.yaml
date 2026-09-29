@@ -918,7 +918,7 @@ rows:
   capability: DELETE /api/repositories/{key}
   state: compatible
   confidence: high
-  contract_ref: 
+  contract_ref: docs/compatibility/contracts/repositories.yaml#rest/repo-delete-nonempty-cascade
   golden_ref: 
   last_difftest: 
   priority_class: P0
