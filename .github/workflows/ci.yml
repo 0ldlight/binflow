@@ -7,8 +7,8 @@
 # main-branch pushes ONLY — pull_request events were removed so both CI
 # systems fire on exactly the same surface. workflow_dispatch (L026-4) is the
 # manual-only e2e surface: it never fires on a push, so the automatic surface
-# is unchanged; a dispatch run executes ONLY the e2e job (ci and
-# release-dryrun are push-gated), mirroring the CircleCI run_e2e parameter.
+# is unchanged; a dispatch run executes ONLY the e2e job (ci, its test lanes,
+# and release-dryrun are push-gated), mirroring the CircleCI run_e2e parameter.
 name: ci
 
 on:
@@ -33,7 +33,7 @@ env:
 jobs:
   ci:
     # L026-4: push-only — a workflow_dispatch run (the manual e2e surface)
-    # must not re-burn this 40-minute suite; see `on:` above.
+    # must not re-burn the ci gate suite; see `on:` above.
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
@@ -95,25 +95,12 @@ jobs:
           go version
           grep '^go ' go.mod
 
-      # lint + test + build all delegate to the Makefile (single entrypoint).
+      # lint delegates to the Makefile (single entrypoint); the -race test
+      # suite moved OFF this job (T-552 / BIN-34) into the parallel `test`
+      # lane matrix below — the structural closeout of the TEST_TIMEOUT
+      # doubling sequence. Every other leg here keeps its original order.
       - name: Lint
         run: make lint
-
-      # Go test with an explicit per-package timeout (FR-77 AC3, T-220
-      # handover): the -race suite's slowest package (internal/httpapi)
-      # takes ~571s on an idle machine — go test's 10m default leaves no
-      # headroom on slower CI runners. 30m: the GH runner's shared vCPUs
-      # run the race suite ~2x slower than idle metal (repo alone 772s on
-      # run 33881407081) — the 20m wall clock tripped mid-suite with every
-      # package healthy, purely capacity (peer-session forensics).
-      # 60m (run 36411042188): httpapi's race suite grew to ~1300s nominal
-      # (72% of 30m) and every package — including R3-untouched auth/search
-      # (+26%/+91%) — slowed uniformly on that runner, tipping httpapi past
-      # the per-binary 30m budget with no single hung test. Budget follows
-      # the suite's real size; the structural fix (parallel test lanes on
-      # separate runners) is the devops follow-up.
-      - name: Test
-        run: make test TEST_TIMEOUT=60m
 
       # GC concurrency stress (ADR-0031 / architecture section 14.2 point 6
       # and section 14.5-5): the T-232 race legs — uploads (and
@@ -137,6 +124,94 @@ jobs:
         run: |
           CGO_ENABLED=0 go build ./...
           make build
+
+  # Test lanes (T-552 / BIN-34) — the structural closeout of the Test
+  # budget sequence on this face. History, all main-push runs:
+  #   10m -> 30m (run 33881407081): the shared runner executes the race
+  #     suite ~2x slower than idle metal (repo alone 772s); the 20m wall
+  #     tripped mid-suite with every package healthy — capacity, not rot.
+  #   30m -> 60m (run 36411042188): httpapi ~1300s nominal (72% of 30m)
+  #     plus a uniform runner-wide slowdown (R3-untouched auth +26% /
+  #     search +91%), no single hung test — capacity again. First green
+  #     at 60m: run 36431243387 (2026-09-28, merge #167; Test step 27m13s,
+  #     httpapi 1056s of it, suite per-package sum ~70m over 4 vCPUs).
+  # GOVERNANCE (R4 dual review, Reviewer B): the doubling sequence STOPS at
+  # 60m — no third raise, ever. Suite growth is answered with LANES (add
+  # or split one), never a bigger TEST_TIMEOUT.
+  # Shape: one lane per heavy package on its own runner — internal/httpapi,
+  # internal/repo, internal/auth, internal/search — plus the light lane
+  # whose package set is the COMPLEMENT of those four over the Makefile's
+  # universe (go list ./... minus web/): a new package lands in the light
+  # lane automatically, so the union of lanes can never silently miss one.
+  # Per-package timings (run 36431243387): httpapi 1056s / repo 747s /
+  # auth 313s / search 144s; heaviest light-lane members replication 183s,
+  # adapter/npm 161s, remote 159s. Every lane builds the real console
+  # first (T-89): the pre-split Test step compiled against the real-SPA
+  # embed — placeholder-vs-real is a semantics change (the CircleCI
+  # build-job shard ruling). fail-fast: false — one red lane must not
+  # cancel its siblings; attribution stays per-lane on the commit status
+  # (matrix check names: test (httpapi) ... test (light)).
+  test:
+    # Same trigger posture as the ci job: push-only — a workflow_dispatch
+    # run (the manual e2e surface) must not burn the lanes.
+    if: github.event_name == 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: httpapi
+            pkgs: ./internal/httpapi
+          - lane: repo
+            pkgs: ./internal/repo
+          - lane: auth
+            pkgs: ./internal/auth
+          - lane: search
+            pkgs: ./internal/search
+          # light: the computed complement of the four heavy lanes — pkgs
+          # stays empty and the Test lane step derives the list via go list.
+          - lane: light
+            pkgs: ""
+    runs-on: ubuntu-latest
+    env:
+      LANE_PKGS: ${{ matrix.pkgs }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.6"
+          cache: true
+
+      # Console embed parity with the ci job (T-89): tests compile against
+      # the real SPA, not the committed placeholder shell. The npm cache
+      # keeps this cheap on warm runs (run 36431243387: make console 12s).
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build console into internal/console/dist
+        run: make console
+
+      - name: Test lane
+        run: |
+          if [ -z "$LANE_PKGS" ]; then
+            # go list emits newline-separated paths; make's $(shell go list
+            # $(PKGS)) cannot take raw newlines (R5 Reviewer A blocking:
+            # make 3.81 chokes malformed-path, make 4.x sh-splits and the
+            # guard would pass on the FIRST package alone — 35 of 36
+            # silently dropping out of the main-push race coverage).
+            # Collapse to the space-separated form the Makefile target (and
+            # T-552's local verification) actually exercises.
+            LANE_PKGS="$(go list ./... | grep -v '/binflow/web/' \
+              | grep -v -E '/(httpapi|repo|auth|search)$' | tr '\n' ' ')"
+          fi
+          echo "lane ${{ matrix.lane }}: $LANE_PKGS"
+          make test-pkgs PKGS="$LANE_PKGS" TEST_TIMEOUT=60m
 
   # E2E — the full Playwright suite on a dedicated runner (T-350, FR-113.6 /
   # K46). This job is the AUTHORITATIVE signal for the e2e load-flake family
