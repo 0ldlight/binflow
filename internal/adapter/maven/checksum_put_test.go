@@ -1,12 +1,14 @@
-// T-574 / BIN-56 — maven 域裸 checksum PUT 的可落地三面：源缺 404 文案
-// 逐字（A 形冒号分隔）、值错 409 路径去 repo 前缀、终缀路由先于 layout
-// 前置（无 GAV 路径 .sha1 → 404 checksum 文案而非 400）。409 写穿
-// （originalChecksums 收客户端宣称值）依赖 client-checksum 持久化缝
-// （repo.Service 缺口，票内登记移交）。权威口径：
-// reports/compatibility/L037-probe-arms.md Arm 1（A 7.161.26 双轮）。
+// T-574 / BIN-56 landed the三面：源缺 404 文案逐字（A 形冒号分隔）、
+// 值错 409 路径去 repo 前缀、终缀路由先于 layout 前置（无 GAV 路径
+// .sha1 → 404 checksum 文案而非 400）。T-578 / BIN-60 在 ADR-0052 缝上
+// 翻正写穿半面：409 臂照常落值（client 列 + sidecar GET 回显存值）、
+// 重 PUT 覆盖、无存值 GET 保持计算值兜底（maven 的 fallback 姿态）。
+// 权威口径：reports/compatibility/L037-probe-arms.md Arm 1（A 7.161.26
+// 双轮）+ DECISIONS.md ADR-0052。
 package maven
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -85,9 +87,10 @@ func TestChecksumPutRoutingBeforeLayout(t *testing.T) {
 
 // TestChecksumPutMismatchPath pins the 409 wording's path form: the
 // reference quotes the PUT TARGET (checksum suffix included) WITHOUT the
-// repository prefix (L037 Arm 1's live 409). The value write-through of
-// this leg is the blocked persistence seam (ledger
-// maven/checksum-put-409-write-through) — nothing lands here.
+// repository prefix (L037 Arm 1's live 409) — and, since the ADR-0052 seam
+// (T-578 / BIN-60), the refused value WRITES THROUGH: the node's client
+// column and the sidecar GET echo keep the wrong value (ledger
+// maven/checksum-put-409-write-through, closed).
 func TestChecksumPutMismatchPath(t *testing.T) {
 	hs := newHarness(t)
 	jar := "com/acme/t574c/2.0.0/t574c-2.0.0.jar"
@@ -96,19 +99,73 @@ func TestChecksumPutMismatchPath(t *testing.T) {
 	}
 	s1, _, _ := digests(jarBytes)
 	side := "/maven-local/" + jar + ".sha1"
-	resp := hs.serve(http.MethodPut, side, []byte(strings.Repeat("0", 40)), nil, true)
+	wrong := strings.Repeat("0", 40)
+	resp := hs.serve(http.MethodPut, side, []byte(wrong), nil, true)
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("wrong-value sidecar = %d, want 409", resp.StatusCode)
 	}
 	want := fmt.Sprintf("Checksum error for '%s': received '%s' but actual is '%s'",
-		jar+".sha1", strings.Repeat("0", 40), s1)
+		jar+".sha1", wrong, s1)
 	if got := string(drain(t, resp)); !strings.Contains(got, want) {
 		t.Fatalf("409 body = %s\nwant fragment = %s", got, want)
 	}
-	// Nothing landed and nothing was written through (pre-seam): the GET
-	// keeps serving the computed digest — the write-through flip is the
-	// blocked half.
-	if got := string(drain(t, hs.serve(http.MethodGet, side, nil, nil, true))); got != s1 {
-		t.Fatalf("sidecar GET after 409 = %q, want computed %q (pre-seam)", got, s1)
+	// Write-through: the client column and the GET echo keep the WRONG
+	// value (the 409 arm does not skip the registration).
+	node, err := hs.md.Nodes().Get(context.Background(), "maven-local", jar)
+	if err != nil {
+		t.Fatalf("node after 409: %v", err)
 	}
+	if node.ClientSha1 != wrong {
+		t.Errorf("node.ClientSha1 after 409 = %q, want the written-through %q", node.ClientSha1, wrong)
+	}
+	if got := string(drain(t, hs.serve(http.MethodGet, side, nil, nil, true))); got != wrong {
+		t.Fatalf("sidecar GET after 409 = %q, want the written-through %q", got, wrong)
+	}
+	// A re-PUT with the correct value overwrites and renders 201 with the
+	// TARGET's Location (the plain registration shape, L014-2 BUG 2).
+	resp = hs.serve(http.MethodPut, side, []byte(s1), nil, true)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("correct-value sidecar = %d, want 201", resp.StatusCode)
+	}
+	if got := string(drain(t, hs.serve(http.MethodGet, side, nil, nil, true))); got != s1 {
+		t.Fatalf("sidecar GET after re-PUT = %q, want %q", got, s1)
+	}
+}
+
+// TestChecksumPutClientOverlayFallback pins the overlay's fallback posture
+// (ADR-0052 decision 4): with NO stored client value the artifact sidecar
+// GET answers the computed digest — maven's posture, unlike generic's 404.
+func TestChecksumPutClientOverlayFallback(t *testing.T) {
+	hs := newHarness(t)
+	// Seed WITHOUT checksum headers: no client column is ever written.
+	jar := "com/acme/t578f/1.0/t578f-1.0.jar"
+	resp := hs.serve(http.MethodPut, "/maven-local/"+jar, jarBytes, nil, true)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("seed = %d", resp.StatusCode)
+	}
+	s1, _, _ := digests(jarBytes)
+	for _, algo := range []string{"sha1", "md5"} {
+		if resp := hs.serve(http.MethodGet, "/maven-local/"+jar+"."+algo, nil, nil, true); resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET .%s = %d, want 200", algo, resp.StatusCode)
+		} else if got := string(drain(t, resp)); got != map[string]string{"sha1": s1, "md5": digests2(jarBytes)}[algo] {
+			t.Errorf("GET .%s = %q, want computed", algo, got)
+		}
+	}
+	// Register one algorithm (correct value): the .sha1 face flips to the
+	// stored client value while .md5 stays computed (per-algorithm overlay).
+	if resp := hs.serve(http.MethodPut, "/maven-local/"+jar+".sha1", []byte(s1), nil, true); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("sha1 registration = %d", resp.StatusCode)
+	}
+	if got := string(drain(t, hs.serve(http.MethodGet, "/maven-local/"+jar+".sha1", nil, nil, true))); got != s1 {
+		t.Errorf("GET .sha1 after registration = %q, want %q", got, s1)
+	}
+	if got := string(drain(t, hs.serve(http.MethodGet, "/maven-local/"+jar+".md5", nil, nil, true))); got != digests2(jarBytes) {
+		t.Errorf("GET .md5 after sibling registration = %q, want computed", got)
+	}
+}
+
+// digests2 is digests' md5 arm alone (the overlay test spells both algos).
+func digests2(b []byte) string {
+	_, md5Hex, _ := digests(b)
+	return md5Hex
 }

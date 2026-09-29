@@ -106,7 +106,7 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 	}
 
 	if l.Kind == KindSidecar {
-		h.putSidecar(ctx, w, r, p, repoKey, factsKey, relPath, l, cfg)
+		h.putSidecar(ctx, w, r, p, repoKey, factsKey, relPath, l, cfg, row.Type == repo.TypeLocal)
 		return
 	}
 	// The A-form acceptance of the calculator-owned SNAPSHOT version
@@ -369,10 +369,14 @@ func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Re
 // item materializes (the reference's post-deploy listing shows pom, jar
 // and maven-metadata.xml only; BinFlow's phantom .sha1/.md5 nodes were the
 // E2 divergence). The 201 carries Location = the TARGET artifact and no
-// body; GET of the sidecar path answers the server-computed digest, as it
-// always did.
+// body. Since the ADR-0052 seam (T-578 / BIN-60) the registration is the
+// client-checksum WRITE itself on a locally-addressed artifact target
+// under the client policy — SET first, 201/409 rendered after, and the
+// 409 arm writes through too (L037 Arm 1); GET of the sidecar path then
+// echoes the stored client value before the computed one (overlay in
+// serveSidecarOfPath).
 func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http.Request,
-	p *repo.Principal, repoKey, factsKey, relPath string, l Layout, cfg RepoConfig) {
+	p *repo.Principal, repoKey, factsKey, relPath string, l Layout, cfg RepoConfig, origLocal bool) {
 	// Suspicious-size guard first: a checksum file is a digest plus
 	// whitespace; Content-Length beyond the ceiling answers without
 	// reading the body, an oversized chunked body at the read.
@@ -436,20 +440,55 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 	// keeps its tolerance — its target is server-authoritative and
 	// regenerated at any deploy (FR-17), so a client value checksummed
 	// against pre-recalculation bytes may legitimately disagree already.
-	if measured, ok := h.digestOf(ctx, node, l.Algo); ok && measured != declared {
-		if cfg.ChecksumPolicy == ChecksumPolicyClient && l.TargetKind != KindMetadata {
-			// T-574 / BIN-56 (maven/checksum-put-404-wording, the 409
-			// half): the reference's path quotes the PUT TARGET (suffix
-			// included) WITHOUT the repository prefix — L037 Arm 1's live
-			// wording. The rejected value's write-through into
-			// originalChecksums is the blocked persistence seam (ledger
-			// maven/checksum-put-409-write-through), so this refusal still
-			// lands nothing.
-			writeError(w, http.StatusConflict, fmt.Sprintf(
-				"Checksum error for '%s': received '%s' but actual is '%s'",
-				relPath, declared, measured))
-			return
+	measured, measuredOK := h.digestOf(ctx, node, l.Algo)
+	mismatch := measuredOK && measured != declared
+	refuse := mismatch && cfg.ChecksumPolicy == ChecksumPolicyClient && l.TargetKind != KindMetadata
+
+	// Registration FIRST (ADR-0052 decisions 3.3/6.1, T-578 / BIN-60): on a
+	// locally-addressed repo the client-policy ARTIFACT sidecar registers
+	// through the persistence seam before any outcome renders — the correct
+	// value and the refused one write through alike (L037 Arm 1's 409 leg:
+	// originalChecksums keeps the client's value, wrong or not), a re-PUT
+	// overwrites per algorithm, and a seam failure is an honest 500 rather
+	// than a pretend 201/409 over an unregistered value. Outside that face
+	// nothing registers: metadata targets keep the tolerance no-op above,
+	// server-generated policy and the non-local planes are unprobed write
+	// faces (NOT_RUN, not guessed), and sha512 has no client column (the
+	// ADR's sha512-B ruling: it stays the ordinary sidecar family).
+	if origLocal && cfg.ChecksumPolicy == ChecksumPolicyClient && l.TargetKind == KindArtifact && l.Algo != "sha512" {
+		var ref storage.BlobRef
+		switch l.Algo {
+		case "sha256":
+			ref.Sha256 = declared
+		case "sha1":
+			ref.Sha1 = declared
+		case "md5":
+			ref.Md5 = declared
 		}
+		if ref != (storage.BlobRef{}) {
+			seam := h.clientChecksumSeam()
+			if seam == nil {
+				writeError(w, http.StatusInternalServerError, fmt.Sprintf(
+					"client-checksum persistence is not available on this assembly (%s/%s)", factsKey, l.Target))
+				return
+			}
+			if err := seam.SetClientChecksums(ctx, p, factsKey, l.Target, ref); err != nil {
+				h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
+				return
+			}
+		}
+	}
+
+	if refuse {
+		// T-574 / BIN-56 (maven/checksum-put-404-wording, the 409 half):
+		// the reference's path quotes the PUT TARGET (suffix included)
+		// WITHOUT the repository prefix — L037 Arm 1's live wording. The
+		// value itself already wrote through above (ledger
+		// maven/checksum-put-409-write-through, closed by T-578).
+		writeError(w, http.StatusConflict, fmt.Sprintf(
+			"Checksum error for '%s': received '%s' but actual is '%s'",
+			relPath, declared, measured))
+		return
 	}
 
 	// Registration only (L014-2 BUG 2): the 201 carries the TARGET's
@@ -469,6 +508,33 @@ const maxSidecarBytes = 1024
 // family — the reference deploys it as an ordinary file — so it keeps
 // this plane's legacy sidecar handling.
 var clientChecksumPutSuffixes = []string{".sha1", ".md5", ".sha256"}
+
+// clientChecksumSeam resolves the service's client-checksum persistence
+// capability (ADR-0052 decision 1); nil when the assembled service predates
+// the seam (a bare test double — every real assembly wires the concrete
+// service).
+func (h *Handler) clientChecksumSeam() repo.ClientChecksumWriter {
+	seam, _ := h.svc.(repo.ClientChecksumWriter)
+	return seam
+}
+
+// clientChecksumValueOf projects one algorithm's stored client declaration
+// off a node row — the overlay half of repo.OriginalChecksums with the
+// computed triple left empty (the fallback posture is the CALLER's: the
+// direct sidecar face falls through to the computed digest when this
+// returns "", per ADR-0052 decision 4's protocol-owned fallbacks).
+func clientChecksumValueOf(node *metadata.Node, algo string) string {
+	o256, o1, o5 := repo.OriginalChecksums(node, "", "", "")
+	switch algo {
+	case "sha256":
+		return o256
+	case "sha1":
+		return o1
+	case "md5":
+		return o5
+	}
+	return ""
+}
 
 // checksumPutTarget strips the family suffix off a PUT path, reporting
 // the source artifact path the client-checksum write addresses.

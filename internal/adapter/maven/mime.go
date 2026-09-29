@@ -10,7 +10,10 @@ import (
 // factory table (mimetypes.xml v17, docs/reverse/mime-ownership.md
 // section 2) — the same table the generic adapter and internal/httpapi
 // hold local copies of (the requestBase copy policy; keep the three in
-// lockstep when the rule changes again).
+// lockstep when the rule changes again). Convergence trigger (R9
+// dual-review B NB): the next rule change that forces an edit here AND in
+// both siblings is the signal to hoist the table into the shared adapter
+// package — do not grow a fourth copy.
 //
 // Per the BIN-53 / T-571 ownership ruling this table is the ONLY mime
 // authority on the storage faces: PUT stores the table value for the

@@ -232,18 +232,28 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 				}
 			}
 		}
-		h.serveSidecar(ctx, w, r, p, repoKey, relPath, l)
+		// The client-value overlay (T-578 / BIN-60, ADR-0052 decision 4):
+		// a LOCAL repository's ARTIFACT sidecar echoes the stored client
+		// declaration first, the computed digest only as fallback — the
+		// PUT face registered the value above, wrong values included
+		// (L037 Arm 1's 409 write-through leg). Metadata targets (the
+		// derived-document contract owns their digests) and the non-local
+		// planes keep the computed answer.
+		h.serveSidecar(ctx, w, r, p, repoKey, relPath, l,
+			rowType == repo.TypeLocal && l.TargetKind == KindArtifact)
 		return
 	}
 	h.serveFile(ctx, w, r, p, repoKey, relPath)
 }
 
-// serveSidecar answers a checksum sidecar GET/HEAD with the server-computed
-// digest of the TARGET — never a passthrough of stored sidecar bytes (the
-// stored bytes only register the client's original claim, ME-03).
+// serveSidecar answers a checksum sidecar GET/HEAD with the STORED CLIENT
+// digest of the TARGET when the overlay flag holds and one was registered,
+// else the server-computed digest — never a passthrough of stored sidecar
+// bytes (the stored bytes only register the client's original claim,
+// ME-03).
 func (h *Handler) serveSidecar(ctx context.Context, w http.ResponseWriter, r *http.Request,
-	p *repo.Principal, repoKey, relPath string, l Layout) {
-	h.serveSidecarOfPath(ctx, w, r, p, repoKey, l.Target, l.Algo, relPath)
+	p *repo.Principal, repoKey, relPath string, l Layout, overlayClient bool) {
+	h.serveSidecarOfPath(ctx, w, r, p, repoKey, l.Target, l.Algo, relPath, overlayClient)
 }
 
 // writeSidecarDigest renders the computed sidecar of ONE node (digest
@@ -268,8 +278,14 @@ func (h *Handler) writeSidecarDigest(ctx context.Context, w http.ResponseWriter,
 			fmt.Sprintf("digest %s of '%s/%s' is not available (ledger gap)", algo, repoKey, path))
 		return
 	}
-	body := digest // bare hex, no trailing newline (ME-03/FR-16)
+	h.writeSidecarBody(w, r, digest, node) // bare hex, no trailing newline (ME-03/FR-16)
+}
 
+// writeSidecarBody renders one sidecar BODY value (stored client
+// declaration or computed digest — the byte rendering is identical) with
+// the sidecar face's headers: CT, unquoted-digest ETag, Last-Modified,
+// X-Checksum-Sha256, conditional 304, then the body (GET only).
+func (h *Handler) writeSidecarBody(w http.ResponseWriter, r *http.Request, body string, node *metadata.Node) {
 	hdr := w.Header()
 	hdr.Set("Content-Type", sidecarContentType)
 	hdr.Set("Content-Length", strconv.Itoa(len(body)))

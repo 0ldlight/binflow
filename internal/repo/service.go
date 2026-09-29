@@ -1247,6 +1247,55 @@ func (s *service) applyDeployProps(ctx context.Context, repoKey, path string, pr
 	return nil
 }
 
+// SetClientChecksums implements the ClientChecksumWriter seam (ADR-0052,
+// decision 1): the terminal-checksum PUT family's registration — a pure
+// metadata write of the client-declared digests onto an EXISTING node. The
+// full contract (per-algo overwrite, no creation, no usage/calculator/
+// updated_at/webhook movement, the WRITE gate inside) lives on the seam's
+// declaration; the store half is the single-statement conditional column
+// update (decision 3.1), so a registration can never race a concurrent one
+// or a deploy into a torn state.
+//
+// Ordering: authentication, then the node/folder probes (the adapters'
+// existence pre-check owns the 404 rendering; these sentinels are the
+// backstop), then the write gate — adapters reach this seam right after a
+// successful READ probe of the same path, so a read-capable write-denied
+// caller learns the refusal here, not from the earlier read.
+func (s *service) SetClientChecksums(ctx context.Context, p *Principal, repoKey, path string, declared storage.BlobRef) error {
+	if err := validateNodePath(path); err != nil {
+		return err
+	}
+	if err := requireAuthenticated(p); err != nil {
+		return err
+	}
+	n, err := s.md.Nodes().Get(ctx, repoKey, path)
+	if err != nil {
+		if errors.Is(err, metadata.ErrNodeNotFound) {
+			return fmt.Errorf("client checksums %s/%s: %w", repoKey, path, ErrNodeNotFound)
+		}
+		return fmt.Errorf("client checksums %s/%s: %w", repoKey, path, err)
+	}
+	if isFolderNode(n.Path) {
+		return fmt.Errorf("client checksums %s/%s: %w", repoKey, path, ErrIsFolder)
+	}
+	if !s.allow(ctx, p, repoKey, path, ActionWrite) {
+		if p == nil {
+			return fmt.Errorf("write %s/%s: %w", repoKey, path, ErrUnauthorized)
+		}
+		return fmt.Errorf("write %s/%s: %w", repoKey, path, ErrForbidden)
+	}
+	if declared.Md5 == "" && declared.Sha1 == "" && declared.Sha256 == "" {
+		return nil // nothing declared (e.g. the .sha512 family): a no-op, not a store round-trip
+	}
+	if err := s.md.Nodes().SetClientChecksums(ctx, repoKey, path, declared.Md5, declared.Sha1, declared.Sha256); err != nil {
+		if errors.Is(err, metadata.ErrNodeNotFound) {
+			return fmt.Errorf("client checksums %s/%s: %w", repoKey, path, ErrNodeNotFound)
+		}
+		return fmt.Errorf("client checksums %s/%s: %w", repoKey, path, err)
+	}
+	return nil
+}
+
 // folderMime is the mime column materialized ancestor folder rows carry. The
 // FolderInfo render never reads a folder's mime (folders have no content
 // type); the fixed default keeps ancestor rows uniform whatever the target

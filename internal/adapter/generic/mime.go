@@ -19,7 +19,10 @@ import (
 //
 // Local-copy policy (the requestBase precedent): internal/adapter/maven
 // and internal/httpapi keep their own copies of this table; keep the
-// three in lockstep when the rule changes again.
+// three in lockstep when the rule changes again. Convergence trigger
+// (R9 dual-review B NB): the next rule change that forces an edit here
+// AND in both siblings is the signal to hoist the table into the shared
+// adapter package — do not grow a fourth copy.
 //
 // Factory quirks kept verbatim on purpose: bare text/* values without a
 // charset parameter, .md/.yml/.yaml → text/plain, .gz → application/x-gzip,
