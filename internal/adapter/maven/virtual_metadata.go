@@ -172,7 +172,9 @@ func metadataLevelOf(path string) metadataLevel {
 
 // metadataWalkStep is one member step of the aggregation walk, in the
 // shape the four-bucket seam delivers it (design §2.1's ResolutionStep),
-// plus the maven policy flags the §5.1 level skips key on. Cache-facet
+// plus the maven policy flags the §5.1 level skips key on (HandleSnapshots
+// alone since T-556 — module-level lists consult no handle flag; the pair
+// stays carried for parity with the walk layer's step mirror). Cache-facet
 // steps carry the REMOTE's key and the lenient flag defaults — the facet
 // check alone drops them before any flag is consulted, so no row read
 // happens on their account (N3).
@@ -189,11 +191,15 @@ type metadataWalkStep struct {
 // carries the cache semantics — one remote, one read, never the standing
 // copy too), and a member whose policy refuses the level's class does not
 // contribute (snapshot-level documents skip handleSnapshots=false members
-// — §5.1 explicit; module-level lists skip handleReleases=false, §3.4's
-// release skip — the adapter-side mirror of the walk layer's T-541
-// implementation, same rule, same member-row source). The
-// foundByPriority short-circuit is NOT applied here: it keys on document
-// production, which only the walk observes.
+// — §5.1 explicit; L033 Arm C r3≡r4 kept that face double-sided). The
+// module-level lists consult NO handle flag since T-556: live A 7.161.26
+// (L033 Arm C's hwm leg) INCLUDES a handleReleases=false member's
+// SNAPSHOT version in the virtual module list — the pre-T-556
+// handleReleases skip answered 404 where the reference merges, and the
+// walk layer's release-skip mirror (internal/repo getVirtual) flipped
+// together with this site (the both-sites rule this file's history
+// pinned). The foundByPriority short-circuit is NOT applied here: it keys
+// on document production, which only the walk observes.
 func filterMetadataSteps(steps []metadataWalkStep, level metadataLevel) []metadataWalkStep {
 	out := make([]metadataWalkStep, 0, len(steps))
 	for _, s := range steps {
@@ -201,15 +207,6 @@ func filterMetadataSteps(steps []metadataWalkStep, level metadataLevel) []metada
 			continue
 		}
 		if level == levelSnapshot && !s.HandleSnapshots {
-			continue
-		}
-		if level == levelModule && !s.HandleReleases {
-			// T-531's drift point 1, still standing as a differential
-			// candidate: §5.1 names only the snapshot-level skip — this
-			// module-level branch is §3.4's mirror, implemented in the
-			// walk layer too since T-541 (internal/repo getVirtual). A
-			// differential refutation flips BOTH sites together, never
-			// this branch alone.
 			continue
 		}
 		out = append(out, s)
@@ -557,20 +554,30 @@ func (h *Handler) writeDerivedMetadata(w http.ResponseWriter, r *http.Request, b
 // writeDerivedSidecar serves the computed checksum of a DERIVED metadata
 // document (the merged, or the stripped) — the same server-computed
 // contract the local sidecar face upholds, with the derived body as its
-// target.
+// target. The sidecar is a derivation of ITS OWN (T-551, L032 Arm 6's
+// live A-face ruling, 7.161.26): it carries its own Last-Modified (the
+// derivation moment — A materializes the sidecar seconds after the body's
+// stamp; BinFlow derives per request, so the moment is now, second
+// precision like the body face) and NO ETag — the BODY face answers
+// ETag/If-None-Match, the SIDECAR face answers Last-Modified/
+// If-Modified-Since (a value at or after the stamp is fresh: 304; older:
+// 200). An If-None-Match has no served ETag to match and therefore never
+// short-circuits — the empty etag argument leaves it inert, so no false
+// 304 (the pre-T-551 bug: ETag=digest with INM answered 304).
 func (h *Handler) writeDerivedSidecar(w http.ResponseWriter, r *http.Request, body []byte, algo string) {
 	sums := digestsOfBody(body)
 	digest := map[string]string{"sha256": sums.sha256, "sha1": sums.sha1, "md5": sums.md5}[algo]
+	lastMod := time.Now()
 	hdr := w.Header()
 	hdr.Set("Content-Type", sidecarContentType)
-	hdr.Set("Content-Length", strconv.Itoa(len(digest)))
-	hdr.Set("ETag", digest)
+	hdr.Set("Last-Modified", lastMod.UTC().Format(http.TimeFormat))
 	hdr.Set(hdrChecksumSha256, sums.sha256)
 	hdr.Set(hdrChecksumSha1, sums.sha1)
-	if evalConditional(r, digest, time.Time{}) {
+	if evalConditional(r, "", lastMod) {
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
+	hdr.Set("Content-Length", strconv.Itoa(len(digest)))
 	w.WriteHeader(http.StatusOK)
 	if r.Method == http.MethodHead {
 		return

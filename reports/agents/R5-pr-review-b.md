@@ -1,0 +1,55 @@
+# R5-pr-review-b — R5 载荷（iteration-1544，全未提交改动）评审（形态: reviewer-b / architecture）
+
+```
+Ticket:       R5 payload 评审（worktree claude/r4-report 全部未提交改动，git status 全集 22 路径）——T-551 stage1+stage2/BIN-33、T-552/BIN-34、T-553/BIN-35、T-554/BIN-36、T-556/BIN-38
+Role:         code-reviewer (reviewer-b，architecture 视角：分层/作用域/CI 治理/台账状态机/测试覆盖)
+Area:         跨域载荷：internal/adapter/maven + internal/repo walk 层 + internal/httpapi 路由层 + Makefile/.github/.circleci + docs/compatibility（契约/台账/矩阵/金样）+ tools/difftest/v2 + reports
+Input:        conductor 派发（五票背景 + architecture 重点清单）；通读全量 diff（12 改 612+/214- + 10 新增文件）、R4-pr-review-b.md（体例与治理裁定基线）、L033-r5-fix-verification.md 全文、T-551-{contract,mavenfix}/T-552/T-553/T-554 五份 agent 日志、golden 三件、docs/reverse 三规格的引用面（remote-cache-projection §2.1 / rest-api §1.2 / repo-semantics §8.2）
+Changes:      全量 diff 逐文件审读；上下游追读：dispatchContent 全段（RBAC/entitlement/explode 编织序）+ cacheProjectionParent + refuseNonLocalWrite（service.go:304）+ maven 裸挂载 405 臂（handler.go:387-392）+ evalConditional/etagMatch（rangecond.go:134-163）+ writeDerivedMetadata/writeDerivedSidecar 两 helper 与双调用点（virtual_metadata.go:116/520 + handler.go:159）+ getVirtual walk 循环 + filterMetadataSteps + matrix/台账计数独立复算
+Files:        internal/httpapi/router.go（T-553 双拦截+两 helper——作用域圈定见裁定 1）｜internal/adapter/maven/virtual_metadata.go（T-551 writeDerivedSidecar 翻面 + T-556 filterMetadataSteps 删臂——分层/双站点见裁定 2/3）｜internal/repo/virtual.go（T-556 walk 镜像同翻 + isChecksumSidecarPath 死码清除）｜Makefile/.github/.circleci（T-552 lane split——见裁定 4）｜docs/compatibility 四件 + golden 三件（台账/金样状态机——见裁定 5）｜tools/difftest/v2/cases/maven_local_handle_walk_skip.py（22 维 dual-oracle + 3 混杂对照腿——设计合格）｜reports/agents/T-55*.md + L033（证据模板完整、四态如实）
+Tests:        只读取证全绿：go vet 三包无输出；gofmt -l 三目录空；go test ./internal/adapter/maven/ -count=1 ok 24.4s（整包）；go test ./internal/repo/ -count=1 ok 104.5s（整包）；go test ./internal/httpapi/ -count=1 ok 191.5s（整包）；定向六测（TestDerivedSidecarValidatorFamily / TestVirtualMetadataSidecarAndConditional / TestMetadataWalkLevelPolicySkip / TestVirtualMetadataModuleLevelIgnoresHandleReleases / TestDeployRefusalFamily×2 / TestVirtualHandlePolicyMatrix 族四测）全 PASS；py_compile 新 case 过；actionlint ci.yml 零报错；runner --list 发现门过；台账 Z 独立复算 total 85 = resolved 37 + gated 4 + open 44、open {BUG 7, UNKNOWN 35, INTENTIONAL 1, UNSUPPORTED 1}、id 零重复——与 T-551-contract 终算逐数吻合；matrix 实算 rows 201 / contract_ref 38 / golden_ref 2（D12-R01+D12-R18）/ last_difftest 51、五态 95/17/57/20/12 与 summary 全等；make -n test 以 HEAD 版 Makefile 对照输出逐字节一致（实测交换验证）；lane 补集实测：go list 宇宙 41（含 web/node_modules 下 1 个 npm 带入的 Go 包）− web − 4 重包 = light 36，4+36 = 旧 PKG 宇宙（Makefile:15 旧 PKG 同样排除 /binflow/web/——lane 并集与拆道前覆盖面精确相等，无漏跑）
+Commands:     git status/diff HEAD 全量；python3 yaml 六文件 safe_load + Z/矩阵计数复算脚本；make -n test 双版本 byte-diff（HEAD Makefile 临时换回再还原，git diff --stat 终态核对恢复）；go list 补集/过匹配三连测（grep -E '/(httpapi|repo|auth|search)$' 仅命中四目标包，无过匹配）；go list 混入 typo 包实测 stdout 为空 → test-pkgs 守卫对部分 typo 也响亮触发（比 T-552 自述更强）；grep 405 逐字钉（cargo/conan/deb 逐字 + helm/rpm "read-only proxy" 子串，五适配器钉住属实）+ maven 裸挂载臂存在性核实（handler.go:387-392 在）；grep isChecksumSidecarPath 零残留；isChecksumSidecarPath 姊妹 splitMemberChecksumSuffix 仍被 archive.go 消费（未误删）；凭据硬检查（JFrog@/AKIA/ghp_/BEGIN KEY/token/password 全 diff + 五报告 + 新 case + golden 零命中）；conan.yaml 16 条目 / storage-admin.yaml 10 条目金样弃项「无契约锚」主张核实（确无对应面条目）；D12-R18 last_difftest 载入长 804 与卫生款声称精确一致
+Outputs:      本文件（reports/agents/R5-pr-review-b.md）
+Compatibility: 台账审计合格：① 3 条 resolved 的 evidence 均锚 L033（Arm A 17/17 PASS×3 / Arm B 三腿逐字 PASS×3 /「T-556 修复验证」节 r5≡r6 面级 b==a 双轮）且 fix_ref（T-551s2/BIN-33、T-553/BIN-35、T-556/BIN-38）齐全，r5==r6 divergence set == r3 set minus hwm×2 的「零新增零恶化」判据在报告可查；② 4 新 UNKNOWN（409 措辞族/成员 GET class 门/plain-SNAPSHOT 拼写/跨秒 LM 残差）authority 全 pending + review_gate「两程内升级裁决（默认）」预写，提案①②同族耦合已在 Risks 提示合并考量；③ 88→85 口径笔误勘误双落位（matrix changelog + agent 日志第二半），翻态只移 open→resolved 不改 total 的口径以实算为准——治理卫生合格；④ 金样「无契约锚不入」规则一致执行（G2 conan/G3 deploy 族/G4 非空仓/G5 handle* 22 维四弃理由逐一核实成立，G1 双报告 live 对账 + known_gaps 含跨秒残差与 .md5/.sha256/virtual 面推定）；⑤ 契约与台账双向指针闭环（divergence_ref 历史指针注记 ↔ resolved.evidence ↔ golden contract_ref/matrix_ref ↔ matrix D12-R18 golden_ref）
+Security:     凭据硬检查过（全 diff/五报告/新 case/golden 零命中；difftest 凭据 env 注入零落盘声明与 case 源码核实一致）；T-553 拦截面无新解析面（复用 splitFirstSegment/CacheProjectionTarget，repoKey 经 errors[] envelope JSON 编码，无注入）；匿名 401 挑战先于拒绝（测试断言）；writeDerivedSidecar 无路径面改动（Parse 六字段校验前置未动）
+Performance:  writeDerivedSidecar 每响应 +1 次 time.Now() + 2 头设置（小 metadata 派生面，无热 path 影响）；T-553 kcache 腿仅 PUT+行查失败+带 -cache 后缀时多一次父行 Get（无后缀早退），remote 本体腿零额外查询；T-556 反而省（release 路径每 Get 少一次 splitMemberChecksumSuffix）；CI lane 拆道 wall 预估 32m→21m（投影待合并后首轮观察，T-552 Risks① 如实）
+Risks:        见 non-blocking 清单与三条裁定注记；最大残余=契约 VERIFIED/台账 resolved/金样/矩阵计数与未提交修复同树耦合（整载荷原子合并或整体 revert——payload 模式固有，合并时需 repoint 版本锚，NB-2）
+Blockers:     无环境阻塞。wire 证据（run/l033-r5-r{1..6}/）为 gitignored 本地物，本评审树不可复跑——按仓内既定惯例（结论以 committed 报告+断言键为锚）采信，非本轮新增风险
+Next:         交 conductor：① 合并时 repoint 契约 binflow_tested 与 golden binflow_tested 的「worktree 现态构建」为合并 PR/SHA（NB-2）；② T-553 invalid-target 404 vs entitlement 门先后序为 A 面未观测小子面（NB-3），建议随 kcache 条目 unobserved 注记或后续差分臂；③ 派发卫生：T-556 以「追加微票」形态落进 T-551 同文件同 agent（NB-4）——后续同类微票建议在派发单留痕于 Linear；④ T-552 合并后观察首轮五 lane 时长/check 名（T-552 Next① 已列）；⑤ R6 池：T-555/BIN-37（D-3 用户裁定 BUG 对齐 A 面）票据链已闭合在台账（user_ruling + review_gate），无需本评审补动作
+```
+
+## 评审报告 R5-payload（形态: reviewer-b）
+结论: **APPROVE**
+
+七项重点逐项裁定：
+
+**裁定 1（T-553 作用域纪律——路由层 maven-only 拦截 vs shared 405 门）——站得住，证据链核实为真**。三层防御姿势完整且各就其位：① shared 服务门 refuseNonLocalWrite（internal/repo/service.go:304）本载荷零触碰（git diff 核实 internal/repo 仅 T-556 的 virtual.go+测试）——12 协议共享面字节不变；② 五适配器 405 钉住核实（cargo/conan/deb 测试逐字 + helm/rpm "read-only proxy" 子串），「宁窄勿宽」的代价论证真实；③ maven 自有裸挂载 405 臂（handler.go:387-392）保留为 mounted defense——router 注释的声称经 grep 核实存在。拦截位置正确：路由层即规格 §1.2 步骤 2 的「引擎级目标解析拒绝位」，谓词复用 cacheProjectionParent 后按包型收窄，maven local 父仓/generic 面/无后缀拼写全部回落标准链（两测试钉住）。后续放宽路径已在 T-553 Next② 预注册（各协议取证后逐面放开包型收窄）。分层归属正确。
+
+**裁定 2（T-556 双站点同翻 + shared 谓词删除）——预注册条款兑现，语义一致性成立**。virtual_metadata.go:207-213 旧注释的「differential refutation flips BOTH sites together, never this branch alone」条款如约兑现：filterMetadataSteps 删 levelModule 臂与 getVirtual 删两处 release-skip 同批落码，两站点语义对偶核实（snapshot 族：adapter 丢 cache facet + hs=false 成员 ↔ walk 层同款；module/release 级：两站点均不再咨询 handleReleases）。恢复路径条款埋好（virtual.go 字段注释「the seats' day may restore a release consult」+ T-551-mavenfix Risks「必须凭差分证据两站点同翻回」）。isChecksumSidecarPath 零残留删除且未误伤姊妹谓词（splitMemberChecksumSuffix 仍服务 archive.go 内容面）。walk 层 release 族面 vacuous 的「双面构造不出」声明三处一致（代码注释/台账 resolved evidence/agent 日志），「B 侧行为由单测钉住而非差分背书、差分复跑只能覆盖模块清单维」的边界标注诚实——单测四测翻新与负证咬合（agent 日志负证腿记录）合格。
+
+**裁定 3（writeDerivedSidecar 条件语义归属 adapter 层）——正确层，evalConditional 复用而非新写**。派生旁车是 maven 协议语义（三摘要模型 + M3 UA 谓词皆 adapter 内聚），httpapi 保持协议无关；两调用面（virtual_metadata.go:116 + handler.go:159）共用单 helper——根因单点，R3 配对教训（双面同翻）在结构上不可再违。evalConditional 复用经核：etag=="" 使 etagMatch 先行守卫自然失效（INM 含 `*` 恒 200 无假 304），RFC 9110 13.2.2 的 INM 优先于 IMS 求值序保持；Content-Length 移至条件判定后与 writeDerivedMetadata 头序逐行同形。契约「不发 ETag/自身 LM/IMS 命中→304」三维与实现逐句一致；跨秒 LM per-request 派生戳的语义差已在票面 Risks 预声明并被 L033 附带取证精确圈定（java-agent 剥离面）——见裁定 5 的两态并存处置。
+
+**裁定 4（T-552 CI 治理——lane split 兑现 R4 裁定）——真兑现，不变量实测成立**。R4 Reviewer B 治理红线「翻倍序列止于 60m，第三次上调不可接受→结构性收口」的兑现核实：TEST_TIMEOUT 维持 60m（未涨），重包四 lane + light 补集 = 「add or split a lane」的获准答案。四个不变量逐实测：① `make -n test` 以 HEAD Makefile 对照输出**逐字节一致**（本地交换实测，非仅读 diff）；② light 补集运行时计算（go list 宇宙 − web − 四重包 = 36）——新包自动落 light，lane 并集恒等于全宇宙；③ 与拆道前覆盖面**精确相等**：旧 `PKG := go list ./... | grep -v '/binflow/web/'`（Makefile:15）同样排除 web/——本树宇宙第 41 包是 web/node_modules 下 npm 带入的 Go 包（flatted），两侧同排除，无覆盖差；grep -E '/(httpapi|repo|auth|search)$' 无过匹配（仅命中四目标包）；④ 守卫比声称更强：go list 混入 typo 包 stdout 整体为空 → `test-pkgs` exit 2 对部分 typo 也响亮触发（我实测多包混 typo 仍 trip 守卫）。两面诚实性：GH 实改 + CircleCI comment-only 的「Test 形态不对称系既有设计（-short 快测面 + nightly race_full 已 ×4 分片）」经配置核对成立；每 lane 自带 make console 维持真 SPA embed 语义（T-89 裁定）+ fail-fast:false 逐 lane 归因。lane 首轮真实运行 NOT_RUN 已在 Risks① 如实（worktree 禁 push），合并后观察点已交 conductor。
+
+**裁定 5（台账状态机 + 金样 + 跨秒残差）——干净**。Z 终算独立复算逐数吻合（85=37+4+44；BUG 7/UNKNOWN 35/INTENTIONAL 1/UNSUPPORTED 1；id 零重复）；3 resolved 的 evidence/fix_ref 锚完整且 L033 判据（r1≡r2≡r3、r5≡r6、divergence set 恰翻两维零新增）可查；4 新 UNKNOWN 的 authority pending + review_gate 两程内升级预写齐备。88→85 笔误勘误双落位、以实算为准——治理卫生正确（诚实非劣化口径核实：+4 新 −3 翻态，翻态不改 total）。金样 1 入 4 弃的「无契约锚不入」规则一致执行——我核验 conan.yaml 16 条目确无 v1 packages/delete virtual 面条目、storage-admin.yaml 10 条目确无非空 DELETE 条目，四弃理由全部成立；G1 金样 known_gaps 把跨秒残差/.md5/.sha256/virtual 面推定如实入档。**跨秒 LM 残差单立 UNKNOWN 而非并入 resolved 条目——档案决策正确**：残差与翻绿面不同裁定路径（容忍 vs stored-stamp 微票）、不同修复面（持久化派生戳），两态并存且四处交叉引用（resolved evidence / 契约 binflow_state / golden known_gaps / 独立条目 review_gate 含升级路径）；A 侧 304 为机制推导非直测的标注诚实。
+
+**裁定 6（五票面积排他/文件冲突）——一处弯折，无实害**。产品码归属清晰：T-553 独占 httpapi、T-552 独占 CI 三件、T-554 独占 difftest case + 报告、T-551-contract 独占 docs/compatibility。唯一弯折：T-556 与 T-551-mavenfix 同写 internal/adapter/maven/virtual_metadata.go（不同函数：filterMetadataSteps vs writeDerivedSidecar），系 conductor 以「追加微票」派给同一 agent 顺序执行（T-551-mavenfix.md 第二段留痕）——「并行派发 area 不重叠」规则技术上被弯但同写者串行无冲突可能，NB-4 记派发卫生。reports/agents/*.md 各票各自产出无互写。
+
+**裁定 7（R6 池移交）——票据链闭合**。D-3 用户裁定落地完整（UNKNOWN→BUG、authority=user_ruling、review_gate=T-555/BIN-37 修复票 + 修后差分复验翻绿条件 + 放行臂语义随票定去留）；三提案 UNKNOWN 升级门预写；modulereleases-skip 的 remote 面前置复查点（席位探针 a=false/b=true 未变，remote canonical handle* 落地日复查 resolved 前提）已在 T-551-contract Risks 留痕——无悬空移交。
+
+### 必须修改（blocking）
+- 无。
+
+### 建议改进（non-blocking）
+1. **[契约时效] docs/compatibility/contracts/maven-virtual.yaml:16-19（文件头 changelog）** 头部 changelog 仍停留在 stage 1 口径（「新账……DIVERGENT/high——fix in flight T-551 stage 2」），而条目本体已在终批第二半翻 VERIFIED/resolved——头先读的读者拿到陈旧状态。→ 合并时一行补注「终批第二半随 L033 Arm A 翻 VERIFIED（2026-09-29）」，与 NB-2 同笔处理。
+2. **[版本锚口径] contracts/maven-virtual.yaml 新条目 version.binflow_tested + golden metadata.yaml binflow_tested** 现值「worktree 现态构建（未提交修复在树）」——姊妹条目惯例是合并锚（如「claude/r3-fixes f21f1c09+3b58b082（PR #163 → develop）」）。未提交时如实、但合并后成悬空指向。→ conductor 合并时 repoint 为合并 PR/SHA（台账 resolved 三条同批同理，可只在契约层 repoint，台账 evidence 锚 L033 报告不受影响）。
+3. **[未观测小子面] internal/httpapi/router.go:2339-2343（leg 2 与 entitlement 门的先后序）** invalid-target 404 现先于 gateAddonWrite 触发；A 面「目标解析拒绝 vs entitlement 拒绝」先后序未取证（L032 Arm 2 全程 admin 凭据，该序不可见）。可达面窄（有内容写 RBAC 但 addon 门不过的用户）。→ 随 kcache 台账条目补一行 unobserved 注记，或后续差分臂（低优先）。
+4. **[派发卫生] T-551-mavenfix.md T-556 节 / 派单侧** T-556 以追加微票落进 T-551 同文件同 agent——「并行派发 area 不重叠」规则被弯折（同写者串行，无实害）。→ 后续同类微票在 Linear 侧独立 Sub-issue 留痕（本树报告已留痕，补票据面即可）。
+5. **[CI 观察] .github/workflows/ci.yml test matrix（非本载荷动作）** 拆道后首轮真实运行 NOT_RUN（T-552 Risks① 已如实）；light lane 串行和 ≈33m 为最可能先触顶的 lane（headroom ≈3x，治理口径已预注册「拆 lane 不加 timeout」）。→ conductor 按 T-552 Next① 观察首轮五 lane 时长/check 名即可，无需改码。
+
+### 范围外发现（交 conductor）
+- 无（L032 的 check-order 观察与 maven 裸挂载 405 臂措辞差异均已在前轮登记或为不可达 mounted defense，本载荷无新范围外面）。
+
+### 取证注意
+- 本评审零产品码写入；唯一落盘物=本报告。Makefile 的 make -n 对照采用「临时换回 HEAD 版→运行→还原」流程，终态 git diff --stat 核对还原完整（23+/1-）。
+- run/ 级 wire 证据（l033-r5-r{1..6}/）为 gitignored 本地物，按 committed 报告 + 断言键复核算采信（仓内既定惯例，同 R4）。

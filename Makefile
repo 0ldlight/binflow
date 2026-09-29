@@ -23,7 +23,7 @@ GOLANGCI := $(or $(shell command -v golangci-lint 2>/dev/null),$(shell $(GO) env
 export GOPROXY
 export GOTOOLCHAIN
 
-.PHONY: all build test lint fmt vet tidy spec spec-check fern-en-ratchet fern-en-baseline run dev clean tools check-size docs docs-size console console-size \
+.PHONY: all build test test-pkgs lint fmt vet tidy spec spec-check fern-en-ratchet fern-en-baseline run dev clean tools check-size docs docs-size console console-size \
 	check-deps goreleaser-check release-snapshot release release-verify \
 	test-m7-resume test-m7-resume-sigterm test-m7-rbac-matrix lint-baseline \
 	test-m10-matrix test-m10-invariant footprint help
@@ -115,9 +115,31 @@ BUDGET_PKGS := github.com/lzwzzy/binflow/internal/metadata
 BUDGET_HERE := $(filter $(BUDGET_PKGS),$(PKG))
 REST_PKGS   := $(filter-out $(BUDGET_PKGS),$(PKG))
 
+# T-552 (BIN-34): the same L026-4 split for the CI lane entrypoint
+# (make test-pkgs PKGS=...). PKGS is normalized through `go list` first so
+# any spelling works (import paths, ./relative/, trailing slashes) AND a
+# typo'd static lane fails LOUDLY: a package that does not resolve drops
+# out of the canonical list, and an empty resolution trips the recipe
+# guard below instead of silently testing nothing. PKGS deliberately has
+# no default; the $(if) keeps `make test` (no PKGS) shell-call-free.
+PKGS_CANON := $(if $(PKGS),$(shell $(GO) list $(PKGS)))
+BUDGET_SUB := $(filter $(BUDGET_PKGS),$(PKGS_CANON))
+REST_SUB   := $(filter-out $(BUDGET_PKGS),$(PKGS_CANON))
+
 test:
 	$(if $(BUDGET_HERE),CGO_ENABLED=1 $(GO) test -race -count=1 -timeout $(TEST_TIMEOUT) $(BUDGET_HERE),@echo "test: no wall-clock-budget package in PKG - skipping the isolated invocation")
 	$(if $(REST_PKGS),CGO_ENABLED=1 $(GO) test -race -count=1 -timeout $(TEST_TIMEOUT) $(REST_PKGS),@echo "test: PKG fully covered by the budget invocation above")
+
+## test-pkgs: run the -race suite over an EXPLICIT package subset — the CI
+## lane entrypoint (T-552 / BIN-34: the heavy packages run as parallel
+## lanes on separate runners, TEST_TIMEOUT=60m there). Same flags and the
+## same L026-4 budget-package isolation as `test` (internal/metadata runs
+## FIRST and alone when present in the subset). `test` itself stays the
+## local full-suite single entrypoint, recipe untouched.
+test-pkgs:
+	@test -n "$(PKGS_CANON)" || { echo "test-pkgs: PKGS resolves to no package ($(PKGS)) - check the list, e.g. make test-pkgs PKGS=./internal/auth/"; exit 2; }
+	$(if $(BUDGET_SUB),CGO_ENABLED=1 $(GO) test -race -count=1 -timeout $(TEST_TIMEOUT) $(BUDGET_SUB),@echo "test-pkgs: no wall-clock-budget package in PKGS - skipping the isolated invocation")
+	$(if $(REST_SUB),CGO_ENABLED=1 $(GO) test -race -count=1 -timeout $(TEST_TIMEOUT) $(REST_SUB),@echo "test-pkgs: PKGS fully covered by the budget invocation above")
 
 ## test-cov: run tests with a coverage profile (not part of `all`).
 test-cov:
