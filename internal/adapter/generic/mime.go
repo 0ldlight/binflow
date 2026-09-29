@@ -6,39 +6,53 @@ import (
 	"strings"
 )
 
-// extensionMimes is BinFlow's deterministic extension→Content-Type table
-// for generic deploys that declare no Content-Type (PRD milestone-2 section
-// 6.4, "Content-Type 扩展名映射", ticket T-36). It takes precedence over the
+// extensionMimes is the deterministic extension→Content-Type table for
+// generic deploys that declare no Content-Type. It takes precedence over the
 // standard library's database so the wire contract is identical on every
-// host — mime.TypeByExtension consults the OS mime database and would answer
-// ".xml" differently on darwin vs a bare linux container.
+// host — mime.TypeByExtension consults the OS mime database for extensions
+// outside Go's builtin table and can answer those differently on darwin vs a
+// bare linux container.
 //
-// Values follow the governing RFCs where one exists (gzip: RFC 6713, zip:
-// RFC 6713 errata/IANA, yaml: RFC 9512, markdown: RFC 7763) and
-// Artifactory's shipped mimetypes.xml where docs/reverse captured it
-// (config-formats.md section 3: sha1/sha256/md5 → application/x-checksum,
-// high confidence). Artifactory's yaml spelling was not captured by the
-// reverse pass, so the RFC 9512 value is BinFlow's own pick; it is a
-// one-line change if review prefers a compatibility spelling.
+// Values are aligned to Artifactory's shipped mimetypes.xml (factory table
+// v17) per docs/reverse/mime-ownership.md section 2 — including the
+// deliberate deviations from RFC spellings: bare text/* values without a
+// charset parameter, .md/.yaml → text/plain, .gz → application/x-gzip, and
+// no .csv entry at all (falls through to octet-stream). BIN-52 / T-570.
+// .info/.mod are NOT in the table: the goproxy protocol face owns their
+// spellings (adjacent divergence, ruled separately).
 var extensionMimes = map[string]string{
-	".json":   "application/json",
-	".xml":    "application/xml",
-	".txt":    "text/plain; charset=utf-8",
-	".csv":    "text/csv; charset=utf-8",
-	".md":     "text/markdown; charset=utf-8",
-	".html":   "text/html; charset=utf-8",
-	".htm":    "text/html; charset=utf-8",
-	".yml":    "application/yaml",
-	".yaml":   "application/yaml",
-	".gz":     "application/gzip",
-	".tgz":    "application/gzip",
-	".zip":    "application/zip",
-	".tar":    "application/x-tar",
-	".jar":    "application/java-archive",
-	".war":    "application/java-archive",
-	".sha1":   "application/x-checksum",
-	".sha256": "application/x-checksum",
-	".md5":    "application/x-checksum",
+	".json":       "application/json",
+	".xml":        "application/xml",
+	".txt":        "text/plain",
+	".md":         "text/plain",
+	".properties": "text/plain",
+	".log":        "text/plain",
+	".tf":         "text/plain",
+	".asc":        "text/plain",
+	".html":       "text/html",
+	".htm":        "text/html",
+	".yaml":       "text/plain",
+	".yml":        "text/plain",
+	".gz":         "application/x-gzip",
+	".tgz":        "application/x-gzip",
+	".zip":        "application/zip",
+	".tar":        "application/x-tar",
+	".jar":        "application/java-archive",
+	".war":        "application/java-archive",
+	".ear":        "application/java-archive",
+	".sar":        "application/java-archive",
+	".har":        "application/java-archive",
+	".hpi":        "application/java-archive",
+	".jpi":        "application/java-archive",
+	".pom":        "application/x-maven-pom+xml",
+	".nuspec":     "application/x-nuspec+xml",
+	".nupkg":      "application/x-nupkg",
+	".deb":        "application/x-debian-package",
+	".ddeb":       "application/x-debian-package",
+	".rpm":        "application/x-rpm",
+	".sha1":       "application/x-checksum",
+	".sha256":     "application/x-checksum",
+	".md5":        "application/x-checksum",
 }
 
 // mimeByExtension maps a dot-prefixed extension (case-insensitive) to a

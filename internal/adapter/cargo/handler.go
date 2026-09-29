@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -326,6 +327,8 @@ func (h *Handler) serveBareContent(ctx context.Context, w http.ResponseWriter, r
 // convergence the CargoMetadataInterceptor chain stands for on the
 // reference: the derived file converges back to the stored facts, the
 // cksum reconciliation guaranteed by recalculation rather than refusal.
+// The 201 Location is the absolute, context-prefixed address of the
+// landed path (T-567, the helpers below).
 func (h *Handler) serveDerivedWrite(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, path string) {
 	expect, err := declaredDigests(r.Header)
 	if err != nil {
@@ -341,7 +344,7 @@ func (h *Handler) serveDerivedWrite(ctx context.Context, w http.ResponseWriter, 
 		return
 	}
 	h.convergeIndex(ctx, p, repoKey, path)
-	w.Header().Set("Location", path)
+	w.Header().Set("Location", requestBase(r)+productPrefix+"/"+repoKey+"/"+escapePath(path))
 	w.WriteHeader(http.StatusCreated)
 }
 
@@ -357,6 +360,41 @@ func (h *Handler) serveDerivedDelete(ctx context.Context, w http.ResponseWriter,
 	h.convergeIndex(ctx, p, repoKey, path)
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// requestBase is scheme://host from the request (Location header base).
+func requestBase(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host
+}
+
+// escapePath percent-encodes the path for the Location header.
+func escapePath(rel string) string {
+	segs := strings.Split(rel, "/")
+	for i, s := range segs {
+		segs[i] = url.PathEscape(s)
+	}
+	return strings.Join(segs, "/")
+}
+
+// productPrefix is the instance context path every self-referential URL
+// carries: ADR-0008's single product namespace /binflow, the same wire
+// constant httpapi routes the content plane on (the adapter itself sees the
+// path stripped, so the prefix lives here as a render-time fact).
+//
+// T-567 (L036 section 2) renders the bare-write 201 Location THROUGH the
+// context path on INFERENCE level: the A face's cargo repository creation
+// is gated by its Custom Base URL demand (the live probe could not build
+// the repo), so the ruling rests on the cross-family uniform shape — the
+// generic/maven/deb/rpm/helm/nuget-bare siblings all render the 201
+// Location absolutely through the context path on live evidence, and the
+// former bare repo-relative value is the same mis-anchored form those
+// probes convicted. Same render rule as adapter/maven's T-563 and
+// adapter/generic's T-564 productPrefix — kept as this package's own
+// constant, no cross-package import.
+const productPrefix = "/binflow"
 
 // convergeIndex reruns the whole-file index rewrite for the crate a
 // derived path belongs to (best-effort — the async recalculation's

@@ -248,9 +248,42 @@ func (h *Handler) handleUpload(w http.ResponseWriter, r *http.Request, repoKey s
 
 	// Uniform 200 (warehouse returns 200; Artifactory normalizes the
 	// storage layer's 201 to 200 as well — maven-npm-pypi.md section 3.7).
+	// L036 ② pinned A's upload response also carrying Location +
+	// X-Checksum-Sha256: Location is rendered in the SAME aligned form as
+	// adapter/generic T-564 and adapter/maven T-563
+	// (requestBase+productPrefix+repoKey+storage-layout path) — NOT A's
+	// no-Custom-Base-URL degraded host quirk (localhost:8081, no context
+	// root), which L036 explicitly ruled out as an alignment target. The
+	// sha256 is the session's incrementally computed digest (ref), not a
+	// re-read of the blob. A's Content-Type here is ItemCreated+json with a
+	// JSON body; B answers an empty body, so CT stays text/plain — the
+	// divergence is recorded for differential follow-up, not widened
+	// unprobed.
+	w.Header().Set("Location", requestBase(r)+productPrefix+"/"+repoKey+"/"+escapePath(path))
+	if ref.Sha256 != "" {
+		w.Header().Set("X-Checksum-Sha256", ref.Sha256)
+	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 }
+
+// requestBase is scheme://host from the request (Location header base) —
+// the same helper form adapter/generic and adapter/maven pin their Location
+// headers on (kept per-package, no cross-package import).
+func requestBase(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host
+}
+
+// productPrefix is the instance context path every self-referential URL
+// carries: ADR-0008's single product namespace /binflow, the same wire
+// constant httpapi routes the content plane on (the adapter sees the path
+// stripped, so the prefix lives here as a render-time fact). Same constant
+// and rationale as adapter/maven's T-563 / adapter/generic's T-564.
+const productPrefix = "/binflow"
 
 // validateUpload applies the field-level checks that need no bytes:
 // :action strictly file_upload, name/version/content present, every future
