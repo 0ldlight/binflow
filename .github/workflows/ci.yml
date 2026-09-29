@@ -152,6 +152,10 @@ jobs:
   # cancel its siblings; attribution stays per-lane on the commit status
   # (matrix check names: test (httpapi) ... test (light)).
   test:
+    # Pin the check name to `test (<lane>)`; without an explicit name
+    # GitHub appends every matrix value (`test (httpapi, ./internal/httpapi)`),
+    # drifting from the names the T-552 lane split was specified with.
+    name: test (${{ matrix.lane }})
     # Same trigger posture as the ci job: push-only — a workflow_dispatch
     # run (the manual e2e surface) must not burn the lanes.
     if: github.event_name == 'push'
