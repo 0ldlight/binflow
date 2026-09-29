@@ -104,8 +104,11 @@ BUG 入账」，是 Gap 显影而非回归；R8 五族批量修复票已备。
 
 ## 哨兵证据（收编后全量，终态树）
 
-- `go build ./...` exit=0；`go test ./internal/adapter/maven/ -count=1` ok
-  25.5s（全包）；conductor 全 39 包 `go test ./... -count=1` GO_TEST_EXIT=0
+- `go build ./...` exit=0；全仓 `go test ./... -count=1` **GO_TEST_EXIT=0，
+  39 包全 ok**（storage 138.7s / webhook 74.1s 最长；显式 rc 捕获）——首轮
+  internal/scheduler TestSchedulerFailureLandsAndRearms 单次 FAIL，第二轮
+  全绿 + 隔离 `-count=3` 绿 → **定性全量并发负载时序 flaky**（载荷未触
+  scheduler 包，与 R7 变更无关；若 main CI 复现则立票，列入 R8 观察池）
 - golangci-lint ./internal/adapter/maven/... 0 issues（隔离缓存）；gofmt/vet
   clean；tsc --noEmit exit=0（T-565 web 面）；make spec-check PASS
 - 双审凭据扫描：零字面量（评审报告与战报无凭据面）
@@ -127,7 +130,9 @@ BUG 入账」，是 Gap 显影而非回归；R8 五族批量修复票已备。
   A non-blocking ②（virtual walk Resolved-From 提示头）、B non-blocking
   （filter 收敛候选 / 契约⑩显式化）、B 扩展名表 stdlib 回退扩表提案
   （compatibility-engineer）、t104 dind CI 复跑、docs/user 里程碑标记清理、
-  MySQL BIN-13、T-525/BIN-12、跨秒 LM 残差微票、R5 B 审两条。
+  MySQL BIN-13、T-525/BIN-12、跨秒 LM 残差微票、R5 B 审两条、
+  scheduler TestSchedulerFailureLandsAndRearms 负载 flaky 观察项（main CI
+  复现则立票）。
 
 ## 用户待办（更新）
 
