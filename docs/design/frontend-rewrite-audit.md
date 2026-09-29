@@ -387,7 +387,7 @@ StrictMode
 | /admin/repositories/{rclass}/new、/:key/edit | RepositoryFormPage.tsx (1687) | **三段步进**（Basic\|Advanced\|Replications，MUI Tabs，第三步仅编辑×local）；进页弹包类型网格 Dialog（924px，13 型=五核心+addons 动态，档位徽章，无前端 license 禁用门）；编辑态 rclass/packageType 锁定；**dirty-gating**（stableFormString 规范形 deep-equal 基线，零变更 Save 不可达）；右栏实时摘要；取消/创建\|保存两钮（Q9 无重置）；Test 连接（编辑态，草稿臂=与基线 diff，密码改 url/user 即匿名探测）；字段域：remote（url/user/pass 永不回显/4 TTL/hardFail/listRemoteFolderItems 仅批1型/allowPrivateUpstream 警示）、virtual（成员复选+↑↓排序+默认部署仓联动清空）、local（maven 策略族/governance quota+patterns/priorityResolution）、conan forceConanAuthentication、deb/rpm/helm 策略键（policyFields.ts 字段册 225 行）；**预留位字段族**（repoLayout/Environments/notes/blackedOut/archiveBrowsing/maxUniqueSnapshots/SuppressPOM）恒禁用零提交 | GET `/repositories`（候选）；GET `/repositories/{key}`；PUT/POST `/repositories/{key}`（POST=全量替换）；POST `/repositories/{key}/test`；GET `/v1/addons` | formValid() 手写门控见 §4 |
 | /admin/repositories/:key | RepoDetailPage.tsx (690) | 三 Tab（概要/配置/Replications）：概要=接入命令块（clientCommands，pre tabIndex=0）+统计水位条（LinearProgress ≥80% warn ≥100% error）+remote/virtual 特化卡+危险区删仓；配置=QuotaEditor 行内编辑（保存前重取详情重组全量 body）+字段只读+编辑器深链；Replications=本仓配置摘要表+`?section=replications` 深链+全局复制页指针 | GET `/repositories/{key}`；GET `/v1/storage/usage/{key}`；GET `/v1/replications`；POST `/repositories/{key}` | CanManageRepo 门：m-holder（普通 user GET 通过）可编辑配置；删除仅 admin |
 | （表单第三步） | ReplicationsSection.tsx (770) | 复制配置内嵌节（无 modal）：列表（启停 Switch/名称/目标/凭据/调度 cron+next/节流批量）+内嵌新建/编辑表单+Test（草稿/已存双臂）+删除（输入 name 强确认）；**编辑=删除+重建**（REST 无字段级 PUT，warn-box 明示未决任务级联清空）；预留位组（eventReplication/pathPrefix/sync 三开关）恒禁用 | GET/POST `/v1/replications`；DELETE `/v1/replications/{name}`；PUT `/v1/replications/{id}`（启停）；POST `/v1/replications/test`、`/test/{id}` | cron_exp 真字段（T-462） |
-| 辅助 | commands.ts (403)：接入命令三侧（Configure/Deploy/Resolve）+clientCommands+CLIENT_PKG_META+占位凭据；formCopy.ts (117) 文案常量；policyFields.ts (225) 字段册；RepoDeleteConfirm.tsx (103)：useRepoDelete（输入 key+deleteContent 复选；非空仓 400 原因带回+预勾选两段流） | | | |
+| 辅助 | commands.ts (403)：接入命令三侧（Configure/Deploy/Resolve）+clientCommands+CLIENT_PKG_META+占位凭据；formCopy.ts (117) 文案常量；policyFields.ts (225) 字段册；RepoDeleteConfirm.tsx (103)：useRepoDelete（输入 key 确认 + 级联警示文案；T-555 恒 200——成功 toast 携带报告体 deletedArtifactsCount「已删除 N 项内容」） | | | |
 
 ### 2.7 security 域（9 页 + 支撑 5 文件）
 
@@ -626,7 +626,7 @@ StrictMode
 | GET `api/repositories/{key}` | 单仓详情 | repoM(r) |
 | PUT `api/repositories/{key}` | 创建/整体替换（**create 臂 family-6 在 handler 内分裂**） | repoM(w) |
 | POST `api/repositories/{key}` | 局部更新 | repoM(w) |
-| DELETE `api/repositories/{key}?deleteContent=true` | 删仓（非空需参数否则 400） | repo:W |
+| DELETE `api/repositories/{key}` | 删仓（T-555 级联：恒 200 静默级联 + JSON 报告体 deletedArtifactsCount；`?deleteContent=true` 接受但冗余；未知仓 404） | repo:W |
 | POST `api/repositories/{key}/test` | remote 上游连通探测（草稿可携凭据） | repoM(w) |
 
 ### 2.5 storage / 制品元数据（同一 path 的 query-arm 家族）
@@ -782,7 +782,7 @@ path 形 `api/storage/{repoKey}[/{path}]`：
 |---|---|---|
 | session | POST/GET/DELETE `/api/v1/session`；GET `/api/v1/oidc/login`（探测 + `?purpose=step_up`） | `lib/api.ts`、`LoginPage`、`SetMeUpDialog`、`lib/stepUpGrant.ts` |
 | system | GET `system/version`、`v1/health`、`v1/storage/stats`、`v1/system/schedules`、`v1/addons`、GET/POST/DELETE `system/license` | `useVersion`、`DashboardPage`、`monitoring/*`、`LicenseAddonsPage` |
-| repositories | 6 op 全消费（list+`type/packageType` 过滤、get、put、post、delete+`deleteContent`、test） | `lib/repos.ts` |
+| repositories | 6 op 全消费（list+`type/packageType` 过滤、get、put、post、delete〔T-555 级联报告体，旗退役〕、test） | `lib/repos.ts` |
 | storage | item info(+`docker_tags`)、`?list&depth=1`、`?stats`、`?permissions`、`?properties` GET/PUT/DELETE、`v1/storage/usage`(批+`include=counts`)、`v1/storage/usage/{repo}`、migration GET/POST | `pages/artifacts/lib.ts`、`QuotasPage`、`MigrationPanel` |
 | 内容面 | GET/PUT/DELETE `/binflow/{repo}/{path}`（PUT 带 `X-Checksum-Sha256`；目录尾斜杠；mkdir 空 PUT） | `pages/artifacts/lib.ts:387-485`、`DeployDialog` |
 | trash | empty/restore/clean + 浏览复用 `storage/auto-trashcan` | `lib/trash.ts`、`TrashPage` |
