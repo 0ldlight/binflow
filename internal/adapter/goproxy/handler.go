@@ -242,14 +242,20 @@ func checksumMismatchMessage(err error, repoKey, path string) string {
 	return fmt.Sprintf("Checksum error for '%s/%s': %v", repoKey, path, err)
 }
 
-// contentTypeOf maps a version-file extension onto its wire Content-Type
-// (goproxy.md section 2's success-response column).
+// contentTypeOf maps a version-file extension onto its wire Content-Type.
+// The spellings are the go-repository domain's own (L037 Arm 4, A 7.161.26
+// live-probed three ways: storage GET, GOPROXY GET and FileInfo mimeType):
+// .info is "application/json+info" and .mod is "text/plain+mod" WITHOUT a
+// charset parameter — suffix-structured vendor spellings, not IANA types,
+// confirmed identical on all three faces. The same spellings hold on the
+// remote pull-through face (serveFile renders one table for every class) and
+// land in the node's stored mime column at PUT.
 func contentTypeOf(ext string) string {
 	switch ext {
 	case "info":
-		return "application/json"
+		return "application/json+info"
 	case "mod":
-		return "text/plain; charset=utf-8"
+		return "text/plain+mod"
 	case "zip":
 		return "application/zip"
 	default:
