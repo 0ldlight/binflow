@@ -433,7 +433,7 @@ func repoBatchDeleteErrOf(err error) repoBatchDeleteErrEntry {
 	switch {
 	case errors.Is(err, repo.ErrRepoNotFound):
 		return repoBatchDeleteErrEntry{Status: http.StatusNotFound, Message: err.Error()}
-	case errors.Is(err, repo.ErrRepoExists), errors.Is(err, repo.ErrRepoNotEmpty),
+	case errors.Is(err, repo.ErrRepoExists),
 		errors.Is(err, repo.ErrInvalidRepoKey), errors.Is(err, repo.ErrReservedRepoKey),
 		errors.Is(err, repo.ErrInvalidRepoConfig), errors.Is(err, repo.ErrInvalidRepoType),
 		errors.Is(err, repo.ErrRepoTypeNotSupported), errors.Is(err, repo.ErrPackageTypeNotAvailable):
@@ -562,8 +562,8 @@ func (s *Server) handleRepoBatchDelete(w http.ResponseWriter, r *http.Request) {
 // report: the ghost arm (missing key → success:true with the
 // config-does-not-exist statusMsg), the real delete (content always goes —
 // the v2 flow's "and all its content" semantics; deletedArtifactsCount is
-// the file-node count), or the failure report carrying the mapped
-// errors[] entry.
+// the storage-item count, files + folder rows — repoDeleteStatusMsg's
+// wording), or the failure report carrying the mapped errors[] entry.
 func (s *Server) batchDeleteOne(ctx context.Context, p *auth.Principal, key string) repoBatchDeleteReport {
 	row, err := s.deps.ReposSvc.GetRepo(ctx, p, key)
 	if err != nil {
@@ -577,36 +577,28 @@ func (s *Server) batchDeleteOne(ctx context.Context, p *auth.Principal, key stri
 	if err := s.deps.ReposSvc.DeleteRepo(ctx, p, key, true); err != nil {
 		return repoBatchDeleteFailureReport(key, err)
 	}
-	// The success wording is pinned for local/federated ("and all its
-	// content") and virtual; remote rides the content-bearing form too —
-	// live-verified against the reference (L025-3B probe, 2026-09-17: a
-	// remote repo deleted in a mixed batch answered exactly the local
-	// wording).
-	statusMsg := fmt.Sprintf("Repository '%s' and all its content have been removed successfully.", key)
-	if row.Type == repo.TypeVirtual {
-		statusMsg = fmt.Sprintf("Repository '%s' has been removed successfully.", key)
-	}
-	rep := repoBatchDeleteSuccessReport(key, statusMsg)
+	// The wording is per-rclass and shared with the v1 delete face
+	// (repoDeleteStatusMsg) — live-verified against the reference (the
+	// remote form in an L025-3B mixed batch, 2026-09-17; the virtual/local
+	// split re-pinned on the v1 face by the T-555 probe, 2026-09-29).
+	rep := repoBatchDeleteSuccessReport(key, repoDeleteStatusMsg(row))
 	rep.DeletedArtifactsCount = count
 	return rep
 }
 
-// countRepoArtifacts counts the file nodes under one repository (folder
-// sentinel rows excluded) — the deletedArtifactsCount the v2 report
-// carries. A counting failure logs and answers 0: the report must never
-// fail the delete itself.
+// countRepoArtifacts counts the storage items under one repository — file
+// nodes AND folder sentinel rows — the deletedArtifactsCount the delete
+// reports carry (v1 single delete and v2 batch alike). Live-pinned on the
+// reference (T-555 probe, 2026-09-29, A 7.161.26, seven shapes): the
+// reference counts files + folders with the repository root excluded, so
+// the full node list is the count. A counting failure logs and answers 0:
+// the report must never fail the delete itself.
 func (s *Server) countRepoArtifacts(ctx context.Context, repoKey string) int {
 	nodes, err := s.deps.Metadata.Nodes().ListByPrefix(ctx, repoKey, "")
 	if err != nil {
-		s.log.WarnContext(ctx, "httpapi: batch delete artifact count failed",
+		s.log.WarnContext(ctx, "httpapi: repository delete artifact count failed",
 			"repo", repoKey, "error", err.Error())
 		return 0
 	}
-	n := 0
-	for _, node := range nodes {
-		if node.Sha256 != metadata.FolderMarkerSHA {
-			n++
-		}
-	}
-	return n
+	return len(nodes)
 }

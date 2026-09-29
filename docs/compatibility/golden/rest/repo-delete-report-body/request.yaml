@@ -1,0 +1,16 @@
+# 金样请求——repo DELETE 报告体四臂（L034 Arm 1）
+# schema: golden-request/1（矩阵型：request=构造+腿数组；逐腿响应入 response.yaml）
+feature: 'DELETE /api/repositories/{key} 非空仓静默级联报告体（repoKey/statusMsg/deletedArtifactsCount/success 键集 + 计数口径）'
+client: curl 差分腿（admin 凭据 env 注入零落盘）
+repo_setup: >-
+  generic 树构造（L034 重写版刻意选 generic——规避 maven 布局自动元物化 version 级 metadata 对计数的
+  +1/目录污染，对照 maven/deploy-put-version-metadata-auto-materialize 已知面）：nested 臂=generic
+  仓 a/b/c/f1 + a/b/f2 + a/f3（3 文件+3 folder）；flag 臂=同树；empty 臂=空仓；virtual 臂=virtual
+  仓（活成员有内容）。
+steps:
+- { seq: 1, leg: nested, method: DELETE, path: '/api/repositories/{key}', note: '非空 generic 树无参 DELETE——计数主锚' }
+- { seq: 2, leg: 善后, method: GET, path: '/api/repositories/{key}', note: '删除后单仓 GET（missing-key 400 面）' }
+- { seq: 3, leg: flag, method: DELETE, path: '/api/repositories/{key}?deleteContent=true', note: '同树带参——旗冗余性判定' }
+- { seq: 4, leg: empty, method: DELETE, path: '/api/repositories/{key}', note: '空仓下界' }
+- { seq: 5, leg: virtual, method: DELETE, path: '/api/repositories/{key}', note: 'virtual 仓（活成员有内容）——rclass 措辞二分 + 成员存活' }
+expected_client_outcome: '200 JSON 报告体（键集/计数/措辞/success 见 response.yaml）；善后 GET 400'

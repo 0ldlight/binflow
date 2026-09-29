@@ -1,0 +1,17 @@
+# 金样请求——maven deploy 201 envelope 三形同源（L034 Arm 6 + Arm 8）
+# schema: golden-request/1（矩阵型：request=构造+腿数组；逐腿响应入 response.yaml）
+feature: 'maven deploy 201 created-envelope 的 uri/downloadUri 与 Location 头三形（base 含 context root 的自引用同源性 + 可解析性）'
+client: curl wire 腿（Basic admin）+ locprobe 独立探针
+repo_setup: >-
+  maven local 仓（difftest-* 命名，四臂共用）；checksum-deploy 臂 pom 先以正常 PUT 预播种、后以
+  X-Checksum-Deploy 零传输重新 PUT 同路径；善后 difftest-* 命名空间清理。
+steps:
+- { seq: 1, leg: pom wire PUT, method: PUT, path: '/{repo}/{gav}.pom', note: '201 envelope 主臂（uri/downloadUri/Location 三头体采集）' }
+- { seq: 2, leg: jar wire PUT, method: PUT, path: '/{repo}/{gav}.jar', note: '同形+可解析' }
+- { seq: 3, leg: maven-metadata.xml, method: PUT, path: '/{repo}/{versionDir}/maven-metadata.xml', note: '客户端上传臂（字节服务端可重算，只钉 GET=200）' }
+- { seq: 4, leg: checksum-deploy, method: PUT, path: '/{repo}/{gav}.pom', headers: 'X-Checksum-Deploy: sha256=<预播种摘要>', note: '零传输臂（pom 预播种）——A 面首次跑通' }
+- { seq: 5, leg: envelope uri GET, method: GET, path: '<臂 1-4 回报的 uri>', note: '自引用可解析性（200+sha-ok）' }
+- { seq: 6, leg: Location 探针, method: GET, path: '<Location 值> × {裸根, 带前缀} 两形', note: 'L034 Arm 8 locprobe——修复前 B 裸根 404（T-563 后消除，mini-diff 跟随解析 200）' }
+- { seq: 7, leg: checksum-file .sha1 注册式, method: PUT, path: '/{repo}/{gav}.pom.sha1', headers: 'X-Checksum-Deploy 类注册式（TARGET=.pom 预播种）', note: 'L034 mini-diff 臂——Location==带前缀 TARGET、body 空' }
+- { seq: 8, leg: checksum-file .md5 注册式, method: PUT, path: '/{repo}/{gav}.pom.md5', note: '同上 ×2 算法；TARGET GET 200+sha-ok' }
+expected_client_outcome: '各臂 201 + 三形见 response.yaml；自引用/TARGET GET 200；注册式臂 body 空（len=0）'

@@ -24,7 +24,8 @@ import (
 // handleRepoPut), not re-checked on the read paths here (the terminal
 // handlers run only after the gate passed).
 //
-// Success bodies for PUT/DELETE are plain text (spec wording); failures use
+// Success bodies for PUT are plain text (spec wording); DELETE answers the
+// JSON report body the reference serves (T-555, D-3 alignment); failures use
 // the errors[] envelope (the repository plane belongs to the generic error
 // layer, PRD section 5.1 three-format split).
 
@@ -821,17 +822,45 @@ func (s *Server) handleRepoPost(w http.ResponseWriter, r *http.Request, key stri
 	writeText(w, http.StatusOK, fmt.Sprintf("Repository %s update successfully.\n", key))
 }
 
-// handleRepoDelete serves DELETE /api/repositories/{key} (E-08): empty
-// repositories delete directly; non-empty ones demand ?deleteContent=true
-// (the 400 message names the flag, FR-3-AC5). Success is a 200 plain-text
-// report (rest-api.md section 2).
+// handleRepoDelete serves DELETE /api/repositories/{key} (E-08): a SILENT
+// CASCADE — non-empty repositories delete with all of their content and
+// answer the reference's JSON report body (T-555/BIN-37, the D-3 user
+// ruling 2026-09-29; live-pinned on the reference 7.161.26: 200 +
+// repoKey/statusMsg/deletedArtifactsCount/success under application/json).
+// The ?deleteContent=true spelling is accepted and ignored — the reference
+// answers the identical cascade with and without it (T-555 probe s5).
 func (s *Server) handleRepoDelete(w http.ResponseWriter, r *http.Request, key string) {
-	deleteContent := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("deleteContent")), "true")
-	if err := s.deps.ReposSvc.DeleteRepo(r.Context(), principalFrom(r.Context()), key, deleteContent); err != nil {
+	p := principalFrom(r.Context())
+	// The rclass decides the success wording (a virtual repository holds no
+	// content of its own) — read the row before the delete removes it. The
+	// read also renders the 404 arm for a missing key.
+	row, err := s.deps.ReposSvc.GetRepo(r.Context(), p, key)
+	if err != nil {
 		s.writeRepoSvcError(w, err)
 		return
 	}
-	writeText(w, http.StatusOK, fmt.Sprintf("Repository %s deleted successfully.\n", key))
+	// Counted BEFORE the delete: the report carries how many storage items
+	// (files + folder rows) the cascade removed.
+	count := s.countRepoArtifacts(r.Context(), key)
+	if err := s.deps.ReposSvc.DeleteRepo(r.Context(), p, key, true); err != nil {
+		s.writeRepoSvcError(w, err)
+		return
+	}
+	writeJSONBody(w, http.StatusOK, repoBatchDeleteReport{
+		RepoKey: key, StatusMsg: repoDeleteStatusMsg(row),
+		DeletedArtifactsCount: count, Success: true,
+	})
+}
+
+// repoDeleteStatusMsg renders a repository delete's success wording,
+// per rclass — live-pinned on the reference (T-555 probe, 2026-09-29, A
+// 7.161.26): virtual repositories report the plain removal, local and
+// remote the content-bearing form (empty or not).
+func repoDeleteStatusMsg(row *metadata.Repo) string {
+	if row.Type == repo.TypeVirtual {
+		return fmt.Sprintf("Repository '%s' has been removed successfully.", row.RepoKey)
+	}
+	return fmt.Sprintf("Repository '%s' and all its content have been removed successfully.", row.RepoKey)
 }
 
 // unknownPackageTypeMessage renders the addon-registry plane's unknown-type
@@ -861,8 +890,6 @@ func (s *Server) writeRepoSvcError(w http.ResponseWriter, err error) {
 		// header here: that marker is the data-plane 403's (D2).
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, repo.ErrRepoExists):
-		writeError(w, http.StatusBadRequest, err.Error())
-	case errors.Is(err, repo.ErrRepoNotEmpty):
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, repo.ErrUnauthorized):
 		w.Header().Set("WWW-Authenticate", basicChallenge)

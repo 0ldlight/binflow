@@ -1,0 +1,20 @@
+# 金样期望响应——repo DELETE 报告体四臂（A 腿参照实形；详细断言复用契约，此处存档矩阵级观测）
+# schema: golden-response/1；契约锚 contracts/repositories.yaml#rest/repo-delete-nonempty-cascade
+legs:
+- leg: nested（非空 generic 树：a/b/c/f1+a/b/f2+a/f3）
+  observed:
+    status: 200
+    body: '{"repoKey","statusMsg"（content 措辞）,"deletedArtifactsCount":6,"success":true}'
+    note: '计数口径=文件+folder 全量、仓库根不计（3 文件+3 folder=6）；r1≡r2 双轮 status/count/措辞/repoKey/success/键集双端全同'
+- leg: 善后（GET /api/repositories/{key}）
+  observed: { status: 400, note: 'missing-key 400 面维持（双面同形同文案，含 never-existed 键——L032 mini 发现复验）' }
+- leg: flag（同树 + ?deleteContent=true）
+  observed: { status: 200, deletedArtifactsCount: 3, note: '逐字段同形——旗=冗余同形位（带参与无参同语义；注意本臂树=3 文件无子 folder 构造，count=3 与口径自洽）' }
+- leg: empty（空仓）
+  observed: { status: 200, deletedArtifactsCount: 0, note: 'content 措辞（与 virtual 臂 plain 措辞二分）' }
+- leg: virtual（活成员有内容）
+  observed: { status: 200, deletedArtifactsCount: 0, note: 'plain 措辞（rclass 二分）+ 成员存活（virtual 自身空计数不级联成员）；原文字节锚 wire run/l034-r6-r{1,2}' }
+matrix_outcome:
+  l032: 'A=6 vs B 节点 5 计数差 + B 400 确认门（ruling-ready 期——差值后定案为 A 写路径自动物化 metadata +1/目录，非计数规则差）'
+  l034: '五腿 PASS×2（r1≡r2 断言值逐项相同；T-555 修复 6812f271 验收）——台账 resolved + 契约 VERIFIED'
+verdict_witness: 'L034 Arm 1 PASS×2 翻绿确认；善后/flag/empty/virtual 四臂首入金'

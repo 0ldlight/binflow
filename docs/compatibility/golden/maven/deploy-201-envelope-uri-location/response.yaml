@@ -1,0 +1,28 @@
+# 金样期望响应——maven deploy 201 envelope 三形同源（A 腿参照实形；B 面 Location 含修复前形态存档）
+# schema: golden-response/1；账锚 known-divergence#maven/deploy-created-envelope-uri-missing-context-prefix（resolved）+ #maven/deploy-201-location-header-context-prefix（resolved @ 4481359f）
+three_forms:
+  a_face: 'uri == downloadUri == Location == http://192.168.120.38:8082/artifactory/<repo>/<path>（三形逐字节相同——Location 与 envelope uri 同源、带 context root）'
+  b_face_uri: 'uri == downloadUri == http://127.0.0.1:18080/binflow/<repo>/<path>（T-561 修复后——与 A 同构 /artifactory↔/binflow 对应）'
+  b_face_location: 'Location == http://127.0.0.1:18080/binflow/<repo>/<path>（T-563 修复 4481359f 后与 uri 同源——mini-diff r3/r4 双轮 PASS 断言面）'
+  b_face_location_pre_fix: 'Location == http://127.0.0.1:18080/<repo>/<path>（修复前裸根缺 /binflow——L034 Arm 8 取证存档，mini-diff 确认已消除）'
+legs:
+- leg: pom wire PUT 201
+  observed: { status: 201, note: '三形=a_face（A）；uri GET=200+sha-ok（B 同）' }
+- leg: jar wire PUT 201
+  observed: { status: 201, note: '同形+可解析（双端）' }
+- leg: maven-metadata.xml（客户端上传）201
+  observed: { status: 201, note: '同形；GET=200（字节面不钉——A 回上传字节/B 服务端重算，T-561/T-563 口径）' }
+- leg: checksum-deploy（零传输，pom 预播种）
+  observed: { status: 201, note: '同形 envelope + GET 回引用字节（双端；A 面首次以预播种构造跑通）' }
+- leg: Location 可解析性探针
+  observed: { pre_fix_b: '裸根 404（按图索骥脱靶）/ 带前缀 200', post_fix_b: 'Location 跟随解析 200（裸根脱靶面消除）', note: 'L034 Arm 8 locprobe + mini-diff 复验' }
+- leg: checksum-file .sha1 注册式 201
+  observed:
+    status: 201
+    note: 'A Location=…:8082/artifactory/…/locp-1.0.0.pom（==带前缀 TARGET，非 .sha1 路径）+ body 空；B 同构（…:18080/binflow/…，body_len=0）+ TARGET GET 200+sha-ok——rest-api §1.5 注册式该面首个双端活体锚（全串逐字符实值锚 wire r{3,4}）'
+- leg: checksum-file .md5 注册式 201
+  observed: { status: 201, note: '同 .sha1 臂 ×2 算法（双端同构）' }
+matrix_outcome:
+  l030: '顺带观察 1：B envelope uri 裸根（缺 /binflow）立账 BUG'
+  l034: 'Arm 6 四臂 PASS×2（T-561 验收 resolved）+ Arm 8 Location 新面孔取证（立账 T-563）+ mini-diff 六臂 PASS×2（T-563 验收 resolved——r3≡r4 断言值逐项相同；r3 首跑 meta_loc_get 失配=case 侧误钉字节，修 case 后有效）'
+verdict_witness: 'L034 主批 r1≡r2 四臂全绿 + mini-diff r3≡r4 六臂全绿；三形同源锚（Location==uri）与注册式锚（Location==TARGET、body 空）随档'

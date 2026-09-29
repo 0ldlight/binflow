@@ -1,0 +1,24 @@
+# 金样元数据——repo DELETE 报告体四臂（L034 收官批入金 G1，rest 域首金样）
+schema: golden/1
+id: rest/repo-delete-report-body
+contract_ref: contracts/repositories.yaml#rest/repo-delete-nonempty-cascade
+matrix_ref: matrix.yaml#D02-R05
+capture:
+  mode: live-captured               # A 腿参照值逐臂 live（L034 Arm 1 r1≡r2 双轮）
+  captured_at: '2026-09-28（L032 Arm 1 定形）→ 2026-09-29（L034 Arm 1 翻绿轮入金）'
+  capture_instance: 'A: Artifactory 7.161.26 Enterprise+ @ 192.168.120.38:8082；B: worktree 现态构建 @ 127.0.0.1:18080（T-555 修复 6812f271 在树；/binflow 前缀）'
+  capture_commands: >-
+    curl DELETE /api/repositories/{key}（admin 凭据 env 注入零落盘）×4 臂 + 善后 GET /api/repositories/{key}；
+    case rest-nonempty-repo-delete-cascade（L034 重写版——generic 树构造，规避 maven 自动元物化面
+    污染计数），runner 轮次 l034-r6-r{1,2}
+  raw_response_archive: reports/compatibility/L034-r6.md Arm 1（四臂表 + 计数口径段；wire 逐腿 evidence/ tools/difftest/v2/run/l034-r6-r{1,2}/）
+  history: live-captured（L032 Arm 1 ruling-ready r1≡r2≡r3——B 侧 400 门期）→ live-captured（L034 Arm 1 r1≡r2 双轮 PASS×2 五腿逐字段同形——T-555 修复验收，本档入金）
+instance_versions:
+  artifactory_ref: Artifactory 7.161.26 Enterprise+（http://192.168.120.38:8082）
+  binflow_tested: worktree 现态 @ 23b70a82（T-555 修复 6812f271 在树；L034 r1/r2 翻绿轮）
+confidence: high                   # 双轮断言值逐项相同 + 计数口径四臂兑现（6/3/0/0）+ 善后态复验
+known_gaps:
+- 'statusMsg 原文字节（content/plain 两措辞）在本档为报告转述级锚——逐字节实值以 wire run/l034-r6-r{1,2} evidence/ 为准（金样断言面=键集/计数/措辞二分/success）'
+- 'release-bundles 系统仓臂未覆盖（d08/repo-delete-response-envelope 席位保留面）'
+- '级联删除异步性/最终一致窗口未观测（双端均按同步完成断言）'
+review: L034 收官批入金评审（2026-09-29，conductor 授权 L034 提金候选①）——A 腿原文以 L034 报告记录为准未自行改写

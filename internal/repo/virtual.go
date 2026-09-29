@@ -330,8 +330,9 @@ func memberHandlePolicy(config string) (handleReleases, handleSnapshots bool) {
 // differential (live A 7.161.26 includes a handleReleases=false member's
 // SNAPSHOT version in the virtual module list), and this walk face is
 // unconstructible on both sides (release artifacts cannot sit in a
-// handleReleases=false member: A 409s the PUT and the direct GET, B's
-// ME-08 refuses the PUT), so the flip costs no observable behavior —
+// handleReleases=false member: A 409s the PUT and the direct GET; B's
+// ME-08 refuses the PUT and, since T-559, the adapter's member GET class
+// gate refuses the direct read), so the flip costs no observable behavior —
 // both sites flipped together, per the both-sites rule the adapter's
 // filterMetadataSteps history pinned. The policy pair stays carried on
 // the step (memberHandlePolicy) for the day the seats land. A skipped

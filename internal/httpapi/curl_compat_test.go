@@ -147,13 +147,16 @@ func TestCurlCompatReposAndStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("C19 delete ladder", func(t *testing.T) {
-		if got := curlStatus(t, base+"/api/repositories/generic-local", "-u", admin, "-X", "DELETE"); got != "400" {
-			t.Fatalf("non-empty delete = %s, want 400", got)
-		}
+	t.Run("C19 delete cascade (T-555, D-3)", func(t *testing.T) {
+		// Silent cascade over curl: the non-empty repository answers 2xx
+		// with the ?deleteContent=true spelling accepted-and-ignored.
 		if got := curlStatus(t, base+"/api/repositories/generic-local?deleteContent=true",
 			"-u", admin, "-X", "DELETE"); got == "" || got[0] != '2' {
 			t.Fatalf("forced delete = %s, want 2xx", got)
+		}
+		// A second delete of the now-missing key keeps its 404.
+		if got := curlStatus(t, base+"/api/repositories/generic-local", "-u", admin, "-X", "DELETE"); got != "404" {
+			t.Fatalf("missing-key delete = %s, want 404", got)
 		}
 	})
 }

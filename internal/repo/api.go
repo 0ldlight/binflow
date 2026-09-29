@@ -38,9 +38,6 @@ var (
 	ErrRepoTypeNotSupported = errors.New("repository type not supported")
 	// ErrInvalidRepoConfig: the config blob is not valid JSON.
 	ErrInvalidRepoConfig = errors.New("invalid repository config")
-	// ErrRepoNotEmpty: DeleteRepo on a non-empty repository without
-	// deleteContent (message names the deleteContent flag, FR-3-AC5).
-	ErrRepoNotEmpty = errors.New("repository is not empty")
 	// ErrNodeNotFound: no node at the path (idempotent 404 semantics,
 	// repo-semantics section 4).
 	ErrNodeNotFound = errors.New("node not found")
@@ -404,11 +401,13 @@ type Service interface {
 	// which manage holders pass through Can(repo, "", m)). Direct callers
 	// must gate themselves.
 	UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo) (*metadata.Repo, error)
-	// DeleteRepo removes the repository. Non-empty repositories require
-	// deleteContent=true (ErrRepoNotEmpty names the flag otherwise); with it,
-	// every node is removed first. Admin only — this method KEEPS the
-	// service-level admin door (family 6: deletion is never delegated to
-	// manage holders, T-217).
+	// DeleteRepo removes the repository AND all of its content — a silent
+	// cascade with no confirmation semantics (T-555/BIN-37, the D-3 user
+	// ruling 2026-09-29: align to the reference, which answers 200 and
+	// deletes a non-empty repository outright). The deleteContent flag is
+	// accepted for wire compatibility and IGNORED: both spellings cascade
+	// identically. Admin only — this method KEEPS the service-level admin
+	// door (family 6: deletion is never delegated to manage holders, T-217).
 	DeleteRepo(ctx context.Context, p *Principal, repoKey string, deleteContent bool) error
 
 	// Usage reports one repository's quota observability state (GE-06/W26b,

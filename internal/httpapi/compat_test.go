@@ -229,32 +229,35 @@ func TestRepositoriesCRUD(t *testing.T) {
 	})
 
 	t.Run("C19 delete semantics", func(t *testing.T) {
-		// Empty repo deletes directly.
+		// Empty repo deletes directly — the JSON report body with count 0
+		// (T-555, D-3 alignment).
 		resp := h.do(http.MethodDelete, "/binflow/api/repositories/another-local", adminUser, adminPass, nil, nil)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("empty delete status = %d; body=%s", resp.StatusCode, mustGet(t, resp))
 		}
-		_ = resp.Body.Close()
+		var rep struct {
+			RepoKey               string `json:"repoKey"`
+			StatusMsg             string `json:"statusMsg"`
+			DeletedArtifactsCount int    `json:"deletedArtifactsCount"`
+			Success               bool   `json:"success"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&rep); err != nil {
+			t.Fatalf("empty delete body: %v", err)
+		}
+		if rep.DeletedArtifactsCount != 0 || !rep.Success || rep.RepoKey != "another-local" {
+			t.Fatalf("empty delete report = %+v", rep)
+		}
 
-		// Non-empty without the flag -> 400 naming deleteContent.
+		// Non-empty with the flag -> identical silent 200 cascade (the flag
+		// is accepted and ignored, T-555/D-3).
 		if resp := h.do(http.MethodPut, "/binflow/generic-local/acme/x.bin", adminUser, adminPass, []byte("x"), nil); resp.StatusCode != http.StatusCreated {
 			t.Fatalf("seed node: %d", resp.StatusCode)
 		} else {
 			_ = resp.Body.Close()
 		}
-		resp = h.do(http.MethodDelete, "/binflow/api/repositories/generic-local", adminUser, adminPass, nil, nil)
-		eb := decodeError(t, resp)
-		if resp.StatusCode != http.StatusBadRequest {
-			t.Fatalf("non-empty delete status = %d", resp.StatusCode)
-		}
-		if !strings.Contains(eb.Errors[0].Message, "deleteContent") {
-			t.Fatalf("message = %q, want the deleteContent hint", eb.Errors[0].Message)
-		}
-
-		// With the flag -> 2xx and the node is gone.
 		resp = h.do(http.MethodDelete, "/binflow/api/repositories/generic-local?deleteContent=true", adminUser, adminPass, nil, nil)
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			t.Fatalf("forced delete status = %d", resp.StatusCode)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("forced delete status = %d; body=%s", resp.StatusCode, mustGet(t, resp))
 		}
 		_ = resp.Body.Close()
 		resp = h.do(http.MethodGet, "/binflow/generic-local/acme/x.bin", adminUser, adminPass, nil, nil)
@@ -262,6 +265,34 @@ func TestRepositoriesCRUD(t *testing.T) {
 			t.Fatalf("node after repo delete = %d, want 404", resp.StatusCode)
 		}
 		_ = resp.Body.Close()
+
+		// Non-empty WITHOUT the flag -> the same cascade and report.
+		if resp := putRepo(t, h, "generic-local", `{"rclass":"local","packageType":"generic"}`); resp.StatusCode != http.StatusOK {
+			t.Fatalf("re-seed repo: %d", resp.StatusCode)
+		} else {
+			_ = resp.Body.Close()
+		}
+		if resp := h.do(http.MethodPut, "/binflow/generic-local/acme/x.bin", adminUser, adminPass, []byte("x"), nil); resp.StatusCode != http.StatusCreated {
+			t.Fatalf("re-seed node: %d", resp.StatusCode)
+		} else {
+			_ = resp.Body.Close()
+		}
+		resp = h.do(http.MethodDelete, "/binflow/api/repositories/generic-local", adminUser, adminPass, nil, nil)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("non-empty delete status = %d; body=%s", resp.StatusCode, mustGet(t, resp))
+		}
+		rep = struct {
+			RepoKey               string `json:"repoKey"`
+			StatusMsg             string `json:"statusMsg"`
+			DeletedArtifactsCount int    `json:"deletedArtifactsCount"`
+			Success               bool   `json:"success"`
+		}{}
+		if err := json.NewDecoder(resp.Body).Decode(&rep); err != nil {
+			t.Fatalf("non-empty delete body: %v", err)
+		}
+		if !rep.Success || rep.DeletedArtifactsCount < 1 {
+			t.Fatalf("non-empty delete report = %+v", rep)
+		}
 	})
 }
 
