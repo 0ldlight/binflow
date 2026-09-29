@@ -356,7 +356,7 @@ func newPyPiStack(t *testing.T) *harness {
 		Tokens:    authSvc,
 		DataDir:   dataDir,
 		Console:   console.Handler(),
-		Adapters:  []adapter.Handler{generic.New(svc, md.Blobs()), pypiHandler},
+		Adapters:  []adapter.Handler{generic.New(svc, md.Repos(), md.Blobs()), pypiHandler},
 		Version:   "1.0.0-test",
 	}, nil).Handler())
 	t.Cleanup(ts.Close)
@@ -460,7 +460,7 @@ func newNpmStack(t *testing.T) *harness {
 		Tokens:    authSvc,
 		DataDir:   dataDir,
 		Console:   console.Handler(),
-		Adapters:  []adapter.Handler{generic.New(svc, md.Blobs()), npmHandler},
+		Adapters:  []adapter.Handler{generic.New(svc, md.Repos(), md.Blobs()), npmHandler},
 		Version:   "1.0.0-test",
 	}, nil).Handler())
 	t.Cleanup(ts.Close)

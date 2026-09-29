@@ -13,9 +13,10 @@ const Protocol = "generic"
 
 // Handler is the generic content-path adapter (architecture section 5.2).
 type Handler struct {
-	svc repo.Service
-	md  BlobLedger
-	now func() string
+	svc   repo.Service
+	class repo.ClassReader
+	md    BlobLedger
+	now   func() string
 }
 
 // BlobLedger is the read-only digest ledger the adapter consults for
@@ -33,15 +34,18 @@ type BlobLedger interface {
 	Get(ctx context.Context, sha256 string) (*metadata.Blob, error)
 }
 
-// New wires the handler. svc is required; md serves the sha1/md5 download
-// headers and FileInfo digests.
-func New(svc repo.Service, md BlobLedger) *Handler {
-	return &Handler{svc: svc, md: md, now: func() string {
+// New wires the handler. svc is required; class resolves a repository's
+// class without a principal (the checksum-PUT interception's LOCAL gate —
+// a remote plane must keep its 405 read-only refusal, never a probe that
+// pulls through); md serves the sha1/md5 download headers and FileInfo
+// digests.
+func New(svc repo.Service, class repo.ClassReader, md BlobLedger) *Handler {
+	return &Handler{svc: svc, class: class, md: md, now: func() string {
 		return time.Now().UTC().Format(time.RFC3339)
 	}}
 }
 
 // NewWithClock is New with an injected RFC3339 timestamp source (tests).
-func NewWithClock(svc repo.Service, md BlobLedger, now func() string) *Handler {
-	return &Handler{svc: svc, md: md, now: now}
+func NewWithClock(svc repo.Service, class repo.ClassReader, md BlobLedger, now func() string) *Handler {
+	return &Handler{svc: svc, class: class, md: md, now: now}
 }

@@ -178,7 +178,7 @@ func newT283Stack(t *testing.T, disabledCSV string, withClock bool, adapters ...
 	repo.AttachPackageTypeGate(svc, t283Gate{reg: reg, ev: mgr})
 
 	goAd := &t283GoAdapter{svc: svc}
-	mounted := append([]adapter.Handler{goAd, generic.New(svc, md.Blobs())}, adapters...)
+	mounted := append([]adapter.Handler{goAd, generic.New(svc, md.Repos(), md.Blobs())}, adapters...)
 	mreg := metrics.NewRegistry()
 	s := httpapi.New(httpapi.Deps{
 		Config:   cfg,

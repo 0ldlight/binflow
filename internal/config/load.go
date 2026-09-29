@@ -821,6 +821,14 @@ func applyEnvWithOptions(c *Config, env map[string]string, o buildOpts) error {
 			// the name; internal/remote reads the value itself.
 			continue
 		}
+		if upper == "BINFLOW_DEV_TIER" {
+			// Reserved for internal/license (BIN-55/T-573): the -tags dev
+			// scratch bypass's tier override. Never a config field — the
+			// loader only tolerates the name; license's dev arm reads the
+			// value at Manager construction, and a default build ignores it
+			// entirely (devtier_prod.go).
+			continue
+		}
 		path, kind, ok := splitEnvKey(strings.TrimPrefix(upper, "BINFLOW_"))
 		if !ok {
 			unknown = append(unknown, name)

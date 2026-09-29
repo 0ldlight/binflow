@@ -8,7 +8,8 @@ package nuget
 //     /artifactory context root) renders the bare PUT 201 so live; the
 //     bare repo-relative form is a mis-anchored value a client resolves
 //     against the wrong base. (The probe's companion X-Checksum-Sha256 on
-//     that A face is NOT taken here — unfaced surface, out of scope.)
+//     that A face landed later in T-575 / L037 Arm 2 — see
+//     checksum_header_test.go.)
 //   - the v3 push 201 (both URL shapes) carries NO Location header — the
 //     A face's multipart PUT 201 carries none, and the former
 //     flatcontainer/<id>/<version>/<file> value was mis-anchored: a

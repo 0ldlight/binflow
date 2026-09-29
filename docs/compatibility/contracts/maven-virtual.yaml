@@ -26,6 +26,8 @@
 #   ETag/INM、加自身 Last-Modified、IMS 命中→304；条目体 verdict/evidence 当日已更新，头
 #   changelog 漏记本轮翻态，本条补记——无内容变更）。B non-blocking 另一条（worktree 版本锚
 #   repoint）待 conductor 收编合入后统一 repoint，本票不动。
+#   （R9/iteration-1548 清偿：六处 worktree 版本锚已统一 repoint 合并锚——PR #169 e65d1263e /
+#   #174 8134b9f87 / #177 aa1455982，2026-09-29。）
 # T-558（R6 波次一 / BIN-40，2026-09-29）四裁定配套契约修订：L033 Arm C/A 定谳证据落地为四条目——
 #   ⑤ maven/handle-policy-reject-409-wording-family（handle* 拒绝 409 文案族 PUT/GET 两形态，
 #   DIVERGENT/high）、⑥ maven/handle-policy-member-get-class-gate（成员 GET 路径类×策略门 409，
@@ -284,7 +286,7 @@ contracts:
       修复 resolved（L034 Arm 4 8/8 维 PASS×2），契约条目 maven/derived-sidecar-lm-materialized-stamp
       随翻 VERIFIED/high——同秒矩阵腿双面同 304，本条目断言面（同秒 validator 族）不受其牵连。
       unobserved 四臂维持（.md5/.sha256 validator 维与 virtual 面旁车形态未单独钉）。'
-  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态构建（T-551 stage 2 修复在树，L033 r1-r3 翻绿轮——divergence 复验翻正版本）' }
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'claude/r5-payload 构建（T-551 stage 2 修复在树；随 PR #169 → develop e65d1263e，L033 r1-r3 翻绿轮——divergence 复验翻正版本）' }
   evidence:
     - { kind: difftest, report: reports/compatibility/L032-t550-followup-arms.md, anchor: 'Arm 6（17 维矩阵 r1≡r2≡r3：差异①②③ validator 三维 A=live 7.161.26 逐维取证〔自身 LM/IMS→304/no-etag〕vs B=absent/恒200/ETag+INM；14 维一致含 body 面全绿；真实 mvn deploy 构造、java-agent/capable 双 UA）', date: '2026-09-28' }
     - { kind: difftest, report: reports/compatibility/L033-r5-fix-verification.md, anchor: 'Arm A（17/17 维双端一致 PASS×3，r1≡r2≡r3 断言值逐项相同：三维翻绿 + 维持面全绿〔digest match×3/.sha512 404/body 双条件族/双 UA 面〕，judge mismatches 三桶全空；附带取证=跨秒 LM 残差圈定 java-agent 剥离面→台账单立）', date: '2026-09-29' }
@@ -340,7 +342,7 @@ contracts:
       锚 L034 Arms 2/3 + 修复提交 531ea002；长路径截断定谳随 resolved note 在案——300 上限系 L033
       harness 截断）。先例同类：rest/kcache-deploy-404-wording（T-553）。原「; Path 段填充形」
       unobserved 项已随 L034 全量消息捕获回填（移出缺口清单）。'
-  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态 @ 23b70a82（T-559 修复在树，L034 r1/r2 翻绿轮）' }
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'claude/r6-payload 构建 @ 23b70a82（T-559 修复在树；随 PR #174 → develop 8134b9f87，L034 r1/r2 翻绿轮）' }
   evidence:
   - { kind: difftest, report: reports/compatibility/L033-r5-fix-verification.md, anchor: 'Arm C 22 维矩阵「拒绝腿措辞族 ×2」（A 面逐字 vs B 面 ME-08；r3≡r4 定形、r5≡r6 维持；wire run/l033-r5-r{3,4}+r{5,6}）+ 先决发现节（A 对 hr=false local 的 release PUT 直接 409）', date: '2026-09-29' }
   - { kind: probe, report: docs/reverse/repo-semantics.md, anchor: '§2 请求校验顺序（Maven 系 release/snapshot 开关在 assertValidPath 内——策略拒绝码 409 经勘误节确定；文案族为 A 面 live 补充，规格未载）', date: '2026-09-28' }
@@ -391,7 +393,7 @@ contracts:
       known-divergence.yaml#maven/handle-policy-member-get-class-gate 已 resolved（2026-09-29，
       锚 L034 Arms 2/3）。unobserved 两臂维持（virtual resolve 腿形态 / 门求值顺序——L034 未开腿，
       留后续差分臂）。'
-  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态 @ 23b70a82（T-559 修复在树，L034 r1/r2 翻绿轮）' }
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'claude/r6-payload 构建 @ 23b70a82（T-559 修复在树；随 PR #174 → develop 8134b9f87，L034 r1/r2 翻绿轮）' }
   evidence:
   - { kind: difftest, report: reports/compatibility/L033-r5-fix-verification.md, anchor: 'Arm C「成员 GET class 门 ×2」（A=409 vs B=404；r3≡r4、r5≡r6）+ 先决发现节（读写双门定性 + release 栖身构造不出 NOT_RUN）', date: '2026-09-29' }
   - { kind: probe, report: docs/reverse/virtual-resolution.md, anchor: '§3 第 4/6 条（virtual 面成员跳过语义——handleReleases/handleSnapshots=false 成员跳过；成员直读面的读侧门为 L033 live 补充，规格未载）', date: '2026-09-28' }
@@ -445,7 +447,7 @@ contracts:
       **分面纪律维持**：时间戳拼写臂 / unique 家园 walk 族（resolve 选版=目录内最新时间戳、与
       metadata 指针解耦——L034 Arm 7 forensics F1-F6）不在本条断言面，unobserved 维持如实，归
       T-562/BIN-44 独立立契（B 面 ctl 三维 A=200 vs B=404 维持红——expected divergence 在案）。'
-  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态 @ 23b70a82（T-559 修复在树，L034 r1/r2 翻绿轮）' }
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'claude/r6-payload 构建 @ 23b70a82（T-559 修复在树；随 PR #174 → develop 8134b9f87，L034 r1/r2 翻绿轮）' }
   evidence:
   - { kind: difftest, report: reports/compatibility/L033-r5-fix-verification.md, anchor: 'Arm C「virt resolve snapshot」维（A=200/B=404）+「对照腿 ×3」（plainsnap 同拼写放 ctl：A 直读/virt 200 vs B 双 404、清单含 1.0.0-SNAPSHOT——混杂排除；r3≡r4、r5≡r6）', date: '2026-09-29' }
   - { kind: probe, report: docs/reverse/maven-npm-pypi.md, anchor: '§1.3 snapshot 上传改写表 non-unique 行（保持 -SNAPSHOT 文件名原样落盘，高置信——plain 拼写为合法存储形；其解析命中语义为 L033 live 定谳补充）', date: '2026-09-28' }
@@ -505,7 +507,7 @@ contracts:
       台账 known-divergence.yaml#maven/derived-sidecar-lm-per-request-stamp 已 resolved（2026-09-29，
       锚 L034 Arm 4）。confidence medium→high（A 跨秒直接腿实测替代机制推导——原 unobserved 首项
       回填移出）。影响面收口：java-agent 剥离面跨秒回访不再多传 body。'
-  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态 @ 23b70a82（T-559 修复在树，L034 r1b/r2 翻绿轮）' }
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'claude/r6-payload 构建 @ 23b70a82（T-559 修复在树；随 PR #174 → develop 8134b9f87，L034 r1b/r2 翻绿轮）' }
   evidence:
   - { kind: difftest, report: reports/compatibility/L033-r5-fix-verification.md, anchor: 'Arm A 附带取证节（跨秒矩阵：capable 面 B=304 stable / java-agent 剥离面 B=200+新 LM 00:44:09→00:44:10；A 直接腿不可达注记 + 机制推导说明）', date: '2026-09-29' }
   - { kind: difftest, report: reports/compatibility/L032-t550-followup-arms.md, anchor: 'Arm 6（r1-r3 A 腿物化稳定戳机制直测——LM 恒等于部署物化时刻且跨 GET 序列不变）', date: '2026-09-28' }
@@ -601,7 +603,7 @@ contracts:
       case 轮询口径内一致 PASS，响应内确定性回收属后续面，T-566 Risks 在案）；②m5 旁车臂 B 侧本轮
       case 仍跳过（m0 未触发口径），留复验。L032 A=6-vs-B=5 计数口径差随 +1/module 同形自然消解
       （rest/repo-delete-nonempty-cascade 臂复验 conductor 已列 T-566 Next）。'
-  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree HEAD 0c17635a scratch @ 127.0.0.1:18080（L035 B 腿——读时派生现态取证）；R7 收官批复验=worktree fd2d0606 构建 @ 127.0.0.1:18080（t566-r{1,2}）' }
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'claude/r7-payload 0c17635a scratch @ 127.0.0.1:18080（L035 B 腿——读时派生现态取证，树态注记保留）；R7 收官批复验=claude/r7-payload fd2d0606 构建 @ 127.0.0.1:18080（t566-r{1,2}；随 PR #177 → develop aa1455982）' }
   evidence:
   - { kind: difftest, report: reports/compatibility/L035-r7-walk-forensics.md, anchor: 'Part 2 副探 m0-m6+追加（r1≡r2≡r3 case 级 PASS：module 级物化/合并/回收 + release version 404@30s + SNAPSHOT version 同步物化目录清单-before-GET 锚 + A 侧 .sha1 旁车 + deep list 计数面 +1/module）', date: '2026-09-29' }
   - { kind: difftest, report: 'tools/difftest/v2/run/l035-r7-t566-r{1,2}', anchor: 'T-566 验证轮：case maven-auto-materialize-probe 双端连续两轮 PASS（B 腿 asserts 与 A 逐键一致——见 binflow_state.verdict）；计数面 module+1 deep list live 实测见 reports/agents/T-566.md Compatibility 节', date: '2026-09-29' }

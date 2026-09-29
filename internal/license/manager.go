@@ -118,6 +118,21 @@ type Options struct {
 	TickEvery time.Duration
 }
 
+// devTierOverride is the T-573 (BIN-55) dev-build scratch bypass: a tier
+// readout override resolved ONCE at Manager construction from the
+// BINFLOW_DEV_TIER environment variable. The resolver arm is build-tag
+// split (devtier_dev.go / devtier_prod.go): the dev arm reads the variable
+// (fail-safe to community on an out-of-set value, one WARN line); the
+// production arm is a constant no-op, so a default build ignores the
+// variable entirely — byte-identical entitlement behavior, pinned by the
+// //go:build !dev test. No license document is forged and no key material
+// is involved: only the effective-tier readout State() hands the gates.
+// Dev artifacts are local-scratch only (never CI, never released).
+type devTierOverride struct {
+	active bool
+	tier   Tier
+}
+
 // Manager owns the installed-license state: the single point every gate
 // consults (Install/Uninstall/State/AddonEnabled/PackageTypeAvailable,
 // ADR-0032). It is safe for concurrent use.
@@ -129,6 +144,7 @@ type Manager struct {
 	log      *slog.Logger
 	now      func() time.Time
 	tick     time.Duration
+	dev      devTierOverride
 
 	mu    sync.Mutex // serializes Install/Uninstall (single-row writers)
 	state atomic.Pointer[State]
@@ -166,6 +182,10 @@ func New(opts Options) (*Manager, error) {
 	}
 	m.state.Store(floorState())
 	m.disabled = parseDisabledCSV(opts.DisabledCSV)
+	// T-573: resolve the dev-build override after the logger exists so the
+	// invalid-value WARN can fire. In a default build this is a constant
+	// no-op (devtier_prod.go) — the environment is never read.
+	m.dev = resolveDevTier(log)
 	for _, id := range CoreAddonIDs {
 		if _, hit := m.disabled[id]; hit {
 			// Circuit breaker on a core package type: legal (the operator's
@@ -253,6 +273,15 @@ func (m *Manager) Uninstall(ctx context.Context) error {
 // the clock has already passed is never observed as active, even between
 // ticks (the ticker still owns the logged/audited downgrade transition).
 func (m *Manager) State() State {
+	if m.dev.active {
+		// T-573 dev bypass: an active override wins over every snapshot —
+		// the scratch instance never holds a verifiable license anyway (no
+		// issuing key exists), so Install/Uninstall/refresh leave this
+		// readout untouched. Perpetual: the override has no expiry window.
+		st := floorState()
+		st.Tier = m.dev.tier
+		return *st
+	}
 	st := *m.state.Load()
 	if !st.Licensed {
 		return st

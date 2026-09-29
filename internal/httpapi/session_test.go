@@ -451,7 +451,7 @@ func TestSessionRestartPersistence(t *testing.T) {
 		Repos:    h.md.Repos(),
 		ReposSvc: h.svc,
 		Console:  console.Handler(),
-		Adapters: []adapter.Handler{generic.New(h.svc, h.md.Blobs())},
+		Adapters: []adapter.Handler{generic.New(h.svc, h.md.Repos(), h.md.Blobs())},
 	}, nil)
 	ts := httptest.NewServer(restarted.Handler())
 	t.Cleanup(ts.Close)

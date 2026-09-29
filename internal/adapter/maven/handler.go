@@ -90,6 +90,33 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
 			return
 		}
+		// T-574 / BIN-56 (maven/checksum-put-404-wording, routing order):
+		// terminal-checksum routing OUTRANKS the layout gate — a PUT
+		// ending in .sha1/.md5/.sha256 is a client-checksum write on the
+		// stripped source regardless of GAV shape, so an un-GAV-able tail
+		// whose source is missing answers the checksum family's own 404,
+		// never the 400 layout refusal (L037 Arm 1: A's suffix routing
+		// runs before any layout adjudication). Scoped to LOCAL
+		// repositories: the lookup must not send the remote engine
+		// fetching on a write path, and non-local checksum PUTs keep
+		// their pre-T-574 answer. A live source at a non-layout path is
+		// unreachable through this plane's own PUTs — it keeps the layout
+		// refusal.
+		if r.Method == http.MethodPut {
+			if src, cok := checksumPutTarget(relPath); cok {
+				if row, rerr := h.class.Get(r.Context(), repoKey); rerr == nil && row.Type == repo.TypeLocal {
+					rc, _, gerr := h.svc.Get(r.Context(), adapter.PrincipalFrom(r.Context()), repoKey, src)
+					if gerr == nil {
+						_ = rc.Close() //nolint:errcheck // read-only existence probe
+					} else if errors.Is(gerr, repo.ErrNodeNotFound) || errors.Is(gerr, repo.ErrIsFolder) {
+						_, _ = io.Copy(io.Discard, r.Body)
+						writeError(w, http.StatusNotFound,
+							fmt.Sprintf("Target file to set checksum on doesn't exist: %s:%s", repoKey, src))
+						return
+					}
+				}
+			}
+		}
 		// C2 interim: the layout model is settled (high confidence), the
 		// refusal code is not in the spec — 400 is BinFlow's ruling.
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -313,7 +340,9 @@ func (h *Handler) serveNode(w http.ResponseWriter, r *http.Request,
 		hdr.Set("Last-Modified", lastMod.UTC().Format(http.TimeFormat))
 	}
 	hdr.Set("Accept-Ranges", "bytes")
-	hdr.Set("Content-Type", mimeForPath(relPath, node.Mime))
+	// Render-time ownership (BIN-53 / T-571): the extension table answers
+	// for the served path; the stored mime column takes no part.
+	hdr.Set("Content-Type", mimeForPath(relPath))
 
 	if evalConditional(r, sums.sha1, lastMod) {
 		w.WriteHeader(http.StatusNotModified)

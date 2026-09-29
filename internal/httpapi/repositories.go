@@ -609,6 +609,9 @@ func remoteUpstreamURL(row *metadata.Repo, cfg any) (string, bool) {
 // requestBase is scheme://host as the request presented it (URLs inside
 // bodies are derived from the request, never from a configured base in M1;
 // config.Server.BaseURL wiring lands with the console milestone).
+// 9th local copy of this rule (BIN-53 rider ⑥ note): converge the family
+// into a shared helper when the rule changes a 9th time, a 10th adapter
+// appears, or any copy's semantics visibly drift.
 func requestBase(r *http.Request) string {
 	scheme := "http"
 	if r.TLS != nil {

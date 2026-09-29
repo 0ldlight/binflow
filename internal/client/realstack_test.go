@@ -73,7 +73,7 @@ func newRealStack(t *testing.T) *httptest.Server {
 
 	authSvc := auth.NewFromStore(md, cfg.Security.AnonymousAccess)
 	svc := repo.New(st, md, authSvc, audit.New(md, true))
-	genericHandler := generic.New(svc, md.Blobs())
+	genericHandler := generic.New(svc, md.Repos(), md.Blobs())
 
 	s := httpapi.New(httpapi.Deps{
 		Config:    cfg,

@@ -727,7 +727,7 @@ func newHarnessWithDataDir(t *testing.T, dataDir string, st storage.Engine) *har
 	cfg.Storage.DataDir = dataDir
 	authSvc := auth.NewFromStore(md, cfg.Security.AnonymousAccess)
 	svc := repo.New(st, md, authSvc, nil)
-	genericHandler := generic.New(svc, md.Blobs())
+	genericHandler := generic.New(svc, md.Repos(), md.Blobs())
 	dockerHandler := docker.New(svc, docker.NewRepoLookup(md.Repos()),
 		authSvc, authSvc, md.Users(), docker.Options{
 			AnonymousAccess: cfg.Security.AnonymousAccess,

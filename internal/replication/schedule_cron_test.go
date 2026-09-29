@@ -89,7 +89,7 @@ func newCountingTarget(t *testing.T, name, adminPw string, repos []*metadata.Rep
 		Config: cfg, Auth: authSvc, Authz: authSvc, Metadata: md,
 		Repos: md.Repos(), ReposSvc: svc, Passwords: authSvc, Tokens: authSvc,
 		GC: st, DataDir: dataDir,
-		Adapters: []adapter.Handler{generic.New(svc, md.Blobs())},
+		Adapters: []adapter.Handler{generic.New(svc, md.Repos(), md.Blobs())},
 		Version:  "test",
 	}, nil)
 	ct := &countingTarget{binflow: &binflow{

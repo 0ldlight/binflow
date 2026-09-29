@@ -95,7 +95,7 @@ func newBinFlow(t *testing.T, name, adminPw string, repos []*metadata.Repo) *bin
 		Tokens:    authSvc,
 		GC:        st,
 		DataDir:   dataDir,
-		Adapters:  []adapter.Handler{generic.New(svc, md.Blobs())},
+		Adapters:  []adapter.Handler{generic.New(svc, md.Repos(), md.Blobs())},
 		Version:   "test",
 	}, nil)
 	ts := httptest.NewServer(srv.Handler())
