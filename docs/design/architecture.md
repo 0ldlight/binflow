@@ -801,6 +801,8 @@ registry.resolve(ctx, id):                        # GET/HEAD(offset)/PATCH/PUT/D
 
 **元数据抽取注册表（对齐 OSS MetadataProvider 骨架，oss-structure §4）**：`internal/adapter/<proto>` 各自带一个 `MetadataProvider`（layout 解析 + 该协议的 metadata/artifact 分流判定 + 版本比较器接口），在 adapter 包注册——service 层的 remote 缓存 TTL 分流与 virtual 版本择优（M4+）消费它。M3 落地时 `repo/api.go` 拆「公开用例面 / adapter SPI 面」两段（OSS papi/capi 同构，防 adapter 摸内部）。
 
+**可选能力段（第三层，ADR-0053）**：repo SPI 在上述两 banner 段之外有第三层——**可选能力段**：钉在具体 `*service` 上的独立小接口（api.go 现存六段：`ClientChecksumWriter`〔ADR-0052〕、`RemoteExternalPlane`〔T-367〕、`RemoteBrowsePlane`〔T-448〕、`RemoteV2Plane`〔T-363〕、`V2VirtualPlane`、`DigestChainGate`〔ADR-0047〕），编译钉 `var _ <段> = (*service)(nil)`，消费方**类型断言**解析（每 Handler 一处 resolver 小方法，禁散落断言）。**新缝判据**：跨 ≥2 协议域消费的写编排或公开用例面 → 进 Service 大接口；单域能力面 / 装配可选语义真实 / ≥2 方法能力组 → 开可选段。nil 段 = 「本装配无此能力」→ 显式 500（禁静默降级为成功路径；pass-through 例外须行为注释显式写明 nil 分支，helm virtual 先例）。fake 适配：不消费该能力的域测试零改动（断言自然得 nil）；消费域在本地 fake 加段方法，不动 Service 核心。命名 `<域前缀><能力名><段型后缀>`（Plane/Writer/Gate/Reader）。
+
 #### 5.4.1 Maven（`internal/adapter/maven`，挂 `/binflow/<repo>/<path>` 内容路径）
 
 | 端点形态（Maven 2 布局） | 映射 |
