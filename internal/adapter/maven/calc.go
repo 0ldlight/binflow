@@ -8,7 +8,9 @@ package maven
 //     directory synchronously (the response blocks on it — subsequent
 //     snapshot numbering reads it); every other artifact does so
 //     asynchronously; a pom additionally recalculates the grandparent
-//     (module) directory asynchronously and non-recursively; deletes
+//     (module) directory synchronously and non-recursively (T-566
+//     write-path materialization — the module document is a physical node
+//     before the PUT response returns); deletes
 //     recalculate the affected directory trees of both sides
 //     asynchronously. A client PUT of the SNAPSHOT version document never
 //     reaches a trigger: the acceptance is the reference's 202-discard
@@ -207,7 +209,12 @@ func (c *calculator) recalcAsync(p *repo.Principal, t trigger) {
 // non-unique poms — the response blocks until the version document exists,
 // because subsequent snapshot numbering reads it — and asynchronous for
 // every other artifact; a pom additionally recalculates the grandparent
-// module directory (the version list), asynchronously and non-recursively.
+// module directory (the version list) synchronously and non-recursively
+// (T-566 / BIN-48, contract maven/deploy-put-version-metadata-auto-
+// materialize: the module document MATERIALIZES on the write path — a
+// physical node visible to any post-PUT observation, the deep-list count
+// face's deterministic +1/module; A 7.161.26 serves the same synchronous
+// posture, L035 m1 200@0.1s).
 func (c *calculator) afterArtifactDeploy(ctx context.Context, p *repo.Principal, repoKey string, l Layout) {
 	if c == nil {
 		return
@@ -220,7 +227,7 @@ func (c *calculator) afterArtifactDeploy(ctx context.Context, p *repo.Principal,
 		c.recalcAsync(p, version)
 	}
 	if pom {
-		c.recalcAsync(p, trigger{repoKey: repoKey, orgPath: l.OrgPath, module: l.Module})
+		c.recalcSync(ctx, p, trigger{repoKey: repoKey, orgPath: l.OrgPath, module: l.Module})
 	}
 }
 

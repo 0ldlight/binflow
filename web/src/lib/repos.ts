@@ -240,12 +240,21 @@ export function updateRepo(key: string, body: RepoConfigBody): Promise<string> {
   return apiText(`/repositories/${encodeURIComponent(key)}`, { method: 'POST', body })
 }
 
-/** 删除（非空仓需 deleteContent，否则 400 且 message 携带 node 数） */
-export function deleteRepo(key: string, deleteContent: boolean): Promise<string> {
-  return apiText(
-    `/repositories/${encodeURIComponent(key)}${deleteContent ? '?deleteContent=true' : ''}`,
-    { method: 'DELETE' },
-  )
+/** 删除报告体（T-555 级联语义：恒 200 JSON——repoKey/statusMsg/
+ *  deletedArtifactsCount/success；count = 文件 + folder 行全量、根不计；
+ *  statusMsg 按 rclass 有 content / plain 两种措辞）。 */
+export interface RepoDeleteReport {
+  repoKey: string
+  statusMsg: string
+  deletedArtifactsCount: number
+  success: boolean
+}
+
+/** 删除（级联：非空仓连同全部内容一并删除，恒 200 报告体；未知仓 404。
+ *  旧 ?deleteContent=true 旗被服务端接受但冗余——控制台不再携带，弹窗
+ *  的破坏性警示 + 输入 key 强确认承载防误删，T-565 消费面清尾。） */
+export function deleteRepo(key: string): Promise<RepoDeleteReport> {
+  return apiJSON<RepoDeleteReport>(`/repositories/${encodeURIComponent(key)}`, { method: 'DELETE' })
 }
 
 // ---- T-443：remote 上游 Test（FR-143.5，消费 T-442 端点） ----

@@ -69,14 +69,13 @@ func TestPlainSnapshotPathResolve(t *testing.T) {
 	}
 }
 
-// TestPlainSnapshotUniqueHomeBoundary pins the FENCE, not a contract
-// face: in a unique-behavior home the plain PUT lands under the
-// timestamped spelling (spec §1.3's high-confidence rewrite), so the
-// plain spelling has nothing to hit and stays the honest 404 — the
-// plain-to-timestamped RESOLUTION that would serve it is the snapshot
-// walk family the contract reserves for an independent ticket (its
-// unobserved_reference_arms note). If this test ever fails red, that
-// follow-up face landed — update the contract ledger, not just the test.
+// TestPlainSnapshotUniqueHomeBoundary is the FLIPPED anchor the contract
+// names (⑩ maven/plain-snapshot-unique-walk-resolve, T-562 stage 2 /
+// BIN-44): in a unique-behavior home the plain PUT lands under the
+// timestamped spelling, and the plain-spelling GET now resolves through
+// the walk to that timestamped entity (200 + the deployed bytes) — the
+// pre-T-562 honest 404 was the fenced interim face; the boundary test
+// flipped with the walk's landing, as its own pre-flip note directed.
 func TestPlainSnapshotUniqueHomeBoundary(t *testing.T) {
 	hs := newHarness(t)
 	const plain = "/maven-unique/com/x/pl/1.0.0-SNAPSHOT/pl-1.0.0-SNAPSHOT.pom"
@@ -85,10 +84,20 @@ func TestPlainSnapshotUniqueHomeBoundary(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("plain PUT into unique home = %d (%s)", resp.StatusCode, drain(t, resp))
 	}
-	if loc := resp.Header.Get("Location"); strings.HasSuffix(loc, "-SNAPSHOT.pom") {
+	loc := resp.Header.Get("Location")
+	if strings.HasSuffix(loc, "-SNAPSHOT.pom") {
 		t.Fatalf("unique home stored the plain spelling verbatim (%q) — the §1.3 rewrite regressed", loc)
 	}
-	if code, _ := mustGet(t, hs, plain); code != http.StatusNotFound {
-		t.Errorf("plain GET in unique home = %d, want 404 (the resolution face belongs to the fenced follow-up ticket)", code)
+	// The walk resolve (W1): the plain GET answers the rewritten entity.
+	if code, got := mustGet(t, hs, plain); code != http.StatusOK || string(got) != string(pom) {
+		t.Errorf("plain GET in unique home = %d %.60s, want 200 the rewritten entity's bytes (walk resolve)", code, got)
+	}
+	// The rewritten spelling serves the same face (W3): byte-identical.
+	tsPath := loc
+	if i := strings.Index(tsPath, "/binflow/"); i >= 0 {
+		tsPath = tsPath[i+len("/binflow"):]
+	}
+	if code, got := mustGet(t, hs, tsPath); code != http.StatusOK || string(got) != string(pom) {
+		t.Errorf("rewritten-spelling GET %s = %d %.60s, want 200 the same bytes", tsPath, code, got)
 	}
 }

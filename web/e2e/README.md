@@ -44,8 +44,9 @@ docker 相关腿调试建议给 dind 传
   ——确认框本来就挡住了直删，是探测脚本替用户按了确认。
 - **永不点确认**：探测脚本对 `/^(delete|confirm|ok)$/i` 类确认钮零点击，
   没有例外条款。
-- **spec 内的破坏性腿只打自备夹具**：uniq key + API 直备 + 收尾
-  `?deleteContent=true`（m8/repositories-admin §3 形态）。spec 永不把删除/
+- **spec 内的破坏性腿只打自备夹具**：uniq key + API 直备 + 收尾删仓即
+  级联（恒 200 静默清内容；`?deleteContent=true` 拼写兼容冗余，存量 spec
+  可带可不带，m8/repositories-admin §3 形态）。spec 永不把删除/
   覆盖类动作指向：共享留验实例、t226 语料仓、用户本地实例的数据目录。
 - **共享 fixture 先快照**：确需在共享现场旁路验证时，前置条件 = 数据目录
   副本或 VM 快照（用户实例报障的「沙箱复现」纪律同源）——恢复上限以内

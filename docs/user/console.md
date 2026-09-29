@@ -186,7 +186,7 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
   - key 规则 `[a-z][a-z0-9-]{1,62}` 前端预检、服务端终裁（400 行内回显）。**保留字 `api` / `v2` / `docs` / `console` / `ui` / `assets` 建仓即 400**。
 - **仓库详情** `/admin/repositories/:key`：概要（remote 仓含**远端浏览开关态回显行**——开启/关闭 + 语义注记）/ 接入命令（与接入文档同源）/ 统计（配额水位条）/ 配置（配额行内编辑 + patterns；**manage 持有者**亦可编辑本仓配置——见 [RBAC 指南](admin/rbac-roles.md)）/ Replications（M14：本仓复制配置摘要卡 + 深链编辑节 + 全局复制页入口）Tab + 危险区（删仓仅全量 admin 可见）。
 - **编辑** `/admin/repositories/:key/edit`：rclass/包类型锁定，其余字段同建仓表单（三段步进同形）。**dirty-gating**：进入时 Save 禁置，表单与打开时回显**逐字段深度比对**——有实质变更才解禁（改回原值重新禁置；密码字段输入即视为变更）；干净态点不动、零写请求。**remote 仓「测试连接」钮**（仅编辑态在场——探测端点按已存仓 key 寻址，建仓态给说明行不给死按钮）：草稿探测按表单与已存配置的 diff 决定凭据形态——**带了密码 = 用表单明文凭据探测**；只改了 URL/用户名没填密码 = 按匿名探测（已存密封密钥**绝不**静默发往改动后的候选主机）；零改动 = 探已存配置。判定内联呈现（绿/红 + 上游状态码；连接层失败 = 「未触达上游」）；探测零副作用（不写任何配置）。**编辑态 local 仓另有 Replications 节**（push 复制配置：列表 + 新建/编辑表单 + 行内启停开关 + 输入 name 强确认删除；表单带「测试连接」按钮——创建态测草稿、编辑态未改动时探已存配置；参考仓库 的 cron/sync 等字段为预留位恒禁用——如实标注引擎尚不支持）；编辑保存 = 删除 + 重建（未决任务级联清空、目标口令不回显需重输——留空即匿名目标）。remote/virtual 仓不适用（push 源是 local）。REST 语义见[治理指南 · 复制](admin/governance.md#复制push-replication)。
-- **删除**：两段强确认——非空仓必须勾选 `同时删除内容` + **输入 repo key 确认**（不勾选直接删非空仓会被服务端 400 拒绝）。
+- **删除**：强确认——**输入 repo key 确认**（删除即级联：仓与全部制品一并永久删除，无「同时删除内容」勾选）；成功反馈携带报告体的级联计数（`statusMsg` + 已删除 N 项内容）。
 - 治理字段（仅 local 仓）：`quotaBytes` 与 `includesPattern` / `excludesPattern`（详见[治理指南](admin/governance.md)）。
 
 ### 用户与权限（`/admin/security/*`）

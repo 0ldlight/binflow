@@ -238,11 +238,25 @@ func declaredSet(expect storage.BlobRef) map[string]bool {
 // stored triple is the best echo available.
 type uploadContext struct{ declared map[string]bool }
 
+// productPrefix is the instance context path every self-referential URL
+// carries: ADR-0008's single product namespace /binflow, the same wire
+// constant httpapi routes the content plane on (the adapter itself sees the
+// path stripped, so the prefix lives here as a render-time fact). T-564's
+// A-face probe (Artifactory 7.161.26 behind the /artifactory context root)
+// pinned the 201 Location header and the envelope uri/downloadUri all
+// rendered THROUGH the context path, Location byte-equal to the uri; the
+// bare-root form 404s when followed on B's own routing. Same render rule
+// as adapter/maven's T-561/T-563 productPrefix — kept as this package's
+// own constant, no cross-package import.
+const productPrefix = "/binflow"
+
 // writeCreated renders the 201 response: Location, X-Checksum-Sha256 header
 // and the FileInfo/FolderInfo-shaped ItemCreated body (rest-api.md 1.2).
+// Both the Location header and the body's uri/downloadUri carry the
+// /binflow prefix, Location byte-equal to the uri (T-564 A-face probe).
 func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, relPath string, node *metadata.Node, up uploadContext) {
 	sums := h.digestsOf(r.Context(), node)
-	w.Header().Set("Location", requestBase(r)+"/"+repoKey+"/"+escapePath(relPath))
+	w.Header().Set("Location", requestBase(r)+productPrefix+"/"+repoKey+"/"+escapePath(relPath))
 	if sums.sha256 != "" && !isFolderNode(node) {
 		w.Header().Set(hdrChecksumSha256, sums.sha256)
 	}

@@ -6206,7 +6206,7 @@
           "repositories"
         ],
         "summary": "Delete repository",
-        "description": "Canonical path: `DELETE /binflow/api/repositories/{key}?deleteContent=` (admin only, not delegated).",
+        "description": "Canonical path: `DELETE /binflow/api/repositories/{key}` (admin only, not delegated). A silent cascade — the repository and all of its content are removed, empty or not, and the answer is always 200 with the JSON report body `{repoKey, statusMsg, deletedArtifactsCount, success}` (`deletedArtifactsCount` = files + folder rows removed; the repository root is not counted). `statusMsg` follows the repository class: virtual reports the plain removal, local and remote the content-bearing form. The `?deleteContent=true` spelling is accepted for compatibility and changes nothing — with or without it the cascade and the response are identical. Unknown key 404.",
         "operationId": "repoDelete",
         "parameters": [
           {
@@ -6222,7 +6222,7 @@
             "name": "deleteContent",
             "in": "query",
             "required": false,
-            "description": "true = delete the content as well",
+            "description": "Accepted for compatibility only; redundant — deletion always cascades the content, with or without this flag",
             "schema": {
               "type": "boolean"
             }
@@ -6230,7 +6230,20 @@
         ],
         "responses": {
           "200": {
-            "description": "Deleted"
+            "description": "Deleted — silent cascade report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoDeleteReport"
+                },
+                "example": {
+                  "repoKey": "libs-release",
+                  "statusMsg": "Repository 'libs-release' and all its content have been removed successfully.",
+                  "deletedArtifactsCount": 6,
+                  "success": true
+                }
+              }
+            }
           },
           "403": {
             "description": "Permission denied",
@@ -6244,6 +6257,24 @@
                     {
                       "status": 403,
                       "message": "permission denied"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Repository not found (`Repository does not exist: ...`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorsEnvelope"
+                },
+                "example": {
+                  "errors": [
+                    {
+                      "status": 404,
+                      "message": "Repository does not exist: repo \"libs-release\": repository not found"
                     }
                   ]
                 }
@@ -8671,6 +8702,33 @@
           }
         },
         "description": "creation/dates search results (empty set = 404; this shape is not returned)",
+        "additionalProperties": false
+      },
+      "RepoDeleteReport": {
+        "type": "object",
+        "properties": {
+          "repoKey": {
+            "type": "string"
+          },
+          "statusMsg": {
+            "type": "string",
+            "description": "Wording follows the repository class: virtual = plain removal (`Repository '<key>' has been removed successfully.`), local/remote = the content-bearing form"
+          },
+          "deletedArtifactsCount": {
+            "type": "integer",
+            "description": "Files + folder rows removed by the cascade (repository root not counted)"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        },
+        "description": "Repository delete report — deletion is always a silent cascade (empty or not)",
+        "required": [
+          "repoKey",
+          "statusMsg",
+          "deletedArtifactsCount",
+          "success"
+        ],
         "additionalProperties": false
       },
       "RepoTestInput": {

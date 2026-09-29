@@ -72,9 +72,20 @@ func TestSnapshotRewriteWire(t *testing.T) {
 		t.Fatalf("first leader = ts %s N %s clf %q ext %q, want N 1 no classifier jar", ts1, n1, clf1, ext1)
 	}
 
-	// the -SNAPSHOT spelling itself never materializes
-	if code, _ := mustGet(t, hs, "/maven-local/"+dir+"/demo-app-2.0.0-SNAPSHOT.jar"); code != http.StatusNotFound {
-		t.Errorf("GET original -SNAPSHOT name = %d, want 404 (rewritten storage only)", code)
+	// the -SNAPSHOT spelling itself never MATERIALIZES (the storage claim
+	// now asserted on the node rows) — its GET is the walk resolve (T-562,
+	// contract ⑩): 200 serving the rewritten entity
+	nodes, err := hs.md.Nodes().ListByPrefix(context.Background(), "maven-local", dir)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	for _, node := range nodes {
+		if strings.HasSuffix(node.Path, "-SNAPSHOT.jar") {
+			t.Errorf("plain spelling materialized: %s", node.Path)
+		}
+	}
+	if code, got := mustGet(t, hs, "/maven-local/"+dir+"/demo-app-2.0.0-SNAPSHOT.jar"); code != http.StatusOK || got != string(jarB("a")) {
+		t.Errorf("GET original -SNAPSHOT name = %d %.20s, want 200 the walk-resolved entity", code, got)
 	}
 	if code, _ := mustGet(t, hs, "/maven-local/"+dir+"/demo-app-2.0.0-"+ts1+"-1.jar"); code != http.StatusOK {
 		t.Errorf("GET rewritten name = %d, want 200", code)
@@ -188,14 +199,13 @@ func TestSnapshotSidecarRewriteAndRegistration(t *testing.T) {
 		}
 	}
 	// the sidecar GET answers the computed digest of the REWRITTEN target;
-	// the -SNAPSHOT spelling itself addresses a target that never lands
-	// (GET plays no name adjustment — the rewritten spelling is the only
-	// address, the same wire the reference serves)
+	// the -SNAPSHOT sidecar spelling walks the same resolve (T-562, t5/t6):
+	// the digest of the resolved entity, not a miss
 	if code, got := mustGet(t, hs, "/maven-local/"+dir+"/demo-app-2.0.0-"+ts1+"-"+n1+".jar.sha1"); code != http.StatusOK || got != s1 {
 		t.Errorf("rewritten sidecar GET = %d %q, want 200 %q", code, got, s1)
 	}
-	if code, _ := mustGet(t, hs, "/maven-local/"+dir+"/demo-app-2.0.0-SNAPSHOT.jar.sha1"); code != http.StatusNotFound {
-		t.Errorf("-SNAPSHOT sidecar GET = %d, want 404 (no such target)", code)
+	if code, got := mustGet(t, hs, "/maven-local/"+dir+"/demo-app-2.0.0-SNAPSHOT.jar.sha1"); code != http.StatusOK || strings.TrimSpace(got) != s1 {
+		t.Errorf("-SNAPSHOT sidecar GET = %d %q, want 200 the resolved target's digest %q", code, got, s1)
 	}
 	// a wrong value still 409s (the policy gate runs before registration)
 	resp = hs.serve(http.MethodPut, "/maven-local/"+dir+"/demo-app-2.0.0-SNAPSHOT.jar.sha1", []byte("deadbeef"), nil, true)

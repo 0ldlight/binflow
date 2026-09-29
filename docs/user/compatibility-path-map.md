@@ -30,7 +30,7 @@ M8 起 BinFlow 控制台与 参考仓库 **同一动作在同样的位置、走�
 | 建仓 | Administration → Repositories → Repositories →「+」→ 包类型选择 → 表单 | 管理 → 仓库 → `+ 添加仓库` 下拉三预选（Local/Remote/Virtual）→ 分路由建仓页 → 包类型网格（13 型磁贴，进阶型带档位徽章）→ **三段步进表单**（Basic/Advanced/Replications，`/admin/repositories/{local\|remote\|virtual}/new`） | 同为进页先选包类型再填表单；Tab Local/Remote/Virtual 列表同构；BinFlow 步进条对位 参考仓库 的 Step 分段 |
 | 找仓库 / 看仓库详情 | Repositories 列表行点击 | 仓库列表行点击（`/admin/repositories/:key`） | BinFlow 详情页含接入命令块与统计卡 |
 | 编辑仓库 | 列表行 → Edit | 列表行 → 编辑页（`/admin/repositories/:key/edit`） | BinFlow 编辑态锁定 rclass/包类型 |
-| 删仓 | 列表行垃圾桶 → Delete 对话框 | 列表行删除图标 / 详情页危险区（`/admin/repositories/:key`） | BinFlow 更强确认：非空仓须勾选「同时删除内容」+ **输入 repo key** |
+| 删仓 | 列表行垃圾桶 → Delete 对话框 | 列表行删除图标 / 详情页危险区（`/admin/repositories/:key`） | BinFlow 更强确认：**输入 repo key**（删除即级联——仓与全部内容一并移除，成功反馈携带删除计数） |
 | 建用户 | User Management → Users → New User | 管理 → 用户与权限 → 用户 → `+ 新建用户`（路由整页表单 `/admin/security/users/new`，**Retype Password 双录**） | 编辑表单同构（设置/选项/口令/相关组穿梭/权限矩阵）；页脚 Cancel\|Reset\|Save 同构；BinFlow 角色下拉三值（参考仓库 无对应面，见 FAQ） |
 | 删用户 | User Management → Users → 行 Delete（对话框确认） | 用户列表行删除 / 编辑页危险区（M9 起；**输入用户名强确认**） | 两侧均不可逆；关键差异：BinFlow 三护栏 400（内置 admin / 最后一个 admin / 自删——参考仓库 REST 面这些守卫在逆向规格中低置信/不可见）、级联吊销 token/会话；**重复删除 BinFlow 404、参考仓库 视为成功**（幂等 vs 有意非幂等，见[治理指南](admin/governance.md#删除用户m9-起)）；禁用（`enabled:false`）是离场的可逆路径 |
 | 建组 | User Management → Groups → New Group | 组 → `+ 新建组`（`/admin/security/groups`） | BinFlow 组无 admin 位（防组内自提权） |

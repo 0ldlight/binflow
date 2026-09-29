@@ -490,7 +490,7 @@ export default function RepoDetailPage() {
             <aside>
               <section className="danger-zone rounded-md border border-destructive bg-surface-1 p-4" data-testid="repo-danger-zone">
                 <h3 className="mb-1 text-[13px] font-semibold text-destructive">{t('危险区')}</h3>
-                <p className="mb-2 text-dense text-muted-foreground">{t('删除仓库及其（可选）全部内容。制品不可变，此操作没有撤销。')}</p>
+                <p className="mb-2 text-dense text-muted-foreground">{t('删除仓库及其全部内容。制品不可变，此操作没有撤销。')}</p>
                 <Button variant="outline" size="sm" className="border-destructive text-destructive" onClick={() => requestDelete(repo)} data-testid="repo-delete-button">
                   {t('删除仓库…')}
                 </Button>

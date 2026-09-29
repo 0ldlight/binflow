@@ -59,9 +59,10 @@ type folderChildLevel1 struct {
 func (h *Handler) itemInfo(base, repoKey, relPath string, node *metadata.Node, sums digestTriple, up uploadContext) fileInfo {
 	created := isoMillis(node.CreatedAt, h.now())
 	modified := isoMillis(node.UpdatedAt, h.now())
+	self := base + productPrefix + "/" + repoKey + "/" + escapePath(relPath)
 	info := fileInfo{
-		URI:         base + "/" + repoKey + "/" + escapePath(relPath),
-		DownloadURI: base + "/" + repoKey + "/" + escapePath(relPath),
+		URI:         self,
+		DownloadURI: self,
 		Repo:        repoKey,
 		Path:        "/" + relPath,
 		Created:     created,

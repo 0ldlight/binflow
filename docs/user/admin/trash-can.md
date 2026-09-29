@@ -34,7 +34,7 @@ local 仓的删除不再一去不返：**删除前先把节点捕获进内置仓
 | `trash.originalPath` | **本节点**的原路径（子树任一节点可独立恢复） |
 
 - **跳过集**（本地生成物不入站，BinFlow 闭集）：`.jfrog/**`、`dists/**`（deb 索引）、任一段 `repodata` 或首段 `_tmp_*`（rpm 索引/暂存）、`maven-metadata.xml` 及其 checksum 族。协议制品路径全部入站。
-- **不捕获面**（如实登记）：remote 缓存失效（逐缓存非制品删除）、`DELETE /api/repositories/{key}?deleteContent` 仓拆除、docker manifest/tag 删除（索引随行恢复语义归后续票）。
+- **不捕获面**（如实登记）：remote 缓存失效（逐缓存非制品删除）、`DELETE /api/repositories/{key}` 仓拆除（级联移除的全部内容一律不进回收站）、docker manifest/tag 删除。
 
 ### 内置仓守卫
 

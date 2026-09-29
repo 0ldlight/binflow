@@ -1,0 +1,17 @@
+# 金样请求——maven auto-materialize 物化口径（L035 Part 2：m0-m6 + deep-list 追加臂）
+# schema: golden-request/1（矩阵型：request=构造+腿数组；逐臂响应入 response.yaml）
+feature: 'wire PUT 落制品后的 metadata 自动物化口径——A=module 级写路径物化（物理节点，恒 +1/module）；release version 级恒不物化；SNAPSHOT（unique 家园）version 级写路径同步物化'
+client: curl wire 腿（Basic admin）+ mc 列目录/deep-list 探针（时机判定用「GET 前先列目录」）
+repo_setup: >-
+  default maven local 仓（snapshotVersionBehavior 缺省）+ unique 家园仓（m6 腿）；release 腿 wire PUT pom
+  1.0.0→1.1.0，SNAPSHOT 腿 plain PUT 3.0-SNAPSHOT pom（双端 201）。臂键 m0-m6+追加与 L035 Part 2 矩阵一一对应。
+steps:
+- { seq: 1, leg: m0 release 1.0.0 PUT → version 级 metadata, probe: 'GET …/1.0.0/maven-metadata.xml（30s 界）', note: 'release 不物化 version 级' }
+- { seq: 2, leg: m1 module 级 metadata, probe: 'GET …/{module}/maven-metadata.xml', note: 'A=0.1s 200；versions/latest/release/lastUpdated 形态见 response' }
+- { seq: 3, leg: m2 第二版本 1.1.0 PUT → 合并, probe: 'GET module 级 metadata', note: 'versions 合并、latest=release=新版本' }
+- { seq: 4, leg: m3 version 级 1.1.0, probe: 'GET …/1.1.0/maven-metadata.xml（30s 界）', note: 'release 恒不物化（再证）' }
+- { seq: 5, leg: m4 DELETE 1.0.0 pom → 回收, probe: 'GET module 级 metadata', note: 'A 立即降列表；B 2.1s 内同形' }
+- { seq: 6, leg: m5 物化 metadata 的 .sha1 旁车, probe: 'GET …/maven-metadata.xml.sha1', note: 'A=metadata 体摘要（r1 raw）' }
+- { seq: 7, leg: m6 SNAPSHOT plain PUT → version 级（**否证锚**）, probe: 'GET 前先列目录（60s 界）+ GET …/3.0-SNAPSHOT/maven-metadata.xml', note: 'unique 家园；A 清单 GET 前即含 metadata（39ms）——推翻 L033「30s 不物化」' }
+- { seq: 8, leg: 追加 deep-list（物理节点面）, probe: 'repo 根 deep list（mc 手工）', note: '分歧本体：A files 含 /com/diff/mc/maven-metadata.xml 物理节点（+1/module）；B 仅 pom 无节点' }
+expected_client_outcome: 'm0-m6 读路径双端一致（A 腿 PASS×3 + B 腿 t566-r{1,2} PASS×2）；追加臂已收口——B=module 级写路径同步物化（+1/module 物理节点同形，conductor 裁定 4 已兑现 fix fd2d0606）'
