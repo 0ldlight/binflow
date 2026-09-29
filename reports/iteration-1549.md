@@ -11,7 +11,7 @@ resolved、7 新立（BUG +4 / UNKNOWN +3）、2 修订。
 
 | PR | 内容 | 状态 |
 |---|---|---|
-| [#185](https://github.com/0ldlight/binflow/pull/185) | R10 载荷（5 提交：T-578 SPI 缝+翻正 3254c887 / T-579 nuget 渲染族 b248be9d / ADR-0052 4fa01dda / L039 fc6fc0f5 / 台账批 bbfed66b；R9 战报 d9bae6b4 搭车）→ develop | MERGED 02:04:04+08:00（d420bbc7） |
+| [#185](https://github.com/0ldlight/binflow/pull/185) | ~~R10 载荷（5 提交：T-578 SPI 缝+翻正 3254c887 / T-579 nuget 渲染族 b248be9d / ADR-0052 4fa01dda / L039 fc6fc0f5 / 台账批 bbfed66b；R9 战报 d9bae6b4 搭车）~~ **勘误（2026-09-30，L040 立此存照 + conductor 复核坐实）**：#185 实际仅携 `d9bae6b4`（R9 战报 docs）——建 PR 时载荷五提交尚未推送，gh 以远端旧头建 PR，merge 第二父=d9bae6b4；R10 载荷五提交不在 develop（`git merge-base --is-ancestor` 五连 NO + 树内零 `SetClientChecksums`）。**R10 载荷随 R11 修正 PR 补载 develop**（票本身已评审、提交在 claude/r6-payload 分支，仅落地缺口） | ~~MERGED~~ **MERGED 但内容=docs-only**（d420bbc7） |
 
 develop→main 保鲜：PR #184 已于本轮开始前（09-30 00:28）把 main 保鲜至 R9——iteration-1548
 的 R10 首查项闭环。R10 合并后累计 3 done < 10 且间隔 < 1 天，闸不触发——R11 首查项。
