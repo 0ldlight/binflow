@@ -8,6 +8,12 @@ package maven
 // the resolvability anchor the L034 differential arm re-checks against the
 // A side. Covers both writeCreated callers: the byte-deploy chain and the
 // checksum-deploy chain.
+//
+// T-563 / BIN-45 (L034-R6 Arm 8) extends the same prefix to the 201
+// Location header: byte-equal to the envelope uri (the bare-root form 404s
+// when followed on the A side's own terms), and the checksum-file
+// registration 201's Location addresses the TARGET artifact through the
+// prefix.
 
 import (
 	"bytes"
@@ -112,9 +118,19 @@ func TestDeployCreatedEnvelopeURIContextPrefix(t *testing.T) {
 				t.Errorf("downloadUri = %q, want %q", env.DownloadURI, want)
 			}
 
-			// Resolvability anchor: the envelope uri GETs back through the
-			// /binflow routing (never a bare-root 404).
-			got, err := client.Get(env.URI)
+			// T-563 anchor: the Location header carries the same prefixed
+			// address, byte-equal to the envelope uri.
+			loc := resp.Header.Get("Location")
+			if loc != want {
+				t.Errorf("Location = %q, want %q", loc, want)
+			}
+			if loc != env.URI {
+				t.Errorf("Location = %q, envelope uri = %q, want byte-equal", loc, env.URI)
+			}
+
+			// Resolvability anchor: the Location value GETs back through
+			// the /binflow routing (never a bare-root 404).
+			got, err := client.Get(loc)
 			if err != nil {
 				t.Fatalf("GET envelope uri: %v", err)
 			}
@@ -160,16 +176,64 @@ func TestChecksumDeployCreatedEnvelopeURIContextPrefix(t *testing.T) {
 	if err := json.Unmarshal(drain(t, resp), &env); err != nil {
 		t.Fatalf("envelope decode: %v", err)
 	}
-	if want := srv.URL + "/binflow" + newGAV; env.URI != want || env.DownloadURI != want {
+	want := srv.URL + "/binflow" + newGAV
+	if env.URI != want || env.DownloadURI != want {
 		t.Fatalf("envelope = %q/%q, want %q", env.URI, env.DownloadURI, want)
 	}
+	loc := resp.Header.Get("Location")
+	if loc != want || loc != env.URI {
+		t.Fatalf("Location = %q, want %q byte-equal to the envelope uri", loc, want)
+	}
 
-	got, err := srv.Client().Get(env.URI)
+	got, err := srv.Client().Get(loc)
 	if err != nil {
 		t.Fatalf("GET envelope uri: %v", err)
 	}
 	b := drain(t, got)
 	if got.StatusCode != http.StatusOK || !bytes.Equal(b, jarBytes) {
 		t.Fatalf("GET envelope uri = %d (%q), want 200 with the blob bytes", got.StatusCode, b)
+	}
+}
+
+// TestChecksumFileDeployLocationContextPrefix: the checksum-file deploy's
+// registration-only 201 (no envelope body) renders its Location header
+// THROUGH the /binflow prefix, addressing the TARGET artifact — L034-R6
+// Arm 8's cksum leg; the value resolves to the target's bytes.
+func TestChecksumFileDeployLocationContextPrefix(t *testing.T) {
+	hs := newHarness(t)
+	if resp := hs.deployJar("maven-local", "com/acme/demo-app/1.0.0/demo-app-1.0.0.jar", jarBytes); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("seed deploy: %d (%s)", resp.StatusCode, drain(t, resp))
+	}
+	s1, _, _ := digests(jarBytes)
+
+	srv := httptest.NewServer(prefixRouter(hs.h))
+	t.Cleanup(srv.Close)
+
+	req, err := http.NewRequest(http.MethodPut, srv.URL+"/binflow"+jarPath+".sha1", strings.NewReader(s1))
+	if err != nil {
+		t.Fatalf("build sidecar PUT: %v", err)
+	}
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatalf("sidecar PUT: %v", err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("sidecar PUT = %d (%s)", resp.StatusCode, drain(t, resp))
+	}
+	if b := drain(t, resp); len(b) != 0 {
+		t.Errorf("sidecar PUT body = %q, want empty (201 no body)", b)
+	}
+	loc := resp.Header.Get("Location")
+	if want := srv.URL + "/binflow" + jarPath; loc != want {
+		t.Errorf("Location = %q, want the prefixed TARGET %q", loc, want)
+	}
+
+	got, err := srv.Client().Get(loc)
+	if err != nil {
+		t.Fatalf("GET Location: %v", err)
+	}
+	b := drain(t, got)
+	if got.StatusCode != http.StatusOK || !bytes.Equal(b, jarBytes) {
+		t.Fatalf("GET Location = %d (%q), want 200 with the target bytes", got.StatusCode, b)
 	}
 }

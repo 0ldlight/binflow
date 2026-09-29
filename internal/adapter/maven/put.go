@@ -433,8 +433,9 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 
 	// Registration only (L014-2 BUG 2): the 201 carries the TARGET's
 	// Location and no body (rest-api.md section 1.1's dedicated column for
-	// the checksum-file PUT).
-	w.Header().Set("Location", requestBase(r)+"/"+repoKey+"/"+escapePath(l.Target))
+	// the checksum-file PUT). L034-R6 Arm 8's cksum leg pins the A face
+	// rendering the Location THROUGH the contextPath.
+	w.Header().Set("Location", requestBase(r)+productPrefix+"/"+repoKey+"/"+escapePath(l.Target))
 	w.WriteHeader(http.StatusCreated)
 }
 
@@ -577,25 +578,25 @@ func escapePath(rel string) string {
 	return strings.Join(segs, "/")
 }
 
-// productPrefix is the instance context path every self-referential body
-// URL carries: ADR-0008's single product namespace /binflow, the same wire
+// productPrefix is the instance context path every self-referential URL
+// carries: ADR-0008's single product namespace /binflow, the same wire
 // constant httpapi routes the content plane on (the adapter itself sees the
 // path stripped, so the prefix lives here as a render-time fact). The
-// deploy envelope's uri/downloadUri address the artifact THROUGH the prefix
-// the way Artifactory's envelope carries its contextPath (T-561/BIN-42,
-// known-divergence deploy-created-envelope-uri-missing-context-prefix: B
-// bare-root vs A /artifactory-prefixed, L030 incidental observation 1).
+// deploy envelope's uri/downloadUri (T-561/BIN-42) and the 201 Location
+// header (T-563/BIN-45, L034-R6 Arm 8: A renders Location THROUGH its
+// contextPath and byte-equal to the envelope uri — the bare-root form 404s
+// when followed) address the artifact THROUGH the prefix, the way
+// Artifactory's response URLs carry its contextPath.
 const productPrefix = "/binflow"
 
 // writeCreated renders the 201 of an artifact/metadata deploy: Location,
 // X-Checksum-Sha256 and the FileInfo ItemCreated body (rest-api.md 1.2).
-// The body's uri/downloadUri carry the /binflow prefix; the Location header
-// keeps the bare content-plane address — the observed face (L030) pins the
-// envelope fields only, so Location is not guessed at.
+// Both the Location header and the body's uri/downloadUri carry the
+// /binflow prefix, Location byte-equal to the uri (L034-R6 Arm 8).
 func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, relPath string,
 	node *metadata.Node, declared map[string]bool) {
 	sums := h.digestTriple(r.Context(), node)
-	w.Header().Set("Location", requestBase(r)+"/"+repoKey+"/"+escapePath(relPath))
+	w.Header().Set("Location", requestBase(r)+productPrefix+"/"+repoKey+"/"+escapePath(relPath))
 	if sums.sha256 != "" && !isFolder(node) {
 		w.Header().Set(hdrChecksumSha256, sums.sha256)
 	}
