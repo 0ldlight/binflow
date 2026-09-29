@@ -216,26 +216,29 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 // stored bytes only register the client's original claim, ME-03).
 func (h *Handler) serveSidecar(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	p *repo.Principal, repoKey, relPath string, l Layout) {
-	// sha512 is outside the three-digest model: no honest computed body
-	// exists, and pretending the stored claim is the answer would violate
-	// the computed-value contract. 404 it.
-	if l.Algo == "sha512" {
-		writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
-		return
-	}
 	h.serveSidecarOfPath(ctx, w, r, p, repoKey, l.Target, l.Algo, relPath)
 }
 
 // writeSidecarDigest renders the computed sidecar of ONE node (digest
 // lookup, headers, conditional, body) — shared by the ordinary sidecar
 // face and the walk resolve's sidecar leg (t5/t6: the digest addresses the
-// RESOLVED entity).
+// RESOLVED entity). The sha512 gate lives HERE, on the shared exit: sha512
+// is outside the three-digest model — no honest computed body exists, and
+// pretending the stored claim is the answer would violate the computed-
+// value contract (the derived-sidecar contract's pinned arm, L032) — so
+// EVERY sidecar path, the walk legs included, 404s it (R7 dual-review
+// blocking fix: the gate used to sit on serveSidecar alone and the walk
+// legs reached the digest lookup's 500 ledger-gap face).
 func (h *Handler) writeSidecarDigest(ctx context.Context, w http.ResponseWriter, r *http.Request,
-	node *metadata.Node, algo string) {
+	node *metadata.Node, algo, repoKey, path string) {
+	if algo == "sha512" {
+		writeError(w, http.StatusNotFound, notFoundMessage(repoKey, path))
+		return
+	}
 	digest, ok := h.digestOf(ctx, node, algo)
 	if !ok {
 		writeError(w, http.StatusInternalServerError,
-			fmt.Sprintf("digest %s is not available (ledger gap)", algo))
+			fmt.Sprintf("digest %s of '%s/%s' is not available (ledger gap)", algo, repoKey, path))
 		return
 	}
 	body := digest // bare hex, no trailing newline (ME-03/FR-16)

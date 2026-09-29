@@ -273,3 +273,38 @@ func TestVirtualPlainWalkCrossMemberMtime(t *testing.T) {
 			h.StatusCode, h.Header.Get("Content-Length"))
 	}
 }
+
+// TestPlainSnapshotWalkSha512SidecarGate is the R7 dual-review blocking
+// fix's regression arm: the .sha512 sidecar walk leg must fall to the
+// gate's 404 on BOTH planes — the gate sits on the shared
+// writeSidecarDigest exit, so the walk legs can no longer reach the
+// digest lookup's 500 ledger-gap face (the derived-sidecar contract's
+// pinned arm, L032).
+func TestPlainSnapshotWalkSha512SidecarGate(t *testing.T) {
+	hs := newHarness(t)
+	ctx := context.Background()
+	if _, err := hs.svc.CreateRepo(ctx, adminP, &metadata.Repo{
+		RepoKey: "w512-v", Type: repo.TypeVirtual, PackageType: Protocol,
+		Config: `{"repositories":["maven-unique"]}`,
+	}); err != nil {
+		t.Fatalf("seed virtual: %v", err)
+	}
+	dir := "com/walk/w512/1.0-SNAPSHOT"
+	pom := pomFor("com.walk", "w512", "1.0-SNAPSHOT", "w512")
+	if resp := putPom(hs, "maven-unique", dir+"/w512-1.0-SNAPSHOT.pom", pom); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("plain pom PUT = %d", resp.StatusCode)
+	}
+	s1, _, _ := digests(pom)
+	for _, base := range []string{"/maven-unique", "/w512-v"} {
+		sc := hs.serve(http.MethodGet, base+"/"+dir+"/w512-1.0-SNAPSHOT.pom.sha512", nil, nil, true)
+		if sc.StatusCode != http.StatusNotFound {
+			t.Errorf("%s walk .sha512 sidecar = %d (%s), want the gate's 404, never a 500 ledger gap",
+				base, sc.StatusCode, drain(t, sc))
+		}
+	}
+	// The gate is sha512-scoped: the sha1 sidecar still walks to 200.
+	sc := hs.serve(http.MethodGet, "/w512-v/"+dir+"/w512-1.0-SNAPSHOT.pom.sha1", nil, nil, true)
+	if got := strings.TrimSpace(string(drain(t, sc))); sc.StatusCode != http.StatusOK || got != s1 {
+		t.Errorf("virtual walk .sha1 sidecar = %d %s, want 200 the resolved target's digest", sc.StatusCode, got)
+	}
+}

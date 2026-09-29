@@ -216,12 +216,12 @@ func (h *Handler) serveVirtualWalk(ctx context.Context, w http.ResponseWriter, r
 		return false // the ordinary plane renders the miss
 	}
 	defer rc.Close() //nolint:errcheck // read-only fd
-	applyReaderHints(w, rc)
 	if l.Kind == KindSidecar {
-		h.writeSidecarDigest(ctx, w, r, node, l.Algo)
+		applyReaderHints(w, rc) // the sidecar leg bypasses serveNode — apply the member stream's hints here
+		h.writeSidecarDigest(ctx, w, r, node, l.Algo, virtualKey, best.path)
 		return true
 	}
-	h.serveNode(w, r, rc, node, best.path)
+	h.serveNode(w, r, rc, node, best.path) // serveNode applies the reader hints itself (no double apply)
 	return true
 }
 
@@ -238,5 +238,5 @@ func (h *Handler) serveSidecarOfPath(ctx context.Context, w http.ResponseWriter,
 	}
 	applyReaderHints(w, rc)
 	_ = rc.Close() //nolint:errcheck // read-only fd; the digest comes from the ledger
-	h.writeSidecarDigest(ctx, w, r, node, algo)
+	h.writeSidecarDigest(ctx, w, r, node, algo, repoKey, path)
 }
