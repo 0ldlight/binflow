@@ -101,7 +101,7 @@ local 仓的删除不再一去不返：**删除前先把节点捕获进内置仓
 | `trash.originalPath` | 本节点的原路径（子树任一节点可独立恢复） |
 
 - **跳过集**（本地生成物不入站）：`.jfrog/**`、`dists/**`、`repodata` 段、`_tmp_*` 首段、`maven-metadata.xml` 及其 checksum 族。
-- **不捕获面**：remote 缓存失效、`DELETE /api/repositories/{key}?deleteContent` 仓拆除、docker manifest/tag 删除。
+- **不捕获面**：remote 缓存失效、`DELETE /api/repositories/{key}` 仓拆除（级联移除的全部内容一律不进回收站）、docker manifest/tag 删除。
 - `auto-trashcan` 是系统仓：建/改/删仓拒该 key；virtual 成员校验拒绝；无 permission target 能点名它——只有 admin / readonly_admin 可见。
 - community 实例**不捕获**（删除仍是硬删）。
 

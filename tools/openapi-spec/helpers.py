@@ -179,6 +179,17 @@ def build_schemas():
                                          "description": "ISO8601 with milliseconds; rows whose created falls inside the requested range return created, rows matched only via lastModified return the modification time"}},
                         desc="Date slim row", additional=False))},
         desc="creation/dates search results (empty set = 404; this shape is not returned)", additional=False)
+    sc["RepoDeleteReport"] = obj(
+        {"repoKey": {"type": "string"},
+         "statusMsg": {"type": "string",
+                       "description": "Wording follows the repository class: virtual = plain removal "
+                                      "(`Repository '<key>' has been removed successfully.`), local/remote "
+                                      "= the content-bearing form"},
+         "deletedArtifactsCount": {"type": "integer",
+                                   "description": "Files + folder rows removed by the cascade (repository root not counted)"},
+         "success": {"type": "boolean"}},
+        desc="Repository delete report — deletion is always a silent cascade (empty or not)",
+        required=["repoKey", "statusMsg", "deletedArtifactsCount", "success"], additional=False)
     sc["RepoTestInput"] = obj(
         {"url": {"type": "string", "description": "Draft URL (overrides the stored value for this probe only)"},
          "username": {"type": "string"},
