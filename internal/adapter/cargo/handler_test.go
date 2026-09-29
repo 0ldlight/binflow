@@ -670,8 +670,11 @@ func TestBareContentFace(t *testing.T) {
 	}
 
 	status, _, hdr := s.put(repoPath("cargo-local")+"/docs/readme.txt", []byte("hello"), nil)
-	if status != http.StatusCreated || hdr.Get("Location") != "docs/readme.txt" {
-		t.Fatalf("plain bare PUT = (%d, %s), want 201 + Location", status, hdr.Get("Location"))
+	// T-567: the bare-write 201 Location is the absolute, context-prefixed
+	// address (inference-level for cargo, see created_location_test.go).
+	want := s.srv.URL + repoPath("cargo-local") + "/docs/readme.txt"
+	if status != http.StatusCreated || hdr.Get("Location") != want {
+		t.Fatalf("plain bare PUT = (%d, %q), want 201 + Location %q", status, hdr.Get("Location"), want)
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -248,7 +249,10 @@ func writeText(w http.ResponseWriter, status int, body string) {
 
 // servePush implements the PUT push chain: spool + hash, zip/nuspec
 // validation (400), the package landing, the two server-generated
-// sidecars, 201 with the canonical Location.
+// sidecars, 201 with no Location header (T-567, L036 section 2: the A
+// face's multipart push 201 carries NONE — the former repo-relative
+// Location was a mis-anchored value whose client-side resolution pointed
+// at a doubly-stacked flatcontainer path).
 //
 // Two URL shapes reach here: the addressed form
 // (flatcontainer/<id>/<version>, the PRD's carrier and the curl surface)
@@ -352,7 +356,8 @@ func (h *Handler) servePush(ctx context.Context, w http.ResponseWriter, r *http.
 		h.warnSidecar(ctx, repoKey, target.sha512(), err)
 	}
 
-	w.Header().Set("Location", target.nupkg())
+	// No Location on the 201 (the T-567 note above): the A face's push
+	// 201 carries none, and the checksum header stays the only extra.
 	if node != nil && node.Sha256 != "" {
 		w.Header().Set(hdrChecksumSha256, node.Sha256)
 	}
@@ -488,7 +493,8 @@ func (h *Handler) serveDelete(ctx context.Context, w http.ResponseWriter, _ *htt
 }
 
 // serveBareContent is the raw storage face (no plane segment): GET/HEAD
-// stream the node, PUT lands bytes verbatim, DELETE removes — the curl
+// stream the node, PUT lands bytes verbatim (its 201 Location is the
+// absolute, context-prefixed address, T-567), DELETE removes — the curl
 // and debug reachability the other adapters' content planes give.
 func (h *Handler) serveBareContent(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, rel string) {
 	switch r.Method {
@@ -513,7 +519,7 @@ func (h *Handler) serveBareContent(ctx context.Context, w http.ResponseWriter, r
 			h.writeError(w, err, repoKey, rel)
 			return
 		}
-		w.Header().Set("Location", rel)
+		w.Header().Set("Location", requestBase(r)+productPrefix+"/"+repoKey+"/"+escapePath(rel))
 		w.WriteHeader(http.StatusCreated)
 	case http.MethodDelete:
 		if err := h.svc.Delete(ctx, p, repoKey, rel); err != nil {
@@ -526,3 +532,36 @@ func (h *Handler) serveBareContent(ctx context.Context, w http.ResponseWriter, r
 		writePlain(w, http.StatusMethodNotAllowed, "method "+r.Method+" is not supported on content paths")
 	}
 }
+
+// requestBase is scheme://host from the request (Location header base).
+func requestBase(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host
+}
+
+// escapePath percent-encodes the path for the Location header.
+func escapePath(rel string) string {
+	segs := strings.Split(rel, "/")
+	for i, s := range segs {
+		segs[i] = url.PathEscape(s)
+	}
+	return strings.Join(segs, "/")
+}
+
+// productPrefix is the instance context path every self-referential URL
+// carries: ADR-0008's single product namespace /binflow, the same wire
+// constant httpapi routes the content plane on (the adapter itself sees the
+// path stripped, so the prefix lives here as a render-time fact). T-567's
+// A-face probe (Artifactory 7.161.26 behind the /artifactory context root,
+// L036 section 2) pinned the bare-content PUT 201 Location rendered
+// THROUGH the context path — absolute, path part the deployment path
+// unchanged; the bare repo-relative form is a mis-anchored value a client
+// resolves against the wrong base. (The probe's companion X-Checksum-Sha256
+// on that A face is NOT added here — unfaced surface, out of ticket
+// scope.) Same render rule as adapter/maven's T-563 and adapter/generic's
+// T-564 productPrefix — kept as this package's own constant, no
+// cross-package import.
+const productPrefix = "/binflow"

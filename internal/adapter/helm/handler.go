@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -344,7 +345,7 @@ func (h *Handler) servePlainFile(ctx context.Context, w http.ResponseWriter, r *
 			h.writeError(w, err, repoKey, rel)
 			return
 		}
-		h.writeCreated(w, rel, node)
+		h.writeCreated(w, r, repoKey, rel, node)
 	case http.MethodDelete:
 		if err := h.svc.Delete(ctx, p, repoKey, rel); err != nil {
 			h.writeError(w, err, repoKey, rel)
@@ -449,7 +450,7 @@ func (h *Handler) serveUploadChart(ctx context.Context, w http.ResponseWriter, r
 	} else if parseErr != nil {
 		slogWarnUnindexed(ctx, indexKey, rel, parseErr)
 	}
-	h.writeCreated(w, rel, node)
+	h.writeCreated(w, r, repoKey, rel, node)
 }
 
 // virtualWriteTarget resolves a virtual repository's write route off its
@@ -564,12 +565,45 @@ func spoolBody(dir string, body io.Reader) (string, error) {
 	return f.Name(), nil
 }
 
-// writeCreated renders the 201 with the Location and checksum headers.
-func (h *Handler) writeCreated(w http.ResponseWriter, rel string, node *metadata.Node) {
+// requestBase is scheme://host from the request (Location header base).
+func requestBase(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host
+}
+
+// escapePath percent-encodes the path for the Location header.
+func escapePath(rel string) string {
+	segs := strings.Split(rel, "/")
+	for i, s := range segs {
+		segs[i] = url.PathEscape(s)
+	}
+	return strings.Join(segs, "/")
+}
+
+// productPrefix is the instance context path every self-referential URL
+// carries: ADR-0008's single product namespace /binflow, the same wire
+// constant httpapi routes the content plane on (the adapter itself sees the
+// path stripped, so the prefix lives here as a render-time fact). T-567's
+// A-face probe (Artifactory 7.161.26 behind the /artifactory context root,
+// L036 section 2) pinned the chart PUT 201 Location rendered THROUGH the
+// context path — absolute, path part the deployment path unchanged
+// (…/artifactory/<repo>/charts/<f>.tgz); the bare repo-relative form is a
+// mis-anchored value a client resolves against the wrong base. Same render
+// rule as adapter/maven's T-563 and adapter/generic's T-564 productPrefix —
+// kept as this package's own constant, no cross-package import.
+const productPrefix = "/binflow"
+
+// writeCreated renders the 201 with the Location and checksum headers: the
+// Location is the absolute, context-prefixed address of the landed node
+// (requestBase + /binflow/<repo>/<deployment path>, T-567).
+func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, rel string, node *metadata.Node) {
 	if node != nil && node.Sha256 != "" {
 		w.Header().Set(hdrChecksumSha256, node.Sha256)
 	}
-	w.Header().Set("Location", rel)
+	w.Header().Set("Location", requestBase(r)+productPrefix+"/"+repoKey+"/"+escapePath(rel))
 	w.WriteHeader(http.StatusCreated)
 }
 
