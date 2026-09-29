@@ -970,7 +970,7 @@ func TestDockerDeleteManifest(t *testing.T) {
 func TestDockerDeleteRepoCascades(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("deleteContent=true empties the three docker tables", func(t *testing.T) {
+	t.Run("deleteContent=true empties the three docker tables (flag accepted-and-ignored, T-555)", func(t *testing.T) {
 		e := newEnv(t)
 		mustCreateDockerRepo(t, e, "docker-local")
 		putManifest(t, e, admin(), "docker-local", "app", digestOf("a1"), "v1", digestOf("l1"))
@@ -986,18 +986,17 @@ func TestDockerDeleteRepoCascades(t *testing.T) {
 		}
 	})
 
-	t.Run("docker rows alone block a no-flag delete", func(t *testing.T) {
+	t.Run("docker rows alone also cascade without the flag", func(t *testing.T) {
 		e := newEnv(t)
 		mustCreateDockerRepo(t, e, "docker-local")
 		putManifest(t, e, admin(), "docker-local", "app", digestOf("a"), "", digestOf("l")) // digest-only
 		if err := e.md.Nodes().Delete(ctx, "docker-local", "app/manifests/"+digestOf("a")); err != nil {
 			t.Fatalf("strip node row: %v", err)
 		}
-		if err := e.svc.DeleteRepo(ctx, admin(), "docker-local", false); !errors.Is(err, repo.ErrRepoNotEmpty) {
-			t.Fatalf("docker-rows-only repo no-flag delete error = %v, want ErrRepoNotEmpty", err)
-		}
-		if err := e.svc.DeleteRepo(ctx, admin(), "docker-local", true); err != nil {
-			t.Fatalf("flagged delete: %v", err)
+		// T-555 (D-3): silent cascade — the manifest-index-only residue goes
+		// with the row, no flag demanded.
+		if err := e.svc.DeleteRepo(ctx, admin(), "docker-local", false); err != nil {
+			t.Fatalf("docker-rows-only repo no-flag delete: %v", err)
 		}
 		assertDockerTablesEmpty(ctx, t, e, "docker-local")
 	})

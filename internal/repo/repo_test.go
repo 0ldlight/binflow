@@ -884,34 +884,33 @@ func TestGetListPaths(t *testing.T) {
 
 // ---- DeleteRepo branches (AC 3) ----
 
-// TestDeleteRepoBranches: non-empty without the flag names deleteContent;
-// with the flag everything goes; empty repo deletes cleanly.
+// TestDeleteRepoBranches: T-555/BIN-37 (D-3 user ruling) — the delete is a
+// silent cascade: a non-empty repository deletes without any flag and the
+// content goes with the row; an empty repository deletes cleanly; the flag
+// spelling is accepted and behaves identically.
 func TestDeleteRepoBranches(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
 	mustCreateRepo(t, e, "generic-local")
 	put(t, e, admin(), "generic-local", "a.bin", "x")
 
-	err := e.svc.DeleteRepo(ctx, admin(), "generic-local", false)
-	if !errors.Is(err, repo.ErrRepoNotEmpty) {
-		t.Fatalf("DeleteRepo(non-empty, no flag) error = %v, want ErrRepoNotEmpty", err)
-	}
-	if !strings.Contains(err.Error(), "deleteContent") {
-		t.Fatalf("error does not hint deleteContent: %v", err)
-	}
-	// The repo and the node survive.
-	if _, err := e.svc.GetRepo(ctx, admin(), "generic-local"); err != nil {
-		t.Fatalf("repo vanished after refused delete: %v", err)
-	}
-	if _, err := e.md.Nodes().Get(ctx, "generic-local", "a.bin"); err != nil {
-		t.Fatalf("node vanished after refused delete: %v", err)
-	}
-
-	if err := e.svc.DeleteRepo(ctx, admin(), "generic-local", true); err != nil {
-		t.Fatalf("DeleteRepo(deleteContent): %v", err)
+	// Non-empty, NO flag: cascades (the old ErrRepoNotEmpty gate was ruled
+	// the divergence — reference answers a silent cascade, 200).
+	if err := e.svc.DeleteRepo(ctx, admin(), "generic-local", false); err != nil {
+		t.Fatalf("DeleteRepo(non-empty, no flag): %v", err)
 	}
 	if _, err := e.svc.GetRepo(ctx, admin(), "generic-local"); !errors.Is(err, repo.ErrRepoNotFound) {
 		t.Fatalf("repo still present: %v", err)
+	}
+	if nodes, _ := e.md.Nodes().ListByPrefix(ctx, "generic-local", ""); len(nodes) != 0 {
+		t.Fatalf("nodes survived the cascade: %d", len(nodes))
+	}
+
+	// The deleteContent=true spelling cascades identically.
+	mustCreateRepo(t, e, "generic-local")
+	put(t, e, admin(), "generic-local", "a.bin", "x")
+	if err := e.svc.DeleteRepo(ctx, admin(), "generic-local", true); err != nil {
+		t.Fatalf("DeleteRepo(deleteContent): %v", err)
 	}
 	if nodes, _ := e.md.Nodes().ListByPrefix(ctx, "generic-local", ""); len(nodes) != 0 {
 		t.Fatalf("nodes survived DeleteRepo(deleteContent): %d", len(nodes))

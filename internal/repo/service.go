@@ -2940,13 +2940,16 @@ func (s *service) sealPassword(ctx context.Context, repoKey, password string) st
 	return sealed
 }
 
-// DeleteRepo implements Service.DeleteRepo. A non-empty repository without
-// deleteContent fails with an error whose message names the flag
-// (FR-3-AC5); with deleteContent every node goes first, then the row
-// itself (the FK cascades nodes as a backstop; deleting them explicitly
-// keeps the operation's blast radius observable). Docker repositories
-// additionally count their manifest index as content and tear the three
-// docker tables down before the row goes (FR-7-AC5).
+// DeleteRepo implements Service.DeleteRepo. The delete is a SILENT CASCADE:
+// a non-empty repository's content goes with the row, no confirmation
+// semantics (T-555/BIN-37, D-3 user ruling 2026-09-29 — the reference
+// answers 200 and deletes a non-empty repository outright; BinFlow's old
+// 400 "retry with deleteContent=true" gate was ruled the bug). The
+// deleteContent parameter is accepted and ignored: every spelling cascades.
+// Every node goes first, then the row itself (the FK cascades nodes as a
+// backstop; deleting them explicitly keeps the operation's blast radius
+// observable). Docker repositories additionally tear the three docker
+// tables down before the row goes (FR-7-AC5).
 func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, deleteContent bool) error {
 	// Family 6's other half stays double-doored ON PURPOSE (T-217): the route
 	// gate is CapRepoWrite (admin-only, not delegated to m holders), and this
@@ -2988,32 +2991,10 @@ func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, 
 	if err != nil {
 		return fmt.Errorf("repo %q nodes: %w", repoKey, err)
 	}
-	// A registry-v2 family repository (docker or helmoci, HL-3) also "holds
-	// content" through its manifest index — a repo whose nodes were pruned
-	// but whose manifests remain (digest-only
-	// pushes leave no folder rows, tags go under the image name) is not
-	// empty either. Counting the catalog is the cheap sufficient probe.
-	// (Tag rows cannot outlive their manifest: PutManifest writes the
-	// manifest row before the tag, and the store's delete cascade removes
-	// both in one transaction.)
-	images := 0
-	if isV2PlaneFamily(repoRow.PackageType) {
-		rows, err := s.md.Docker().ListImages(ctx, repoKey, "", 0)
-		if err != nil {
-			return fmt.Errorf("repo %q docker catalog: %w", repoKey, err)
-		}
-		images = len(rows)
-	}
-	if len(nodes) > 0 && !deleteContent {
-		return fmt.Errorf(
-			"%w: %q holds %d node(s); retry with deleteContent=true to remove them",
-			ErrRepoNotEmpty, repoKey, len(nodes))
-	}
-	if images > 0 && !deleteContent {
-		return fmt.Errorf(
-			"%w: %q holds %d docker image(s); retry with deleteContent=true to remove them",
-			ErrRepoNotEmpty, repoKey, images)
-	}
+	// A registry-v2 family repository (docker or helmoci, HL-3) may hold
+	// content through its manifest index alone — nodes pruned while the
+	// docker tables survive. The silent cascade tears that half down too
+	// (DeleteRepoDocker below); there is no emptiness gate anymore.
 	if len(nodes) > 0 {
 		if _, err := s.md.Nodes().DeleteByPrefix(ctx, repoKey, ""); err != nil {
 			return fmt.Errorf("repo %q delete content: %w", repoKey, err)
