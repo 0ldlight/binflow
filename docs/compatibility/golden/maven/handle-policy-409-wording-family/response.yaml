@@ -1,0 +1,26 @@
+# 金样期望响应——maven handle* 拒绝 409 文案族（A 腿参照实形；详细断言复用契约，此处存档矩阵级观测）
+# schema: golden-response/1；契约锚 contracts/maven-virtual.yaml#maven/handle-policy-reject-409-wording-family
+message_put_form: >-
+  The repository 'difftest-l034-hr' rejected the resolution of an artifact
+  'difftest-l034-hr:com/diff/hwr/1.0.0/hwr-1.0.0.pom' due to conflict in the snapshot release
+  handling policy.
+message_get_form: '<message_put_form 同模板串> ; Path: ''<K>:<path>''（填充与 message 内层 <K>:<path> 引用逐字节相同）'
+legs:
+- leg: PUT 双腿（rel→hr / snap→hs）
+  observed:
+    status: 409
+    body: 'errors[] 信封；message=PUT 形态（上方逐字）——两腿同形同模板（r1=r2，A==B byte-exact）'
+- leg: GET 双腿（未落地 rel@hr / snap@hs）
+  observed:
+    status: 409
+    body: 'errors[] 信封；message=GET 形态（追加 ; Path: 段，填充逐字节=内层引用）——class 门在（409 非 404）'
+- leg: 长路径腿（16×12 字符 group 段）
+  observed:
+    status: 409
+    note: 'A 无服务端截断：消息全量（634 字符）、收尾引号完整、信封收口；; Path: 填充仍逐字节等于内层
+      引用；B 同形（len a=b=634）——t559「300 上限外推定」定案为 L033 harness 证据截断上限，
+      非服务端行为（B 无需改动）'
+matrix_outcome:
+  l033: '22 维矩阵拒绝腿措辞族 ×2 + class 门 ×2 维 DIVERGENT（B 面 ME-08 参数式文案 / GET 404）'
+  l034: '翻案维双端逐字节一致 PASS×2（T-559 修复 531ea002 验收）——台账两账 resolved + 契约两条 VERIFIED'
+verdict_witness: 'L034 Arms 2/3 r1=r2 A==B byte-exact；长路径定谳随档'

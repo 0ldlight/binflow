@@ -1,0 +1,23 @@
+# 金样元数据——maven handle* 拒绝 409 文案族（L034 收官批入金 G2）
+schema: golden/1
+id: maven/handle-policy-409-wording-family
+contract_ref: contracts/maven-virtual.yaml#maven/handle-policy-reject-409-wording-family
+matrix_ref: matrix.yaml#D12-R18
+capture:
+  mode: live-captured               # A 腿参照值逐维 live（L033 Arm C 定形 + L034 Arms 2/3 全量消息捕获）
+  captured_at: '2026-09-29（L033 r3≡r4 定形 → L034 r1=r2 逐字节对拍入金）'
+  capture_instance: 'A: Artifactory 7.161.26 Enterprise+ @ 192.168.120.38:8082；B: worktree 现态 @ 23b70a82（T-559 修复 531ea002 在树）'
+  capture_commands: >-
+    wire PUT/GET 四腿（rel→handleReleases=false / snap→handleSnapshots=false 成员仓；PUT 双腿 + 未落地
+    路径 GET 双腿）+ 长路径腿（16×12 字符 group 段）；case maven-local-handle-walk-skip（L034 升级版
+    ——全量消息捕获去 300 字符证据截断），runner 轮次 l034-r6-r{1,1b,2}
+  raw_response_archive: reports/compatibility/L034-r6.md Arms 2/3（message 逐字 + 长路径定谳段；wire tools/difftest/v2/run/l034-r6-r{1,1b,2} 与 l033-r5-r{3,4,5,6}）
+  history: live-captured（L033 Arm C r3≡r4——B 面 ME-08 参数式文案期）→ live-captured（L034 Arms 2/3 r1=r2 A==B byte-exact——T-559 修复验收，本档入金）
+instance_versions:
+  artifactory_ref: Artifactory 7.161.26 Enterprise+（http://192.168.120.38:8082）
+  binflow_tested: worktree 现态 @ 23b70a82（T-559 修复 531ea002 在树；L034 翻绿轮）
+confidence: high                   # 双轮逐字节对拍（byte-exact×2）+ 长路径直测定谳
+known_gaps:
+- 'virtual 路由腿（经 virtual PUT 至拒族 defaultDeploymentRepo 成员）文案形态未取证（契约 unobserved 维持）'
+- '634 字符长路径全串在本档为构造+长度级锚（16×12 group 段、<K>:<path> 251、全 message 634）——逐字符实值以 wire run/l034-r6-r{1,1b,2} 为准'
+review: L034 收官批入金评审（2026-09-29，conductor 授权 L034 提金候选②）——A 腿 message 原文逐字转录自 L034 报告，未自行改写

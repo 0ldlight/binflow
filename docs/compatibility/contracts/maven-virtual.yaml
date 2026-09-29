@@ -38,6 +38,13 @@
 #   （maven 布局 wire PUT 自动物化 version 级 maven-metadata.xml——T-555 活体探针定案 L032
 #   A=6-vs-B=5 之谜的新独立面孔；status DIVERGENT 仅记存在面事实分歧，对齐方向台账 UNKNOWN
 #   待裁不预写；写路径物化面，域单文件先例入册——⑥⑦ 成员面同先例）。
+# L034 收官批（R6 轮末 / T-560 差分收官，conductor 授权翻面，2026-09-29）：⑤⑥⑦⑧ 四条目随
+#   T-559 修复（531ea002）L034 双轮 PASS 翻 VERIFIED——⑤⑥（Arms 2/3：409 文案族 PUT/GET 四腿
+#   message 逐字节相同；`; Path:` 填充 unobserved 项回填=逐字节同、无服务端截断〔634 字符长路径
+#   直测〕）；⑦（Arm 5 绿半边：non-unique 家园存储面四维 PASS×2——分面纪律维持，unique 家园
+#   walk 族归 T-562/BIN-44，unobserved 时间戳拼写臂维持如实）；⑧（Arm 4：8/8 维 PASS×2——A 面
+#   跨秒直接腿已实测 304×3，原「机制推导」caveat 清偿，confidence medium→high；LM 值级残差
+#   [A later vs B equal] raw 取证入 unobserved 如实不裁）。⑨ DIVERGENT 维持（L034 未触其面）。
 domain: maven
 scope: 'version 级 maven-metadata.xml 的 <snapshotVersions> M3 能力谓词（virtual 合并面 + local 成员服务面）、
   mvn.metadata.version3.enabled 系统开关生效序、.pom 部署坐标↔路径一致性门（suppressPomConsistencyChecks）。
@@ -244,8 +251,8 @@ contracts:
       共用 writeDerivedSidecar 同姿势）'
     - 'If-None-Match 打在旁车上的 A 面应答（A 不发 ETag → INM 无从匹配的机制面推定不生效；未活体单拍）'
     - '旁车自身 Last-Modified 的跨请求稳定性——已分立条目 maven/derived-sidecar-lm-materialized-stamp
-      （T-558，DIVERGENT）：跨秒语义差 live 定谳（B java-agent 剥离面 per-request 戳 vs A 物化稳定戳），
-      归该条目承载；本条目同秒 validator 族断言面不受牵连'
+      （T-558，**VERIFIED 2026-09-29**：L034 Arm 4 跨秒双端 304×3 PASS×2，原机制推导 caveat 清偿）：
+      跨秒语义归该条目承载；本条目同秒 validator 族断言面不受牵连'
   binflow_state:
     verdict: 'VERIFIED（L033 Arm A：T-551 stage 2 修复后 17/17 维双端一致，r1≡r2≡r3——L032 三分歧
       维全翻绿：旁车 Last-Modified present〔自身派生时刻〕、IMS 命中→304、不发 ETag；维持面
@@ -253,11 +260,11 @@ contracts:
     detail: '修复面=internal/adapter/maven writeDerivedSidecar（virtual_metadata.go 与 handler.go 两调用点
       共用——virtual 合并面与 local 成员面同 helper，根因单点修复面）；fix=T-551 stage 2 / BIN-33。
       台账 known-divergence#maven/derived-sidecar-validator-family 已 resolved（2026-09-29）。
-      残差不受本条影响：跨秒 LM 时戳语义差（B java-agent 剥离面 per-request 派生戳 vs A 物化
-      稳定戳）单立台账 maven/derived-sidecar-lm-per-request-stamp（BUG——T-558/BIN-40 裁定
-      2026-09-29，契约条目 maven/derived-sidecar-lm-materialized-stamp 承载）——同秒矩阵腿双面
-      同 304，本条目断言面（同秒 validator 族）不受其牵连。unobserved 四臂维持（.md5/.sha256
-      validator 维与 virtual 面旁车形态未单独钉）。'
+      残差已收口（2026-09-29 L034 收官批）：跨秒 LM 时戳语义差（B java-agent 剥离面 per-request
+      派生戳 vs A 物化稳定戳）单立台账 maven/derived-sidecar-lm-per-request-stamp 已随 T-559
+      修复 resolved（L034 Arm 4 8/8 维 PASS×2），契约条目 maven/derived-sidecar-lm-materialized-stamp
+      随翻 VERIFIED/high——同秒矩阵腿双面同 304，本条目断言面（同秒 validator 族）不受其牵连。
+      unobserved 四臂维持（.md5/.sha256 validator 维与 virtual 面旁车形态未单独钉）。'
   version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态构建（T-551 stage 2 修复在树，L033 r1-r3 翻绿轮——divergence 复验翻正版本）' }
   evidence:
     - { kind: difftest, report: reports/compatibility/L032-t550-followup-arms.md, anchor: 'Arm 6（17 维矩阵 r1≡r2≡r3：差异①②③ validator 三维 A=live 7.161.26 逐维取证〔自身 LM/IMS→304/no-etag〕vs B=absent/恒200/ETag+INM；14 维一致含 body 面全绿；真实 mvn deploy 构造、java-agent/capable 双 UA）', date: '2026-09-28' }
@@ -288,10 +295,15 @@ contracts:
     literal_pattern: "PUT 形态（rel→hr / snap→hs 两腿同形）：errors[] 单元素；message 逐字=The
       repository '<repoKey>' rejected the resolution of an artifact '<repoKey>:<path>' due to
       conflict in the snapshot release handling policy.（句点收尾）；GET 形态=同串后追加
-      「; Path: '…'」段（L033 报告为占位转录，wire 实值锚 tools/difftest/v2/run/l033-r5-r{3,4}）"
+      「; Path: '<repoKey>:<path>'」段——L034 Arms 2/3 全量消息捕获逐字节对拍：填充与 message 内层
+      `<repoKey>:<path>` 引用逐字节相同，无服务端截断（634 字符长路径直测，收尾引号完整、信封收口；
+      wire 实值锚 tools/difftest/v2/run/l034-r6-r{1,1b,2}；L033 时点「300 上限」已定案为 harness 证据
+      截断上限非服务端行为）"
     arm_notes:
     - '「resolution」措辞为 A 面实测原文逐字转录（PUT 部署拒绝腿亦用 resolution 词）'
     - '策略域短语两腿共用「snapshot release handling policy」同一模板（L033 记「两腿同形」）'
+    - '长路径无截断（L034 定谳）：16×12 字符 group 段（<repoKey>:<path> 251 字符、全 message 634
+      字符）双端同形 len a=b=634——A 无服务端截断，B 现实现无需任何改动（t559 留验点就此关闭）'
   side_effects: []
   error_behavior:
   - { when: 'PUT release 类路径至 handleReleases=false 成员', status: 409, body_literal: '见 literal_pattern PUT 形态' }
@@ -299,24 +311,25 @@ contracts:
   - { when: 'GET 未落地 release 类路径于 handleReleases=false 成员', status: 409, body_literal: '见 literal_pattern GET 形态（status 语义面互引 member-get-class-gate 条目）' }
   - { when: 'GET 未落地 snapshot 类路径于 handleSnapshots=false 成员', status: 409, body_literal: '同上' }
   unobserved_reference_arms:
-  - '「; Path: …」段内具体填充形（报告占位转录；修复票对照时从 run/l033-r5-r{3,4} wire 锚定）'
   - 'virtual 路由腿（经 virtual PUT 至拒族 defaultDeploymentRepo 成员）的文案形态（A 面未取证）'
   - 'Generic 仓 handle* 忽略面（repo-semantics.md §2——Generic 无 Maven 系语义，不属本条）'
   binflow_state:
-    verdict: "DIVERGENT——B 面 put.go ME-08 参数式文案（Repository '<K>' rejected deployment of
-      '<K>/<path>': handling of releases is disabled (handleReleases=false).）；status 409 双面
-      一致、部署门无回归，分歧纯在文案族"
-    detail: '台账 known-divergence.yaml#maven/handle-policy-reject-409-wording-family（UNKNOWN→BUG，
-      T-558/BIN-40，2026-09-29）。修复面=ME-08 文案族替换为 A 模板（PUT/GET 两形态），与 read-path
-      门（下条）同族改造。先例同类：rest/kcache-deploy-404-wording（T-553——status 同、文案不同=
-      文案族 BUG 对齐 A 逐字）。'
-  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态（L033 r3-r6 轮，分歧维持）' }
+    verdict: "VERIFIED（L034 Arms 2/3：T-559 修复后 case maven-local-handle-walk-skip 升级版——PUT
+      双腿与 GET 双腿 message 双端逐字节相同，r1=r2 A==B byte-exact ×2 轮；`; Path:` 填充逐字节同）"
+    detail: '修复=T-559/BIN-39（531ea002——put.go ME-08 文案族替换为 A 模板 PUT/GET 两形态）。台账
+      known-divergence.yaml#maven/handle-policy-reject-409-wording-family 已 resolved（2026-09-29，
+      锚 L034 Arms 2/3 + 修复提交 531ea002；长路径截断定谳随 resolved note 在案——300 上限系 L033
+      harness 截断）。先例同类：rest/kcache-deploy-404-wording（T-553）。原「; Path 段填充形」
+      unobserved 项已随 L034 全量消息捕获回填（移出缺口清单）。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态 @ 23b70a82（T-559 修复在树，L034 r1/r2 翻绿轮）' }
   evidence:
   - { kind: difftest, report: reports/compatibility/L033-r5-fix-verification.md, anchor: 'Arm C 22 维矩阵「拒绝腿措辞族 ×2」（A 面逐字 vs B 面 ME-08；r3≡r4 定形、r5≡r6 维持；wire run/l033-r5-r{3,4}+r{5,6}）+ 先决发现节（A 对 hr=false local 的 release PUT 直接 409）', date: '2026-09-29' }
   - { kind: probe, report: docs/reverse/repo-semantics.md, anchor: '§2 请求校验顺序（Maven 系 release/snapshot 开关在 assertValidPath 内——策略拒绝码 409 经勘误节确定；文案族为 A 面 live 补充，规格未载）', date: '2026-09-28' }
+  - { kind: difftest, report: reports/compatibility/L034-r6.md, anchor: 'Arms 2/3（翻绿轮 r1=r2 双轮：全量消息捕获+逐字节消息维——PUT×2/GET×2 message 逐字节相同 + 长路径 634 字符无截断定谳；wire run/l034-r6-r{1,1b,2}）', date: '2026-09-29' }
+  - { kind: golden-capture, report: docs/compatibility/golden/maven/handle-policy-409-wording-family, anchor: 'A 腿参照实形（PUT/GET 全量 message + 长路径构造锚——L034 收官批入金）', date: '2026-09-29' }
   confidence: high
-  status: DIVERGENT
-  divergence_ref: known-divergence.yaml#maven/handle-policy-reject-409-wording-family
+  status: VERIFIED
+  divergence_ref: known-divergence.yaml#maven/handle-policy-reject-409-wording-family   # 历史指针（该条已 resolved 2026-09-29——L034 Arms 2/3 + fix 531ea002）
 # ── 成员 GET 路径类×策略门（T-558 / BIN-40——L033 Arm C 提案②裁定配套）──────────────
 - id: maven/handle-policy-member-get-class-gate
   feature: 'maven 成员仓读路径的路径类×handle* 策略门：未落地相斥路径直读返回 409（读路径同执
@@ -353,17 +366,20 @@ contracts:
   - '409 门与成员 includes/excludes、blackedOut 的求值顺序（repo-semantics.md §2 序为 PUT 链
       侧；GET 链顺序未单拍）'
   binflow_state:
-    verdict: 'DIVERGENT——B 面读路径无策略门（未落地路径 404；只在写路径 put.go ME-08 设门）'
-    detail: '台账 known-divergence.yaml#maven/handle-policy-member-get-class-gate（UNKNOWN→BUG，
-      T-558/BIN-40，2026-09-29）。修复面=read 路径增设路径类×策略门（404→409 + 文案族 GET 形态），
-      与文案族条目同族改造。'
-  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态（L033 r3-r6 轮，分歧维持）' }
+    verdict: 'VERIFIED（L034 Arms 2/3：T-559 修复后 GET 双腿未落地 rel@hr / snap@hs 双端 409——
+      class 门在，×2 轮稳定；GET 形态同族文案 `; Path:` 填充逐字节相同 A==B）'
+    detail: '修复=T-559/BIN-39（531ea002——read 路径增设路径类×策略门 404→409 + 同族文案）。台账
+      known-divergence.yaml#maven/handle-policy-member-get-class-gate 已 resolved（2026-09-29，
+      锚 L034 Arms 2/3）。unobserved 两臂维持（virtual resolve 腿形态 / 门求值顺序——L034 未开腿，
+      留后续差分臂）。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态 @ 23b70a82（T-559 修复在树，L034 r1/r2 翻绿轮）' }
   evidence:
   - { kind: difftest, report: reports/compatibility/L033-r5-fix-verification.md, anchor: 'Arm C「成员 GET class 门 ×2」（A=409 vs B=404；r3≡r4、r5≡r6）+ 先决发现节（读写双门定性 + release 栖身构造不出 NOT_RUN）', date: '2026-09-29' }
   - { kind: probe, report: docs/reverse/virtual-resolution.md, anchor: '§3 第 4/6 条（virtual 面成员跳过语义——handleReleases/handleSnapshots=false 成员跳过；成员直读面的读侧门为 L033 live 补充，规格未载）', date: '2026-09-28' }
+  - { kind: difftest, report: reports/compatibility/L034-r6.md, anchor: 'Arms 2/3（翻绿轮 r1=r2 双轮：GET 双腿双端 409 + Path 填充逐字节同；wire run/l034-r6-r{1,1b,2}）', date: '2026-09-29' }
   confidence: high
-  status: DIVERGENT
-  divergence_ref: known-divergence.yaml#maven/handle-policy-member-get-class-gate
+  status: VERIFIED
+  divergence_ref: known-divergence.yaml#maven/handle-policy-member-get-class-gate   # 历史指针（该条已 resolved 2026-09-29——L034 Arms 2/3 + fix 531ea002）
 # ── plain-SNAPSHOT 拼写路径解析（T-558 / BIN-40——L033 Arm C 提案③裁定配套，分面纪律）────
 - id: maven/plain-snapshot-path-resolve
   feature: 'plain-SNAPSHOT 拼写路径（非时间戳展开形，如 1.0.0-SNAPSHOT.pom 原样存储）的解析与
@@ -401,18 +417,22 @@ contracts:
     「分面立票」纪律），不并入本条不猜'
   - 'plain-SNAPSHOT 拼写的 checksum 旁车（.sha1 等）与 maven-metadata.xml 的解析形态（未取证）'
   binflow_state:
-    verdict: 'DIVERGENT——B 面 plain-SNAPSHOT 拼写恒 404（成员直读与 virt resolve 双面；默认成员
-      对照腿同 404——L033 排除 handle* 归因，独立既有解析缺口）'
-    detail: '台账 known-divergence.yaml#maven/plain-snapshot-path-resolve-404（UNKNOWN→BUG，
-      T-558/BIN-40，2026-09-29）。修复面=拼写解析（含 -SNAPSHOT 段路径按普通存储路径命中）；
-      相邻正项：B virt 模块级清单不受此缺口影响（T-556 后清单含 1.0.0-SNAPSHOT，b==a）。'
-  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态（L033 r3-r6 轮，分歧维持）' }
+    verdict: 'VERIFIED·存储面（L034 Arm 5 绿半边：T-559 修复后 case maven-plainsnap-nonunique-resolve
+      ——non-unique 家园四维（Location 保持 plain 拼写 / 成员直读 200+sha-ok / virt resolve
+      200+sha-ok / `.sha1` 旁车 match）双端一致，r1≡r2 双轮 PASS×2）'
+    detail: '修复=T-559/BIN-39（531ea002——含 -SNAPSHOT 段路径按普通存储路径命中）。台账
+      known-divergence.yaml#maven/plain-snapshot-path-resolve-404 已 resolved（存储面，2026-09-29）。
+      **分面纪律维持**：时间戳拼写臂 / unique 家园 walk 族（resolve 选版=目录内最新时间戳、与
+      metadata 指针解耦——L034 Arm 7 forensics F1-F6）不在本条断言面，unobserved 维持如实，归
+      T-562/BIN-44 独立立契（B 面 ctl 三维 A=200 vs B=404 维持红——expected divergence 在案）。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态 @ 23b70a82（T-559 修复在树，L034 r1/r2 翻绿轮）' }
   evidence:
   - { kind: difftest, report: reports/compatibility/L033-r5-fix-verification.md, anchor: 'Arm C「virt resolve snapshot」维（A=200/B=404）+「对照腿 ×3」（plainsnap 同拼写放 ctl：A 直读/virt 200 vs B 双 404、清单含 1.0.0-SNAPSHOT——混杂排除；r3≡r4、r5≡r6）', date: '2026-09-29' }
   - { kind: probe, report: docs/reverse/maven-npm-pypi.md, anchor: '§1.3 snapshot 上传改写表 non-unique 行（保持 -SNAPSHOT 文件名原样落盘，高置信——plain 拼写为合法存储形；其解析命中语义为 L033 live 定谳补充）', date: '2026-09-28' }
+  - { kind: difftest, report: reports/compatibility/L034-r6.md, anchor: 'Arm 5（绿半边翻绿轮 r1≡r2 双轮四维 PASS×2；红半边 unique 家园 ctl 三维 expected divergence 维持——T-562 面；wire run/l034-r6-r{1,2}）', date: '2026-09-29' }
   confidence: high
-  status: DIVERGENT
-  divergence_ref: known-divergence.yaml#maven/plain-snapshot-path-resolve-404
+  status: VERIFIED
+  divergence_ref: known-divergence.yaml#maven/plain-snapshot-path-resolve-404   # 历史指针（该条已 resolved 2026-09-29 存储面——L034 Arm 5 + fix 531ea002；walk 族红半边归 T-562/BIN-44）
 # ── 派生旁车 LM 物化稳定戳（T-558 / BIN-40——L033 Arm A 附带取证裁定配套）────────────
 - id: maven/derived-sidecar-lm-materialized-stamp
   feature: '派生旁车（.sha1/.md5/.sha256）Last-Modified 的时戳语义：物化稳定戳（同一旁车跨请求
@@ -436,34 +456,44 @@ contracts:
     arms:
     - when: '跨秒回访 If-Modified-Since=该旁车先前 LM（java-agent 剥离面）'
       status: 304
-      note: 'A 面期望。证据口径如实：A 侧跨秒直接腿构造不可达（wire-PUT snapshot 在 A 30s 内不
-        物化版本级 metadata→404），结论=A 物化稳定戳机制推导（L032 直测）+ B 面 live 反证
-        （per-request 戳实测致 200+新 LM）——置信 medium 随此注记'
+      note: 'A 面期望。证据口径升级（L034 Arm 4，2026-09-29）：原「A 侧跨秒直接腿构造不可达→机制
+        推导」的限定系 wire-PUT 构造 scoped——mvn deploy 构造（客户端上传 version 级 metadata）下
+        A 面跨秒直接腿可达且 **304×3 实测**（.sha1/.md5/.sha256）；双端 8/8 维 PASS×2（r1b≡r2），
+        caveat 清偿、confidence 随升 high'
     - when: '同秒回访（控制——validator 族矩阵腿）'
       status: 304
       note: '双端一致已 VERIFIED（maven/derived-sidecar-validator-family；本条不重叠其断言面）'
     - when: 'capable UA 面（物化存储节点旁车）跨秒回访'
       status: 304
-      note: 'B 面已一致（L033 附带取证——物化面 LM 稳定）；修复作用面仅 java-agent 剥离面'
+      note: '双端一致（L033 附带取证 + L034 Arm 4 virtual 合并面 304 复验——物化面 LM 稳定）；修复作用面仅 java-agent 剥离面'
+    value_level_note: >-
+      LM 值级残差（L034 Arm 4 raw 取证、**断言面外如实不裁**）：A 旁车 LM 晚 body LM 约 2s（自身
+      物化时刻，lm_vs_body=later×3）vs B 旁车 LM == body LM（派生输入时戳，equal×3）——本条断言面
+      为「物化稳定戳语义（present+IMS 族）」，LM 精确值与 body LM 的偏移关系不在断言面；T-559
+      预声明的值级差 live 坐实，若立「LM 精确值语义」面另行立账（台账 resolved note 同步在案）。
   side_effects: []
   error_behavior: []
   unobserved_reference_arms:
-  - 'A 面跨秒 304 直接腿（构造不可达，见 arms 注记——修复票差分复验时如可达则补直测翻 high）'
   - 'stored-stamp 持久化后的戳更新时机（存储文档重写时旁车戳是否同步重取——A 面未观测）'
+  - 'LM 值级关系（A 旁车 LM 晚 body ~2s vs B equal——L034 Arm 4 raw 取证，断言面外；是否立
+    「LM 精确值语义」面待后续差分批裁定）'
   binflow_state:
-    verdict: 'DIVERGENT——B 面真派生面（java-agent 剥离）旁车 LM=per-request 派生时刻戳：跨秒持
-      旧 LM 回访 200+新 LM（LM 前移 00:44:09→00:44:10 实测）；capable 物化面 304 稳定不受影响'
-    detail: '台账 known-divergence.yaml#maven/derived-sidecar-lm-per-request-stamp（UNKNOWN→BUG，
-      T-558/BIN-40，2026-09-29）。修复面=stored-stamp 微票（旁车派生时戳持久化——T-551 Risks
-      预留升级点，台账 review_gate 预写升级路径兑现）。影响面如实：仅 java-agent 剥离面客户端
-      缓存效率（跨秒回访多传一份 body）；同秒 validator 族断言面（已 VERIFIED 条目）不受牵连。'
-  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态（L033 r1-r3 翻绿轮附带取证——B 残差 live）' }
+    verdict: 'VERIFIED（L034 Arm 4：T-559 修复后 case maven-sidecar-crosssec-stamp 8/8 维双端一致
+      ——member java-agent 剥离面跨秒 IMS 304×3 + virtual 合并面 304 + virtual 剥离面 304，
+      r1b≡r2 连续两轮 PASS×2 断言值逐项相同；A 面跨秒直接腿已实测，原机制推导 caveat 清偿）'
+    detail: '修复=T-559/BIN-39（531ea002——stored-stamp 持久化，旁车派生时戳不再 per-request）。
+      台账 known-divergence.yaml#maven/derived-sidecar-lm-per-request-stamp 已 resolved（2026-09-29，
+      锚 L034 Arm 4）。confidence medium→high（A 跨秒直接腿实测替代机制推导——原 unobserved 首项
+      回填移出）。影响面收口：java-agent 剥离面跨秒回访不再多传 body。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态 @ 23b70a82（T-559 修复在树，L034 r1b/r2 翻绿轮）' }
   evidence:
   - { kind: difftest, report: reports/compatibility/L033-r5-fix-verification.md, anchor: 'Arm A 附带取证节（跨秒矩阵：capable 面 B=304 stable / java-agent 剥离面 B=200+新 LM 00:44:09→00:44:10；A 直接腿不可达注记 + 机制推导说明）', date: '2026-09-29' }
   - { kind: difftest, report: reports/compatibility/L032-t550-followup-arms.md, anchor: 'Arm 6（r1-r3 A 腿物化稳定戳机制直测——LM 恒等于部署物化时刻且跨 GET 序列不变）', date: '2026-09-28' }
-  confidence: medium
-  status: DIVERGENT
-  divergence_ref: known-divergence.yaml#maven/derived-sidecar-lm-per-request-stamp
+  - { kind: difftest, report: reports/compatibility/L034-r6.md, anchor: 'Arm 4（翻绿轮 r1b≡r2 双轮 8/8 维：mvn-deploy 构造下 A 面跨秒直接腿 304×3 实测——confidence 升级锚；LM 值级 raw 取证 lm_vs_body A=later×3/B=equal×3 注记；wire run/l034-r6-r{1b,2}）', date: '2026-09-29' }
+  - { kind: golden-capture, report: docs/compatibility/golden/maven/derived-sidecar-crosssec-304, anchor: 'A 腿跨秒 304×3 digest 参照实形（L034 收官批入金——confidence 升级锚）', date: '2026-09-29' }
+  confidence: high
+  status: VERIFIED
+  divergence_ref: known-divergence.yaml#maven/derived-sidecar-lm-per-request-stamp   # 历史指针（该条已 resolved 2026-09-29——L034 Arm 4 + fix 531ea002）
 # ── wire PUT 自动物化 version 级 metadata（T-558 追加微任务 / BIN-40 followup——T-555 活体探针新面孔）──
 - id: maven/deploy-put-version-metadata-auto-materialize
   feature: 'maven 布局 wire PUT 落制品后的 version 级 maven-metadata.xml 存在面：A 写路径自动物化

@@ -1168,7 +1168,17 @@ entries:
     等 JSON 解析方对 2xx 体做 unmarshal 时形态敏感）。
   authority: { type: pending, ref: "产品裁（repo DELETE 成功体：JSON 报告体对齐 vs 维持纯文本）——仓库管理域票面路由，候 pending-rulings v2.8 增席" }
   review_gate: LOOP 028 限期升级（裁对齐→repo 管理域微票+差分复验；裁维持→INTENTIONAL+注记 terraform 消费面）
-  evidence: reports/compatibility/2026-09-17-d08-release-bundle.yaml（c55 DIVERGENT 详单）+ reports/compatibility/l027q-wire/（c55 a/b 对）
+  resolved:
+    date: '2026-09-29'
+    evidence: >-
+      reports/compatibility/L034-r6.md Arm 1 + 汇总表（成功体半边随 T-555 级联修复连带收口：JSON 报告体
+      四臂——nested/flag/empty/virtual 双端同形逐字段一致，r1≡r2 双轮 PASS×2；case=rest-nonempty-repo-delete-cascade
+      报告体维）；fix_ref=T-555/BIN-37（6812f271——A 形 200 JSON 报告体即修复载体，体裁半边不需独立渲染票）。
+    note: >-
+      半边收口纪律：本条 face=DELETE 成功响应体裁，L034 兑现的=常规仓四臂；**release-bundles 系统仓臂
+      仍未覆盖——席位保留**（后续差分腿覆盖后如仍分歧则重开本条，不另立）。UNKNOWN 四分类席位随之
+      撤销（成功体半边已按 BUG-对齐路径收口，无需 pending-ruling 呈批）。
+  evidence: reports/compatibility/2026-09-17-d08-release-bundle.yaml（c55 DIVERGENT 详单）+ reports/compatibility/l027q-wire/（c55 a/b 对）+ reports/compatibility/L034-r6.md Arm 1（成功体半边翻绿）
 - id: rest/nonempty-repo-delete-cascade-guard
   surface: 'DELETE /api/repositories/{key} 非空仓语义（L028 D-3——A 200 静默级联 vs B 400 需 deleteContent=true）'
   classification: BUG
@@ -1194,6 +1204,21 @@ entries:
     T-555/BIN-37（conductor 立，实施 R6）。
   authority: { type: user_ruling, ref: "用户裁定 2026-09-29（会话内，conductor 转达）：BUG 对齐 A 面——200 静默级联 + deletedArtifactsCount；fix ticket T-555/BIN-37（R6）+ 裁定素材 L032 Arm 1 ruling-ready 矩阵" }
   review_gate: R6 实现票 T-555/BIN-37（conductor 已立）：非空仓 DELETE 200 静默级联 + deletedArtifactsCount body（计数口径活体探针定准；B 现 ?deleteContent=true 放行臂语义随票定去留）；修后差分复验（L028 D-3 / L032 Arm 1 臂）翻绿 → resolved
+  resolved:
+    date: '2026-09-29'
+    evidence: >-
+      reports/compatibility/L034-r6.md Arm 1（case rest-nonempty-repo-delete-cascade 重写为对齐姿态静态断言
+      ——generic 树构造规避 maven 自动元物化面污染计数；r1≡r2 双轮 PASS×2 断言值逐项相同：nested 腿
+      200+{repoKey,statusMsg(content 措辞),deletedArtifactsCount:6,success:true} / 善后 GET 双面 400 同形 /
+      flag 腿（?deleteContent=true）200 count=3 逐字段同形=旗冗余 / empty 腿 200 count=0 / virtual 腿
+      200 count=0+plain 措辞+成员存活——**计数口径（文件+folder 全量、根不计）双端活体对齐，6/3/0/0
+      四臂兑现**，T-555 活体探针矩阵在差分面全部兑现）；fix_ref=T-555/BIN-37（6812f271——非空仓 DELETE
+      静默级联 + A 形 200 报告体）。
+    note: >-
+      L032 的 A=6 vs B 节点 5 计数差已由 T-555 活体探针先行定案（A 写路径自动物化 version 级 metadata 恒
+      +1/目录——见 maven/deploy-put-version-metadata-auto-materialize，非计数规则差）；?deleteContent=true
+      放行臂语义随修复定为「冗余同形位」（L034 flag 臂实测双端逐字段同）。契约
+      contracts/repositories.yaml#rest/repo-delete-nonempty-cascade 随翻 VERIFIED。
   evidence: reports/compatibility/L028-maven-v2-batch1-diff.md D-3 + reports/compatibility/L029-maven-v2-batch1-reverify.md 遗留节 + reports/compatibility/L032-t550-followup-arms.md Arm 1（ruling-ready 证据矩阵——裁定素材）
 - id: rest/kcache-deploy-404-wording
   surface: 'PUT /<K>-cache/<path> 直传 deploy 拒绝臂 404 措辞族（T-530-b 残差）+ remote 本体直传腿（L032 Arm 2 扩展：B 405 read-only-proxy vs A 404 同族）'
@@ -1351,7 +1376,8 @@ entries:
     未取证（created-envelope 渲染点是否各协议 deploy 共用未核——按观察面限定 maven deploy）。
   authority: { type: differential, ref: "reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md 顺带观察 1（B 侧 d01 条目同款根前缀设计语境——本面为 token 缺席非内插差）" }
   review_gate: 差分腿覆盖（deploy envelope uri/downloadUri 双端对拍 + B 渲染点补 /binflow 前缀微票 + envelope URI 可解析性臂）→ 复验后 resolved
-  evidence: reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md 顺带观察 1
+  resolved: { date: '2026-09-29', evidence: 'reports/compatibility/L034-r6.md Arm 6（case maven-deploy-created-envelope 新 case，r1≡r2 双轮 PASS×2 四臂全绿：pom wire PUT 201 / jar / maven-metadata.xml〔客户端上传〕/ checksum-deploy〔零传输，pom 预播种——A 面首次跑通〕——uri=downloadUri=base（含 context root）+/<repo>/<path> 双端同构、/artifactory↔/binflow 对应，envelope uri GET=200+sha-ok、metadata GET=200、cksum GET 回引用字节）；fix_ref=T-561/BIN-42（23b70a82——maven 201 envelope uri carries the /binflow context prefix；productPrefix 常量渲染 uri/downloadUri，Location 头按「不猜」纪律维持裸根——其分歧随 L034 Arm 8 新立 maven/deploy-201-location-header-context-prefix）' }
+  evidence: reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md 顺带观察 1 + reports/compatibility/L034-r6.md Arm 6（翻绿轮四臂+可解析性）
 - id: maven/bare-directory-get-400-vs-404
   surface: 目录形态路径裸 GET（无文件名——/<repo>/com/diff/right-lib 三段）应答码（A 404 vs B 400——L030 顺带观察 2）
   classification: BUG
@@ -1429,7 +1455,21 @@ entries:
     与成员 GET class 门条目互引）；B 面改造点=put.go ME-08 文案族替换（含 GET 腿同族文案，见下条）。
   authority: { type: differential, ref: "L033 Arm C（r3≡r4 定形、T-556 复验 r5≡r6 维持）+ 契约锚 contracts/maven-virtual.yaml#maven/handle-policy-reject-409-wording-family（T-558/BIN-40 裁定轮）" }
   review_gate: 已兑现（两程窗口内裁定，T-558）——ME-08 文案族改造票落地 + L033 case maven-local-handle-walk-skip 双端复验翻绿 → resolved
-  evidence: reports/compatibility/L033-r5-fix-verification.md Arm C（22 维矩阵拒绝腿措辞族 ×2 维；wire 证据 tools/difftest/v2/run/l033-r5-r{3,4} + r{5,6}）
+  resolved:
+    date: '2026-09-29'
+    evidence: >-
+      reports/compatibility/L034-r6.md Arms 2/3（case maven-local-handle-walk-skip 升级——全量消息捕获
+      〔去 L033 的 300 字符证据截断〕+ 逐字节消息维：PUT 双腿 rel→hr / snap→hs 双端 409+errors[] 信封
+      message **逐字节相同**（r1=r2，A==B byte-exact）；GET 双腿未落地 rel@hr / snap@hs 双端 409 同族
+      文案，`; Path:` 填充与 message 内层 `<K>:<path>` 引用**逐字节相同**——契约 unobserved「Path 段
+      填充形」可回填）；fix_ref=T-559/BIN-39（531ea002——maven four-face alignment per T-558 contracts）。
+    note: >-
+      **长路径截断定谳（t559 留验点，L034 直测落定）**：16×12 字符 group 段构造（`<K>:<path>` 251 字符、
+      全 message 634 字符）——**A 无服务端截断**：消息全量、收尾引号完整、信封收口，`; Path:` 填充仍
+      逐字节等于内层引用，B 同形（len a=b=634）。t559 的「300 上限外推定」就此定案：**300 是 L033
+      harness 证据截断上限，非服务端行为——B 现实现无需任何改动**。契约
+      contracts/maven-virtual.yaml#maven/handle-policy-reject-409-wording-family 随翻 VERIFIED。
+  evidence: reports/compatibility/L033-r5-fix-verification.md Arm C（22 维矩阵拒绝腿措辞族 ×2 维；wire 证据 tools/difftest/v2/run/l033-r5-r{3,4} + r{5,6}）+ reports/compatibility/L034-r6.md Arms 2/3（翻绿轮 wire run/l034-r6-r{1,1b,2}）
 - id: maven/handle-policy-member-get-class-gate
   surface: 'maven 成员仓未落地路径直接 GET 的路径类×策略门——A=409（读路径同执策略检查），B=404（L033 Arm C，×2 维）'
   classification: BUG
@@ -1448,7 +1488,8 @@ entries:
     路径增设路径类×策略门（404→409 + 同族文案）。
   authority: { type: differential, ref: "L033 Arm C 先决发现（读写双门定性）+ 成员 GET class 门 ×2 维（r3≡r4、r5≡r6）+ 契约锚 contracts/maven-virtual.yaml#maven/handle-policy-member-get-class-gate（T-558/BIN-40 裁定轮）" }
   review_gate: 已兑现（两程窗口内裁定，T-558）——read-path 策略检查改造票落地 + 双端复验翻绿 → resolved
-  evidence: reports/compatibility/L033-r5-fix-verification.md Arm C（成员 GET class 门 ×2 维 + 先决发现节；r3≡r4，r5≡r6 维持）
+  resolved: { date: '2026-09-29', evidence: 'reports/compatibility/L034-r6.md Arms 2/3（case maven-local-handle-walk-skip class 门维：GET 双腿未落地 rel@hr / snap@hs 双端 **409**（class 门在）×2 轮稳定，GET 形态同族文案追加 "; Path: ''<K>:<path>''" 填充逐字节相同 A==B）；fix_ref=T-559/BIN-39（531ea002——read 路径增设路径类×策略门 404→409）。契约 contracts/maven-virtual.yaml#maven/handle-policy-member-get-class-gate 随翻 VERIFIED' }
+  evidence: reports/compatibility/L033-r5-fix-verification.md Arm C（成员 GET class 门 ×2 维 + 先决发现节；r3≡r4，r5≡r6 维持）+ reports/compatibility/L034-r6.md Arms 2/3（翻绿轮）
 - id: maven/plain-snapshot-path-resolve-404
   surface: 'maven plain-SNAPSHOT 拼写路径解析——A=200（成员直读与 virt resolve），B=恒 404（含默认成员对照腿——独立既有面孔，不可归因 handle*）'
   classification: BUG
@@ -1467,7 +1508,21 @@ entries:
     契约 unobserved 标注 NOT_RUN/evidence-gap，独立后续票（walk 面快照族）立契，不并入本条。
   authority: { type: differential, ref: "L033 Arm C 对照腿 ×3（r3≡r4、r5≡r6——混杂排除）+ 规格锚 docs/reverse/maven-npm-pypi.md §1.3 + 契约锚 contracts/maven-virtual.yaml#maven/plain-snapshot-path-resolve（T-558/BIN-40 裁定轮）" }
   review_gate: 已兑现（两程窗口内裁定，T-558）——plain 拼写解析修复票落地 + 双端复验翻绿 → resolved；时间戳拼写臂独立立票（分面纪律）
-  evidence: reports/compatibility/L033-r5-fix-verification.md Arm C（virt resolve snapshot 维 + 对照腿 ×3；r3≡r4，r5≡r6 维持）
+  resolved:
+    date: '2026-09-29'
+    evidence: >-
+      reports/compatibility/L034-r6.md Arm 5 绿半边（case maven-plainsnap-nonunique-resolve，r1≡r2 双轮
+      PASS×2 断言值逐项相同——**non-unique 家园存储面**：plain wire PUT → Location 保持 plain 拼写
+      〔双端无改写〕/ 成员直读 200+sha-ok / virt resolve 200+sha-ok / `.sha1` 旁车双面 match）；fix_ref=
+      T-559/BIN-39（531ea002——plain 拼写按普通存储路径命中）。契约
+      contracts/maven-virtual.yaml#maven/plain-snapshot-path-resolve 随翻 VERIFIED（存储面）。
+    note: >-
+      分面纪律收口：本条 face=plain 拼写解析（non-unique 家园存储面全绿翻 resolved）；**unique 家园
+      resolve/walk 族不随翻**——walk-skip case 内 control_direct_get_plainsnap / control_virt_get_plainsnap /
+      virt_resolve_snap_from_hr 三维 A=200 vs B=404 **expected divergence 维持红**（L034 Arm 5 红半边明示），
+      归 T-562/BIN-44 walk 族 fence 面（L034 Arm 7 forensics F1-F6 证据已固化喂规格票——选版=目录内最新
+      时间戳、resolve 与 metadata 指针解耦），待其独立立契立账；契约 unobserved 时间戳拼写臂维持如实。
+  evidence: reports/compatibility/L033-r5-fix-verification.md Arm C（virt resolve snapshot 维 + 对照腿 ×3；r3≡r4，r5≡r6 维持）+ reports/compatibility/L034-r6.md Arm 5（绿半边翻绿 + 红半边维持）
 - id: maven/derived-sidecar-lm-per-request-stamp
   surface: 'maven 派生旁车 Last-Modified 时戳语义残差——跨秒回访：A=物化稳定戳→304，B java-agent 剥离面=per-request 派生时刻戳→200+新 LM（L033 Arm A 附带取证）'
   classification: BUG
@@ -1489,7 +1544,24 @@ entries:
     （contracts/maven-virtual.yaml#maven/derived-sidecar-lm-materialized-stamp，DIVERGENT/medium）。
   authority: { type: differential, ref: "L033 Arm A 附带取证节（B 面双 UA 跨秒矩阵 live：剥离面 200+新 LM 00:44:09→00:44:10）+ L032 Arm 6 r1-r3（A 物化稳定戳机制直测）+ 契约锚 contracts/maven-virtual.yaml#maven/derived-sidecar-lm-materialized-stamp（T-558/BIN-40 裁定轮）" }
   review_gate: 已兑现（两程窗口内裁定，T-558）——stored-stamp 持久化微票落地 + 跨秒回访双端复验（java-agent 剥离面持旧 LM→304）翻绿 → resolved
-  evidence: reports/compatibility/L033-r5-fix-verification.md Arm A 附带取证节（B 面双 UA 跨秒矩阵 + A 面机制推导注记）
+  resolved:
+    date: '2026-09-29'
+    evidence: >-
+      reports/compatibility/L034-r6.md Arm 4（case maven-sidecar-crosssec-stamp 新 case，r1 BLOCKED 为
+      case 侧 bug 修复后 **r1b≡r2 连续两轮 PASS×2、断言值逐项相同，8/8 维**：member java-agent 剥离面
+      `.sha1/.md5/.sha256` digest=剥离体摘要 match×3 + 跨秒〔1.3s〕持旧 LM 回访 IMS **304×3**；virtual
+      合并面〔capable UA〕`.sha1` 跨秒 IMS **304**；virtual 剥离面〔java-agent UA〕`.sha1` 跨秒 IMS
+      **304**——B 已对齐物化稳定戳语义）；fix_ref=T-559/BIN-39（531ea002——stored-stamp 持久化）。
+      **原证据 caveat 就此清偿**：「A 侧跨秒直接腿构造不可达、304 系机制推导」的限定系 wire-PUT 构造
+      scoped——本批 mvn deploy 构造（客户端上传 version 级 metadata）下 **A 面跨秒直接腿可达且 304×3
+      实测**。契约 contracts/maven-virtual.yaml#maven/derived-sidecar-lm-materialized-stamp 随翻
+      VERIFIED 且 confidence medium→high（unobserved 注记回填）。
+    note: >-
+      **LM 值级残差（raw 取证、断言面外，如实不裁）**：A 旁车 LM 晚 body LM 约 2s（自身物化时刻，
+      lm_vs_body=later×3）vs B 旁车 LM == body LM（派生输入时戳，equal×3）——契约断言面（present+IMS
+      族）不可见、T-559 预声明的值级差 live 坐实；是否立「LM 精确值语义」面另行立账（记入契约
+      unobserved/notes 区，本批不裁）。
+  evidence: reports/compatibility/L033-r5-fix-verification.md Arm A 附带取证节（B 面双 UA 跨秒矩阵 + A 面机制推导注记）+ reports/compatibility/L034-r6.md Arm 4（A 面跨秒直接腿实测 + 双端 8/8 PASS×2）
 - id: maven/deploy-put-version-metadata-auto-materialize
   surface: 'maven 布局 local 仓 wire PUT 落制品后的 version 级 maven-metadata.xml 存在面——A 写路径自动物化，B 不物化（读时派生/合并面）'
   classification: UNKNOWN
@@ -1512,3 +1584,23 @@ entries:
   authority: { type: pending, ref: "产品裁（对齐 A 写路径物化 vs 维持 B 读时派生+注记）+ 触发条件取证票（SNAPSHOT 物化时机/旁车同步性/多 module）——docs/reverse/ 未载该面，无三类 authority 可引" }
   review_gate: 两程内升级裁决（默认窗口）——出口甲：取证票补齐触发臂后裁对齐 A → B 写路径物化实现票 + 差分复验（wire PUT 后清单/计数口径翻同形）翻绿 resolved；出口乙：裁维持 B → 转 INTENTIONAL（须补 authority）+ 对照口径注记（A 恒 +1 差属预期，差分臂按面分别钉形）
   evidence: reports/agents/T-555.md 活体探针节（difftest-d3-* 矩阵 s0/s4 腿 + L032 A=6-vs-B=5 定案注记；参照源版本 7.161.26）+ reports/compatibility/L032-t550-followup-arms.md Arm 1（r1≡r2≡r3 原始计数差）+ reports/compatibility/L033-r5-fix-verification.md Arm A 附带取证注记（A snapshot 30s 不物化——触发条件边界线索）+ 契约锚 contracts/maven-virtual.yaml#maven/deploy-put-version-metadata-auto-materialize
+- id: maven/deploy-201-location-header-context-prefix
+  surface: 'maven deploy 201 Location 响应头根前缀——A=带 contextPath 且与 envelope uri 逐字节相同；B=裸根缺 /binflow 且跟随必 404（L034 Arm 8 新面孔）'
+  classification: BUG
+  rationale: >-
+    L034 Arm 8 取证定案（2026-09-29，A=7.161.26 Enterprise+ live × B worktree @ 23b70a82，四臂
+    pom/jar/maven-metadata/checksum-deploy 一致 + 独立可解析性探针）：A 面 deploy 201 的 Location 头=
+    http://192.168.120.38:8082/artifactory/<repo>/<path>——**与 envelope uri 逐字节相同**（带
+    contextPath）；B 面 Location=http://127.0.0.1:18080/<repo>/<path>——**裸根（缺 /binflow）**，
+    与 uri 不同；可解析性探针（B）：裸根 GET→**404**、带前缀 GET→200——**B 的 Location 自引用按图
+    索骥脱靶**（客户端跟随 Location 必 404）。裁量：双端活体在案、A 方向明确（Location=envelope
+    uri 同源、含 contextPath）、无 authority 覆盖缺席面 → BUG。同族先例=
+    maven/deploy-created-envelope-uri-missing-context-prefix（T-561 刚 resolved——uri/downloadUri 渲染
+    点同源）；T-561 当时「Location 不猜」保持裸根系纪律正确（A 面双端形态彼时未取证、入 L034 探针
+    清单），现 A 面证据在案可裁。渲染点=internal/adapter/maven/put.go requestBase 两处 Location 调用
+    点（L034 报告锚 437/585——T-561 波及面已注；T-563 修复在途，行号随树漂移以函数锚为准）。泛化面
+    未取证（其他协议 deploy 201 Location 是否同根因未核——按观察面限定 maven deploy，同 T-561 口径）。
+  authority: { type: differential, ref: "reports/compatibility/L034-r6.md Arm 8（四臂 raw 取证 + 独立可解析性探针——A Location==uri 带 contextPath；B 裸根、跟随 404；渲染点 put.go requestBase×2）" }
+  review_gate: 修复票 T-563/BIN-45（conductor 已立，修复在途）：Location 渲染补 contextPath 前缀（requestBase 两调用点，与 uri 同源）；修后 mini 差分（Location 臂）双轮 PASS → resolved
+  evidence: reports/compatibility/L034-r6.md Arm 8 + tools/difftest/v2/run/l034-r6-r{1,2}/（envelope case raw 取证与 locprobe 探针）
+  resolved: { date: '2026-09-29', evidence: 'reports/compatibility/L034-r6.md 末尾「Location mini-diff」节（T-563 验证腿：B 自 worktree 4481359f 重建 scratch @ 18080，case maven-deploy-201-location-header 六臂 ×2 轮 run/l034-r6-r{3,4}，r3≡r4 断言值逐项相同、连续两轮 PASS——pom/jar/maven-metadata.xml 字节部署 + X-Checksum-Deploy 零传输〔loc2〕：Location==envelope uri、带 contextPath 前缀、GET 200（sha-ok）；checksum-file .sha1/.md5 注册式：Location==带前缀 TARGET〔.pom 路径〕+ body 空〔len=0〕+ TARGET GET 200+sha-ok；主批 Arm 8 的 B 裸根形态已消除、Location 跟随解析 200）；fix_ref=T-563/BIN-45（4481359f——put.go 两处 Location〔writeCreated 201 与 checksum-file 注册式 201〕补 /binflow 前缀、形==envelope uri/带前缀 TARGET；票已 Done）；差分门提交 601b15ac；r3 首跑单维失配 meta_loc_get=A 上传字节 vs B 重算=case 侧误钉字节（T-561 口径只钉 200）——已知非 Location 脸，如实注记不立账' }
