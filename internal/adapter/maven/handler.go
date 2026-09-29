@@ -79,6 +79,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	l, err := Parse(relPath)
 	if err != nil {
+		// T-562 (BIN-44, contract maven/non-snapshot-spelling-get-gate-404,
+		// the L035 t8 live finding): a GET/HEAD of a file name the layout
+		// cannot parse is a routing-layer honest miss on the reference —
+		// 404, never a 400 layout-parse refusal; the read plane serves
+		// paths, it does not adjudicate spellings. The parse gate stays a
+		// WRITE-side refusal (A's t8-shaped PUT face is unobserved — kept
+		// as-is, not guessed).
+		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
+			return
+		}
 		// C2 interim: the layout model is settled (high confidence), the
 		// refusal code is not in the spec — 400 is BinFlow's ruling.
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -145,6 +156,19 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 			return
 		}
 	}
+	// T-562 (BIN-44, contract maven/plain-snapshot-unique-walk-resolve):
+	// the plain-SNAPSHOT walk resolve — a plain-spelling artifact
+	// GET/HEAD (or its checksum sidecar) that misses storage answers the
+	// selected timestamped candidate of the same (artifact, baseRev,
+	// classifier, extension) family; the virtual face picks across members
+	// by storage mtime (contract maven/virtual-plain-walk-cross-member-
+	// selection). Runs AFTER the class gate (a policy 409 outranks any
+	// resolution) and BEFORE the sidecar/file planes, which render the
+	// no-candidate miss as the ordinary 404 (t9: no cross-extension
+	// fallback).
+	if h.servePlainWalk(ctx, w, r, p, repoKey, relPath, l, rowType) {
+		return
+	}
 	// T-542 (BIN-16, L030 case 1's member control leg): a LOCAL repository
 	// serves its own SNAPSHOT version document with <snapshotVersions>
 	// stripped to a client the M3 capability predicate rejects — the member
@@ -192,29 +216,29 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 // stored bytes only register the client's original claim, ME-03).
 func (h *Handler) serveSidecar(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	p *repo.Principal, repoKey, relPath string, l Layout) {
-	// sha512 is outside the three-digest model: no honest computed body
-	// exists, and pretending the stored claim is the answer would violate
-	// the computed-value contract. 404 it.
-	if l.Algo == "sha512" {
-		writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
-		return
-	}
-	rc, node, err := h.svc.Get(ctx, p, repoKey, l.Target)
-	if err != nil {
-		h.writeServiceError(w, err, r.Method, repoKey, relPath)
-		return
-	}
-	// The resolution hints ride the target's stream even though the sidecar
-	// body is server-computed: an operator asking "which member served this
-	// checksum's target" gets the same X-BinFlow-Resolved-From answer the
-	// artifact GET carries.
-	applyReaderHints(w, rc)
-	_ = rc.Close() //nolint:errcheck // read-only fd; only the node metadata is needed
+	h.serveSidecarOfPath(ctx, w, r, p, repoKey, l.Target, l.Algo, relPath)
+}
 
-	digest, ok := h.digestOf(ctx, node, l.Algo)
+// writeSidecarDigest renders the computed sidecar of ONE node (digest
+// lookup, headers, conditional, body) — shared by the ordinary sidecar
+// face and the walk resolve's sidecar leg (t5/t6: the digest addresses the
+// RESOLVED entity). The sha512 gate lives HERE, on the shared exit: sha512
+// is outside the three-digest model — no honest computed body exists, and
+// pretending the stored claim is the answer would violate the computed-
+// value contract (the derived-sidecar contract's pinned arm, L032) — so
+// EVERY sidecar path, the walk legs included, 404s it (R7 dual-review
+// blocking fix: the gate used to sit on serveSidecar alone and the walk
+// legs reached the digest lookup's 500 ledger-gap face).
+func (h *Handler) writeSidecarDigest(ctx context.Context, w http.ResponseWriter, r *http.Request,
+	node *metadata.Node, algo, repoKey, path string) {
+	if algo == "sha512" {
+		writeError(w, http.StatusNotFound, notFoundMessage(repoKey, path))
+		return
+	}
+	digest, ok := h.digestOf(ctx, node, algo)
 	if !ok {
 		writeError(w, http.StatusInternalServerError,
-			fmt.Sprintf("digest %s of '%s/%s' is not available (ledger gap)", l.Algo, repoKey, l.Target))
+			fmt.Sprintf("digest %s of '%s/%s' is not available (ledger gap)", algo, repoKey, path))
 		return
 	}
 	body := digest // bare hex, no trailing newline (ME-03/FR-16)
@@ -251,7 +275,17 @@ func (h *Handler) serveFile(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 	defer rc.Close() //nolint:errcheck // read-only fd
+	h.serveNode(w, r, rc, node, relPath)
+}
 
+// serveNode renders one OPENED node with the full M1 download contract
+// (digest headers, ETag=sha1, conditional 304, Range 206/416). The walk
+// resolve serves its target through this same exit the direct spelling
+// uses — the W3 same-face ruling: one serving path, and every validator,
+// slice and byte addresses the SERVED entity (t2/t4), so the plain and
+// timestamped spellings of one artifact can never disagree.
+func (h *Handler) serveNode(w http.ResponseWriter, r *http.Request,
+	rc io.ReadSeekCloser, node *metadata.Node, relPath string) {
 	// Service-level engines may attach response hints to the body stream —
 	// a remote member's X-BinFlow-Cache / X-Binflow-Upstream-Error (T-66), a
 	// virtual resolution's X-BinFlow-Resolved-From on top of those (T-71).
@@ -259,7 +293,7 @@ func (h *Handler) serveFile(ctx context.Context, w http.ResponseWriter, r *http.
 	// learns the repository class (architecture section 5.4).
 	applyReaderHints(w, rc)
 
-	sums := h.digestTriple(ctx, node)
+	sums := h.digestTriple(r.Context(), node)
 	lastMod := nodeTime(node)
 
 	hdr := w.Header()

@@ -1,0 +1,23 @@
+# 金样元数据——maven walk 选择规则（R7 walk 批入金 ②，L035 W2 提金候选）
+schema: golden/1
+id: maven/walk-selection-rules
+contract_ref: contracts/maven-virtual.yaml#maven/plain-snapshot-unique-walk-resolve
+matrix_ref: matrix.yaml#D12-R18
+capture:
+  mode: live-captured               # 双端对账形（R7 台账收官批补 B 腿——见 history）
+  captured_at: '2026-09-29（A 腿=L035 r2≡r3 两有效轮；B 腿=R7 收官批 run/l035-r7-impl-r{1,2} 双轮 + final-r1）'
+  capture_instance: 'A: Artifactory 7.161.26 Enterprise+ @ 192.168.120.38:8082；B: worktree fd2d0606 构建 scratch @ 127.0.0.1:18080 /binflow（T-562 stage 2 落地二进制）'
+  capture_commands: >-
+    同 version 目录多候选构造（fresh keyspace per scenario）→ plain GET 逐场景取服务胜者；case
+    maven-walk-selection-tiebreak，runner 轮次 run/l035-r7-r{2,3}（A 腿）与 run/l035-r7-impl-r{1,2}
+    （B 腿复验）；复跑入口 bash /tmp/l035-run.sh rN
+  raw_response_archive: reports/compatibility/L035-r7-walk-forensics.md W2（A 腿场景矩阵）+ reports/agents/T-562-stage2-impl.md（B 腿差分矩阵）+ tools/difftest/v2/run/l035-r7-impl-r{1,2}/evidence/maven-walk-selection-tiebreak/{a,b}-leg.json
+  history: live-captured A 腿 target 形态（L035 W2 两有效轮——r1 作废注记在案）→ live-captured 双端对账形（R7 台账收官批 2026-09-29 补 B 腿：八断言全键同胜者 s1-newts/s2-bn2/s2b-bn2/s3-bn10/s4 jar-newts+pom-oldts/s5 pom-bn2+sources-bn1）
+instance_versions:
+  artifactory_ref: Artifactory 7.161.26 Enterprise+（http://192.168.120.38:8082）
+  binflow_tested: worktree fd2d0606 构建 scratch @ 127.0.0.1:18080（R7 收官批复验轮 impl-r{1,2} + final-r1）
+confidence: high                   # A 腿 r2≡r3 + B 腿 impl-r1≡r2 双端两轮八断言全键同胜者 + final-r1 终态一致
+known_gaps:
+- 'ts 并列且 bn 并列的末位 tiebreak（同 ts 同 bn 撞名=同文件，构造不出——不立断言）'
+- '跨目录（非同 version 目录）候选不参与（候选域定义即同目录——边界未单拍，按定义域闭合）'
+review: R7 walk 批入金评审（2026-09-29，conductor 四裁定配套——L035 提金候选②，A 腿胜者转录自 L035 W2 矩阵；「八场景」口径=六场景八断言）+ R7 台账收官批 B 腿补录评审（2026-09-29——B 腿值转录自 run/l035-r7-impl-r1 b-leg.json asserts，八断言与 A 逐键同值）

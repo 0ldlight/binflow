@@ -2,7 +2,7 @@ import { expectSelectValue, selectShadcn } from './support/shadcn'
 import { expect, test } from '@playwright/test'
 
 // T-99 探针：仓库创建 → 列表 → 详情 → 编辑（governance 字段往返）→
-// 危险区删除（含非空仓 deleteContent 双段流）全流程；remote 凭据不回显；
+// 危险区删除（T-555 起级联语义：一次确认删仓+内容）全流程；remote 凭据不回显；
 // virtual 成员序与 defaultDeploymentRepo；表单门控零写请求。
 //
 // T-240 操作流迁移：三步向导 → 单页分区表单（进页弹包类型网格
@@ -68,7 +68,7 @@ async function listConfigOf(
   return rows.find((r) => r.key === key)?.configuration ?? {}
 }
 
-test('local generic full lifecycle: create with governance -> list -> edit roundtrip -> delete with content', async ({ page }) => {
+test('local generic full lifecycle: create with governance -> list -> edit roundtrip -> cascade delete', async ({ page }) => {
   const key = uniq('t99a')
   await page.goto('/binflow/ui/admin/repositories/local/new')
   await login(page)
@@ -165,21 +165,17 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   await page.click('[data-testid="repo-delete-button"]')
   await expect(page.locator('[data-testid="confirm-dialog"]')).toBeVisible()
 
-  // 输错 key：确认不可用；输入正确 key 但不勾 deleteContent
+  // 输错 key：确认不可用（P5 强确认）；正确 key 一次确认即级联删除
+  //（T-555：恒 200 报告体，非空仓无 400 门/确认旗——T-565 UI 对齐）
   await page.fill('[data-testid="repo-delete-confirm-key"]', 'wrong-key')
   await expect(page.locator('[data-testid="confirm-accept"]')).toBeDisabled()
   await page.fill('[data-testid="repo-delete-confirm-key"]', key)
   await page.click('[data-testid="confirm-accept"]')
 
-  // 非空仓：400 原因（含制品数）带回对话框呈现，deleteContent 已预勾选。
-  // 节点数口径（T-172 D-3 / ADR-0016 目录实体化）：release/app.bin 落库
-  // 时 putNode 材料化 release/ folder 行——1 文件 + 1 祖先目录 = 恰 2 nodes
-  await expect(page.locator('[data-testid="repo-delete-reason"]')).toContainText('holds 2 node(s)')
-  await expect(page.locator('[data-testid="confirm-dialog"]')).toBeVisible()
-  await page.fill('[data-testid="repo-delete-confirm-key"]', key)
-  await page.click('[data-testid="confirm-accept"]')
-
-  await expect(page.locator('[data-testid="toast"]')).toContainText('deleted successfully')
+  // 级联计数口径（T-172 D-3 / ADR-0016 目录实体化）：release/app.bin 落库
+  // 时 putNode 材料化 release/ folder 行——1 文件 + 1 祖先目录 = 已删除 2 项
+  await expect(page.locator('[data-testid="toast"]')).toContainText('removed successfully')
+  await expect(page.locator('[data-testid="toast"]')).toContainText('（已删除 2 项内容）')
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local$/)
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toHaveCount(0)
 
@@ -253,12 +249,12 @@ test('remote maven: url roundtrip, password never echoed, empty delete', async (
   expect(denyCfg.allowPrivateUpstream).toBe(true)
   expect(denyCfg.socketTimeoutSecs).toBe(90)
 
-  // 空仓删除：不勾 deleteContent 直接成功
+  // 空仓删除：一次确认直接成功（count=0 不携带计数后缀，T-555）
   await page.goto(`/binflow/ui/admin/repositories/${key}`)
   await page.click('[data-testid="repo-delete-button"]')
   await page.fill('[data-testid="repo-delete-confirm-key"]', key)
   await page.click('[data-testid="confirm-accept"]')
-  await expect(page.locator('[data-testid="toast"]')).toContainText('deleted successfully')
+  await expect(page.locator('[data-testid="toast"]')).toContainText('removed successfully')
 })
 
 test('form gating: docker combo open since T-431, key/url precheck, zero write requests', async ({ page }) => {

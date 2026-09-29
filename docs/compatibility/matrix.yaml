@@ -172,6 +172,38 @@
 #   维持）；summary 同步 last_difftest_non_null 51→52 / golden_ref_non_null 2→3。195 冻结行集
 #   不增删（本批零新行、零行态变更）。台账实数：87 条 = 44 resolved（含 resolved 块）+ 43 无
 #   resolved 块（其中 4 INTENTIONAL resolved-by-*/parity 闭态 + 1 UNSUPPORTED 维持不做闭态）。
+# T-562 stage 1 契约定稿批（R7 / BIN-44，2026-09-29，compatibility-engineer——L035 walk 取证 +
+#   conductor 四裁定落账）：① contracts/maven-virtual.yaml 扩至 12 条目——新增 ⑩ plain-snapshot-
+#   unique-walk-resolve（W1 触发矩阵+W2 选择规则+W3 same-face 并票）、⑪ non-snapshot-spelling-
+#   get-gate-404（t8 亚面 404 化）、⑫ virtual-plain-walk-cross-member-selection（W4 跨成员 mtime 键
+#   ——与成员内 filename (ts,bn) 键分条目）三条 DIVERGENT/high（裁定 1/2/3：BUG 对齐 A，walk 实现
+#   票在途）+ ⑨ auto-materialize 按裁定 4 改写（物化层级勘误 module 级、SNAPSHOT version 级双端同步
+#   物化、release version 级 404@30s 维持、L033 30s 记录否证勘误注记）。② known-divergence：
+#   auto-materialize UNKNOWN→BUG 翻面（authority=conductor_ruling 裁定 4）+ 新账 maven/non-snapshot-
+#   spelling-400-vs-404（BUG，裁定 3）+ walk 主条目 review_gate「规格闭合，实现票在途」（裁定 1/2）
+#   + derived-sidecar-lm-per-request-stamp rationale 勘误句（L033 前提否证）。③ 金样四组入
+#   golden/maven/（walk-trigger-matrix / walk-selection-rules / walk-virtual-cross-member-mtime /
+#   auto-materialize-module-level——A 腿 target 形态，B 腿待实现后补，经契约 evidence golden-capture
+#   挂链不占行字段）；golden/maven/derived-sidecar-validators known_gaps 勘误回填。④ D12-R18
+#   last_difftest/note 补 L035 链（行态 compatible 维持——walk 红半边走台账，实现未落地不翻
+#   resolved）。195 冻结行集不增删（本批零新行、零行态变更）；summary 计数不变（contract_ref 38 /
+#   golden_ref 3 / last_difftest 52）。台账实数（Z 中间值）：88 条 = 45 resolved（含 resolved 块）
+#   + 43 open（BUG 7 / UNKNOWN 30 / INTENTIONAL 5 / UNSUPPORTED 1）——+1 新账 t8、auto-materialize
+#   open 内 UNKNOWN→BUG 移仓。
+# R7 台账收官批（2026-09-29，compatibility-engineer——T-562 stage 2 + T-566 已实现收编 fd2d0606 +
+#   L036 探针批 14a8943d 入账）：① 契约 ⑩⑪⑫⑨ 四条目 DIVERGENT→VERIFIED（mini 差分 l035-r7-impl-
+#   r{1,2} 四 case×8 双轮 PASS + l035-r7-t566-r{1,2} 双轮 PASS + 终态一致性轮 l035-r7-final-r1——fix_ref
+#   fd2d0606）；② 台账三处翻 resolved（walk 主条目红半边收口追记 + auto-materialize + t8 新账）。③
+#   金样四组补 B 腿升双端对账形（仍经契约 evidence 挂链不占行字段）。④ L036 新发现入账 10 条（BUG×7：
+#   deb/rpm/helm/nuget-bare/cargo 五族 deploy-201 Location 裸相对〔同 T-563 同构，R8 票〕+ nuget v3
+#   flatcontainer push Location 锚点错叠 + pypi 上传响应缺 Location/X-Checksum-Sha256〔对齐形态=通用形
+#   requestBase+prefix，不照抄 A 宿主怪值〕；UNKNOWN×3：generic mime 归属模型〔波及全 adapter mime
+#   决策，review_gate=规格票裁〕+ pypi simple href 目标布局 + B mime stdlib 回退宿主漂移）——均台账级，
+#   不占矩阵行（195 冻结行集零增删零行态变；五族 B 活体 BLOCKED license 门体系级 blocker 已上报）。
+#   ⑤ D12-R18 last_difftest/note 补收官链；summary 计数不变（contract_ref 38 / golden_ref 3 /
+#   last_difftest 52）。台账实数（Z 终枚举，R6 口径 python 实枚举）：98 条 = 47 resolved + 51 open
+#   （BUG 12 / UNKNOWN 33 / INTENTIONAL 5 / UNSUPPORTED 1）——批前 88=45+43：翻面 +2 resolved
+#   （auto-materialize、t8）、新增 +10（BUG 7 + UNKNOWN 3）。
 
 ---
 schema: 1
@@ -322,7 +354,7 @@ summary:
       rows: 1
       not_applicable: 1
   contract_ref_non_null: 38  # T-549 同步：前置 37（L027-2）+ 本批 D12-R18 落 contracts/maven-virtual.yaml（M3 rider/version3 开关/GAV 门 3 条目）→ 实计 38
-  golden_ref_non_null: 3     # 前置 2（D12-R01 + D12-R18）+ L034 收官批 D02-R05 回填 golden/rest/repo-delete-report-body（A 腿报告体四臂）；其余 maven 金样三组（409 文案族/envelope 三形/跨秒 304）经契约 evidence golden-capture 锚挂链、不占行字段（D12-R18 golden_ref 单值已占用）；storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 / L024-4 §5 提金候选（l023d-wire/a/、l024d-wire/a/）在册待采
+  golden_ref_non_null: 3     # 前置 2（D12-R01 + D12-R18）+ L034 收官批 D02-R05 回填 golden/rest/repo-delete-report-body（A 腿报告体四臂）；其余 maven 金样三组（409 文案族/envelope 三形/跨秒 304）经契约 evidence golden-capture 锚挂链、不占行字段（D12-R18 golden_ref 单值已占用）；storage-admin 十端点无金样，形态断言锚 L003 差分报告；L023-2D §5 / L024-4 §5 提金候选（l023d-wire/a/、l024d-wire/a/）在册待采；R7 walk 批四组（walk-trigger-matrix/walk-selection-rules/walk-virtual-cross-member-mtime/auto-materialize-module-level——A 腿 target 形态，B 腿待实现后补）同经契约 evidence 挂链不占行字段；R7 台账收官批（2026-09-29）该四组已补 B 腿升双端对账形（B=fd2d0606 构建——挂链方式不变，仍不占行字段）
   last_difftest_non_null: 52 # L034 收官批同步：前置 51 + 本批 D02-R05 回填（L034 Arm 1）→ 实计 52；D12-R18 为内容增补（原已非空，计数不变）
 rows:
 - row_id: D01-R01
@@ -2838,7 +2870,7 @@ rows:
   confidence: high
   contract_ref: contracts/maven-virtual.yaml
   golden_ref: golden/maven/derived-sidecar-validators   # T-551 终批第二半回填（首个 maven 域金样——validator 族 A 腿参照实形，锚契约#maven/derived-sidecar-validator-family）
-  last_difftest: 'reports/compatibility/L028-maven-v2-batch1-diff.md + reports/compatibility/L029-maven-v2-batch1-reverify.md（L028 r3/r4 测得 D-1/D-2 FAIL → PR #156〔T-529/T-530/T-531 四桶实现+cache 投影+DELETE 语义〕→ L029 r5 关 D-2、r6/r7 双轮稳关 D-1——D-1 线上腿系 SSRF 防护拒 clash fake-ip ULA 环境因，经仓库级 allowPrivateUpstream 豁免（NFR-S13 一等旋钮）后双面一致；真实 mvn 客户端 + 上游 sha256 逐字节比对）+ reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md + reports/iteration-1542.md「L030 修复验收」（L030 r2/r3 测得 BIN-16〔snapshotVersions M3 谓词缺失〕/D-4〔GAV 失配 201 vs 409〕两 FAIL → f21f1c09〔T-542/T-543〕修复 + 3b58b082 评审加固 → case1/case2 双端复跑各连续两轮 PASS——台账两 BUG 已 resolved〔T-549 回填〕，rider/GAV 两面契约化 VERIFIED）+ reports/compatibility/L032-t550-followup-arms.md（Arm 6 member sidecar 17 维取证：digest 内容契约双端一致复验、validator 族三处分歧立新账〔T-551 stage 1 契约修订 + stage 2 修复在途〕——r1≡r2≡r3）+ reports/compatibility/L034-r6.md（R6 收官轮 @ 23b70a82，六面双轮 PASS×2：T-559 四面〔409 措辞族/class 门/sidecar LM 跨秒戳/plain 存储面——531ea002〕+ T-561 envelope uri〔23b70a82〕翻绿；新面孔取证=Location 头裸根〔立账 T-563/BIN-45〕+ unique 家园 walk 族 forensics〔喂 T-562/BIN-44 规格票，ctl 维 expected divergence 维持红非回归〕）+ reports/compatibility/L034-r6.md 末尾「Location mini-diff」节（T-563/BIN-45 修复 4481359f 验收：六臂〔pom/jar/maven-metadata 字节部署+X-Checksum-Deploy 零传输+checksum-file .sha1/.md5 注册式〕r3≡r4 双轮 PASS——Location==uri 带 contextPath / 注册式==带前缀 TARGET+body 空；台账 maven/deploy-201-location-header-context-prefix resolved，差分门 601b15ac）'  # T-551 卫生款：原无引号 plain scalar 中「PR #156」的 # 被 YAML 当注释起始，L029-1 落账起本字段加载即截断于 139 字符（L030/L032 链曾整体落入注释区）——加引号修复，内容零变更；L034 链同引号形态追加
+  last_difftest: 'reports/compatibility/L028-maven-v2-batch1-diff.md + reports/compatibility/L029-maven-v2-batch1-reverify.md（L028 r3/r4 测得 D-1/D-2 FAIL → PR #156〔T-529/T-530/T-531 四桶实现+cache 投影+DELETE 语义〕→ L029 r5 关 D-2、r6/r7 双轮稳关 D-1——D-1 线上腿系 SSRF 防护拒 clash fake-ip ULA 环境因，经仓库级 allowPrivateUpstream 豁免（NFR-S13 一等旋钮）后双面一致；真实 mvn 客户端 + 上游 sha256 逐字节比对）+ reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md + reports/iteration-1542.md「L030 修复验收」（L030 r2/r3 测得 BIN-16〔snapshotVersions M3 谓词缺失〕/D-4〔GAV 失配 201 vs 409〕两 FAIL → f21f1c09〔T-542/T-543〕修复 + 3b58b082 评审加固 → case1/case2 双端复跑各连续两轮 PASS——台账两 BUG 已 resolved〔T-549 回填〕，rider/GAV 两面契约化 VERIFIED）+ reports/compatibility/L032-t550-followup-arms.md（Arm 6 member sidecar 17 维取证：digest 内容契约双端一致复验、validator 族三处分歧立新账〔T-551 stage 1 契约修订 + stage 2 修复在途〕——r1≡r2≡r3）+ reports/compatibility/L034-r6.md（R6 收官轮 @ 23b70a82，六面双轮 PASS×2：T-559 四面〔409 措辞族/class 门/sidecar LM 跨秒戳/plain 存储面——531ea002〕+ T-561 envelope uri〔23b70a82〕翻绿；新面孔取证=Location 头裸根〔立账 T-563/BIN-45〕+ unique 家园 walk 族 forensics〔喂 T-562/BIN-44 规格票，ctl 维 expected divergence 维持红非回归〕）+ reports/compatibility/L034-r6.md 末尾「Location mini-diff」节（T-563/BIN-45 修复 4481359f 验收：六臂〔pom/jar/maven-metadata 字节部署+X-Checksum-Deploy 零传输+checksum-file .sha1/.md5 注册式〕r3≡r4 双轮 PASS——Location==uri 带 contextPath / 注册式==带前缀 TARGET+body 空；台账 maven/deploy-201-location-header-context-prefix resolved，差分门 601b15ac）+ reports/compatibility/L035-r7-walk-forensics.md（R7 / T-562 stage 1 取证双轮稳定 r2≡r3+r4≡r5：walk 族四取证腿 A oracle 全维取到〔trigger-matrix/selection-tiebreak/sameface-mvn/virtual-walk-selection——B 侧 resolve 全 404=登记 fence 面本体〕+ auto-materialize case 级 PASS〔读路径双端全对齐〕；conductor 四裁定落账——walk BUG 对齐 A 规格闭合〔契约 ⑩⑫〕、t8 404 化〔⑪+新账〕、auto-materialize module 级对齐 A〔⑨ 改写+台账翻 BUG〕）+ tools/difftest/v2/run/l035-r7-impl-r{1,2}（R7 收官批 / T-562 stage 2 验收：四 walk case 双端连续两轮 PASS×8——t1-t10/s1-s5+s2b/c1-c4/v1-v3 逐键一致、t8=404）+ tools/difftest/v2/run/l035-r7-t566-r{1,2}（T-566 验收：auto-materialize case 双端双轮 PASS——module 级写路径同步物化、计数面 +1/module 同形）+ tools/difftest/v2/run/l035-r7-final-r1（终态二进制 fd2d0606 一致性补充轮四 case PASS×4——契约 ⑨⑩⑪⑫ 随翻 VERIFIED、台账三面翻 resolved，fix_ref=fd2d0606）'  # T-551 卫生款：原无引号 plain scalar 中「PR #156」的 # 被 YAML 当注释起始，L029-1 落账起本字段加载即截断于 139 字符（L030/L032 链曾整体落入注释区）——加引号修复，内容零变更；L034 链同引号形态追加
   priority_class: P1
   layer: A
   source_row: "新行提案（L029-1，2026-09-28 conductor 派票授权——L005-3/L007-4 冻结行集外新行先例款）"
@@ -2860,6 +2892,19 @@ rows:
     PASS——该账 resolved（review_gate 满足）；金样 deploy-201-envelope-uri-location 组内增补
     checksum-file .sha1/.md5 注册式臂（rest-api §1.5 该面首个双端活体锚）。台账实数更新：87 条 =
     45 resolved + 42 无 resolved 块（open BUG 5）。
+    R7 契约定稿批（2026-09-29，T-562 stage 1 / L035）：maven-virtual.yaml 扩至 12 条目——⑩⑪⑫
+    walk 族三条 DIVERGENT/high（触发矩阵/选择规则/same-face/t8 门/virtual mtime 键——规格闭合，
+    实现票 T-562 stage 2/BIN-44 在途，walk 红半边台账承载走 plain-snapshot-path-resolve-404
+    残余段）+ ⑨ auto-materialize 改写 module 级目标态（台账翻 BUG 对齐 A，裁定 4）。金样四组
+    （walk-trigger-matrix/walk-selection-rules/walk-virtual-cross-member-mtime/
+    auto-materialize-module-level）A 腿 target 形态入册、经契约 evidence 挂链不占本行 golden_ref
+    （单值已占用）。行态 compatible 维持（臂级差异走台账，实现未落地不翻 resolved）。
+    R7 台账收官批（2026-09-29，T-562 stage 2 + T-566 收编 fd2d0606）：maven-virtual.yaml 12 条目
+    全绿（⑩⑪⑫⑨ 四条 DIVERGENT→VERIFIED——impl-r{1,2} 四 case×8 双轮 + t566-r{1,2} 双轮 +
+    final-r1 终态轮，见 last_difftest 收官链）；台账 walk 红半边收口追记 + auto-materialize/t8
+    两账翻 resolved（fix_ref=fd2d0606）；金样四组补 B 腿升双端对账形（挂链方式不变不占 golden_ref）。
+    行态 compatible 维持（台账级收官，行态零变更）。L036 新发现 10 条（BUG×7 + UNKNOWN×3）均
+    台账级不涉本行。
 - row_id: D13-R01
   domain: D13
   capability: UI 内部面（/ui/api/v1 树浏览/Tab/制品动作/首页 widget/验证/SetMeUp/登录屏 ≈470 op）

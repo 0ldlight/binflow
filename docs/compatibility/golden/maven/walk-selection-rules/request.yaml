@@ -1,0 +1,15 @@
+# 金样请求——maven walk 选择规则（L035 W2：六场景八断言）
+# schema: golden-request/1（矩阵型：request=构造+腿数组；逐场景响应入 response.yaml）
+feature: 'unique 家园同 version 目录多候选下的 plain GET 选版规则——max(文件名 ts, bn 数值)、四元组分族独立'
+client: curl wire 腿（Basic admin；构造=fresh keyspace per scenario 逐场景上传序控制）
+repo_setup: >-
+  unique 家园 maven local 仓；每场景同 version 目录按指定上传序 wire PUT 时间戳拼写候选（全部 201），
+  后 plain GET 取服务胜者。场景键（s1-s5+s2b）与 L035 W2 矩阵一一对应。
+steps:
+- { seq: 1, leg: s1 上传序隔离, construct: '新 ts 20260601 先传、旧 ts 20260101 后传', probe: 'plain GET', note: '选择键=文件名内嵌 ts（非上传 mtime/序）——mtime 模型第一杀' }
+- { seq: 2, leg: s2 同 ts bn 1→2, construct: '同 ts 20260501，bn 1 先、bn 2 后', probe: 'plain GET', note: 'ts 并列→bn 大者' }
+- { seq: 3, leg: s2b 逆序, construct: '同 ts，bn 2 先、bn 1 后', probe: 'plain GET', note: 'tie-break=bn 本身，与上传序无关——mtime 模型第二杀' }
+- { seq: 4, leg: s3 bn 数值比较, construct: '同 ts 20260502，bn 9 与 bn 10', probe: 'plain GET', note: 'bn 数值比较（词典序会选 "9"——被否定）' }
+- { seq: 5, leg: s4 扩展分族, construct: '新 ts jar + 旧 ts pom 同目录', probe: 'plain GET .pom / plain GET .jar（两断言）', note: '按 (artifact, baseRev, extension) 族内独立选 max' }
+- { seq: 6, leg: s5 classifier 分族, construct: 'bn2 pom（新 ts）+ bn1 sources.jar（旧 ts，唯一 sources 候选）', probe: 'plain GET .pom / plain GET -sources.jar（两断言）', note: 'classifier 族独立 resolve——不落空不跨族错配' }
+expected_client_outcome: 'A 腿胜者见 response.yaml 逐场景（s1-newts / s2-bn2 / s2b-bn2 / s3-bn10 / s4 旧 pom+新 jar / s5 bn2 pom+bn1 sources）'

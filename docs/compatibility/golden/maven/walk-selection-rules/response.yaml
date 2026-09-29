@@ -1,0 +1,18 @@
+# 金样期望响应——maven walk 选择规则（A 腿参照实形；规则全文复用契约 ⑩ selection，此处存档胜者矩阵）
+# schema: golden-response/1；契约锚 contracts/maven-virtual.yaml#maven/plain-snapshot-unique-walk-resolve
+rule: 'max(文件名内嵌 ts, buildNumber)——ts 逐字符（数值）比较、bn 数值比较；候选域=同目录
+  <artifact>-<baseRev>-<ts>-<bn>[-<classifier>].<ext> 且 (artifact, baseRev, classifier, extension)
+  四元组与请求一致者；上传 wall-clock/存储 mtime/metadata 指针均不参与（s1+s2b 定谳、L034 F4）'
+legs:
+- { leg: s1 上传序隔离（新 ts 先传、旧 ts 后传）, a_serves: s1-newts, model_note: 'filename-ts ✓/mtime ✓（本场景不否证——与 s2b 合看定谳 filename-ts）' }
+- { leg: s2 同 ts bn 1→2 顺序上传, a_serves: s2-bn2, model_note: 'ts 并列→bn 大者胜' }
+- { leg: s2b 同 ts bn 2→1 逆序上传, a_serves: s2b-bn2, model_note: '**tie-break=bn 本身，与上传序无关**——mtime/上传序模型双杀定谳（与 s1 合看）' }
+- { leg: s3 同 ts bn 9 vs 10, a_serves: s3-bn10, model_note: '**bn 数值比较**——词典序选 "9" 被否定' }
+- { leg: s4 pom 旧 ts + jar 新 ts（断言①pom）, a_serves: 旧 ts pom, model_note: 'extension 族独立选 max' }
+- { leg: s4（断言②jar）, a_serves: 新 ts jar, model_note: '同上——同目录两族各自服务各自 max' }
+- { leg: s5 bn2 pom 新 ts + bn1 sources 旧 ts（断言①pom）, a_serves: bn2 pom, model_note: 'classifier 族独立' }
+- { leg: s5（断言②sources.jar）, a_serves: bn1 sources, model_note: '唯一 sources 候选照常服务——不因 max-ts 构建缺 sources 落空、不跨族错配' }
+matrix_outcome:
+  l035: 'r2≡r3 断言值逐项相同（全 PUT 201）；r1 tie 四臂作废注记在案（case 侧缺 version 目录→A layout-GAV 门 409）——r1v 验证修复后 r2/r3 为有效两轮'
+  r7_closeout: 'B 腿补录（run/l035-r7-impl-r{1,2}，B=fd2d0606 构建）：八断言全键 A==B 同胜者——w2s1 s1-newts / w2s2 s2-bn2 / w2s2b s2b-bn2 / w2s3 s3-bn10 / s4 jar-newts+pom-oldts 各家族独立 / s5 pom-bn2+sources-bn1；双轮 PASS×2 + final-r1 同'
+verdict_witness: 'L035 W2 矩阵 + ALL_STABLE True（r2 vs r3）+ impl-r{1,2}/final-r1 results.json case PASS'

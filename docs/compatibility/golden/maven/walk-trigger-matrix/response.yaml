@@ -1,0 +1,32 @@
+# 金样期望响应——maven walk 触发矩阵（A 腿参照实形；详细断言复用契约 ⑩，此处存档矩阵级观测）
+# schema: golden-response/1；契约锚 contracts/maven-virtual.yaml#maven/plain-snapshot-unique-walk-resolve
+legs:
+- leg: t1 GET plain .pom
+  observed: { status: 200, body: '服务改写版字节（w1pom）——plain GET 与时间戳拼写 GET 同面（W3 c1 逐字节相同）' }
+- leg: t2 HEAD plain .pom
+  observed: { status: 200, headers_note: 'Content-Length=280（=改写版长度）、ETag=改写版 sha1——验证器回显 resolve 后目标' }
+- leg: t3 GET plain .jar
+  observed: { status: 200, body: '服务改写 jar（jar 扩展同走 walk）' }
+- leg: t4 GET plain + Range bytes=0-15
+  observed: { status: 206, note: 'len=16、body 起始 `<?xml version="1`——在 resolve 后实体上切片（非 200 全量）' }
+- leg: t5 GET plain .pom.sha1
+  observed: { status: 200, body: '解析目标的 sha1（bc33934…=t1 服务体摘要）——旁车 GET 返回 resolve 后实体的摘要' }
+- leg: t6 GET plain .pom.md5
+  observed: { status: 200, body: '目标 md5（同 t5 机制）' }
+- leg: t7 GET version 级 maven-metadata.xml（plain 目录路径）
+  observed: { status: 200, note: '双端一致——元数据文档本身不走 walk（直读）' }
+- leg: t8 GET 非 SNAPSHOT 拼写（{module}-3.0.pom，目录有 ts 候选）
+  observed:
+    a_face: 404（honest miss）
+    b_face: '404（R7 台账收官批已翻绿——T-562 stage 2 读面 404 化，impl-r{1,2}+final-r1 双端逐键一致；台账 maven/non-snapshot-spelling-400-vs-404 resolved，fix fd2d0606）'
+    ruling: 'conductor 裁定 3（R7）：BUG 对齐 A 404 化，并入 walk 实现票——已兑现'
+- leg: t9 GET plain .pom（目录仅 .jar ts 候选）
+  observed: { status: 404, note: '双端一致——walk 按扩展族匹配，无跨扩展兜底' }
+- leg: t10 HEAD plain 经 virtual（单成员）
+  observed: { status: 200, headers_note: 'len=280——virtual 面透传成员 walk（多成员择取键见金样组 walk-virtual-cross-member-mtime）' }
+construction_anchor:
+  put_rewrite: 'unique 家园 wire PUT plain → 201 + Location=时间戳改写拼写 {module}-1.0-20260929.053709-1.*（双端一致）；A 改写 ts 取 UTC（053709 vs 本地 13:37）'
+matrix_outcome:
+  l035: 'r1≡r2≡r3 双侧逐项相同；A oracle 全维取到——取证腿 FAIL 系 B 侧 resolve 全 404（登记 fence 面 T-562/BIN-44 本体）'
+  r7_closeout: 'B 腿补录（run/l035-r7-impl-r{1,2} + final-r1，B=fd2d0606 构建）：t1-t10 全键 A==B——t1 w1pom / t2 len=280 / t3 wj-jar / t4 status=206;len=16 / t5+t6 200=sha_of_pom / t7 200 / t8 404 / t9 404 / t10 len=280；双轮 PASS×2 + 终态一致性轮 PASS'
+verdict_witness: 'L035 W1 矩阵 + 稳定性核验脚本输出 ALL_STABLE True + impl-r{1,2}/final-r1 results.json case PASS'

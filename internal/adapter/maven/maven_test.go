@@ -435,8 +435,11 @@ func TestSnapshotPolicy(t *testing.T) {
 	}
 }
 
-// TestLayoutRefusals is M20: non-layout paths are a 400 on PUT and GET
-// alike (strict maven parsing, C2 interim).
+// TestLayoutRefusals is M20: non-layout paths are a 400 on PUT (strict
+// maven parsing, C2 interim). The READ plane stopped refusing with T-562
+// (BIN-44, contract maven/non-snapshot-spelling-get-gate-404, the L035 t8
+// live finding): a GET of an unparseable file name is the reference's
+// routing-layer honest miss — 404, never a 400 parse body.
 func TestLayoutRefusals(t *testing.T) {
 	hs := newHarness(t)
 	for _, p := range []string{
@@ -450,9 +453,15 @@ func TestLayoutRefusals(t *testing.T) {
 			t.Errorf("PUT %s = %d, want 400 (%s)", p, resp.StatusCode, drain(t, resp))
 		}
 	}
-	// reads are parsed with the same strictness
-	if resp := hs.serve(http.MethodGet, "/maven-local/foo.jar", nil, nil, true); resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("GET bad layout = %d, want 400", resp.StatusCode)
+	// reads answer the honest miss (T-562: the parse gate is write-side)
+	for _, p := range []string{
+		"/maven-local/foo.jar",
+		"/maven-local/com/acme/demo-app/3.0-SNAPSHOT/demo-app-3.0.pom", // the t8 shape: non-SNAPSHOT file name in a SNAPSHOT dir
+	} {
+		resp := hs.serve(http.MethodGet, p, nil, nil, true)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("GET %s = %d, want 404 honest miss (%s)", p, resp.StatusCode, drain(t, resp))
+		}
 	}
 }
 

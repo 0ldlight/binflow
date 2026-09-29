@@ -163,8 +163,8 @@ curl -su admin:$ADMIN_PW $BASE/binflow/api/repositories/helm-remote
 ## 缓存管理与强刷手法
 
 - **强刷单个路径**：`DELETE /binflow/<remote>/<path>` → 204（仅删本地缓存，不触达上游），下次 GET 重新回源。这是 M3 唯一的强刷手法——**没有** `?refresh=true` 参数（保持 URL 语义纯净，与 参考仓库 一致）。mvn `-U` 拿不到新 SNAPSHOT 时，对 `maven-metadata.xml` 的缓存路径执行 DELETE 即可。未缓存路径 DELETE → 404（幂等）。**docker remote 注记（M14 实测）**：manifest 以 digest 寻址落盘，按 tag 路径或裸 hex 路径 DELETE 均不命中缓存节点（404、缓存不动）——清 docker remote 缓存请走「整仓清空」或观察头。
-- **整仓清空**：删仓时带 `?deleteContent=true`（缓存 node 一并删除后重建仓），或按路径逐个 DELETE。
-- **删仓**：`DELETE /binflow/api/repositories/<key>?deleteContent=true`。
+- **整仓清空**：删仓即级联——`DELETE /binflow/api/repositories/<key>` 连仓带全部内容一并移除，空仓/非空仓同应 200 + JSON 报告体（含 `deletedArtifactsCount` 删除计数）；`?deleteContent=true` 仍被接受但行为与之完全相同。需要保留仓配置只清缓存时，按路径逐个 DELETE（清完可原配置重建仓）。
+- **删仓**：`DELETE /binflow/api/repositories/<key>`（恒级联；`?deleteContent=true` 冗余同形）。
 - 缓存跨重启保留：重启实例（含换密钥重启）后已缓存内容直接 HIT，不回退重拉（T-77 复跑实证）。
 - 每 remote 仓的命中统计 REST（`/api/v1/remote/stats`）为 P2 项，M3 未提供。
 

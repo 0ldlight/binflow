@@ -107,7 +107,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/helm-remote \
 ## 缓存管理与强刷手法
 
 - **强刷单个路径**：`DELETE /binflow/<remote>/<path>` → 204（仅删本地缓存，不触达上游），下次 GET 重新回源。这是唯一的强刷手法——**没有** `?refresh=true` 参数。未缓存路径 DELETE → 404（幂等）。
-- **整仓清空**：删仓带 `?deleteContent=true`，或按路径逐个 DELETE。
+- **整仓清空**：删仓即级联——`DELETE /binflow/api/repositories/<key>` 连仓带全部内容一并移除，空仓/非空仓同应 200 + JSON 报告体（含 `deletedArtifactsCount` 删除计数）；`?deleteContent=true` 仍被接受但行为与之完全相同。需要保留仓配置只清内容时，按路径逐个 DELETE（清完可原配置重建仓）。
 - 缓存跨重启保留：重启实例（含换密钥重启）后已缓存内容直接 HIT。
 
 ## 上游凭据与 `BINFLOW_REMOTE_CREDENTIALS_KEY`

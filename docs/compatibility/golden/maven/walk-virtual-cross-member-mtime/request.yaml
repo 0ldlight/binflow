@@ -1,0 +1,14 @@
+# 金样请求——maven virtual 跨成员 walk 择取键（L035 W4：三场景 + 人工 8 形态否证腿）
+# schema: golden-request/1（矩阵型：request=构造+腿数组；逐场景响应入 response.yaml）
+feature: 'virtual 仓多成员 plain-SNAPSHOT walk 的跨成员择取——键=候选存储 mtime（last-write-wins），与成员内 filename-ts 键分层分键'
+client: curl wire 腿（Basic admin；构造=virtual=[m1,m2] 双 local 成员，fresh keyspace per scenario）
+repo_setup: >-
+  两个 unique 家园 maven local 成员仓 m1/m2 + virtual=[m1,m2]；逐场景在两成员各 PUT 一份
+  plain 时间戳拼写候选（控制内嵌 ts 与 wall-clock 上传先后），后经 virtual 面 plain GET 取服务胜者。
+  场景键 v1/v2/v3 与 L035 W4 矩阵一一对应；另有人工 8 形态补充腿（见 seq 4）。
+steps:
+- { seq: 1, leg: v1 基线（m2 后写胜）, construct: 'm1 候选 ts 新、m2 候选 ts 旧，m2 后上传', probe: 'virtual plain GET', note: '胜者=m2（后写）——filename-ts 会在本场景也选 m2，单独不否证' }
+- { seq: 2, leg: v2 否证 filename-ts, construct: 'm1 候选 ts 新（先传）、m2 候选 ts 旧（后传）', probe: 'virtual plain GET', note: '胜者=m2（后写旧 ts）——filename-ts 键被否证' }
+- { seq: 3, leg: v3 否证声明序, construct: '成员声明序与写入序相反的交叉构造', probe: 'virtual plain GET', note: '胜者=后写者而非先声明成员——声明序键被否证' }
+- { seq: 4, leg: 人工 8 形态补充, construct: 'ts 新旧 × 上传先后 × 成员归属 8 组合穷举（A 手工取证）', probe: 'virtual plain GET', note: '8/8 全中 mtime（last-write-wins）；与 r4/r5 场景合计 13/13' }
+expected_client_outcome: 'A 腿胜者见 response.yaml 逐场景——全部=后写（存储 mtime 最大）成员的候选'

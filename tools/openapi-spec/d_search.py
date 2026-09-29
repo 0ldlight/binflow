@@ -188,10 +188,26 @@ def build():
                                                 "message": "Repository does not exist: repo \"libs-release\": repository not found"}]})})
 
     op("/api/repositories/{key}", "delete", "repoDelete", "repositories", "Delete repository",
-       "Canonical path: `DELETE /binflow/api/repositories/{key}?deleteContent=` (admin only, not delegated).",
+       "Canonical path: `DELETE /binflow/api/repositories/{key}` (admin only, not delegated). "
+       "A silent cascade — the repository and all of its content are removed, empty or not, and the "
+       "answer is always 200 with the JSON report body `{repoKey, statusMsg, deletedArtifactsCount, "
+       "success}` (`deletedArtifactsCount` = files + folder rows removed; the repository root is not "
+       "counted). `statusMsg` follows the repository class: virtual reports the plain removal, local "
+       "and remote the content-bearing form. The `?deleteContent=true` spelling is accepted for "
+       "compatibility and changes nothing — with or without it the cascade and the response are "
+       "identical. Unknown key 404.",
        params=[pp("key", "Repository key"),
-               q("deleteContent", "true = delete the content as well", schema={"type": "boolean"})],
-       responses={"200": r("Deleted"), "403": ERR_403})
+               q("deleteContent", "Accepted for compatibility only; redundant — deletion always "
+                                  "cascades the content, with or without this flag",
+                 schema={"type": "boolean"})],
+       responses={"200": r("Deleted — silent cascade report", schema=S("RepoDeleteReport"),
+                           example={"repoKey": "libs-release",
+                                    "statusMsg": "Repository 'libs-release' and all its content have been removed successfully.",
+                                    "deletedArtifactsCount": 6, "success": True}),
+                  "403": ERR_403,
+                  "404": r("Repository not found (`Repository does not exist: ...`)", schema=S("ErrorsEnvelope"),
+                           example={"errors": [{"status": 404,
+                                                "message": "Repository does not exist: repo \"libs-release\": repository not found"}]})})
 
     op("/api/repositories/{key}/test", "post", "repoTest", "repositories",
        "Remote repository upstream connectivity probe",

@@ -20,6 +20,6 @@ confidence: high                   # 双报告逐维对账 + r1≡r2≡r3 稳定
 known_gaps:
 - '.md5/.sha256 的 validator 维未单独取证（推定与 .sha1 同构——契约 unobserved 清单，复验臂可钉）'
 - 'virtual 合并面旁车 validator 形态未取证（契约 unobserved 清单——writeDerivedSidecar 两调用点共用，推定同构）'
-- 'A 面跨秒直接腿不可达（wire-PUT snapshot 30s 内不物化）——response.yaml 跨秒 A 值为物化稳定戳机制推导（非直测）；B 残差在案 known-divergence.yaml#maven/derived-sidecar-lm-per-request-stamp'
+- 'A 面跨秒直接腿不可达（wire-PUT snapshot 30s 内不物化）——response.yaml 跨秒 A 值为物化稳定戳机制推导（非直测）；B 残差在案 known-divergence.yaml#maven/derived-sidecar-lm-per-request-stamp。勘误（R7 / L035 m6，2026-09-29）：「wire-PUT snapshot 30s 不物化」前提被否证——unique 家园含 pom plain PUT 下 A 写路径同步物化（39ms；L033 观测面疑为 version 目录 pom 前置缺席所致）；跨秒 A 值后由 L034 Arm 4 mvn deploy 构造直接腿 304×3 实测清偿（金样组 derived-sidecar-crosssec-304 承载），本档推导注记保留作历史'
 - 'LM 具体时戳值不锚定（锚语义=自身派生时刻，晚 body 数秒）；ETag 语义上旁车族不发'
 review: L033 后入金评审（2026-09-29，T-551 stage 1 终批第一半）——4 弃 1 入，弃项理由见 reports/agents/T-551-contract.md 金样评审节

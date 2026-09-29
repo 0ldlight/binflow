@@ -1,0 +1,24 @@
+# 金样元数据——maven auto-materialize 物化口径（R7 walk 批入金 ④，L035 Part 2 提金候选，含 L033 否证锚）
+schema: golden/1
+id: maven/auto-materialize-module-level
+contract_ref: contracts/maven-virtual.yaml#maven/deploy-put-version-metadata-auto-materialize
+matrix_ref: matrix.yaml#D12-R18
+capture:
+  mode: live-captured               # 双端对账形（R7 台账收官批补 B 腿——读路径 m0-m6 + 物理节点面均双端在案）
+  captured_at: '2026-09-29（A 腿=L035 r1≡r2≡r3 case 级 PASS；B 腿=R7 收官批 run/l035-r7-t566-r{1,2} 双轮 PASS）'
+  capture_instance: 'A: Artifactory 7.161.26 Enterprise+ @ 192.168.120.38:8082；B: worktree fd2d0606 构建 scratch @ 127.0.0.1:18080 /binflow（T-566 落地二进制）'
+  capture_commands: >-
+    default maven local 仓 wire PUT pom（release 1.0.0/1.1.0 + unique 家园 SNAPSHOT 3.0-SNAPSHOT）→ 逐臂
+    GET/列目录/deep-list 取物化形态；case maven-auto-materialize-probe，runner 轮次 run/l035-r7-r{1,2,3}
+    （A 腿）与 run/l035-r7-t566-r{1,2}（B 腿复验）；复跑入口 bash /tmp/l035-run.sh rN
+  raw_response_archive: reports/compatibility/L035-r7-walk-forensics.md Part 2（A 腿矩阵）+ reports/agents/T-566.md（B 腿差分矩阵 + 计数面 live 实测）+ tools/difftest/v2/run/l035-r7-t566-r{1,2}/evidence/maven-auto-materialize-probe/{a,b}-leg.json
+  history: live-captured A 腿 target 形态（L035 Part 2，含 L033 否证锚）→ live-captured 双端对账形（R7 台账收官批 2026-09-29 补 B 腿：T-566 写路径同步物化落地，m0-m6 逐键一致、计数面 +1/module 同形）
+instance_versions:
+  artifactory_ref: Artifactory 7.161.26 Enterprise+（http://192.168.120.38:8082）
+  binflow_tested: worktree fd2d0606 构建 scratch @ 127.0.0.1:18080（R7 收官批复验轮 t566-r{1,2}——module 级写路径同步物化已落地）
+confidence: high                   # A 腿 case 级 PASS×3 + B 腿 t566-r1≡r2 逐键一致 + 计数面 deep list live 实测同形
+known_gaps:
+- 'm5 旁车臂 B 侧两轮差分均跳过（m0 未触发口径同 L035）——留复验'
+- '多 module 非递归边界、覆盖 PUT 重算面 NOT_RUN（双端同——留后续票）'
+- 'DELETE 回收 B 维持 async（~10ms-2.1s 窗口 vs A 立即——case 轮询口径内一致；响应内确定性回收属后续面，T-566 Risks 在案）'
+review: R7 walk 批入金评审（2026-09-29，conductor 四裁定之裁定 4 配套——L035 提金候选④，A 腿逐臂转录自 L035 Part 2 矩阵；**否证锚**=m6 推翻 L033「30s 不物化」）+ R7 台账收官批 B 腿补录评审（2026-09-29——B 腿值转录自 run/l035-r7-t566-r1 b-leg.json asserts，台账随翻 resolved fix fd2d0606）

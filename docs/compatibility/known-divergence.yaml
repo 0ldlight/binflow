@@ -1507,7 +1507,7 @@ entries:
     review_gate 预写要求**分面**：本条仅 plain 拼写面；时间戳拼写臂（mvn deploy unique 构造）在
     契约 unobserved 标注 NOT_RUN/evidence-gap，独立后续票（walk 面快照族）立契，不并入本条。
   authority: { type: differential, ref: "L033 Arm C 对照腿 ×3（r3≡r4、r5≡r6——混杂排除）+ 规格锚 docs/reverse/maven-npm-pypi.md §1.3 + 契约锚 contracts/maven-virtual.yaml#maven/plain-snapshot-path-resolve（T-558/BIN-40 裁定轮）" }
-  review_gate: 已兑现（两程窗口内裁定，T-558）——plain 拼写解析修复票落地 + 双端复验翻绿 → resolved；时间戳拼写臂独立立票（分面纪律）
+  review_gate: 已兑现（两程窗口内裁定，T-558）——plain 拼写解析修复票落地 + 双端复验翻绿 → resolved；时间戳拼写臂独立立票（分面纪律）。R7 更新（2026-09-29，T-562 stage 1 / L035）：walk 族**规格闭合**——契约 ⑩⑫ 承载（⑩ maven/plain-snapshot-unique-walk-resolve 触发全集+选择规则+same-face 并票、⑫ maven/virtual-plain-walk-cross-member-selection 跨成员 mtime 键）+ t8 门分立 ⑪；**实现票在途**（T-562 stage 2 / BIN-44——BUG 对齐 A，conductor 裁定 1/2/3）；walk 红半边（unique 家园 ctl 三维 + virtual 面 + t8 门）随票翻绿后于本条 resolved note 追记收口。R7 台账收官批（2026-09-29）：**walk 红半边已收口**——T-562 stage 2 落地（fd2d0606），红半边三承载面（⑩ 成员面 / ⑫ virtual 面 / t8 门独立账）全部翻绿见 resolved note 追记
   resolved:
     date: '2026-09-29'
     evidence: >-
@@ -1522,6 +1522,16 @@ entries:
       virt_resolve_snap_from_hr 三维 A=200 vs B=404 **expected divergence 维持红**（L034 Arm 5 红半边明示），
       归 T-562/BIN-44 walk 族 fence 面（L034 Arm 7 forensics F1-F6 证据已固化喂规格票——选版=目录内最新
       时间戳、resolve 与 metadata 指针解耦），待其独立立契立账；契约 unobserved 时间戳拼写臂维持如实。
+      R7 承接（2026-09-29，L035）：独立立契已落——contracts/maven-virtual.yaml ⑩（成员面 walk 规则）
+      +⑫（virtual 跨成员 mtime 键）两条 DIVERGENT/high + ⑪ t8 门（新账 maven/non-snapshot-spelling-
+      400-vs-404）；⑦ unobserved 时间戳拼写臂已回填（W3 same-face 并票）。walk 红半边台账承载仍在本条
+      残余段，随 T-562 stage 2 翻绿收口。
+      **R7 台账收官批收口追记（2026-09-29）**：walk 红半边随 T-562 stage 2 / BIN-44（fix_ref=fd2d0606）
+      翻绿——mini 差分 run/l035-r7-impl-r{1,2} 四 case（trigger-matrix/selection-tiebreak/sameface-mvn/
+      virtual-walk-selection）双端连续两轮 PASS×8（t1-t10/s1-s5+s2b/c1-c4/v1-v3 逐键一致）+ 终态二进制
+      一致性轮 run/l035-r7-final-r1 四 case PASS×4；契约 ⑩⑫ 随翻 VERIFIED/high，t8 门独立账
+      maven/non-snapshot-spelling-400-vs-404 同批翻 resolved。红半边三承载面全部收口，本条残余段
+      就此清账。
   evidence: reports/compatibility/L033-r5-fix-verification.md Arm C（virt resolve snapshot 维 + 对照腿 ×3；r3≡r4，r5≡r6 维持）+ reports/compatibility/L034-r6.md Arm 5（绿半边翻绿 + 红半边维持）
 - id: maven/derived-sidecar-lm-per-request-stamp
   surface: 'maven 派生旁车 Last-Modified 时戳语义残差——跨秒回访：A=物化稳定戳→304，B java-agent 剥离面=per-request 派生时刻戳→200+新 LM（L033 Arm A 附带取证）'
@@ -1542,6 +1552,11 @@ entries:
     取证）。证据 caveat 维持：A 侧跨秒 304 为机制推导（L032/r1-r3 物化稳定戳跨 GET 序列不变直测
     + A 直接腿构造不可达），B 侧 per-request 行为 live 直测——契约置信随此注记降为 medium
     （contracts/maven-virtual.yaml#maven/derived-sidecar-lm-materialized-stamp，DIVERGENT/medium）。
+    勘误（R7 / L035 m6，2026-09-29）：上句「A 直接腿构造不可达（wire-PUT snapshot 在 A 上 30s 内
+    不物化 version 级 metadata→404）」前提被否证——unique 家园含 pom plain PUT 下 A 写路径**同步**
+    物化（39ms，GET 前在目录清单）；L033 观测面疑为 version 目录 pom 前置缺席所致
+    （#maven/version-metadata-pom-prerequisite §1.1），非构造性不可达。本条跨秒结论不受影响
+    （L034 Arm 4 mvn deploy 构造 A 直接腿 304×3 实测在案，caveat 已清偿、契约已翻 VERIFIED/high）。
   authority: { type: differential, ref: "L033 Arm A 附带取证节（B 面双 UA 跨秒矩阵 live：剥离面 200+新 LM 00:44:09→00:44:10）+ L032 Arm 6 r1-r3（A 物化稳定戳机制直测）+ 契约锚 contracts/maven-virtual.yaml#maven/derived-sidecar-lm-materialized-stamp（T-558/BIN-40 裁定轮）" }
   review_gate: 已兑现（两程窗口内裁定，T-558）——stored-stamp 持久化微票落地 + 跨秒回访双端复验（java-agent 剥离面持旧 LM→304）翻绿 → resolved
   resolved:
@@ -1563,27 +1578,52 @@ entries:
       unobserved/notes 区，本批不裁）。
   evidence: reports/compatibility/L033-r5-fix-verification.md Arm A 附带取证节（B 面双 UA 跨秒矩阵 + A 面机制推导注记）+ reports/compatibility/L034-r6.md Arm 4（A 面跨秒直接腿实测 + 双端 8/8 PASS×2）
 - id: maven/deploy-put-version-metadata-auto-materialize
-  surface: 'maven 布局 local 仓 wire PUT 落制品后的 version 级 maven-metadata.xml 存在面——A 写路径自动物化，B 不物化（读时派生/合并面）'
-  classification: UNKNOWN
+  surface: 'maven 布局 local 仓 wire PUT 落制品后的 metadata 自动物化存在面——A=module 级写路径物化（物理节点，恒 +1/module），B=读时派生无节点（R7 勘误：原「version 级」归因系 deep-list 计数无法区分层级）'
+  classification: BUG
   rationale: >-
     T-555 活体探针定案（2026-09-29，A=7.161.26 Enterprise+ 活体，difftest-d3-* 9 腿、善后残留
     NONE）：L032 Arm 1 的 A=6 vs B 节点 5 计数差之谜就此定案——非计数规则差，系 **A 对 maven
-    布局 wire PUT 落制品时自动物化 version 级 maven-metadata.xml**（s0 校准腿 PUT pom 后 list
+    布局 wire PUT 落制品时自动物化 maven-metadata.xml**（s0 校准腿 PUT pom 后 list
     files=2〔pom+自动 metadata〕、s4 pom+jar 腿 files=3；B 同构造 files=1/2——L032 Arm 1 B 面
     报 `holds 5 node(s)` vs A deletedArtifactsCount=6 即此 1 文件差）。**与既有面不重复**：M3
     rider（maven/virtual-snapshot-versions-m3-rider，读时派生/合并面，VERIFIED）与派生旁车族
     （validator/LM——旁车内容与缓存面）均非「写路径物化存在面」；mvn deploy 客户端腿的 version
     级 metadata 由客户端上传（L032 Arm 6 构造即此），与 wire PUT 服务端物化不同源。
-    **UNKNOWN 理由（四分类纪律，不猜 BUG）**：存在面分歧已活体确证，但（a）触发条件全集未取证
-    ——release wire PUT 立即物化（s0/s4 直测）vs SNAPSHOT wire PUT 在 A 30s 内不物化（L033
-    Arm A 附带取证注记，疑异步/延迟物化，窗口边界未探）；checksum 旁车同步性、多 module、
-    覆盖 PUT 均未测；（b）B 是否应复刻未裁——B 现为读时派生（客户端能力谓词门控），叠加写
-    路径物化是否与 M3 rider 面冲突/冗余无规格依据（docs/reverse/ 未载 wire PUT 物化时机面，
-    无用户裁决/ADR/规格票可引）。影响面：依赖 version 目录文件清单/deletedArtifactsCount 的
-    一切对照口径（A 恒 +1/目录）与客户端对目录清单的可见性。
-  authority: { type: pending, ref: "产品裁（对齐 A 写路径物化 vs 维持 B 读时派生+注记）+ 触发条件取证票（SNAPSHOT 物化时机/旁车同步性/多 module）——docs/reverse/ 未载该面，无三类 authority 可引" }
-  review_gate: 两程内升级裁决（默认窗口）——出口甲：取证票补齐触发臂后裁对齐 A → B 写路径物化实现票 + 差分复验（wire PUT 后清单/计数口径翻同形）翻绿 resolved；出口乙：裁维持 B → 转 INTENTIONAL（须补 authority）+ 对照口径注记（A 恒 +1 差属预期，差分臂按面分别钉形）
-  evidence: reports/agents/T-555.md 活体探针节（difftest-d3-* 矩阵 s0/s4 腿 + L032 A=6-vs-B=5 定案注记；参照源版本 7.161.26）+ reports/compatibility/L032-t550-followup-arms.md Arm 1（r1≡r2≡r3 原始计数差）+ reports/compatibility/L033-r5-fix-verification.md Arm A 附带取证注记（A snapshot 30s 不物化——触发条件边界线索）+ 契约锚 contracts/maven-virtual.yaml#maven/deploy-put-version-metadata-auto-materialize
+    原 UNKNOWN 理由（触发条件全集未取证 + 对齐方向无 authority）已被 L035 副探补齐证据并裁定收编。
+    L035 副探扩证（reports/compatibility/L035-r7-walk-forensics.md Part 2，m0-m6+追加，r1≡r2≡r3
+    case 级 PASS——读路径双端全对齐）：①**物化层级勘误**——A 写路径物化是 **module 级**（pom PUT
+    即物化、物理节点、立即可读/合并/随 DELETE 回收）；release 的 version 级 metadata 双端都不物化
+    （404@30s）；T-555 s0/s4「files=2/3」计数没错、level 归因当时写错为 version 级（deep-list 计数
+    无法区分层级）。②**L033「A snapshot 30s 不物化 version 级」被否证**——unique 家园 plain pom
+    PUT 下 A 写路径同步物化（39ms，GET 前在目录清单，×2 轮；L033 观测面疑为 version 目录 pom 前置
+    缺席所致——#maven/version-metadata-pom-prerequisite §1.1）；SNAPSHOT version 级同步物化**双端
+    一致**（B 58ms 同构）。③**残余分歧=存储节点存在面/计数面**：A 恒 +1/module vs B 读时派生无节点
+    （repo 根 deep list：A=[pom+metadata 物理节点]、B=[pom]）。
+    **裁定（R7，2026-09-29，conductor 四裁定之裁定 4）：UNKNOWN→BUG，对齐 A**——B 落地 module 级
+    写路径物化（物理节点，计数面随之同形——L032 A=6-vs-B=5 类口径差随之消解）；SNAPSHOT version 级
+    双端同步物化维持；release version 级双端 404@30s 维持。契约 ⑨ 随裁定改写（module 级目标态 +
+    L033 勘误注记，DIVERGENT 待实现）。
+  authority: { type: conductor_ruling, ref: "conductor R7 四裁定之裁定 4（2026-09-29）+ 差分链 reports/compatibility/L035-r7-walk-forensics.md Part 2（m0-m6+追加 r1≡r2≡r3）+ reports/agents/T-555.md（difftest-d3-* 计数定案）" }
+  review_gate: 已兑现（R7 台账收官批 2026-09-29）——T-566/BIN-48 落地 module 级写路径同步物化，case maven-auto-materialize-probe 双端复跑双轮 PASS + 计数面 module+1 deep list live 实测同形 → resolved；L032 A=6-vs-B=5 口径差随对齐自然消解（rest/repo-delete-nonempty-cascade 臂复验 conductor 已列后续票）
+  resolved:
+    date: '2026-09-29'
+    evidence: >-
+      T-566/BIN-48（fix_ref=fd2d0606——calc.go afterArtifactDeploy pom 腿 recalcAsync→recalcSync，
+      PUT 响应返回前 module 级物理节点必然落地）；mini 差分 run/l035-r7-t566-r{1,2} case
+      maven-auto-materialize-probe 双端连续两轮 PASS（B 腿 asserts 与 A 逐键一致：m0 404@30s /
+      m1 versions=[1.0.0] / m2 [1.0.0,1.1.0] latest|release=1.1.0|1.1.0 / m3 404 / m4 [1.1.0]+被删
+      版本 404 / m6 200@0s 且 GET 前目录清单已含节点）；计数面 module+1 实测同形（deep list 即时含
+      物理节点，18080 终态二进制 live——reports/agents/T-566.md Compatibility 节）。单测 fence=
+      module_metadata_materialize_test.go（PUT 响应后不经 drain 即断言节点存在/合并/回收 + m6 零回归
+      + M3 rider 共存三腿）。
+    note: >-
+      T-566 前置实证勘误：L035「B files=[pom] 无节点」实为 async 竞态窗口（pre-T-566 二进制实测 PUT 后
+      51ms 即在 deep list 可见），非完全无节点；对齐动作=async→sync（计数面确定性）。残余如实两点
+      不静默：①DELETE 回收维持 async（~10ms-2.1s 窗口内立即计数观测可能见旧列表 vs A 立即——case
+      轮询口径内一致 PASS；如需响应内确定性回收另开票）；②m5 旁车臂 B 侧两轮差分均跳过（m0 未触发
+      口径）——留复验。契约 contracts/maven-virtual.yaml#maven/deploy-put-version-metadata-auto-
+      materialize 随翻 VERIFIED/high。
+  evidence: reports/compatibility/L035-r7-walk-forensics.md Part 2（m0-m6+追加：module 级物化/合并/回收 + SNAPSHOT 同步物化锚 + 计数面 +1/module）+ reports/agents/T-555.md 活体探针节（difftest-d3-* 矩阵 s0/s4 腿 + L032 A=6-vs-B=5 定案注记；参照源版本 7.161.26）+ reports/compatibility/L032-t550-followup-arms.md Arm 1（r1≡r2≡r3 原始计数差）+ 契约锚 contracts/maven-virtual.yaml#maven/deploy-put-version-metadata-auto-materialize（R7 改写版）
 - id: maven/deploy-201-location-header-context-prefix
   surface: 'maven deploy 201 Location 响应头根前缀——A=带 contextPath 且与 envelope uri 逐字节相同；B=裸根缺 /binflow 且跟随必 404（L034 Arm 8 新面孔）'
   classification: BUG
@@ -1604,3 +1644,177 @@ entries:
   review_gate: 修复票 T-563/BIN-45（conductor 已立，修复在途）：Location 渲染补 contextPath 前缀（requestBase 两调用点，与 uri 同源）；修后 mini 差分（Location 臂）双轮 PASS → resolved
   evidence: reports/compatibility/L034-r6.md Arm 8 + tools/difftest/v2/run/l034-r6-r{1,2}/（envelope case raw 取证与 locprobe 探针）
   resolved: { date: '2026-09-29', evidence: 'reports/compatibility/L034-r6.md 末尾「Location mini-diff」节（T-563 验证腿：B 自 worktree 4481359f 重建 scratch @ 18080，case maven-deploy-201-location-header 六臂 ×2 轮 run/l034-r6-r{3,4}，r3≡r4 断言值逐项相同、连续两轮 PASS——pom/jar/maven-metadata.xml 字节部署 + X-Checksum-Deploy 零传输〔loc2〕：Location==envelope uri、带 contextPath 前缀、GET 200（sha-ok）；checksum-file .sha1/.md5 注册式：Location==带前缀 TARGET〔.pom 路径〕+ body 空〔len=0〕+ TARGET GET 200+sha-ok；主批 Arm 8 的 B 裸根形态已消除、Location 跟随解析 200）；fix_ref=T-563/BIN-45（4481359f——put.go 两处 Location〔writeCreated 201 与 checksum-file 注册式 201〕补 /binflow 前缀、形==envelope uri/带前缀 TARGET；票已 Done）；差分门提交 601b15ac；r3 首跑单维失配 meta_loc_get=A 上传字节 vs B 重算=case 侧误钉字节（T-561 口径只钉 200）——已知非 Location 脸，如实注记不立账' }
+- id: maven/non-snapshot-spelling-400-vs-404
+  surface: 'maven 布局仓非 SNAPSHOT/非时间戳拼写文件名的 GET——A=404 honest miss vs B=400 layout parse 门（L035 W1 t8 新亚面）'
+  classification: BUG
+  rationale: >-
+    L035 W1 t8（2026-09-29，A=7.161.26 Enterprise+ 活体 × B worktree HEAD 0c17635a scratch，r1≡r2≡r3）：
+    GET 非 SNAPSHOT plain 拼写（gt8-3.0.pom）于 SNAPSHOT 目录（目录有 ts 候选）——A **404**（路由层
+    honest miss）；B **400**（layout parse 门：file name "gt8-3.0.pom" does not spell the version as
+    "3.0-SNAPSHOT" or a timestamped…）——状态+载体双分歧。walk 门语义（W1 触发条件）：请求文件名必须
+    携带 -SNAPSHOT 拼写——非 SNAPSHOT 拼写不触发 parse 拒绝而走 miss。
+    **裁定（R7，2026-09-29，conductor 四裁定之裁定 3）：BUG 对齐 A（404 化）**，并入 walk 实现票
+    T-562 stage 2 / BIN-44 范围（parse 门次序/状态随票对齐）。契约锚
+    contracts/maven-virtual.yaml#maven/non-snapshot-spelling-get-gate-404（DIVERGENT/high）。
+    unobserved 如实：非 SNAPSHOT 文件名 PUT 的 A 受理形态未测（NOT_RUN，随实现票补）。
+  authority: { type: conductor_ruling, ref: "conductor R7 四裁定之裁定 3（2026-09-29）+ 差分 reports/compatibility/L035-r7-walk-forensics.md W1 t8（r1≡r2≡r3）" }
+  review_gate: 已兑现（R7 台账收官批 2026-09-29）——walk 实现票 T-562 stage 2 / BIN-44 落地（读面 GET/HEAD 解析失败统一 404 notFoundMessage；PUT/DELETE 维持 400——A 的 PUT 面未观测不猜），差分 t8 臂双轮 PASS → resolved（unobserved：非 SNAPSHOT 文件名 PUT 的 A 受理形态仍 NOT_RUN，随复验补）
+  resolved:
+    date: '2026-09-29'
+    evidence: >-
+      T-562 stage 2 / BIN-44（fix_ref=fd2d0606——ServeHTTP 解析门 GET/HEAD 失败→404）；mini 差分
+      run/l035-r7-impl-r{1,2} case maven-walk-trigger-matrix t8_nonsnap_plain_in_snap_dir 双端
+      status=404 连续两轮 + 终态一致性轮 run/l035-r7-final-r1 同（B 的 400 layout parse 门已消除）；
+      单测 TestPlainSnapshotWalkNonSnapshotGate（t8→404）+ TestLayoutRefusals GET 腿翻 404。
+      契约 contracts/maven-virtual.yaml#maven/non-snapshot-spelling-get-gate-404 随翻 VERIFIED/high。
+  evidence: reports/compatibility/L035-r7-walk-forensics.md W1 t8 + 契约锚 contracts/maven-virtual.yaml#maven/non-snapshot-spelling-get-gate-404
+# ── L036 新发现批（R7 台账收官批入账，2026-09-29——conductor 已裁；报告 reports/compatibility/
+#    L036-r7-followup-probes.md；A=7.161.26 活体、B=worktree 943ce899 scratch 18083；五族 B 活体
+#    BLOCKED(license community<pro)——B 侧证据=静态代码+已修族外推，逐条标注）──────────────────
+- id: deb/deploy-201-location-bare-relative
+  surface: 'deb 仓内容面 PUT 201 Location 头——A=绝对形过 context root（…/artifactory/<repo>/pool/…）；
+    B=裸仓内相对 <rel>（L036 ②审计表 BUG 候选①）'
+  classification: BUG
+  rationale: >-
+    L036 ②六族自引用渲染点审计（2026-09-29）：A 活体 deb PUT 201 + Location
+    http://192.168.120.38:8082/artifactory/<repo>/pool/main/r/r7fp/r7fp_1.0.0_amd64.deb（绝对过
+    context root；FileInfo uri/downloadUri 同绝对；mimeType=x-debian-package）；B 静态
+    internal/adapter/deb handler.go writeCreated `Location: <rel>` 裸仓内相对（B 活体 BLOCKED
+    license 门——静态代码为 B 侧证据，如实标注）。与已修 maven/deploy-201-location-header-context-
+    prefix（T-563/BIN-45，4481359f）完全同构；A 面通则（generic/pypi 存储/deb/rpm/helm/nuget-bare
+    七处实证：存储面 PUT 201 Location 一律绝对形过 context root）。同族五条本批入账（deb/rpm/helm/
+    nuget-bare/cargo——R8 一票同款修法 requestBase+productPrefix）。
+  authority: { type: conductor_ruling, ref: "R7 台账收官批 conductor 裁定（2026-09-29，BUG 入账——ref reports/compatibility/L036-r7-followup-probes.md ② BUG 候选①）" }
+  review_gate: R8 修复票（fix=writeCreated Location 改 requestBase(r)+productPrefix+repo+escapePath 绝对形，与 uri/downloadUri 同源——同 T-563 修法）落地 → Location 臂复验双轮 PASS → resolved；B 活体差分门受 community license 门限（体系级 blocker 已上报 conductor——pro-license scratch 或 UAT 换装路径），修后以单测+静态断言先行、活体随门解锁补
+  evidence: reports/compatibility/L036-r7-followup-probes.md ②（deb 行：A live raw + B 静态 handler.go:552）+ tools/difftest/v2/run/l036-r7fp{,-r1}/evidence/ + /tmp/binflow-r7-audit/probes/（raw 留存）
+- id: rpm/deploy-201-location-bare-relative
+  surface: 'rpm 仓内容面 PUT 201 Location 头——A=绝对形过 context root（…/artifactory/<repo>/rpms/…）；
+    B=裸仓内相对 <rel>（L036 ②审计表 BUG 候选①）'
+  classification: BUG
+  rationale: >-
+    同 deb/deploy-201-location-bare-relative 族（L036 ②）：A 活体 rpm PUT 201 + Location
+    http://192.168.120.38:8082/artifactory/<repo>/rpms/r7fp-1.0.0-1.noarch.rpm（绝对过 context root；
+    mimeType=x-rpm）；B 静态 handler.go:580 `Location: <rel>` 裸相对（B 活体 BLOCKED license 门）。
+    side note（A 面观察）：A 上传不校验 rpm 结构——伪 rpm payload 也 201（另属受理面观察，不立账）。
+  authority: { type: conductor_ruling, ref: "R7 台账收官批 conductor 裁定（2026-09-29，BUG 入账——ref L036 ② BUG 候选①）" }
+  review_gate: 同 deb 族 R8 修复票（同款修法/同票）；Location 臂复验双轮 PASS → resolved；license 门解锁前单测+静态断言先行
+  evidence: reports/compatibility/L036-r7-followup-probes.md ②（rpm 行：A live raw + B 静态 handler.go:580）+ run/l036-r7fp{,-r1}/evidence/
+- id: helm/deploy-201-location-bare-relative
+  surface: 'helm 仓 chart PUT 201 Location 头——A=绝对形过 context root（…/artifactory/<repo>/charts/
+    <chart>.tgz）；B=裸仓内相对 <rel>（L036 ②审计表 BUG 候选①）'
+  classification: BUG
+  rationale: >-
+    同 deb/deploy-201-location-bare-relative 族（L036 ②）：A 活体 chart PUT 201 + Location
+    http://192.168.120.38:8082/artifactory/<repo>/charts/r7chart-0.1.0.tgz（绝对过 context root；
+    mimeType=x-gzip）；B 静态 handler.go:572 `Location: <rel>` 裸相对（B 活体 BLOCKED license 门）。
+    本条仅 chart PUT 渲染面；helm index.yaml urls local:// 形态不入账（conductor 裁定：A 自 broken——
+    无 Custom Base URL 时 helm 3 真客户端 pull 直接失败 `Error: scheme "local" not supported`，维持
+    B 相对 urls——HL-2 已裁形态；查重无既有条目）。
+  authority: { type: conductor_ruling, ref: "R7 台账收官批 conductor 裁定（2026-09-29，BUG 入账——ref L036 ② BUG 候选①）" }
+  review_gate: 同 deb 族 R8 修复票；Location 臂复验双轮 PASS → resolved；license 门解锁前单测+静态断言先行
+  evidence: reports/compatibility/L036-r7-followup-probes.md ②（helm 行：A live raw + B 静态 handler.go:572；index local:// 真客户端取证在案）+ run/l036-r7fp{,-r1}/evidence/
+- id: nuget/bare-put-201-location-bare-relative
+  surface: 'nuget bare .nupkg 内容面 PUT 201 Location 头——A=绝对形过 context root（…/artifactory/
+    <repo>/bare/<pkg>.nupkg）+ X-Checksum-Sha256；B=裸仓内相对 <rel>（L036 ②审计表 BUG 候选②）'
+  classification: BUG
+  rationale: >-
+    同 deb/deploy-201-location-bare-relative 族第四族（L036 ②）：A 活体 bare PUT 201 + Location
+    http://192.168.120.38:8082/artifactory/<repo>/bare/r7fp.pkg.1.0.0.nupkg（绝对）+ X-Checksum-Sha256；
+    B 静态 flat.go:516 `Location: <rel>` 裸相对（B 活体 BLOCKED license 门）。
+  authority: { type: conductor_ruling, ref: "R7 台账收官批 conductor 裁定（2026-09-29，BUG 入账——ref L036 ② BUG 候选②）" }
+  review_gate: 同 deb 族 R8 修复票；Location 臂复验双轮 PASS → resolved；license 门解锁前单测+静态断言先行
+  evidence: reports/compatibility/L036-r7-followup-probes.md ②（nuget bare 行：A live raw + B 静态 flat.go:516）+ run/l036-r7fp{,-r1}/evidence/
+- id: cargo/serve-derived-write-201-location-bare-relative
+  surface: 'cargo serveDerivedWrite 201 Location 头——推断级（A 同面实证缺：实例未配 Custom Base URL
+    建仓 400，改实例配置越红线）：跨族统一形态=绝对过 context root；B=裸仓内相对 <path>（L036 ②
+    审计表 BUG 候选⑤）'
+  classification: BUG
+  rationale: >-
+    同 deb/deploy-201-location-bare-relative 族第五族（L036 ②），**推断级如实标注**：A 面 cargo
+    仓不可建（400 Custom Base URL should be defined prior to creating a Cargo repository——实例级
+    配置红线不改；该门本身证明 A 的 cargo 自引用依赖实例配置 base URL），A 同面实证缺位；跨族存储面
+    统一形态（七处实证：generic/pypi 存储/deb/rpm/helm/nuget-bare 一律绝对过 context root）+ B 静态
+    handler.go:344 `Location: <path>` 裸相对——静态代码+跨族通则两点闭环，推断 A 同形。B 活体
+    BLOCKED license 门。
+  authority: { type: conductor_ruling, ref: "R7 台账收官批 conductor 裁定（2026-09-29，BUG 入账——ref L036 ② BUG 候选⑤，推断级标注在案）" }
+  review_gate: 同 deb 族 R8 修复票；**复验门附加**：A 面实证腿需实例配 Custom Base URL 后补拍（或以跨族通则+修后 wire 形态收敛为证据链）；推断级若实证推翻则本条勘误
+  evidence: reports/compatibility/L036-r7-followup-probes.md ②（cargo 行：A 建仓门 400 raw + B 静态 handler.go:344 + 跨族通则）+ run/l036-r7fp{,-r1}/evidence/
+- id: nuget/v3-flatcontainer-push-location-anchor-collision
+  surface: 'nuget v3 flatcontainer push（multipart PUT）201 Location 头——A=201 无 Location；B=多渲染
+    Location 且锚点错叠（repo 相对值 `flatcontainer/<id>/<ver>/…` 经客户端相对解析于
+    /…/flatcontainer/<id>/<ver> 得双叠 flatcontainer 路径）（L036 ②审计表 BUG 候选③）'
+  classification: BUG
+  rationale: >-
+    L036 ②：A 活体 v3 multipart PUT 201 **无 Location**（v2 同面 201 text/plain 无 Location——
+    双面一致）；B 静态 flat.go:355 `Location: target.nupkg()` 渲染 A 没有的头，且 repo 相对值以
+    flatcontainer 路径自身为锚——相对解析得 /…/flatcontainer/<id>/<ver>/flatcontainer/<id>/<ver>/…
+    双叠路径（自引用脱靶）。对齐=去该头（A 形）或改绝对前缀形——修法随 nuget 域 R8 票定，方向已裁
+    BUG。B 活体 BLOCKED license 门（静态代码为 B 侧证据）。
+  authority: { type: conductor_ruling, ref: "R7 台账收官批 conductor 裁定（2026-09-29，BUG 入账——ref L036 ② BUG 候选③）" }
+  review_gate: R8 nuget 修复票（flat.go:355——去头或绝对前缀形，随 nuget 域裁定选一）落地 → v3 push 臂复验双轮 PASS → resolved；license 门解锁前单测+静态断言先行
+  evidence: reports/compatibility/L036-r7-followup-probes.md ②（nuget v3 push 行：A live 201 无 Location raw + B 静态 flat.go:355 锚点剖析）+ run/l036-r7fp{,-r1}/evidence/
+- id: pypi/upload-response-missing-location-checksum
+  surface: 'pypi 上传响应（POST /api/pypi/<repo>/）头族——A=200 + Location + X-Checksum-Sha256 + CT
+    application/vnd.org.jfrog.artifactory.storage.ItemCreated+json；B=200 text/plain CL=0 无 Location
+    无 checksum 头（L036 ②审计表 BUG 候选④）'
+  classification: BUG
+  rationale: >-
+    L036 ②：A 活体 twine 面上传响应带 Location（**宿主怪形** http://localhost:8081/<repo>/…——非
+    请求 host、无 /artifactory context root）+ X-Checksum-Sha256 + 专用 CT；B 200 text/plain CL=0
+    三项全缺。**对齐形态已裁（conductor R7 台账收官批）：不照抄 A 的 localhost:8081 宿主怪值——
+    Location 取通用形 requestBase(r)+productPrefix+repo+path（B 既有 helper 形态，与已修
+    generic/maven 同源）**；X-Checksum-Sha256/CT 补齐随 R8 票面定（checksum=上传体 sha256、CT 取
+    A 形或 B json 信封形由票裁，此处只立分歧不预写实现）。A 自身两类「无 Custom Base URL 降级怪」
+    （pypi 上传 Location 引 localhost:8081、302 引 localhost:8081 带 context root）为 A 怪癖取证，
+    均不构成 B 对齐目标（L036 通则节）。
+  authority: { type: conductor_ruling, ref: "R7 台账收官批 conductor 裁定（2026-09-29，BUG 入账——对齐形态=通用形 requestBase+prefix，不照抄 A 宿主怪值；ref L036 ② BUG 候选④ + 通则节）" }
+  review_gate: R8 pypi 修复票（上传响应补 Location〔通用形〕+ X-Checksum-Sha256；CT 形态随票裁）落地 → 上传响应臂复验双轮 PASS → resolved（pypi 族 B 活体不受 license 门限——直接双端差分可跑）
+  evidence: reports/compatibility/L036-r7-followup-probes.md ②（pypi 行：A live raw Location/X-Checksum-Sha256/CT + B live raw）+ run/l036-r7fp{,-r1}/evidence/
+- id: generic/mime-ownership-model
+  surface: 'generic 制品 mimeType 归属模型——A=扩展名白名单表+请求声明 CT 全忽略+octet-stream 兜底+
+    无内容嗅探；B=声明 CT verbatim 存储（存储值权威渲染 GET 头与 FileInfo）+无声明走自有表+stdlib
+    推断（L036 ①，18 腿矩阵 11 DIFF + 15 扩展名表取值 12/15 分歧）'
+  classification: UNKNOWN
+  rationale: >-
+    L036 ①固化 case generic_mime_ownership.py 两轮（l036-r7fp≡r1，11 DIFF 同集合）：所有显式声明腿
+    （text/plain/json/xml/x-www-form-urlencoded/custom/charset；.txt+json 声明、.json+text/plain
+    声明）A 全部返回扩展名推导值（声明 CT 全忽略）；无扩展名+任意声明 A 恒 octet-stream（兜底）；
+    二进制体放 .txt 仍 text/plain、文本体无扩展名仍 octet-stream——排除内容嗅探。B=声明 CT verbatim
+    存储、GET 头与 FileInfo 双面双端恒一致（分歧只在「存储值怎么来」）；冲突裁决方向相反（e-txt-json
+    A 扩展名赢 vs B 声明赢、e-json-textplain 互为镜像）。扩展名表取值差分 12/15（同值仅
+    .deb/.war/.tar/.zip + .json/.xml/.jar；如 .csv A=octet-stream vs B=text/csv; charset=utf-8、
+    .gz A=x-gzip vs B=gzip）。结构性分歧：对齐 A 方向=B generic PUT 忽略请求 CT 改扩展名表（**波及
+    cargo serveDerivedWrite 等各 adapter 自有 mime 决策，需全域梳理**）；维持 B=登记分歧。无
+    authority 可代裁——UNKNOWN 上报。附记（观察项不立条）：A `.sha1` 无 mimeType 字段（特殊
+    sidecar 处理）。
+  review_gate: 需规格票裁对齐（对齐 A=忽略声明 CT+扩展名表，波及全 adapter mime 决策——先全域梳理再裁）or 登记 INTENTIONAL（需 authority）——两程内升级；波及面=generic+cargo 等各 adapter mime 渲染点
+  evidence: reports/compatibility/L036-r7-followup-probes.md ①（18 腿矩阵 + 15 扩展名表 + 归属规则定性）+ tools/difftest/v2/cases/generic_mime_ownership.py + run/l036-r7fp{,-r1}/evidence/generic-mime-ownership/
+- id: pypi/simple-index-href-target-layout
+  surface: 'pypi simple index 文件 href 目标布局——A=相对 href 指存储布局路径
+    （../../<pkg>/<ver>/<file>.whl#sha256=…）；B=相对 href 指 /packages/ 协议面
+    （../../packages/<pkg>/<ver>/…）（L036 ②）'
+  classification: UNKNOWN
+  rationale: >-
+    L036 ②：A 面 simple index href 指向存储布局路径（../../r7fp-pkg/1.0.0/r7fp_pkg-…whl#sha256=…）；
+    B 面 simple.go 渲染 /packages/ 协议面路径（doc.go **有意为之**的 href 目标声明——下载可用性
+    双端均 PASS，分歧行为=链接指向哪个面）。是否对齐 A（href 改指存储布局）待裁：B 的 doc.go 声明
+    是否构成 INTENTIONAL authority（设计意图文档 vs 差分事实）由 conductor 定——无 authority 不代裁。
+    同场 302 no-slash 相对形已由规格 maven-npm-pypi.md §3.1 裁过（B 相对形维持），本条独立于该裁定
+    （href 面 ≠ 302 面）。
+  review_gate: 需规格票/用户裁决——doc.go 声明是否升格 INTENTIONAL authority，或 href 对齐 A 存储布局目标；两程内升级（涉及 pip 客户端解析语义，规格票需带客户端取证）
+  evidence: reports/compatibility/L036-r7-followup-probes.md ②（pypi simple href 行：双端 live raw）+ run/l036-r7fp{,-r1}/evidence/
+- id: generic/mime-stdlib-host-drift
+  surface: 'B 扩展名表 stdlib 回退宿主漂移——extensionMimes 自有表外扩展（.pdf/.svg/.png…）走
+    mime.TypeByExtension（OS mime 库）：darwin 取 application/pdf / image/svg+xml，linux 宿主可能
+    不同 → 同一 B 部署不同宿主 wire 契约漂移（L036 ①提案素材）'
+  classification: UNKNOWN
+  rationale: >-
+    L036 ①：B generic/mime.go 头注释自认此风险（自有 extensionMimes 表外回退 Go stdlib
+    mime.TypeByExtension——宿主 OS mime 库决定取值）。本机 darwin 实测 .pdf=application/pdf、
+    .svg=image/svg+xml；linux 宿主取值未测（推定可能不同——宿主漂移面未取证，如实标注）。与
+    generic/mime-ownership-model 关联但独立：即使该条裁维持 B verbatim，无声明 CT 腿仍走表推断——
+    stdlib 回退使同一 B 二进制在不同宿主渲染不同 Content-Type（wire 契约不稳定，非 A/B 分歧本体）。
+    A 面 .pdf=octet-stream（白名单无此扩展）——对齐解（表扩充消除回退）与 #8 的裁处正交。提案
+    （compatibility-engineer）：extensionMimes 表扩充覆盖常用扩展，消除 stdlib 回退面。
+  review_gate: 随 generic/mime-ownership-model 规格票一并裁（表扩充提案随票）；linux 宿主取证腿补拍后定级（若确认漂移→升 BUG 提案级）；两程内升级
+  evidence: reports/compatibility/L036-r7-followup-probes.md ①（15 扩展名表差分 + B 注释引用）+ run/l036-r7fp{,-r1}/evidence/generic-mime-ownership/
