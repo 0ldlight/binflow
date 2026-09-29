@@ -2304,7 +2304,41 @@ func (s *Server) dispatchContent(w http.ResponseWriter, r *http.Request, _ strin
 		repoKey, _ := splitFirstSegment(r)
 		row, err := s.deps.Repos.Get(r.Context(), repoKey)
 		if err != nil {
+			// T-553 leg 1 (BIN-35, remote-cache-projection.md section 2.1's
+			// PUT row, high confidence, live-confirmed on 7.161.26): an
+			// external PUT on a maven remote's <K>-cache projection key is
+			// the deploy engine's invalid-target refusal — the target
+			// resolution consults only local/federated repositories, so the
+			// 404 carries the requested key (suffix spelling intact) in the
+			// "named" slot, not the generic unknown-repository wording.
+			// Scoped to maven remotes: the generic face's standard-chain
+			// 404 is pinned by its own tests and no other package type has
+			// A-side evidence. The intercept sits AFTER the RBAC wrapper on
+			// purpose — the anonymous challenge and the write gate keep
+			// their places ahead of the refusal.
+			if r.Method == http.MethodPut && s.isMavenCacheProjection(r) {
+				writeError(w, http.StatusNotFound, deployNoLocalRepoMessage(repoKey))
+				return
+			}
 			s.writeRepoLookupError(w, repoKey, err)
+			return
+		}
+		// T-553 leg 2 (same section 2.1 family via rest-api.md section 1.2
+		// step 2 and repo-semantics.md section 8.2's remote row, both high
+		// confidence): an external PUT addressed to a MAVEN remote's own key
+		// answers the engine's invalid-target 404 — the same wording and
+		// status as the projection leg, the requested key in the named
+		// slot. Narrow by package type on purpose: the service-layer 405
+		// read-only refusal (RE-05) is the SHARED write-plane gate for
+		// every other protocol (cargo/deb/conan/helm/rpm tests pin it on
+		// their own faces) and those faces have no A-side evidence yet, so
+		// they keep the 405 until their own probes land. The maven
+		// adapter's bare-mount 405 arm survives as its mounted defense,
+		// unreachable through this router — the same posture as the
+		// explode refusal arm above.
+		if r.Method == http.MethodPut && row.Type == repo.TypeRemote &&
+			row.PackageType == repo.PackageMaven {
+			writeError(w, http.StatusNotFound, deployNoLocalRepoMessage(repoKey))
 			return
 		}
 		// The entitlement gate, weave point 1 (M10 T-283, section 15.1.5's
@@ -2365,6 +2399,27 @@ func (s *Server) cacheProjectionParent(r *http.Request) (*metadata.Repo, bool) {
 		return nil, false
 	}
 	return row, true
+}
+
+// isMavenCacheProjection reports whether the request's first URL segment is
+// the <K>-cache projection key of an existing MAVEN remote (T-553): the
+// deploy-refusal scoping predicate for the projection leg. Reuses
+// cacheProjectionParent's resolution (suffix strip + parent must be a
+// remote), then narrows by package type — every other spelling (a parent
+// that is local/virtual, a generic/other-typed remote, no suffix) falls
+// back to the standard chain verbatim.
+func (s *Server) isMavenCacheProjection(r *http.Request) bool {
+	row, ok := s.cacheProjectionParent(r)
+	return ok && row.PackageType == repo.PackageMaven
+}
+
+// deployNoLocalRepoMessage is the upload engine's invalid-target refusal
+// wording (T-553, remote-cache-projection.md section 2.1's PUT row — the
+// same shape rest-api.md section 1.2 step 2 fixes for a deploy addressed to
+// a remote's own key): the requested key rides the "named" slot verbatim,
+// suffix spelling included, and the sentence ends in a period.
+func deployNoLocalRepoMessage(repoKey string) string {
+	return "Could not find a local repository named " + repoKey + " to deploy to."
 }
 
 // writeRepoLookupError maps a repo lookup failure onto the envelope:

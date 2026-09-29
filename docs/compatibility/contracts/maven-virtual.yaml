@@ -13,6 +13,13 @@
 #   三面；§5.1 合并算法本体（versions 并集/latest/release 重算/snapshot 取大）不逐行重立断言——其差分
 #   对拍由 L030 case1 capable 腿「完全同形」背书，扩面留后续契约票。golden 候选（A 面 capable 腿 merged
 #   输出）需先定时间戳 normalize（fixtures/normalize.yaml 尚无 maven 域）——入金前置条件，本票仅登记。
+# T-551 stage 1（R5 / iteration-1544 / BIN-33，2026-09-29）契约修订：L032 Arm 6（member sidecar 17 维
+#   取证，r1≡r2≡r3）证实 T-542 派生实现的 validator 族与 live A 三处分歧（旁车无 LM / IMS 恒 200 / 发
+#   ETag+INM）。处置：① rider 条目旁车臂收编 .sha256（match×3 A 面 live 取证）+ 修订注记——body/digest
+#   面 L032 复验无回归（14/17 维双端一致），status 维持 VERIFIED，scope 收窄为 rider/内容维；② validator
+#   族单立第 4 条目 maven/derived-sidecar-validator-family（DIVERGENT/high，divergence_ref 挂台账新账
+#   maven/derived-sidecar-validator-family——fix in flight T-551 stage 2）。原 T-542 契约文本见 git 历史
+#   （3b58b082 版旁车臂仅断言摘要内容、未断言 validator 族——正是实现层自由猜测的根因口）。
 domain: maven
 scope: 'version 级 maven-metadata.xml 的 <snapshotVersions> M3 能力谓词（virtual 合并面 + local 成员服务面）、
   mvn.metadata.version3.enabled 系统开关生效序、.pom 部署坐标↔路径一致性门（suppressPomConsistencyChecks）。
@@ -28,8 +35,9 @@ contracts:
 - id: maven/virtual-snapshot-versions-m3-rider
   feature: 'version 级 maven-metadata.xml 的 <snapshotVersions> 按客户端 M3 能力谓词条件携带（virtual 合并面
     + local 成员服务面同 rider；<snapshot> 块恒保留）'
-  surface: 'GET /{repoKey}/{orgPath}/{module}/{baseVer}-SNAPSHOT/maven-metadata.xml（+ .sha1/.md5 旁车）——
-    repoKey 为 virtual（合并响应）或 local（存储文档服务响应）'
+  surface: 'GET /{repoKey}/{orgPath}/{module}/{baseVer}-SNAPSHOT/maven-metadata.xml（+ .sha1/.md5/.sha256 旁车）——
+    repoKey 为 virtual（合并响应）或 local（存储文档服务响应）；旁车的缓存验证器族单独立面（见
+    maven/derived-sidecar-validator-family）'
   request:
     method: GET
     path: '/{repoKey}/{orgPath}/{module}/{baseVer}-SNAPSHOT/maven-metadata.xml'
@@ -49,9 +57,9 @@ contracts:
     - when: '判定「不支持」（族 ②/③）+ 快照级路径'
       status: 200
       body: { format: xml, note: '<snapshotVersions> 整体剥除（元素缺席，非置空）；<snapshot> 块（buildNumber/timestamp）保留。作用面=virtual 合并响应体与 local 成员仓自身文档响应体两平面（同一 rider）' }
-    - when: '判定「不支持」+ 同文档 .sha1/.md5 旁车 GET'
+    - when: '判定「不支持」+ 同文档 .sha1/.md5/.sha256 旁车 GET'
       status: 200
-      body: { format: text, note: '摘要=剥离后 body 的对应摘要（body 与旁车自洽——同一 GET 对不互相矛盾）；.sha256 不在旁车契约面（见 unobserved）' }
+      body: { format: text, note: '摘要=剥离后 body 的对应摘要（body 与旁车自洽——同一 GET 对不互相矛盾）——三算法内容维均已 A 面 live 取证（L032 Arm 6 match×3）；.sha512 旁车双面 404（L032）。旁车响应的缓存验证器族（自身 Last-Modified + If-Modified-Since、不发 ETag）不在本条目——见 maven/derived-sidecar-validator-family。修订注记（T-551 stage 1）：旧注记「.sha256 不在旁车契约面（见 unobserved）」随 L032 取证收编废止' }
     - when: '模块级（版本组目录 {orgPath}/{module}/maven-metadata.xml）请求'
       status: 200
       body: { format: xml, note: 'rider 不适用（模块级文档本无 <snapshotVersions>），任一 UA 原样服务' }
@@ -61,20 +69,25 @@ contracts:
   unobserved_reference_arms:
     - '判定族 ①③④ 的非 Maven 形态（空 UA / Ivy / Wharf / Gradle / curl）A 面 wire 取证——现证据=反编译 advisory（L030 报告处置建议）+ B 面 table 测试钉住；L030 仅实测 Apache-Maven 与 Java/1.8.0_391 两形态'
     - 'remote 仓直 GET 的 rider 适用性（A 面未取证；BinFlow 未实现——T-542 漂移点 c）'
-    - 'local 成员仓 .sha256 旁车在 java-agent 腿的形态（A 面未取证；BinFlow 三摘要模型外恒 404）'
+    - '旁车 validator 维（LM/IMS/ETag）——已分立条目 maven/derived-sidecar-validator-family（T-551，DIVERGENT）：其 unobserved 清单承接 .md5/.sha256 validator 直接取证腿、virtual 面旁车 validator 形态等缺口；本条目只断言 rider/内容维'
   binflow_state:
     verdict: 'VERIFIED（L030 case1 修复后双端复跑连续两轮 PASS：java-agent UA 下 virtual/member 两面剥除、
       M3-capable 合并——B 腿 asserts 与 A 腿逐键一致〔virt_m3cap_sv=present / virt_m3no_sv=stripped /
       member_m3no_sv=stripped / snapshot bn 存活〕；Apache Maven 3.9.16 真腿验收）'
     detail: 'f21f1c09（T-542）：谓词落 virtual 合并与 local 成员两个服务路径；3b58b082（评审加固）：成员面
       .sha1/.md5 旁车=剥离后 body 派生摘要（双向断言配对一致）。台账 known-divergence#
-      maven/virtual-member-metadata-snapshotversions-ua-gate（BUG）已随本契约回填 resolved（T-549）。'
+      maven/virtual-member-metadata-snapshotversions-ua-gate（BUG）已随本契约回填 resolved（T-549）。
+      修订注记（T-551 stage 1 / BIN-33，2026-09-29）：L032 Arm 6 复验 body 面（ETag+LM+双条件）与
+      digest 内容面双端全对（14/17 维一致）——本条目断言面无回归，status 维持 VERIFIED；旁车 validator
+      族三处分歧单立 maven/derived-sidecar-validator-family（DIVERGENT）+ 台账新账（fix in flight
+      T-551 stage 2），不牵连本条目。'
   version: { artifactory_ref: 7.161.26, binflow_tested: 'claude/r3-fixes f21f1c09+3b58b082（PR #163 → develop）' }
   evidence:
     - { kind: probe, report: docs/reverse/virtual-resolution.md, anchor: '§5.1 合并表行 4（v3 记号仅当系统开关+快照 metadata+客户端 M3 谓词齐备才合并，否则剥除——高置信）', date: '2026-09-28' }
     - { kind: difftest, report: reports/compatibility/L030-maven-v2-batch2-snapshot-versions.md, anchor: 'Case 1（r2/r3 双轮稳定：A 面 live 条件合并与 §5.1 逐字吻合；B 修复前违例双暴露面）', date: '2026-09-28' }
     - { kind: implementation, report: reports/agents/T-542.md, anchor: 'UA 判定族 + 双服务面 + 旁车派生（Tests/Outputs：TestClientSupportsM3SnapshotVersions 十行 table + TestSnapshotVersionsUAStripping 真栈四腿）', date: '2026-09-28' }
     - { kind: difftest, report: reports/agents/T-542.md, anchor: 'Outputs 段（复跑两轮 PASS：r3-t542 + r3-stab，与 A 腿逐键一致）+ reports/iteration-1542.md「L030 修复验收」节', date: '2026-09-28' }
+    - { kind: difftest, report: reports/compatibility/L032-t550-followup-arms.md, anchor: 'Arm 6（r1≡r2≡r3：body 面 ETag+LM+双条件全维双端一致 + .sha1/.md5/.sha256 摘要内容 match×3——本条目断言面复验无回归；validator 三维分歧归分立条目）', date: '2026-09-28' }
   confidence: high
   status: VERIFIED
 # ── mvn.metadata.version3.enabled 开关（T-549 定契约面）────────────────────────
@@ -176,3 +189,60 @@ contracts:
     - { kind: difftest, report: reports/iteration-1542.md, anchor: '「L030 修复验收」节（case2 双端复跑 PASS：错误体与 A 逐字节一致含尾句、零落盘、旋钮接活默认 false/true 两态）', date: '2026-09-28' }
   confidence: high
   status: VERIFIED
+# ── 派生 sidecar validator 族（T-551 stage 1 / BIN-33——L032 Arm 6 契约修订）──────
+- id: maven/derived-sidecar-validator-family
+  feature: '派生旁车（maven-metadata.xml 的 .sha1/.md5/.sha256）缓存验证器族：自身 Last-Modified +
+    If-Modified-Since 条件 GET；**不发 ETag**（ETag/INM 谓词不作用于旁车面——对照所服务 body 面
+    = ETag+Last-Modified 双验证器，见 maven/virtual-snapshot-versions-m3-rider）'
+  surface: 'GET /{repoKey}/{orgPath}/{module}/{baseVer}-SNAPSHOT/maven-metadata.xml{.sha1,.md5,.sha256}
+    （+ 可选 If-Modified-Since 条件头）——repoKey 为 local 成员仓（存储文档服务响应面）'
+  request:
+    method: GET
+    path: '/{repoKey}/{orgPath}/{module}/{baseVer}-SNAPSHOT/maven-metadata.xml{.sha1,.md5,.sha256}'
+    headers: { Authorization: 'Basic <valid>', User-Agent: '<任意——validator 族与 M3 UA 谓词正交>',
+      If-Modified-Since: '<条件谓词输入（可选，HTTP 日期形）>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    validator_semantics: '行为句式（A 面 7.161.26 live，L032 Arm 6 r1≡r2≡r3 逐维取证）：当客户端 GET 派生
+      旁车时，服务端返回 200 响应携带该旁车**自身**的 Last-Modified（派生时刻——晚于所服务 body 的
+      Last-Modified 数秒，非 body 值复用）、且**不携带 ETag**；当客户端携带 If-Modified-Since 且其值命中
+      该旁车 Last-Modified → 304（裸头应答）；值早于 → 200 全量。旁车内容（摘要=剥离后 body 对应摘要）
+      契约由 rider 条目旁车臂承载（双端一致，不属本条目）。'
+    arms:
+    - when: '旁车无条件 GET，或 If-Modified-Since 值早于旁车自身 Last-Modified（旧值）'
+      status: 200
+      headers: { present: [Last-Modified, Content-Type], absent: [ETag] }
+      body: { format: text, note: '摘要值断言归 rider 条目旁车臂（match×3）' }
+    - when: 'If-Modified-Since = 该旁车自身 Last-Modified（命中）'
+      status: 304
+      note: '与 body 面 IMS 命中同姿势（304 裸头）'
+  side_effects: []
+  error_behavior: []
+  unobserved_reference_arms:
+    - 'validator 维（LM/IMS/ETag）A 面直接取证腿=.sha1 × java-agent UA（L032 Arm 6 矩阵）；.md5/.sha256 的
+      validator 维与 capable UA 腿未单独取证（同构面推定——T-551 stage 2 修后差分复验臂可一并钉）'
+    - 'virtual 合并面旁车（virtual repoKey 直 GET .sha1 等）的 validator 形态（A 面未取证；BinFlow 与成员面
+      共用 writeDerivedSidecar 同姿势）'
+    - 'If-None-Match 打在旁车上的 A 面应答（A 不发 ETag → INM 无从匹配的机制面推定不生效；未活体单拍）'
+    - '旁车自身 Last-Modified 的跨请求稳定性（A 物化面 LM 恒定 vs BinFlow 逐请求派生取当前时刻——LM 时序
+      语义「晚 body 数秒」为单轮观测，多轮对拍待修后复验臂）'
+  binflow_state:
+    verdict: 'VERIFIED（L033 Arm A：T-551 stage 2 修复后 17/17 维双端一致，r1≡r2≡r3——L032 三分歧
+      维全翻绿：旁车 Last-Modified present〔自身派生时刻〕、IMS 命中→304、不发 ETag；维持面
+      无回归）'
+    detail: '修复面=internal/adapter/maven writeDerivedSidecar（virtual_metadata.go 与 handler.go 两调用点
+      共用——virtual 合并面与 local 成员面同 helper，根因单点修复面）；fix=T-551 stage 2 / BIN-33。
+      台账 known-divergence#maven/derived-sidecar-validator-family 已 resolved（2026-09-29）。
+      残差不受本条影响：跨秒 LM 时戳语义差（B java-agent 剥离面 per-request 派生戳 vs A 物化
+      稳定戳）单立台账 maven/derived-sidecar-lm-per-request-stamp（UNKNOWN）——同秒矩阵腿双面
+      同 304，本条目断言面（同秒 validator 族）不受其牵连。unobserved 四臂维持（.md5/.sha256
+      validator 维与 virtual 面旁车形态未单独钉）。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'worktree 现态构建（T-551 stage 2 修复在树，L033 r1-r3 翻绿轮——divergence 复验翻正版本）' }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L032-t550-followup-arms.md, anchor: 'Arm 6（17 维矩阵 r1≡r2≡r3：差异①②③ validator 三维 A=live 7.161.26 逐维取证〔自身 LM/IMS→304/no-etag〕vs B=absent/恒200/ETag+INM；14 维一致含 body 面全绿；真实 mvn deploy 构造、java-agent/capable 双 UA）', date: '2026-09-28' }
+    - { kind: difftest, report: reports/compatibility/L033-r5-fix-verification.md, anchor: 'Arm A（17/17 维双端一致 PASS×3，r1≡r2≡r3 断言值逐项相同：三维翻绿 + 维持面全绿〔digest match×3/.sha512 404/body 双条件族/双 UA 面〕，judge mismatches 三桶全空；附带取证=跨秒 LM 残差圈定 java-agent 剥离面→台账单立）', date: '2026-09-29' }
+    - { kind: golden-capture, report: docs/compatibility/golden/maven/derived-sidecar-validators, anchor: '首个 maven 域金样（A 腿参照实形 17 维 live 对账双报告）', date: '2026-09-29' }
+  confidence: high
+  status: VERIFIED
+  divergence_ref: known-divergence.yaml#maven/derived-sidecar-validator-family   # 历史指针（该条已 resolved 2026-09-29；跨秒残差见 maven/derived-sidecar-lm-per-request-stamp）
