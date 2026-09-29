@@ -68,15 +68,20 @@ func errorEnvelopeMessage(t *testing.T, resp *http.Response) string {
 // L032 Arm 2, asserted verbatim, plus the scoping legs.
 func TestDeployRefusalFamilyMavenWire(t *testing.T) {
 	h := newMavenWireStack(t)
-	for key, body := range map[string]string{
-		"t553-rem":  `{"rclass":"remote","packageType":"maven","url":"http://127.0.0.1:9/upstream"}`,
-		"t553-grem": `{"rclass":"remote","packageType":"generic","url":"http://127.0.0.1:9/upstream"}`,
-		"t553-mloc": `{"rclass":"local","packageType":"maven"}`,
+	// Order matters: t553-virt's member reference is validated at create
+	// time, so t553-mloc must exist first. A map range would randomize the
+	// order (BIN-39: main CI run 36508756551 drew virt first and the
+	// create 400'd "member does not exist" on roughly 1 of 8 runs).
+	repos := []struct{ key, body string }{
+		{"t553-rem", `{"rclass":"remote","packageType":"maven","url":"http://127.0.0.1:9/upstream"}`},
+		{"t553-grem", `{"rclass":"remote","packageType":"generic","url":"http://127.0.0.1:9/upstream"}`},
+		{"t553-mloc", `{"rclass":"local","packageType":"maven"}`},
 		// A member but NO defaultDeploymentRepo: the un-routed 405 leg.
-		"t553-virt": `{"rclass":"virtual","packageType":"maven","repositories":["t553-mloc"]}`,
-	} {
-		if status, respBody := putRepoStatus(t, h, key, body); status != http.StatusOK {
-			t.Fatalf("create %s: %d %s", key, status, respBody)
+		{"t553-virt", `{"rclass":"virtual","packageType":"maven","repositories":["t553-mloc"]}`},
+	}
+	for _, r := range repos {
+		if status, respBody := putRepoStatus(t, h, r.key, r.body); status != http.StatusOK {
+			t.Fatalf("create %s: %d %s", r.key, status, respBody)
 		}
 	}
 
