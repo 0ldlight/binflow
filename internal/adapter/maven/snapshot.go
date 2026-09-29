@@ -165,7 +165,7 @@ func (c *calculator) snapshotState(ctx context.Context, repoKey string, l Layout
 // failure degrades to "no facts" — a (now, 1) mint then decides, never the
 // error.
 func (c *calculator) snapshotDirFacts(ctx context.Context, repoKey string, l Layout) []artifactFile {
-	prefix := strings.ReplaceAll(l.OrgPath, ".", "/") + "/" + l.Module + "/" + l.VersionDir
+	prefix := versionDirPrefix(l)
 	nodes, err := c.nodes.ListByPrefix(ctx, repoKey, prefix)
 	if err != nil {
 		return nil
