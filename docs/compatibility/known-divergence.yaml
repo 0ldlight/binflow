@@ -1687,6 +1687,7 @@ entries:
   authority: { type: conductor_ruling, ref: "R7 台账收官批 conductor 裁定（2026-09-29，BUG 入账——ref reports/compatibility/L036-r7-followup-probes.md ② BUG 候选①）" }
   review_gate: R8 修复票（fix=writeCreated Location 改 requestBase(r)+productPrefix+repo+escapePath 绝对形，与 uri/downloadUri 同源——同 T-563 修法）落地 → Location 臂复验双轮 PASS → resolved；B 活体差分门受 community license 门限（体系级 blocker 已上报 conductor——pro-license scratch 或 UAT 换装路径），修后以单测+静态断言先行、活体随门解锁补
   evidence: reports/compatibility/L036-r7-followup-probes.md ②（deb 行：A live raw + B 静态 handler.go:552）+ tools/difftest/v2/run/l036-r7fp{,-r1}/evidence/ + /tmp/binflow-r7-audit/probes/（raw 留存）
+  resolved: { date: '2026-09-29', evidence: 'BIN-49/T-567 commit 4d18e3aa：writeCreated 改 (w,r,repoKey,rel,node) 渲染 requestBase(r)+productPrefix+repo+escapePath 绝对形，三调用点（debPUT 二进制/dsc 源码/plain 存储面）归一；created_location_test.go 表驱动三面断言（绝对 Location 字面值+matrix 坐标不入 Location+GET 回读锚）。review_gate「单测+静态断言先行」条款兑现——B 活体差分腿仍 BLOCKED license community<pro，门解锁后补拍双轮（诚实活体欠账，非语义存疑）' }
 - id: rpm/deploy-201-location-bare-relative
   surface: 'rpm 仓内容面 PUT 201 Location 头——A=绝对形过 context root（…/artifactory/<repo>/rpms/…）；
     B=裸仓内相对 <rel>（L036 ②审计表 BUG 候选①）'
@@ -1699,6 +1700,7 @@ entries:
   authority: { type: conductor_ruling, ref: "R7 台账收官批 conductor 裁定（2026-09-29，BUG 入账——ref L036 ② BUG 候选①）" }
   review_gate: 同 deb 族 R8 修复票（同款修法/同票）；Location 臂复验双轮 PASS → resolved；license 门解锁前单测+静态断言先行
   evidence: reports/compatibility/L036-r7-followup-probes.md ②（rpm 行：A live raw + B 静态 handler.go:580）+ run/l036-r7fp{,-r1}/evidence/
+  resolved: { date: '2026-09-29', evidence: 'BIN-49/T-567 commit 4d18e3aa：rpm writeCreated 两调用点同款修法（绝对形过 context root …/<repo>/rpms/<f>.rpm）；created_location_test.go 绝对 Location+GET 回读锚断言。license 门同 deb 条：单测先行兑现，活体腿解锁后补拍' }
 - id: helm/deploy-201-location-bare-relative
   surface: 'helm 仓 chart PUT 201 Location 头——A=绝对形过 context root（…/artifactory/<repo>/charts/
     <chart>.tgz）；B=裸仓内相对 <rel>（L036 ②审计表 BUG 候选①）'
@@ -1713,6 +1715,7 @@ entries:
   authority: { type: conductor_ruling, ref: "R7 台账收官批 conductor 裁定（2026-09-29，BUG 入账——ref L036 ② BUG 候选①）" }
   review_gate: 同 deb 族 R8 修复票；Location 臂复验双轮 PASS → resolved；license 门解锁前单测+静态断言先行
   evidence: reports/compatibility/L036-r7-followup-probes.md ②（helm 行：A live raw + B 静态 handler.go:572；index local:// 真客户端取证在案）+ run/l036-r7fp{,-r1}/evidence/
+  resolved: { date: '2026-09-29', evidence: 'BIN-49/T-567 commit 4d18e3aa：helm writeCreated 两调用点同款修法（…/<repo>/charts/<f>.tgz 绝对形）；created_location_test.go 断言同族。index.yaml urls local:// 形态维持不入账面（本条只辖 chart PUT 渲染面）；license 门同 deb 条' }
 - id: nuget/bare-put-201-location-bare-relative
   surface: 'nuget bare .nupkg 内容面 PUT 201 Location 头——A=绝对形过 context root（…/artifactory/
     <repo>/bare/<pkg>.nupkg）+ X-Checksum-Sha256；B=裸仓内相对 <rel>（L036 ②审计表 BUG 候选②）'
@@ -1724,6 +1727,18 @@ entries:
   authority: { type: conductor_ruling, ref: "R7 台账收官批 conductor 裁定（2026-09-29，BUG 入账——ref L036 ② BUG 候选②）" }
   review_gate: 同 deb 族 R8 修复票；Location 臂复验双轮 PASS → resolved；license 门解锁前单测+静态断言先行
   evidence: reports/compatibility/L036-r7-followup-probes.md ②（nuget bare 行：A live raw + B 静态 flat.go:516）+ run/l036-r7fp{,-r1}/evidence/
+  resolved: { date: '2026-09-29', evidence: 'BIN-49/T-567 commit 4d18e3aa：serveBareContent PUT 臂 Location rel→绝对形三件套；created_location_test.go 断言同族。X-Checksum-Sha256 臂未随票交付（票面明令未取证面不扩散）——拆至新条目 nuget/bare-put-201-x-checksum-sha256（R9 取证票候选）；license 门同 deb 条' }
+- id: nuget/bare-put-201-x-checksum-sha256
+  surface: 'nuget bare .nupkg PUT 201 X-Checksum-Sha256 头——A=有（L036 ②活体）；B=无（BIN-49 票面明令未取证面不扩散，本票明确不做）'
+  classification: UNKNOWN
+  rationale: >-
+    自 nuget/bare-put-201-location-bare-relative 拆分（2026-09-29 R8 台账批）：Location 臂已随 BIN-49/T-567
+    resolved；A 面 bare PUT 201 的 X-Checksum-Sha256 同面头 B 未渲染——T-567 报告明示「如需取证对齐另开票
+    （本票明确不做）」。A 面头存在性已实证（L036 ② raw），未取证面=取值语义（上传体 sha256 直回 or
+    服务端重算）与 nuget 域面归属（bare 面 vs v3 push 面是否同规）。
+  authority: { type: pending, ref: "R9 probe-first 取证微票（nuget 域差分面）" }
+  review_gate: R9 取证取值语义后定级（BUG 对齐 or INTENTIONAL）；两程内升级
+  evidence: reports/compatibility/L036-r7-followup-probes.md ②（nuget bare 行 A live raw）+ reports/agents/T-567.md（拆分出处）
 - id: cargo/serve-derived-write-201-location-bare-relative
   surface: 'cargo serveDerivedWrite 201 Location 头——推断级（A 同面实证缺：实例未配 Custom Base URL
     建仓 400，改实例配置越红线）：跨族统一形态=绝对过 context root；B=裸仓内相对 <path>（L036 ②
@@ -1739,6 +1754,7 @@ entries:
   authority: { type: conductor_ruling, ref: "R7 台账收官批 conductor 裁定（2026-09-29，BUG 入账——ref L036 ② BUG 候选⑤，推断级标注在案）" }
   review_gate: 同 deb 族 R8 修复票；**复验门附加**：A 面实证腿需实例配 Custom Base URL 后补拍（或以跨族通则+修后 wire 形态收敛为证据链）；推断级若实证推翻则本条勘误
   evidence: reports/compatibility/L036-r7-followup-probes.md ②（cargo 行：A 建仓门 400 raw + B 静态 handler.go:344 + 跨族通则）+ run/l036-r7fp{,-r1}/evidence/
+  resolved: { date: '2026-09-29', evidence: 'BIN-49/T-567 commit 4d18e3aa：serveDerivedWrite Location path→绝对形三件套，productPrefix 注释如实标注推断级（A 面建仓被 Custom Base URL 实例门挡——不改实例配置红线）；created_location_test.go 断言同族。推断级标注维持：review_gate 附加门=A 面实证腿待实例配 Custom Base URL 后补拍（或以跨族通则+修后 wire 形态收敛为证据链）；license 门同 deb 条' }
 - id: nuget/v3-flatcontainer-push-location-anchor-collision
   surface: 'nuget v3 flatcontainer push（multipart PUT）201 Location 头——A=201 无 Location；B=多渲染
     Location 且锚点错叠（repo 相对值 `flatcontainer/<id>/<ver>/…` 经客户端相对解析于
@@ -1753,6 +1769,7 @@ entries:
   authority: { type: conductor_ruling, ref: "R7 台账收官批 conductor 裁定（2026-09-29，BUG 入账——ref L036 ② BUG 候选③）" }
   review_gate: R8 nuget 修复票（flat.go:355——去头或绝对前缀形，随 nuget 域裁定选一）落地 → v3 push 臂复验双轮 PASS → resolved；license 门解锁前单测+静态断言先行
   evidence: reports/compatibility/L036-r7-followup-probes.md ②（nuget v3 push 行：A live 201 无 Location raw + B 静态 flat.go:355 锚点剖析）+ run/l036-r7fp{,-r1}/evidence/
+  resolved: { date: '2026-09-29', evidence: 'BIN-49/T-567 commit 4d18e3aa：servePush 删 Location 渲染（对齐 A 形=201 无 Location，L036 A 活体双面〔v3 multipart+v2〕实证一致）；TestV3PushCreatedHasNoLocation 断言无头。license 门同 deb 条：单测先行兑现，活体腿解锁后补拍' }
 - id: pypi/upload-response-missing-location-checksum
   surface: 'pypi 上传响应（POST /api/pypi/<repo>/）头族——A=200 + Location + X-Checksum-Sha256 + CT
     application/vnd.org.jfrog.artifactory.storage.ItemCreated+json；B=200 text/plain CL=0 无 Location
@@ -1770,6 +1787,19 @@ entries:
   authority: { type: conductor_ruling, ref: "R7 台账收官批 conductor 裁定（2026-09-29，BUG 入账——对齐形态=通用形 requestBase+prefix，不照抄 A 宿主怪值；ref L036 ② BUG 候选④ + 通则节）" }
   review_gate: R8 pypi 修复票（上传响应补 Location〔通用形〕+ X-Checksum-Sha256；CT 形态随票裁）落地 → 上传响应臂复验双轮 PASS → resolved（pypi 族 B 活体不受 license 门限——直接双端差分可跑）
   evidence: reports/compatibility/L036-r7-followup-probes.md ②（pypi 行：A live raw Location/X-Checksum-Sha256/CT + B live raw）+ run/l036-r7fp{,-r1}/evidence/
+  resolved: { date: '2026-09-29', evidence: 'BIN-50/T-568 commit 749cb5c1：handleUpload 成功路径补 Location（requestBase+productPrefix 通用形，不照抄 A localhost:8081 宿主怪值——裁定在案）+ X-Checksum-Sha256（sess.Commit BlobRef 会话增量摘要零重算）；TestUploadResponseHeaders 断言绝对 Location 字面值+checksum 逐字节+CT 钉 text/plain。pypi 族 B 活体不受 license 门限，live curl wire 取证在 T-568 报告（18081 scratch）。CT/body 臂按票面裁定第 3 条维持 B 现值——拆至新条目 pypi/upload-response-content-type-body' }
+- id: pypi/upload-response-content-type-body
+  surface: 'pypi 上传响应 CT/body 臂——A=200 CT application/vnd.org.jfrog.artifactory.storage.ItemCreated+json
+    + JSON body；B=200 text/plain; charset=utf-8 CL=0 空 body（票面裁定第 3 条维持）'
+  classification: UNKNOWN
+  rationale: >-
+    自 pypi/upload-response-missing-location-checksum 拆分（2026-09-29 R8 台账批）：Location/X-Checksum-Sha256
+    两臂已随 BIN-50/T-568 resolved；CT/body 臂按 conductor 票面裁定第 3 条「观察后裁定维持、未取证面不扩散」
+    保留 B 现值。A 的 ItemCreated+json 为 JFrog vendor 私有 CT——twine/pip 对该 body 的实际消费面未取证，
+    对齐收益与风险均未定。
+  authority: { type: conductor_ruling, ref: "T-568 票面裁定第 3 条（2026-09-29，观察后裁定维持——本条为该裁定的台账登记面）" }
+  review_gate: 差分取证 twine/pip 对 ItemCreated+json body 消费面后升级裁定（对齐 A or 登记 INTENTIONAL）；两程内升级
+  evidence: reports/agents/T-568.md（裁定出处+双端 live raw）+ reports/compatibility/L036-r7-followup-probes.md ②（pypi 行 A live raw）
 - id: generic/mime-ownership-model
   surface: 'generic 制品 mimeType 归属模型——A=扩展名白名单表+请求声明 CT 全忽略+octet-stream 兜底+
     无内容嗅探；B=声明 CT verbatim 存储（存储值权威渲染 GET 头与 FileInfo）+无声明走自有表+stdlib
