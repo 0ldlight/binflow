@@ -2,6 +2,7 @@ package generic
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -119,24 +120,28 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 	// T-574 / BIN-56 routed the terminal-checksum PUT family (L037 Arm 1's
 	// A model, 7.161.26); T-578 / BIN-60 completes the storage half on the
 	// client-checksum persistence seam (ADR-0052): a PUT whose path
-	// TERMINATES in .sha1/.md5/.sha256 is a client-checksum write on the
-	// stripped source artifact — content, source extension and source
-	// spelling are all irrelevant to the routing. Source missing → the
-	// family's 404 verbatim, nothing registered; source present → the
-	// declared value is registered FIRST (SetClientChecksums, the same call
-	// for both outcomes), then the comparison renders 201 (empty body,
-	// Location = the source artifact) or 409 with the received/actual
-	// wording — the reference writes the client value through on the 409 too
-	// (L037 Arm 1, write-through leg), so the SET precedes the rendering.
+	// TERMINATES in .sha1/.md5/.sha256 (case-insensitively, L039 Arm 2) is
+	// a client-checksum write on the stripped source artifact — content,
+	// source extension and source spelling are all irrelevant to the
+	// routing. Source missing → the family's 404 verbatim, nothing
+	// registered; source present → the declared value is registered FIRST
+	// (SetClientChecksums, the same call for both outcomes), then the
+	// comparison renders 201 (empty body, Location = the source artifact)
+	// or 409 with the received/actual wording — the reference writes the
+	// client value through on the 409 too (L037 Arm 1, write-through leg),
+	// so the SET precedes the rendering.
 	//
-	// LOCAL-only (R9 reviews A+B blocking, kept by ADR-0052 decision 2): the
-	// probe is svc.Get, and on a remote plane that PULLS THROUGH — a write
-	// verb warming the cache — while an upstream miss would answer the
-	// checksum 404 in place of the plane's own 405 read-only refusal (RE-05).
-	// Virtual and remote planes keep their ordinary chain.
+	// The plane (T-583 / BIN-65, L039 Arm 1b): LOCAL runs verbatim; a
+	// VIRTUAL repository runs the whole family against its write route's
+	// deployment-target member (existence check, SET and rendering all
+	// name the member). Everything else falls through to the ordinary
+	// chain — a virtual repository without a defaultDeploymentRepo keeps
+	// its already-matching 405, and a remote plane keeps RE-05's read-only
+	// refusal: the probe is svc.Get, which on a remote plane PULLS THROUGH
+	// on a write verb (R9 reviews A+B blocking, ADR-0052 decision 2).
 	if src, algo, ok := checksumPutSource(relPath); ok {
-		if row, rerr := h.class.Get(r.Context(), repoKey); rerr == nil && row.Type == repo.TypeLocal {
-			if h.putClientChecksum(ctx, w, r, p, repoKey, relPath, src, algo) {
+		if plane, pok := h.clientChecksumPutPlane(r.Context(), repoKey); pok {
+			if h.putClientChecksum(ctx, w, r, p, plane, relPath, src, algo) {
 				return
 			}
 		}
@@ -166,22 +171,87 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 
 // terminalChecksumSuffixes is the client-checksum PUT interception family
 // (T-574 / BIN-56, L037 Arm 1): the path's TERMINAL suffix alone routes —
-// .sha512, .asc and compound tails like .sha1.bak are ordinary deploys.
+// .sha512, .asc and compound tails like .sha1.bak are ordinary deploys. The
+// match is CASE-INSENSITIVE (T-583 / BIN-65, L039 Arm 2): .SHA1/.Md5/.SHA256
+// and every mixed spelling route into the family identically, while the
+// excluded faces stay excluded in every spelling — only these three keys
+// match, folded.
 var terminalChecksumSuffixes = []string{".sha1", ".md5", ".sha256"}
 
 // checksumPutSource strips the terminal checksum suffix off a content path,
 // reporting the source artifact path the client-checksum operation addresses
-// and the suffix's algorithm ("sha1"/"md5"/"sha256"). Both the PUT
+// and the suffix's algorithm ("sha1"/"md5"/"sha256"). The returned source
+// keeps the client's ORIGINAL spelling (L039 Arm 2: the 404 wording cites
+// the stripped source verbatim, uppercase suffix and all). Both the PUT
 // (registration) and the GET (stored-value echo) faces route on the same
 // triple.
 func checksumPutSource(relPath string) (src, algo string, ok bool) {
 	file := relPath[strings.LastIndexByte(relPath, '/')+1:]
+	lower := strings.ToLower(file)
 	for _, sfx := range terminalChecksumSuffixes {
-		if strings.HasSuffix(file, sfx) && len(file) > len(sfx) {
-			return strings.TrimSuffix(relPath, sfx), strings.TrimPrefix(sfx, "."), true
+		if strings.HasSuffix(lower, sfx) && len(lower) > len(sfx) {
+			return relPath[:len(relPath)-len(sfx)], strings.TrimPrefix(sfx, "."), true
 		}
 	}
 	return "", "", false
+}
+
+// clientChecksumPutPlane resolves the repository the terminal-checksum PUT
+// family executes on (T-583 / BIN-65, L039 Arm 1b — the C1 model): the
+// addressed LOCAL repository verbatim, or — when the addressed repository
+// is VIRTUAL — the write route's deployment-target member, against which
+// the existence check, the SET and every rendered reference (the miss 404's
+// repo segment, the 201 Location) run. ok=false falls through to the
+// ordinary deploy chain: a virtual repository without a
+// defaultDeploymentRepo keeps its already-matching 405, and a remote plane
+// keeps RE-05's read-only refusal — the family never probes on a write
+// verb there.
+func (h *Handler) clientChecksumPutPlane(ctx context.Context, repoKey string) (string, bool) {
+	row, err := h.class.Get(ctx, repoKey)
+	if err != nil {
+		return "", false
+	}
+	switch row.Type {
+	case repo.TypeLocal:
+		return repoKey, true
+	case repo.TypeVirtual:
+		target := virtualDeploymentTarget(row.Config)
+		if target == "" {
+			return "", false
+		}
+		// The write-verb red line (R9 review): a drifted, non-local target
+		// must never turn the family's existence probe into a remote
+		// pull-through — fall through and let the ordinary chain answer the
+		// drift honestly (config-time validation normally makes this
+		// unreachable; raw-seeded rows are exactly the drift case).
+		if trow, terr := h.class.Get(ctx, target); terr == nil && trow.Type == repo.TypeLocal {
+			return target, true
+		}
+	}
+	return "", false
+}
+
+// virtualDeploymentTarget is the tolerant write-route probe of a virtual
+// repository's config JSON (the generic-side restatement of repo's own
+// reader — adapter packages share no unexported code, the npm/cargo/conan
+// precedent): the primary spelling plus the two Artifactory aliases
+// raw-seeded rows may carry. A config that fails the strict shape still
+// gets its truthful answer: no route.
+func virtualDeploymentTarget(config string) string {
+	var probe struct {
+		DefaultDeploymentRepo    string `json:"defaultDeploymentRepo"`
+		DefaultDeploymentRepoRef string `json:"defaultDeploymentRepoRef"`
+		DeploymentRepository     string `json:"deploymentRepository"`
+	}
+	if err := json.Unmarshal([]byte(config), &probe); err != nil {
+		return ""
+	}
+	for _, alias := range []string{probe.DefaultDeploymentRepo, probe.DefaultDeploymentRepoRef, probe.DeploymentRepository} {
+		if alias != "" {
+			return alias
+		}
+	}
+	return ""
 }
 
 // clientChecksumSeam resolves the service's client-checksum persistence
@@ -212,11 +282,14 @@ func clientChecksumValueOf(node *metadata.Node, algo string) string {
 	return ""
 }
 
-// putClientChecksum serves the terminal-checksum PUT on a LOCAL repository
-// (both arms of L037 Arm 1's A model). It reports whether the request was
-// answered; a lookup error with its own shape (read denial, remote-plane
-// refusal) returns false so the caller continues down the ordinary chain —
-// the same posture the T-574 interception kept.
+// putClientChecksum serves the terminal-checksum PUT on the resolved
+// client-checksum plane (clientChecksumPutPlane — the addressed LOCAL
+// repository, or a VIRTUAL repository's deployment-target member, L039
+// Arm 1b): every action in it, the existence probe, the SET and each
+// rendered reference, addresses the passed repoKey. It reports whether the
+// request was answered; a lookup error with its own shape (read denial)
+// returns false so the caller continues down the ordinary chain — the same
+// posture the T-574 interception kept.
 func (h *Handler) putClientChecksum(ctx context.Context, w http.ResponseWriter,
 	r *http.Request, p *repo.Principal, repoKey, relPath, src, algo string) bool {
 	rc, node, err := h.svc.Get(ctx, p, repoKey, src)
@@ -291,17 +364,17 @@ func (h *Handler) putClientChecksum(ctx context.Context, w http.ResponseWriter,
 // serveClientChecksum serves the terminal-checksum GET on a LOCAL
 // repository: the STORED client value, or the family's 404 when none was
 // registered (Arm 5's addendum — the face never generates on demand). The
-// miss wording addresses the SOURCE artifact, colon-separated, the
-// checksum family's own shape (generic/checksum-get-unset-404-wording).
+// miss wording is TWO-STATE (T-583 / BIN-65, L039 Arm 8's P8 refinement):
+// a missing source answers the colon-separated "File not found." family
+// form addressing the source, while a PRESENT source with no registered
+// value answers the bare `Checksum not found for <src>` — no repo prefix,
+// no Path structure. GET and HEAD render the same face.
 func (h *Handler) serveClientChecksum(ctx context.Context, w http.ResponseWriter,
 	r *http.Request, p *repo.Principal, repoKey, src, algo string) {
-	miss := func() {
-		writeError(w, http.StatusNotFound, fmt.Sprintf("File not found.; Path: '%s:%s'", repoKey, src))
-	}
 	rc, node, err := h.svc.Get(ctx, p, repoKey, src)
 	if err != nil {
 		if errors.Is(err, repo.ErrNodeNotFound) || errors.Is(err, repo.ErrIsFolder) {
-			miss()
+			writeError(w, http.StatusNotFound, fmt.Sprintf("File not found.; Path: '%s:%s'", repoKey, src))
 			return
 		}
 		h.writeServiceError(w, err, r.Method, repoKey, src)
@@ -311,9 +384,39 @@ func (h *Handler) serveClientChecksum(ctx context.Context, w http.ResponseWriter
 
 	value := clientChecksumValueOf(node, algo)
 	if value == "" {
-		miss()
+		writeError(w, http.StatusNotFound, "Checksum not found for "+src)
 		return
 	}
+	writeChecksumEcho(w, r, value)
+}
+
+// serveVirtualClientChecksum serves the stored-value half of the
+// terminal-checksum GET face on a VIRTUAL plane (T-583 / BIN-65, L039
+// Arm 1b): the source resolves through the virtual read plane and a
+// STORED client value echoes byte-identically to the local face.
+// Everything else reports false so the ordinary chain keeps rendering —
+// the on-demand computation for unset algorithms and the
+// unresolvable-source wording are the C2 family's open faces and keep
+// today's behavior until their own ruling.
+func (h *Handler) serveVirtualClientChecksum(ctx context.Context, w http.ResponseWriter,
+	r *http.Request, p *repo.Principal, repoKey, src, algo string) bool {
+	rc, node, err := h.svc.Get(ctx, p, repoKey, src)
+	if err != nil {
+		return false
+	}
+	_ = rc.Close() //nolint:errcheck // read-only probe; only the node facts are needed
+	value := clientChecksumValueOf(node, algo)
+	if value == "" {
+		return false
+	}
+	writeChecksumEcho(w, r, value)
+	return true
+}
+
+// writeChecksumEcho renders the client-checksum stored-value body: the
+// bare digest text with the family's content type (L037 Arm 1; the virtual
+// face's echo is byte-identical, L039 Arm 1b).
+func writeChecksumEcho(w http.ResponseWriter, r *http.Request, value string) {
 	hdr := w.Header()
 	hdr.Set("Content-Type", contentTypeChecksum)
 	hdr.Set("Content-Length", strconv.Itoa(len(value)))
@@ -445,7 +548,17 @@ const productPrefix = "/binflow"
 // and the FileInfo/FolderInfo-shaped ItemCreated body (rest-api.md 1.2).
 // Both the Location header and the body's uri/downloadUri carry the
 // /binflow prefix, Location byte-equal to the uri (T-564 A-face probe).
+//
+// A deploy addressed at a VIRTUAL repository renders the LANDED repository
+// (T-583 / BIN-65, L039 Arm 1b — the C1 render facet): the service's write
+// route already landed the node in the deployment-target member, and the
+// reference's envelope repo and self-referential URLs name the member.
+// node.RepoKey is that landed key, so LOCAL deploys (RepoKey == the
+// addressed key) render byte-identically to before.
 func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, relPath string, node *metadata.Node, up uploadContext) {
+	if node != nil && node.RepoKey != "" {
+		repoKey = node.RepoKey
+	}
 	sums := h.digestsOf(r.Context(), node)
 	w.Header().Set("Location", requestBase(r)+productPrefix+"/"+repoKey+"/"+escapePath(relPath))
 	if sums.sha256 != "" && !isFolderNode(node) {
@@ -473,15 +586,26 @@ func isFolderNode(n *metadata.Node) bool {
 // answers 206/304/416 exactly like a GET, minus the body.
 func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, relPath string) {
 	// Client-checksum GET face (T-578 / BIN-60, the read half of the seam):
-	// on a LOCAL repository a path TERMINATING in .sha1/.md5/.sha256 answers
-	// the STORED client value — the same triple the PUT arm routes on — and
-	// the family's 404 when none was registered (Arm 5's addendum: the face
-	// never generates on demand; generic's posture has no computed fallback).
-	// Remote/virtual planes keep the ordinary chain.
+	// on a LOCAL repository a path TERMINATING in .sha1/.md5/.sha256
+	// (case-insensitively) answers the STORED client value — the same
+	// triple the PUT arm routes on — and the family's two-state 404 when
+	// none was registered (Arm 5's addendum: the face never generates on
+	// demand; generic's posture has no computed fallback). On a VIRTUAL
+	// plane only the stored-value half serves here (T-583 / BIN-65): the
+	// echo resolves through the virtual read plane, and every miss keeps
+	// the ordinary chain's rendering (the on-demand face is the C2
+	// family's own ruling). Remote planes keep the ordinary chain.
 	if src, algo, ok := checksumPutSource(relPath); ok {
-		if row, rerr := h.class.Get(r.Context(), repoKey); rerr == nil && row.Type == repo.TypeLocal {
-			h.serveClientChecksum(ctx, w, r, p, repoKey, src, algo)
-			return
+		if row, rerr := h.class.Get(r.Context(), repoKey); rerr == nil {
+			switch row.Type {
+			case repo.TypeLocal:
+				h.serveClientChecksum(ctx, w, r, p, repoKey, src, algo)
+				return
+			case repo.TypeVirtual:
+				if h.serveVirtualClientChecksum(ctx, w, r, p, repoKey, src, algo) {
+					return
+				}
+			}
 		}
 	}
 	rc, node, err := h.svc.Get(ctx, p, repoKey, relPath)

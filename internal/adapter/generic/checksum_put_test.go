@@ -256,3 +256,53 @@ func sha256Of(t *testing.T, e *env, path string) string {
 	}
 	return node.Sha256
 }
+
+// TestChecksumGetUnsetTwoWordings pins the GET face's two-state miss
+// (T-583 / BIN-65, L039 Arm 8's P8 refinement): a MISSING source keeps the
+// colon-separated "File not found." family form, while a PRESENT source
+// with no registered value answers the bare `Checksum not found for <src>`
+// — no repo prefix, no Path structure — on GET and HEAD alike.
+func TestChecksumGetUnsetTwoWordings(t *testing.T) {
+	e := newEnv(t)
+	// Source present, value never registered: the second wording.
+	if resp := e.do(t, http.MethodPut, "/binflow/generic-local/t583p/other.txt",
+		strings.NewReader("present-but-unset"), nil); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("seed = %d (%s)", resp.StatusCode, body(t, resp))
+	}
+	get := e.do(t, http.MethodGet, "/binflow/generic-local/t583p/other.txt.sha1", nil, nil)
+	if get.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET unset (source present) = %d, want 404", get.StatusCode)
+	}
+	want := "Checksum not found for t583p/other.txt"
+	if got := body(t, get); !strings.Contains(got, `"`+want+`"`) {
+		t.Errorf("GET unset body = %s\nwant message = %q", got, want)
+	}
+	// HEAD renders the same face (status; the body is asserted via GET).
+	head := e.do(t, http.MethodHead, "/binflow/generic-local/t583p/other.txt.sha1", nil, nil)
+	body(t, head)
+	if head.StatusCode != http.StatusNotFound {
+		t.Errorf("HEAD unset (source present) = %d, want 404", head.StatusCode)
+	}
+
+	// Source absent: the first wording stays verbatim (regression pin).
+	get = e.do(t, http.MethodGet, "/binflow/generic-local/t583p/never-seeded.txt.sha1", nil, nil)
+	if get.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET unset (source absent) = %d, want 404", get.StatusCode)
+	}
+	wantAbsent := "File not found.; Path: 'generic-local:t583p/never-seeded.txt'"
+	if got := body(t, get); !strings.Contains(got, `"`+wantAbsent+`"`) {
+		t.Errorf("GET absent body = %s\nwant message = %q", got, wantAbsent)
+	}
+
+	// Once registered, the same path answers the stored value (the miss
+	// was the unset state, not the face).
+	_, sha1S, _ := digestsOf("present-but-unset")
+	if resp := e.do(t, http.MethodPut, "/binflow/generic-local/t583p/other.txt.sha1",
+		strings.NewReader(sha1S), nil); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("register = %d (%s)", resp.StatusCode, body(t, resp))
+	}
+	get = e.do(t, http.MethodGet, "/binflow/generic-local/t583p/other.txt.sha1", nil, nil)
+	if got := body(t, get); get.StatusCode != http.StatusOK || got != sha1S {
+		t.Errorf("GET after register = %d %q, want 200 %q", get.StatusCode, got, sha1S)
+	}
+}
