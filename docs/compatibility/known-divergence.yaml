@@ -1410,7 +1410,7 @@ entries:
   evidence: reports/compatibility/L032-t550-followup-arms.md Arm 6（17 维矩阵；wire 证据 tools/difftest/v2/run/l032-arms-r{1,2,3} 宿主本地）+ reports/compatibility/L033-r5-fix-verification.md Arm A（翻绿复验轮 r{1,2,3}）+ 契约 contracts/maven-virtual.yaml#maven/derived-sidecar-validator-family
 - id: maven/handle-policy-reject-409-wording-family
   surface: 'maven handle* 策略拒绝腿文案族——PUT 与未落地路径 GET 双面同 409，但文案族不同（L033 Arm C，rel→hr=false 与 snap→hs=false 两腿同形）'
-  classification: UNKNOWN
+  classification: BUG
   rationale: >-
     L033 Arm C（2026-09-29，A 7.161.26 live × B worktree 现态，case maven-local-handle-walk-skip
     r3≡r4 稳定）：策略拒绝腿 status 双面均 409，但文案族不同——A 面逐字「The repository '<K>'
@@ -1422,12 +1422,17 @@ entries:
     两形态，B 为 handleReleases 显式参数式。无既有 ledger/契约登记（L033 复核确认，提案①）——
     待裁对齐方向与是否随成员 GET class 门（下条）同族处置。T-556 翻回后 r5≡r6 该两维仍在
     9 分歧维内（分歧维持，非 T-556 范围）。
-  authority: { type: pending, ref: 待用户/ADR 裁定（提案①——文案族对齐方向未定） }
-  review_gate: 两程内升级裁决（默认）——裁定后立契约条目并定 ME-08 文案改造面
+    **裁定（T-558 / BIN-40，2026-09-29，两程窗口内兑现）**：UNKNOWN→BUG，对齐 A 面——status 双面
+    已一致、分歧纯在文案族，与 rest/kcache-deploy-404-wording（T-553 先例：status 同、文案不同=
+    文案族 BUG 对齐 A 逐字）同类同判。A 面 PUT/GET 两形态逐字串已立契约
+    contracts/maven-virtual.yaml#maven/handle-policy-reject-409-wording-family（DIVERGENT/high，
+    与成员 GET class 门条目互引）；B 面改造点=put.go ME-08 文案族替换（含 GET 腿同族文案，见下条）。
+  authority: { type: differential, ref: "L033 Arm C（r3≡r4 定形、T-556 复验 r5≡r6 维持）+ 契约锚 contracts/maven-virtual.yaml#maven/handle-policy-reject-409-wording-family（T-558/BIN-40 裁定轮）" }
+  review_gate: 已兑现（两程窗口内裁定，T-558）——ME-08 文案族改造票落地 + L033 case maven-local-handle-walk-skip 双端复验翻绿 → resolved
   evidence: reports/compatibility/L033-r5-fix-verification.md Arm C（22 维矩阵拒绝腿措辞族 ×2 维；wire 证据 tools/difftest/v2/run/l033-r5-r{3,4} + r{5,6}）
 - id: maven/handle-policy-member-get-class-gate
   surface: 'maven 成员仓未落地路径直接 GET 的路径类×策略门——A=409（读路径同执策略检查），B=404（L033 Arm C，×2 维）'
-  classification: UNKNOWN
+  classification: BUG
   rationale: >-
     L033 Arm C：对未落地的 release 拒族路径直读，A 面 409（读路径也执行路径类×handle* 策略——
     先决发现定性「路径类×策略是成员面读写双门」），B 面 404（只在写路径设门）。与上一条文案族
@@ -1435,24 +1440,37 @@ entries:
     文案。先决发现一并记录：A 对 hr=false local 的 release PUT 直接 409（与 B put.go ME-08 同拒
     PUT），故「release 制品栖身 hr=false 成员」双面均构造不出——该子面 NOT_RUN by construction。
     T-556 r5≡r6 后仍在 9 分歧维内（非 T-556 范围）。
-  authority: { type: pending, ref: 待用户/ADR 裁定（提案②——A 读路径 409 门是否采纳） }
-  review_gate: 两程内升级裁决（默认）；采纳则须落 read-path 策略检查改造票
+    **裁定（T-558 / BIN-40，2026-09-29，两程窗口内兑现）**：UNKNOWN→BUG，采纳 A 面——路径类×
+    handle* 策略是成员面**读写双门**（L033 先决发现 live 定性），读路径同样执行策略检查：未落地
+    拒族路径直读 409（非 404）。契约
+    contracts/maven-virtual.yaml#maven/handle-policy-member-get-class-gate（DIVERGENT/high）；GET 腿
+    409 文案=文案族条目（上条）的 GET 形态（追加「; Path: '…'」段）——两票互引。B 面改造点=read
+    路径增设路径类×策略门（404→409 + 同族文案）。
+  authority: { type: differential, ref: "L033 Arm C 先决发现（读写双门定性）+ 成员 GET class 门 ×2 维（r3≡r4、r5≡r6）+ 契约锚 contracts/maven-virtual.yaml#maven/handle-policy-member-get-class-gate（T-558/BIN-40 裁定轮）" }
+  review_gate: 已兑现（两程窗口内裁定，T-558）——read-path 策略检查改造票落地 + 双端复验翻绿 → resolved
   evidence: reports/compatibility/L033-r5-fix-verification.md Arm C（成员 GET class 门 ×2 维 + 先决发现节；r3≡r4，r5≡r6 维持）
 - id: maven/plain-snapshot-path-resolve-404
   surface: 'maven plain-SNAPSHOT 拼写路径解析——A=200（成员直读与 virt resolve），B=恒 404（含默认成员对照腿——独立既有面孔，不可归因 handle*）'
-  classification: UNKNOWN
+  classification: BUG
   rationale: >-
     L033 Arm C 对照腿坐实：plain-SNAPSHOT 拼写（1.0.0-SNAPSHOT pom）A 面 200；B 面成员直读
     404 / virt resolve 404。控制腿（同拼写放 ctl 默认成员）B 面同样直读 404——证明 B 对该
     拼写解析是独立既有面孔（提案③），非 handle* 跳过所致；对照腿同时证明 virt 模块清单维
     不受混杂（B 从默认成员照样在清单列入 SNAPSHOT 版本，T-556 翻回后 b==a）。时间戳拼写构造
     （mvn deploy unique）未测，归后续票。T-556 r5≡r6 后该维仍在（非 T-556 范围）。
-  authority: { type: pending, ref: 待用户/ADR 裁定（提案③——B 拼写解析缺口属实现缺口还是面外） }
-  review_gate: 两程内升级裁决（默认）；若裁 BUG 须与 walk 面快照族（时间戳拼写）后续票分面立票
+    **裁定（T-558 / BIN-40，2026-09-29，两程窗口内兑现）**：UNKNOWN→BUG——控制腿已排除 handle*
+    归因，B 对 plain-SNAPSHOT 拼写恒 404 属独立实现缺口（成员直读+virt resolve 双面；规格依据
+    docs/reverse/maven-npm-pypi.md §1.3 non-unique 行——「-SNAPSHOT 文件名原样落盘」为合法存储
+    形，解析面不得因拼写失效）。契约
+    contracts/maven-virtual.yaml#maven/plain-snapshot-path-resolve（DIVERGENT/high）——按
+    review_gate 预写要求**分面**：本条仅 plain 拼写面；时间戳拼写臂（mvn deploy unique 构造）在
+    契约 unobserved 标注 NOT_RUN/evidence-gap，独立后续票（walk 面快照族）立契，不并入本条。
+  authority: { type: differential, ref: "L033 Arm C 对照腿 ×3（r3≡r4、r5≡r6——混杂排除）+ 规格锚 docs/reverse/maven-npm-pypi.md §1.3 + 契约锚 contracts/maven-virtual.yaml#maven/plain-snapshot-path-resolve（T-558/BIN-40 裁定轮）" }
+  review_gate: 已兑现（两程窗口内裁定，T-558）——plain 拼写解析修复票落地 + 双端复验翻绿 → resolved；时间戳拼写臂独立立票（分面纪律）
   evidence: reports/compatibility/L033-r5-fix-verification.md Arm C（virt resolve snapshot 维 + 对照腿 ×3；r3≡r4，r5≡r6 维持）
 - id: maven/derived-sidecar-lm-per-request-stamp
   surface: 'maven 派生旁车 Last-Modified 时戳语义残差——跨秒回访：A=物化稳定戳→304，B java-agent 剥离面=per-request 派生时刻戳→200+新 LM（L033 Arm A 附带取证）'
-  classification: UNKNOWN
+  classification: BUG
   rationale: >-
     L033 Arm A 翻绿确认（17/17 维双端一致）后补做的跨秒（sleep 1.3s）回访取证：capable UA 面
     （物化存储节点）B 面 304、LM 稳定——不受影响；java-agent 剥离面（真派生面）B 首答 LM
@@ -1462,6 +1480,35 @@ entries:
     稳定戳机制推出（机制推导，非直测——如实标注）。票面预声明的语义差 live 坐实并精确
     圈定在 java-agent 剥离面；影响=剥离面客户端缓存效率（跨秒回访多传一份 body）。同秒
     回访（矩阵腿）双面同为 304——validator 族翻绿与契约断言均不受本条影响。
-  authority: { type: pending, ref: 待用户/ADR 裁定（残差处置：容忍语义差 vs 升级持久化派生时戳） }
-  review_gate: 两程内升级裁决（默认）——可选升级路径=stored-stamp 微票（旁车派生时戳持久化；T-551 Risks 已预留升级点）；裁定 INTENTIONAL 须补 authority
+    **裁定（T-558 / BIN-40，2026-09-29，两程窗口内兑现）**：UNKNOWN→BUG，对齐 A 面——派生旁车
+    LM 语义=物化稳定戳（同一旁车跨请求恒定，跨秒回访持旧 LM→304），非 per-request 派生时刻戳。
+    按 review_gate 预写升级路径落 stored-stamp 微票（旁车派生时戳持久化；T-551 Risks 已预留升级
+    点）。影响面如实：仅 java-agent 剥离面客户端缓存效率（capable 物化面双端已一致——L033 附带
+    取证）。证据 caveat 维持：A 侧跨秒 304 为机制推导（L032/r1-r3 物化稳定戳跨 GET 序列不变直测
+    + A 直接腿构造不可达），B 侧 per-request 行为 live 直测——契约置信随此注记降为 medium
+    （contracts/maven-virtual.yaml#maven/derived-sidecar-lm-materialized-stamp，DIVERGENT/medium）。
+  authority: { type: differential, ref: "L033 Arm A 附带取证节（B 面双 UA 跨秒矩阵 live：剥离面 200+新 LM 00:44:09→00:44:10）+ L032 Arm 6 r1-r3（A 物化稳定戳机制直测）+ 契约锚 contracts/maven-virtual.yaml#maven/derived-sidecar-lm-materialized-stamp（T-558/BIN-40 裁定轮）" }
+  review_gate: 已兑现（两程窗口内裁定，T-558）——stored-stamp 持久化微票落地 + 跨秒回访双端复验（java-agent 剥离面持旧 LM→304）翻绿 → resolved
   evidence: reports/compatibility/L033-r5-fix-verification.md Arm A 附带取证节（B 面双 UA 跨秒矩阵 + A 面机制推导注记）
+- id: maven/deploy-put-version-metadata-auto-materialize
+  surface: 'maven 布局 local 仓 wire PUT 落制品后的 version 级 maven-metadata.xml 存在面——A 写路径自动物化，B 不物化（读时派生/合并面）'
+  classification: UNKNOWN
+  rationale: >-
+    T-555 活体探针定案（2026-09-29，A=7.161.26 Enterprise+ 活体，difftest-d3-* 9 腿、善后残留
+    NONE）：L032 Arm 1 的 A=6 vs B 节点 5 计数差之谜就此定案——非计数规则差，系 **A 对 maven
+    布局 wire PUT 落制品时自动物化 version 级 maven-metadata.xml**（s0 校准腿 PUT pom 后 list
+    files=2〔pom+自动 metadata〕、s4 pom+jar 腿 files=3；B 同构造 files=1/2——L032 Arm 1 B 面
+    报 `holds 5 node(s)` vs A deletedArtifactsCount=6 即此 1 文件差）。**与既有面不重复**：M3
+    rider（maven/virtual-snapshot-versions-m3-rider，读时派生/合并面，VERIFIED）与派生旁车族
+    （validator/LM——旁车内容与缓存面）均非「写路径物化存在面」；mvn deploy 客户端腿的 version
+    级 metadata 由客户端上传（L032 Arm 6 构造即此），与 wire PUT 服务端物化不同源。
+    **UNKNOWN 理由（四分类纪律，不猜 BUG）**：存在面分歧已活体确证，但（a）触发条件全集未取证
+    ——release wire PUT 立即物化（s0/s4 直测）vs SNAPSHOT wire PUT 在 A 30s 内不物化（L033
+    Arm A 附带取证注记，疑异步/延迟物化，窗口边界未探）；checksum 旁车同步性、多 module、
+    覆盖 PUT 均未测；（b）B 是否应复刻未裁——B 现为读时派生（客户端能力谓词门控），叠加写
+    路径物化是否与 M3 rider 面冲突/冗余无规格依据（docs/reverse/ 未载 wire PUT 物化时机面，
+    无用户裁决/ADR/规格票可引）。影响面：依赖 version 目录文件清单/deletedArtifactsCount 的
+    一切对照口径（A 恒 +1/目录）与客户端对目录清单的可见性。
+  authority: { type: pending, ref: "产品裁（对齐 A 写路径物化 vs 维持 B 读时派生+注记）+ 触发条件取证票（SNAPSHOT 物化时机/旁车同步性/多 module）——docs/reverse/ 未载该面，无三类 authority 可引" }
+  review_gate: 两程内升级裁决（默认窗口）——出口甲：取证票补齐触发臂后裁对齐 A → B 写路径物化实现票 + 差分复验（wire PUT 后清单/计数口径翻同形）翻绿 resolved；出口乙：裁维持 B → 转 INTENTIONAL（须补 authority）+ 对照口径注记（A 恒 +1 差属预期，差分臂按面分别钉形）
+  evidence: reports/agents/T-555.md 活体探针节（difftest-d3-* 矩阵 s0/s4 腿 + L032 A=6-vs-B=5 定案注记；参照源版本 7.161.26）+ reports/compatibility/L032-t550-followup-arms.md Arm 1（r1≡r2≡r3 原始计数差）+ reports/compatibility/L033-r5-fix-verification.md Arm A 附带取证注记（A snapshot 30s 不物化——触发条件边界线索）+ 契约锚 contracts/maven-virtual.yaml#maven/deploy-put-version-metadata-auto-materialize
