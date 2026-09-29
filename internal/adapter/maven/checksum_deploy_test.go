@@ -117,15 +117,19 @@ func TestChecksumDeployMavenGuards(t *testing.T) {
 
 	// Release-refusing repository: the gate fires BEFORE the deploy, zero
 	// bytes or not (ME-08 binds artifact uploads of the refused version
-	// type).
+	// type); the body is the A-form wording family (T-559 — both legs one
+	// template).
 	refused := hs.serve(http.MethodPut, "/maven-relonly/com/acme/demo-app/2.0.0/demo-app-2.0.0.jar", nil, hdr, true)
-	if refused.StatusCode != http.StatusConflict || !strings.Contains(string(drain(t, refused)), "handling of releases is disabled") {
+	if refused.StatusCode != http.StatusConflict ||
+		!strings.Contains(string(drain(t, refused)), "due to conflict in the snapshot release handling policy.") {
 		t.Fatalf("policy-gated checksum deploy = %d %s", refused.StatusCode, string(drain(t, refused)))
 	}
 
-	// Snapshot-refusing repository with a SNAPSHOT GAV: same gate.
+	// Snapshot-refusing repository with a SNAPSHOT GAV: same gate, same
+	// template (the wording family shares one policy-domain phrase).
 	snapRefused := hs.serve(http.MethodPut, "/maven-snaponly/com/acme/demo-app/1.0.0-SNAPSHOT/demo-app-1.0.0-SNAPSHOT.jar", nil, hdr, true)
-	if snapRefused.StatusCode != http.StatusConflict || !strings.Contains(string(drain(t, snapRefused)), "handling of snapshots is disabled") {
+	if snapRefused.StatusCode != http.StatusConflict ||
+		!strings.Contains(string(drain(t, snapRefused)), "due to conflict in the snapshot release handling policy.") {
 		t.Fatalf("snapshot-gated checksum deploy = %d %s", snapRefused.StatusCode, string(drain(t, snapRefused)))
 	}
 }

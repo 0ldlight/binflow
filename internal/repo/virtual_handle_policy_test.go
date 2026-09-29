@@ -9,7 +9,9 @@ package repo_test
 // handleReleases=false member's SNAPSHOT version on the reference, and
 // this walk face is unconstructible on both sides (a release artifact
 // cannot sit in a handleReleases=false member: A 409s the PUT and the
-// direct GET, B's ME-08 refuses the PUT). What remains: a member whose
+// direct GET; B's ME-08 refuses the PUT and, since T-559, the maven
+// adapter's member GET class gate refuses the direct read). What
+// remains: a member whose
 // handleSnapshots=false is dropped from a snapshot-family path (§3.6,
 // L033 Arm C kept that face double-sided); release-resolvable paths
 // consult no handle flag. Skipped snapshot families resolve to the

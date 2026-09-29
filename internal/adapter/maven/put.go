@@ -85,18 +85,17 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 	// deploy of a version: the gate does not apply (ME-06 keeps client
 	// metadata PUTs acceptable). A checksum deploy of an artifact is bound
 	// by the same gates: zero bytes is still a deploy of that version.
+	// The 409 body is the A-form wording family (T-559 / BIN-41, contract
+	// maven/handle-policy-reject-409-wording-family): one template for both
+	// legs, replacing the pre-T-559 parameter-style message.
 	if l.Kind != KindMetadata {
 		snapshotDeploy := l.Snapshot || l.Timestamped
 		if snapshotDeploy && !cfg.AcceptsSnapshot() {
-			writeError(w, http.StatusConflict, fmt.Sprintf(
-				"Repository '%s' rejected deployment of '%s/%s': handling of snapshots is disabled (handleSnapshots=false).",
-				repoKey, repoKey, relPath))
+			writeError(w, http.StatusConflict, handlePolicyConflictMessage(repoKey, relPath))
 			return
 		}
 		if !snapshotDeploy && !cfg.AcceptsRelease() {
-			writeError(w, http.StatusConflict, fmt.Sprintf(
-				"Repository '%s' rejected deployment of '%s/%s': handling of releases is disabled (handleReleases=false).",
-				repoKey, repoKey, relPath))
+			writeError(w, http.StatusConflict, handlePolicyConflictMessage(repoKey, relPath))
 			return
 		}
 	}

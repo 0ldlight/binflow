@@ -117,11 +117,31 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	p *repo.Principal, repoKey, relPath string, l Layout) {
 	var rowType string
+	var rowCfg RepoConfig
 	if row, err := h.class.Get(ctx, repoKey); err == nil {
 		rowType = row.Type
+		rowCfg = ParseRepoConfig(row.Config)
 	}
 	if rowType == repo.TypeVirtual {
 		if h.serveVirtualMetadata(ctx, w, r, repoKey, relPath, l) {
+			return
+		}
+	}
+	// The member GET class gate (T-559 / BIN-41, contract
+	// maven/handle-policy-member-get-class-gate — the L033 live finding's
+	// "路径类×策略是成员面读写双门"): a LOCAL repository's READ path runs the
+	// same path-class × handle* check the deploy gate runs, and it runs
+	// BEFORE the existence lookup — an unlanded conflicting-class path
+	// direct-read answers 409 with the wording family's GET form, never a
+	// plain 404. Scope mirrors the write gate's taxonomy: artifacts and
+	// their checksum sidecars (a refused artifact's companions refuse too),
+	// metadata documents exempt (ME-06); the VIRTUAL face keeps its
+	// walk-layer skip semantics (§3.6 — skip, never a 409 pass-through)
+	// and remote rows carry no handle* seats.
+	if rowType == repo.TypeLocal && l.Kind != KindMetadata {
+		snapshotPath := l.Snapshot || l.Timestamped
+		if (snapshotPath && !rowCfg.AcceptsSnapshot()) || (!snapshotPath && !rowCfg.AcceptsRelease()) {
+			writeError(w, http.StatusConflict, handlePolicyConflictGETMessage(repoKey, relPath))
 			return
 		}
 	}
@@ -155,8 +175,8 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 			!clientSupportsM3SnapshotVersions(r.UserAgent()) {
 			if tl, perr := Parse(l.Target); perr == nil && tl.Kind == KindMetadata &&
 				tl.File == metadataFileName && isSnapshotLevelMetadata(tl) {
-				if body, _ := h.strippedSnapshotMetadata(ctx, p, repoKey, l.Target); body != nil {
-					h.writeDerivedSidecar(w, r, body, l.Algo)
+				if body, lastMod := h.strippedSnapshotMetadata(ctx, p, repoKey, l.Target); body != nil {
+					h.writeDerivedSidecar(w, r, body, l.Algo, lastMod)
 					return
 				}
 			}
@@ -436,6 +456,33 @@ func checksumMismatchMessage(err error, repoKey, relPath string) string {
 // ghost metadata document.
 func notFoundMessage(repoKey, relPath string) string {
 	return fmt.Sprintf("File not found.; Path: '%s:%s'", repoKey, relPath)
+}
+
+// handlePolicyConflictMessage renders the handle* policy refusal's 409
+// wording, A-form verbatim (contract
+// maven/handle-policy-reject-409-wording-family; live 7.161.26 wire,
+// run/l033-r5-r{3,4} put_rel_to_hr_body / put_snap_to_hs_body): one
+// template for BOTH legs — release-into-handleReleases=false and
+// snapshot-into-handleSnapshots=false answer byte-identically, the policy
+// domain always reads "snapshot release handling policy" (no per-leg
+// phrase), and "resolution" is the A-side's own word even on the PUT
+// deploy leg.
+func handlePolicyConflictMessage(repoKey, relPath string) string {
+	return fmt.Sprintf(
+		"The repository '%s' rejected the resolution of an artifact '%s:%s' due to conflict in the snapshot release handling policy.",
+		repoKey, repoKey, relPath)
+}
+
+// handlePolicyConflictGETMessage renders the read-leg form: the same 409
+// message with the "; Path: '…'" segment appended (wire anchor:
+// run/l033-r5-r{3,4} direct_get_{relpath_hr,snappath_hs}_body — the fill
+// is the same '<repoKey>:<path>' string as the message's inner artifact
+// reference, confirmed byte-identical up to the harness's 300-char
+// capture ceiling; the leg's status face is the companion contract
+// maven/handle-policy-member-get-class-gate).
+func handlePolicyConflictGETMessage(repoKey, relPath string) string {
+	return handlePolicyConflictMessage(repoKey, relPath) +
+		fmt.Sprintf("; Path: '%s:%s'", repoKey, relPath)
 }
 
 // applyReaderHints copies a body stream's structural response hints onto the
