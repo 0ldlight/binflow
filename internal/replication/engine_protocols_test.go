@@ -101,7 +101,7 @@ func newBinFlowFull(t *testing.T, name, adminPw string, repos []*metadata.Repo) 
 		Tokens:    authSvc,
 		GC:        st,
 		DataDir:   dataDir,
-		Adapters:  []adapter.Handler{generic.New(svc, md.Blobs()), dockerHandler, npmHandler, pypiHandler},
+		Adapters:  []adapter.Handler{generic.New(svc, md.Repos(), md.Blobs()), dockerHandler, npmHandler, pypiHandler},
 		Version:   "test",
 	}, nil)
 	ts := httpapiServer(t, srv)

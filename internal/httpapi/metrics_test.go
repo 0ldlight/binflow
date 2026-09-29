@@ -90,7 +90,7 @@ func newMetricsHarness(t *testing.T, requireAuth bool, repl replication.Store, w
 
 	authSvc := auth.NewFromStore(md, cfg.Security.AnonymousAccess)
 	svc := repo.New(st, md, authSvc, audit.New(md, true))
-	genericHandler := generic.New(svc, md.Blobs())
+	genericHandler := generic.New(svc, md.Repos(), md.Blobs())
 
 	var reg *metrics.Registry
 	if withMetrics {

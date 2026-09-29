@@ -432,7 +432,7 @@ func newClientStack(t *testing.T) (*httptest.Server, string) {
 		Tokens:    authSvc,
 		DataDir:   dataDir,
 		Console:   console.Handler(),
-		Adapters:  []adapter.Handler{generic.New(svc, md.Blobs()), dockerHandler, npmHandler},
+		Adapters:  []adapter.Handler{generic.New(svc, md.Repos(), md.Blobs()), dockerHandler, npmHandler},
 		Version:   "client-suite",
 		Revision:  "test",
 	}, nil)

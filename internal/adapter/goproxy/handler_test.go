@@ -47,8 +47,8 @@ func TestLocalTrioRoundtrip(t *testing.T) {
 		ctype string
 	}{
 		{ext: "zip", body: string(zipBody), ctype: "application/zip"},
-		{ext: "mod", body: modBody, ctype: "text/plain; charset=utf-8"},
-		{ext: "info", body: infoBody, ctype: "application/json"},
+		{ext: "mod", body: modBody, ctype: "text/plain+mod"},
+		{ext: "info", body: infoBody, ctype: "application/json+info"},
 	}
 	for _, c := range cases {
 		status, body, hdr := s.get("/binflow/go-local/example.com/mymod/@v/v1.0.2." + c.ext)
@@ -238,7 +238,7 @@ func TestInfoSynthesisChain(t *testing.T) {
 		if !strings.HasPrefix(body, wantPrefix) {
 			t.Errorf("synthesized body #%d = %s, want the %q prefix", i, body, wantPrefix)
 		}
-		if got := hdr.Get("Content-Type"); got != "application/json" {
+		if got := hdr.Get("Content-Type"); got != "application/json+info" {
 			t.Errorf("synthesized Content-Type = %q", got)
 		}
 	}

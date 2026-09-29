@@ -59,7 +59,7 @@ func newEnv(t *testing.T) *env {
 	clk := &clock{now: time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC)}
 	az := &allowAll{}
 	svc := repo.NewWithClock(st, md, az, nil, clk.Now)
-	h := generic.NewWithClock(svc, md.Blobs(), clk.RFC3339)
+	h := generic.NewWithClock(svc, md.Repos(), md.Blobs(), clk.RFC3339)
 	if _, err := svc.CreateRepo(ctx, admin(), &metadata.Repo{
 		RepoKey: "generic-local", Type: repo.TypeLocal, PackageType: repo.PackageGeneric,
 	}); err != nil {
@@ -183,7 +183,9 @@ func TestPutCreatedShape(t *testing.T) {
 	if fi.Checksums.Sha256 != sha || fi.Checksums.Sha1 != sha1v || fi.Checksums.Md5 != md5v {
 		t.Fatalf("checksums = %+v", fi.Checksums)
 	}
-	if fi.MimeType != "application/x-bin" {
+	// BIN-53: the declared Content-Type is ignored — .bin is not in the
+	// factory table, so the table-miss floor answers (octet-stream).
+	if fi.MimeType != "application/octet-stream" {
 		t.Fatalf("mimeType = %q", fi.MimeType)
 	}
 	if !strings.Contains(fi.Created, ".") || !strings.Contains(fi.Created, "Z") && !strings.Contains(fi.Created, "+") {

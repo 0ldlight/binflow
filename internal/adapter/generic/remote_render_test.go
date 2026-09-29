@@ -100,6 +100,24 @@ func TestRemoteOutcomesRenderThroughHandler(t *testing.T) {
 		t.Fatalf("PUT body = %s", res3.Body.String())
 	}
 
+	// The checksum-PUT interception (T-574) must stay LOCAL-only (R9 review
+	// A+B blocking): a terminal .sha1/.md5/.sha256 PUT on a remote plane
+	// keeps the 405 read-only refusal — never a source probe, which is a
+	// svc.Get that would pull through on a write verb, and whose upstream
+	// miss would answer the checksum 404 in place of RE-05.
+	for _, sfx := range []string{".sha1", ".md5", ".sha256"} {
+		resc := h(t, http.MethodPut, "/binflow/generic-remote/x.bin"+sfx)
+		if resc.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("checksum PUT%s status = %d, want 405", sfx, resc.Code)
+		}
+		if got := resc.Header().Get("Allow"); got != "GET" {
+			t.Fatalf("checksum PUT%s Allow = %q, want GET", sfx, got)
+		}
+		if got := hits.Load(); got != 1 {
+			t.Fatalf("checksum PUT%s upstream hits = %d, want 1 (no pull-through probe)", sfx, got)
+		}
+	}
+
 	// The exact 404 wording of the checksum sidecar (M45 equality).
 	res4 := h(t, http.MethodGet, "/binflow/generic-remote/dir/up.bin.sha1")
 	if res4.Code != http.StatusNotFound {
@@ -161,7 +179,7 @@ func (c *rclock) advance(d time.Duration) {
 // repo key first, never the product prefix).
 func genericHandler(t *testing.T, svc repo.Service, md metadata.Store) func(t *testing.T, method, target string) *httptest.ResponseRecorder {
 	t.Helper()
-	handler := generic.New(svc, md.Blobs())
+	handler := generic.New(svc, md.Repos(), md.Blobs())
 	return func(t *testing.T, method, target string) *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequest(method, strings.TrimPrefix(target, "/binflow"), strings.NewReader("payload"))

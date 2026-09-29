@@ -114,7 +114,7 @@ func newHarnessFull(t *testing.T, mutate func(*config.Config), authMutate func(*
 	// assertions (quota.exceeded et al.) read the events the REST path
 	// actually records, instead of the nil the harness used to wire.
 	svc := repo.New(st, md, authSvc, audit.New(md, true))
-	genericHandler := generic.New(svc, md.Blobs())
+	genericHandler := generic.New(svc, md.Repos(), md.Blobs())
 
 	for _, u := range users {
 		hash, err := auth.HashPassword(u[1])

@@ -54,7 +54,7 @@ func curlServer(t *testing.T) (*httptest.Server, *storage.Engine) {
 	}); err != nil {
 		t.Fatalf("CreateRepo: %v", err)
 	}
-	h := generic.New(svc, md.Blobs())
+	h := generic.New(svc, md.Repos(), md.Blobs())
 	// NOTE: no ServeMux — it normalizes dot-segments with a 3xx redirect
 	// before the handler ever sees them, which would hide the adapter's own
 	// 400 defense from this black-box test. A bare handler mount is exactly
@@ -289,8 +289,10 @@ func TestCurlRoundtrip(t *testing.T) {
 			if !strings.Contains(head, "Content-Type: application/json") {
 				t.Fatalf("curl -TI x.json Content-Type wrong:\n%s", head)
 			}
-			// GET carries the same header; a declared Content-Type still
-			// wins verbatim; an unknown extension keeps octet-stream.
+			// GET carries the same header; a declared Content-Type is
+			// IGNORED (BIN-53: the extension table owns the value — .bin
+			// misses it, octet-stream answers); an unknown extension keeps
+			// octet-stream.
 			curl(t, dir, "-s", "-u", "admin:pw", "-D", "ct.headers", "-o", "ct.json",
 				base+"/generic-local/acme/x.json")
 			hdr, _ := os.ReadFile(filepath.Join(dir, "ct.headers"))
@@ -307,8 +309,8 @@ func TestCurlRoundtrip(t *testing.T) {
 				t.Fatalf("y.bin upload = %s", out2)
 			}
 			head2, _ := curl(t, dir, "-s", "-I", "-u", "admin:pw", base+"/generic-local/acme/y.bin")
-			if !strings.Contains(head2, "Content-Type: application/x-custom") {
-				t.Fatalf("declared Content-Type not honored:\n%s", head2)
+			if !strings.Contains(head2, "Content-Type: application/octet-stream") {
+				t.Fatalf("declared Content-Type not ignored (BIN-53 flip):\n%s", head2)
 			}
 			if err := os.WriteFile(filepath.Join(dir, "z.zzz"), []byte("z"), 0o600); err != nil {
 				t.Fatal(err)
@@ -519,7 +521,7 @@ func TestCurlAnonymousWriteChallenged(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("CreateRepo: %v", err)
 	}
-	h := generic.New(svc, md.Blobs())
+	h := generic.New(svc, md.Repos(), md.Blobs())
 	mux := http.NewServeMux()
 	mux.HandleFunc("/binflow/", func(w http.ResponseWriter, r *http.Request) {
 		rel := strings.TrimPrefix(r.URL.Path, "/binflow")
