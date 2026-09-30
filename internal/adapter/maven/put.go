@@ -3,7 +3,6 @@ package maven
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -176,29 +175,16 @@ func (h *Handler) acceptDiscardedMetadata(ctx context.Context, w http.ResponseWr
 	w.WriteHeader(http.StatusAccepted)
 }
 
-// routeTargetOf mirrors repo's tolerant virtualRouteTarget (virtual.go):
-// the first non-empty of defaultDeploymentRepo / defaultDeploymentRepoRef /
-// deploymentRepository out of a virtual repository's config JSON. The
-// write-plane seam is deliberately unexported there, so the adapter reads
-// the same caller-owned config blob with the same alias triple and
-// first-wins tolerance — the strict agreement rules live at config time
-// (validateVirtualMembers), and a drifted target surfaces through the
-// service's own target re-load, identically to the seam's contract.
+// routeTargetOf is the maven-side thin alias of the adapter base's
+// single-source write-route probe (T-590 hoist; the semantics and their
+// golden live in internal/adapter/deploytarget.go): the first non-empty of
+// defaultDeploymentRepo / defaultDeploymentRepoRef / deploymentRepository,
+// restating repo's unexported virtualRouteTarget seam — the strict
+// agreement rules live at config time (validateVirtualMembers), and a
+// drifted target surfaces through the service's own target re-load,
+// identically to the seam's contract.
 func routeTargetOf(config string) string {
-	var probe struct {
-		DefaultDeploymentRepo    string `json:"defaultDeploymentRepo"`
-		DefaultDeploymentRepoRef string `json:"defaultDeploymentRepoRef"`
-		DeploymentRepository     string `json:"deploymentRepository"`
-	}
-	if err := json.Unmarshal([]byte(config), &probe); err != nil {
-		return ""
-	}
-	for _, alias := range []string{probe.DefaultDeploymentRepo, probe.DefaultDeploymentRepoRef, probe.DeploymentRepository} {
-		if alias != "" {
-			return alias
-		}
-	}
-	return ""
+	return adapter.VirtualDeploymentTarget(config)
 }
 
 // putChecksumDeploy implements X-Checksum-Deploy on the maven plane (T-73,

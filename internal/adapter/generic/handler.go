@@ -231,27 +231,11 @@ func (h *Handler) clientChecksumPutPlane(ctx context.Context, repoKey string) (s
 	return "", false
 }
 
-// virtualDeploymentTarget is the tolerant write-route probe of a virtual
-// repository's config JSON (the generic-side restatement of repo's own
-// reader — adapter packages share no unexported code, the npm/cargo/conan
-// precedent): the primary spelling plus the two Artifactory aliases
-// raw-seeded rows may carry. A config that fails the strict shape still
-// gets its truthful answer: no route.
+// virtualDeploymentTarget is the generic-side thin alias of the adapter
+// base's single-source write-route probe (T-590 hoist; the semantics and
+// their golden live in internal/adapter/deploytarget.go).
 func virtualDeploymentTarget(config string) string {
-	var probe struct {
-		DefaultDeploymentRepo    string `json:"defaultDeploymentRepo"`
-		DefaultDeploymentRepoRef string `json:"defaultDeploymentRepoRef"`
-		DeploymentRepository     string `json:"deploymentRepository"`
-	}
-	if err := json.Unmarshal([]byte(config), &probe); err != nil {
-		return ""
-	}
-	for _, alias := range []string{probe.DefaultDeploymentRepo, probe.DefaultDeploymentRepoRef, probe.DeploymentRepository} {
-		if alias != "" {
-			return alias
-		}
-	}
-	return ""
+	return adapter.VirtualDeploymentTarget(config)
 }
 
 // checksumPolicySrvgen reports whether the repository's config blob spells
