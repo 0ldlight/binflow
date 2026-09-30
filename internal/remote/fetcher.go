@@ -530,8 +530,7 @@ func (e *Engine) fetchFlow(ctx context.Context, repoKey, path, target string) (*
 	for {
 		// Step 3: the negative cache — a known miss inside its window
 		// answers 404 without a single upstream packet.
-		if entry, err := e.md.Remote().GetCache(ctx, repoKey, path); err == nil &&
-			entry.Kind == cacheKindNegative && entryFresh(entry.ExpiresAt, e.now()) {
+		if e.negativeFresh(ctx, repoKey, path) {
 			e.counters(repoKey).negatives.Add(1)
 			e.logResult(repoKey, path, cacheStateNegative, "", 0, time.Time{}, 0, "negative-cache hit")
 			return nil, unfoundMissing(repoKey, path)
@@ -646,7 +645,16 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 	defer e.releaseFlight(flightKey)
 
 	// Winner double-check: state may have moved while the flight was
-	// contended (a previous winner's landing, a concurrent invalidate).
+	// contended (a previous winner's landing or miss record, a concurrent
+	// invalidate). The miss arm matters for a waitor that ran Step 3 before
+	// the previous winner wrote the record but reached acquireFlight after
+	// its release — without it, that waitor re-contacts the upstream the
+	// miss record already answers (BIN-113).
+	if e.negativeFresh(ctx, repoKey, path) {
+		e.counters(repoKey).negatives.Add(1)
+		e.logResult(repoKey, path, cacheStateNegative, "", 0, time.Time{}, 0, "negative-cache hit")
+		return nil, unfoundMissing(repoKey, path)
+	}
 	if node2, err := e.md.Nodes().Get(ctx, repoKey, path); err == nil && hasCacheableCopy(node2) {
 		if entry, cerr := e.md.Remote().GetCache(ctx, repoKey, path); cerr == nil && entryFresh(entry.ExpiresAt, now) {
 			e.counters(repoKey).hits.Add(1)
@@ -1596,6 +1604,14 @@ func (e *Engine) offlineWindow(repoKey string, now time.Time) (time.Time, bool) 
 		return time.Time{}, false
 	}
 	return until, true
+}
+
+// negativeFresh reports a known miss inside its window — Step 3's check,
+// shared with the winner double-check so both faces of the retry loop agree
+// on what a recorded miss answers.
+func (e *Engine) negativeFresh(ctx context.Context, repoKey, path string) bool {
+	entry, err := e.md.Remote().GetCache(ctx, repoKey, path)
+	return err == nil && entry.Kind == cacheKindNegative && entryFresh(entry.ExpiresAt, e.now())
 }
 
 // acquireFlight is the singleflight entry: the winner gets won=true and owns
