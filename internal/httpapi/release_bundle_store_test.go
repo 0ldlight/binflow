@@ -27,7 +27,7 @@ func TestBundleStoreArmChain(t *testing.T) {
 	// Arm 1 (§10.7 p52): the non-admin caller meets the bare Forbidden
 	// envelope before anything else.
 	code, body, _ := st.do(t, http.MethodPut, "release/store", `{}`, &auth.Principal{Name: "dev"})
-	if code != http.StatusForbidden || !strings.Contains(body, `"message": "Forbidden"`) {
+	if code != http.StatusForbidden || !strings.Contains(body, `"message" : "Forbidden"`) {
 		t.Fatalf("non-admin store = %d %s, want the bare 403", code, body)
 	}
 

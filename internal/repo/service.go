@@ -1549,7 +1549,10 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 			removed++
 		}
 		if removed == 0 {
-			return fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound)
+			// Folder-miss rides the same engine family as the file-miss
+			// (BIN-94/T-612: A keeps the trailing slash verbatim in the
+			// Item spelling — "…/never-dir/ does not exist").
+			return deleteMissError(repoKey, path)
 		}
 		if err := s.pruneEmptyParents(ctx, repoKey, path); err != nil {
 			return err
@@ -1564,7 +1567,10 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 	doomed, err := nodes.Get(ctx, repoKey, path)
 	if err != nil {
 		if errors.Is(err, metadata.ErrNodeNotFound) {
-			return fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound)
+			// BIN-94/T-612: the LOCAL file-miss speaks the deletion
+			// engine's family (live A 7.161.26, maven/pypi/generic legs
+			// double-round) — same StatusError as the remote face below.
+			return deleteMissError(repoKey, path)
 		}
 		return fmt.Errorf("node %s/%s: %w", repoKey, path, err)
 	}
@@ -1596,10 +1602,29 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 	return nil
 }
 
+// deleteMissError is the deletion engine's miss verdict, spoken ONCE for
+// both engine faces (BIN-94/T-612): the REMOTE cache invalidation and the
+// LOCAL file/folder miss answer the same family — live A 7.161.26 evidence:
+// T-596's generic contrast leg plus T-612's maven/pypi/generic double-round
+// probe (the engine is package-type blind; pypi legs even carried the
+// protocol spellings simple/ and packages/ verbatim in the Item path). 404
+// "Artifact deletion error: Item <repo>/<path> does not exist" — no
+// trailing period. Spoken as a StatusError so adapters render it verbatim
+// (the T-66 convention: repository-class semantics live here), with the
+// ErrNodeNotFound chain kept for sentinel-testing callers. The VIRTUAL
+// delete-miss face keeps its adapter wording for now — no A probe has
+// ruled that face (T-612 probe legs were local only).
+func deleteMissError(repoKey, path string) error {
+	return NewStatusError(http.StatusNotFound,
+		fmt.Sprintf("Artifact deletion error: Item %s/%s does not exist", repoKey, path), nil,
+		fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound))
+}
+
 // deleteRemoteCache is the remote branch of Delete (RE-06): permission,
 // then the engine's local-cache invalidation. The engine drops node rows
 // and cache entries without any upstream contact; "nothing was cached"
-// maps onto the same idempotent ErrNodeNotFound the local plane answers.
+// maps onto the same idempotent miss the local plane answers (the shared
+// deleteMissError wording, BIN-78/T-596 c-arm ruling).
 func (s *service) deleteRemoteCache(ctx context.Context, p *Principal, repoKey, path string) error {
 	if !s.allow(ctx, p, repoKey, path, ActionDelete) {
 		return fmt.Errorf("delete %s/%s: %w", repoKey, path, ErrForbidden)
@@ -1612,19 +1637,7 @@ func (s *service) deleteRemoteCache(ctx context.Context, p *Principal, repoKey, 
 		return err
 	}
 	if !existed {
-		// The remote face's miss wording is the deletion engine's own
-		// (C7's c-arm ruling, BIN-78/T-596; live A evidence L040 N2 plus
-		// the T-596 probe): 404 "Artifact deletion error: Item
-		// <repo>/<path> does not exist" — no trailing period. Spoken as a
-		// StatusError so adapters render it verbatim (the T-66 convention:
-		// repository-class semantics live here), with the ErrNodeNotFound
-		// chain kept for sentinel-testing callers. The LOCAL and VIRTUAL
-		// delete-miss faces keep their adapter wordings for now — A answers
-		// the same family there too (T-596 contrast leg), but flipping
-		// them is the adapters' wording arms, a separate ticket.
-		return NewStatusError(http.StatusNotFound,
-			fmt.Sprintf("Artifact deletion error: Item %s/%s does not exist", repoKey, path), nil,
-			fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound))
+		return deleteMissError(repoKey, path)
 	}
 	s.audit(ctx, AuditEvent{
 		Actor: p.Name, Action: AuditActionDelete, Repo: repoKey, Path: path,

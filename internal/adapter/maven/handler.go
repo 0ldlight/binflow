@@ -335,7 +335,7 @@ func (h *Handler) writeSidecarDigest(ctx context.Context, w http.ResponseWriter,
 			fmt.Sprintf("digest %s of '%s/%s' is not available (ledger gap)", algo, repoKey, path))
 		return
 	}
-	h.writeSidecarBody(w, r, digest, node) // bare hex, no trailing newline (ME-03/FR-16)
+	h.writeSidecarBody(w, r, digest, node, path) // bare hex, no trailing newline (ME-03/FR-16)
 }
 
 // writeSidecarBody renders one sidecar BODY value (stored client
@@ -356,10 +356,15 @@ func (h *Handler) writeSidecarDigest(ctx context.Context, w http.ResponseWriter,
 //     SOURCE artifact (the node), never the sidecar's own digest: ETag is
 //     the unquoted source sha1 and the triple is the source's computed
 //     triple (serveNode's digestTriple), a ledger gap degrading per key.
+//     Since BIN-110 / T-626 the HEAD arm also carries the disposition pair
+//     (Content-Disposition + X-Artifactory-Filename, the source basename
+//     dual-parameter form) — the same verb-conditional sub-arm the generic
+//     plane's writeChecksumEcho renders (T-608 / BIN-90); the GET face
+//     stays bare.
 //
 // The derived-metadata sidecar (writeDerivedSidecar) is a different
 // contract family (L032 Arm 6 / BIN-41) and keeps its own face.
-func (h *Handler) writeSidecarBody(w http.ResponseWriter, r *http.Request, body string, node *metadata.Node) {
+func (h *Handler) writeSidecarBody(w http.ResponseWriter, r *http.Request, body string, node *metadata.Node, src string) {
 	hdr := w.Header()
 	hdr.Set("Content-Type", sidecarContentType)
 	hdr.Set("Content-Length", strconv.Itoa(len(body)))
@@ -380,6 +385,14 @@ func (h *Handler) writeSidecarBody(w http.ResponseWriter, r *http.Request, body 
 		if sums.md5 != "" {
 			hdr.Set(hdrChecksumMd5, sums.md5)
 		}
+		// The disposition pair (BIN-110 / T-626, ledger
+		// maven/sidecar-head-cd-filename, live A 7.161.26 dual-round T-625
+		// legs sc-head-{sha1,md5,sha256}) addresses the SOURCE's base name
+		// — the validated artifact, never the sidecar's own .sha1/.md5/
+		// .sha256 spelling — the same family the generic plane's
+		// writeChecksumEcho HEAD arm renders (T-608 / BIN-90). Single
+		// source in repo.SetDownloadDisposition.
+		repo.SetDownloadDisposition(hdr, src)
 	}
 	if evalConditional(r, etag, lastMod) {
 		w.WriteHeader(http.StatusNotModified)
@@ -546,6 +559,10 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error, method, re
 			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
 			return
 		}
+		// BIN-94/T-612: the local and remote DELETE-miss faces render the
+		// deletion engine's StatusError verbatim in the branch above; this
+		// arm remains the VIRTUAL own-storage miss (D-2, face undecided —
+		// no A probe) and the plain-sentinel fallback.
 		writeError(w, http.StatusNotFound, fmt.Sprintf("Could not locate artifact. Path: '%s/%s'.", repoKey, relPath))
 	case errors.Is(err, repo.ErrRepoNotFound):
 		writeError(w, http.StatusNotFound, fmt.Sprintf("Failed to find the repository '%s' specified in the request.", repoKey))

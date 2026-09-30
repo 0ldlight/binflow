@@ -12,14 +12,16 @@ import (
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
-// BIN-78/T-596 (C7's c-arm): the DELETE-miss wording family on the generic
-// wire. The REMOTE face speaks the deletion engine's own miss wording
-// verbatim (live A evidence, L040 N2 plus the T-596 probe): 404 "Artifact
-// deletion error: Item <repo>/<path> does not exist" — no trailing period —
-// rendered through the service layer's StatusError so the adapter stays
-// class-agnostic. The LOCAL face keeps its Could-not-locate wording for now:
-// A answers the engine family there too (the T-596 contrast leg), but the
-// local arm lives in the adapter's wording table, a separate ticket.
+// BIN-78/T-596 + BIN-94/T-612: the DELETE-miss wording family on the
+// generic wire. Both the REMOTE and the LOCAL face speak the deletion
+// engine's miss wording verbatim (live A 7.161.26 evidence: T-596's probe
+// and contrast leg, T-612's maven/pypi/generic double-round): 404 "Artifact
+// deletion error: Item <repo>/<path> does not exist" — no trailing period,
+// trailing slash kept verbatim on folder spellings — rendered through the
+// service layer's deleteMissError StatusError so the adapter stays
+// class-agnostic. The VIRTUAL miss keeps the adapter's Could-not-locate
+// wording: that face is undecided (no A probe; deleteVirtualOwnStorage
+// still returns the plain sentinel).
 
 func TestRemoteDeleteMissWording(t *testing.T) {
 	ctx := context.Background()
@@ -61,9 +63,12 @@ func TestRemoteDeleteMissWording(t *testing.T) {
 		{"remote miss: the deletion engine's wording, no trailing period",
 			"/binflow/generic-remote/t596/never.txt", http.StatusNotFound,
 			"Artifact deletion error: Item generic-remote/t596/never.txt does not exist"},
-		{"local miss regression: keeps the adapter's Could-not-locate wording",
+		{"local file miss: the same engine family (T-612)",
 			"/binflow/generic-local/t596/never.txt", http.StatusNotFound,
-			"Could not locate artifact. Path: 'generic-local/t596/never.txt'."},
+			"Artifact deletion error: Item generic-local/t596/never.txt does not exist"},
+		{"local folder miss: trailing slash kept verbatim",
+			"/binflow/generic-local/t596/never-dir/", http.StatusNotFound,
+			"Artifact deletion error: Item generic-local/t596/never-dir/ does not exist"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

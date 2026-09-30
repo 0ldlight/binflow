@@ -1,0 +1,9 @@
+# 金样请求——内容面 404 错误渲染（maven jar 缺失腿）
+# schema: golden-request/1
+feature: 'repo-path 内容面错误渲染：CT charset 参数 + Jackson pretty body 排版（面级，非消息族）'
+client: curl 差分腿（admin 凭据 env 注入零落盘）
+repo_setup: 'local maven 仓（空仓即可——缺失路径腿不依赖内容）'
+steps:
+- { seq: 1, leg: m-jar-get, method: GET, path: '/<maven-local>/com/example/missing/1.0.0/missing-1.0.0.jar', note: '内容面 404 主锚（GET）' }
+- { seq: 2, leg: m-jar-head, method: HEAD, path: 同上, note: '同面 HEAD（空体，CT 同形）' }
+expected_client_outcome: '404；CT=application/json;charset=ISO-8859-1（无空格）；body Jackson pretty（" : " 冒号前空格、[ { / } ] 贴括号、无尾换行）；见 response.yaml'

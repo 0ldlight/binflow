@@ -177,10 +177,12 @@ const msgSpoolUnavailable = "chart upload cannot be staged: the upload staging a
 const msgSpoolReopenFailed = "chart upload could not re-read its staged bytes (see the server log)"
 
 // ServeHTTP dispatches on the parsed wire target and the repository
-// CLASS. Error bodies are PLAIN
-// TEXT on this face (helm surfaces the body verbatim; Artifactory's helm
-// errors are plain strings — the one pinned wording, the Enforce Layout
-// 403s, is plain text by construction).
+// CLASS. Two error-body families live on this face: the GET/HEAD
+// download-miss 404 renders the SHARED errors[] envelope with the plane
+// matrix's media type (errorface.go, BIN-103/T-621 — the family every
+// adapter answers, byte-pinned by the T-615 legs); every other refusal
+// (the Enforce Layout 403s, the layout/index guard 4xx family, write-path
+// fallbacks) stays PLAIN TEXT.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	repoKey, rel, err := h.Layout(r)
 	if err != nil {
@@ -195,7 +197,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if rt.kind != kindRoot {
 		class, err = h.classOf(ctx, repoKey)
 		if err != nil {
-			h.writeError(w, err, repoKey, rel)
+			h.writeError(w, r, err, repoKey, rel)
 			return
 		}
 	}
@@ -240,7 +242,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// the service; a remote write meets the read-only 405 there.
 			h.serveUploadChart(ctx, w, r, p, repoKey, rel, class)
 		case http.MethodDelete:
-			h.serveDeleteChart(ctx, w, p, repoKey, rel)
+			h.serveDeleteChart(ctx, w, r, p, repoKey, rel)
 		default:
 			h.methodNotAllowed(w, r, "GET, HEAD, PUT, DELETE")
 		}
@@ -300,20 +302,77 @@ func (h *Handler) methodNotAllowed(w http.ResponseWriter, r *http.Request, allow
 }
 
 // serveIndex answers GET index.yaml: the stored repo-root node, text/yaml.
+// A NEVER-POPULATED local repository materializes the empty index on the
+// first fetch (BIN-111/T-627): the chart index always exists — empty
+// until the first chart lands — so `helm repo add` against a fresh
+// repository succeeds (the A-face lifecycle; repeat fetches then serve
+// the stored node, byte-stable).
 func (h *Handler) serveIndex(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey string) {
 	rc, node, err := h.svc.Get(ctx, p, repoKey, indexPath)
+	if errors.Is(err, repo.ErrNodeNotFound) || errors.Is(err, repo.ErrIsFolder) {
+		h.materializeEmptyIndex(ctx, w, r, p, repoKey)
+		return
+	}
 	if err != nil {
-		h.writeError(w, err, repoKey, indexPath)
+		h.writeError(w, r, err, repoKey, indexPath)
 		return
 	}
 	h.serveNode(ctx, w, r, node, rc, "text/yaml")
+}
+
+// materializeEmptyIndex answers the never-populated repository's index
+// fetch: under the repository's index lock the node is re-checked (a
+// racing chart PUT owns the document — its populated write wins) and the
+// empty A-form index is stored, then served through the standard node
+// path. When the store refuses the landing (a read-only principal, a
+// full volume) the response degrades to the synthesized body — the
+// client sees the empty index either way; only repeat-fetch byte
+// stability is lost, and the refusal rides the server log.
+func (h *Handler) materializeEmptyIndex(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey string) {
+	err := h.withIndexLock(repoKey, func() error {
+		doc, rErr := h.readStoredIndex(ctx, p, repoKey)
+		if rErr != nil {
+			return rErr
+		}
+		if len(doc.entries) > 0 {
+			return nil // a racing PUT landed a populated index; keep it
+		}
+		return h.writeStoredIndex(ctx, p, repoKey, doc.render(h.now()))
+	})
+	rc, node, gErr := h.svc.Get(ctx, p, repoKey, indexPath)
+	if gErr == nil {
+		h.serveNode(ctx, w, r, node, rc, "text/yaml")
+		return
+	}
+	cause := err
+	if cause == nil {
+		cause = gErr
+	}
+	// A permission refusal is the expected read-only posture (the fetcher
+	// may read the index but not land nodes) — debug, not operator noise;
+	// every other failure is a real store fault.
+	if errors.Is(cause, repo.ErrForbidden) || errors.Is(cause, repo.ErrUnauthorized) {
+		slog.DebugContext(ctx, "helm: empty index served unpersisted (fetcher cannot write)",
+			slog.String("repo", repoKey))
+	} else {
+		slog.WarnContext(ctx, "helm: empty index served unpersisted (materialization refused)",
+			slog.String("repo", repoKey), slog.String("error", cause.Error()))
+	}
+	body := (&indexDoc{}).render(h.now())
+	hdr := w.Header()
+	hdr.Set("Content-Type", "text/yaml")
+	hdr.Set("Content-Length", strconv.Itoa(len(body)))
+	w.WriteHeader(http.StatusOK)
+	if r.Method != http.MethodHead {
+		_, _ = w.Write(body) //nolint:gosec // G705: server-rendered text, never client bytes
+	}
 }
 
 // serveStoredFile streams a stored node with the pinned content type.
 func (h *Handler) serveStoredFile(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, rel, ctype string) {
 	rc, node, err := h.svc.Get(ctx, p, repoKey, rel)
 	if err != nil {
-		h.writeError(w, err, repoKey, rel)
+		h.writeError(w, r, err, repoKey, rel)
 		return
 	}
 	h.serveNode(ctx, w, r, node, rc, ctype)
@@ -341,13 +400,13 @@ func (h *Handler) servePlainFile(ctx context.Context, w http.ResponseWriter, r *
 		}
 		node, err := h.svc.Put(ctx, p, repoKey, rel, r.Body, expect, ctype)
 		if err != nil {
-			h.writeError(w, err, repoKey, rel)
+			h.writeError(w, r, err, repoKey, rel)
 			return
 		}
 		h.writeCreated(w, r, repoKey, rel, node)
 	case http.MethodDelete:
 		if err := h.svc.Delete(ctx, p, repoKey, rel); err != nil {
-			h.writeError(w, err, repoKey, rel)
+			h.writeError(w, r, err, repoKey, rel)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -406,7 +465,7 @@ func (h *Handler) serveUploadChart(ctx context.Context, w http.ResponseWriter, r
 				writeText(w, http.StatusForbidden, policy.Error())
 				return
 			}
-			h.writeError(w, err, repoKey, rel)
+			h.writeError(w, r, err, repoKey, rel)
 			return
 		}
 	}
@@ -427,7 +486,7 @@ func (h *Handler) serveUploadChart(ctx context.Context, w http.ResponseWriter, r
 		"application/x-gzip", repo.PutOptions{Properties: chartProps(arc, h.now())})
 	_ = f.Close()
 	if err != nil {
-		h.writeError(w, err, repoKey, rel)
+		h.writeError(w, r, err, repoKey, rel)
 		return
 	}
 
@@ -468,10 +527,10 @@ func (h *Handler) virtualWriteTarget(ctx context.Context, repoKey string) string
 // serveDeleteChart is the DELETE chain: the node's chart.* identity first
 // (the removal key), the node, then the index entry (missing properties =
 // warn and skip — section 4.1 step 6).
-func (h *Handler) serveDeleteChart(ctx context.Context, w http.ResponseWriter, p *repo.Principal, repoKey, rel string) {
+func (h *Handler) serveDeleteChart(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, rel string) {
 	name, version, identified := nodeChartIdentity(ctx, h.props, repoKey, rel)
 	if err := h.svc.Delete(ctx, p, repoKey, rel); err != nil {
-		h.writeError(w, err, repoKey, rel)
+		h.writeError(w, r, err, repoKey, rel)
 		return
 	}
 	if !identified {
@@ -607,8 +666,12 @@ func writeText(w http.ResponseWriter, status int, msg string) {
 	_, _ = io.WriteString(w, body) //nolint:gosec // G705: server-computed text, never client bytes
 }
 
-// writeError maps service errors onto the protocol surface.
-func (h *Handler) writeError(w http.ResponseWriter, err error, repoKey, path string) {
+// writeError maps service errors onto the protocol surface. The request
+// rides along for the one face that reads it: the ErrNodeNotFound arm's
+// GET/HEAD rendering picks its media type by the original request spelling
+// (the /api/helm alias answers the bare form, the content plane the
+// charset one — errorface.go).
+func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, err error, repoKey, path string) {
 	var se *repo.StatusError
 	if errors.As(err, &se) {
 		for k, vv := range se.Header {
@@ -625,6 +688,15 @@ func (h *Handler) writeError(w http.ResponseWriter, err error, repoKey, path str
 	case errors.Is(err, storage.ErrChecksumMismatch):
 		writeText(w, http.StatusConflict, fmt.Sprintf("Checksum error for '%s/%s': %v", repoKey, path, err))
 	case errors.Is(err, repo.ErrNodeNotFound), errors.Is(err, repo.ErrIsFolder):
+		if r != nil && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+			// BIN-103/T-621: the read face renders the shared errors[]
+			// envelope (the download-miss family every adapter answers,
+			// T-615 byte-pinned). Write-side misses (the unpinned virtual
+			// DELETE fallback below) keep the plain refusal until their
+			// own A pin lands.
+			writeDownloadMiss(w, r, repoKey, path)
+			return
+		}
 		writeText(w, http.StatusNotFound, fmt.Sprintf("'%s/%s' not found", repoKey, path))
 	case errors.Is(err, repo.ErrRepoNotFound), errors.Is(err, metadata.ErrRepoNotFound):
 		writeText(w, http.StatusNotFound, fmt.Sprintf("repository %s not found", repoKey))

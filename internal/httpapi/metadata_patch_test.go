@@ -381,7 +381,7 @@ func TestStoragePostFormRetired(t *testing.T) {
 		if resp.StatusCode != http.StatusMethodNotAllowed {
 			t.Fatalf("POST %s = %d, want 405", path, resp.StatusCode)
 		}
-		if !strings.Contains(body, `"status": 405`) || !strings.Contains(body, `"message": "Method Not Allowed"`) {
+		if !strings.Contains(body, `"status" : 405`) || !strings.Contains(body, `"message" : "Method Not Allowed"`) {
 			t.Fatalf("POST %s envelope = %s, want the verbatim 405", path, body)
 		}
 	}

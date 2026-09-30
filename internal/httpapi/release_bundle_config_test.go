@@ -62,7 +62,7 @@ func TestBundleConfigFace(t *testing.T) {
 func TestBundleConfigAdminGate(t *testing.T) {
 	st := newT513Stack(t, fakeLicenseEval{tier: license.TierPro, licensed: true})
 	code, body, _ := st.do(t, http.MethodGet, "release/bundles/config", "", &auth.Principal{Name: "dev"})
-	if code != http.StatusForbidden || !strings.Contains(body, `"message": "Forbidden"`) {
+	if code != http.StatusForbidden || !strings.Contains(body, `"message" : "Forbidden"`) {
 		t.Fatalf("non-admin config = %d %s, want the bare 403", code, body)
 	}
 }
@@ -84,7 +84,7 @@ func TestBundleFatManifest(t *testing.T) {
 		t.Fatalf("fat manifest on an absent evidence file = %d, want the honest 404", code)
 	}
 	// p55: non-admin → the bare Forbidden envelope.
-	if code, body, _ = st.do(t, http.MethodGet, "release/fat_manifest_content/x/list.manifest.json", "", &auth.Principal{Name: "dev"}); code != http.StatusForbidden || !strings.Contains(body, `"message": "Forbidden"`) {
+	if code, body, _ = st.do(t, http.MethodGet, "release/fat_manifest_content/x/list.manifest.json", "", &auth.Principal{Name: "dev"}); code != http.StatusForbidden || !strings.Contains(body, `"message" : "Forbidden"`) {
 		t.Fatalf("non-admin fat manifest = %d %s, want the bare 403", code, body)
 	}
 	// The addon gate rides behind the admin door.

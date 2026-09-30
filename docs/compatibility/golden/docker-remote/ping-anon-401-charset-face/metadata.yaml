@@ -1,0 +1,20 @@
+# 金样元数据——/v2 匿名 ping 401 臂（charset + compact spec body，跨面 401 臂锚）
+schema: golden/1
+id: docker-remote/ping-anon-401-charset-face
+contract_ref: contracts/docker-remote.yaml（charset 形态原仅 ping 两 401 臂——T-615 证伪其外推边界：charset 实为面级矩阵，本臂仍是其原钉面）
+matrix_ref: （T-620/BIN-102 入金；错误渲染面族 401 臂跨面锚）
+capture:
+  mode: live-captured
+  captured_at: '2026-09-29（T-615 r1，双轮 drift=0，A/B body 逐字节同）→ 2026-09-30（T-620 复跑仍逐字节同——零回归）'
+  capture_instance: 'A: Artifactory 7.161.26 Enterprise+ @ 192.168.120.38:8082；B: origin/develop@8bd7bb82 + T-620 叠加 @ 127.0.0.1:18340'
+  capture_commands: 'curl GET /v2/（匿名，无凭据）'
+  raw_response_archive: /tmp/t615/raw/ar1-d-ping-anon.{hdr,body}（T-620 复跑 /tmp/t620/raw/ar1-d-ping-anon.* 逐字节同）
+  history: docker/errors.go:110 既有 A-parity 面（B 刻意对齐）→ T-615 全一致腿 1/32 → T-620 入金固化
+instance_versions:
+  artifactory_ref: Artifactory 7.161.26 Enterprise+（http://192.168.120.38:8082）
+  binflow_tested: origin/develop@8bd7bb82 + T-620 envelope 面改动（本臂走 docker adapter 自有渲染，回归零）
+confidence: high
+known_gaps:
+- 'Www-Authenticate realm 指向各自实例的 /v2/token（Host 参数化），非断言面差异'
+- '恒 CL=87（A/B 同）——401 臂为 A 侧恒 CL 例外族，framing 在本臂双端一致'
+review: T-620 入金（2026-09-30）——A 腿 verbatim 自 /tmp/t615/raw；B 侧 87 字节逐字节同（sha 复核）

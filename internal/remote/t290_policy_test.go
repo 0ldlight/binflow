@@ -164,18 +164,34 @@ func TestT290SubSecondSocketTimeoutTrips(t *testing.T) {
 	if res != nil {
 		t.Fatalf("expected no result, got %+v", res)
 	}
-	// The timeout arm is a transport fault: the repository enters the
-	// assumed-offline window (the RE-04 downgrade, not a 5xx of its own).
-	if _, off := e.eng.offlineWindow("generic-remote", e.clk.Now()); !off {
-		t.Fatal("assumed-offline window not opened after the socket timeout")
+	// The timeout arm is a transport fault. T-619 / BIN-101: the breaker
+	// counts CONSECUTIVE faults — one timeout leaves the window closed
+	// (count = 1) and externalizes the retrieval error; a SECOND timeout
+	// opens it (the as-built first-fault window was ruled the BUG).
+	if _, off := e.eng.offlineWindow("generic-remote", e.clk.Now()); off {
+		t.Fatal("assumed-offline window opened after a SINGLE transport fault (threshold is 2)")
 	}
 	msg := err.Error()
 	// T-597: the first-contact transport fault externalizes the retrieval
 	// error (path + upstream URL); the window's own offline family answers
-	// the requests that follow (the window check above).
+	// the requests that follow (the window check below).
 	if !strings.Contains(msg, "offline") && !strings.Contains(msg, "Failed to find") &&
 		!strings.Contains(msg, "Failed retrieving resource from") {
 		t.Fatalf("error %q is not the fault-downgrade family", msg)
+	}
+	// The second consecutive timeout is the window-opening boundary leg.
+	res2, err2 := e.eng.Fetch(context.Background(), "generic-remote", "slow.bin")
+	if res2 != nil {
+		t.Fatalf("expected no result on the second timeout, got %+v", res2)
+	}
+	if err2 == nil {
+		t.Fatal("second fetch against the stalled upstream unexpectedly succeeded")
+	}
+	if !strings.Contains(err2.Error(), "Failed retrieving resource from") {
+		t.Fatalf("window-opening fault %q is not the retrieval form", err2)
+	}
+	if _, off := e.eng.offlineWindow("generic-remote", e.clk.Now()); !off {
+		t.Fatal("assumed-offline window not opened after the second socket timeout")
 	}
 }
 

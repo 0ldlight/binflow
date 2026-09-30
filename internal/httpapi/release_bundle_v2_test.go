@@ -49,10 +49,10 @@ func TestV2BundleReadFaces(t *testing.T) {
 		{"received delete", http.MethodDelete, "v2/release_bundle/received/nosuchbundle/1.0", 404,
 			"Record not found, repository: release-bundles-v2-jfds, name: nosuchbundle, version: 1.0"},
 		// p13 + the family catch-all: unrouted subpaths answer "Not Found".
-		{"bare records", http.MethodGet, "v2/release_bundle/records", 404, `"message": "Not Found"`},
-		{"unknown subpath", http.MethodGet, "v2/release_bundle/bogus", 404, `"message": "Not Found"`},
-		{"deep tail", http.MethodGet, "v2/release_bundle/records/a/b/c", 404, `"message": "Not Found"`},
-		{"statuses bare", http.MethodGet, "v2/release_bundle/statuses", 404, `"message": "Not Found"`},
+		{"bare records", http.MethodGet, "v2/release_bundle/records", 404, `"message" : "Not Found"`},
+		{"unknown subpath", http.MethodGet, "v2/release_bundle/bogus", 404, `"message" : "Not Found"`},
+		{"deep tail", http.MethodGet, "v2/release_bundle/records/a/b/c", 404, `"message" : "Not Found"`},
+		{"statuses bare", http.MethodGet, "v2/release_bundle/statuses", 404, `"message" : "Not Found"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

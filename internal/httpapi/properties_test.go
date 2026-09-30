@@ -446,7 +446,7 @@ func TestStoragePropertiesRoutePosture(t *testing.T) {
 	// /api/metadata).
 	resp := h.do(http.MethodPost, "/binflow/api/storage/generic-local/route/app.bin?properties=k=v", adminUser, adminPass, nil, nil)
 	defer drain(resp)
-	if resp.StatusCode != http.StatusMethodNotAllowed || !strings.Contains(mustGet(t, resp), `"message": "Method Not Allowed"`) {
+	if resp.StatusCode != http.StatusMethodNotAllowed || !strings.Contains(mustGet(t, resp), `"message" : "Method Not Allowed"`) {
 		t.Fatalf("POST status = %d body = %s, want the verbatim 405 envelope", resp.StatusCode, mustGet(t, resp))
 	}
 	xml := h.do(http.MethodGet, "/binflow/api/storage/generic-local/route/app.bin?propertiesXml", adminUser, adminPass, nil, nil)

@@ -207,7 +207,7 @@ func (h *Handler) serveRemoteExternal(ctx context.Context, w http.ResponseWriter
 	if plane, ok := h.svc.(repo.RemoteExternalPlane); ok {
 		rc, node, ferr := plane.FetchExternal(ctx, p, repoKey, rel, target)
 		if ferr != nil {
-			h.writeExternalError(w, ferr, repoKey, target)
+			h.writeExternalError(w, r, ferr, repoKey, target)
 			return
 		}
 		w.Header().Set(hdrUpstream, target)
@@ -233,7 +233,7 @@ const hdrUpstream = "X-Binflow-Upstream"
 // writeExternalError maps one seam failure onto the _external face: the
 // unfound family keeps the face's own 404 wording, everything else (the
 // SSRF 400 family, the 502 body-cap arm) renders verbatim.
-func (h *Handler) writeExternalError(w http.ResponseWriter, err error, repoKey, target string) {
+func (h *Handler) writeExternalError(w http.ResponseWriter, r *http.Request, err error, repoKey, target string) {
 	var se *repo.StatusError
 	if errors.As(err, &se) {
 		if errors.Is(err, repo.ErrNodeNotFound) {
@@ -249,7 +249,7 @@ func (h *Handler) writeExternalError(w http.ResponseWriter, err error, repoKey, 
 		writeText(w, se.Code, se.Message)
 		return
 	}
-	h.writeError(w, err, repoKey, target)
+	h.writeError(w, r, err, repoKey, target)
 }
 
 // serveRemoteTransitive answers GET _transitive/<protocol>/<url...> on a
@@ -261,7 +261,7 @@ func (h *Handler) serveRemoteTransitive(ctx context.Context, w http.ResponseWrit
 	fetchPath := transitiveFetchPath(rel)
 	rc, node, err := h.svc.Get(ctx, p, repoKey, fetchPath)
 	if err != nil {
-		h.writeError(w, err, repoKey, fetchPath)
+		h.writeError(w, r, err, repoKey, fetchPath)
 		return
 	}
 	h.serveNode(ctx, w, r, node, rc, nodeCType(node))

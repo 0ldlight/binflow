@@ -42,6 +42,13 @@
 
 virtual 面 `index.yaml` 只能从**仓根**请求：子路径请求 index.yaml → 404（`The index file is being requested from an unsupported location...`）。高（代码显式断言）。
 
+> **Erratum（2026-09-30，T-629 / BIN-114 live 证据收口后）**——勘误对象：本节面表首行（L31）「GET `index.yaml` … 错误响应 **404**」中 **local 仓 never-populated（建仓后从未生成索引）** 场景的 404 钉述。该钉述被活体 A 双票四轮直接证伪（原文保留，以本块为准）。修正后行为（A=7.161.26 Enterprise+ 活体，192.168.120.38:8082）：
+>
+> - 当客户端对**从未有过任何条目的 local Helm 仓** GET `index.yaml`（双拼写面同形：`/api/helm/<repoKey>/index.yaml` 与内容路径 `<repoKey>/index.yaml`）→ 服务端**不返回 404**，返回 **200 空 entries index**：体 = `apiVersion: v1\nentries: {}\ngenerated: <时间戳>\n`，`generated` 为**未加引号**的纳秒精度 RFC3339 时间戳（小数秒按 3 位一组截断、仅以 0/3/6/9 位出现——与 JDK 公开 `Instant.toString` 语义同形；实测均见 9 位形，CL 69B，宽度随瞬时纳秒在 {59,63,66,69} 摆动）。【高：锚=reports/agents/T-625.md 族三段 + /tmp/t625/raw/f3-probe-a-r{1,2}.json（双轮 × 双拼写全 200/69B/未引号纳秒戳）+ reports/agents/T-627.md + /tmp/t627/raw/f3-probe-a-r{1,2}.json（差分双轮：A/B 各两轮 empty-*/postdel-* 8 腿 status 200=200、body 归一同形；diff-final.txt）】
+> - 伴随头集（A 实测）：CT=`text/plain`（**与 L31 成功响应列的 `text/yaml` 不同**——CT 归属独立头集/体形族，本块只钉 status/body，不裁 CT 族）；全 validator（Etag / x-checksum 三键 / Last-Modified / Accept-Ranges）+ `Cache-Control: no-store` + Content-Disposition（alias 面单参 `attachment; filename="index.yaml"`，内容路径面双参 filename*）+ `X-Artifactory-Filename: index.yaml`；HEAD 同路径 200 空体；同轮重复 GET **逐字节相同**（首获后服务端缓存复用，非逐请求再生）。【高：同上】
+> - 同族延伸行为：仓内 chart 全删后 GET `index.yaml` 收敛为**同一空 index 形**（新 `generated` 戳）——「删空态 200、never-populated 404」不是 A 的契约，A 语义 = **index 恒存在、可为空**；该语义是 `helm repo add`（客户端对新生仓的第一个操作）的前置依赖——index 404 时 repo 注册确定性失败（helm CLI v4.2.4 双轮双 cycle 实测：A rc=0 vs B 修复前 rc=1 `failed to fetch .../index.yaml : 404 Not Found`）。【高：T-625 族三 helmcli 腿 + T-627 差分双轮后 B 修复确认 rc=0】
+> - 范围与不外推：本块仅覆盖 **local 仓类**；remote 仓回源 index miss 面、virtual 仓（无成员/成员全空）聚合面**活体未测（NOT_RUN）**，L31 行对其余 miss 场景（local 仓曾有索引后被管理操作删除等）的 404 钉述未被本块证据触及，维持原文待后续活体裁订。此条补充公开规范：Helm 官方 Chart Repository Guide 只定义「chart 仓 = 能服务 index.yaml + tgz 的 HTTP 服务器」，未规定空仓 index 行为——本块为活体实证的服务端空白补充。BinFlow 实现已按活体优先落地（T-627，含未引号纳秒戳 3 组截断对齐）。
+
 ## 3. 存储布局（layout）
 
 ```

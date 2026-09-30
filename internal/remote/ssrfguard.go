@@ -11,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/lzwzzy/binflow/internal/redact"
 )
 
 // Rejection categories (NFR-S13 points 1 and 2): stable strings consumed by
@@ -226,7 +228,7 @@ func NewGuard(opts GuardOptions) *Guard {
 // redactor first — a caller may hand CheckURL a URL that legally embeds
 // credentials, and host-only targets pass through unchanged.
 func (g *Guard) reject(ctx context.Context, target, ip, category, phase string) error {
-	target = redactUserinfo(target)
+	target = redact.Userinfo(target)
 	attrs := []any{
 		slog.String("repo", g.repoKey),
 		slog.String("target", target),
@@ -259,7 +261,10 @@ func (g *Guard) CheckURL(ctx context.Context, rawURL string) error {
 	if err != nil {
 		// T-617: url.Parse's own error text quotes the full URL — both the
 		// rawURL echo and the wrapped cause must pass the redactor.
-		return errors.New("ssrf-guard: parse url: " + redactUserinfo(err.Error()))
+		// (A %w chain-wrap is deliberately abandoned here: the wrapped cause
+		// would carry the un-redacted parse error — whose text embeds the
+		// full URL — past this redaction point; R14 dual-review NB-4.)
+		return errors.New("ssrf-guard: parse url: " + redact.Userinfo(err.Error()))
 	}
 	if scheme := strings.ToLower(u.Scheme); scheme != "http" && scheme != "https" {
 		return g.reject(ctx, u.String(), "", CategoryScheme, "check")

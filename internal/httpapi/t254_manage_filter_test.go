@@ -32,8 +32,10 @@ import (
 //     single-trip, whatever the target count.
 
 // t254FrozenForbidden is the route gate's 403 body, byte for byte — the
-// same writeError rendering the empty-coverage arm must reproduce.
-const t254FrozenForbidden = "{\n  \"errors\": [\n    {\n      \"status\": 403,\n      \"message\": \"administrator privileges required\"\n    }\n  ]\n}\n"
+// same writeError rendering the empty-coverage arm must reproduce. The
+// layout is the reference's Jackson pretty form (T-615/T-620): space
+// before the colon, entry braces hugging the array, no trailing newline.
+const t254FrozenForbidden = "{\n  \"errors\" : [ {\n    \"status\" : 403,\n    \"message\" : \"administrator privileges required\"\n  } ]\n}"
 
 // t254Setup provisions the seed-m9 fixture shape at six-repository scale:
 //
