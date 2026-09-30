@@ -300,13 +300,70 @@ func (h *Handler) methodNotAllowed(w http.ResponseWriter, r *http.Request, allow
 }
 
 // serveIndex answers GET index.yaml: the stored repo-root node, text/yaml.
+// A NEVER-POPULATED local repository materializes the empty index on the
+// first fetch (BIN-111/T-627): the chart index always exists — empty
+// until the first chart lands — so `helm repo add` against a fresh
+// repository succeeds (the A-face lifecycle; repeat fetches then serve
+// the stored node, byte-stable).
 func (h *Handler) serveIndex(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey string) {
 	rc, node, err := h.svc.Get(ctx, p, repoKey, indexPath)
+	if errors.Is(err, repo.ErrNodeNotFound) || errors.Is(err, repo.ErrIsFolder) {
+		h.materializeEmptyIndex(ctx, w, r, p, repoKey)
+		return
+	}
 	if err != nil {
 		h.writeError(w, err, repoKey, indexPath)
 		return
 	}
 	h.serveNode(ctx, w, r, node, rc, "text/yaml")
+}
+
+// materializeEmptyIndex answers the never-populated repository's index
+// fetch: under the repository's index lock the node is re-checked (a
+// racing chart PUT owns the document — its populated write wins) and the
+// empty A-form index is stored, then served through the standard node
+// path. When the store refuses the landing (a read-only principal, a
+// full volume) the response degrades to the synthesized body — the
+// client sees the empty index either way; only repeat-fetch byte
+// stability is lost, and the refusal rides the server log.
+func (h *Handler) materializeEmptyIndex(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey string) {
+	err := h.withIndexLock(repoKey, func() error {
+		doc, rErr := h.readStoredIndex(ctx, p, repoKey)
+		if rErr != nil {
+			return rErr
+		}
+		if len(doc.entries) > 0 {
+			return nil // a racing PUT landed a populated index; keep it
+		}
+		return h.writeStoredIndex(ctx, p, repoKey, doc.render(h.now()))
+	})
+	rc, node, gErr := h.svc.Get(ctx, p, repoKey, indexPath)
+	if gErr == nil {
+		h.serveNode(ctx, w, r, node, rc, "text/yaml")
+		return
+	}
+	cause := err
+	if cause == nil {
+		cause = gErr
+	}
+	// A permission refusal is the expected read-only posture (the fetcher
+	// may read the index but not land nodes) — debug, not operator noise;
+	// every other failure is a real store fault.
+	if errors.Is(cause, repo.ErrForbidden) || errors.Is(cause, repo.ErrUnauthorized) {
+		slog.DebugContext(ctx, "helm: empty index served unpersisted (fetcher cannot write)",
+			slog.String("repo", repoKey))
+	} else {
+		slog.WarnContext(ctx, "helm: empty index served unpersisted (materialization refused)",
+			slog.String("repo", repoKey), slog.String("error", cause.Error()))
+	}
+	body := (&indexDoc{}).render(h.now())
+	hdr := w.Header()
+	hdr.Set("Content-Type", "text/yaml")
+	hdr.Set("Content-Length", strconv.Itoa(len(body)))
+	w.WriteHeader(http.StatusOK)
+	if r.Method != http.MethodHead {
+		_, _ = w.Write(body) //nolint:gosec // G705: server-rendered text, never client bytes
+	}
 }
 
 // serveStoredFile streams a stored node with the pinned content type.

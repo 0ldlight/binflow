@@ -197,6 +197,18 @@ func (d *indexDoc) render(now time.Time) []byte {
 		}
 		names = append(names, n)
 	}
+	// The EMPTY document is a fixed template pinned to the A face
+	// (BIN-111/T-627): `apiVersion: v1\nentries: {}\ngenerated: <UNQUOTED
+	// nanosecond stamp>\n` — Artifactory's Instant.toString shape, the
+	// exact bytes `helm repo add` fetches off a fresh repository.
+	// Hand-rendered: the encoder force-quotes a timestamp-looking !!str
+	// scalar (implicit resolution vs the declared tag), which is the
+	// populated document's quoted-seconds S4 contract — a separate
+	// compatibility family.
+	if len(names) == 0 {
+		return []byte("apiVersion: v1\nentries: {}\ngenerated: " +
+			aFaceStamp(now) + "\n")
+	}
 	sort.Strings(names)
 	for _, n := range names {
 		chartList := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
@@ -215,6 +227,27 @@ func (d *indexDoc) render(now time.Time) []byte {
 	}
 	_ = enc.Close()
 	return buf.Bytes()
+}
+
+// aFaceStamp renders t the way Artifactory's Instant.toString does
+// (BIN-111): UTC ISO-8601 with the fractional seconds truncated to whole
+// groups of three digits (3/6/9) and omitted at zero. A bare
+// time.RFC3339Nano trims SINGLE trailing zeros instead, so the rendered
+// byte width would wander (68/67/66B) where A's never does (69B at the
+// full 9 digits, 99.9% of instants).
+func aFaceStamp(t time.Time) string {
+	t = t.UTC()
+	base := t.Format("2006-01-02T15:04:05")
+	switch n := t.Nanosecond(); {
+	case n == 0:
+		return base + "Z"
+	case n%1_000_000 == 0:
+		return base + "." + fmt.Sprintf("%03d", n/1_000_000) + "Z"
+	case n%1_000 == 0:
+		return base + "." + fmt.Sprintf("%06d", n/1_000) + "Z"
+	default:
+		return base + "." + fmt.Sprintf("%09d", n) + "Z"
+	}
 }
 
 // scalarNode builds one plain string scalar; the style forces
