@@ -443,7 +443,7 @@ func (h *Handler) serveClientChecksum(ctx context.Context, w http.ResponseWriter
 			measured = sums.md5
 		}
 		if measured != "" {
-			writeChecksumEcho(w, r, measured)
+			h.writeChecksumEcho(ctx, w, r, node, src, measured)
 			return
 		}
 		// A ledger gap degrades to the two-state miss below — the honest
@@ -457,7 +457,7 @@ func (h *Handler) serveClientChecksum(ctx context.Context, w http.ResponseWriter
 	// the one ruling that satisfies every probed leg. sha1/md5 keep the
 	// registered-echo-else-404 model.
 	if algo == "sha256" && node.Sha256 != "" {
-		writeChecksumEcho(w, r, node.Sha256)
+		h.writeChecksumEcho(ctx, w, r, node, src, node.Sha256)
 		return
 	}
 	value := clientChecksumValueOf(node, algo)
@@ -465,7 +465,7 @@ func (h *Handler) serveClientChecksum(ctx context.Context, w http.ResponseWriter
 		writeError(w, http.StatusNotFound, "Checksum not found for "+src)
 		return
 	}
-	writeChecksumEcho(w, r, value)
+	h.writeChecksumEcho(ctx, w, r, node, src, value)
 }
 
 // serveVirtualClientChecksum serves the terminal-checksum GET face on a
@@ -500,7 +500,7 @@ func (h *Handler) serveVirtualClientChecksum(ctx context.Context, w http.Respons
 	// digest — registered declaration included — and sha1/md5 keep the
 	// registered-echo-else-404 model.
 	if algo == "sha256" && node.Sha256 != "" {
-		writeChecksumEcho(w, r, node.Sha256)
+		h.writeChecksumEcho(ctx, w, r, node, src, node.Sha256)
 		return true
 	}
 	value := clientChecksumValueOf(node, algo)
@@ -508,7 +508,7 @@ func (h *Handler) serveVirtualClientChecksum(ctx context.Context, w http.Respons
 		writeError(w, http.StatusNotFound, "Checksum not found for "+src)
 		return true
 	}
-	writeChecksumEcho(w, r, value)
+	h.writeChecksumEcho(ctx, w, r, node, src, value)
 	return true
 }
 
@@ -550,7 +550,7 @@ func (h *Handler) serveRemoteChecksum(ctx context.Context, w http.ResponseWriter
 		measured = sums.md5
 	}
 	if measured != "" {
-		writeChecksumEcho(w, r, measured)
+		h.writeChecksumEcho(ctx, w, r, node, src, measured)
 		return
 	}
 	// A ledger gap degrades to the family's bare miss — the honest 404
@@ -560,11 +560,62 @@ func (h *Handler) serveRemoteChecksum(ctx context.Context, w http.ResponseWriter
 
 // writeChecksumEcho renders the client-checksum stored-value body: the
 // bare digest text with the family's content type (L037 Arm 1; the virtual
-// face's echo is byte-identical, L039 Arm 1b).
-func writeChecksumEcho(w http.ResponseWriter, r *http.Request, value string) {
+// face's echo is byte-identical, L039 Arm 1b) under the generic face's
+// VERB-CONDITIONAL header model (T-608 / BIN-90, absorbing R13's two
+// UNKNOWNs generic/sidecar-head-validator-set and
+// generic/sidecar-get-last-modified — T-598's g1 legs, live A 7.161.26
+// dual-round):
+//
+//   - GET renders the infra set ONLY — Content-Type, Content-Length and
+//     Last-Modified. No ETag, no X-Checksum-*, no Accept-Ranges, no
+//     disposition: nothing a client could validate the echoed bytes
+//     against; Last-Modified keeps a client's freshness negotiation.
+//   - HEAD renders the full validator set — Accept-Ranges, ETag and
+//     X-Checksum-{Md5,Sha1,Sha256} — plus the disposition pair, and every
+//     validator addresses the SOURCE artifact (the node): ETag is the
+//     unquoted source sha1 and the triple is the source's computed triple,
+//     the same rendering family the maven sidecar face pinned (T-598 /
+//     BIN-80, writeSidecarBody) — this is the generic plane's own code
+//     path, not that branch.
+//
+// The conditional gate follows the verb model: a GET serves no ETag, so an
+// If-None-Match never short-circuits; an If-Modified-Since still earns its
+// 304 off the rendered stamp.
+func (h *Handler) writeChecksumEcho(ctx context.Context, w http.ResponseWriter,
+	r *http.Request, node *metadata.Node, src, value string) {
 	hdr := w.Header()
 	hdr.Set("Content-Type", contentTypeChecksum)
 	hdr.Set("Content-Length", strconv.Itoa(len(value)))
+	lastMod := parseRFC3339(node.UpdatedAt)
+	if lastMod.IsZero() {
+		lastMod = parseRFC3339(node.CreatedAt)
+	}
+	if !lastMod.IsZero() {
+		hdr.Set("Last-Modified", lastMod.UTC().Format(http.TimeFormat))
+	}
+	etag := ""
+	if r.Method == http.MethodHead {
+		sums := h.digestsOf(ctx, node)
+		hdr.Set("Accept-Ranges", "bytes")
+		if sums.sha256 != "" {
+			hdr.Set(hdrChecksumSha256, sums.sha256)
+		}
+		if sums.sha1 != "" {
+			hdr.Set(hdrChecksumSha1, sums.sha1)
+			hdr.Set("ETag", sums.sha1) // unquoted source sha1, g1-head-sha1-set
+			etag = sums.sha1
+		}
+		if sums.md5 != "" {
+			hdr.Set(hdrChecksumMd5, sums.md5)
+		}
+		// The disposition pair addresses the SOURCE's base name — the live
+		// wire renders "src.bin", never "src.bin.sha1".
+		repo.SetDownloadDisposition(hdr, src)
+	}
+	if evalConditional(r, etag, lastMod) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 	if r.Method == http.MethodHead {
 		return
@@ -790,6 +841,11 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 	// the old model (or by another adapter's constants) re-render per the
 	// table exactly like fresh deploys.
 	hdr.Set("Content-Type", mimeByPath(relPath))
+	// The disposition pair (T-608 / BIN-90, T-601 §二's A model): sent on
+	// every artifact-body face — 200/206 with the body descriptors, kept on
+	// the 304 (net/http strips only CT/CL/TE there), removed by the 416's
+	// strip list. Single source in repo.SetDownloadDisposition.
+	repo.SetDownloadDisposition(hdr, relPath)
 
 	// Conditional requests first: a fresh store answers 304 with no body.
 	if evalConditional(r, sums.sha1, lastMod) {
@@ -805,9 +861,10 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 	rng, malformed, ignore := parser.parseRange(r.Header.Get("Range"))
 	switch {
 	case malformed:
-		hdr.Set("Content-Range", "bytes */"+strconv.FormatInt(node.Size, 10))
-		hdr.Del("Content-Length") // an unsatisfiable range has no body length
-		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+		// The bare set (T-608 / BIN-90, T-601 §二's gl-range-oob): the 416
+		// strips the body-descriptive family and answers Content-Range +
+		// Content-Length: 0 only.
+		repo.WriteRangeNotSatisfiable(w, node.Size)
 		return
 	case !ignore && rng.length() > 0:
 		if _, err := rc.Seek(rng.start, io.SeekStart); err != nil {
