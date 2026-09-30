@@ -254,6 +254,28 @@ func virtualDeploymentTarget(config string) string {
 	return ""
 }
 
+// checksumPolicySrvgen reports whether the repository's config blob spells
+// the server-generated-checksums policy (BIN-66 / T-584, L039 Arm 6 + the
+// generic srvgen probe): under it the reference decouples RECORDING from
+// VERIFYING — a terminal-checksum PUT still registers the declared value in
+// originalChecksums but skips the mismatch comparison (201), and the GET
+// face serves the computed digest whatever was declared. Absent, unparseable
+// or unknown spellings read as the client-checksums default (the
+// virtualDeploymentTarget tolerance convention).
+func (h *Handler) checksumPolicySrvgen(ctx context.Context, repoKey string) bool {
+	row, err := h.class.Get(ctx, repoKey)
+	if err != nil {
+		return false
+	}
+	var probe struct {
+		ChecksumPolicyType string `json:"checksumPolicyType"`
+	}
+	if err := json.Unmarshal([]byte(row.Config), &probe); err != nil {
+		return false
+	}
+	return strings.TrimSpace(probe.ChecksumPolicyType) == "server-generated-checksums"
+}
+
 // clientChecksumSeam resolves the service's client-checksum persistence
 // capability; nil when the assembled service predates the seam (a bare test
 // double — every real assembly wires the concrete service).
@@ -336,22 +358,26 @@ func (h *Handler) putClientChecksum(ctx context.Context, w http.ResponseWriter,
 	}
 
 	// The comparison renders the outcome against the server-measured triple
-	// (generic has no policy configuration face — L037 Arm 1's live 409 is
-	// this domain's own gate, ADR-0052 decision 6.3).
-	sums := h.digestsOf(ctx, node)
-	var measured string
-	switch algo {
-	case "sha256":
-		measured = sums.sha256
-	case "sha1":
-		measured = sums.sha1
-	case "md5":
-		measured = sums.md5
-	}
-	if measured != "" && declared != measured {
-		writeError(w, http.StatusConflict, fmt.Sprintf(
-			"Checksum error for '%s': received '%s' but actual is '%s'", relPath, declared, measured))
-		return true
+	// and is the POLICY gate (generic's own domain gate, ADR-0052 decision
+	// 6.3; BIN-66 / T-584: under server-generated-checksums the reference
+	// skips it — the wrong-value PUT renders the same 201 Location-to-source
+	// while the registration above still records the declared value).
+	if !h.checksumPolicySrvgen(ctx, repoKey) {
+		sums := h.digestsOf(ctx, node)
+		var measured string
+		switch algo {
+		case "sha256":
+			measured = sums.sha256
+		case "sha1":
+			measured = sums.sha1
+		case "md5":
+			measured = sums.md5
+		}
+		if measured != "" && declared != measured {
+			writeError(w, http.StatusConflict, fmt.Sprintf(
+				"Checksum error for '%s': received '%s' but actual is '%s'", relPath, declared, measured))
+			return true
+		}
 	}
 	// Success is a metadata write, not a file creation: 201 with an EMPTY
 	// body and Location addressing the SOURCE artifact (L037 Arm 1: CL=0,
@@ -369,8 +395,15 @@ func (h *Handler) putClientChecksum(ctx context.Context, w http.ResponseWriter,
 // form addressing the source, while a PRESENT source with no registered
 // value answers the bare `Checksum not found for <src>` — no repo prefix,
 // no Path structure. GET and HEAD render the same face.
+//
+// Under the server-generated-checksums policy the face answers the COMPUTED
+// digest, registered or not (BIN-66 / T-584, the A probe: a
+// registered-but-wrong .md5 and a never-registered .sha1 both answer the
+// computed value — the stored client declaration surfaces only in
+// originalChecksums).
 func (h *Handler) serveClientChecksum(ctx context.Context, w http.ResponseWriter,
 	r *http.Request, p *repo.Principal, repoKey, src, algo string) {
+	srvgen := h.checksumPolicySrvgen(ctx, repoKey)
 	rc, node, err := h.svc.Get(ctx, p, repoKey, src)
 	if err != nil {
 		if errors.Is(err, repo.ErrNodeNotFound) || errors.Is(err, repo.ErrIsFolder) {
@@ -382,6 +415,24 @@ func (h *Handler) serveClientChecksum(ctx context.Context, w http.ResponseWriter
 	}
 	defer rc.Close() //nolint:errcheck // read-only fd; the value comes from the node row
 
+	if srvgen {
+		sums := h.digestsOf(ctx, node)
+		var measured string
+		switch algo {
+		case "sha256":
+			measured = sums.sha256
+		case "sha1":
+			measured = sums.sha1
+		case "md5":
+			measured = sums.md5
+		}
+		if measured != "" {
+			writeChecksumEcho(w, r, measured)
+			return
+		}
+		// A ledger gap degrades to the two-state miss below — the honest
+		// 404 beats a fabricated value.
+	}
 	value := clientChecksumValueOf(node, algo)
 	if value == "" {
 		writeError(w, http.StatusNotFound, "Checksum not found for "+src)

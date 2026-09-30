@@ -23,8 +23,9 @@ func targetMissingMsg(repoKey, src string) string {
 
 // TestChecksumPutSourceMissingWording pins the miss arm's exact wording on
 // GAV-legitimate paths: {.sha1,.md5,.sha256} answer the checksum family's
-// own 404; .sha512 keeps the pre-T-574 shape (outside the family, its A
-// form unprobed — not guessed).
+// own 404; .sha512 is an ORDINARY file deploy since BIN-66 / T-584 (L039
+// Arm 4: the reference accepts it as a plain storage item, missing source
+// and all — GAV and non-GAV spellings alike).
 func TestChecksumPutSourceMissingWording(t *testing.T) {
 	hs := newHarness(t)
 	gav := "com/diff/t574/1.0.0/t574-1.0.0.pom"
@@ -38,22 +39,30 @@ func TestChecksumPutSourceMissingWording(t *testing.T) {
 		}
 	}
 
-	// .sha512: outside the interception family — legacy miss shape stays.
-	resp := hs.serve(http.MethodPut, "/maven-local/"+gav+".sha512", []byte(strings.Repeat("f", 128)), nil, true)
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("PUT %s.sha512 = %d, want 404", gav, resp.StatusCode)
+	// .sha512: an ordinary file deploy even with the source pom missing —
+	// the 201 envelope's Location addresses the .sha512 path itself and the
+	// GET serves the deployed bytes (no sidecar semantics at all).
+	h512 := strings.Repeat("f", 128)
+	resp := hs.serve(http.MethodPut, "/maven-local/"+gav+".sha512", []byte(h512), nil, true)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("PUT %s.sha512 = %d, want 201 ordinary deploy (body=%s)",
+			gav, resp.StatusCode, drain(t, resp))
 	}
-	if got := string(drain(t, resp)); !strings.Contains(got,
-		"Could not locate artifact. Path: 'maven-local/"+gav+"'.") {
-		t.Fatalf(".sha512 miss body = %s, want the pre-T-574 wording", got)
+	if loc := resp.Header.Get("Location"); !strings.HasSuffix(loc, "/"+gav+".sha512") {
+		t.Fatalf(".sha512 deploy Location = %q, want the file path itself", loc)
+	}
+	if got := string(drain(t, hs.serve(http.MethodGet, "/maven-local/"+gav+".sha512", nil, nil, true))); got != h512 {
+		t.Fatalf("GET %s.sha512 = %q, want the deployed bytes", gav, got)
 	}
 }
 
 // TestChecksumPutRoutingBeforeLayout pins the routing order: terminal
 // {.sha1,.md5,.sha256} outranks the layout gate, so an un-GAV-able tail
 // with a missing source answers the checksum family's 404 — never the 400
-// layout refusal (L037 Arm 1: A's suffix routing runs first). Non-family
-// tails (.sha512/.asc/.sha1.bak) keep the layout refusal.
+// layout refusal (L037 Arm 1: A's suffix routing runs first). A terminal
+// .sha512 on an un-GAV-able path deploys as an ORDINARY file (BIN-66 /
+// T-584, whitelist #8's non-GAV leg); the remaining non-family tails keep
+// the layout refusal.
 func TestChecksumPutRoutingBeforeLayout(t *testing.T) {
 	hs := newHarness(t)
 	for _, tc := range []struct {
@@ -76,8 +85,31 @@ func TestChecksumPutRoutingBeforeLayout(t *testing.T) {
 		}
 	}
 
-	// Non-family tails on un-GAV-able paths keep the 400 layout refusal.
-	for _, path := range []string{"foo/bar.txt.sha512", "foo/bar.txt.asc", "foo/bar.txt.sha1.bak"} {
+	// Terminal .sha512 on an un-GAV-able path: ordinary file — 201
+	// envelope, Location the file path itself, bytes served back, DELETE
+	// 204 and the honest miss after (the A corner probe: 201/200/204/404).
+	h512 := strings.Repeat("f", 128)
+	resp := hs.serve(http.MethodPut, "/maven-local/foo/bar.txt.sha512", []byte(h512), nil, true)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("PUT foo/bar.txt.sha512 = %d, want 201 ordinary deploy (body=%s)",
+			resp.StatusCode, drain(t, resp))
+	}
+	if loc := resp.Header.Get("Location"); !strings.HasSuffix(loc, "/foo/bar.txt.sha512") {
+		t.Fatalf(".sha512 Location = %q, want the file path itself", loc)
+	}
+	if got := string(drain(t, hs.serve(http.MethodGet, "/maven-local/foo/bar.txt.sha512", nil, nil, true))); got != h512 {
+		t.Fatalf("GET foo/bar.txt.sha512 = %q, want the deployed bytes", got)
+	}
+	if resp := hs.serve(http.MethodDelete, "/maven-local/foo/bar.txt.sha512", nil, nil, true); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("DELETE foo/bar.txt.sha512 = %d, want 204", resp.StatusCode)
+	}
+	if resp := hs.serve(http.MethodGet, "/maven-local/foo/bar.txt.sha512", nil, nil, true); resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET after DELETE = %d, want 404", resp.StatusCode)
+	}
+
+	// Other non-family tails on un-GAV-able paths keep the 400 layout
+	// refusal.
+	for _, path := range []string{"foo/bar.txt.asc", "foo/bar.txt.sha1.bak"} {
 		resp := hs.serve(http.MethodPut, "/maven-local/"+path, []byte("x"), nil, true)
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Fatalf("PUT %s = %d, want 400 layout refusal (outside the family)", path, resp.StatusCode)

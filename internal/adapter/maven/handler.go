@@ -79,6 +79,27 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	l, err := Parse(relPath)
 	if err != nil {
+		// BIN-66 / T-584 (L039 Arm 4 + the whitelist #8 and non-GAV corner
+		// probes): a terminal .sha512 path is an ORDINARY file the layout
+		// gate never adjudicates — the GAV spelling parses as a plain
+		// artifact below (its extension is sha512); this arm carries the
+		// un-GAV-able spelling through the same verbs any stored file
+		// answers (PUT deploys it, GET/HEAD/DELETE address the stored
+		// item — A: 201/200-bytes/204/404-after-delete). The suffix match
+		// is the family's own lowercase-exact convention (case folding is
+		// the open maven successor face, T-583 Risks).
+		if file, ok := terminalSha512File(relPath); ok {
+			switch r.Method {
+			case http.MethodPut:
+				ctx := adapter.WithDeployProps(r.Context(), props)
+				h.putSha512ChecksumFile(ctx, w, r, adapter.PrincipalFrom(ctx), repoKey, relPath)
+				return
+			case http.MethodGet, http.MethodHead, http.MethodDelete:
+				l, err = Layout{Kind: KindArtifact, File: file}, nil
+			}
+		}
+	}
+	if err != nil {
 		// T-562 (BIN-44, contract maven/non-snapshot-spelling-get-gate-404,
 		// the L035 t8 live finding): a GET/HEAD of a file name the layout
 		// cannot parse is a routing-layer honest miss on the reference —
@@ -236,11 +257,17 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 		// a LOCAL repository's ARTIFACT sidecar echoes the stored client
 		// declaration first, the computed digest only as fallback — the
 		// PUT face registered the value above, wrong values included
-		// (L037 Arm 1's 409 write-through leg). Metadata targets (the
-		// derived-document contract owns their digests) and the non-local
-		// planes keep the computed answer.
+		// (L037 Arm 1's 409 write-through leg). Under the
+		// server-generated-checksums policy the overlay stays OFF (BIN-66 /
+		// T-584, L039 Arm 6): the registration happens there too, but the
+		// reference's GET face keeps serving the COMPUTED digest whatever
+		// was declared — the stored client value surfaces only in
+		// originalChecksums. Metadata targets (the derived-document contract
+		// owns their digests) and the non-local planes keep the computed
+		// answer.
 		h.serveSidecar(ctx, w, r, p, repoKey, relPath, l,
-			rowType == repo.TypeLocal && l.TargetKind == KindArtifact)
+			rowType == repo.TypeLocal && l.TargetKind == KindArtifact &&
+				rowCfg.ChecksumPolicy != ChecksumPolicyServerGenerated)
 		return
 	}
 	h.serveFile(ctx, w, r, p, repoKey, relPath)
