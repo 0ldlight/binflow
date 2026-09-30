@@ -275,11 +275,13 @@ func TestVirtualPlainWalkCrossMemberMtime(t *testing.T) {
 }
 
 // TestPlainSnapshotWalkSha512SidecarGate is the R7 dual-review blocking
-// fix's regression arm: the .sha512 sidecar walk leg must fall to the
-// gate's 404 on BOTH planes — the gate sits on the shared
-// writeSidecarDigest exit, so the walk legs can no longer reach the
-// digest lookup's 500 ledger-gap face (the derived-sidecar contract's
-// pinned arm, L032).
+// fix's regression arm: the .sha512 sidecar walk leg must answer 404 on
+// BOTH planes, never a 500 ledger gap. Since BIN-66 / T-584 a terminal
+// .sha512 path parses as an ORDINARY artifact file (checksumSuffixes
+// carries only sha256/sha1/md5), so the 404 is the ordinary transfer
+// plane's own miss — the writeSidecarDigest sha512 gate that used to pin
+// this observable was deleted as unreachable (Review B NB-③, T-587), and
+// this test keeps the wire contract standing.
 func TestPlainSnapshotWalkSha512SidecarGate(t *testing.T) {
 	hs := newHarness(t)
 	ctx := context.Background()

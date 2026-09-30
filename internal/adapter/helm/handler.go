@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -455,27 +454,15 @@ func (h *Handler) serveUploadChart(ctx context.Context, w http.ResponseWriter, r
 
 // virtualWriteTarget resolves a virtual repository's write route off its
 // config blob (the tolerant probe of the service's own virtualRouteTarget
-// — the three Artifactory spellings; a hand-mangled blob answers "" and
-// the service's C5 405 renders).
+// — the three Artifactory spellings, single-sourced in the adapter base
+// since T-590; a hand-mangled blob answers "" and the service's C5 405
+// renders).
 func (h *Handler) virtualWriteTarget(ctx context.Context, repoKey string) string {
 	row, err := h.repos.Get(ctx, repoKey)
 	if err != nil {
 		return ""
 	}
-	var probe struct {
-		DefaultDeploymentRepo    string `json:"defaultDeploymentRepo"`
-		DefaultDeploymentRepoRef string `json:"defaultDeploymentRepoRef"`
-		DeploymentRepository     string `json:"deploymentRepository"`
-	}
-	if err := json.Unmarshal([]byte(row.Config), &probe); err != nil {
-		return ""
-	}
-	for _, alias := range []string{probe.DefaultDeploymentRepo, probe.DefaultDeploymentRepoRef, probe.DeploymentRepository} {
-		if alias != "" {
-			return alias
-		}
-	}
-	return ""
+	return adapter.VirtualDeploymentTarget(row.Config)
 }
 
 // serveDeleteChart is the DELETE chain: the node's chart.* identity first

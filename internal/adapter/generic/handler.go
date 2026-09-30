@@ -166,7 +166,7 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 		h.writeServiceError(w, err, r.Method, repoKey, relPath)
 		return
 	}
-	h.writeCreated(w, r, repoKey, relPath, node, uploadContext{declared: declaredSet(expect)})
+	h.writeCreated(w, r, repoKey, relPath, node)
 }
 
 // terminalChecksumSuffixes is the client-checksum PUT interception family
@@ -231,27 +231,11 @@ func (h *Handler) clientChecksumPutPlane(ctx context.Context, repoKey string) (s
 	return "", false
 }
 
-// virtualDeploymentTarget is the tolerant write-route probe of a virtual
-// repository's config JSON (the generic-side restatement of repo's own
-// reader — adapter packages share no unexported code, the npm/cargo/conan
-// precedent): the primary spelling plus the two Artifactory aliases
-// raw-seeded rows may carry. A config that fails the strict shape still
-// gets its truthful answer: no route.
+// virtualDeploymentTarget is the generic-side thin alias of the adapter
+// base's single-source write-route probe (T-590 hoist; the semantics and
+// their golden live in internal/adapter/deploytarget.go).
 func virtualDeploymentTarget(config string) string {
-	var probe struct {
-		DefaultDeploymentRepo    string `json:"defaultDeploymentRepo"`
-		DefaultDeploymentRepoRef string `json:"defaultDeploymentRepoRef"`
-		DeploymentRepository     string `json:"deploymentRepository"`
-	}
-	if err := json.Unmarshal([]byte(config), &probe); err != nil {
-		return ""
-	}
-	for _, alias := range []string{probe.DefaultDeploymentRepo, probe.DefaultDeploymentRepoRef, probe.DeploymentRepository} {
-		if alias != "" {
-			return alias
-		}
-	}
-	return ""
+	return adapter.VirtualDeploymentTarget(config)
 }
 
 // checksumPolicySrvgen reports whether the repository's config blob spells
@@ -286,13 +270,13 @@ func (h *Handler) clientChecksumSeam() repo.ClientChecksumWriter {
 
 // clientChecksumValueOf projects one algorithm's overlay value for the
 // client-checksum GET face: the stored client declaration when present,
-// nothing otherwise — generic's fallback posture is 404, NOT the computed
-// digest (Arm 5's addendum: no on-demand generation for an unset checksum),
-// which is exactly what passing an empty server triple to the shared
-// overlay helper expresses (ADR-0052 decision 4: the mechanism is the
-// single-source helper, the fallback posture stays protocol-owned).
+// nothing otherwise — the helper itself stays a REGISTERED-ONLY projection
+// (empty server sha256 in, ADR-0052 decision 4: the mechanism is the
+// single-source helper, the fallback posture stays protocol-owned). Since
+// T-593 the callers own the fallback arms: sha256's primary-digest on-demand
+// echo and md5/sha1's bare 404 family (R12's C2 ruling, L040 N3).
 func clientChecksumValueOf(node *metadata.Node, algo string) string {
-	o256, o1, o5 := repo.OriginalChecksums(node, "", "", "")
+	o256, o1, o5 := repo.OriginalChecksums(node, "")
 	switch algo {
 	case "sha256":
 		return o256
@@ -302,6 +286,18 @@ func clientChecksumValueOf(node *metadata.Node, algo string) string {
 		return o5
 	}
 	return ""
+}
+
+// maxSidecarBytes is the checksum-file body ceiling on the client-checksum
+// plane (BIN-70 / T-588, L040 Arm 3's 1024/1025 boundary legs — inclusive:
+// 1024 passes into the comparison, 1025 is refused). The maven face keeps
+// the same ceiling and wording (put.go maxSidecarBytes).
+const maxSidecarBytes = 1024
+
+// suspiciousSidecarMessage renders the refusal wording verbatim (N = the
+// exact body length in bytes).
+func suspiciousSidecarMessage(n int64) string {
+	return fmt.Sprintf("Suspicious checksum file, content length of %d bytes is bigger than allowed.", n)
 }
 
 // putClientChecksum serves the terminal-checksum PUT on the resolved
@@ -314,6 +310,17 @@ func clientChecksumValueOf(node *metadata.Node, algo string) string {
 // posture the T-574 interception kept.
 func (h *Handler) putClientChecksum(ctx context.Context, w http.ResponseWriter,
 	r *http.Request, p *repo.Principal, repoKey, relPath, src, algo string) bool {
+	// Suspicious-size guard first (BIN-70 / T-588, L040 Arm 3 N5: the
+	// sz-*/szb-* legs pinned the ceiling at 1024 bytes INCLUSIVE and the
+	// verbatim refusal — the maven face runs the same seam and wording,
+	// put.go maxSidecarBytes): a declared Content-Length beyond the
+	// ceiling answers 409 without reading the body; an oversized chunked
+	// body is caught at a bounded read (at most 1025 bytes in memory,
+	// never the unbounded ReadAll the ledger's B-side recorded).
+	if r.ContentLength > maxSidecarBytes {
+		writeError(w, http.StatusConflict, suspiciousSidecarMessage(r.ContentLength))
+		return true
+	}
 	rc, node, err := h.svc.Get(ctx, p, repoKey, src)
 	if err != nil {
 		if !errors.Is(err, repo.ErrNodeNotFound) && !errors.Is(err, repo.ErrIsFolder) {
@@ -326,9 +333,13 @@ func (h *Handler) putClientChecksum(ctx context.Context, w http.ResponseWriter,
 	}
 	_ = rc.Close() //nolint:errcheck // read-only probe; only the node facts are needed
 
-	raw, rerr := io.ReadAll(r.Body)
+	raw, rerr := io.ReadAll(io.LimitReader(r.Body, maxSidecarBytes+1))
 	if rerr != nil {
 		writeError(w, http.StatusBadRequest, "read checksum body: "+rerr.Error())
+		return true
+	}
+	if int64(len(raw)) > maxSidecarBytes {
+		writeError(w, http.StatusConflict, suspiciousSidecarMessage(int64(len(raw))))
 		return true
 	}
 	declared := strings.TrimSpace(string(raw)) // trailing whitespace tolerated, the maven family's rule
@@ -388,19 +399,24 @@ func (h *Handler) putClientChecksum(ctx context.Context, w http.ResponseWriter,
 }
 
 // serveClientChecksum serves the terminal-checksum GET on a LOCAL
-// repository: the STORED client value, or the family's 404 when none was
-// registered (Arm 5's addendum — the face never generates on demand). The
-// miss wording is TWO-STATE (T-583 / BIN-65, L039 Arm 8's P8 refinement):
-// a missing source answers the colon-separated "File not found." family
-// form addressing the source, while a PRESENT source with no registered
-// value answers the bare `Checksum not found for <src>` — no repo prefix,
-// no Path structure. GET and HEAD render the same face.
+// repository: the STORED client value, the sha256 PRIMARY digest, or the
+// family's 404 when neither exists. The miss wording is TWO-STATE
+// (T-583 / BIN-65, L039 Arm 8's P8 refinement): a missing source answers the
+// colon-separated "File not found." family form addressing the source, while
+// a PRESENT source with no servable value answers the bare `Checksum not
+// found for <src>` — no repo prefix, no Path structure. GET and HEAD render
+// the same face.
 //
-// Under the server-generated-checksums policy the face answers the COMPUTED
-// digest, registered or not (BIN-66 / T-584, the A probe: a
-// registered-but-wrong .md5 and a never-registered .sha1 both answer the
-// computed value — the stored client declaration surfaces only in
-// originalChecksums).
+// T-593 / BIN-75 (R12's C2 ruling, L040 N3 + L041 g1-get-sha256-unset): the
+// sha256 arm is the PRIMARY-digest face — the reference "computes" it by
+// table lookup (sha256 addressing, ADR-0006: the digest is measured at
+// ingest, so the node row already holds it) and serves it even over a
+// registered client declaration (the t593 differential's
+// l-sha256-registered leg: a wrong-value write-through registration does not
+// surface on the GET face). sha1/md5 keep the registered-echo-else-bare-404
+// model (9a). The srvgen policy arm keeps answering the computed digest for
+// every algorithm and keeps running FIRST (ADR-0052 decision 6: the guard
+// precedes the computation).
 func (h *Handler) serveClientChecksum(ctx context.Context, w http.ResponseWriter,
 	r *http.Request, p *repo.Principal, repoKey, src, algo string) {
 	srvgen := h.checksumPolicySrvgen(ctx, repoKey)
@@ -433,6 +449,17 @@ func (h *Handler) serveClientChecksum(ctx context.Context, w http.ResponseWriter
 		// A ledger gap degrades to the two-state miss below — the honest
 		// 404 beats a fabricated value.
 	}
+	// The sha256 face is the PRIMARY-digest face (T-593's differential legs
+	// l-/v-sha256-registered): the computed digest wins even over a
+	// REGISTERED client declaration — the reference echoes the table value
+	// on both planes after a wrong-value write-through registration. A
+	// correct registration is indistinguishable (same bytes), so this is
+	// the one ruling that satisfies every probed leg. sha1/md5 keep the
+	// registered-echo-else-404 model.
+	if algo == "sha256" && node.Sha256 != "" {
+		writeChecksumEcho(w, r, node.Sha256)
+		return
+	}
 	value := clientChecksumValueOf(node, algo)
 	if value == "" {
 		writeError(w, http.StatusNotFound, "Checksum not found for "+src)
@@ -441,27 +468,94 @@ func (h *Handler) serveClientChecksum(ctx context.Context, w http.ResponseWriter
 	writeChecksumEcho(w, r, value)
 }
 
-// serveVirtualClientChecksum serves the stored-value half of the
-// terminal-checksum GET face on a VIRTUAL plane (T-583 / BIN-65, L039
-// Arm 1b): the source resolves through the virtual read plane and a
-// STORED client value echoes byte-identically to the local face.
-// Everything else reports false so the ordinary chain keeps rendering —
-// the on-demand computation for unset algorithms and the
-// unresolvable-source wording are the C2 family's open faces and keep
-// today's behavior until their own ruling.
+// serveVirtualClientChecksum serves the terminal-checksum GET face on a
+// VIRTUAL plane: the source resolves through the virtual read plane
+// (T-583 / BIN-65, L039 Arm 1b) and the whole C2 model lands here with it
+// (T-593 / BIN-75, R12's ruling) — a STORED sha1/md5 client value echoes
+// byte-identically to the local face, the sha256 face answers the member
+// node's PRIMARY digest (registered declaration included — the same
+// computed-wins ruling as the local face, pinned by the t593 differential's
+// v-sha256-registered leg), an unset sha1/md5 answers the bare
+// `Checksum not found for <src>`, and an unresolvable source answers the
+// virtual face's own miss `Could not find resource; Path: '<virt>:<src>'`
+// (colon form, addressing the SOURCE — never the terminal-suffix path,
+// L039 Arm 1 / L040 N3). The face does not consult the srvgen policy: the
+// policy is a local-domain field silently dropped on virtual repositories
+// (L041 Arm 2), and the member's own policy was never probed — not guessed.
+// Only a non-miss error shape (auth, unknown repository) reports false so
+// the ordinary chain keeps rendering it.
 func (h *Handler) serveVirtualClientChecksum(ctx context.Context, w http.ResponseWriter,
 	r *http.Request, p *repo.Principal, repoKey, src, algo string) bool {
 	rc, node, err := h.svc.Get(ctx, p, repoKey, src)
 	if err != nil {
+		if errors.Is(err, repo.ErrNodeNotFound) || errors.Is(err, repo.ErrIsFolder) {
+			writeError(w, http.StatusNotFound,
+				fmt.Sprintf("Could not find resource; Path: '%s:%s'", repoKey, src))
+			return true
+		}
 		return false
 	}
 	_ = rc.Close() //nolint:errcheck // read-only probe; only the node facts are needed
+	// The same seam as the local face (T-593): sha256 answers the primary
+	// digest — registered declaration included — and sha1/md5 keep the
+	// registered-echo-else-404 model.
+	if algo == "sha256" && node.Sha256 != "" {
+		writeChecksumEcho(w, r, node.Sha256)
+		return true
+	}
 	value := clientChecksumValueOf(node, algo)
 	if value == "" {
-		return false
+		writeError(w, http.StatusNotFound, "Checksum not found for "+src)
+		return true
 	}
 	writeChecksumEcho(w, r, value)
 	return true
+}
+
+// serveRemoteChecksum serves the terminal-checksum GET on a REMOTE plane
+// (T-597 / BIN-79, ledger generic/remote-deploy-refusal-form arm d — the
+// a-priori 404 "Checksums are not downloadable." is retracted): the
+// suffix-stripped SOURCE rides the ordinary pull-through (svc.Get — the
+// engine's six-step chain, upstream fault externalization and assumed-offline
+// window included), and the landed copy answers its COMPUTED digest for
+// whichever algorithm was asked — the engine measures all three at ingest
+// (ADR-0006), so the local plane's registered-value/on-demand-matrix split
+// does not apply here. Live A anchors (7.161.26, /tmp/t597 probe): the
+// upstream-fault 404 cites the source path and the source's upstream URL —
+// never the terminal spelling, never a fixed refusal; the reachable-upstream
+// 200 form is live-unprobed (NOT_RUN) and follows the error form's source
+// resolution. GET and HEAD render the same face.
+func (h *Handler) serveRemoteChecksum(ctx context.Context, w http.ResponseWriter,
+	r *http.Request, p *repo.Principal, repoKey, src, algo string) {
+	rc, node, err := h.svc.Get(ctx, p, repoKey, src)
+	if err != nil {
+		if errors.Is(err, repo.ErrIsFolder) {
+			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, src))
+			return
+		}
+		// Unfound-family FetchErrors are *repo.StatusError and render
+		// verbatim — the wording already addresses the source.
+		h.writeServiceError(w, err, r.Method, repoKey, src)
+		return
+	}
+	defer rc.Close() //nolint:errcheck // read-only probe; the digest comes from the ledger
+	sums := h.digestsOf(ctx, node)
+	var measured string
+	switch algo {
+	case "sha256":
+		measured = sums.sha256
+	case "sha1":
+		measured = sums.sha1
+	case "md5":
+		measured = sums.md5
+	}
+	if measured != "" {
+		writeChecksumEcho(w, r, measured)
+		return
+	}
+	// A ledger gap degrades to the family's bare miss — the honest 404
+	// beats a fabricated value (same posture as the srvgen arm).
+	writeError(w, http.StatusNotFound, "Checksum not found for "+src)
 }
 
 // writeChecksumEcho renders the client-checksum stored-value body: the
@@ -524,7 +618,7 @@ func (h *Handler) handleChecksumDeploy(ctx context.Context, w http.ResponseWrite
 		h.writeServiceError(w, err, r.Method, repoKey, relPath)
 		return
 	}
-	h.writeCreated(w, r, repoKey, relPath, node, uploadContext{declared: declaredSet(ref)})
+	h.writeCreated(w, r, repoKey, relPath, node)
 }
 
 // declaredDigests parses the X-Checksum-* headers into a BlobRef. Malformed
@@ -558,31 +652,6 @@ func declaredDigests(hdr http.Header) (storage.BlobRef, error) {
 	return storage.BlobRef{Sha256: sha256, Sha1: sha1, Md5: md5}, nil
 }
 
-// declaredSet remembers which algorithms the client actually declared, so
-// originalChecksums echoes exactly those (repo-semantics section 5: the
-// policy only ever inspects algorithms the client supplied).
-func declaredSet(expect storage.BlobRef) map[string]bool {
-	m := map[string]bool{}
-	if expect.Sha256 != "" {
-		m["sha256"] = true
-	}
-	if expect.Sha1 != "" {
-		m["sha1"] = true
-	}
-	if expect.Md5 != "" {
-		m["md5"] = true
-	}
-	return m
-}
-
-// uploadContext marks that an ItemCreated body is being rendered for an
-// upload that just happened, carrying which algorithms the client declared.
-// A non-nil zero-algorithm context means "upload with no declared digests"
-// (originalChecksums renders empty, T-13 review m1); a nil context means
-// "no upload context at all" (downloads, storage-info renders), where the
-// stored triple is the best echo available.
-type uploadContext struct{ declared map[string]bool }
-
 // productPrefix is the instance context path every self-referential URL
 // carries: ADR-0008's single product namespace /binflow, the same wire
 // constant httpapi routes the content plane on (the adapter itself sees the
@@ -606,7 +675,7 @@ const productPrefix = "/binflow"
 // reference's envelope repo and self-referential URLs name the member.
 // node.RepoKey is that landed key, so LOCAL deploys (RepoKey == the
 // addressed key) render byte-identically to before.
-func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, relPath string, node *metadata.Node, up uploadContext) {
+func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, relPath string, node *metadata.Node) {
 	if node != nil && node.RepoKey != "" {
 		repoKey = node.RepoKey
 	}
@@ -617,7 +686,7 @@ func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, 
 	}
 	w.Header().Set("Content-Type", contentTypeFileInfo)
 	w.WriteHeader(http.StatusCreated)
-	body := h.itemInfo(requestBase(r), repoKey, relPath, node, sums, up)
+	body := h.itemInfo(requestBase(r), repoKey, relPath, node, sums)
 	writeJSON(w, body)
 }
 
@@ -636,21 +705,28 @@ func isFolderNode(n *metadata.Node) bool {
 // conditional requests (FR-4-AC14/AC15) are honored on both verbs: a HEAD
 // answers 206/304/416 exactly like a GET, minus the body.
 func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, relPath string) {
-	// Client-checksum GET face (T-578 / BIN-60, the read half of the seam):
-	// on a LOCAL repository a path TERMINATING in .sha1/.md5/.sha256
+	// Client-checksum GET face (T-578 / BIN-60, the read half of the seam;
+	// T-593 / BIN-75 completes the C2 model on both planes): on a LOCAL
+	// repository a path TERMINATING in .sha1/.md5/.sha256
 	// (case-insensitively) answers the STORED client value — the same
-	// triple the PUT arm routes on — and the family's two-state 404 when
-	// none was registered (Arm 5's addendum: the face never generates on
-	// demand; generic's posture has no computed fallback). On a VIRTUAL
-	// plane only the stored-value half serves here (T-583 / BIN-65): the
-	// echo resolves through the virtual read plane, and every miss keeps
-	// the ordinary chain's rendering (the on-demand face is the C2
-	// family's own ruling). Remote planes keep the ordinary chain.
+	// triple the PUT arm routes on — the node's sha256 primary digest on
+	// demand when none was registered, or the family's two-state 404 (the
+	// bare Checksum-not-found for an unset sha1/md5, the colon-form miss for
+	// an absent source). A VIRTUAL plane runs the same seam through its
+	// member-resolving read plane (the miss wording there is the virtual
+	// face's Could-not-find-resource family). A REMOTE plane back-sources
+	// the SOURCE through the ordinary pull-through and answers the landed
+	// copy's computed digest (T-597 / BIN-79 — the live reference's remote
+	// sidecar GET resolves the suffix-stripped source, never the terminal
+	// spelling).
 	if src, algo, ok := checksumPutSource(relPath); ok {
 		if row, rerr := h.class.Get(r.Context(), repoKey); rerr == nil {
 			switch row.Type {
 			case repo.TypeLocal:
 				h.serveClientChecksum(ctx, w, r, p, repoKey, src, algo)
+				return
+			case repo.TypeRemote:
+				h.serveRemoteChecksum(ctx, w, r, p, repoKey, src, algo)
 				return
 			case repo.TypeVirtual:
 				if h.serveVirtualClientChecksum(ctx, w, r, p, repoKey, src, algo) {

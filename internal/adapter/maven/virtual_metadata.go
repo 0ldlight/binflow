@@ -47,6 +47,7 @@ import (
 	"encoding/hex"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -86,7 +87,7 @@ func (h *Handler) serveVirtualMetadata(ctx context.Context, w http.ResponseWrite
 			return true
 		}
 		if len(docs) == 0 {
-			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
+			writeError(w, http.StatusNotFound, mavenMetadataNotFoundMessage(repoKey, relPath))
 			return true
 		}
 		body := renderVirtualMetadata(docs, l, r.UserAgent())
@@ -109,7 +110,11 @@ func (h *Handler) serveVirtualMetadata(ctx context.Context, w http.ResponseWrite
 			return true
 		}
 		if len(docs) == 0 {
-			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
+			// The merge family's own miss (T-595, live legs wp2-virt-*:
+			// `Maven metadata not found for '<src>'.; Path:` on A, the
+			// virtual-resolution section 5.1 miss row) — citing the SOURCE
+			// document, never the sidecar's suffix spelling.
+			writeError(w, http.StatusNotFound, mavenMetadataNotFoundMessage(repoKey, l.Target))
 			return true
 		}
 		body := renderVirtualMetadata(docs, l, r.UserAgent())
@@ -117,6 +122,13 @@ func (h *Handler) serveVirtualMetadata(ctx context.Context, w http.ResponseWrite
 		return true
 	}
 	return false
+}
+
+// mavenMetadataNotFoundMessage is the virtual metadata merge face's miss
+// wording (virtual-resolution section 5.1 "全 miss" row, high confidence;
+// live re-pinned T-595 on the sidecar legs, the "; Path:" fill included).
+func mavenMetadataNotFoundMessage(repoKey, src string) string {
+	return fmt.Sprintf("Maven metadata not found for '%s'.; Path: '%s:%s'", src, repoKey, src)
 }
 
 // memberFacet is this face's mirror of the four-bucket seam's Facet

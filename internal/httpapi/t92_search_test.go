@@ -137,8 +137,11 @@ func TestSearchArtifactW14(t *testing.T) {
 	if got.Checksums["sha1"] == "" || got.Checksums["md5"] == "" {
 		t.Fatalf("checksums must carry the ledger triple: %v", got.Checksums)
 	}
-	if len(got.OriginalChecksums) != len(got.Checksums) {
-		t.Fatalf("originalChecksums must mirror the stored triple: %v vs %v", got.OriginalChecksums, got.Checksums)
+	// The A keyset off this zero-declaration leg: {sha256} alone — the
+	// single source's permanent member (BIN-71 / T-589; the former
+	// full-triple mirror was the keyset-model BUG's search-plane face).
+	if len(got.OriginalChecksums) != 1 || got.OriginalChecksums["sha256"] != got.Checksums["sha256"] {
+		t.Fatalf("originalChecksums = %v, want {sha256: computed} alone; checksums=%v", got.OriginalChecksums, got.Checksums)
 	}
 
 	// The field set must agree with /api/storage's item info (E-09 reuse).

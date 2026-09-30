@@ -116,8 +116,10 @@ func TestVirtualRenderSeams(t *testing.T) {
 
 	// The checksum sidecar face carries the same resolution hint as its
 	// target (the computed body never streams, but the member question is
-	// the same one operators ask).
-	resp = hs.serve(http.MethodGet, "/mv-virt/"+localJar+".sha1", nil, nil, true)
+	// the same one operators ask). Requested at .sha256 — the on-demand
+	// matrix's only 200 arm on an unset value (BIN-76 / T-594; an unset
+	// .sha1 through the virtual answers the matrix's 404 instead).
+	resp = hs.serve(http.MethodGet, "/mv-virt/"+localJar+".sha256", nil, nil, true)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("virtual sidecar GET = %d (%s)", resp.StatusCode, drain(t, resp))
 	}

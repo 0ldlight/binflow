@@ -8,20 +8,29 @@ package httpapi_test
 // "Could not find a local repository named <requested-key> to deploy to."
 // with the REQUESTED key (suffix spelling intact) in the named slot. The
 // third leg is the §8.2 regression guard: an un-routed maven virtual keeps
-// the 405 + Allow: GET + fixed wording. The scoping legs pin the narrow
-// circle the fix was drawn into: generic-typed faces keep the shared
-// service gate's 405 read-only refusal and the standard unknown-repo 404,
-// and the anonymous challenge still precedes every refusal.
+// the 405 + Allow: GET + fixed wording.
+//
+// BIN-78/T-596 (R12 C7 a-arm): generic remotes joined the engine's 404
+// family (L040 N2 — A answers the same wording on generic remotes,
+// checksum-suffix paths included, the refusal ahead of any suffix
+// interpretation). The scope legs pin the narrow circle the ruling drew:
+// docker and cargo stay outside the unified wording domain (their own 405
+// / 400 read-only faces, pinned below and in their adapter packages), and
+// the anonymous challenge still precedes every refusal.
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/lzwzzy/binflow/internal/adapter/cargo"
 	"github.com/lzwzzy/binflow/internal/adapter/maven"
 	"github.com/lzwzzy/binflow/internal/httpapi"
+	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/repo"
 )
 
 // gavPom is the GAV-consistent pom body the L032 Arm 2 probe rode (the
@@ -30,14 +39,21 @@ import (
 const gavPom = `<?xml version="1.0" encoding="UTF-8"?>
 <project><groupId>com.diff</groupId><artifactId>wd</artifactId><version>1.0.0</version></project>`
 
-// newMavenWireStack mounts the REAL maven adapter beside the default two
-// (cmd's assembly spelling) so the legs address the same wire a real mvn
-// deploy would.
-func newMavenWireStack(t *testing.T) *harness {
+// newDeployWireStack mounts the REAL maven and cargo adapters beside the
+// default two (cmd's assembly spelling) so the legs address the same wire a
+// real client deploy would, and the cargo scope legs route through the
+// shared dispatch chain this file guards.
+func newDeployWireStack(t *testing.T) *harness {
 	t.Helper()
 	return newHarnessFull(t, nil, nil, nil, func(d *httpapi.Deps) {
+		// cargo.New (not cargo.Register): the global adapter registry is
+		// cmd assembly's single-call seam — a second Register panics on
+		// the duplicate protocol, and this helper mounts one stack per
+		// test. dispatchContent routes on Deps.Adapters alone.
 		d.Adapters = append(d.Adapters,
-			maven.New(d.ReposSvc, d.Metadata.Repos(), d.Metadata.Blobs(), d.Metadata.Nodes()))
+			maven.New(d.ReposSvc, d.Metadata.Repos(), d.Metadata.Blobs(), d.Metadata.Nodes()),
+			cargo.New(d.ReposSvc, d.Metadata.Repos(), d.Metadata.Blobs(), d.Metadata.NodeProps(),
+				cargo.Options{BaseURL: d.Config.Server.BaseURL, AnonymousAccess: d.Config.Security.AnonymousAccess}))
 	}, nil)
 }
 
@@ -64,10 +80,11 @@ func errorEnvelopeMessage(t *testing.T, resp *http.Response) string {
 	return env.Errors[0].Message
 }
 
-// TestDeployRefusalFamilyMavenWire is the three live-confirmed legs of
-// L032 Arm 2, asserted verbatim, plus the scoping legs.
-func TestDeployRefusalFamilyMavenWire(t *testing.T) {
-	h := newMavenWireStack(t)
+// TestDeployRefusalFamilyWire is the three live-confirmed legs of L032
+// Arm 2 plus the generic legs of L040 N2, asserted verbatim, plus the
+// scoping legs.
+func TestDeployRefusalFamilyWire(t *testing.T) {
+	h := newDeployWireStack(t)
 	// Order matters: t553-virt's member reference is validated at create
 	// time, so t553-mloc must exist first. A map range would randomize the
 	// order (BIN-39: main CI run 36508756551 drew virt first and the
@@ -102,9 +119,12 @@ func TestDeployRefusalFamilyMavenWire(t *testing.T) {
 		{"virtual regression leg: un-routed 405 keeps Allow: GET and the fixed wording",
 			"/binflow/t553-virt/" + gav, http.StatusMethodNotAllowed, http.MethodGet,
 			"No local repository was configured as local deployment repository for the (t553-virt) virtual repository."},
-		{"scope: generic remote keeps the shared service gate's 405 read-only refusal",
-			"/binflow/t553-grem/x.bin", http.StatusMethodNotAllowed, http.MethodGet,
-			"Remote repository 't553-grem' is a read-only proxy cache; deployments to remote repositories are not accepted."},
+		{"generic remote leg: the engine 404 family (R12 C7 a-arm, L040 N2)",
+			"/binflow/t553-grem/x.bin", http.StatusNotFound, "",
+			"Could not find a local repository named t553-grem to deploy to."},
+		{"generic remote checksum-suffix leg: same family, refusal precedes suffix interpretation",
+			"/binflow/t553-grem/dir/x.bin.sha1", http.StatusNotFound, "",
+			"Could not find a local repository named t553-grem to deploy to."},
 		{"scope: generic kcache keeps the standard unknown-repo 404",
 			"/binflow/t553-grem-cache/x.bin", http.StatusNotFound, "",
 			"Failed to find the repository 't553-grem-cache' specified in the request."},
@@ -126,21 +146,24 @@ func TestDeployRefusalFamilyMavenWire(t *testing.T) {
 
 	// The refusal sits behind the write gate: an anonymous deploy keeps
 	// the 401 challenge, never the invalid-target 404 (rest-api.md section
-	// 1.2 step 4's ordering).
-	resp := h.do(http.MethodPut, "/binflow/t553-rem/"+gav, "", "", []byte(gavPom), nil)
-	drain(resp)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("anonymous remote PUT = %d, want the 401 challenge ahead of the refusal", resp.StatusCode)
+	// 1.2 step 4's ordering) — pinned on the generic face too, since it
+	// now shares the engine arm.
+	for _, path := range []string{"/binflow/t553-rem/" + gav, "/binflow/t553-grem/x.bin"} {
+		resp := h.do(http.MethodPut, path, "", "", []byte(gavPom), nil)
+		drain(resp)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("anonymous remote PUT %s = %d, want the 401 challenge ahead of the refusal", path, resp.StatusCode)
+		}
 	}
 }
 
-// TestDeployRefusalFamilyMavenWireMetadataToo pins that the remote-key
+// TestDeployRefusalFamilyWireMetadataToo pins that the remote-key
 // refusal is target-resolution shaped, not artifact-shaped: a metadata
 // document PUT to the remote key answers the same 404 family (the engine
 // resolves the target before any layout or policy step), while the local
 // parent spelling of -cache keeps the standard unknown-repo wording.
-func TestDeployRefusalFamilyMavenWireMetadataToo(t *testing.T) {
-	h := newMavenWireStack(t)
+func TestDeployRefusalFamilyWireMetadataToo(t *testing.T) {
+	h := newDeployWireStack(t)
 	if status, body := putRepoStatus(t, h, "t553-rem",
 		`{"rclass":"remote","packageType":"maven","url":"http://127.0.0.1:9/upstream"}`); status != http.StatusOK {
 		t.Fatalf("create remote: %d %s", status, body)
@@ -164,5 +187,68 @@ func TestDeployRefusalFamilyMavenWireMetadataToo(t *testing.T) {
 	if msg := errorEnvelopeMessage(t, resp); resp.StatusCode != http.StatusNotFound ||
 		!strings.Contains(msg, "Failed to find the repository 't553-loc-cache' specified in the request.") {
 		t.Fatalf("local -cache PUT = %d %q, want the standard unknown-repo 404", resp.StatusCode, msg)
+	}
+}
+
+// TestDeployRefusalScopeDockerCargoWire pins the C7 a-arm's negative
+// space on the product wire (BIN-78/T-596): docker and cargo remotes stay
+// OUTSIDE the engine's 404 family — the ruling explicitly forbids flipping
+// them — so their write refusals keep their own faces (docker's observed
+// 400 families plus the standing 405 default arm, cargo's RE-05 405). Any
+// widening of deployEngineRemote beyond maven+generic turns these red.
+func TestDeployRefusalScopeDockerCargoWire(t *testing.T) {
+	h := newDeployWireStack(t)
+	if status, respBody := putRepoStatus(t, h, "t596-drem",
+		`{"rclass":"remote","packageType":"docker","url":"http://127.0.0.1:9/upstream"}`); status != http.StatusOK {
+		t.Fatalf("create t596-drem: %d %s", status, respBody)
+	}
+	// cargo rows seed straight into the store (the cargo fixture's own
+	// posture): the REST create path gates on the license tier, which this
+	// harness does not wire, and the legs below never reach config-time
+	// validation.
+	if err := h.md.Repos().Create(context.Background(), &metadata.Repo{
+		RepoKey: "t596-crem", Type: repo.TypeRemote, PackageType: "cargo",
+		Config: `{"url":"http://127.0.0.1:9/upstream"}`,
+	}); err != nil {
+		t.Fatalf("seed t596-crem: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		method    string
+		path      string
+		wantCode  int
+		wantAllow string
+		wantInMsg string
+	}{
+		{"docker remote blob upload: the observed 400 family, never the engine 404",
+			http.MethodPost, "/v2/t596-drem/img/blobs/uploads/", http.StatusBadRequest, "",
+			"Unable to upload blobs to a remote repository."},
+		{"docker remote blob delete: the standing 405 default arm + read-only wording",
+			http.MethodDelete, "/v2/t596-drem/img/blobs/sha256:" + strings.Repeat("0", 64),
+			http.StatusMethodNotAllowed, http.MethodGet,
+			"Remote repository 't596-drem' is a read-only proxy cache"},
+		{"cargo remote bare PUT: the service 405 through the shared chain",
+			http.MethodPut, "/binflow/t596-crem/docs/readme.txt", http.StatusMethodNotAllowed, http.MethodGet,
+			"Remote repository 't596-crem' is a read-only proxy cache; deployments to remote repositories are not accepted."},
+		{"cargo remote publish face: the adapter's own 405 + Allow: GET",
+			http.MethodPut, "/binflow/t596-crem/api/v1/crates/new", http.StatusMethodNotAllowed, http.MethodGet,
+			"Remote repository 't596-crem' is a read-only proxy cache"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := h.do(tc.method, tc.path, adminUser, adminPass, []byte("x"), nil)
+			body, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if resp.StatusCode != tc.wantCode {
+				t.Fatalf("%s %s = %d (%s), want %d", tc.method, tc.path, resp.StatusCode, string(body), tc.wantCode)
+			}
+			if allow := resp.Header.Get("Allow"); allow != tc.wantAllow {
+				t.Fatalf("%s %s Allow = %q, want %q", tc.method, tc.path, allow, tc.wantAllow)
+			}
+			if !strings.Contains(string(body), tc.wantInMsg) {
+				t.Fatalf("%s %s body = %s, want it to contain %q", tc.method, tc.path, string(body), tc.wantInMsg)
+			}
+		})
 	}
 }

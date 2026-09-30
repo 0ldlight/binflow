@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -24,8 +25,13 @@ import (
 // section 7.2 with the T-79 errata fault semantics):
 //
 //	1. blocked-out mask -> 404 (rest-api.md 1.2 step 6 wording);
-//	2. checksum sidecar suffix -> 404 "Checksums are not downloadable."
-//	   (never proxied, zero upstream traffic);
+//	2. checksum sidecar suffixes ride the ORDINARY chain below (T-597 /
+//	   BIN-79, arm d of ledger generic/remote-deploy-refusal-form: the
+//	   a-priori 404 "Checksums are not downloadable." is retracted — live A
+//	   7.161.26 legs /tmp/t597 show the reference back-sourcing the sidecar
+//	   read through the same proxy machinery; the serving adapters resolve
+//	   the terminal suffix to its SOURCE before calling in, so a bare
+//	   suffix path reaching this engine is an ordinary pull-through);
 //	3. negative cache within missedRetrievalCachePeriodSecs -> 404, zero
 //	   upstream traffic;
 //	4. local copy within its TTL (content vs metadata class via the
@@ -498,15 +504,9 @@ func (e *Engine) fetchFlow(ctx context.Context, repoKey, path, target string) (*
 			Unfound: true,
 		}
 	}
-	// Step 2: checksum sidecars are never proxied (RE-04 step 2, the M45
-	// exact-equality message).
-	if isChecksumPath(path) {
-		return nil, &FetchError{
-			Status:  http.StatusNotFound,
-			Message: msgChecksumsNotDownloadable,
-			Unfound: true,
-		}
-	}
+	// Step 2 was the checksum-sidecar a-priori refusal, retracted by the
+	// R12/BIN-79 ruling (see the flow comment above): sidecar-suffixed
+	// paths ride the ordinary chain like any other path.
 
 	// Steps 3 through 5, retry loop (review B1/B2): EVERY pass re-runs the
 	// negative-cache check and the local-copy lookup, so a waitor released
@@ -566,7 +566,7 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 	// upstream fault and lifting it must restore service with no wait).
 	if pullBlocked() {
 		if hasCacheableCopy(node) {
-			return e.downgrade(ctx, node, repoKey, path, cfg, pol, pullBlockSummary, "")
+			return e.downgrade(ctx, node, repoKey, path, cfg, pol, pullBlockSummary, "", nil)
 		}
 		e.logResult(repoKey, path, "", e.upstreamHost(cfg), 0, time.Time{}, 0, pullBlockSummary)
 		if pol.HardFail {
@@ -593,7 +593,7 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 	if target == "" {
 		if until, off := e.offlineWindow(repoKey, now); off {
 			summary := fmt.Sprintf("assumed offline for another %.0fs", until.Sub(now).Seconds())
-			res, derr := e.downgrade(ctx, node, repoKey, path, cfg, pol, summary, "")
+			res, derr := e.downgrade(ctx, node, repoKey, path, cfg, pol, summary, "", nil)
 			return res, derr
 		}
 	}
@@ -661,7 +661,7 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 	// landed nodes and the singleflight slot all keep the STORAGE path —
 	// only the outbound hop sees the wire spelling.
 	upPath := upstreamPathFor(row.PackageType, path)
-	client, req, host, cerr := e.outboundFor(row, cfg, pol, repoKey, upPath, kind, target)
+	client, req, host, upURL, cerr := e.outboundFor(row, cfg, pol, repoKey, upPath, kind, target)
 	if cerr != nil {
 		return nil, cerr
 	}
@@ -703,7 +703,7 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 		// point 5) — never an offline mark, the upstream did answer.
 		res, ferr := client.Fetch(ctx, req)
 		if ferr != nil {
-			out, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, ferr, extHost)
+			out, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, ferr, extHost, upURL)
 			return out, merr
 		}
 		if res.StatusCode != http.StatusOK {
@@ -723,7 +723,7 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 	// a 1GB body must cross with a flat heap).
 	res, ferr := client.Stream(ctx, req)
 	if ferr != nil {
-		out, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, ferr, extHost)
+		out, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, ferr, extHost, upURL)
 		return out, merr
 	}
 	if res.StatusCode != http.StatusOK {
@@ -738,7 +738,7 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 		if errors.Is(landErr, errUpstreamBody) {
 			// Mid-body transport failure: the session is aborted inside
 			// land; it is an upstream fault like any other.
-			out2, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, landErr, extHost)
+			out2, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, landErr, extHost, upURL)
 			if out2 != nil {
 				return out2, nil
 			}
@@ -754,7 +754,8 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 	return out, nil
 }
 
-// outboundFor resolves one hop's egress client, request shape and log host:
+// outboundFor resolves one hop's egress client, request shape, log host and
+// the hop's full URL (the T-597 fault wording interpolates it verbatim):
 //
 //   - an absolute FetchAbsolute target runs on the repository's
 //     credential-less external client (Request.URL);
@@ -769,34 +770,35 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 //     the source);
 //   - everything else is the ordinary path-joined hop on the repository's
 //     own client.
-func (e *Engine) outboundFor(row *metadata.Repo, cfg *metadata.RemoteConfig, pol repoPolicy, repoKey, upPath, kind, target string) (*Client, Request, string, error) {
+func (e *Engine) outboundFor(row *metadata.Repo, cfg *metadata.RemoteConfig, pol repoPolicy, repoKey, upPath, kind, target string) (*Client, Request, string, string, error) {
 	if target != "" {
 		client, err := e.externalClientFor(repoKey, cfg, pol, "")
 		if err != nil {
-			return nil, Request{}, "", err
+			return nil, Request{}, "", "", err
 		}
-		return client, Request{URL: target}, hostOf(target), nil
+		return client, Request{URL: target}, hostOf(target), target, nil
 	}
 	if base := chartsBaseFor(row, pol, kind); base != "" {
 		if sameOrigin(cfg.URL, base) {
 			client, err := e.clientFor(repoKey, cfg, pol)
 			if err != nil {
-				return nil, Request{}, "", err
+				return nil, Request{}, "", "", err
 			}
 			joined := JoinURL(base, upPath)
-			return client, Request{URL: joined}, hostOf(joined), nil
+			return client, Request{URL: joined}, hostOf(joined), joined, nil
 		}
 		client, err := e.externalClientFor(repoKey, cfg, pol, base)
 		if err != nil {
-			return nil, Request{}, "", err
+			return nil, Request{}, "", "", err
 		}
-		return client, Request{Path: upPath}, hostOf(base), nil
+		joined := JoinURL(base, upPath)
+		return client, Request{Path: upPath}, hostOf(base), joined, nil
 	}
 	client, err := e.clientFor(repoKey, cfg, pol)
 	if err != nil {
-		return nil, Request{}, "", err
+		return nil, Request{}, "", "", err
 	}
-	return client, Request{Path: upPath}, e.upstreamHost(cfg), nil
+	return client, Request{Path: upPath}, e.upstreamHost(cfg), JoinURL(cfg.URL, upPath), nil
 }
 
 // chartsBaseFor resolves the divergent charts fetch base of one hop
@@ -1062,8 +1064,12 @@ func (e *Engine) mapUpstreamStatus(ctx context.Context, repoKey, path string, cf
 		if extHost == "" {
 			e.markOffline(repoKey, now.Add(time.Duration(offlineSecs(pol))*time.Second))
 		}
+		// §7.6's "上游 4xx/5xx 其它 | 视同连接错误处理": the same offline
+		// family as an in-window miss; the reference's own first-contact 5xx
+		// wording is unprobed (NOT_RUN in T-597's probe), so no retrieval
+		// form is invented for it.
 		summary := fmt.Sprintf("upstream %d %s", status, statusText)
-		return e.downgrade(ctx, staleNode, repoKey, path, cfg, pol, summary, extHost)
+		return e.downgrade(ctx, staleNode, repoKey, path, cfg, pol, summary, extHost, nil)
 	}
 }
 
@@ -1074,8 +1080,9 @@ func (e *Engine) mapUpstreamStatus(ctx context.Context, repoKey, path string, cf
 // screening refusal must not silence the repository's other paths). An
 // external hop (extHost set, FetchAbsolute) skips the offline mark as well:
 // the fault is a third party's, and the stale-copy-or-404 downgrade below
-// still answers.
-func (e *Engine) mapTransportFault(ctx context.Context, repoKey, path string, cfg *metadata.RemoteConfig, pol repoPolicy, staleNode *metadata.Node, err error, extHost string) (*FetchResult, error) {
+// still answers. upURL is the hop's full URL — the no-copy 404 externalizes
+// it verbatim (T-597's live-A first-fault family).
+func (e *Engine) mapTransportFault(ctx context.Context, repoKey, path string, cfg *metadata.RemoteConfig, pol repoPolicy, staleNode *metadata.Node, err error, extHost, upURL string) (*FetchResult, error) {
 	now := e.now()
 	var rej *RejectionError
 	switch {
@@ -1094,8 +1101,19 @@ func (e *Engine) mapTransportFault(ctx context.Context, repoKey, path string, cf
 		if extHost == "" {
 			e.markOffline(repoKey, now.Add(time.Duration(offlineSecs(pol))*time.Second))
 		}
-		return e.downgrade(ctx, staleNode, repoKey, path, cfg, pol, fmt.Sprintf("upstream unavailable: %v", err), extHost)
+		return e.downgrade(ctx, staleNode, repoKey, path, cfg, pol,
+			fmt.Sprintf("upstream unavailable: %v", err), extHost, &upstreamFault{url: upURL, cause: err})
 	}
+}
+
+// upstreamFault names the arm whose no-copy 404 renders the reference's
+// first-contact retrieval-error externalization (T-597 / BIN-79): a transport
+// failure on the configured upstream, with the hop's full URL and the cause.
+// Every other no-copy fault (an in-window request, a definite 5xx, a blocked
+// pull) renders the offline-window family instead.
+type upstreamFault struct {
+	url   string
+	cause error
 }
 
 // downgrade answers a fault with the stale-first policy: a copy — fresh
@@ -1105,12 +1123,21 @@ func (e *Engine) mapTransportFault(ctx context.Context, repoKey, path string, cf
 // no-copy outcome). extHost names an EXTERNAL hop's host (FetchAbsolute):
 // the stale serve is identical, and the no-copy wording names the external
 // target's unavailability instead of claiming the repository's upstream is
-// assumed offline (the external face never writes that window).
-func (e *Engine) downgrade(ctx context.Context, node *metadata.Node, repoKey, path string, cfg *metadata.RemoteConfig, pol repoPolicy, summary, extHost string) (*FetchResult, error) {
+// assumed offline (the external face never writes that window). A non-nil
+// fault switches the no-copy 404 of the CONFIGURED-upstream arm onto the
+// first-contact retrieval-error family (T-597: live A 7.161.26 answers the
+// request that opened the offline window with the retrieval error itself —
+// path and upstream URL verbatim — and only the requests INSIDE the window
+// with the offline family).
+func (e *Engine) downgrade(ctx context.Context, node *metadata.Node, repoKey, path string, cfg *metadata.RemoteConfig, pol repoPolicy, summary, extHost string, fault *upstreamFault) (*FetchResult, error) {
 	host := e.upstreamHost(cfg)
 	if extHost != "" {
 		host = extHost
 	}
+	// The summary rides anonymous-readable faces (stale serve's
+	// X-Binflow-Upstream-Error header, the hardFail 502 body) and may quote
+	// the transport error, which embeds the upstream URL's userinfo.
+	summary = redactUserinfo(summary)
 	if hasCacheableCopy(node) {
 		e.counters(repoKey).stales.Add(1)
 		e.logResult(repoKey, path, CacheStale, host, 0, time.Time{}, 0, summary)
@@ -1131,12 +1158,61 @@ func (e *Engine) downgrade(ctx context.Context, node *metadata.Node, repoKey, pa
 			Unfound: true,
 		}
 	}
+	if fault != nil {
+		return nil, &FetchError{
+			Status:  http.StatusNotFound,
+			Message: retrievalFaultMessage(repoKey, path, fault.url, fault.cause),
+			Unfound: true,
+		}
+	}
 	return nil, &FetchError{
-		Status: http.StatusNotFound,
-		Message: fmt.Sprintf("Failed to find the requested resource '%s/%s': upstream %s is assumed offline (no cached copy; retry later).",
-			repoKey, path, host),
+		Status:  http.StatusNotFound,
+		Message: offlineWindowMessage(repoKey, path),
 		Unfound: true,
 	}
+}
+
+// retrievalFaultMessage is the reference's first-contact upstream-fault 404
+// body (T-597 / BIN-79, arm d of generic/remote-deploy-refusal-form; live A
+// 7.161.26 legs /tmp/t597/probe-a-r{1,2}.json, generic and maven faces
+// byte-identical in structure): the requested path and the upstream URL are
+// interpolated; only the cause text is the local runtime's own wording
+// (Go's dial error vs the reference's "Connect timed out" — family match,
+// not byte match). The whole body passes through redactUserinfo (R13
+// dual-review B1): both the configured URL and the transport error may
+// quote the upstream with embedded credentials. Live verbatim anchor:
+//
+//	difftest-t597-gen-remote: Error in getting information for 't597/a.bin'
+//	(Failed retrieving resource from http://192.168.1.70:18199/gen/t597/a.bin:
+//	Connect timed out).; Path: 'difftest-t597-gen-remote:t597/a.bin'
+func retrievalFaultMessage(repoKey, path, upURL string, cause error) string {
+	return redactUserinfo(fmt.Sprintf("%s: Error in getting information for '%s' (Failed retrieving resource from %s: %v).; Path: '%s:%s'",
+		repoKey, path, upURL, cause, repoKey, path))
+}
+
+// reUserInfoInURL matches the scheme://user:pass@ (and Go client errors'
+// masked user:***@) form anywhere in rendered text.
+var reUserInfoInURL = regexp.MustCompile(`//[^/@?#\s]*@`)
+
+// redactUserinfo strips embedded credentials before upstream references are
+// rendered into anonymous-readable faces (R13 dual-review B1): a remote repo
+// URL may legally carry userinfo (config validation accepts it), and the Go
+// client's error text quotes it back — password masked as *** but the
+// username intact. Works on bare URLs and free text alike; text without the
+// userinfo form passes through unchanged.
+func redactUserinfo(s string) string {
+	return reUserInfoInURL.ReplaceAllString(s, "//")
+}
+
+// offlineWindowMessage is the reference's 404 body while the repository sits
+// in its assumed-offline silence window (T-597 live anchor, same probe):
+//
+//	difftest-t597-gen-remote: is assumed offline,
+//	'difftest-t597-gen-remote:t597/a.bin' is not found at 't597/a.bin'.;
+//	Path: 'difftest-t597-gen-remote:t597/a.bin'
+func offlineWindowMessage(repoKey, path string) string {
+	return fmt.Sprintf("%s: is assumed offline, '%s:%s' is not found at '%s'.; Path: '%s:%s'",
+		repoKey, repoKey, path, path, repoKey, path)
 }
 
 // serveCopy opens the cached blob and wraps it with the response hints.

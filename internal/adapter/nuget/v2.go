@@ -3,7 +3,6 @@ package nuget
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
@@ -1125,24 +1125,11 @@ func writeV2DeleteError(w http.ResponseWriter, err error, wirePath string) {
 	writePlain(w, http.StatusForbidden, fmt.Sprintf("Unable to delete NuGet package '%s'", wirePath))
 }
 
-// virtualDeployTarget reads a virtual repository's defaultDeploymentRepo
-// (the repo package's alias set, mirrored here because that seam is
-// unexported — the ClassReader hands the Config blob verbatim).
+// virtualDeployTarget is the nuget-side thin alias of the adapter base's
+// single-source write-route probe (T-590 hoist; the semantics and their
+// golden live in internal/adapter/deploytarget.go).
 func virtualDeployTarget(config string) string {
-	var probe struct {
-		DefaultDeploymentRepo    string `json:"defaultDeploymentRepo"`
-		DefaultDeploymentRepoRef string `json:"defaultDeploymentRepoRef"`
-		DeploymentRepository     string `json:"deploymentRepository"`
-	}
-	if err := json.Unmarshal([]byte(config), &probe); err != nil {
-		return ""
-	}
-	for _, alias := range []string{probe.DefaultDeploymentRepo, probe.DefaultDeploymentRepoRef, probe.DeploymentRepository} {
-		if alias != "" {
-			return alias
-		}
-	}
-	return ""
+	return adapter.VirtualDeploymentTarget(config)
 }
 
 // serveV2Publish renders the PUT pair (#17 root / #18 path prefix): the

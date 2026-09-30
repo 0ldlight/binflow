@@ -29,6 +29,7 @@ package maven
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -159,7 +160,7 @@ func (h *Handler) servePlainWalk(ctx context.Context, w http.ResponseWriter, r *
 		return false
 	}
 	if l.Kind == KindSidecar {
-		h.serveSidecarOfPath(ctx, w, r, p, repoKey, cand.path, l.Algo, relPath, false)
+		h.serveSidecarOfPath(ctx, w, r, p, repoKey, cand.path, l.Algo, rowType, false)
 		return true
 	}
 	h.serveFile(ctx, w, r, p, repoKey, cand.path)
@@ -227,27 +228,49 @@ func (h *Handler) serveVirtualWalk(ctx context.Context, w http.ResponseWriter, r
 
 // serveSidecarOfPath answers the sidecar face with the digest of the
 // artifact at path — the walk's sidecar leg (t5/t6: the digest of the
-// RESOLVED entity) and the direct face's exit. msgPath carries the
-// REQUESTED spelling for error renderings, the ordinary plane's habit.
-// overlayClient (the direct face only) echoes the STORED client
-// declaration first when one exists (ADR-0052 decision 4: the overlay
-// mechanism is repo.OriginalChecksums, the computed digest is maven's
-// fallback posture); the walk legs pass false — their contracts pin the
-// resolved entity's computed digest.
+// RESOLVED entity) and the direct face's exit. Since BIN-76 / T-594 every
+// error rendering on this face points at the SOURCE (path) — never the
+// .md5/.sha1 terminal spelling. The miss WORDING is per-face (the A wire's
+// own families): the local plane keeps the ordinary `File not found.;`
+// download miss, the virtual plane answers its resolution family
+// `Could not find resource; Path:` (L039 Arm 1 / L040 c2-v, live
+// re-pinned T-594). overlayClient (the direct face only) echoes the
+// STORED client declaration first when one exists (ADR-0052 decision 4:
+// the overlay mechanism is repo.OriginalChecksums); the walk legs pass
+// false — their contracts pin the resolved entity's computed digest.
 func (h *Handler) serveSidecarOfPath(ctx context.Context, w http.ResponseWriter, r *http.Request,
-	p *repo.Principal, repoKey, path, algo, msgPath string, overlayClient bool) {
+	p *repo.Principal, repoKey, path, algo, rowType string, overlayClient bool) {
 	rc, node, err := h.svc.Get(ctx, p, repoKey, path)
 	if err != nil {
-		h.writeServiceError(w, err, r.Method, repoKey, msgPath)
+		if errors.Is(err, repo.ErrNodeNotFound) && rowType == repo.TypeVirtual {
+			// BIN-76 / T-594: the virtual read plane's miss wording, A
+			// verbatim — the source-citing resolution family, not the
+			// ordinary download miss.
+			writeError(w, http.StatusNotFound,
+				fmt.Sprintf("Could not find resource; Path: '%s:%s'", repoKey, path))
+			return
+		}
+		h.writeServiceError(w, err, r.Method, repoKey, path)
 		return
 	}
 	applyReaderHints(w, rc)
 	_ = rc.Close() //nolint:errcheck // read-only fd; the digest comes from the ledger
-	if overlayClient && algo != "sha512" {
+	// The client-value overlay (T-578 / BIN-60, ADR-0052 decision 4) is a
+	// sha1/md5 mechanism ONLY (T-595 / BIN-77, live leg e-get-sha256-after:
+	// a wrong sha256 registered through the 409 write-through still renders
+	// the COMPUTED primary digest on A — the generic plane's T-593
+	// primary-digest-wins model extends to maven, retiring T-587's
+	// registered-first reading for sha256): the sha256 arm always serves
+	// the computed digest, registered or not. An unset md5/sha1 answers
+	// the checksum family's own 404 citing the SOURCE (BIN-76 / T-594,
+	// L041 Arm 1) — A computes no md5/sha1 on demand.
+	if overlayClient && (algo == "sha1" || algo == "md5") {
 		if value := clientChecksumValueOf(node, algo); value != "" {
 			h.writeSidecarBody(w, r, value, node)
 			return
 		}
+		writeError(w, http.StatusNotFound, fmt.Sprintf("Checksum not found for %s", path))
+		return
 	}
 	h.writeSidecarDigest(ctx, w, r, node, algo, repoKey, path)
 }

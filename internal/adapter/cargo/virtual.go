@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/repo"
 )
 
@@ -205,25 +206,11 @@ func (h *Handler) virtualWriteTarget(ctx context.Context, virtualKey string) str
 	return cargoDeploymentTarget(row.Config)
 }
 
-// cargoDeploymentTarget is the tolerant write-route probe of a virtual
-// repository's config JSON: the primary spelling plus the two Artifactory
-// aliases raw-seeded rows may carry. A config that fails the strict shape
-// still gets its truthful answer: no route.
+// cargoDeploymentTarget is the cargo-side thin alias of the adapter base's
+// single-source write-route probe (T-590 hoist; the semantics and their
+// golden live in internal/adapter/deploytarget.go).
 func cargoDeploymentTarget(config string) string {
-	var probe struct {
-		DefaultDeploymentRepo    string `json:"defaultDeploymentRepo"`
-		DefaultDeploymentRepoRef string `json:"defaultDeploymentRepoRef"`
-		DeploymentRepository     string `json:"deploymentRepository"`
-	}
-	if err := json.Unmarshal([]byte(config), &probe); err != nil {
-		return ""
-	}
-	for _, alias := range []string{probe.DefaultDeploymentRepo, probe.DefaultDeploymentRepoRef, probe.DeploymentRepository} {
-		if alias != "" {
-			return alias
-		}
-	}
-	return ""
+	return adapter.VirtualDeploymentTarget(config)
 }
 
 // msgNoDeploymentRepo is RE-08's pinned C5 body (repo-semantics section

@@ -555,7 +555,7 @@ func (h *Handler) serveBareContent(ctx context.Context, w http.ResponseWriter, r
 		// (created.go); the checksums ride the ledger triple the download
 		// faces already use — never the tee's partial sums, which an
 		// idempotent-retransmit short-circuit may leave undrained.
-		writeBareCreated(w, r, repoKey, rel, node, h.digestsOf(ctx, node), expect)
+		writeBareCreated(w, r, repoKey, rel, node, h.digestsOf(ctx, node))
 	case http.MethodDelete:
 		if err := h.svc.Delete(ctx, p, repoKey, rel); err != nil {
 			h.writeError(w, err, repoKey, rel)

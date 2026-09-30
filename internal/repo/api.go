@@ -872,36 +872,39 @@ type ClientChecksumWriter interface {
 // The concrete service satisfies the seam (compile-time pin).
 var _ ClientChecksumWriter = (*service)(nil)
 
-// OriginalChecksums is the single source of the client-checksum overlay
-// rendering rule (ADR-0052, decision 4): for each algorithm, the node's
-// client-declared column when non-empty, otherwise the SERVER-side value the
-// caller passes in. Every no-upload-context render of digest triplets on the
-// wire goes through this pure function — httpapi's FileInfo
-// originalChecksums, the adapters' checksum GET echoes — so the four faces
-// can never drift apart (the T-571 mime lesson applied to the digest plane).
+// OriginalChecksums is the single source of the originalChecksums render
+// model (ADR-0052 decision 4; the A keyset, BIN-71 / T-589): the KEYSET is
+// the client-registered algorithms ∪ {sha256} —
+//   - sha256 is ALWAYS a member: the registered value when one exists,
+//     otherwise the server-computed digest the caller passes;
+//   - md5/sha1 are members ONLY when registered, echoing the registered
+//     value verbatim (a zero placeholder survives — registration, not
+//     correctness, decides the keyset);
+//   - an EMPTY return value means the key is ABSENT (renderers omit it).
 //
-// The FALLBACK posture when a client column is empty is each protocol
-// plane's own property and deliberately NOT baked in: generic's checksum GET
-// answers 404 (no on-demand generation), maven's sidecar GET serves the
-// computed digest (L014-2) — callers that want "no fallback" pass empty
-// server values and get the bare client columns back. Upload-time
-// ItemCreated bodies keep their declared-only filter semantics and do not
-// consult this helper (the ADR's boundary clause).
-func OriginalChecksums(node *metadata.Node, sha256, sha1, md5 string) (out256, outSha1, outMd5 string) {
+// Registration is the node's Client columns (the deploy chain's declared
+// set, the terminal-checksum PUT family's SET) — a re-deploy replaces them
+// wholesale, last-writer-wins per node row. Every originalChecksums render
+// goes through this pure function — httpapi's FileInfo face and the
+// maven/generic/nuget deploy envelopes alike — so the faces cannot drift
+// apart (the T-571 mime lesson applied to the digest plane; the former
+// FileInfo full-triple fallback and envelope empty-set render were the
+// two faces this one rule closed, T-584's five-leg live + T-583 facet a).
+//
+// The per-protocol FALLBACK posture of the checksum GET faces stays each
+// plane's own property and deliberately NOT baked in: generic's checksum
+// GET answers 404 (no on-demand generation), maven's sidecar GET serves
+// the computed digest (L014-2) — those callers read single members with
+// an empty server sha256.
+func OriginalChecksums(node *metadata.Node, serverSha256 string) (out256, outSha1, outMd5 string) {
 	if node == nil {
-		return sha256, sha1, md5
+		return serverSha256, "", ""
 	}
-	out256, outSha1, outMd5 = sha256, sha1, md5
+	out256 = serverSha256
 	if node.ClientSha256 != "" {
 		out256 = node.ClientSha256
 	}
-	if node.ClientSha1 != "" {
-		outSha1 = node.ClientSha1
-	}
-	if node.ClientMd5 != "" {
-		outMd5 = node.ClientMd5
-	}
-	return out256, outSha1, outMd5
+	return out256, node.ClientSha1, node.ClientMd5
 }
 
 // RemoteFetcher is the consumer-side seam of the M3 remote proxy engine

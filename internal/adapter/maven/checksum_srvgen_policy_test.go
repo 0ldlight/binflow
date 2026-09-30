@@ -51,7 +51,7 @@ func TestChecksumPutSrvgenRegistersDeclared(t *testing.T) {
 	if node.ClientMd5 != wrong {
 		t.Errorf("node.ClientMd5 under srvgen = %q, want the registered %q", node.ClientMd5, wrong)
 	}
-	if _, _, ocMd5 := repo.OriginalChecksums(node, "", "", ""); ocMd5 != wrong {
+	if _, _, ocMd5 := repo.OriginalChecksums(node, ""); ocMd5 != wrong {
 		t.Errorf("OriginalChecksums md5 under srvgen = %q, want the client value %q", ocMd5, wrong)
 	}
 

@@ -2328,16 +2328,21 @@ func (s *Server) dispatchContent(w http.ResponseWriter, r *http.Request, _ strin
 		// confidence): an external PUT addressed to a MAVEN remote's own key
 		// answers the engine's invalid-target 404 — the same wording and
 		// status as the projection leg, the requested key in the named
-		// slot. Narrow by package type on purpose: the service-layer 405
-		// read-only refusal (RE-05) is the SHARED write-plane gate for
-		// every other protocol (cargo/deb/conan/helm/rpm tests pin it on
-		// their own faces) and those faces have no A-side evidence yet, so
-		// they keep the 405 until their own probes land. The maven
-		// adapter's bare-mount 405 arm survives as its mounted defense,
-		// unreachable through this router — the same posture as the
-		// explode refusal arm above.
+		// slot. R12's C7 a-arm ruling (BIN-78/T-596) widened the family to
+		// GENERIC remotes: L040 N2 live-confirmed A answers the same 404
+		// wording there, plain and checksum-suffix paths alike — the refusal
+		// rides ahead of any suffix interpretation, so both spellings take
+		// this arm before the adapter (whose checksum-PUT interception is
+		// local-only and stays that way; its bare-mount 405 below survives
+		// as the non-router safety net, the maven posture). Narrow by
+		// package type on purpose: the service-layer 405 read-only refusal
+		// (RE-05) is the SHARED write-plane gate for every other protocol
+		// (cargo/deb/conan/helm/rpm tests pin it on their own faces) and
+		// docker/cargo are explicitly outside the unified wording domain by
+		// the same ruling, so they keep the 405 until their own probes
+		// land.
 		if r.Method == http.MethodPut && row.Type == repo.TypeRemote &&
-			row.PackageType == repo.PackageMaven {
+			deployEngineRemote(row.PackageType) {
 			writeError(w, http.StatusNotFound, deployNoLocalRepoMessage(repoKey))
 			return
 		}
@@ -2420,6 +2425,18 @@ func (s *Server) isMavenCacheProjection(r *http.Request) bool {
 // suffix spelling included, and the sentence ends in a period.
 func deployNoLocalRepoMessage(repoKey string) string {
 	return "Could not find a local repository named " + repoKey + " to deploy to."
+}
+
+// deployEngineRemote reports whether a remote repository's package type
+// rides the upload engine's invalid-target 404 for deploy verbs: maven
+// since T-553, generic since the R12 C7 a-arm ruling (BIN-78/T-596 — L040
+// N2 live-confirmed A answers the engine's wording on generic remotes
+// verbatim, checksum-suffix paths included). Every other package type
+// keeps the service layer's 405 read-only refusal (RE-05); docker and
+// cargo are explicitly outside the unified wording domain by the same
+// ruling and their adapter tests pin their own faces.
+func deployEngineRemote(packageType string) bool {
+	return packageType == repo.PackageMaven || packageType == repo.PackageGeneric
 }
 
 // writeRepoLookupError maps a repo lookup failure onto the envelope:
