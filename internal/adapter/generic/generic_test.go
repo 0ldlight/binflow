@@ -247,7 +247,7 @@ func TestContentVerbsTable(t *testing.T) {
 			wantInMsg: "Failed to find the requested resource"},
 		{name: "head missing 404 json", method: http.MethodHead, path: "/binflow/generic-local/acme/nope.bin", want: 404}, // HEAD carries no body; envelope asserted via GET
 		{name: "delete missing 404", method: http.MethodDelete, path: "/binflow/generic-local/acme/nope.bin", want: 404,
-			wantInMsg: "Could not locate artifact"},
+			wantInMsg: "Artifact deletion error: Item generic-local/acme/nope.bin does not exist"},
 		{name: "repo missing 404", method: http.MethodGet, path: "/binflow/no-such-repo/a.bin", want: 404},
 		{name: "mkdir trailing slash", method: http.MethodPut, path: "/binflow/generic-local/acme/", want: 201},
 		{name: "mkdir with body 400", method: http.MethodPut, path: "/binflow/generic-local/x/", body: "junk", want: 400},

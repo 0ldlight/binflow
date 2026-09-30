@@ -559,6 +559,10 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error, method, re
 			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
 			return
 		}
+		// BIN-94/T-612: the local and remote DELETE-miss faces render the
+		// deletion engine's StatusError verbatim in the branch above; this
+		// arm remains the VIRTUAL own-storage miss (D-2, face undecided —
+		// no A probe) and the plain-sentinel fallback.
 		writeError(w, http.StatusNotFound, fmt.Sprintf("Could not locate artifact. Path: '%s/%s'.", repoKey, relPath))
 	case errors.Is(err, repo.ErrRepoNotFound):
 		writeError(w, http.StatusNotFound, fmt.Sprintf("Failed to find the repository '%s' specified in the request.", repoKey))

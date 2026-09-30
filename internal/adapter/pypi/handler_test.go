@@ -87,8 +87,12 @@ func TestLayoutMatrix(t *testing.T) {
 }
 
 // TestRoutingMatrix pins the protocol's verb map through the real stack:
-// the domain root answers GET/HEAD (probe) and POST (upload); every other
-// route family is read-only with an Allow header on 405.
+// the domain root answers GET/HEAD (probe) and POST (upload); the read
+// families stay read-only with an Allow header on 405 — except DELETE,
+// which the deletion engine answers from the storage plane on every
+// non-root spelling (BIN-94/T-612: A carried simple/ and packages/
+// verbatim into the Item path, so those legs now miss into the engine's
+// 404 family; the repository root keeps its method gate).
 func TestRoutingMatrix(t *testing.T) {
 	s := newStack(t)
 	s.uploadOK(t, "demo-pkg", "1.0.0", "demo_pkg-1.0.0-py3-none-any.whl", []byte("wheel-bytes"))
@@ -107,9 +111,9 @@ func TestRoutingMatrix(t *testing.T) {
 		{"root PUT", http.MethodPut, "/binflow/api/pypi/pypi-local/", http.StatusMethodNotAllowed, "GET, HEAD, POST"},
 		{"root DELETE", http.MethodDelete, "/binflow/api/pypi/pypi-local/", http.StatusMethodNotAllowed, "GET, HEAD, POST"},
 		{"simple POST", http.MethodPost, "/binflow/api/pypi/pypi-local/simple/", http.StatusMethodNotAllowed, "GET, HEAD"},
-		{"simple project DELETE", http.MethodDelete, "/binflow/api/pypi/pypi-local/simple/demo-pkg/", http.StatusMethodNotAllowed, "GET, HEAD"},
+		{"simple project DELETE", http.MethodDelete, "/binflow/api/pypi/pypi-local/simple/demo-pkg/", http.StatusNotFound, ""},
 		{"packages PUT", http.MethodPut, "/binflow/api/pypi/pypi-local/packages/demo-pkg/1.0.0/demo_pkg-1.0.0-py3-none-any.whl", http.StatusMethodNotAllowed, "GET, HEAD"},
-		{"packages DELETE", http.MethodDelete, "/binflow/api/pypi/pypi-local/packages/demo-pkg/1.0.0/demo_pkg-1.0.0-py3-none-any.whl", http.StatusMethodNotAllowed, "GET, HEAD"},
+		{"packages DELETE", http.MethodDelete, "/binflow/api/pypi/pypi-local/packages/demo-pkg/1.0.0/demo_pkg-1.0.0-py3-none-any.whl", http.StatusNotFound, ""},
 		{"bare content PUT", http.MethodPut, "/binflow/pypi-local/demo-pkg/1.0.0/demo_pkg-1.0.0-py3-none-any.whl", http.StatusMethodNotAllowed, "GET, HEAD"},
 	}
 	for _, tc := range tests {

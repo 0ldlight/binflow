@@ -179,6 +179,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// BIN-94/T-612: DELETE is answered by the deletion engine from the
+	// storage plane, verbatim across every protocol spelling — live A
+	// carried bare content, packages/ and simple/ prefixes into the Item
+	// path unchanged. The repository root keeps its method gate above (the
+	// root spelling is a whole-repository wipe corner, out of this face).
+	if r.Method == http.MethodDelete {
+		h.handleDelete(w, r, repoKey, rel)
+		return
+	}
+
 	first, tail, _ := strings.Cut(rel, "/")
 	switch first {
 	case segSimple:
@@ -197,6 +207,30 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// spelling) — read-only second entrance (PE-03).
 		h.serveDownload(w, r, repoKey, rel)
 	}
+}
+
+// handleDelete routes DELETE into the unified delete (BIN-94/T-612): A's
+// deletion engine answers every non-root spelling from the storage plane,
+// so this adapter forwards the verbatim rel path — simple/ and packages/
+// prefixes included — instead of shaping a protocol-specific refusal; the
+// local and remote miss wordings arrive as the service layer's StatusError
+// and render through writeServiceError's verbatim branch. Only the VIRTUAL
+// face keeps the method gate's 405: its delete semantics are undecided (no
+// A probe has ruled that face; T-531 pinned the 405, unlike maven's D-2).
+func (h *Handler) handleDelete(w http.ResponseWriter, r *http.Request, repoKey, rel string) {
+	if h.repos != nil {
+		if row, err := h.repos.Get(r.Context(), repoKey); err == nil && row.Type == repo.TypeVirtual {
+			w.Header().Set("Allow", "GET, HEAD")
+			writeError(w, http.StatusMethodNotAllowed,
+				fmt.Sprintf("method %s is not supported on PyPI distribution paths (uploads use POST on the repository root)", r.Method))
+			return
+		}
+	}
+	if err := h.svc.Delete(r.Context(), adapter.PrincipalFrom(r.Context()), repoKey, rel); err != nil {
+		h.writeServiceError(w, err, http.MethodDelete, repoKey, rel)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // writeServiceError maps repo.Service sentinels onto the errors[] envelope
