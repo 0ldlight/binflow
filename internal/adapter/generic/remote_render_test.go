@@ -2,6 +2,8 @@ package generic_test
 
 import (
 	"context"
+	"crypto/sha1"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -118,13 +120,19 @@ func TestRemoteOutcomesRenderThroughHandler(t *testing.T) {
 		}
 	}
 
-	// The exact 404 wording of the checksum sidecar (M45 equality).
-	res4 := h(t, http.MethodGet, "/binflow/generic-remote/dir/up.bin.sha1")
-	if res4.Code != http.StatusNotFound {
-		t.Fatalf("sidecar status = %d", res4.Code)
+	// T-597 / BIN-79: the sidecar GET back-sources the SOURCE (dir/up.bin is
+	// cached from the first leg) and answers the landed copy's computed
+	// digest — the a-priori "Checksums are not downloadable." 404 is
+	// retracted; zero extra upstream contacts (the source is a HIT).
+	if got := hits.Load(); got != 1 {
+		t.Fatalf("sidecar GET upstream hits = %d, want 1 (source already cached)", got)
 	}
-	if !strings.Contains(res4.Body.String(), "Checksums are not downloadable.") {
-		t.Fatalf("sidecar body = %s", res4.Body.String())
+	res4 := h(t, http.MethodGet, "/binflow/generic-remote/dir/up.bin.sha1")
+	if res4.Code != http.StatusOK {
+		t.Fatalf("sidecar status = %d, want 200 (computed digest of the landed source)", res4.Code)
+	}
+	if want := fmt.Sprintf("%x", sha1.Sum([]byte("upstream-bytes"))); res4.Body.String() != want {
+		t.Fatalf("sidecar body = %s, want the computed sha1 %s", res4.Body.String(), want)
 	}
 
 	// STALE + X-Binflow-Upstream-Error when the upstream faults and only an

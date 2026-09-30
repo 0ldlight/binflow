@@ -512,6 +512,52 @@ func (h *Handler) serveVirtualClientChecksum(ctx context.Context, w http.Respons
 	return true
 }
 
+// serveRemoteChecksum serves the terminal-checksum GET on a REMOTE plane
+// (T-597 / BIN-79, ledger generic/remote-deploy-refusal-form arm d — the
+// a-priori 404 "Checksums are not downloadable." is retracted): the
+// suffix-stripped SOURCE rides the ordinary pull-through (svc.Get — the
+// engine's six-step chain, upstream fault externalization and assumed-offline
+// window included), and the landed copy answers its COMPUTED digest for
+// whichever algorithm was asked — the engine measures all three at ingest
+// (ADR-0006), so the local plane's registered-value/on-demand-matrix split
+// does not apply here. Live A anchors (7.161.26, /tmp/t597 probe): the
+// upstream-fault 404 cites the source path and the source's upstream URL —
+// never the terminal spelling, never a fixed refusal; the reachable-upstream
+// 200 form is live-unprobed (NOT_RUN) and follows the error form's source
+// resolution. GET and HEAD render the same face.
+func (h *Handler) serveRemoteChecksum(ctx context.Context, w http.ResponseWriter,
+	r *http.Request, p *repo.Principal, repoKey, src, algo string) {
+	rc, node, err := h.svc.Get(ctx, p, repoKey, src)
+	if err != nil {
+		if errors.Is(err, repo.ErrIsFolder) {
+			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, src))
+			return
+		}
+		// Unfound-family FetchErrors are *repo.StatusError and render
+		// verbatim — the wording already addresses the source.
+		h.writeServiceError(w, err, r.Method, repoKey, src)
+		return
+	}
+	defer rc.Close() //nolint:errcheck // read-only probe; the digest comes from the ledger
+	sums := h.digestsOf(ctx, node)
+	var measured string
+	switch algo {
+	case "sha256":
+		measured = sums.sha256
+	case "sha1":
+		measured = sums.sha1
+	case "md5":
+		measured = sums.md5
+	}
+	if measured != "" {
+		writeChecksumEcho(w, r, measured)
+		return
+	}
+	// A ledger gap degrades to the family's bare miss — the honest 404
+	// beats a fabricated value (same posture as the srvgen arm).
+	writeError(w, http.StatusNotFound, "Checksum not found for "+src)
+}
+
 // writeChecksumEcho renders the client-checksum stored-value body: the
 // bare digest text with the family's content type (L037 Arm 1; the virtual
 // face's echo is byte-identical, L039 Arm 1b).
@@ -668,13 +714,19 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 	// bare Checksum-not-found for an unset sha1/md5, the colon-form miss for
 	// an absent source). A VIRTUAL plane runs the same seam through its
 	// member-resolving read plane (the miss wording there is the virtual
-	// face's Could-not-find-resource family). Remote planes keep the
-	// ordinary chain.
+	// face's Could-not-find-resource family). A REMOTE plane back-sources
+	// the SOURCE through the ordinary pull-through and answers the landed
+	// copy's computed digest (T-597 / BIN-79 — the live reference's remote
+	// sidecar GET resolves the suffix-stripped source, never the terminal
+	// spelling).
 	if src, algo, ok := checksumPutSource(relPath); ok {
 		if row, rerr := h.class.Get(r.Context(), repoKey); rerr == nil {
 			switch row.Type {
 			case repo.TypeLocal:
 				h.serveClientChecksum(ctx, w, r, p, repoKey, src, algo)
+				return
+			case repo.TypeRemote:
+				h.serveRemoteChecksum(ctx, w, r, p, repoKey, src, algo)
 				return
 			case repo.TypeVirtual:
 				if h.serveVirtualClientChecksum(ctx, w, r, p, repoKey, src, algo) {

@@ -193,10 +193,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // handleGet serves downloads with the inherited M1 header set (X-Checksum-*,
 // ETag=sha1, Last-Modified, Accept-Ranges, Content-Type; Range 206/416 and
 // conditional 304 — ME-02), plus the maven-specific reads: the computed
-// checksum sidecar body, the remote-repository sidecar pass-through 404 and
-// the virtual-repository metadata merge (T-72: maven-metadata.xml and its
-// sidecars answer from the in-memory merge of the members' documents, never
-// a single member's first-hit copy).
+// checksum sidecar body (on a remote plane, back-sourced through the
+// ordinary pull-through since T-597) and the virtual-repository metadata
+// merge (T-72: maven-metadata.xml and its sidecars answer from the
+// in-memory merge of the members' documents, never a single member's
+// first-hit copy).
 func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	p *repo.Principal, repoKey, relPath string, l Layout) {
 	var rowType string
@@ -251,15 +252,17 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 	if l.Kind == KindSidecar {
-		// A REMOTE repository never serves checksum files, cached or
-		// upstream (maven-npm-pypi.md section 1.5, high confidence; FR-20
-		// step 2): the request dies before any engine involvement, and it
-		// must die for anonymous readers too — hence the class seam, not
-		// the authenticated GetRepo face.
-		if rowType == repo.TypeRemote {
-			writeError(w, http.StatusNotFound, "Checksums are not downloadable.")
-			return
-		}
+		// T-597 / BIN-79 (ledger generic/remote-deploy-refusal-form arm d,
+		// R12 ruling): a REMOTE repository's sidecar GET is NO LONGER the
+		// a-priori 404 "Checksums are not downloadable." — the live
+		// reference (7.161.26, /tmp/t597 probe, generic and maven faces
+		// alike) back-sources the SOURCE through the ordinary remote chain
+		// and externalizes the upstream fault against the suffix-stripped
+		// source path; the request falls through to serveSidecar below,
+		// whose svc.Get(l.Target) is exactly that pull-through (the landed
+		// copy answers its computed digest; maven-npm-pypi.md §1.5 Erratum
+		// E1). The 200 form (reachable upstream) is live-unprobed — NOT_RUN,
+		// extrapolated via the error form's source resolution.
 		// T-542 review follow-up: the member plane's strip reaches the
 		// sidecar face too — a capability-rejected client's .sha1/.md5
 		// answers the digest of the STRIPPED document (the derived-body

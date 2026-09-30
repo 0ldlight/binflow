@@ -265,9 +265,16 @@ func TestFetchPullThroughAndCacheHit(t *testing.T) {
 	}
 }
 
-// ---- M45 / FR-20-AC13: checksum sidecars are never proxied ----
+// ---- T-597 / BIN-79: checksum sidecar suffixes ride the ordinary chain ----
 
-func TestFetchChecksumSidecarNeverProxied(t *testing.T) {
+// TestFetchChecksumSidecarRidesOrdinaryChain pins the T-597 retraction of the
+// a-priori refusal (ledger generic/remote-deploy-refusal-form arm d): a
+// sidecar-suffixed path reaching the engine is an ordinary pull-through —
+// the upstream IS contacted, a definite upstream 404 lands the negative
+// cache with the plain miss wording (never the fixed "Checksums are not
+// downloadable." of the retracted M45 posture), and the negative window
+// silences the second contact like any other miss.
+func TestFetchChecksumSidecarRidesOrdinaryChain(t *testing.T) {
 	e := newFetchEnv(t, func(_ *metadata.Repo, _ *metadata.RemoteConfig) {})
 	e.state.files["/dir/up.bin"] = "hello-upstream"
 	mustFetch(t, e, "dir/up.bin") // cache the artifact first
@@ -279,15 +286,25 @@ func TestFetchChecksumSidecarNeverProxied(t *testing.T) {
 		if fe.Status != http.StatusNotFound {
 			t.Fatalf("%s: status = %d, want 404", sidecar, fe.Status)
 		}
-		if fe.Message != msgChecksumsNotDownloadable {
-			t.Fatalf("%s: message = %q, want the exact M45 wording", sidecar, fe.Message)
-		}
 		if !fe.Unfound {
 			t.Fatalf("%s: must carry unfound semantics", sidecar)
 		}
+		if strings.Contains(fe.Message, "not downloadable") {
+			t.Fatalf("%s: message = %q, the a-priori refusal must stay retracted", sidecar, fe.Message)
+		}
+		if want := fmt.Sprintf("Failed to find the requested resource 'generic-remote/%s'.", sidecar); fe.Message != want {
+			t.Fatalf("%s: message = %q, want the ordinary miss wording %q", sidecar, fe.Message, want)
+		}
 	}
-	if got := e.hits.Load(); got != before {
-		t.Fatalf("upstream hits = %d, want %d (sidecars never proxied)", got, before)
+	if got := e.hits.Load(); got != before+4 {
+		t.Fatalf("upstream hits = %d, want %d (each sidecar contact really proxies)", got, before+4)
+	}
+	// Inside the negative window the second contact is silent.
+	after := e.hits.Load()
+	_, err := e.eng.Fetch(context.Background(), "generic-remote", "dir/up.bin.sha1")
+	fetchErr(t, nil, err) //nolint:errcheck // the assertion is the hits count below
+	if got := e.hits.Load(); got != after {
+		t.Fatalf("upstream hits inside negative window = %d, want %d", got, after)
 	}
 }
 
@@ -471,8 +488,17 @@ func TestFetchTransportRefusalOpensOfflineWindow(t *testing.T) {
 
 	res, err := e.eng.Fetch(ctx, "generic-remote", "x.bin")
 	fe := fetchErr(t, res, err)
-	if fe.Status != http.StatusNotFound || !strings.Contains(fe.Message, "assumed offline") {
+	// T-597: the request that OPENS the window externalizes the retrieval
+	// error itself (live A first-contact family, path + upstream URL
+	// verbatim); the window's silence answers the NEXT request.
+	if fe.Status != http.StatusNotFound || !strings.Contains(fe.Message, "Error in getting information for 'x.bin'") ||
+		!strings.Contains(fe.Message, "Failed retrieving resource from http://127.0.0.1:1/x.bin:") {
 		t.Fatalf("refused connection = (%d, %q)", fe.Status, fe.Message)
+	}
+	res2, err2 := e.eng.Fetch(ctx, "generic-remote", "other.bin")
+	fe2 := fetchErr(t, res2, err2)
+	if fe2.Status != http.StatusNotFound || !strings.Contains(fe2.Message, "is assumed offline, 'generic-remote:other.bin' is not found at 'other.bin'") {
+		t.Fatalf("inside the window = (%d, %q)", fe2.Status, fe2.Message)
 	}
 }
 

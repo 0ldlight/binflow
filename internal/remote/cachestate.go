@@ -3,7 +3,6 @@ package remote
 import (
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/adapter"
@@ -57,25 +56,14 @@ const cacheKindNegative = "negative"
 // seeing a plain 404.
 const cacheStateNegative = "NEGATIVE"
 
-// checksumSuffixes are the sidecar spellings RE-04 step 2 refuses to proxy:
-// checksums are only ever served from cache entries or server computation,
-// never fetched from the upstream.
-var checksumSuffixes = []string{".sha1", ".md5", ".sha256", ".sha512"}
-
-// msgChecksumsNotDownloadable is the EXACT 404 body message of the checksum
-// sidecar refusal (repo-semantics section 7.2 step 2, high confidence; the
-// M45 assertion compares for equality).
-const msgChecksumsNotDownloadable = "Checksums are not downloadable."
-
-// isChecksumPath reports whether path addresses a checksum sidecar.
-func isChecksumPath(path string) bool {
-	for _, suffix := range checksumSuffixes {
-		if strings.HasSuffix(path, suffix) {
-			return true
-		}
-	}
-	return false
-}
+// checksumSuffixes / isChecksumPath and the fixed refusal message
+// "Checksums are not downloadable." were REMOVED by T-597 / BIN-79 (arm d of
+// ledger generic/remote-deploy-refusal-form): the reference back-sources
+// checksum-sidecar reads through the ordinary pull-through chain, so the
+// engine no longer special-cases the suffixes. The serving adapters resolve
+// the terminal suffix to its source; the rpm adapter keeps its own
+// face-local refusal (its reference form was never probed — domain-limited,
+// not extrapolated).
 
 // classifyPath resolves the cache class of one repository path: the
 // registered protocol's MetadataProvider decides (architecture section 5.4);

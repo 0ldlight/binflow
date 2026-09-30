@@ -170,8 +170,12 @@ func TestT290SubSecondSocketTimeoutTrips(t *testing.T) {
 		t.Fatal("assumed-offline window not opened after the socket timeout")
 	}
 	msg := err.Error()
-	if !strings.Contains(msg, "offline") && !strings.Contains(msg, "Failed to find") {
-		t.Fatalf("error %q is not the offline-downgrade family", msg)
+	// T-597: the first-contact transport fault externalizes the retrieval
+	// error (path + upstream URL); the window's own offline family answers
+	// the requests that follow (the window check above).
+	if !strings.Contains(msg, "offline") && !strings.Contains(msg, "Failed to find") &&
+		!strings.Contains(msg, "Failed retrieving resource from") {
+		t.Fatalf("error %q is not the fault-downgrade family", msg)
 	}
 }
 
