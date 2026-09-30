@@ -11,13 +11,13 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
-	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/redact"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
@@ -1137,7 +1137,7 @@ func (e *Engine) downgrade(ctx context.Context, node *metadata.Node, repoKey, pa
 	// The summary rides anonymous-readable faces (stale serve's
 	// X-Binflow-Upstream-Error header, the hardFail 502 body) and may quote
 	// the transport error, which embeds the upstream URL's userinfo.
-	summary = redactUserinfo(summary)
+	summary = redact.Userinfo(summary)
 	if hasCacheableCopy(node) {
 		e.counters(repoKey).stales.Add(1)
 		e.logResult(repoKey, path, CacheStale, host, 0, time.Time{}, 0, summary)
@@ -1178,7 +1178,7 @@ func (e *Engine) downgrade(ctx context.Context, node *metadata.Node, repoKey, pa
 // byte-identical in structure): the requested path and the upstream URL are
 // interpolated; only the cause text is the local runtime's own wording
 // (Go's dial error vs the reference's "Connect timed out" — family match,
-// not byte match). The whole body passes through redactUserinfo (R13
+// not byte match). The whole body passes through redact.Userinfo (R13
 // dual-review B1): both the configured URL and the transport error may
 // quote the upstream with embedded credentials. Live verbatim anchor:
 //
@@ -1186,22 +1186,8 @@ func (e *Engine) downgrade(ctx context.Context, node *metadata.Node, repoKey, pa
 //	(Failed retrieving resource from http://192.168.1.70:18199/gen/t597/a.bin:
 //	Connect timed out).; Path: 'difftest-t597-gen-remote:t597/a.bin'
 func retrievalFaultMessage(repoKey, path, upURL string, cause error) string {
-	return redactUserinfo(fmt.Sprintf("%s: Error in getting information for '%s' (Failed retrieving resource from %s: %v).; Path: '%s:%s'",
+	return redact.Userinfo(fmt.Sprintf("%s: Error in getting information for '%s' (Failed retrieving resource from %s: %v).; Path: '%s:%s'",
 		repoKey, path, upURL, cause, repoKey, path))
-}
-
-// reUserInfoInURL matches the scheme://user:pass@ (and Go client errors'
-// masked user:***@) form anywhere in rendered text.
-var reUserInfoInURL = regexp.MustCompile(`//[^/@?#\s]*@`)
-
-// redactUserinfo strips embedded credentials before upstream references are
-// rendered into anonymous-readable faces (R13 dual-review B1) or server log
-// streams (T-617): a remote repo URL may legally carry userinfo (config
-// validation accepts it), and the Go client's error text quotes it back —
-// password masked as *** but the username intact. Works on bare URLs and
-// free text alike; text without the userinfo form passes through unchanged.
-func redactUserinfo(s string) string {
-	return reUserInfoInURL.ReplaceAllString(s, "//")
 }
 
 // offlineWindowMessage is the reference's 404 body while the repository sits
@@ -1486,7 +1472,7 @@ func (e *Engine) syncUpstreamProperties(ctx context.Context, cfg *metadata.Remot
 		// T-617: the WARN is a log face — the configured URL may legally
 		// embed userinfo, which must never reach the log stream.
 		e.log.Warn("remote: content synchronisation: upstream url carries no repository segment; properties not queried",
-			"repo", repoKey, "path", path, "url", redactUserinfo(cfg.URL))
+			"repo", repoKey, "path", path, "url", redact.Userinfo(cfg.URL))
 		return
 	}
 	client, err := e.clientFor(repoKey, cfg, pol)

@@ -61,6 +61,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/redact"
 )
 
 // Browse batch-1 package types (repo.PackageHelm / keypair_config.go's
@@ -206,7 +207,7 @@ func (e *Engine) BrowseRemote(ctx context.Context, permit BrowsePermit, repoKey,
 		// The fault text may quote the transport error, which embeds the
 		// upstream URL's userinfo (T-617) — redact once for both faces the
 		// text rides: the WARN line and the caller-facing degraded note.
-		msg := redactUserinfo(fault.msg)
+		msg := redact.Userinfo(fault.msg)
 		e.log.WarnContext(ctx, "remote: browse enumeration degraded",
 			slog.String("repo", repoKey), slog.String("folder", folder),
 			slog.String("reason", msg))

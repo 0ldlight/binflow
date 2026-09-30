@@ -47,6 +47,7 @@ import (
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/redact"
 )
 
 // UpstreamOverride carries the draft-test arms (the remote form's Test
@@ -135,7 +136,7 @@ func TestRepositoryUpstream(ctx context.Context, md metadata.Store, repoKey stri
 	base, err := url.Parse(targetURL)
 	if err != nil || (base.Scheme != "http" && base.Scheme != "https") || base.Host == "" {
 		return TestResult{Message: fmt.Sprintf(
-			"Remote repository url %q must be an absolute http/https URL with a host", redactUserinfo(targetURL))}, nil
+			"Remote repository url %q must be an absolute http/https URL with a host", redact.Userinfo(targetURL))}, nil
 	}
 
 	// The one-shot egress client: the repository's own posture (base URL,
@@ -164,7 +165,7 @@ func TestRepositoryUpstream(ctx context.Context, md metadata.Store, repoKey stri
 	switch {
 	case res.StatusCode >= 200 && res.StatusCode < 400, res.StatusCode == http.StatusNotFound:
 		return TestResult{OK: true, StatusCode: res.StatusCode, Message: fmt.Sprintf(
-			"Remote repository '%s' url '%s' tested successfully", repoKey, redactUserinfo(base.String()))}, nil
+			"Remote repository '%s' url '%s' tested successfully", repoKey, redact.Userinfo(base.String()))}, nil
 	default:
 		return TestResult{StatusCode: res.StatusCode, Message: fmt.Sprintf(
 			"Connection failed: Remote repository URL returned error %d: %s",
@@ -248,5 +249,5 @@ func probeTransportMessage(repoKey string, u *url.URL, err error) string {
 		return fmt.Sprintf("Error testing remote repository '%s': %s", repoKey, err.Error())
 	}
 	return fmt.Sprintf("Error testing remote repository '%s': %s %s: connection failed",
-		repoKey, http.MethodGet, redactUserinfo(u.String()))
+		repoKey, http.MethodGet, redact.Userinfo(u.String()))
 }
