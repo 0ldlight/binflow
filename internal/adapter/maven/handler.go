@@ -339,18 +339,49 @@ func (h *Handler) writeSidecarDigest(ctx context.Context, w http.ResponseWriter,
 }
 
 // writeSidecarBody renders one sidecar BODY value (stored client
-// declaration or computed digest — the byte rendering is identical) with
-// the sidecar face's headers: CT, unquoted-digest ETag, Last-Modified,
-// X-Checksum-Sha256, conditional 304, then the body (GET only).
+// declaration or computed digest — the byte rendering is identical) under
+// the sidecar face's VERB-CONDITIONAL header model (T-598 / BIN-80, ledger
+// maven/sidecar-get-x-checksum-sha256-echo, live A 7.161.26 legs
+// m1-get-sha1-set / m1-head-sha1-set, L041 Arm 1 — the rendering path is
+// the VERB, not the repository state or the algorithm):
+//
+//   - GET renders the bare infra set ONLY — Content-Type, Content-Length,
+//     Last-Modified. No ETag, no X-Checksum-*, no Accept-Ranges: A answers
+//     nothing a client could validate the sidecar bytes against. An
+//     If-None-Match therefore never short-circuits (no served ETag to
+//     match — writeDerivedSidecar's inert-etag habit); If-Modified-Since
+//     still earns its 304 off the rendered stamp.
+//   - HEAD renders the full validator set — Accept-Ranges, ETag and
+//     X-Checksum-{Md5,Sha1,Sha256} — and every validator addresses the
+//     SOURCE artifact (the node), never the sidecar's own digest: ETag is
+//     the unquoted source sha1 and the triple is the source's computed
+//     triple (serveNode's digestTriple), a ledger gap degrading per key.
+//
+// The derived-metadata sidecar (writeDerivedSidecar) is a different
+// contract family (L032 Arm 6 / BIN-41) and keeps its own face.
 func (h *Handler) writeSidecarBody(w http.ResponseWriter, r *http.Request, body string, node *metadata.Node) {
 	hdr := w.Header()
 	hdr.Set("Content-Type", sidecarContentType)
 	hdr.Set("Content-Length", strconv.Itoa(len(body)))
-	hdr.Set("Accept-Ranges", "bytes")
-	hdr.Set("ETag", body) // unquoted digest, the M1 ETag convention
-	hdr.Set("Last-Modified", nodeTime(node).UTC().Format(http.TimeFormat))
-	hdr.Set(hdrChecksumSha256, node.Sha256)
-	if evalConditional(r, body, nodeTime(node)) {
+	lastMod := nodeTime(node)
+	hdr.Set("Last-Modified", lastMod.UTC().Format(http.TimeFormat))
+	etag := ""
+	if r.Method == http.MethodHead {
+		sums := h.digestTriple(r.Context(), node)
+		hdr.Set("Accept-Ranges", "bytes")
+		if sums.sha256 != "" {
+			hdr.Set(hdrChecksumSha256, sums.sha256)
+		}
+		if sums.sha1 != "" {
+			hdr.Set(hdrChecksumSha1, sums.sha1)
+			hdr.Set("ETag", sums.sha1) // unquoted source sha1, m1-head-sha1-set
+			etag = sums.sha1
+		}
+		if sums.md5 != "" {
+			hdr.Set(hdrChecksumMd5, sums.md5)
+		}
+	}
+	if evalConditional(r, etag, lastMod) {
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
@@ -358,7 +389,7 @@ func (h *Handler) writeSidecarBody(w http.ResponseWriter, r *http.Request, body 
 	if r.Method == http.MethodHead {
 		return
 	}
-	_, _ = io.WriteString(w, body)
+	_, _ = io.WriteString(w, body) // bare hex, no trailing newline (ME-03/FR-16)
 }
 
 // serveFile streams an artifact or stored metadata node with the full M1
