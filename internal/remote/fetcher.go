@@ -48,6 +48,12 @@ import (
 //	             window); an expired copy is served with
 //	             X-Binflow-Upstream-Error (STALE), without a copy the answer
 //	             is 404 naming the offline state, or 502 on hardFail:true;
+//	     the window opens on the SECOND consecutive transport fault
+//	             (T-619 / BIN-101, contract remote/offline-window-open-threshold:
+//	             live A 7.161.26 answers the first two faulting contacts with
+//	             the retrieval-error 404 and silences the third onward; a 5xx
+//	             ANSWER still opens the window on first contact — that arm is
+//	             live-unprobed and keeps its as-built single-fault posture);
 //	6. writes never reach the engine: the service layer answers 405 before
 //	   this API is consulted (RE-05).
 //
@@ -285,8 +291,13 @@ type Engine struct {
 	// "repoKey\x00baseURL" so one repository may hold both shapes.
 	extClients map[string]*cachedClient
 	offline    map[string]time.Time // repoKey -> assumed-offline until
-	stats      map[string]*repoCounters
-	flights    map[string]chan struct{} // singleflight, repoKey + "/" + path
+	// faults is the cold-breaker count of CONSECUTIVE configured-upstream
+	// transport faults per repository (T-619 / BIN-101): the window opens at
+	// the second one. Any definitive upstream answer and the window's own
+	// expiry restart the count (see noteTransportFault/upstreamReached).
+	faults  map[string]int
+	stats   map[string]*repoCounters
+	flights map[string]chan struct{} // singleflight, repoKey + "/" + path
 	// browseTrees is the remote-browsing enumeration cache (T-442,
 	// FR-147.1): one parsed whole-tree snapshot per repository, held for
 	// the repository's metadata TTL. It is written ONLY by BrowseRemote —
@@ -344,6 +355,7 @@ func NewEngine(st storage.Engine, md metadata.Store, opts EngineOptions) (*Engin
 		clients:     map[string]*cachedClient{},
 		extClients:  map[string]*cachedClient{},
 		offline:     map[string]time.Time{},
+		faults:      map[string]int{},
 		stats:       map[string]*repoCounters{},
 		flights:     map[string]chan struct{}{},
 		browseTrees: map[string]*browseTree{},
@@ -706,6 +718,9 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 			out, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, ferr, extHost, upURL)
 			return out, merr
 		}
+		if extHost == "" {
+			e.upstreamReached(repoKey) // the exchange completed: restart the breaker count
+		}
 		if res.StatusCode != http.StatusOK {
 			out, uerr := e.mapUpstreamStatus(ctx, repoKey, path, cfg, pol, staleNode, res.StatusCode, res.Status, extHost)
 			e.logResult(repoKey, path, cacheStateOf(out), host, res.StatusCode, start, 0, "")
@@ -725,6 +740,9 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 	if ferr != nil {
 		out, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, ferr, extHost, upURL)
 		return out, merr
+	}
+	if extHost == "" {
+		e.upstreamReached(repoKey) // the exchange completed: restart the breaker count
 	}
 	if res.StatusCode != http.StatusOK {
 		drainClose(res.Body)
@@ -1074,11 +1092,14 @@ func (e *Engine) mapUpstreamStatus(ctx context.Context, repoKey, path string, cf
 }
 
 // mapTransportFault maps client failures (connection refused/reset/timeout,
-// redirect excess, guarded dials, mid-body aborts): mark offline, then serve
+// redirect excess, guarded dials, mid-body aborts): count the consecutive
+// transport fault and open the assumed-offline window at the second one
+// (T-619 / BIN-101 — the contact that OPENS the window still answers the
+// retrieval form below; the window silences the NEXT contact), then serve
 // a stale copy or answer 404/502. SSRF denials and the buffered-body cap are
 // NOT faults — they map to 400/502 directly with no offline mark (a
 // screening refusal must not silence the repository's other paths). An
-// external hop (extHost set, FetchAbsolute) skips the offline mark as well:
+// external hop (extHost set, FetchAbsolute) skips the fault count as well:
 // the fault is a third party's, and the stale-copy-or-404 downgrade below
 // still answers. upURL is the hop's full URL — the no-copy 404 externalizes
 // it verbatim (T-597's live-A first-fault family).
@@ -1098,7 +1119,7 @@ func (e *Engine) mapTransportFault(ctx context.Context, repoKey, path string, cf
 			Message: fmt.Sprintf("Failed to proxy '%s/%s': %v", repoKey, path, err),
 		}
 	default:
-		if extHost == "" {
+		if extHost == "" && e.noteTransportFault(repoKey) {
 			e.markOffline(repoKey, now.Add(time.Duration(offlineSecs(pol))*time.Second))
 		}
 		return e.downgrade(ctx, staleNode, repoKey, path, cfg, pol,
@@ -1285,6 +1306,7 @@ func (e *Engine) Forget(repoKey string) {
 		}
 	}
 	delete(e.offline, repoKey)
+	delete(e.faults, repoKey)
 	delete(e.stats, repoKey)
 	e.mu.Unlock()
 	e.browseForget(repoKey)
@@ -1513,6 +1535,40 @@ func (e *Engine) syncUpstreamProperties(ctx context.Context, cfg *metadata.Remot
 		"repo", repoKey, "path", path, "keys", len(body.Properties))
 }
 
+// offlineWindowFaultThreshold is how many CONSECUTIVE configured-upstream
+// transport faults open the assumed-offline window (T-619 / BIN-101,
+// contract remote/offline-window-open-threshold): live A 7.161.26 answers
+// the first two faulting contacts with the retrieval-error 404 — the window
+// silences the third onward. The 5xx default arm sits OUTSIDE this counter
+// (live-unprobed on A, NOT_RUN): a definite 5xx answer keeps opening the
+// window on first contact, as built.
+const offlineWindowFaultThreshold = 2
+
+// noteTransportFault records one consecutive configured-upstream transport
+// fault and reports whether the assumed-offline window should now open. The
+// contact that opens the window still answers with the retrieval error
+// itself (the downgrade's fault arm); only the contacts INSIDE the window
+// render the offline family. The count restarts on any definitive upstream
+// answer (upstreamReached) and on the window's own expiry (the lazy delete
+// in offlineWindow — T-597's r3/r4 cold-breaker pairs re-ran the full
+// retrieval/retrieval/offline sequence after each >300s round gap).
+func (e *Engine) noteTransportFault(repoKey string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.faults[repoKey]++
+	return e.faults[repoKey] >= offlineWindowFaultThreshold
+}
+
+// upstreamReached notes that the configured upstream produced a definitive
+// answer (the HTTP exchange completed — any status, the transport worked):
+// the cold breaker's consecutive-fault count starts over. External hops do
+// not call this (a third party's health says nothing about the upstream).
+func (e *Engine) upstreamReached(repoKey string) {
+	e.mu.Lock()
+	delete(e.faults, repoKey)
+	e.mu.Unlock()
+}
+
 // markOffline opens the assumed-offline window (the light circuit breaker of
 // the T-79 errata: silence for assumedOfflinePeriodSecs, zero upstream
 // traffic inside it, automatic recovery after).
@@ -1524,7 +1580,9 @@ func (e *Engine) markOffline(repoKey string, until time.Time) {
 		"repo", repoKey, "until", rfc3339(until))
 }
 
-// offlineWindow reports the remaining assumed-offline window, if any.
+// offlineWindow reports the remaining assumed-offline window, if any. An
+// expired window is lazily deleted here — together with the breaker's fault
+// count, so the cold sequence restarts from the first contact after recovery.
 func (e *Engine) offlineWindow(repoKey string, now time.Time) (time.Time, bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -1534,6 +1592,7 @@ func (e *Engine) offlineWindow(repoKey string, now time.Time) (time.Time, bool) 
 	}
 	if !now.Before(until) {
 		delete(e.offline, repoKey)
+		delete(e.faults, repoKey)
 		return time.Time{}, false
 	}
 	return until, true
