@@ -164,9 +164,15 @@ func TestChecksumPutMismatchPath(t *testing.T) {
 	}
 }
 
-// TestChecksumPutClientOverlayFallback pins the overlay's fallback posture
-// (ADR-0052 decision 4): with NO stored client value the artifact sidecar
-// GET answers the computed digest — maven's posture, unlike generic's 404.
+// TestChecksumPutClientOverlayFallback pins the overlay's on-demand matrix
+// (ADR-0052 decision 4's mechanism, BIN-76 / T-594's sha256-only posture —
+// ledger maven/sidecar-get-ondemand-matrix, L041 Arm 1): with NO stored
+// client value the artifact sidecar GET answers the computed digest for
+// sha256 ALONE; an unset md5/sha1 answers the checksum family's own 404
+// citing the SOURCE (A's m1-get-md5-unset wire, no computed fallback — the
+// pre-T-594 all-algorithm fallback was B's over-computation). The SET arm
+// stays the T-578 write face: registration first, then the per-algorithm
+// echo (the registered sha1 flips its own face only).
 func TestChecksumPutClientOverlayFallback(t *testing.T) {
 	hs := newHarness(t)
 	// Seed WITHOUT checksum headers: no client column is ever written.
@@ -175,24 +181,33 @@ func TestChecksumPutClientOverlayFallback(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("seed = %d", resp.StatusCode)
 	}
-	s1, _, _ := digests(jarBytes)
+	s1, _, s256 := digests(jarBytes)
+	// sha256 is the on-demand arm's only 200: the computed digest.
+	if got := string(drain(t, hs.serve(http.MethodGet, "/maven-local/"+jar+".sha256", nil, nil, true))); got != s256 {
+		t.Errorf("GET .sha256 (unset) = %q, want the computed %q", got, s256)
+	}
+	// md5/sha1 unset: 404 citing the SOURCE, no repo prefix — A verbatim.
 	for _, algo := range []string{"sha1", "md5"} {
-		if resp := hs.serve(http.MethodGet, "/maven-local/"+jar+"."+algo, nil, nil, true); resp.StatusCode != http.StatusOK {
-			t.Fatalf("GET .%s = %d, want 200", algo, resp.StatusCode)
-		} else if got := string(drain(t, resp)); got != map[string]string{"sha1": s1, "md5": digests2(jarBytes)}[algo] {
-			t.Errorf("GET .%s = %q, want computed", algo, got)
+		resp := hs.serve(http.MethodGet, "/maven-local/"+jar+"."+algo, nil, nil, true)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("GET .%s (unset) = %d, want 404", algo, resp.StatusCode)
+		}
+		want := "Checksum not found for " + jar
+		if got := string(drain(t, resp)); !strings.Contains(got, want) {
+			t.Errorf("GET .%s (unset) body = %s, want wording %q", algo, got, want)
 		}
 	}
 	// Register one algorithm (correct value): the .sha1 face flips to the
-	// stored client value while .md5 stays computed (per-algorithm overlay).
+	// stored client value while the unregistered .md5 keeps its 404
+	// (per-algorithm overlay, per-algorithm matrix).
 	if resp := hs.serve(http.MethodPut, "/maven-local/"+jar+".sha1", []byte(s1), nil, true); resp.StatusCode != http.StatusCreated {
 		t.Fatalf("sha1 registration = %d", resp.StatusCode)
 	}
 	if got := string(drain(t, hs.serve(http.MethodGet, "/maven-local/"+jar+".sha1", nil, nil, true))); got != s1 {
 		t.Errorf("GET .sha1 after registration = %q, want %q", got, s1)
 	}
-	if got := string(drain(t, hs.serve(http.MethodGet, "/maven-local/"+jar+".md5", nil, nil, true))); got != digests2(jarBytes) {
-		t.Errorf("GET .md5 after sibling registration = %q, want computed", got)
+	if resp := hs.serve(http.MethodGet, "/maven-local/"+jar+".md5", nil, nil, true); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("GET .md5 after sibling registration = %d, want the matrix's 404", resp.StatusCode)
 	}
 }
 

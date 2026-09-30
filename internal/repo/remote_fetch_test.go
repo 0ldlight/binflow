@@ -142,13 +142,24 @@ func TestServiceRemoteClosedLoop(t *testing.T) {
 	if got := hits.Load(); got != 2 {
 		t.Fatalf("upstream hits after invalidate+refetch = %d, want 2", got)
 	}
-	// Deleting a path with nothing cached is the idempotent 404.
-	if err := e.svc.Delete(context.Background(), admin(), "generic-remote", "never-there.bin"); !errors.Is(err, repo.ErrNodeNotFound) {
-		t.Fatalf("unknown-path delete = %v, want ErrNodeNotFound", err)
+	// Deleting a path with nothing cached is the idempotent 404, spoken in
+	// the deletion engine's miss wording (C7's c-arm, BIN-78/T-596; live A
+	// evidence: 404 "Artifact deletion error: Item <repo>/<path> does not
+	// exist", no trailing period).
+	err = e.svc.Delete(context.Background(), admin(), "generic-remote", "never-there.bin")
+	if !errors.Is(err, repo.ErrNodeNotFound) {
+		t.Fatalf("unknown-path delete = %v, want the ErrNodeNotFound chain", err)
+	}
+	var dse *repo.StatusError
+	if !errors.As(err, &dse) || dse.Code != http.StatusNotFound {
+		t.Fatalf("unknown-path delete = %v, want a 404 StatusError", err)
+	}
+	if want := "Artifact deletion error: Item generic-remote/never-there.bin does not exist"; dse.Message != want {
+		t.Fatalf("unknown-path delete message = %q, want %q", dse.Message, want)
 	}
 }
 
-// ---- M45 shape: the checksum sidecar refusal through the service ----
+// ---- T-597 shape: the checksum sidecar rides the ordinary chain ----
 
 func TestServiceRemoteChecksumSidecar(t *testing.T) {
 	files := map[string]string{"/up.bin": "artifact"}
@@ -161,12 +172,18 @@ func TestServiceRemoteChecksumSidecar(t *testing.T) {
 	}
 	before := hits.Load()
 
+	// Since T-597 (ledger arm d) the service no longer refuses checksum
+	// suffixes a priori: the sidecar path proxies through like any other,
+	// and a definite upstream 404 lands the negative cache's unfound
+	// family. The adapter faces strip the suffix and answer the computed
+	// digest of the SOURCE instead — those live in the adapter-side
+	// backsource tests (internal/adapter/{maven,generic}).
 	_, err := getRemote(t, e, admin(), "up.bin.sha1")
 	var se *repo.StatusError
 	if !errors.As(err, &se) || se.Code != http.StatusNotFound {
 		t.Fatalf("sidecar Get = %v, want 404 StatusError", err)
 	}
-	if se.Message != "Checksums are not downloadable." {
+	if se.Message != "Failed to find the requested resource 'generic-remote/up.bin.sha1'." {
 		t.Fatalf("sidecar message = %q", se.Message)
 	}
 	// The unfound family still wraps ErrNodeNotFound for /api/storage's
@@ -174,8 +191,8 @@ func TestServiceRemoteChecksumSidecar(t *testing.T) {
 	if !errors.Is(err, repo.ErrNodeNotFound) {
 		t.Fatalf("sidecar must wrap ErrNodeNotFound, got %v", err)
 	}
-	if got := hits.Load(); got != before {
-		t.Fatalf("upstream hits = %d, want %d (sidecars never proxied)", got, before)
+	if got := hits.Load(); got != before+1 {
+		t.Fatalf("upstream hits = %d, want %d (the sidecar really proxies)", got, before+1)
 	}
 }
 

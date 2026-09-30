@@ -84,8 +84,10 @@ func TestChecksumPutUnroutedVirtualRefusal(t *testing.T) {
 	}
 
 	// Zero side effects (L040 Arm 1a's refusal face): the member's node
-	// carries no client declaration, and the member's own GET face serves
-	// the computed digests — the wrong md5 never wrote through.
+	// carries no client declaration, and the member's own GET face answers
+	// the on-demand matrix's unset arm (BIN-76 / T-594: 404 citing the
+	// source) — a written-through wrong value would flip an arm to a 200
+	// echo, so the 404 pair is the zero-side-effect proof on this face.
 	node, err := hs.md.Nodes().Get(context.Background(), "maven-local", jar)
 	if err != nil {
 		t.Fatalf("member node: %v", err)
@@ -95,10 +97,13 @@ func TestChecksumPutUnroutedVirtualRefusal(t *testing.T) {
 			node.ClientSha1, node.ClientMd5, node.ClientSha256)
 	}
 	for _, algo := range []string{"sha1", "md5"} {
-		want := map[string]string{"sha1": s1, "md5": digests2(jarBytes)}[algo]
-		got := string(drain(t, hs.serve(http.MethodGet, "/maven-local/"+jar+"."+algo, nil, nil, true)))
-		if got != want {
-			t.Errorf("member GET .%s after the 405 family = %q, want the computed %q", algo, got, want)
+		resp := hs.serve(http.MethodGet, "/maven-local/"+jar+"."+algo, nil, nil, true)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("member GET .%s after the 405 family = %d, want the matrix's 404", algo, resp.StatusCode)
+			continue
+		}
+		if got := string(drain(t, resp)); !strings.Contains(got, "Checksum not found for "+jar) {
+			t.Errorf("member GET .%s after the 405 family = %q, want the source-citing 404", algo, got)
 		}
 	}
 }
@@ -107,7 +112,8 @@ func TestChecksumPutUnroutedVirtualRefusal(t *testing.T) {
 // sidecar action — the existence probe, the SET, the miss 404's repo
 // segment and the 201 Location — names the deployment-target member, and
 // the virtual GET face echoes the registered client value (the write-
-// through included), an unset algorithm keeping the computed fallback.
+// through included), an unset sha256 keeping the computed fallback
+// (BIN-76 / T-594's sha256-only matrix).
 func TestChecksumPutRoutedVirtualPenetration(t *testing.T) {
 	hs := newHarness(t)
 	seedRoutedVirtual(t, hs, "t587-virt", "maven-local")
@@ -169,8 +175,9 @@ func TestChecksumPutRoutedVirtualPenetration(t *testing.T) {
 		t.Fatalf("virtual GET .sha1 after registration = %q, want the client value %q", got, s1)
 	}
 
-	// An unset algorithm through the virtual keeps the computed fallback
-	// (maven's own posture — the C2 on-demand family's ruling untouched).
+	// An unset sha256 through the virtual keeps the computed fallback —
+	// the on-demand matrix's only 200 arm (BIN-76 / T-594; an unset
+	// md5/sha1 would answer the matrix's 404 instead).
 	if got := string(drain(t, hs.serve(http.MethodGet, "/t587-virt/"+jar+".sha256", nil, nil, true))); got == "" {
 		t.Fatal("virtual GET .sha256 (never registered) = empty, want the computed fallback")
 	}

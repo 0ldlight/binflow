@@ -77,6 +77,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			".index is not implemented in BinFlow (the Maven repository index is a documented non-goal)")
 		return
 	}
+	// The filename-keyed metadata checksum route (T-595 / BIN-77, WP1)
+	// dispatches BEFORE the layout gate: the family is keyed on the
+	// terminal base name alone, so the repository ROOT spelling — which the
+	// maven layout refuses — routes exactly like the module/version ones
+	// (live leg wp1-root: A answers the family's 200 no-op at root level
+	// too). Put through the dedicated no-op arm; the GET miss of the same
+	// family stays a read-plane 404 citing the stripped SOURCE (the
+	// parse-gate arm below).
+	if r.Method == http.MethodPut {
+		if _, ok := metadataChecksumRouteKey(relPath); ok {
+			ctx := adapter.WithDeployProps(r.Context(), props)
+			h.putMetadataChecksumFile(ctx, w, r, adapter.PrincipalFrom(ctx), repoKey, relPath)
+			return
+		}
+	}
 	l, err := Parse(relPath)
 	if err != nil {
 		// BIN-66 / T-584 (L039 Arm 4 + the whitelist #8 and non-GAV corner
@@ -108,6 +123,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// WRITE-side refusal (A's t8-shaped PUT face is unobserved — kept
 		// as-is, not guessed).
 		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			// T-595 (live leg wp2-root-sha1): the metadata checksum
+			// family's miss cites the stripped SOURCE even at a depth the
+			// layout cannot parse (`File not found.; Path: '<repo>:
+			// maven-metadata.xml'` on A) — the family is filename-keyed on
+			// both planes, so the miss never cites the suffix spelling.
+			if src, ok := metadataChecksumRouteKey(relPath); ok {
+				writeError(w, http.StatusNotFound, notFoundMessage(repoKey, src))
+				return
+			}
 			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
 			return
 		}
@@ -169,10 +193,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // handleGet serves downloads with the inherited M1 header set (X-Checksum-*,
 // ETag=sha1, Last-Modified, Accept-Ranges, Content-Type; Range 206/416 and
 // conditional 304 — ME-02), plus the maven-specific reads: the computed
-// checksum sidecar body, the remote-repository sidecar pass-through 404 and
-// the virtual-repository metadata merge (T-72: maven-metadata.xml and its
-// sidecars answer from the in-memory merge of the members' documents, never
-// a single member's first-hit copy).
+// checksum sidecar body (on a remote plane, back-sourced through the
+// ordinary pull-through since T-597) and the virtual-repository metadata
+// merge (T-72: maven-metadata.xml and its sidecars answer from the
+// in-memory merge of the members' documents, never a single member's
+// first-hit copy).
 func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	p *repo.Principal, repoKey, relPath string, l Layout) {
 	var rowType string
@@ -227,15 +252,17 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 	if l.Kind == KindSidecar {
-		// A REMOTE repository never serves checksum files, cached or
-		// upstream (maven-npm-pypi.md section 1.5, high confidence; FR-20
-		// step 2): the request dies before any engine involvement, and it
-		// must die for anonymous readers too — hence the class seam, not
-		// the authenticated GetRepo face.
-		if rowType == repo.TypeRemote {
-			writeError(w, http.StatusNotFound, "Checksums are not downloadable.")
-			return
-		}
+		// T-597 / BIN-79 (ledger generic/remote-deploy-refusal-form arm d,
+		// R12 ruling): a REMOTE repository's sidecar GET is NO LONGER the
+		// a-priori 404 "Checksums are not downloadable." — the live
+		// reference (7.161.26, /tmp/t597 probe, generic and maven faces
+		// alike) back-sources the SOURCE through the ordinary remote chain
+		// and externalizes the upstream fault against the suffix-stripped
+		// source path; the request falls through to serveSidecar below,
+		// whose svc.Get(l.Target) is exactly that pull-through (the landed
+		// copy answers its computed digest; maven-npm-pypi.md §1.5 Erratum
+		// E1). The 200 form (reachable upstream) is live-unprobed — NOT_RUN,
+		// extrapolated via the error form's source resolution.
 		// T-542 review follow-up: the member plane's strip reaches the
 		// sidecar face too — a capability-rejected client's .sha1/.md5
 		// answers the digest of the STRIPPED document (the derived-body
@@ -255,22 +282,24 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 		}
 		// The client-value overlay (T-578 / BIN-60, ADR-0052 decision 4):
 		// a LOCAL repository's ARTIFACT sidecar echoes the stored client
-		// declaration first, the computed digest only as fallback — the
-		// PUT face registered the value above, wrong values included
-		// (L037 Arm 1's 409 write-through leg). Under the
-		// server-generated-checksums policy the overlay stays OFF (BIN-66 /
+		// declaration first — the PUT face registered the value above,
+		// wrong values included (L037 Arm 1's 409 write-through leg). Under
+		// the server-generated-checksums policy the overlay stays OFF (BIN-66 /
 		// T-584, L039 Arm 6): the registration happens there too, but the
 		// reference's GET face keeps serving the COMPUTED digest whatever
 		// was declared — the stored client value surfaces only in
 		// originalChecksums. The VIRTUAL face overlays too (T-587 / BIN-69,
 		// L040 Arm 1b mv2-get-md5: A echoes the member's registered client
 		// value through the virtual read plane — the generic plane's
-		// serveVirtualClientChecksum mirror); an unset value keeps the
-		// computed fallback, maven's own posture (the C2 on-demand family's
-		// ruling stays untouched). Metadata targets (the derived-document
-		// contract owns their digests) and the remote plane keep the
-		// computed answer.
-		h.serveSidecar(ctx, w, r, p, repoKey, relPath, l,
+		// serveVirtualClientChecksum mirror). Since BIN-76 / T-594 (ledger
+		// maven/sidecar-get-ondemand-matrix, L041 Arm 1 + T-587's
+		// mvu-get-*-unset legs) the unset-value fallback on the
+		// overlay-armed face is sha256-ONLY: an unset md5/sha1 answers the
+		// checksum family's own 404 citing the source (`Checksum not found
+		// for <src>`, serveSidecarOfPath) — A computes no md5/sha1 on
+		// demand. Metadata targets (the derived-document contract owns
+		// their digests) and the remote plane keep the computed answer.
+		h.serveSidecar(ctx, w, r, p, repoKey, rowType, l,
 			l.TargetKind == KindArtifact && (rowType == repo.TypeVirtual ||
 				(rowType == repo.TypeLocal && rowCfg.ChecksumPolicy != ChecksumPolicyServerGenerated)))
 		return
@@ -280,12 +309,12 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 
 // serveSidecar answers a checksum sidecar GET/HEAD with the STORED CLIENT
 // digest of the TARGET when the overlay flag holds and one was registered,
-// else the server-computed digest — never a passthrough of stored sidecar
-// bytes (the stored bytes only register the client's original claim,
-// ME-03).
+// else the on-demand matrix of serveSidecarOfPath (sha256 computed, md5/sha1
+// the checksum family's 404) — never a passthrough of stored sidecar bytes
+// (the stored bytes only register the client's original claim, ME-03).
 func (h *Handler) serveSidecar(ctx context.Context, w http.ResponseWriter, r *http.Request,
-	p *repo.Principal, repoKey, relPath string, l Layout, overlayClient bool) {
-	h.serveSidecarOfPath(ctx, w, r, p, repoKey, l.Target, l.Algo, relPath, overlayClient)
+	p *repo.Principal, repoKey, rowType string, l Layout, overlayClient bool) {
+	h.serveSidecarOfPath(ctx, w, r, p, repoKey, l.Target, l.Algo, rowType, overlayClient)
 }
 
 // writeSidecarDigest renders the computed sidecar of ONE node (digest
@@ -310,18 +339,49 @@ func (h *Handler) writeSidecarDigest(ctx context.Context, w http.ResponseWriter,
 }
 
 // writeSidecarBody renders one sidecar BODY value (stored client
-// declaration or computed digest — the byte rendering is identical) with
-// the sidecar face's headers: CT, unquoted-digest ETag, Last-Modified,
-// X-Checksum-Sha256, conditional 304, then the body (GET only).
+// declaration or computed digest — the byte rendering is identical) under
+// the sidecar face's VERB-CONDITIONAL header model (T-598 / BIN-80, ledger
+// maven/sidecar-get-x-checksum-sha256-echo, live A 7.161.26 legs
+// m1-get-sha1-set / m1-head-sha1-set, L041 Arm 1 — the rendering path is
+// the VERB, not the repository state or the algorithm):
+//
+//   - GET renders the bare infra set ONLY — Content-Type, Content-Length,
+//     Last-Modified. No ETag, no X-Checksum-*, no Accept-Ranges: A answers
+//     nothing a client could validate the sidecar bytes against. An
+//     If-None-Match therefore never short-circuits (no served ETag to
+//     match — writeDerivedSidecar's inert-etag habit); If-Modified-Since
+//     still earns its 304 off the rendered stamp.
+//   - HEAD renders the full validator set — Accept-Ranges, ETag and
+//     X-Checksum-{Md5,Sha1,Sha256} — and every validator addresses the
+//     SOURCE artifact (the node), never the sidecar's own digest: ETag is
+//     the unquoted source sha1 and the triple is the source's computed
+//     triple (serveNode's digestTriple), a ledger gap degrading per key.
+//
+// The derived-metadata sidecar (writeDerivedSidecar) is a different
+// contract family (L032 Arm 6 / BIN-41) and keeps its own face.
 func (h *Handler) writeSidecarBody(w http.ResponseWriter, r *http.Request, body string, node *metadata.Node) {
 	hdr := w.Header()
 	hdr.Set("Content-Type", sidecarContentType)
 	hdr.Set("Content-Length", strconv.Itoa(len(body)))
-	hdr.Set("Accept-Ranges", "bytes")
-	hdr.Set("ETag", body) // unquoted digest, the M1 ETag convention
-	hdr.Set("Last-Modified", nodeTime(node).UTC().Format(http.TimeFormat))
-	hdr.Set(hdrChecksumSha256, node.Sha256)
-	if evalConditional(r, body, nodeTime(node)) {
+	lastMod := nodeTime(node)
+	hdr.Set("Last-Modified", lastMod.UTC().Format(http.TimeFormat))
+	etag := ""
+	if r.Method == http.MethodHead {
+		sums := h.digestTriple(r.Context(), node)
+		hdr.Set("Accept-Ranges", "bytes")
+		if sums.sha256 != "" {
+			hdr.Set(hdrChecksumSha256, sums.sha256)
+		}
+		if sums.sha1 != "" {
+			hdr.Set(hdrChecksumSha1, sums.sha1)
+			hdr.Set("ETag", sums.sha1) // unquoted source sha1, m1-head-sha1-set
+			etag = sums.sha1
+		}
+		if sums.md5 != "" {
+			hdr.Set(hdrChecksumMd5, sums.md5)
+		}
+	}
+	if evalConditional(r, etag, lastMod) {
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
@@ -329,7 +389,7 @@ func (h *Handler) writeSidecarBody(w http.ResponseWriter, r *http.Request, body 
 	if r.Method == http.MethodHead {
 		return
 	}
-	_, _ = io.WriteString(w, body)
+	_, _ = io.WriteString(w, body) // bare hex, no trailing newline (ME-03/FR-16)
 }
 
 // serveFile streams an artifact or stored metadata node with the full M1

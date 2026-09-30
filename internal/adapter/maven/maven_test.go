@@ -84,6 +84,14 @@ func seedRepos(ctx context.Context, t *testing.T, md metadata.Store) {
 			t.Fatalf("seed repo %s: %v", r.RepoKey, err)
 		}
 	}
+	// The remote row's config side (T-597): the engine chain requires a
+	// remote_configs row — seeding only the repository row leaves every
+	// remote-plane read in the create-crash-window 500.
+	if err := md.Remote().CreateConfig(ctx, &metadata.RemoteConfig{
+		RepoKey: "maven-remote", URL: "http://127.0.0.1:9/upstream",
+	}); err != nil {
+		t.Fatalf("seed remote config: %v", err)
+	}
 }
 
 // serve runs one request against the bare-mounted handler. admin=true
@@ -524,27 +532,38 @@ func TestIndexNamespace(t *testing.T) {
 	}
 }
 
-// TestNonLocalRepositories pins the two class intercepts: the remote
-// sidecar pass-through 404 (spec-fixed message) and the write refusals
+// TestNonLocalRepositories pins the class intercepts that remain after
+// T-597 / BIN-79 retracted the remote sidecar's a-priori 404: the sidecar
+// GET rides the ordinary back-source chain (whose unexempted loopback
+// upstream here ends in the NFR-S13 screening 400 — the chain-leg matrix
+// lives in remote_sidecar_backsource_test.go) and the write refusals
 // (RE-05 405 for remote, Q2/C5 405 for an un-routed virtual).
 func TestNonLocalRepositories(t *testing.T) {
 	hs := newHarness(t)
 
-	// remote: checksum suffixes never proxy — 404 before any engine
+	// remote: the sidecar GET enters the engine chain and this harness's
+	// upstream is an UNEXEMPTED loopback URL — the chain's exit is the
+	// NFR-S13 screening refusal, a 400 citing the SOURCE path (BIN-76's
+	// source-addressing extends to the guard arm), never the retracted
+	// "Checksums are not downloadable." class 404.
 	for _, suffix := range []string{".sha1", ".md5", ".sha256"} {
 		resp := hs.serve(http.MethodGet, "/maven-remote/junit/junit/4.13.2/junit-4.13.2.jar"+suffix, nil, nil, true)
-		if resp.StatusCode != http.StatusNotFound {
-			t.Fatalf("remote sidecar GET %s = %d, want 404", suffix, resp.StatusCode)
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("remote sidecar GET %s = %d, want 400 (SSRF screening)", suffix, resp.StatusCode)
 		}
-		if msg := string(drain(t, resp)); msg != "Checksums are not downloadable." && !strings.Contains(msg, "Checksums are not downloadable.") {
-			t.Errorf("remote sidecar message = %s", msg)
+		msg := string(drain(t, resp))
+		if !strings.Contains(msg, "Cannot fetch 'maven-remote/junit/junit/4.13.2/junit-4.13.2.jar'") {
+			t.Errorf("screening message must cite the SOURCE path: %s", msg)
+		}
+		if strings.Contains(msg, suffix) || strings.Contains(msg, "not downloadable") {
+			t.Errorf("retracted sidecar-facing refusal leaked: %s", msg)
 		}
 	}
-	// anonymous remote sidecar GET hits the same wall (class seam needs no
-	// principal)
+	// anonymous remote sidecar GET rides the same chain (anonymous reads
+	// are on in this harness): the same screening 400, no 401 detour.
 	resp := hs.serve(http.MethodGet, "/maven-remote/junit/junit/4.13.2/junit-4.13.2.jar.sha1", nil, nil, false)
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("anonymous remote sidecar = %d, want 404", resp.StatusCode)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("anonymous remote sidecar = %d, want 400", resp.StatusCode)
 	}
 
 	// remote: PUT is the 405 of a read-only cache

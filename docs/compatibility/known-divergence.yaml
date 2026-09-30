@@ -2139,7 +2139,8 @@ entries:
     maven virtual GET=404 属 N1 族反向模型显式钉界勿混。conductor 采纳并裁 BUG（actionable）。
   authority: { type: conductor_ruling, ref: "R12 台账批 conductor 裁定（2026-09-30，BIN-74 收编）——ref T-592 建议稿 C2 + L041 Arm 1 N2 修订（g1-get-sha256-unset）" }
   review_gate: R12 联合裁定落账（T-592 建议=对齐实现 + L041 修订：generic 域 sha256 主摘要按需回显 virtual+local 两面、miss 双文案、sha1/md5 404 维持；maven virtual GET=404 属 N1 族显式钉界勿混）→ R13 工程票（dev-registry-adapter）→ 双轮 PASS → resolved
-  evidence: reports/compatibility/L039-checksum-put-adjacent.md Arm 1（1a/1b GET 行 + C2 表）+ reports/compatibility/L041-policy-ct-header-faces.md Arm 1（g1-get-sha256-unset）+ reports/agents/T-592.md
+  resolved: { date: '2026-09-30', evidence: 'BIN-75/T-593 generic checksum GET 对齐：sha256 主摘要按需回显 local+virtual 两面同缝（computed 恒胜含 wrong 注册——票文「注册 sha256>计算」被活体证伪，l-/v-sha256-registered 腿钉死，模型精化以主摘要恒胜为准）；sha1/md5 未注册双面 404 Checksum not found for <src> 指源维持；miss 双文案（local File not found.; Path: / virtual Could not find resource; Path:）指源；A×2+B×2 双轮 GATE 28/28×2、漂移 0/0、残渣 0；证据 reports/agents/T-593.md' }
+  evidence: reports/compatibility/L039-checksum-put-adjacent.md Arm 1（1a/1b GET 行 + C2 表）+ reports/compatibility/L041-policy-ct-header-faces.md Arm 1（g1-get-sha256-unset）+ reports/agents/T-592.md + reports/agents/T-593.md
 - id: maven/metadata-checksum-dedicated-route
   surface: 'maven-metadata.xml 目标 checksum 终缀 PUT——A=专用 metadata 路由：恒 200 空体/无源存在性
     检查/无值校验/无 client 值持久化（源缺亦零副作用纯 no-op，addendum 四腿收口），GET 侧恒按需计算
@@ -2162,7 +2163,8 @@ entries:
     （UNKNOWN 后置，牵动 REST/UI 产品级取舍）。conductor 采纳并裁 BUG（前两面 actionable）。
   authority: { type: conductor_ruling, ref: "R12 台账批 conductor 裁定（2026-09-30，BIN-74 收编）——ref T-592 建议稿 C5 + L039 Arm 5/L040 N4 双源" }
   review_gate: R12 联合裁定落账（T-592 建议=三分面：PUT 文件名键控专用路由+GET 按需计算双面对齐（次序模型随票固化），metadata 可见性 facet 拆立 maven/metadata-fileinfo-visibility UNKNOWN 后置）→ R13 工程票（dev-registry-adapter，一票两工作包+前置探腿）→ 双轮 PASS → resolved（可见性 facet 除外）
-  evidence: reports/compatibility/L039-checksum-put-adjacent.md Arm 5（A 全模型表 + B 现状 + addendum）
+  resolved: { date: '2026-09-30', evidence: 'BIN-77/T-595 双 WP：面一 PUT=文件名键控专用路由（终端 maven-metadata.xml+{.sha1,.md5,.sha256} 精确基名、层级/源无关；explode→路由门→401/403→drain 200 空体无 CT 无 Location 零落盘；定序模型固化；非成员/plugin-group 变体回拦截族）；面二 GET=按需计算+miss 措辞族（virtual merge=Maven-metadata-not-for @source 双分支）；A×2+B×2 双轮 GATE 84 腿 drift 0/0 residual 0+mvn 3.9.16 deploy/dependency:get exit 0（目录零 sidecar 附带节点）；面三可见性拆立 maven/metadata-fileinfo-visibility 维持 UNKNOWN；证据 reports/agents/T-595.md' }
+  evidence: reports/compatibility/L039-checksum-put-adjacent.md Arm 5（A 全模型表 + B 现状 + addendum）+ reports/agents/T-595.md
 - id: generic/remote-deploy-refusal-form
   surface: 'remote 仓 PUT 部署拒绝形（终缀/普通同形）——A=404 `Could not find a local repository named
     <key> to deploy to.`（部署拒绝先于/压过一切终缀解释，拦截族不在 remote 面运行）；B=405 read-only
@@ -2187,7 +2189,8 @@ entries:
     NFR-S13 私网上游守卫保留+负测腿）。conductor 采纳并裁 BUG（a/c/d actionable，b 已一致）。
   authority: { type: conductor_ruling, ref: "R12 台账批 conductor 裁定（2026-09-30，BIN-74 收编）——ref T-592 建议稿 C7 + L039 Arm 7/L040 N2 双源" }
   review_gate: R12 分面裁定落账（T-592 建议：generic PUT 对齐引擎 404 文案〔PRD RE-05 域注记移交〕；maven PUT 收注已一致；DELETE remote-miss 文案对齐+local 探腿门控；sidecar-GET maven 面撤 a-priori 拒绝回源代理〔maven-npm-pypi.md §1.5 勘误上报〕、generic/rpm 面探腿门控）→ R13 工程票×2（dev-go-core 主 / dev-storage 主）→ 双轮 PASS → resolved
-  evidence: reports/compatibility/L039-checksum-put-adjacent.md Arm 7（fetch 控制腿注记在案）
+  resolved: { date: '2026-09-30', evidence: 'C7 四分面全臂收口：a 臂 generic remote PUT（普通+checksum 终缀）双端 404 引擎文案逐字（BIN-78/T-596，拒绝先于终缀解释）；b 臂 maven 域已一致维持；c 臂 DELETE remote-miss 双端 Artifact-deletion-error 逐字+existing 204+refetch 回源（service 层 StatusError 直达 adapter，cargo/conan/deb 同向）；d 臂 sidecar-GET maven+generic 双面撤 a-priori 404 接普通回源链（引擎 Step-2 拒绝整块删除+cachestate 死代码清除；maven serveSidecar 落源 GET、generic serveRemoteChecksum 落源取计算值）；上游故障外化双形 live-A 对齐（首障 retrieval 形引源路径+上游 URL、窗内 offline 形逐字同 A）；NFR-S13 守卫保留+负测腿双面钉（400 引源路径）；live GATE A×2（冷断路器 330s 间隔）+B×2 drift 0/0、ruling 模型 18/18 PASS；rpm 面保持 adapter 本地拒绝（域限定未探）；证据 reports/agents/T-596.md + reports/agents/T-597.md' }
+  evidence: reports/compatibility/L039-checksum-put-adjacent.md Arm 7（fetch 控制腿注记在案）+ reports/agents/T-596.md + reports/agents/T-597.md
 - id: maven/checksum-oc-write-under-srvgen-policy
   surface: 'server-generated-checksums 策略下 client 宣称值入 originalChecksums——A=sidecar 终缀腿免校验 201
     且 client 宣称值仍写 oc（FileInfo oc.md5=000…0）+sha256 计算值；B=adapter SET 门限 CLIENT 策略，
@@ -2277,6 +2280,7 @@ entries:
     R12 裁 BUG 对齐 A：撤 B GET 自加头 + HEAD 补 triple 缺键（同条目两半面一次收口）。
   authority: { type: conductor_ruling, ref: "R12 台账批 conductor 裁定（2026-09-30，BIN-73 收编）——ref L041 Arm 1（m1-get/head-sha1-set 双轮）+ T-583 facet b" }
   review_gate: R13 修复票（maven sidecar GET/HEAD 头面对齐 A 动词条件模型：GET 零校验头零 Etag、HEAD=Etag+triple 全键；差分双轮）→ resolved
+  resolved: { date: '2026-09-30', evidence: 'BIN-80/T-598 修复+活体双轮 PASS：B writeSidecarBody 改动词条件模型（GET 撤自加 Etag/X-Checksum-Sha256/Accept-Ranges 三头=裸 CT/CL/Last-Modified；HEAD 补 Etag=源 sha1 未引号+X-Checksum-{Md5,Sha1,Sha256} 全键+Accept-Ranges）；GATE 14 腿 A/B × r1==r2 drift 0/0 + A-vs-B 全 PASS（registered echo/wrong-md5 写穿/on-demand sha256/unset/miss/virtual/generic 控制腿）+ mvn 3.9.16 deploy+dependency:get exit 0（jar sha1 8237d104 与服务端 .sha1 一致）；证据 reports/agents/T-598.md + /tmp/t598/raw 四探针' }
   evidence: reports/agents/T-583.md（facet b 域外注记）+ reports/compatibility/L041-policy-ct-header-faces.md Arm 1
 - id: rest/repo-config-put-ct-strictness
   surface: 'repo config REST 写面 Content-Type 强制——A=**精确 application/json 白名单**：缺 CT /
@@ -2291,9 +2295,15 @@ entries:
     UNKNOWN 限期两程。
     L041 Arm 4 修订（2026-09-30 双轮，r4-* 七腿）：A 模型收严=精确白名单（非仅缺 CT；JSON 子类型
     vnd.api+json 亦拒）；charset 参数 facet=404 无引号文案变体（与 rest/repo-update-missing-key-
-    404-wording 条目第三变体同腿双面）。维持 UNKNOWN 并入 R13 REST 错误形族联合票裁定。
-  authority: { type: differential, ref: "reports/agents/T-585.md Risks②（probe-a-r1 现场留存）+ reports/compatibility/L041-policy-ct-header-faces.md Arm 4（r4-* 双轮）" }
-  review_gate: R13 REST 错误形族联合票（CT 严格度+404 文案族+N1rest 枚举门并票裁定：精确 CT 白名单中间件 vs 维持宽松；全局牵动面评估）——UNKNOWN 限期余一程
+    404-wording 条目第三变体同腿双面）。
+    R13 裁定（2026-09-30，BIN-82/T-600 收编）：BUG 全臂对齐（T-600 §1/§2 建议稿）。T-600 p2-* 补证
+    （四轮）：PUT charset=UTF-8=400 `Unsupported repository type 'local' or media type
+    'application/json;charset=UTF-8'`（第三形态，B 有同族写手 repositories.go:733）；POST charset→
+    已存在 key=404 no-quote / 缺失 key=404 带引号（no-quote 变体系「存在仓+charset」专属）。定性升级
+    =A 的 Content-Type 协商族（rest-api.md:151/:175）写面臂；影响面修订：charset 臂有真实 Java 客户端
+    种群（Spring RestTemplate 等默认 charset=UTF-8）——成败级分歧（B 建出 A 拒建的仓），非仅文案。
+  authority: { type: conductor_ruling, ref: "R13 台账批 conductor 裁定（2026-09-30，BIN-82/T-600 收编）——ref T-600 §1 建议稿 BUG 全臂对齐 + L041 Arm 4 + T-600 p2-* 补证四轮" }
+  review_gate: R13 联合裁定落账（T-600 建议=BUG 全臂对齐：415 门+PUT charset 400 型拒（复用 distribution 写手族）+POST charset 404 双变体；A 模型=CT 协商族写面臂，影响面 rationale 修订〔charset 臂有真实 Java 客户端种群、成败级分歧〕；PUT 非_JSON CT 拼写票内探腿先行）→ R14 工程票 WP1（dev-go-core）→ 双轮 PASS → resolved
   evidence: reports/agents/T-585.md（Risks② + /tmp/t585 现场腿）+ reports/compatibility/L041-policy-ct-header-faces.md Arm 4
 - id: rest/repo-update-missing-key-404-wording
   surface: 'repo config REST 缺失 key 404 文案**方法族三形态**——POST-missing：A=`No repository
@@ -2302,30 +2312,38 @@ entries:
     exist", deletedArtifactsCount: 0, success: true}` vs B=errors 包；GET-missing：双端一致 400
     `Bad Request` 无需动作；PUT-missing：双端一致 200 建仓；第三变体（无引号）=charset-CT facet
     （见 CT 严格度条目）（T-585 Risks③ + L041 Arm 3）'
-  classification: UNKNOWN
+  classification: BUG
   rationale: >-
     T-585 实施期域外发现（2026-09-30 双轮）：改仓到缺失 key 时 404 文案族分歧——B 文案系仓内通用
     404 helper（repo-404 wording 家族既有面，非本票引入）。低危措辞族；是否并入通用文案族对齐票收口，
     归 compatibility-engineer 裁定。UNKNOWN 限期两程。
     L041 Arm 3 修订（2026-09-30 双轮，r3-* 四腿）：方法族三形态钉死（POST 带引号主面 live 复现 +
-    DELETE statusMsg-vs-errors 体形族 + GET 400 双端一致收口 + PUT 建仓一致）；维持 UNKNOWN 并入
-    R13 REST 错误形族联合票。
-  authority: { type: differential, ref: "reports/agents/T-585.md Risks③（双轮）+ reports/compatibility/L041-policy-ct-header-faces.md Arm 3（r3-* 双轮）" }
-  review_gate: R13 REST 错误形族联合票（并入 CT 严格度+N1rest 枚举门并票裁定）——UNKNOWN 限期余一程
+    DELETE statusMsg-vs-errors 体形族 + GET 400 双端一致收口 + PUT 建仓一致）。
+    R13 裁定（2026-09-30，BIN-82/T-600 收编）：BUG 两臂对齐（POST-missing 带引号 + DELETE-missing
+    statusMsg 包复用 repoBatchDeleteReport）；GET-missing/PUT-missing 双端一致零动作收注；charset-CT
+    facet 并入 CT 严格度条目同票。
+  authority: { type: conductor_ruling, ref: "R13 台账批 conductor 裁定（2026-09-30，BIN-82/T-600 收编）——ref T-600 §2 建议稿 BUG 两臂对齐 + L041 Arm 3（r3-* 双轮）" }
+  review_gate: R13 联合裁定落账（T-600 建议=BUG 两臂对齐：POST-missing 带引号 + DELETE-missing statusMsg 包复用 repoBatchDeleteReport；GET-missing/PUT-missing 双端一致零动作收注）→ R14 工程票 WP1（与 CT 条目并票同文件）→ 双轮 PASS → resolved
   evidence: reports/agents/T-585.md（Risks③）+ reports/compatibility/L041-policy-ct-header-faces.md Arm 3
 - id: rest/remote-domain-policy-enum-gate
   surface: 'remote rclass 域字段 remoteRepoChecksumPolicyType 枚举门——A=badenum `none` 400 `No
     checksum policy type found for: none`（文案变体：无 "type" 一词，与 local 面 C6 已对齐形异体；
     checksumPolicyType 在 remote/virtual 面双端同静默丢弃=NB-⑥ 否定）；B=该字段整面缺席（badenum
     200 接受）（L041 Arm 2）'
-  classification: UNKNOWN
+  classification: BUG
   rationale: >-
     L041 Arm 2（2026-09-30 双轮，r2-create-remote-rrcp-badenum）：R11 审 B NB-⑥ 候选否定（枚举门
     不挂 checksumPolicyType）后的域字段新面——A 的门挂在 remote 域真策略字段上；B remote 配置模型
     缺该字段整面。范围裁定（字段建模+门+文案变体是否并入 REST 错误形族联合票）归
     compatibility-engineer；BUG 倾向注记（同 T-585 local 门族先例）。UNKNOWN 限期两程。
-  authority: { type: differential, ref: "reports/compatibility/L041-policy-ct-header-faces.md Arm 2（r2-create-remote-rrcp-badenum 双轮）" }
-  review_gate: R13 REST 错误形族联合票（域字段建模+枚举门+文案变体并票评估；goodenum 往返探腿先行）——UNKNOWN 限期两程
+    R13 裁定（2026-09-30，BIN-82/T-600 收编）：BUG 三件套对齐（T-600 §3）——字段 seat+四值闭域门
+    （变体文案无 "type" 一词，与 local 面 :842 异体两文案并存勿共用字面量）+回显免费
+    （repo_config_render.go:381 seat 默认臂已优先渲染 blob 值）；goodenum 收口=§7.5 枚举集实证一致、
+    字段名 checksumPolicyType→remoteRepoChecksumPolicyType 勘误已由 T-603/BIN-85 落地；四值缓存写入
+    运行时语义显式 out-of-scope（remote cache 策略引擎面独立功能域）；影响面=badenum 200+回读谎报
+    默认值（配置正确性面，同 T-585 local 门族先例）。
+  authority: { type: conductor_ruling, ref: "R13 台账批 conductor 裁定（2026-09-30，BIN-82/T-600 收编）——ref T-600 §3 建议稿 BUG 三件套 + L041 Arm 2（r2-create-remote-rrcp-badenum 双轮）" }
+  review_gate: R13 联合裁定落账（T-600 建议=BUG 三件套对齐：字段 seat+四值闭域门（变体文案无 "type"）+回显免费；goodenum 收口=§7.5 枚举集实证一致、字段名勘误已上报 reverse-engineer；四值运行时语义显式 out-of-scope）→ R14 工程票 WP2（dev-go-core）→ 双轮 PASS → resolved
   evidence: reports/compatibility/L041-policy-ct-header-faces.md Arm 2
 - id: maven/sidecar-get-ondemand-matrix
   surface: 'maven 面 sidecar GET 未设算法按需计算矩阵 + miss 指向——A=sha256-only 按需（local/virtual
@@ -2342,21 +2360,55 @@ entries:
     本票领 maven 面+miss 指向——防双计。
   authority: { type: conductor_ruling, ref: "R12 台账批 conductor 裁定（2026-09-30，BIN-73 收编）——ref L041 Arm 1 N2 + T-587 剥离面（mvu-get-*-unset）" }
   review_gate: R13 修复票（maven 面 sidecar GET 按需矩阵对齐 A：sha256-only 回显、md5/sha1 未设 404、miss 指源；测试翻新随票）→ 双轮 PASS → resolved
-  evidence: reports/compatibility/L041-policy-ct-header-faces.md Arm 1（N2 行）+ reports/agents/T-587.md（mvu-get-*-unset 腿）
+  resolved: { date: '2026-09-30', evidence: 'BIN-76/T-594 maven sidecar GET 按需矩阵落地：sha256-only 计算值 on-unset（200）、md5/sha1 unset 404 Checksum not found for <src> 指源（撤过算）、miss per-face 双文案（local File-not-found / virtual Could-not-find-resource 家族）、registered 逐字回显含 409 写穿；T-595/BIN-77 追加 registered-wrong-sha256 翻转腿=主摘要恒胜延伸至 maven（walk 覆盖臂收窄 sha1/md5-only，T-587「注册优先」对 sha256 退役）；live GATE 26 腿×A/B×双轮 drift 0/0 residual 0；TestChecksumPutClientOverlayFallback 翻新落地；证据 reports/agents/T-594.md + reports/agents/T-595.md' }
+  evidence: reports/compatibility/L041-policy-ct-header-faces.md Arm 1（N2 行）+ reports/agents/T-587.md（mvu-get-*-unset 腿）+ reports/agents/T-594.md + reports/agents/T-595.md
 - id: storage/artifact-get-response-headers
-  surface: '工件 GET 响应头集——A=`Content-Disposition: attachment; filename=…; filename*=UTF-8''…`
-    + X-Artifactory-{Filename,Id,NodeId,Origin-Remote-Path} + X-Jfrog-Version + 校验 triple；B=无
-    Content-Disposition/X-Artifactory-* 全族，自加 X-Request-Id（请求级）+ X-Binflow-Resolved-From
-    （virtual 读面）（L041 Arm 5 副产）'
-  classification: UNKNOWN
+  surface: '工件本体 GET/HEAD 响应头集（六面×{200,206,304,416}）——A=CD 双形态恒发（ASCII
+    `attachment; filename=…; filename*=UTF-8''…` 双参数 / 非 ASCII filename*-only）+ X-Artifactory-Filename
+    + 416 裸集（撤 body-descriptive 头：CT/ETag/校验三键/CD/Filename/Accept-Ranges）+ 304 撤 CT/CL；
+    B=CD/X-Artifactory-* 全族六面全状态零出现 + 416 反向全集（T-601 §四 F1/F2/F5；六面=maven local/
+    virtual×generic local/virtual×200/206/304/416 腿面）'
+  classification: BUG
   rationale: >-
     L041 Arm 5（2026-09-30 双轮，m1-get-jar-ctrl/n6-get-*-sha512 实体读面）：头集族契约边界待裁
     ——Content-Disposition 影响下载文件名属客户端可见强候选（BUG 倾向）；X-Artifactory-* infra 族
     与 X-Jfrog-Version 是否仿形开放归 compatibility-engineer 裁定。与 xsha-echo 族=两类方向（缺头
     vs 多头），防混裁。UNKNOWN 限期两程。
-  authority: { type: differential, ref: "reports/compatibility/L041-policy-ct-header-faces.md Arm 5 + Arm 1 对照（m1-get-jar-ctrl/n6-get-*-sha512 双轮）" }
-  review_gate: R13 头面族裁定票（Content-Disposition 客户端可见性优先裁；X-Artifactory-*/X-Jfrog-Version 仿形域独立评估）→ 修复票/注册 → 收口
-  evidence: reports/compatibility/L041-policy-ct-header-faces.md Arm 5（N3 行）
+    T-601 裁定（2026-09-30，BIN-83/T-601 收编，21 面腿+1 边界控制腿×A/B×双轮 drift 0）：一拆三采纳
+    §四分面——F1 CD + F2 X-Artifactory-Filename = BUG 对齐（客户端可见性强：浏览器下载文件名/
+    attachment 行为直接依赖；rest-api.md §1.4 高置信规格行+live 双轮；F2 与 F1 同 basename 源同写入点
+    并票）；F5 416 头集裸化=BUG 并入修复票子臂（A 撤 body-descriptive 头 B 全留，同票低成本收口）；
+    F6 一致面收口注记=ETag/校验三键/Accept-Ranges/CT 映射/CL/206+Content-Range/304 条件族含引号容忍/
+    HEAD≡GET/virtual 头继承双端同键同值零动作。F3 infra 族与 F4 自加头族拆立 INTENTIONAL 两面（见
+    分立条目）。修复面=T-601 §五票 A（helper 单源落 internal/repo，勿复用 docker remote.go:1310
+    单参数形——generic/maven 须按本票证据实现双参数+非 ASCII filename*-only 形态；
+    archiveBrowsingEnabled 开关门控 follow-up，A 开关面未探）。
+  authority: { type: conductor_ruling, ref: "R13 台账批 conductor 裁定（2026-09-30，BIN-83/T-601 收编）——采纳 T-601 §四 F1/F2/F5 BUG + F6 一致面收口 + §五修复面分解" }
+  review_gate: R14 修复票（BIN-90/T-608 generic+maven 工件下载头集对齐：CD 双形态+X-Artifactory-Filename+416 裸集/304 撤头模型；helper 单源 internal/repo）→ 双轮 PASS → resolved
+  evidence: reports/compatibility/L041-policy-ct-header-faces.md Arm 5（N3 行）+ reports/agents/T-601.md（§四分面表 + §五修复面 + raw /tmp/t601 留存）
+- id: storage/artifact-get-infra-headers
+  surface: '工件 GET infra 头族 X-Artifactory-{Id,NodeId,Origin-Remote-Path} + X-Jfrog-Version——A=恒发
+    （本地面 Origin-Remote-Path=字面量 local）；B=零出现（T-601 §四 F3）'
+  classification: INTENTIONAL_DIFFERENCE
+  rationale: >-
+    T-601 裁定（2026-09-30，BIN-83/T-601 收编）：不仿形。Id/Node-Id=实例拓扑标识（HA/复制族，
+    inv-3 XC-22 注记 29 内部头族 BinFlow 仅极少部分）；本地面 Origin-Remote-Path 字面量 local 无契约
+    信息量（remote 缓存面真值未探——若后续需部分对齐仅 remote 面补腿）；X-Jfrog-Version=产品自标识，
+    仿形=发送虚假 Artifactory/7.x 版本串属不实陈述；无已知客户端依赖。
+  authority: { type: conductor_ruling, ref: "R13 台账批 conductor 裁定（2026-09-30，BIN-83/T-601 收编）——采纳 T-601 §四 F3 INTENTIONAL 不仿形建议" }
+  review_gate: resolved（INTENTIONAL 注册即收口；remote 面 Origin-Remote-Path 真值探腿留 Risks 注记非闸门）
+  evidence: reports/agents/T-601.md（§四 F3 行 + Risks①）
+- id: storage/artifact-get-selfadded-headers
+  surface: 'B 自加 X-BinFlow-Resolved-From（virtual 读面）+ X-Request-Id（全响应中间件）——A=零出现
+    （T-601 §四 F4）'
+  classification: INTENTIONAL_DIFFERENCE
+  rationale: >-
+    T-601 裁定（2026-09-30，BIN-83/T-601 收编）：保留。私有 X-BinFlow-*/请求级命名空间，不冒充 A
+    契约头（判据区别于 nuget/push-201 BUG 删头案=彼案占用 A 的 X-Checksum 契约命名空间）；解析溯源
+    对 debug 有值；X-Request-Id=infra 归一类（同 Date/Server）。as-built 锚=httpapi/middleware.go:41。
+  authority: { type: conductor_ruling, ref: "R13 台账批 conductor 裁定（2026-09-30，BIN-83/T-601 收编）——采纳 T-601 §四 F4 INTENTIONAL 保留建议" }
+  review_gate: resolved（INTENTIONAL 注册即收口）
+  evidence: reports/agents/T-601.md（§四 F4 行 + §七 as-built 锚表）
 - id: maven/srvgen-declared-header-drop
   surface: 'server-generated-checksums 下部署声明头（X-Checksum-Md5/Sha1 含全零占位）处置——A=
     无条件注册进 originalChecksums（「计算值服务、声明值留档」：占位零值亦存活；checksums/GET 回显=
@@ -2371,6 +2423,7 @@ entries:
     注册处置（丢/拒/留档）+ 409 策略域角落——两票分立。
   authority: { type: conductor_ruling, ref: "R12 台账批 conductor 裁定（2026-09-30，BIN-73 收编）——ref L041 Arm 6 N4（s6-put-gav-*-decl-zero/s6-put-nongav-sha512-decl-zero 双轮）" }
   review_gate: R13 修复票（putFile srvgen 臂声明留档 + 非 GAV .sha512 臂 refuse 按策略域收口=SET 无条件化同族；键集渲染已随 T-589 单源）→ 双轮 PASS → resolved
+  resolved: { date: '2026-09-30', evidence: 'BIN-81/T-599 修复+活体双轮 PASS：putFile srvgen 臂 declared 不再清零（expect 局部量只喂 commitBlob）+ 非 GAV .sha512 臂 writePlaneSrvgen 探针按策略域收口撤 409（201 落地）；archiveSrvgenDeclared 共享落地尾经 ClientChecksumWriter SET 无条件注册声明（占位零值逐字存活）+ svc.Get 重读供 writeCreated（oc=T-589 单源维持）；GATE 23 腿/轮 × A/B × 双轮 drift 0/0 + A-vs-B 全 PASS（201 部署信封 oc 双端逐字同、nongav-sha512 decl-zero 双端 201 vs B 原 409 已撤）+ 白名单 #8/#8b 零回归；证据 reports/agents/T-599.md + /tmp/t599/probe-{a,b}-r{1,2}.json' }
   evidence: reports/compatibility/L041-policy-ct-header-faces.md Arm 6（NB-1 收口）
 - id: maven/metadata-fileinfo-visibility
   surface: 'maven-metadata.xml 源 FileInfo/FolderInfo 可见性——A=FileInfo 200（PUT 后即可查）；
@@ -2383,3 +2436,114 @@ entries:
   authority: { type: pending, ref: "下轮探针（A FileInfo/FolderInfo 各层级 metadata 形态）+ 产品影响评估" }
   review_gate: 补证 → 独立裁定（对齐工程票 vs INTENTIONAL 注册）
   evidence: reports/compatibility/L039-checksum-put-adjacent.md Arm 5（B FileInfo 404 node not found）+ L040-maven-sidecar-planes.md Arm 2（N4）
+- id: maven/checksum-oc-sha256-write-through
+  surface: '409 写穿 wrong-sha256 后 FileInfo oc.sha256——A=计算值（wrong 注册不进 oc）vs B=注册值
+    （T-578 写穿路径）（T-593 FileInfo 腿 + T-595 e-leg 双源）'
+  classification: UNKNOWN
+  rationale: >-
+    R13 收编立案（2026-09-30）：T-593 generic 面 FileInfo 腿双轮（l-sha256-registered 腿 oc 回显）
+    + T-595 e-leg（maven registered-wrong-sha256）交叉发现——GET 面主摘要恒胜（已 resolved 两条目）
+    但 oc（originalChecksums）面的 wrong 写穿值处置双域不一致候选：A 侧 oc.sha256=计算值（wrong
+    声明不落 oc），B=T-578 起写穿路径落注册值。与 httpapi/original-checksums-key-model（键集面，
+    已 resolved）防双计——本条=PUT 写穿值入 oc 的值面；generic/maven 双面待探齐。
+  authority: { type: differential, ref: "reports/agents/T-593.md（l-/v-sha256-registered FileInfo 腿）+ reports/agents/T-595.md（e-leg）" }
+  review_gate: R14 探腿先行（wrong-sha256 PUT 后 FileInfo oc 面 maven/generic 双面）→ 裁定 → 修复票
+  evidence: reports/agents/T-593.md + reports/agents/T-595.md
+- id: generic/repo-cache-deploy-face
+  surface: 'generic <K>-cache 仓 PUT——A=404 引擎文案 Could-not-find-local-repo（obs-a-kcache-put
+    双轮）vs B=标准链 Failed-to-find-repository（域钉测试在案）（T-596 ①）'
+  classification: UNKNOWN
+  rationale: >-
+    R13 收编立案（2026-09-30）：T-596 侧发现——-cache 投影面（<K>-cache 虚拟仓的部署拒绝）走的是
+    与 C7-a 臂普通 remote 仓不同的错误文案族：A 对 -cache 仓 PUT 答 Could-not-find-local-repo
+    （与 remote 仓同文案），B 走标准仓库不存在链 Failed-to-find-repository。措辞族低危；
+    -cache 投影面语义（是否等同 remote 部署拒绝族）待裁。
+  authority: { type: differential, ref: "reports/agents/T-596.md（obs-a-kcache-put 双轮腿）" }
+  review_gate: R14 批裁定（或并入 C7-d 面后继票）
+  evidence: reports/agents/T-596.md
+- id: storage/local-delete-miss-wording
+  surface: 'local DELETE-miss——A=Artifact-deletion-error 同族（generic local 对照腿双轮）vs B=各
+    adapter Could-not-locate 文案表（generic handler.go:848 / maven handler.go:484 / pypi
+    handler.go:232）（T-596 ②）'
+  classification: UNKNOWN
+  rationale: >-
+    R13 收编立案（2026-09-30）：T-596 c 臂收口 remote-miss 时 local 对照腿双端分叉——A 对 generic
+    local DELETE-miss 答 Artifact-deletion-error: Item <repo>/<path> does not exist（与 remote-miss
+    同族），B 各 adapter 各持 Could-not-locate 文案表。A maven/pypi local 腿未探（clean-room 不外推）。
+  authority: { type: differential, ref: "reports/agents/T-596.md（local 对照腿双轮）" }
+  review_gate: R14 探腿先行（maven/pypi local DELETE-miss A 腿，BIN-94/T-612）→ 裁定 → 跨 adapter 修复票
+  evidence: reports/agents/T-596.md
+- id: generic/metadata-checksum-route-family
+  surface: 'generic 面同族三腿（gen-put-sidecar / gen-get-sidecar / gen-put-xml）——A=200-no-op+按需
+    计算值 vs B=拦截 409+注册 echo（T-595 残留三腿，gate-*.json 双面形已钉）'
+  classification: UNKNOWN
+  rationale: >-
+    R13 收编立案（2026-09-30）：T-595 maven 面收口时 generic 面同族腿双端分叉——C5 文件名键控专用
+    路由模型在 generic 平面的延伸候选（maven 已对齐为参照模型：PUT 终端基名 200 空体 no-op / GET
+    按需计算）；T-595 票面禁动 generic（area 边界），双面形证据已钉 gate-*.json 留存。
+  authority: { type: differential, ref: "reports/agents/T-595.md（generic 残留三腿 + gate-*.json）" }
+  review_gate: R14 generic 面差分票（以 maven 已对齐模型为参照，BIN-95/T-613）→ 双轮 PASS → resolved/裁定
+  evidence: reports/agents/T-595.md
+- id: remote/offline-window-open-threshold
+  surface: 'offline 窗开窗阈值——A=第 2 次 transport 故障后开窗（r3/r4 冷断路器双轮确定性：腿 1、2
+    retrieval 形、腿 3+ offline 形）vs B=第 1 次故障即开窗（既有语义，T-597 ruling 沿用）（T-597 b）'
+  classification: UNKNOWN
+  rationale: >-
+    R13 收编立案（2026-09-30）：T-597 上游故障外化双形对齐时发现的阈值分歧——边界腿（第 2 次接触）
+    A=retrieval 形 / B=offline 形；repo-semantics.md:152 单故障开窗读法对 A 不精确（reverse 勘误候选
+    BIN-91/T-609 随票）。首障 cause 文本差异（A=JVM 栈 Connect timed out vs B=dial tcp RST 串）为
+    族内已命名分歧非 drift（外层三段式逐字同构）。
+  authority: { type: differential, ref: "reports/agents/T-597.md（Compatibility b 段 r3/r4 双轮）" }
+  review_gate: R14 compatibility 裁定 B 是否对齐阈值 2（BIN-93/T-611 契约行随票）→ 修复票
+  evidence: reports/agents/T-597.md
+
+- id: generic/sidecar-head-validator-set
+  surface: 'generic 仓 sidecar HEAD（{src}.{algo}）响应头——A=全 validator 集（Etag+X-Checksum-{Md5,Sha1,Sha256}+
+    Accept-Ranges+CD+X-Artifactory-Filename，g1-head-sha1-set 首取证）vs B=裸 CT+CL（writeChecksumEcho，
+    maven 动词条件模型未延伸至 generic 面）（T-598 observe 腿①）'
+  classification: UNKNOWN
+  rationale: >-
+    R13 收编立案（2026-09-30）：T-598 maven 面动词条件模型收口时的 generic 控制腿首次取证——A 的
+    sidecar HEAD validator 集疑跨 generic 面（maven/generic 同一 A 渲染家族）；B generic HEAD 裸。
+    g1-head 观察腿非裁定腿（A 面 live 前未探），不据 T-598 GATE PASS 视为已对齐。修复落点=generic
+    writeChecksumEcho HEAD 臂（若裁定对齐），与 BIN-90/R14 下载头集票同族但 area 在 generic 需另派。
+  authority: { type: differential, ref: "reports/agents/T-598.md（Compatibility ①+ /tmp/t598/raw g1-head-sha1-set A 头集留档）" }
+  review_gate: R14 探腿裁定（generic 面 HEAD validator 集差分票或并入下载头集族裁定）→ 修复票 → 双轮 PASS → resolved
+  evidence: reports/agents/T-598.md
+- id: generic/sidecar-get-last-modified
+  surface: 'generic 仓 sidecar GET 响应头——A=含 Last-Modified vs B=无（L041 双轮同形，预先存在
+    非本票引入）（T-598 observe 腿②）'
+  classification: UNKNOWN
+  rationale: >-
+    R13 收编立案（2026-09-30）：T-598 观察腿取证——A generic sidecar GET 渲染 Last-Modified，B 缺。
+    与 maven 面 GET 裸集（CT/CL/Last-Modified）对照，A 的 generic 面疑同 infra 集；影响面=客户端
+    缓存新鲜度协商。低影响头面候选，可并入 generic/sidecar-head-validator-set 探票一次取证。
+  authority: { type: differential, ref: "reports/agents/T-598.md（Compatibility ②）" }
+  review_gate: R14 探腿裁定（与 generic/sidecar-head-validator-set 并票取证）→ 修复票 → resolved
+  evidence: reports/agents/T-598.md
+- id: generic/error-face-ct-charset-head-cl
+  surface: '错误响应渲染面（404 族）——A=CT application/json;charset=ISO-8859-1 + HEAD-404 无
+    Content-Length vs B=application/json + HEAD-404 带 CL（T-598 observe 腿③，跨 adapter 全局面候选）'
+  classification: UNKNOWN
+  rationale: >-
+    R13 收编立案（2026-09-30）：T-598 sidecar 腿 404 面取证——A 错误渲染 CT 带 charset 参数、
+    HEAD-404 不带 CL；B 双双相反。疑为 A 全局错误渲染中间件面（跨 adapter 家族），仅 maven/generic
+    sidecar 腿观察（clean-room 不外推）；与 errors-envelope 序列化风格（A Jackson pretty vs B
+    compact，R13 watch 项）同族不同面。影响面=严格客户端的 CT 解析与 HEAD 语义。
+  authority: { type: differential, ref: "reports/agents/T-598.md（Compatibility ③）" }
+  review_gate: R14 探腿先行（多 adapter 404/409/400 错误面 CT/CL 系统取样）→ 裁定 → 全局错误渲染票
+  evidence: reports/agents/T-598.md
+- id: maven/client-policy-declared-409-wording
+  surface: 'client-checksums 策略部署面错声明 409 文案族——A=`Checksum policy ''LocalRepoChecksumPolicy:
+    CLIENT'' rejected the artifact ''<repo>:<path>''. Checksums info: ChecksumsInfo{checksums={SHA-1=
+    ChecksumInfo{type=SHA-1, original=''000…0'', actual=''a0f9…''}, …}}`（未声明算法 dump 成
+    original=''null''；与 nuget BIN-61/T-579 同族文案）vs B=`Checksum error for ''<repo>/<path>'':
+    received ''…'' but actual is ''…''`（T-599 shakedown 首证）'
+  classification: UNKNOWN
+  rationale: >-
+    R13 收编立案（2026-09-30）：T-599 shakedown 首证——B 的 maven/generic/pypi/goproxy 四包共享
+    checksumMismatchMessage 家族文案从未对该面取证（源自 repo-semantics 未验证推断），BUG 倾向（同
+    T-579 方向）；修复跨包非单票 area。状态级已一致（409 双端），仅文案族分歧。
+  authority: { type: differential, ref: "reports/agents/T-599.md（Compatibility 新候选段，cli 对照腿双轮）" }
+  review_gate: R14 跨包裁定票（四包文案族统一探腿+裁定，可并 T-579 同族语言）→ 修复票 → resolved
+  evidence: reports/agents/T-599.md

@@ -294,7 +294,7 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
   3. 查**负缓存**（miss cache）：期内已知 miss → 直接 404，零上游流量；
   4. 查**本地缓存**（node 落 remote repo 命名空间）：命中且未过 `retrievalCachePeriodSecs` → 直接服务（零上游流量，M1 头集齐全）；
   5. 缓存过期或缺失 → 回源（Basic 凭据按 repo 配置）：上游 200 → 流式落盘（复用上传会话/checksum 计算，**落盘与响应内容逐位一致**，item info `checksums` 即实测值；上游响应的 `X-Checksum-*` 头读为 original checksum 与实测比对——M3 只登记不拒，四值策略 M4）；上游 404 → 写负缓存 + **若本地有过期副本则仍回发过期副本**（"expired but serving"，v1.1 定案）；上游 5xx/超时/连接失败 → 仓标记 **assumed-offline**（静默 `assumedOfflinePeriodSecs`，期内零上游流量）+ 有缓存（含过期）服务缓存、无缓存 → **404**（E-01，message 含 offline/assumed offline 状态提示——**v1.1 定案推翻 v1.0 的默认 502**，repo-semantics §7.6 高置信度；`hardFail:true` 时改 **502**）；BinFlow 扩展：服务缓存时附 `X-Binflow-Upstream-Error: <摘要>` 头（可观测性扩展，无害）；
-  6. remote 仓**不可写**：PUT/POST → **405 + `Allow: GET`**；`DELETE /binflow/<remote>/<path>` 语义 = **仅删本地缓存**（删除后再 GET 触发回源，见 §2.2 边界）。
+  6. remote 仓**不可写**（文案域见 §5.2 RE-05 适用域注记）：generic/maven 域 PUT → **404 `Could not find a local repository named <key> to deploy to.`**（key 原拼写，checksum 终缀/普通同形，拒绝先于终缀解释）；docker/cargo 等其余域维持 **405 + `Allow: GET`** read-only 形；`DELETE /binflow/<remote>/<path>` 语义 = **仅删本地缓存**（有缓存 204，miss → 404 `Artifact deletion error: Item <repo>/<path> does not exist`；删除后再 GET 触发回源，见 §2.2 边界）。
 - **上游凭据 401/403**：视为资源 unfound（404 透传，repo-semantics §7.6 中置信度）；BinFlow message 附 upstream 状态摘要便于排障。
 - **缓存键与隔离**：同 path 不同 repo 各自独立缓存；**过期后的回源校验（HEAD 探测 + Last-Modified 比较，较新则撤销过期不重下）为 P1**（v1.1 定案其存在——repo-semantics §7.3/§7.4 高置信度；M3 P0 允许「到期直接 GET 重取」的简化实现，M41 的上游计数断言不受影响）；同 path 并发 miss 单飞（singleflight，P1——等待者直接复用获胜者结果）。
 - **npm/PyPI/Maven remote 特化**：
@@ -313,7 +313,7 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 | FR-20-AC6 | M45：maven remote 代理 Maven Central（公网可用时；离线用 mock 上游摆 junit 布局）——`mvn dependency:get -Dartifact=junit:junit:4.13.2 -DremoteRepositories=central::default::$BASE/binflow/maven-remote` → 成功；仓内 item info 可见 `junit/junit/4.13.2/*.jar`；二次 dependency:get（清本地 repo）零上游 | P0 |
 | FR-20-AC7 | M46：npm remote 代理 npmjs（公网可用时；离线用 mock）——`npm install lodash --registry $BASE/binflow/api/npm/npm-remote/` exit 0；抓包/日志证明 tarball 与 packument 均经 BinFlow（`dist.tarball` 已重写）。**v1.3/E4 注记：mock 上游布局 = `<name>/packument.json`（BinFlow 回源请求形态）；真实 npmjs packument 于 `/<name>` 直出——不兼容为 T-75 已证既有边界（非回归），「公网可用时」腿以 mock 为准** | P1 |
 | FR-20-AC8 | M47：pip 代理 pypi.org（公网可用时；离线 mock）——`pip install --index-url .../simple six` exit 0，二次零上游。**v1.3/E4：remote `url=https://pypi.org` 站点根（服务端拼 `simple/<pkg>/`；带 `/simple` 后缀反而 404）——T-105 真实上游已验** | P1 |
-| FR-20-AC9 | M48：remote 写拒绝——`PUT /binflow/generic-remote/x.bin` → 405 + `Allow: GET`；`DELETE /binflow/generic-remote/dir/up.bin` → 204（删缓存）后 GET 再次回源（上游 log +1，内容一致） | P0 |
+| FR-20-AC9 | M48：remote 写拒绝——`PUT /binflow/generic-remote/x.bin` → **404** + `Could not find a local repository named generic-remote to deploy to.`（`.sha1` 等终缀路径同形拒绝；docker/cargo remote 写拒绝维持各自 405/400 形不受此面影响）；`DELETE /binflow/generic-remote/dir/up.bin` → 204（删缓存）后 GET 再次回源（上游 log +1，内容一致）；miss 路径 `DELETE /binflow/generic-remote/t596/never.txt` → 404 + `Artifact deletion error: Item generic-remote/t596/never.txt does not exist` | P0 |
 | FR-20-AC10 | 上游凭据（凭据经 ADR-0012 加密链存储，见 FR-15-AC9；env `BINFLOW_REMOTE_CREDENTIALS_KEY` 在场）：mock 上游开 Basic（h / tpasswd）→ remote 配 username/password 后 GET 成功；错误凭据 → **404**（上游 401 视为资源 unfound，v1.1 定案 repo-semantics §7.6；message 附 upstream 401 摘要）；GET repo config 不回显明文密码 | P1 |
 | FR-20-AC11 | 大文件流式：上游 1GB 文件代理下载，服务进程 RSS 增量 < 256MB（M1 NFR-P3 的 remote 版） | P1 |
 | FR-20-AC12 | 上游重定向：302 → http://169.254.169.254/（云 metadata）→ 拒绝（400 + WARN，重定向每跳重过校验链）；302 → 公网同源路径 → 跟随成功（≤5 跳） | P0 |
@@ -381,8 +381,8 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 | RE-02 | `PUT .../{key}` rclass=virtual | `repositories[]` 必填；成员级 `priorityResolution`（两桶序）；`defaultDeploymentRepo` 可选（别名 `defaultDeploymentRepoRef`）；嵌套 virtual 400 | 兼容（子集） | P0 | 高（v1.1 定案，repo-semantics §8.1/§8.2） | M03/M52/M53 |
 | RE-03 | `GET /binflow/api/repositories`（type/packageType 过滤） | `type=remote|virtual` 取值启用；列表元素含 url（remote）/repositories（virtual）摘要 | 兼容（子集） | P1 | 高 | M04 |
 | RE-04 | `GET/HEAD /binflow/<remote>/<path>` | pull-through 六步（§7.2）：checksum 后缀不回源 404 / 负缓存 / 缓存命中直发 / 过期回源（HEAD 协商 P1）/ 上游 404 负缓存+过期副本回发 / 上游故障 assumed-offline 静默——有缓存服务缓存、无缓存 **404**（`hardFail:true` → 502）；M1 头集齐全 | 兼容（语义对齐 Artifactory remote 下载） | P0 | 高（v1.1 定案，repo-semantics §7.2/§7.6；上游 5xx 分支细节标中） | M41/M43/M44 |
-| RE-05 | `PUT/POST /binflow/<remote>/<path>` | remote 不可写：405 + `Allow: GET` | 兼容 | P0 | 高 | M48 |
-| RE-06 | `DELETE /binflow/<remote>/<path>` | **仅删本地缓存**（幂等 204/404 语义同 M1 E-14），再 GET 触发回源；不触达上游（Artifactory 另有 Zapping 清缓存端点族，BinFlow 不实现该 REST 形态——DELETE 即等价操作） | 兼容（Artifactory 同语义） | P1 | 高（v1.1 升格：repo-semantics §7.4 无上游删除同步语义，C6 收口） | M48 |
+| RE-05 | `PUT /binflow/<remote>/<path>` | remote 不可写——**generic/maven 域**：404 `Could not find a local repository named <key> to deploy to.`（key 原拼写；checksum 终缀/普通同形，拒绝先于终缀解释；v1.2 定案：R12 C7 分面裁定 + L040 N2/T-596 活体双端）；**docker/cargo 等其余域**：405 + `Allow: GET` read-only 形（域边界见下方适用域注记）；POST 各域维持现行 method 拒绝形（A 面未定案） | 兼容 | P0 | 高 | M48 |
+| RE-06 | `DELETE /binflow/<remote>/<path>` | **仅删本地缓存**（有缓存 → 204；miss → 404 `Artifact deletion error: Item <repo>/<path> does not exist`——T-596 活体定案文案），再 GET 触发回源；不触达上游（Artifactory 另有 Zapping 清缓存端点族，BinFlow 不实现该 REST 形态——DELETE 即等价操作） | 兼容（Artifactory 同语义） | P1 | 高（v1.1 升格：repo-semantics §7.4 无上游删除同步语义，C6 收口；v1.2 miss 文案活体定案） | M48 |
 | RE-07 | `GET/HEAD /binflow/<virtual>/<path>` | 两桶序（priorityResolution 优先桶 → 其余，桶内声明序）、下载首命中即停；全 miss 404 | 兼容 | P0 | 高（v1.1 定案：Artifactory 四桶序 §8.1，BinFlow 两桶为无 cache 仓投影下的等价简化） | M50/M51 |
 | RE-08 | `PUT/DELETE /binflow/<virtual>/<path>` | 未配写路由 → 405 + `Allow: GET` + 定案文案（repo-semantics §8.2）；DELETE 不透传（BinFlow 有意不兼容——Artifactory 实为逐成员删除，中置信度待验证 #5，M4 评估跟进） | 兼容（PUT）/ 有意不兼容（DELETE 透传） | P0/P1 | 高（PUT 分支）/ 中（DELETE 分支背景） | M52 |
 | RE-09 | `GET /binflow/api/storage/<virtual>/<path>` | 聚合 children/item info（来源标注 P2） | 兼容（子集） | P1 | 中 | M55b |
@@ -414,6 +414,13 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 | PE-06 | `/binflow/api/pypi-ui/**` | 维持 404（M1 E-26） | 有意不兼容 | — | — | M58 |
 
 > 计数：**35 条**。兼容/兼容（子集）**29**（v1.1：PE-03 由「语义等同」升格）；`/binflow/api/v1` **1**（RE-11）；语义等同但路径不同 **0**；有意不兼容 **5**（RE-10、ME-10、NE-08、PE-04、PE-06）——另有 1 个行内有意不兼容分支：RE-08 的 DELETE 透传分支（v1.0 的 NE-01 重复 publish 409 偏离分支已随 403 定案消除）。
+
+**RE-05 适用域注记（写拒绝文案域统一）**
+
+- **适用面**：写拒绝文案域统一覆盖 **generic 与 maven** 两协议域 remote 仓的 PUT 部署拒绝面。maven 面自 T-553 起与目标文案一致；generic 面已随 BIN-78/T-596 对齐（router 层上传引擎拦截，拒绝先于终缀解释，A/B 双端活体逐字）。
+- **文案取值口径**：统一域内取服务端定版文案族——`404 "Could not find a local repository named <key> to deploy to."`；`<key>` 为被寻址仓 key 原拼写，普通路径与 checksum 终缀路径同形拒绝（拒绝先于终缀解释）。行为规格见 `docs/reverse/rest-api.md` §1.2 步骤 2 与 `docs/reverse/repo-semantics.md` 部署拒绝行。
+- **例外（不纳入统一域）**：**docker 与 cargo** 两协议域的 remote 写拒绝不适用上述口径——其写语义不走 generic/maven 的部署拒绝面，维持各自现行 405 read-only 拒绝形（docker 另有 A 观测的 400 Unable-to-* 族，见 docker 面）。该域边界为兼容性分歧台账条目 `generic/remote-deploy-refusal-form` 的分面裁定结论。
+- **删除 miss 文案族（RE-06 关联）**：remote DELETE miss 对齐 `Artifact deletion error: Item <repo>/<path> does not exist`（T-596 活体定案，service 层 StatusError 直达各 adapter）。T-596 对照探腿证实 A 对 **local DELETE miss 亦回同族文案**——local/virtual 面的对齐涉各 adapter 文案表，待后续票裁定扩族。
 
 ### 5.3 真实客户端分级矩阵（conformance 判定标准）
 
@@ -727,8 +734,9 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/pypi-remote -H 'C
 # 二次同包 install（清 pip 缓存）→ 服务端上游计数不增（缓存命中断言，FR-20-AC8 后半）
 
 # M48 remote 写拒绝 + 删缓存回源（FR-20-AC9 / RE-05/RE-06）
-curl -su admin:$ADMIN_PW -X PUT -T r1.bin $BASE/binflow/generic-remote/x.bin -o /dev/null -w '%{http_code}\n'  # 405（+Allow: GET 头）
-curl -su admin:$ADMIN_PW -i -X PUT $BASE/binflow/generic-remote/x.bin | grep -i '^allow:'                   # GET
+curl -su admin:$ADMIN_PW -X PUT -T r1.bin $BASE/binflow/generic-remote/x.bin -o /dev/null -w '%{http_code}\n'  # 404（generic 域=部署引擎文案族；docker/cargo remote 各自 405/400 形）
+curl -su admin:$ADMIN_PW -X PUT -T r1.bin $BASE/binflow/generic-remote/x.bin | grep -c 'Could not find a local repository named generic-remote to deploy to.'  # 1（逐字；.sha1 终缀路径同形）
+curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/generic-remote/t596/never.txt | grep -c 'Artifact deletion error: Item generic-remote/t596/never.txt does not exist'  # 1（miss 文案族）
 curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/generic-remote/dir/up.bin -o /dev/null -w '%{http_code}\n'  # 204（删缓存）
 curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $BASE/binflow/generic-remote/dir/up.bin            # 200（再次回源）
 

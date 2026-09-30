@@ -130,6 +130,14 @@ repo 配置字段 `checksumPolicyType`，两个合法值：
 > 其余未知字段维持容忍丢弃。完整契约见 architecture §15.4.1 与
 > docs/user/admin/remote-virtual.md 字段表。
 
+> **Erratum（2026-09-30，T-600 goodenum 活体收口后）**——勘误对象：①本节表行「`checksumPolicyType` | `generate-if-absent` | §7.5 四值 | 高」；②§7.5 标题「remote checksum 策略（`checksumPolicyType` 四值）」。两处**字段名归属错误**（原文保留，以本块为准）：remote rclass 域的 checksum 策略字段为 **`remoteRepoChecksumPolicyType`**；`checksumPolicyType` 仅承担 local 仓语义（§5），在 remote/virtual 配置面被服务端静默丢弃。修正后行为（A=7.161.26 活体四轮）：
+>
+> - 当客户端在 remote 仓 create/update 请求体提交 `remoteRepoChecksumPolicyType` 且值为四合法值之一（`generate-if-absent` / `fail` / `ignore-and-generate` / `pass-thru`）→ 服务端 200 接受，且配置回读 **verbatim 回显该值**（create 与 update 面均持久化回显）。【高：锚=台账 `rest/remote-domain-policy-enum-gate`（known-divergence.yaml）+ reports/agents/T-600.md §3 + reports/compatibility/L041-policy-ct-header-faces.md Arm 2】
+> - 当客户端提交该字段为四值之外（如 `strict` / `none`）→ 服务端 400 `No checksum policy type found for: <value>`（值逐字内插）。【高：同上】
+> - 当客户端在 remote 仓配置提交 `checksumPolicyType`（local 域字段名）→ 服务端静默丢弃：不报错、不生效、不回显（双端同形）。【高：台账 `rest/remote-domain-policy-enum-gate` surface 行「checksumPolicyType 在 remote/virtual 面双端同静默丢弃」】
+>
+> §7.5 的四值枚举集与行为表**实证全对、维持有效**，仅字段名挂靠随本块更正为 `remoteRepoChecksumPolicyType`；默认值 `generate-if-absent` 未被推翻（缺省提交形态活体未单测，原文维持）。
+
 ### 7.2 pull-through 读取流程（GET/HEAD 统一）
 
 对 `{repoKey}/{path}` 的未命中请求，按序（`RemoteRepoBase#getInfo` → `internalGetInfo`）：
