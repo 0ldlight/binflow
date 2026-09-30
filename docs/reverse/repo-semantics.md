@@ -154,6 +154,20 @@ repo 配置字段 `checksumPolicyType`，两个合法值：
 
 置信度：高（主干逐分支可读；官方文档只描述字段不描述流程——**本流程为代码补充**）。
 
+> **Erratum-2（2026-09-30，T-597 live 证据收口后）**——勘误对象：①§7.2 步骤 2「checksum 后缀请求（`.sha1`/`.md5`/...）一律不回源：直接 404 `"Checksums are not downloadable."`」；②§9 M3 增补第 2 条「remote 不代理 checksum 文件」。两处 a-priori 拒绝读法已被 live 差分否定（maven-npm-pypi.md §1.5 Erratum 已先行撤 maven 面同族断言，本块补 generic 面直证与本文件侧对应行；原文保留，以本块为准）。修正后行为（A=7.161.26 Enterprise+ 活体四轮）：
+>
+> - 当客户端经 remote 仓 GET/HEAD `{file}.sha1|.md5|.sha256`（本地缓存未命中）→ 服务端**不**返回固定 404 `"Checksums are not downloadable."`；该终缀请求按**后缀剥离的源解析**处理：解析与回源的目标均为**源文件** `{file}`，不是 sidecar 文件本身（「代理 sidecar 文件本身」的读法已被 live 证据否定）。【高：锚=台账 `generic/remote-deploy-refusal-form` d 臂 resolved（known-divergence.yaml）+ reports/agents/T-597.md Compatibility「generic 面 A 形逐腿 verbatim 证据表」g-side-sha1-first / g-side-md5-inwin / g-side-sha256-inwin / g-side-head-sha1-inwin / g-ctrl-inwin + maven m-side-* 四腿同族】
+> - 当上游 transport 故障（不可达）→ 首障返回 404 **retrieval 形**，错误体三段式全程引用**源路径与源的上游 URL，绝不引用 `.sha1` 终缀拼写**（verbatim 形：`<repoKey>: Error in getting information for '<源路径>' (Failed retrieving resource from <上游URL>/<源路径>: Connect timed out).; Path: '<repoKey>:<源路径>'`）；offline 窗开启后（开窗阈值见 Erratum-3）切 **offline 形**（`<repoKey>: is assumed offline, '<repoKey>:<源路径>' is not found at '<源路径>'.`）；HEAD 同状态码（404 空体）。【高：同上；maven 面原始 A 证据另见 reports/compatibility/L040-maven-sidecar-planes.md §1c mr-get 腿/N2/N7】
+> - 当上游可达 → 200 成功形态（应答由上游 sidecar 文件透传还是服务端按源计算产出）活体未直证（A 实验网对夹具网段防火墙丢包，双向验证过）——【低，待可达上游观察腿验证】。
+> - 边界：写动词不受影响（remote PUT 普通/终缀同形 404 拒绝且拒绝先于终缀解释）；rpm 面 remote sidecar GET 未探，本块不外推（rpm.md:75 / protocols/registry.yaml:62 维持原文，待 rpm 面探腿）。
+> - 编号说明：本文件 Erratum 块按落地序编号——T-600 字段名块（L133）= Erratum-1（原文未标号），本块 = Erratum-2，下一块 = Erratum-3。
+
+> **Erratum-3（2026-09-30，T-597 live 证据收口后）**——勘误对象：§7.2 步骤 5 第 3 子弹「上游连接错误：repo 标记 assumed-offline（`assumedOfflinePeriodSecs` 静默）…」的**单故障即开窗**读法（§7.4 assumed-offline 行、§7.6 表第 1/2 行的同族时机表述一并按本块精化；原文保留，以本块为准）。修正后行为（A=7.161.26 冷断路器双轮 r3/r4 确定性复现，330s 轮间隔 > 300s 静默窗，排除窗过期混入）：
+>
+> - 当同一 remote 仓连续发生上游 transport 故障 → offline 窗在**第 2 次 transport 故障后**才开启：第 1、2 次故障触发的请求返回 retrieval 形 404（源路径+上游 URL 插值，形见 Erratum-2），第 3 次起返回 offline 形 404（`is assumed offline…`）；无后缀对照请求同窗同形。【高：锚=reports/agents/T-597.md Compatibility b) + 证据表 g-side-md5-inwin（第 2 故障=retrieval 形）/ g-side-sha256-inwin / g-ctrl-inwin（offline 形）+ r3/r4 双轮 drift=0】
+> - 窗长与窗内行为维持既有口径（`assumedOfflinePeriodSecs` 默认 300s，期内请求绕过上游直接走缓存/404）——本块仅精化**开窗阈值**（第 2 次故障后），不改窗长与窗内行为。【高：同上；窗长为原文献值未勘】
+> - 本块为 A 侧规格修正；实现侧（BinFlow）开窗阈值是否对齐属 compatibility 台账候选分歧（T-597 Risks 4，A=2 次 / B as-built=1 次），裁定归 compatibility-engineer，不入本规格。
+
 ### 7.3 下载与保存（单飞与并发）
 
 - 触发条件：缓存缺失/过期，或 `forceExpiryCheck`（matrix 参数）、或远程较新。
