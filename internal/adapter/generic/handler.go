@@ -304,6 +304,18 @@ func clientChecksumValueOf(node *metadata.Node, algo string) string {
 	return ""
 }
 
+// maxSidecarBytes is the checksum-file body ceiling on the client-checksum
+// plane (BIN-70 / T-588, L040 Arm 3's 1024/1025 boundary legs — inclusive:
+// 1024 passes into the comparison, 1025 is refused). The maven face keeps
+// the same ceiling and wording (put.go maxSidecarBytes).
+const maxSidecarBytes = 1024
+
+// suspiciousSidecarMessage renders the refusal wording verbatim (N = the
+// exact body length in bytes).
+func suspiciousSidecarMessage(n int64) string {
+	return fmt.Sprintf("Suspicious checksum file, content length of %d bytes is bigger than allowed.", n)
+}
+
 // putClientChecksum serves the terminal-checksum PUT on the resolved
 // client-checksum plane (clientChecksumPutPlane — the addressed LOCAL
 // repository, or a VIRTUAL repository's deployment-target member, L039
@@ -314,6 +326,17 @@ func clientChecksumValueOf(node *metadata.Node, algo string) string {
 // posture the T-574 interception kept.
 func (h *Handler) putClientChecksum(ctx context.Context, w http.ResponseWriter,
 	r *http.Request, p *repo.Principal, repoKey, relPath, src, algo string) bool {
+	// Suspicious-size guard first (BIN-70 / T-588, L040 Arm 3 N5: the
+	// sz-*/szb-* legs pinned the ceiling at 1024 bytes INCLUSIVE and the
+	// verbatim refusal — the maven face runs the same seam and wording,
+	// put.go maxSidecarBytes): a declared Content-Length beyond the
+	// ceiling answers 409 without reading the body; an oversized chunked
+	// body is caught at a bounded read (at most 1025 bytes in memory,
+	// never the unbounded ReadAll the ledger's B-side recorded).
+	if r.ContentLength > maxSidecarBytes {
+		writeError(w, http.StatusConflict, suspiciousSidecarMessage(r.ContentLength))
+		return true
+	}
 	rc, node, err := h.svc.Get(ctx, p, repoKey, src)
 	if err != nil {
 		if !errors.Is(err, repo.ErrNodeNotFound) && !errors.Is(err, repo.ErrIsFolder) {
@@ -326,9 +349,13 @@ func (h *Handler) putClientChecksum(ctx context.Context, w http.ResponseWriter,
 	}
 	_ = rc.Close() //nolint:errcheck // read-only probe; only the node facts are needed
 
-	raw, rerr := io.ReadAll(r.Body)
+	raw, rerr := io.ReadAll(io.LimitReader(r.Body, maxSidecarBytes+1))
 	if rerr != nil {
 		writeError(w, http.StatusBadRequest, "read checksum body: "+rerr.Error())
+		return true
+	}
+	if int64(len(raw)) > maxSidecarBytes {
+		writeError(w, http.StatusConflict, suspiciousSidecarMessage(int64(len(raw))))
 		return true
 	}
 	declared := strings.TrimSpace(string(raw)) // trailing whitespace tolerated, the maven family's rule
