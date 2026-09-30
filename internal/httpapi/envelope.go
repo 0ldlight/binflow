@@ -1,11 +1,9 @@
 package httpapi
 
 import (
-	"bytes"
-	"encoding/json"
 	"net/http"
-	"strconv"
-	"strings"
+
+	"github.com/lzwzzy/binflow/internal/errface"
 )
 
 // The unified non-2xx body (architecture section 7.3, calibrated by
@@ -27,10 +25,19 @@ import (
 // original single-object draft, T-22 write-back R6). Probes (/healthz,
 // /readyz) are exempt only in that they have no failure state short of
 // transport errors.
+//
+// Since T-621/BIN-103 the BYTES live in the leaf package internal/errface
+// (stdlib-only, the internal/redact precedent): this seam delegates there,
+// and the protocol adapters render their error faces through the same
+// single source instead of per-package copies. The delegation is
+// behavior-identical — the T-620 byte pins (error_face_rendering_test.go
+// and the ten updated expectation files) guard the zero-drift proof.
 
+// The media-type spellings stay addressable under their historical local
+// names (router.go's /v2 degradation arm cites the charset form).
 const (
-	ctJSONPlain   = "application/json"
-	ctJSONCharset = "application/json;charset=ISO-8859-1"
+	ctJSONPlain   = errface.Plain
+	ctJSONCharset = errface.Charset
 )
 
 // errorEntry is the envelope's single entry shape, shared with the one
@@ -50,52 +57,9 @@ type errorEntry struct {
 //
 // Rendering failures are ignored: by the time an error body fails to
 // encode the connection is gone anyway, and headers must not be rewritten
-// after the status line. HTML escaping is OFF (L009-3): the reference's
-// Jackson serializer emits < > & raw, and Go's default < escaping was
-// visibly rewriting the Illegal-name character list on the wire.
+// after the status line.
 func writeError(w http.ResponseWriter, status int, message string) {
-	w.Header().Set("Content-Type", errorFaceContentType(w, status))
-	w.WriteHeader(status)
-	_, _ = w.Write([]byte(renderErrorEnvelope(status, message)))
-}
-
-// errorFaceContentType picks the error face's media type per the plane
-// matrix: a content-plane writer or a 401 anywhere takes the reference's
-// charset spelling (no space, d-ping-anon byte form); every other plane
-// stays bare.
-func errorFaceContentType(w http.ResponseWriter, status int) string {
-	if status == http.StatusUnauthorized || isContentPlane(w) {
-		return ctJSONCharset
-	}
-	return ctJSONPlain
-}
-
-// renderErrorEnvelope lays the single-entry errors[] body out exactly as
-// the reference's Jackson pretty printer does (T-615 verbatim legs):
-// `{\n  "errors" : [ {\n    "status" : N,\n    "message" : "..."\n  } ]\n}`
-// with no trailing newline.
-func renderErrorEnvelope(status int, message string) string {
-	var b strings.Builder
-	b.WriteString("{\n  \"errors\" : [ {\n    \"status\" : ")
-	b.WriteString(strconv.Itoa(status))
-	b.WriteString(",\n    \"message\" : ")
-	b.WriteString(jsonStringRaw(message))
-	b.WriteString("\n  } ]\n}")
-	return b.String()
-}
-
-// jsonStringRaw quotes s per JSON with HTML escaping off (L009-3): the
-// reference emits < > & raw.
-func jsonStringRaw(s string) string {
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(s); err != nil {
-		// Unreachable for a string payload; the fallback keeps the
-		// writer contract even on an impossible encoder error.
-		return `""`
-	}
-	return strings.TrimSuffix(buf.String(), "\n")
+	errface.Write(w, status, message, isContentPlane(w))
 }
 
 // contentPlaneMark tags the response writer of the repo-path content
