@@ -142,9 +142,20 @@ func TestServiceRemoteClosedLoop(t *testing.T) {
 	if got := hits.Load(); got != 2 {
 		t.Fatalf("upstream hits after invalidate+refetch = %d, want 2", got)
 	}
-	// Deleting a path with nothing cached is the idempotent 404.
-	if err := e.svc.Delete(context.Background(), admin(), "generic-remote", "never-there.bin"); !errors.Is(err, repo.ErrNodeNotFound) {
-		t.Fatalf("unknown-path delete = %v, want ErrNodeNotFound", err)
+	// Deleting a path with nothing cached is the idempotent 404, spoken in
+	// the deletion engine's miss wording (C7's c-arm, BIN-78/T-596; live A
+	// evidence: 404 "Artifact deletion error: Item <repo>/<path> does not
+	// exist", no trailing period).
+	err = e.svc.Delete(context.Background(), admin(), "generic-remote", "never-there.bin")
+	if !errors.Is(err, repo.ErrNodeNotFound) {
+		t.Fatalf("unknown-path delete = %v, want the ErrNodeNotFound chain", err)
+	}
+	var dse *repo.StatusError
+	if !errors.As(err, &dse) || dse.Code != http.StatusNotFound {
+		t.Fatalf("unknown-path delete = %v, want a 404 StatusError", err)
+	}
+	if want := "Artifact deletion error: Item generic-remote/never-there.bin does not exist"; dse.Message != want {
+		t.Fatalf("unknown-path delete message = %q, want %q", dse.Message, want)
 	}
 }
 

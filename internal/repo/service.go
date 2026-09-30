@@ -296,7 +296,12 @@ func (s *service) loadLocalRepo(ctx context.Context, repoKey string) (*metadata.
 // refuseNonLocalWrite answers the write plane's refusal for non-local
 // classes BEFORE any body is drained or permission pair is evaluated: the
 // method itself is invalid on these targets, whatever the caller's grants.
-// remote is read-only — 405 + Allow: GET (RE-05, FR-20-AC9). Virtual is
+// remote is read-only — 405 + Allow: GET (RE-05, FR-20-AC9). Since the R12
+// C7 a-arm ruling (BIN-78/T-596) the PRODUCT wire for maven and generic
+// remotes answers the upload engine's 404 invalid-target wording instead
+// (httpapi's deployNoLocalRepoMessage intercept, ahead of every adapter);
+// this 405 stays the non-router safety net for those faces (bare adapter
+// mounts) and the live refusal for every other protocol. Virtual is
 // normally routed BEFORE this gate (routeVirtualWrite — un-routed virtuals
 // answer the C5 405 there); the arm below is the safety net for a caller
 // that forgets the routing step, so a virtual can never silently fall into
@@ -1607,7 +1612,19 @@ func (s *service) deleteRemoteCache(ctx context.Context, p *Principal, repoKey, 
 		return err
 	}
 	if !existed {
-		return fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound)
+		// The remote face's miss wording is the deletion engine's own
+		// (C7's c-arm ruling, BIN-78/T-596; live A evidence L040 N2 plus
+		// the T-596 probe): 404 "Artifact deletion error: Item
+		// <repo>/<path> does not exist" — no trailing period. Spoken as a
+		// StatusError so adapters render it verbatim (the T-66 convention:
+		// repository-class semantics live here), with the ErrNodeNotFound
+		// chain kept for sentinel-testing callers. The LOCAL and VIRTUAL
+		// delete-miss faces keep their adapter wordings for now — A answers
+		// the same family there too (T-596 contrast leg), but flipping
+		// them is the adapters' wording arms, a separate ticket.
+		return NewStatusError(http.StatusNotFound,
+			fmt.Sprintf("Artifact deletion error: Item %s/%s does not exist", repoKey, path), nil,
+			fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound))
 	}
 	s.audit(ctx, AuditEvent{
 		Actor: p.Name, Action: AuditActionDelete, Repo: repoKey, Path: path,
