@@ -77,6 +77,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			".index is not implemented in BinFlow (the Maven repository index is a documented non-goal)")
 		return
 	}
+	// The filename-keyed metadata checksum route (T-595 / BIN-77, WP1)
+	// dispatches BEFORE the layout gate: the family is keyed on the
+	// terminal base name alone, so the repository ROOT spelling — which the
+	// maven layout refuses — routes exactly like the module/version ones
+	// (live leg wp1-root: A answers the family's 200 no-op at root level
+	// too). Put through the dedicated no-op arm; the GET miss of the same
+	// family stays a read-plane 404 citing the stripped SOURCE (the
+	// parse-gate arm below).
+	if r.Method == http.MethodPut {
+		if _, ok := metadataChecksumRouteKey(relPath); ok {
+			ctx := adapter.WithDeployProps(r.Context(), props)
+			h.putMetadataChecksumFile(ctx, w, r, adapter.PrincipalFrom(ctx), repoKey, relPath)
+			return
+		}
+	}
 	l, err := Parse(relPath)
 	if err != nil {
 		// BIN-66 / T-584 (L039 Arm 4 + the whitelist #8 and non-GAV corner
@@ -108,6 +123,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// WRITE-side refusal (A's t8-shaped PUT face is unobserved — kept
 		// as-is, not guessed).
 		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			// T-595 (live leg wp2-root-sha1): the metadata checksum
+			// family's miss cites the stripped SOURCE even at a depth the
+			// layout cannot parse (`File not found.; Path: '<repo>:
+			// maven-metadata.xml'` on A) — the family is filename-keyed on
+			// both planes, so the miss never cites the suffix spelling.
+			if src, ok := metadataChecksumRouteKey(relPath); ok {
+				writeError(w, http.StatusNotFound, notFoundMessage(repoKey, src))
+				return
+			}
 			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
 			return
 		}

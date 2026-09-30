@@ -255,27 +255,22 @@ func (h *Handler) serveSidecarOfPath(ctx context.Context, w http.ResponseWriter,
 	}
 	applyReaderHints(w, rc)
 	_ = rc.Close() //nolint:errcheck // read-only fd; the digest comes from the ledger
-	if overlayClient && algo != "sha512" {
+	// The client-value overlay (T-578 / BIN-60, ADR-0052 decision 4) is a
+	// sha1/md5 mechanism ONLY (T-595 / BIN-77, live leg e-get-sha256-after:
+	// a wrong sha256 registered through the 409 write-through still renders
+	// the COMPUTED primary digest on A — the generic plane's T-593
+	// primary-digest-wins model extends to maven, retiring T-587's
+	// registered-first reading for sha256): the sha256 arm always serves
+	// the computed digest, registered or not. An unset md5/sha1 answers
+	// the checksum family's own 404 citing the SOURCE (BIN-76 / T-594,
+	// L041 Arm 1) — A computes no md5/sha1 on demand.
+	if overlayClient && (algo == "sha1" || algo == "md5") {
 		if value := clientChecksumValueOf(node, algo); value != "" {
 			h.writeSidecarBody(w, r, value, node)
 			return
 		}
-		// The on-demand computation matrix is sha256-ONLY (BIN-76 / T-594,
-		// ledger maven/sidecar-get-ondemand-matrix, L041 Arm 1
-		// m1-get-md5-unset): on the overlay-armed face (the client-policy
-		// local plane and the virtual read plane, T-587) an unset md5/sha1
-		// answers the checksum family's own 404 citing the SOURCE — no
-		// computed fallback, A never generates those digests on demand.
-		// The faces OUTSIDE this branch keep the computed answer: the
-		// server-generated-checksums plane (L039 Arm 6: A serves the
-		// computed md5 under srvgen whatever was declared — the overlay
-		// gate's ADR-0052 6.2 posture), the metadata targets (the derived
-		// document contract owns their digests) and the walk legs (their
-		// contracts pin the resolved entity's computed digest).
-		if algo != "sha256" {
-			writeError(w, http.StatusNotFound, fmt.Sprintf("Checksum not found for %s", path))
-			return
-		}
+		writeError(w, http.StatusNotFound, fmt.Sprintf("Checksum not found for %s", path))
+		return
 	}
 	h.writeSidecarDigest(ctx, w, r, node, algo, repoKey, path)
 }

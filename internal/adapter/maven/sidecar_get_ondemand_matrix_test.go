@@ -4,7 +4,10 @@
 // own 404 citing the SOURCE (no repo prefix), and a miss's Path points at
 // the source artifact, never the checksum suffix spelling. Both read faces
 // (local and virtual) share the one model; registered client values echo
-// verbatim ahead of the matrix (the write-through family included).
+// verbatim ahead of the matrix on sha1/md5 (the write-through family
+// included) — since T-595 / BIN-77 a REGISTERED sha256 never echoes: the
+// computed primary digest wins even over a wrong registered value (live
+// leg e-get-sha256-after, A 7.161.26).
 package maven
 
 import (
@@ -87,6 +90,26 @@ func TestSidecarGetOndemandMatrix(t *testing.T) {
 				t.Errorf("%s GET .%s (registered) = %q, want %q", face, tc.algo, got, tc.want)
 			}
 		}
+	}
+
+	// The sha256 flip (T-595 / BIN-77, live e-get-sha256-after): a WRONG
+	// sha256 registered through the same 409 write-through still answers
+	// the COMPUTED primary digest on both faces — the echo arm is a
+	// sha1/md5 mechanism, the registration row itself keeps the wrong
+	// value (only the GET rendering flips).
+	w64 := strings.Repeat("3", 64)
+	if resp := hs.serve(http.MethodPut, "/maven-local/"+jar+".sha256", []byte(w64), nil, true); resp.StatusCode != http.StatusConflict {
+		t.Fatalf("sha256 wrong-value registration = %d, want the 409 write-through (%s)", resp.StatusCode, drain(t, resp))
+	}
+	for _, face := range []string{"maven-local", "t594-virt"} {
+		if got := string(drain(t, hs.serve(http.MethodGet, "/"+face+"/"+jar+".sha256", nil, nil, true))); got != s256 {
+			t.Errorf("%s GET .sha256 (registered wrong) = %q, want the computed %q", face, got, s256)
+		}
+	}
+	if node, err := hs.md.Nodes().Get(context.Background(), "maven-local", jar); err != nil {
+		t.Fatalf("node after sha256 registration: %v", err)
+	} else if node.ClientSha256 != w64 {
+		t.Errorf("node.ClientSha256 = %q, want the write-through %q (the render flips, the row keeps)", node.ClientSha256, w64)
 	}
 
 	// The miss points at the SOURCE: every family suffix of a nonexistent
