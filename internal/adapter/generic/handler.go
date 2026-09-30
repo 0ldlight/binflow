@@ -166,7 +166,7 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 		h.writeServiceError(w, err, r.Method, repoKey, relPath)
 		return
 	}
-	h.writeCreated(w, r, repoKey, relPath, node, uploadContext{declared: declaredSet(expect)})
+	h.writeCreated(w, r, repoKey, relPath, node)
 }
 
 // terminalChecksumSuffixes is the client-checksum PUT interception family
@@ -231,27 +231,11 @@ func (h *Handler) clientChecksumPutPlane(ctx context.Context, repoKey string) (s
 	return "", false
 }
 
-// virtualDeploymentTarget is the tolerant write-route probe of a virtual
-// repository's config JSON (the generic-side restatement of repo's own
-// reader — adapter packages share no unexported code, the npm/cargo/conan
-// precedent): the primary spelling plus the two Artifactory aliases
-// raw-seeded rows may carry. A config that fails the strict shape still
-// gets its truthful answer: no route.
+// virtualDeploymentTarget is the generic-side thin alias of the adapter
+// base's single-source write-route probe (T-590 hoist; the semantics and
+// their golden live in internal/adapter/deploytarget.go).
 func virtualDeploymentTarget(config string) string {
-	var probe struct {
-		DefaultDeploymentRepo    string `json:"defaultDeploymentRepo"`
-		DefaultDeploymentRepoRef string `json:"defaultDeploymentRepoRef"`
-		DeploymentRepository     string `json:"deploymentRepository"`
-	}
-	if err := json.Unmarshal([]byte(config), &probe); err != nil {
-		return ""
-	}
-	for _, alias := range []string{probe.DefaultDeploymentRepo, probe.DefaultDeploymentRepoRef, probe.DeploymentRepository} {
-		if alias != "" {
-			return alias
-		}
-	}
-	return ""
+	return adapter.VirtualDeploymentTarget(config)
 }
 
 // checksumPolicySrvgen reports whether the repository's config blob spells
@@ -292,7 +276,7 @@ func (h *Handler) clientChecksumSeam() repo.ClientChecksumWriter {
 // overlay helper expresses (ADR-0052 decision 4: the mechanism is the
 // single-source helper, the fallback posture stays protocol-owned).
 func clientChecksumValueOf(node *metadata.Node, algo string) string {
-	o256, o1, o5 := repo.OriginalChecksums(node, "", "", "")
+	o256, o1, o5 := repo.OriginalChecksums(node, "")
 	switch algo {
 	case "sha256":
 		return o256
@@ -302,6 +286,18 @@ func clientChecksumValueOf(node *metadata.Node, algo string) string {
 		return o5
 	}
 	return ""
+}
+
+// maxSidecarBytes is the checksum-file body ceiling on the client-checksum
+// plane (BIN-70 / T-588, L040 Arm 3's 1024/1025 boundary legs — inclusive:
+// 1024 passes into the comparison, 1025 is refused). The maven face keeps
+// the same ceiling and wording (put.go maxSidecarBytes).
+const maxSidecarBytes = 1024
+
+// suspiciousSidecarMessage renders the refusal wording verbatim (N = the
+// exact body length in bytes).
+func suspiciousSidecarMessage(n int64) string {
+	return fmt.Sprintf("Suspicious checksum file, content length of %d bytes is bigger than allowed.", n)
 }
 
 // putClientChecksum serves the terminal-checksum PUT on the resolved
@@ -314,6 +310,17 @@ func clientChecksumValueOf(node *metadata.Node, algo string) string {
 // posture the T-574 interception kept.
 func (h *Handler) putClientChecksum(ctx context.Context, w http.ResponseWriter,
 	r *http.Request, p *repo.Principal, repoKey, relPath, src, algo string) bool {
+	// Suspicious-size guard first (BIN-70 / T-588, L040 Arm 3 N5: the
+	// sz-*/szb-* legs pinned the ceiling at 1024 bytes INCLUSIVE and the
+	// verbatim refusal — the maven face runs the same seam and wording,
+	// put.go maxSidecarBytes): a declared Content-Length beyond the
+	// ceiling answers 409 without reading the body; an oversized chunked
+	// body is caught at a bounded read (at most 1025 bytes in memory,
+	// never the unbounded ReadAll the ledger's B-side recorded).
+	if r.ContentLength > maxSidecarBytes {
+		writeError(w, http.StatusConflict, suspiciousSidecarMessage(r.ContentLength))
+		return true
+	}
 	rc, node, err := h.svc.Get(ctx, p, repoKey, src)
 	if err != nil {
 		if !errors.Is(err, repo.ErrNodeNotFound) && !errors.Is(err, repo.ErrIsFolder) {
@@ -326,9 +333,13 @@ func (h *Handler) putClientChecksum(ctx context.Context, w http.ResponseWriter,
 	}
 	_ = rc.Close() //nolint:errcheck // read-only probe; only the node facts are needed
 
-	raw, rerr := io.ReadAll(r.Body)
+	raw, rerr := io.ReadAll(io.LimitReader(r.Body, maxSidecarBytes+1))
 	if rerr != nil {
 		writeError(w, http.StatusBadRequest, "read checksum body: "+rerr.Error())
+		return true
+	}
+	if int64(len(raw)) > maxSidecarBytes {
+		writeError(w, http.StatusConflict, suspiciousSidecarMessage(int64(len(raw))))
 		return true
 	}
 	declared := strings.TrimSpace(string(raw)) // trailing whitespace tolerated, the maven family's rule
@@ -524,7 +535,7 @@ func (h *Handler) handleChecksumDeploy(ctx context.Context, w http.ResponseWrite
 		h.writeServiceError(w, err, r.Method, repoKey, relPath)
 		return
 	}
-	h.writeCreated(w, r, repoKey, relPath, node, uploadContext{declared: declaredSet(ref)})
+	h.writeCreated(w, r, repoKey, relPath, node)
 }
 
 // declaredDigests parses the X-Checksum-* headers into a BlobRef. Malformed
@@ -558,31 +569,6 @@ func declaredDigests(hdr http.Header) (storage.BlobRef, error) {
 	return storage.BlobRef{Sha256: sha256, Sha1: sha1, Md5: md5}, nil
 }
 
-// declaredSet remembers which algorithms the client actually declared, so
-// originalChecksums echoes exactly those (repo-semantics section 5: the
-// policy only ever inspects algorithms the client supplied).
-func declaredSet(expect storage.BlobRef) map[string]bool {
-	m := map[string]bool{}
-	if expect.Sha256 != "" {
-		m["sha256"] = true
-	}
-	if expect.Sha1 != "" {
-		m["sha1"] = true
-	}
-	if expect.Md5 != "" {
-		m["md5"] = true
-	}
-	return m
-}
-
-// uploadContext marks that an ItemCreated body is being rendered for an
-// upload that just happened, carrying which algorithms the client declared.
-// A non-nil zero-algorithm context means "upload with no declared digests"
-// (originalChecksums renders empty, T-13 review m1); a nil context means
-// "no upload context at all" (downloads, storage-info renders), where the
-// stored triple is the best echo available.
-type uploadContext struct{ declared map[string]bool }
-
 // productPrefix is the instance context path every self-referential URL
 // carries: ADR-0008's single product namespace /binflow, the same wire
 // constant httpapi routes the content plane on (the adapter itself sees the
@@ -606,7 +592,7 @@ const productPrefix = "/binflow"
 // reference's envelope repo and self-referential URLs name the member.
 // node.RepoKey is that landed key, so LOCAL deploys (RepoKey == the
 // addressed key) render byte-identically to before.
-func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, relPath string, node *metadata.Node, up uploadContext) {
+func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, relPath string, node *metadata.Node) {
 	if node != nil && node.RepoKey != "" {
 		repoKey = node.RepoKey
 	}
@@ -617,7 +603,7 @@ func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, 
 	}
 	w.Header().Set("Content-Type", contentTypeFileInfo)
 	w.WriteHeader(http.StatusCreated)
-	body := h.itemInfo(requestBase(r), repoKey, relPath, node, sums, up)
+	body := h.itemInfo(requestBase(r), repoKey, relPath, node, sums)
 	writeJSON(w, body)
 }
 

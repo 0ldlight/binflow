@@ -56,9 +56,8 @@ func jsonStr(s string) string {
 }
 
 // itemCreatedBody renders the ItemCreated envelope (the A raw's byte
-// shape). sums is the server-measured triple; declared is the client's
-// X-Checksum-* set.
-func itemCreatedBody(self, repoKey, relPath string, node *metadata.Node, sums digestTriple, declared storage.BlobRef) []byte {
+// shape). sums is the server-measured triple.
+func itemCreatedBody(self, repoKey, relPath string, node *metadata.Node, sums digestTriple) []byte {
 	var b strings.Builder
 	line := func(format string, args ...any) { fmt.Fprintf(&b, format+"\n", args...) }
 	line("{")
@@ -78,7 +77,7 @@ func itemCreatedBody(self, repoKey, relPath string, node *metadata.Node, sums di
 	}
 	// originalChecksums: the single ADR-0052 assembly point (see
 	// originalChecksumsLines).
-	if oc := originalChecksumsLines(node, sums, declared); len(oc) > 0 {
+	if oc := originalChecksumsLines(node, sums); len(oc) > 0 {
 		line("  %s : {", jsonStr("originalChecksums"))
 		line(strings.Join(oc, ",\n"))
 		line("  },")
@@ -105,32 +104,17 @@ func memberLines(sha1v, md5v, sha256v string) []string {
 }
 
 // originalChecksumsLines assembles the envelope's originalChecksums
-// members off the live raw's rule: the DECLARED digests echo back, with
-// one fill rule the raw pins — sha256 is ALWAYS present (the declared
-// value when one passed validation, the measured one otherwise; sha1-only
-// and md5-only legs were not raw-pinned, the all-three leg shows them
-// echoing when declared).
-//
-// ADR-0052 decision 4: the value selection is single-sourced through
-// repo.OriginalChecksums (Client* non-empty wins, else the measured
-// triple — on this 201 path the node's Client columns hold exactly the
-// validated declared set, so the helper's output equals the declared
-// echo). The member policy — sha256 always, sha1/md5 only when declared
-// — is this plane's upload-context filter and stays local (the ADR's
-// boundary clause).
-func originalChecksumsLines(node *metadata.Node, sums digestTriple, declared storage.BlobRef) []string {
-	orig256, origSha1, origMd5 := repo.OriginalChecksums(node, sums.sha256, sums.sha1, sums.md5)
-	// sha1/md5 members echo the value only when the client declared that
-	// algorithm (a declared disagreement dies at the 409 and never reaches
-	// this 201, so measured == declared on every leg here).
-	sha1v, md5v := "", ""
-	if declared.Sha1 != "" {
-		sha1v = origSha1
-	}
-	if declared.Md5 != "" {
-		md5v = origMd5
-	}
-	return memberLines(sha1v, md5v, orig256)
+// members off the shared A keyset (the ledger's
+// httpapi/original-checksums-key-model, BIN-71 / T-589): sha256 is ALWAYS
+// a member (the raw-pinned fill rule — the declared value when one passed
+// validation, the measured one otherwise), sha1/md5 only when the node
+// carries a client registration. ADR-0052 decision 4: the whole rule is
+// single-sourced through repo.OriginalChecksums off the landed node — on
+// this 201 path the node's Client columns hold exactly the validated
+// declared set, so the members equal the declared echo of the raw.
+func originalChecksumsLines(node *metadata.Node, sums digestTriple) []string {
+	o256, oSha1, oMd5 := repo.OriginalChecksums(node, sums.sha256)
+	return memberLines(oSha1, oMd5, o256)
 }
 
 // writeBareCreated renders the bare-content PUT 201: Location (the
@@ -138,7 +122,7 @@ func originalChecksumsLines(node *metadata.Node, sums digestTriple, declared sto
 // effective sha256, T-575) and the ItemCreated envelope body (T-579). The
 // body's uri is the Location's value byte-for-byte (the A raw renders
 // them equal).
-func writeBareCreated(w http.ResponseWriter, r *http.Request, repoKey, rel string, node *metadata.Node, sums digestTriple, declared storage.BlobRef) {
+func writeBareCreated(w http.ResponseWriter, r *http.Request, repoKey, rel string, node *metadata.Node, sums digestTriple) {
 	self := requestBase(r) + productPrefix + "/" + repoKey + "/" + escapePath(rel)
 	hdr := w.Header()
 	if node != nil && node.Sha256 != "" {
@@ -147,7 +131,7 @@ func writeBareCreated(w http.ResponseWriter, r *http.Request, repoKey, rel strin
 	hdr.Set("Location", self)
 	hdr.Set("Content-Type", contentTypeItemCreated)
 	w.WriteHeader(http.StatusCreated)
-	_, _ = w.Write(itemCreatedBody(self, repoKey, rel, node, sums, declared)) //nolint:gosec // G705: server-rendered envelope
+	_, _ = w.Write(itemCreatedBody(self, repoKey, rel, node, sums)) //nolint:gosec // G705: server-rendered envelope
 }
 
 // writeChecksumPolicy409 renders the declared-digest disagreement as the

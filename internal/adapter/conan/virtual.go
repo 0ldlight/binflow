@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/repo"
 )
 
@@ -204,25 +205,11 @@ func (h *Handler) serveVirtualDelete(ctx context.Context, cw *capWriter, p *repo
 	cw.WriteHeader(http.StatusOK)
 }
 
-// conanDeploymentTarget is the tolerant write-route probe of a virtual
-// repository's config JSON (the npm-side restatement of repo's own reader —
-// adapter packages share no unexported code, the area rule): the primary
-// spelling plus the two Artifactory aliases raw-seeded rows may carry.
+// conanDeploymentTarget is the conan-side thin alias of the adapter base's
+// single-source write-route probe (T-590 hoist; the semantics and their
+// golden live in internal/adapter/deploytarget.go).
 func conanDeploymentTarget(config string) string {
-	var probe struct {
-		DefaultDeploymentRepo    string `json:"defaultDeploymentRepo"`
-		DefaultDeploymentRepoRef string `json:"defaultDeploymentRepoRef"`
-		DeploymentRepository     string `json:"deploymentRepository"`
-	}
-	if err := json.Unmarshal([]byte(config), &probe); err != nil {
-		return ""
-	}
-	for _, alias := range []string{probe.DefaultDeploymentRepo, probe.DefaultDeploymentRepoRef, probe.DeploymentRepository} {
-		if alias != "" {
-			return alias
-		}
-	}
-	return ""
+	return adapter.VirtualDeploymentTarget(config)
 }
 
 // ---- member document reads (the T-72 aggregation seam) ----

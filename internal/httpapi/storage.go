@@ -521,16 +521,17 @@ func (s *Server) fileInfoOf(ctx context.Context, base, repoKey string, node *met
 		Size:         strconv.FormatInt(node.Size, 10),
 		MimeType:     mimeForNode(node.Path, node.Mime),
 		Checksums:    sums,
-		// originalChecksums is the client-checksum overlay (ADR-0052
-		// decision 4): a stored client-declared digest wins per algorithm,
-		// the server triple fills the rest — T-574's live rounds proved the
-		// reference fills originalChecksums with the computed values on
-		// no-declaration legs and echoes the stored client value (the 409
-		// write-through's wrong value included) on declaration legs. The
-		// overlay rule itself is repo.OriginalChecksums, the single source
-		// every no-upload-context render shares.
+		// originalChecksums follows the A keyset model through the single
+		// source repo.OriginalChecksums (BIN-71 / T-589, the ledger's
+		// httpapi/original-checksums-key-model): the client-registered
+		// algorithms ∪ {sha256} — md5/sha1 keys appear only when a client
+		// value was registered (the 409 write-through's wrong value and a
+		// zero placeholder included), sha256 is always present (registered
+		// value else computed). T-584's five-leg live + L041's m1/wsrv
+		// cross-evidence pinned the reference: no full-triple fallback on
+		// unregistered algorithms, never an empty set.
 		OriginalChecksums: func() *checksumTriple {
-			o256, o1, o5 := repo.OriginalChecksums(node, sums.Sha256, sums.Sha1, sums.Md5)
+			o256, o1, o5 := repo.OriginalChecksums(node, sums.Sha256)
 			return &checksumTriple{Sha256: o256, Sha1: o1, Md5: o5}
 		}(),
 	}

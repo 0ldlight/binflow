@@ -262,12 +262,17 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 		// T-584, L039 Arm 6): the registration happens there too, but the
 		// reference's GET face keeps serving the COMPUTED digest whatever
 		// was declared — the stored client value surfaces only in
-		// originalChecksums. Metadata targets (the derived-document contract
-		// owns their digests) and the non-local planes keep the computed
-		// answer.
+		// originalChecksums. The VIRTUAL face overlays too (T-587 / BIN-69,
+		// L040 Arm 1b mv2-get-md5: A echoes the member's registered client
+		// value through the virtual read plane — the generic plane's
+		// serveVirtualClientChecksum mirror); an unset value keeps the
+		// computed fallback, maven's own posture (the C2 on-demand family's
+		// ruling stays untouched). Metadata targets (the derived-document
+		// contract owns their digests) and the remote plane keep the
+		// computed answer.
 		h.serveSidecar(ctx, w, r, p, repoKey, relPath, l,
-			rowType == repo.TypeLocal && l.TargetKind == KindArtifact &&
-				rowCfg.ChecksumPolicy != ChecksumPolicyServerGenerated)
+			l.TargetKind == KindArtifact && (rowType == repo.TypeVirtual ||
+				(rowType == repo.TypeLocal && rowCfg.ChecksumPolicy != ChecksumPolicyServerGenerated)))
 		return
 	}
 	h.serveFile(ctx, w, r, p, repoKey, relPath)
@@ -286,19 +291,15 @@ func (h *Handler) serveSidecar(ctx context.Context, w http.ResponseWriter, r *ht
 // writeSidecarDigest renders the computed sidecar of ONE node (digest
 // lookup, headers, conditional, body) — shared by the ordinary sidecar
 // face and the walk resolve's sidecar leg (t5/t6: the digest addresses the
-// RESOLVED entity). The sha512 gate lives HERE, on the shared exit: sha512
-// is outside the three-digest model — no honest computed body exists, and
-// pretending the stored claim is the answer would violate the computed-
-// value contract (the derived-sidecar contract's pinned arm, L032) — so
-// EVERY sidecar path, the walk legs included, 404s it (R7 dual-review
-// blocking fix: the gate used to sit on serveSidecar alone and the walk
-// legs reached the digest lookup's 500 ledger-gap face).
+// RESOLVED entity). The R7 sha512 gate that used to live here is DELETED
+// (Review B NB-③, T-587): since BIN-66 / T-584 checksumSuffixes carries
+// only {.sha256,.sha1,.md5}, so Parse — the sole Algo producer — can never
+// hand this exit a sha512, and every path there (a terminal .sha512 GET)
+// now parses as an ordinary artifact file whose miss the transfer plane
+// 404s on its own; the sha512 leg's observable contract (404, never a 500
+// ledger gap) stays pinned by TestPlainSnapshotWalkSha512SidecarGate.
 func (h *Handler) writeSidecarDigest(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	node *metadata.Node, algo, repoKey, path string) {
-	if algo == "sha512" {
-		writeError(w, http.StatusNotFound, notFoundMessage(repoKey, path))
-		return
-	}
 	digest, ok := h.digestOf(ctx, node, algo)
 	if !ok {
 		writeError(w, http.StatusInternalServerError,
@@ -510,8 +511,7 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error, method, re
 		}
 		w.Header().Set("Allow", "GET, HEAD")
 		if h.repoClassIsVirtual(repoKey) {
-			writeError(w, http.StatusMethodNotAllowed, fmt.Sprintf(
-				"No local repository was configured as local deployment repository for the (%s) virtual repository.", repoKey))
+			writeError(w, http.StatusMethodNotAllowed, unroutedVirtualWriteMessage(repoKey))
 			return
 		}
 		writeError(w, http.StatusMethodNotAllowed, fmt.Sprintf(
@@ -519,6 +519,16 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error, method, re
 	default:
 		writeError(w, http.StatusInternalServerError, err.Error())
 	}
+}
+
+// unroutedVirtualWriteMessage is the deploy-routing refusal's A form (the
+// C5 405, byte-identical to the service's refuseVirtualWrite — repo/
+// virtual.go msgNoDeploymentRepo — and to the 7.161.26 wire, L040 Arm 1a):
+// the sidecar intercept's routing gate (T-587 / BIN-69) and the fallback
+// StatusError arm above render the one spelling.
+func unroutedVirtualWriteMessage(repoKey string) string {
+	return fmt.Sprintf(
+		"No local repository was configured as local deployment repository for the (%s) virtual repository.", repoKey)
 }
 
 // repoClassIsVirtual resolves the repository class via the anonymous seam

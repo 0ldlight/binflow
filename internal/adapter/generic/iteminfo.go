@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/repo"
 )
 
 // fileInfo is the ItemCreated/FileInfo body (rest-api.md 1.2 and 3). Field
@@ -31,8 +32,9 @@ type fileInfo struct {
 // checksums is the sha1/md5/sha256 triple. Fields stay omitted (not empty
 // strings) when unknown: the spec's "compat (subset)" rule — never echo an
 // error value. Both objects are pointers so a zero-declaration upload still
-// renders `"originalChecksums": {}` while folder nodes omit them entirely
-// (no checksums exist for a directory, T-13 review m4).
+// renders `"originalChecksums": {"sha256": …}` (the A keyset's permanent
+// sha256 member) while folder nodes omit them entirely (no checksums exist
+// for a directory, T-13 review m4).
 type checksums struct {
 	Sha1   string `json:"sha1,omitempty"`
 	Md5    string `json:"md5,omitempty"`
@@ -47,16 +49,16 @@ type folderChildLevel1 struct {
 }
 
 // itemInfo renders the FileInfo shape for node. base is scheme://host.
-// up (when set) limits originalChecksums to the algorithms the client
-// actually declared on the upload that triggered this render — zero
-// declarations renders an empty object, never a fallback echo (T-13 review
-// m1). A nil up means "no upload context" (downloads, storage-info
-// renders), where the stored triple is the best echo available.
+// originalChecksums follows the single-source A keyset off the LANDED node
+// (repo.OriginalChecksums, BIN-71 / T-589): the client-registered
+// algorithms ∪ {sha256} — the deploy chain already registered the declared
+// set into the node's Client columns, so the envelope reads the node, not
+// a second hand-rolled copy of the request.
 //
 // Folder nodes carry no checksums at all: the storage layer's shared
 // empty-content sentinel is an internal marker and must not surface as a
 // bogus digest value (T-13 review m4).
-func (h *Handler) itemInfo(base, repoKey, relPath string, node *metadata.Node, sums digestTriple, up uploadContext) fileInfo {
+func (h *Handler) itemInfo(base, repoKey, relPath string, node *metadata.Node, sums digestTriple) fileInfo {
 	created := isoMillis(node.CreatedAt, h.now())
 	modified := isoMillis(node.UpdatedAt, h.now())
 	self := base + productPrefix + "/" + repoKey + "/" + escapePath(relPath)
@@ -76,8 +78,8 @@ func (h *Handler) itemInfo(base, repoKey, relPath string, node *metadata.Node, s
 			Md5:    sums.md5,
 			Sha256: sums.sha256,
 		}
-		info.OriginalChecksums = &checksums{}
-		*info.OriginalChecksums = originalChecksumsOf(sums, up)
+		o256, o1, o5 := repo.OriginalChecksums(node, sums.sha256)
+		info.OriginalChecksums = &checksums{Sha256: o256, Sha1: o1, Md5: o5}
 	}
 	if node.UpdatedAt != "" && node.UpdatedAt != node.CreatedAt {
 		info.LastModified = modified
@@ -85,27 +87,6 @@ func (h *Handler) itemInfo(base, repoKey, relPath string, node *metadata.Node, s
 		info.ModifiedBy = node.CreatedBy
 	}
 	return info
-}
-
-// originalChecksumsOf echoes the client-declared digests. With upload
-// context the declared set is authoritative (zero declarations = empty
-// object); without upload context the stored triple is the best echo
-// available.
-func originalChecksumsOf(sums digestTriple, up uploadContext) checksums {
-	if up.declared == nil {
-		return checksums{Sha1: sums.sha1, Md5: sums.md5, Sha256: sums.sha256}
-	}
-	out := checksums{}
-	if up.declared["sha1"] {
-		out.Sha1 = sums.sha1
-	}
-	if up.declared["md5"] {
-		out.Md5 = sums.md5
-	}
-	if up.declared["sha256"] {
-		out.Sha256 = sums.sha256
-	}
-	return out
 }
 
 // errorEnvelope is the unified non-2xx body (rest-api.md section 0):

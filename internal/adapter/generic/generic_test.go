@@ -312,7 +312,7 @@ func TestContentVerbsTable(t *testing.T) {
 func TestUploadResponseShapes(t *testing.T) {
 	e := newEnv(t)
 
-	t.Run("zero declared digests renders empty originalChecksums", func(t *testing.T) {
+	t.Run("zero declared digests renders the sha256-alone keyset", func(t *testing.T) {
 		resp := e.do(t, http.MethodPut, "/binflow/generic-local/acme/undecl.bin",
 			strings.NewReader("no headers at all"), nil)
 		raw := body(t, resp)
@@ -331,10 +331,38 @@ func TestUploadResponseShapes(t *testing.T) {
 		if fi.Checksums.Sha256 == "" {
 			t.Fatal("server-side checksums missing")
 		}
-		// Upload context with zero declarations: the echo must be an EMPTY
-		// object, not a fallback to the stored triple.
-		if len(fi.OriginalChecksums) != 0 {
-			t.Fatalf("originalChecksums = %v, want empty object on zero declarations", fi.OriginalChecksums)
+		// The A keyset (BIN-71 / T-589): zero declarations still render
+		// {sha256: computed} — never the old empty object, never the full
+		// triple fallback.
+		if len(fi.OriginalChecksums) != 1 || fi.OriginalChecksums["sha256"] != fi.Checksums.Sha256 {
+			t.Fatalf("originalChecksums = %v, want {sha256: computed} on zero declarations", fi.OriginalChecksums)
+		}
+	})
+
+	t.Run("sha1-only declaration adds the computed sha256 key", func(t *testing.T) {
+		content := "sha1 only leg"
+		_, sha1v, _ := digestsOf(content)
+		resp := e.do(t, http.MethodPut, "/binflow/generic-local/acme/s1only.bin",
+			strings.NewReader(content), map[string]string{"X-Checksum-Sha1": sha1v})
+		raw := body(t, resp)
+		if resp.StatusCode != 201 {
+			t.Fatalf("put = %d: %s", resp.StatusCode, raw)
+		}
+		var fi struct {
+			Checksums         map[string]string `json:"checksums"`
+			OriginalChecksums map[string]string `json:"originalChecksums"`
+		}
+		if err := json.Unmarshal([]byte(raw), &fi); err != nil {
+			t.Fatalf("json: %v (%s)", err, raw)
+		}
+		if len(fi.OriginalChecksums) != 2 {
+			t.Fatalf("originalChecksums = %v, want exactly {sha1, sha256}", fi.OriginalChecksums)
+		}
+		if fi.OriginalChecksums["sha1"] != sha1v {
+			t.Errorf("oc[sha1] = %q, want declared %q", fi.OriginalChecksums["sha1"], sha1v)
+		}
+		if fi.OriginalChecksums["sha256"] != fi.Checksums["sha256"] {
+			t.Errorf("oc[sha256] = %q, want computed %q", fi.OriginalChecksums["sha256"], fi.Checksums["sha256"])
 		}
 	})
 
