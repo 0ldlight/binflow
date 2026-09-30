@@ -7,8 +7,10 @@ package generic_test
 // envelope renders the LANDED member repository, and the GET face echoes a
 // stored client value through the virtual read plane. A virtual repository
 // without a defaultDeploymentRepo keeps its already-matching 405.
+// T-593 / BIN-75 completes the GET face's C2 model on the virtual plane
+// (sha256 on demand, bare sha1/md5 404, the Could-not-find miss family).
 // 权威口径：reports/compatibility/L039-checksum-put-adjacent.md Arm 1
-// （A 7.161.26 双轮，a1b-v-* / a1-v-* 腿）。
+// （A 7.161.26 双轮，a1b-v-* / a1-v-* 腿）+ L040 N3（c2-v-get-*）。
 
 import (
 	"context"
@@ -155,15 +157,46 @@ func TestChecksumPutVirtualPlanePassThrough(t *testing.T) {
 		t.Errorf("GET echo body = %q, want the stored client sha1 %q", got, sha1S)
 	}
 
-	// Unset algorithm on the virtual plane: NOT the on-demand face — the
-	// ordinary chain keeps rendering (the C2 family's open posture: the
-	// 404 addresses the .sha256 PATH, download-side wording).
+	// Unset sha256 on the virtual plane: the on-demand primary-digest echo
+	// (T-593 / BIN-75, R12's C2 ruling) — 200 with the member node's
+	// computed sha256, the same face as the local plane.
+	sha256S, _, _ := digestsOf("source-bytes")
 	unset := e.do(t, http.MethodGet, "/binflow/gvirt/"+src+".sha256", nil, nil)
-	if unset.StatusCode != http.StatusNotFound {
-		t.Fatalf("GET unset = %d, want 404 (body=%s)", unset.StatusCode, body(t, unset))
+	if unset.StatusCode != http.StatusOK {
+		t.Fatalf("GET unset = %d (body=%s)", unset.StatusCode, body(t, unset))
 	}
-	if got := body(t, unset); !strings.Contains(got, "Failed to find the requested resource 'gvirt/"+src+".sha256'.") {
-		t.Errorf("GET unset body = %s, want the ordinary chain's download-side miss", got)
+	if ct := unset.Header.Get("Content-Type"); ct != "application/x-checksum" {
+		t.Errorf("GET unset Content-Type = %q, want application/x-checksum", ct)
+	}
+	if got := body(t, unset); got != sha256S {
+		t.Errorf("GET unset body = %q, want the computed sha256 %q", got, sha256S)
+	}
+
+	// Unset md5 on the virtual plane (a FRESH source — src.bin carries the
+	// 409 write-through's md5 registration above): the bare
+	// Checksum-not-found family addressing the SOURCE (L040 N3's c2-v-get
+	// model — never the ordinary chain's terminal-suffix miss again).
+	if resp := e.do(t, http.MethodPut, "/binflow/gvirt/t583v/plain.txt",
+		strings.NewReader("plain"), nil); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("plain seed = %d (body=%s)", resp.StatusCode, body(t, resp))
+	}
+	unsetMd5 := e.do(t, http.MethodGet, "/binflow/gvirt/t583v/plain.txt.md5", nil, nil)
+	if unsetMd5.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET unset md5 = %d (body=%s)", unsetMd5.StatusCode, body(t, unsetMd5))
+	}
+	if got := body(t, unsetMd5); !strings.Contains(got, `"Checksum not found for t583v/plain.txt"`) {
+		t.Errorf("GET unset md5 body = %s, want the bare Checksum-not-found wording", got)
+	}
+
+	// Unresolvable source through the virtual key: the virtual face's own
+	// miss family (Could-not-find-resource, colon form, SOURCE-addressed).
+	miss := e.do(t, http.MethodGet, "/binflow/gvirt/t583v/never-seeded.txt.sha256", nil, nil)
+	if miss.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET miss = %d (body=%s)", miss.StatusCode, body(t, miss))
+	}
+	if got := body(t, miss); !strings.Contains(got,
+		`"Could not find resource; Path: 'gvirt:t583v/never-seeded.txt'"`) {
+		t.Errorf("GET miss body = %s, want the Could-not-find-resource family", got)
 	}
 }
 
@@ -186,7 +219,10 @@ func TestChecksumPutVirtualNoRouteKeeps405(t *testing.T) {
 	if get.StatusCode != http.StatusNotFound {
 		t.Fatalf("no-route GET = %d, want 404", get.StatusCode)
 	}
-	if got := body(t, get); !strings.Contains(got, "Failed to find the requested resource 'gvirt-noroute/t583n/src.bin.sha1'.") {
-		t.Errorf("no-route GET body = %s, want the ordinary chain's miss", got)
+	// T-593: the GET miss renders the checksum family's virtual-face wording
+	// through the read plane (the write route is irrelevant on a read verb).
+	if got := body(t, get); !strings.Contains(got,
+		`"Could not find resource; Path: 'gvirt-noroute:t583n/src.bin'"`) {
+		t.Errorf("no-route GET body = %s, want the Could-not-find-resource family", got)
 	}
 }
