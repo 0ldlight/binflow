@@ -166,7 +166,7 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 		h.writeServiceError(w, err, r.Method, repoKey, relPath)
 		return
 	}
-	h.writeCreated(w, r, repoKey, relPath, node, uploadContext{declared: declaredSet(expect)})
+	h.writeCreated(w, r, repoKey, relPath, node)
 }
 
 // terminalChecksumSuffixes is the client-checksum PUT interception family
@@ -276,7 +276,7 @@ func (h *Handler) clientChecksumSeam() repo.ClientChecksumWriter {
 // overlay helper expresses (ADR-0052 decision 4: the mechanism is the
 // single-source helper, the fallback posture stays protocol-owned).
 func clientChecksumValueOf(node *metadata.Node, algo string) string {
-	o256, o1, o5 := repo.OriginalChecksums(node, "", "", "")
+	o256, o1, o5 := repo.OriginalChecksums(node, "")
 	switch algo {
 	case "sha256":
 		return o256
@@ -535,7 +535,7 @@ func (h *Handler) handleChecksumDeploy(ctx context.Context, w http.ResponseWrite
 		h.writeServiceError(w, err, r.Method, repoKey, relPath)
 		return
 	}
-	h.writeCreated(w, r, repoKey, relPath, node, uploadContext{declared: declaredSet(ref)})
+	h.writeCreated(w, r, repoKey, relPath, node)
 }
 
 // declaredDigests parses the X-Checksum-* headers into a BlobRef. Malformed
@@ -569,31 +569,6 @@ func declaredDigests(hdr http.Header) (storage.BlobRef, error) {
 	return storage.BlobRef{Sha256: sha256, Sha1: sha1, Md5: md5}, nil
 }
 
-// declaredSet remembers which algorithms the client actually declared, so
-// originalChecksums echoes exactly those (repo-semantics section 5: the
-// policy only ever inspects algorithms the client supplied).
-func declaredSet(expect storage.BlobRef) map[string]bool {
-	m := map[string]bool{}
-	if expect.Sha256 != "" {
-		m["sha256"] = true
-	}
-	if expect.Sha1 != "" {
-		m["sha1"] = true
-	}
-	if expect.Md5 != "" {
-		m["md5"] = true
-	}
-	return m
-}
-
-// uploadContext marks that an ItemCreated body is being rendered for an
-// upload that just happened, carrying which algorithms the client declared.
-// A non-nil zero-algorithm context means "upload with no declared digests"
-// (originalChecksums renders empty, T-13 review m1); a nil context means
-// "no upload context at all" (downloads, storage-info renders), where the
-// stored triple is the best echo available.
-type uploadContext struct{ declared map[string]bool }
-
 // productPrefix is the instance context path every self-referential URL
 // carries: ADR-0008's single product namespace /binflow, the same wire
 // constant httpapi routes the content plane on (the adapter itself sees the
@@ -617,7 +592,7 @@ const productPrefix = "/binflow"
 // reference's envelope repo and self-referential URLs name the member.
 // node.RepoKey is that landed key, so LOCAL deploys (RepoKey == the
 // addressed key) render byte-identically to before.
-func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, relPath string, node *metadata.Node, up uploadContext) {
+func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, relPath string, node *metadata.Node) {
 	if node != nil && node.RepoKey != "" {
 		repoKey = node.RepoKey
 	}
@@ -628,7 +603,7 @@ func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, 
 	}
 	w.Header().Set("Content-Type", contentTypeFileInfo)
 	w.WriteHeader(http.StatusCreated)
-	body := h.itemInfo(requestBase(r), repoKey, relPath, node, sums, up)
+	body := h.itemInfo(requestBase(r), repoKey, relPath, node, sums)
 	writeJSON(w, body)
 }
 

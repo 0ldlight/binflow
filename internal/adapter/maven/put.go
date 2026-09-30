@@ -244,7 +244,7 @@ func (h *Handler) putChecksumDeploy(ctx context.Context, w http.ResponseWriter, 
 	// byte-carrying deploy (the facts and the metadata belong to where the
 	// bytes — here the referenced blob — live).
 	h.calc.afterArtifactDeploy(ctx, p, node.RepoKey, l)
-	h.writeCreated(w, r, repoKey, relPath, node, declaredSetOf(ref))
+	h.writeCreated(w, r, repoKey, relPath, node)
 }
 
 // putFile lands an artifact or a client maven-metadata.xml document
@@ -364,11 +364,12 @@ func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Re
 		h.calc.afterMetadataDeploy(ctx, p, node.RepoKey, l)
 	}
 
-	declaredSet := map[string]bool{}
-	if cfg.ChecksumPolicy != ChecksumPolicyServerGenerated {
-		declaredSet = declaredSetOf(declared)
-	}
-	h.writeCreated(w, r, repoKey, relPath, node, declaredSet)
+	// The envelope's originalChecksums is the single-source A keyset off
+	// the LANDED node (repo.OriginalChecksums, BIN-71 / T-589): the
+	// srvgen zeroing above leaves the node unregistered, so the body
+	// renders oc={sha256: computed} there (the declared-header disposal
+	// under srvgen is the N4 ruling's plane, not this render's).
+	h.writeCreated(w, r, repoKey, relPath, node)
 }
 
 // putSidecar implements the checksum-file upload chain (rest-api.md
@@ -551,7 +552,7 @@ func (h *Handler) putSha512ChecksumFile(ctx context.Context, w http.ResponseWrit
 		h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
 		return
 	}
-	h.writeCreated(w, r, repoKey, relPath, node, declaredSetOf(declared))
+	h.writeCreated(w, r, repoKey, relPath, node)
 }
 
 // clientChecksumPutSuffixes is the client-checksum PUT interception family
@@ -572,12 +573,12 @@ func (h *Handler) clientChecksumSeam() repo.ClientChecksumWriter {
 }
 
 // clientChecksumValueOf projects one algorithm's stored client declaration
-// off a node row — the overlay half of repo.OriginalChecksums with the
-// computed triple left empty (the fallback posture is the CALLER's: the
-// direct sidecar face falls through to the computed digest when this
-// returns "", per ADR-0052 decision 4's protocol-owned fallbacks).
+// off a node row — a single-member read of repo.OriginalChecksums with an
+// empty server sha256 (the fallback posture is the CALLER's: the direct
+// sidecar face falls through to the computed digest when this returns "",
+// per ADR-0052 decision 4's protocol-owned fallbacks).
 func clientChecksumValueOf(node *metadata.Node, algo string) string {
-	o256, o1, o5 := repo.OriginalChecksums(node, "", "", "")
+	o256, o1, o5 := repo.OriginalChecksums(node, "")
 	switch algo {
 	case "sha256":
 		return o256
@@ -702,21 +703,6 @@ func declaredDigests(hdr http.Header) (storage.BlobRef, error) {
 	return storage.BlobRef{Sha256: sha256, Sha1: sha1, Md5: md5}, nil
 }
 
-// declaredSetOf remembers which algorithms the client declared.
-func declaredSetOf(expect storage.BlobRef) map[string]bool {
-	m := map[string]bool{}
-	if expect.Sha256 != "" {
-		m["sha256"] = true
-	}
-	if expect.Sha1 != "" {
-		m["sha1"] = true
-	}
-	if expect.Md5 != "" {
-		m["md5"] = true
-	}
-	return m
-}
-
 // isHex reports whether s is exactly n hex characters.
 func isHex(s string, n int) bool {
 	if len(s) != n {
@@ -773,7 +759,7 @@ const productPrefix = "/binflow"
 // it), unlike the SIDECAR 201's Location, which the same A wire pins to
 // the member (putSidecar below).
 func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, relPath string,
-	node *metadata.Node, declared map[string]bool) {
+	node *metadata.Node) {
 	sums := h.digestTriple(r.Context(), node)
 	w.Header().Set("Location", requestBase(r)+productPrefix+"/"+repoKey+"/"+escapePath(relPath))
 	if sums.sha256 != "" && !isFolder(node) {
@@ -781,7 +767,7 @@ func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, 
 	}
 	w.Header().Set("Content-Type", contentTypeItemCreated)
 	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, h.itemInfo(requestBase(r), repoKey, relPath, node, sums, declared))
+	writeJSON(w, h.itemInfo(requestBase(r), repoKey, relPath, node, sums))
 }
 
 // isFolder reports a folder-marker node (no checksums exist for one).
@@ -790,10 +776,12 @@ func isFolder(n *metadata.Node) bool {
 }
 
 // itemInfo renders the FileInfo shape (rest-api.md 1.2): size is a string,
-// checksums the measured triple, originalChecksums the client-declared
-// subset of the upload.
+// checksums the measured triple, originalChecksums the single-source A
+// keyset off the landed node (repo.OriginalChecksums, BIN-71 / T-589 —
+// registered algorithms ∪ {sha256}, never the request's declared set read
+// a second time).
 func (h *Handler) itemInfo(base, repoKey, relPath string, node *metadata.Node,
-	sums digestTriple, declared map[string]bool) fileInfo {
+	sums digestTriple) fileInfo {
 	self := base + productPrefix + "/" + repoKey + "/" + escapePath(relPath)
 	info := fileInfo{
 		URI:         self,
@@ -807,17 +795,8 @@ func (h *Handler) itemInfo(base, repoKey, relPath string, node *metadata.Node,
 	}
 	if !isFolder(node) {
 		info.Checksums = &checksums{Sha1: sums.sha1, Md5: sums.md5, Sha256: sums.sha256}
-		orig := &checksums{}
-		if declared["sha1"] {
-			orig.Sha1 = sums.sha1
-		}
-		if declared["md5"] {
-			orig.Md5 = sums.md5
-		}
-		if declared["sha256"] {
-			orig.Sha256 = sums.sha256
-		}
-		info.OriginalChecksums = orig
+		o256, o1, o5 := repo.OriginalChecksums(node, sums.sha256)
+		info.OriginalChecksums = &checksums{Sha256: o256, Sha1: o1, Md5: o5}
 	}
 	if node.UpdatedAt != "" && node.UpdatedAt != node.CreatedAt {
 		info.LastModified = node.UpdatedAt

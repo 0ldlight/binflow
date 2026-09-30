@@ -147,31 +147,42 @@ func TestSetClientChecksumsGates(t *testing.T) {
 	}
 }
 
-// TestOriginalChecksumsOverlay pins the shared overlay rule (ADR-0052
-// decision 4): a non-empty Client column wins per algorithm, everything
-// else falls to the caller-supplied server triple — the one function every
-// consumer face renders through.
-func TestOriginalChecksumsOverlay(t *testing.T) {
-	node := &metadata.Node{
-		ClientMd5:    "cm5",
-		ClientSha1:   "cs1",
-		ClientSha256: "c256",
-	}
+// TestOriginalChecksumsKeyset pins the shared A keyset rule (ADR-0052
+// decision 4; BIN-71 / T-589, the ledger's httpapi/original-checksums-key-
+// model): keyset = the client-REGISTERED algorithms ∪ {sha256} — the one
+// function every render face (httpapi FileInfo + the maven/generic/nuget
+// deploy envelopes) goes through. Empty member = key ABSENT.
+func TestOriginalChecksumsKeyset(t *testing.T) {
+	zeroMd5 := strings.Repeat("0", 32)
 	cases := []struct {
 		name         string
 		node         *metadata.Node
-		s256, s1, s5 string
+		s256         string // the server-computed sha256 the caller passes
 		w256, w1, w5 string
 	}{
-		{"client wins per algo", node, "s256", "s1", "s5", "c256", "cs1", "cm5"},
-		{"per-algo partial", &metadata.Node{ClientSha1: "cs1"}, "s256", "s1", "s5", "s256", "cs1", "s5"},
-		{"nil node passes through", nil, "s256", "s1", "s5", "s256", "s1", "s5"},
-		{"zero node passes through", &metadata.Node{}, "s256", "s1", "s5", "s256", "s1", "s5"},
-		{"empty server values", node, "", "", "", "c256", "cs1", "cm5"},
+		// Zero declarations: sha256 alone, filled from the server value —
+		// never an empty set, never the full triple (T-584's live "全未注册
+		// 时仅 {sha256}" leg).
+		{"nothing registered = sha256 only", &metadata.Node{}, "s256", "s256", "", ""},
+		// Only md5 registered: no sha1 KEY may appear (the FileInfo face's
+		// full-triple fallback leg this ticket closes).
+		{"md5 only", &metadata.Node{ClientMd5: "cm5"}, "s256", "s256", "", "cm5"},
+		{"sha1 only", &metadata.Node{ClientSha1: "cs1"}, "s256", "s256", "cs1", ""},
+		// sha256 registered wins over the server value (the 409
+		// write-through's wrong value included).
+		{"sha256 registered wins", &metadata.Node{ClientSha256: "c256"}, "s256", "c256", "", ""},
+		{"all three registered", &metadata.Node{ClientMd5: "cm5", ClientSha1: "cs1", ClientSha256: "c256"}, "s256", "c256", "cs1", "cm5"},
+		// A zero-placeholder declaration SURVIVES verbatim (L041's srvgen
+		// evidence: registration, not correctness, decides the keyset).
+		{"zero-placeholder md5 survives", &metadata.Node{ClientMd5: zeroMd5}, "s256", "s256", "", zeroMd5},
+		{"nil node = server sha256 only", nil, "s256", "s256", "", ""},
+		// The checksum GET faces' single-member reads: empty server sha256,
+		// bare client columns back.
+		{"empty server sha256", &metadata.Node{ClientSha1: "cs1"}, "", "", "cs1", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			g256, g1, g5 := repo.OriginalChecksums(tc.node, tc.s256, tc.s1, tc.s5)
+			g256, g1, g5 := repo.OriginalChecksums(tc.node, tc.s256)
 			if g256 != tc.w256 || g1 != tc.w1 || g5 != tc.w5 {
 				t.Errorf("OriginalChecksums = (%q,%q,%q), want (%q,%q,%q)",
 					g256, g1, g5, tc.w256, tc.w1, tc.w5)
