@@ -134,9 +134,11 @@ func TestParseLayoutMatrix(t *testing.T) {
 			want: Layout{Kind: KindSidecar, Target: "com/acme/demo-app/maven-metadata.xml", TargetKind: KindMetadata, Algo: "sha1"},
 		},
 		{
-			name: "sha512 sidecar recognized for layout",
+			// BIN-66 / T-584: .sha512 is not a sidecar suffix — the path is
+			// an ordinary artifact whose extension is sha512 (L039 Arm 4).
+			name: "sha512 tail is an ordinary artifact",
 			path: "com/acme/demo-app/1.0.0/demo-app-1.0.0.jar.sha512",
-			want: Layout{Kind: KindSidecar, Target: "com/acme/demo-app/1.0.0/demo-app-1.0.0.jar", TargetKind: KindArtifact, Algo: "sha512"},
+			want: Layout{Kind: KindArtifact, OrgPath: "com.acme", Module: "demo-app", VersionDir: "1.0.0", BaseRev: "1.0.0", File: "demo-app-1.0.0.jar.sha512"},
 		},
 		{
 			name: "sidecar of metadata variant spelling",

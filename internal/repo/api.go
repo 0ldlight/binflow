@@ -831,6 +831,79 @@ type ClassReader interface {
 // docker package's seam assertions).
 var _ ClassReader = metadata.RepoStore(nil)
 
+// ClientChecksumWriter is the client-checksum registration seam of the
+// adapter SPI face (ADR-0052, decision 1: the storage half of the terminal-
+// checksum PUT family — a PUT ending in .sha1/.md5/.sha256 is a metadata
+// write on the stripped source artifact, never a file deploy). The concrete
+// service implements it; consumers resolve the capability by type-asserting
+// Service (the RemoteV2Plane precedent — an optional SPI segment, so test
+// doubles that implement the big interface method by method, like the docker
+// harness fakes, keep compiling; the seam staying OUT of the Service
+// interface is deliberate, see the ADR's signature ruling for the semantic
+// contract and the T-578 report for the placement note).
+//
+// Semantics (ADR-0052 decision 1, verbatim contract):
+//   - per-algo overwrite: each non-empty declared field SETS its
+//     node.Client{Md5,Sha1,Sha256} column; an empty field leaves the stored
+//     value (a single-algo terminal-suffix PUT writes only its own column);
+//   - no node creation: a missing node answers ErrNodeNotFound and a folder
+//     ErrIsFolder — a registration never materializes anything (the
+//     adapters' 404 pre-probe owns the rendering; these sentinels are the
+//     backstop);
+//   - no usage change (repo_usage untouched), no calculator trigger, no
+//     updated_at movement, no webhook event — a pure metadata write;
+//   - permission = the path's WRITE gate, consulted INSIDE the seam
+//     (adapters usually only probed READ): deny answers ErrForbidden,
+//     anonymous answers ErrUnauthorized;
+//   - repository-class judgement stays OUT (ADR-0052 decision 2): the LOCAL
+//     gate is the adapter's (ClassReader), so a write verb can never borrow
+//     the service layer to reach a remote pull-through face.
+//
+// The atomic store half is ONE conditional-column UPDATE (decision 3.1) —
+// never a read-modify-write pair; concurrent registrations serialize at the
+// row level, per-algo last-writer-wins.
+type ClientChecksumWriter interface {
+	// SetClientChecksums registers the client-declared digests on the node at
+	// repoKey/path. declared carries only the algorithms the caller holds a
+	// value for (the storage.BlobRef the protocol plane already parses).
+	SetClientChecksums(ctx context.Context, p *Principal, repoKey, path string, declared storage.BlobRef) error
+}
+
+// The concrete service satisfies the seam (compile-time pin).
+var _ ClientChecksumWriter = (*service)(nil)
+
+// OriginalChecksums is the single source of the client-checksum overlay
+// rendering rule (ADR-0052, decision 4): for each algorithm, the node's
+// client-declared column when non-empty, otherwise the SERVER-side value the
+// caller passes in. Every no-upload-context render of digest triplets on the
+// wire goes through this pure function — httpapi's FileInfo
+// originalChecksums, the adapters' checksum GET echoes — so the four faces
+// can never drift apart (the T-571 mime lesson applied to the digest plane).
+//
+// The FALLBACK posture when a client column is empty is each protocol
+// plane's own property and deliberately NOT baked in: generic's checksum GET
+// answers 404 (no on-demand generation), maven's sidecar GET serves the
+// computed digest (L014-2) — callers that want "no fallback" pass empty
+// server values and get the bare client columns back. Upload-time
+// ItemCreated bodies keep their declared-only filter semantics and do not
+// consult this helper (the ADR's boundary clause).
+func OriginalChecksums(node *metadata.Node, sha256, sha1, md5 string) (out256, outSha1, outMd5 string) {
+	if node == nil {
+		return sha256, sha1, md5
+	}
+	out256, outSha1, outMd5 = sha256, sha1, md5
+	if node.ClientSha256 != "" {
+		out256 = node.ClientSha256
+	}
+	if node.ClientSha1 != "" {
+		outSha1 = node.ClientSha1
+	}
+	if node.ClientMd5 != "" {
+		outMd5 = node.ClientMd5
+	}
+	return out256, outSha1, outMd5
+}
+
 // RemoteFetcher is the consumer-side seam of the M3 remote proxy engine
 // (architecture section 5.4: repo.Service.Get dispatches type=remote to
 // internal/remote.Fetch; the engine is assembled inside repo.New so neither

@@ -588,6 +588,16 @@ type NodeStore interface {
 	// Stats returns one node's download statistics projection (the four
 	// counting columns); ErrNodeNotFound when the row is absent.
 	Stats(ctx context.Context, repoKey, path string) (*NodeStats, error)
+	// SetClientChecksums overwrites the client-declared digest columns of ONE
+	// node row in a single statement (ADR-0052, the client-checksum
+	// registration seam behind repo.Service.SetClientChecksums): each non-
+	// empty argument SETS its column absolutely, an empty argument leaves the
+	// stored value untouched (per-algo overwrite, never a clear). Folder
+	// marker rows are structurally excluded. Zero rows affected — the node is
+	// absent, or is a folder row — answers ErrNodeNotFound. The statement
+	// touches ONLY the three client columns: no updated_at, no usage, no
+	// other column family (a registration is a pure metadata write).
+	SetClientChecksums(ctx context.Context, repoKey, path, md5, sha1, sha256 string) error
 }
 
 // BlobStore is the "ever existed" ledger of physical objects (ADR-0006: rows

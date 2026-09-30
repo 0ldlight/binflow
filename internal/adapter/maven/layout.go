@@ -19,18 +19,20 @@ const (
 	// KindMetadata is maven-metadata.xml or the plugin-group variant
 	// metadata-maven-metadata.xml, at module or version level.
 	KindMetadata LayoutKind = "metadata"
-	// KindSidecar is <file>.{sha1,md5,sha256,sha512}; Target carries the
+	// KindSidecar is <file>.{sha1,md5,sha256}; Target carries the
 	// repository-relative path of <file> itself.
 	KindSidecar LayoutKind = "checksum-sidecar"
 )
 
 // checksumSuffixes maps the sidecar file suffixes onto their digest
-// algorithm. sha512 is recognized for layout purposes (the six-field model
-// peels ANY checksum suffix before template matching) but BinFlow's digest
-// model is sha256/sha1/md5 only: a .sha512 sidecar GET answers 404 and its
-// PUT is accepted without a comparison (there is no measured sha512 to
-// compare against — ADR-0006's three-digest model).
-var checksumSuffixes = []string{".sha256", ".sha512", ".sha1", ".md5"}
+// algorithm. .sha512 is NOT a sidecar suffix (BIN-66 / T-584, L039 Arm 4 /
+// ledger maven/sha512-put-non-layout-deploy): a terminal .sha512 path is an
+// ORDINARY file — the reference deploys it as a plain storage item on GAV
+// and non-GAV paths alike (201 envelope, octet-stream mime, GET serving the
+// bytes), so the layout classifies x.jar.sha512 as an artifact whose
+// extension is sha512, and BinFlow's three-digest model never owes it a
+// computed body.
+var checksumSuffixes = []string{".sha256", ".sha1", ".md5"}
 
 // metadataFileNames are the two metadata spellings the spec fixes
 // (maven-npm-pypi.md section 1.2, high confidence): the standard
@@ -78,7 +80,7 @@ type Layout struct {
 	// TargetKind is the Kind of Target (artifact or metadata); KindSidecar
 	// only.
 	TargetKind LayoutKind
-	// Algo is the sidecar's digest algorithm (sha1/md5/sha256/sha512);
+	// Algo is the sidecar's digest algorithm (sha1/md5/sha256);
 	// KindSidecar only.
 	Algo string
 }

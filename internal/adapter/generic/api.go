@@ -35,8 +35,9 @@ type BlobLedger interface {
 }
 
 // New wires the handler. svc is required; class resolves a repository's
-// class without a principal (the checksum-PUT interception's LOCAL gate —
-// a remote plane must keep its 405 read-only refusal, never a probe that
+// class without a principal (the checksum-family LOCAL gate — the PUT
+// registration and the GET stored-value echo both consult it, and a
+// remote plane must keep its 405 read-only refusal, never a probe that
 // pulls through); md serves the sha1/md5 download headers and FileInfo
 // digests.
 func New(svc repo.Service, class repo.ClassReader, md BlobLedger) *Handler {
