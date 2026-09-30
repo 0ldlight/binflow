@@ -415,6 +415,12 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 
 > 计数：**35 条**。兼容/兼容（子集）**29**（v1.1：PE-03 由「语义等同」升格）；`/binflow/api/v1` **1**（RE-11）；语义等同但路径不同 **0**；有意不兼容 **5**（RE-10、ME-10、NE-08、PE-04、PE-06）——另有 1 个行内有意不兼容分支：RE-08 的 DELETE 透传分支（v1.0 的 NE-01 重复 publish 409 偏离分支已随 403 定案消除）。
 
+**RE-05 适用域注记（写拒绝文案域统一）**
+
+- **适用面**：写拒绝文案域统一仅覆盖 **generic 与 maven** 两协议域 remote 仓的 PUT/POST 部署拒绝面。maven 面已与目标文案一致；generic 面当前仍为本表所记 405 形，向目标文案的对齐修复在途。
+- **文案取值口径**：统一域内取服务端定版文案族——`404 "Could not find a local repository named <key> to deploy to."`；`<key>` 为被寻址仓 key 原拼写，普通路径与 checksum 终缀路径同形拒绝（拒绝先于终缀解释）。行为规格见 `docs/reverse/rest-api.md` §1.2 步骤 2 与 `docs/reverse/repo-semantics.md` 部署拒绝行。
+- **例外（不纳入统一域）**：**docker 与 cargo** 两协议域的 remote 写拒绝不适用上述口径——其写语义不走 generic/maven 的部署拒绝面，维持各自现行 405 read-only 拒绝形。该域边界为兼容性分歧台账条目 `generic/remote-deploy-refusal-form` 的分面裁定结论。
+
 ### 5.3 真实客户端分级矩阵（conformance 判定标准）
 
 「全过」定义：所列操作退出码 0 且服务端日志无 5xx。公网不可用的场景一律以 mock 上游替代并在 qa 报告注明。
