@@ -60,12 +60,27 @@ func TestPlainSnapshotPathResolve(t *testing.T) {
 	}
 
 	// Arm 3 (control, handle* all-default home) — the checksum companion
-	// of the plain spelling resolves as an ordinary path too: the
-	// server-computed digest of the stored target.
-	if code, got := mustGet(t, hs, plain+".sha1"); code != http.StatusOK {
-		t.Errorf("plain spelling sidecar GET = %d, want 200 (%s)", code, got)
-	} else if s1, _, _ := digests(pom); strings.TrimSpace(got) != s1 {
-		t.Errorf("plain spelling sidecar = %q, want the target's sha1 %q", got, s1)
+	// of the plain spelling resolves as an ordinary path too: the sidecar
+	// face REACHES the stored target and answers the on-demand matrix
+	// (BIN-76 / T-594) — sha256 computed, an unset sha1 the checksum
+	// family's source-citing 404 (never the ordinary miss's File-not-found
+	// wording); a registered sha1 then echoes verbatim.
+	s1, _, s256 := digests(pom)
+	if got := string(drain(t, hs.serve(http.MethodGet, plain+".sha256", nil, nil, true))); got != s256 {
+		t.Errorf("plain spelling sidecar GET .sha256 = %q, want the computed %q", got, s256)
+	}
+	resp = hs.serve(http.MethodGet, plain+".sha1", nil, nil, true)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("plain spelling sidecar GET .sha1 (unset) = %d, want the matrix's 404", resp.StatusCode)
+	} else if got := string(drain(t, resp)); !strings.Contains(got,
+		"Checksum not found for com/x/pl/1.0.0-SNAPSHOT/pl-1.0.0-SNAPSHOT.pom") {
+		t.Errorf("plain spelling sidecar .sha1 body = %s, want the source-citing 404", got)
+	}
+	if resp := hs.serve(http.MethodPut, plain+".sha1", []byte(s1), nil, true); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("plain sha1 registration = %d (%s)", resp.StatusCode, drain(t, resp))
+	}
+	if got := string(drain(t, hs.serve(http.MethodGet, plain+".sha1", nil, nil, true))); got != s1 {
+		t.Errorf("plain spelling sidecar .sha1 after registration = %q, want %q", got, s1)
 	}
 }
 

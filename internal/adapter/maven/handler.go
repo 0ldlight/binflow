@@ -255,22 +255,24 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 		}
 		// The client-value overlay (T-578 / BIN-60, ADR-0052 decision 4):
 		// a LOCAL repository's ARTIFACT sidecar echoes the stored client
-		// declaration first, the computed digest only as fallback — the
-		// PUT face registered the value above, wrong values included
-		// (L037 Arm 1's 409 write-through leg). Under the
-		// server-generated-checksums policy the overlay stays OFF (BIN-66 /
+		// declaration first — the PUT face registered the value above,
+		// wrong values included (L037 Arm 1's 409 write-through leg). Under
+		// the server-generated-checksums policy the overlay stays OFF (BIN-66 /
 		// T-584, L039 Arm 6): the registration happens there too, but the
 		// reference's GET face keeps serving the COMPUTED digest whatever
 		// was declared — the stored client value surfaces only in
 		// originalChecksums. The VIRTUAL face overlays too (T-587 / BIN-69,
 		// L040 Arm 1b mv2-get-md5: A echoes the member's registered client
 		// value through the virtual read plane — the generic plane's
-		// serveVirtualClientChecksum mirror); an unset value keeps the
-		// computed fallback, maven's own posture (the C2 on-demand family's
-		// ruling stays untouched). Metadata targets (the derived-document
-		// contract owns their digests) and the remote plane keep the
-		// computed answer.
-		h.serveSidecar(ctx, w, r, p, repoKey, relPath, l,
+		// serveVirtualClientChecksum mirror). Since BIN-76 / T-594 (ledger
+		// maven/sidecar-get-ondemand-matrix, L041 Arm 1 + T-587's
+		// mvu-get-*-unset legs) the unset-value fallback on the
+		// overlay-armed face is sha256-ONLY: an unset md5/sha1 answers the
+		// checksum family's own 404 citing the source (`Checksum not found
+		// for <src>`, serveSidecarOfPath) — A computes no md5/sha1 on
+		// demand. Metadata targets (the derived-document contract owns
+		// their digests) and the remote plane keep the computed answer.
+		h.serveSidecar(ctx, w, r, p, repoKey, rowType, l,
 			l.TargetKind == KindArtifact && (rowType == repo.TypeVirtual ||
 				(rowType == repo.TypeLocal && rowCfg.ChecksumPolicy != ChecksumPolicyServerGenerated)))
 		return
@@ -280,12 +282,12 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 
 // serveSidecar answers a checksum sidecar GET/HEAD with the STORED CLIENT
 // digest of the TARGET when the overlay flag holds and one was registered,
-// else the server-computed digest — never a passthrough of stored sidecar
-// bytes (the stored bytes only register the client's original claim,
-// ME-03).
+// else the on-demand matrix of serveSidecarOfPath (sha256 computed, md5/sha1
+// the checksum family's 404) — never a passthrough of stored sidecar bytes
+// (the stored bytes only register the client's original claim, ME-03).
 func (h *Handler) serveSidecar(ctx context.Context, w http.ResponseWriter, r *http.Request,
-	p *repo.Principal, repoKey, relPath string, l Layout, overlayClient bool) {
-	h.serveSidecarOfPath(ctx, w, r, p, repoKey, l.Target, l.Algo, relPath, overlayClient)
+	p *repo.Principal, repoKey, rowType string, l Layout, overlayClient bool) {
+	h.serveSidecarOfPath(ctx, w, r, p, repoKey, l.Target, l.Algo, rowType, overlayClient)
 }
 
 // writeSidecarDigest renders the computed sidecar of ONE node (digest
