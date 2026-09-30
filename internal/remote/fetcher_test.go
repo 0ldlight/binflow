@@ -464,6 +464,60 @@ func TestFetchUnsolicited304(t *testing.T) {
 	}
 }
 
+// TestRetrievalFaultRedactsUserinfo (R13 dual-review B1): a remote URL may
+// legally embed credentials; the fault texts that quote the upstream — the
+// first-contact retrieval 404 body and the stale serve's upstream-error
+// summary — must not echo them.
+func TestRetrievalFaultRedactsUserinfo(t *testing.T) {
+	e := newFetchEnv(t, nil)
+	deadURL := "http://ci:hunter2@127.0.0.1:1"
+	// Seed a copy while the configured upstream is still reachable; it
+	// becomes the stale face in the second half of the test.
+	e.state.files["/y.bin"] = "v1"
+	mustFetch(t, e, "y.bin")
+	row, err := e.md.Repos().Get(context.Background(), "generic-remote")
+	if err != nil {
+		t.Fatalf("get repo: %v", err)
+	}
+	row.Config = strings.Replace(row.Config, e.srv.URL, deadURL, 1)
+	if err := e.md.Repos().Update(context.Background(), row); err != nil {
+		t.Fatalf("update repo: %v", err)
+	}
+	cfg, err := e.md.Remote().GetConfig(context.Background(), "generic-remote")
+	if err != nil {
+		t.Fatalf("get config: %v", err)
+	}
+	cfg.URL = deadURL
+	if err := e.md.Remote().UpdateConfig(context.Background(), cfg); err != nil {
+		t.Fatalf("update config: %v", err)
+	}
+
+	// No-copy face: the first-contact retrieval 404 body.
+	res, err := e.eng.Fetch(context.Background(), "generic-remote", "x.bin")
+	fe := fetchErr(t, res, err)
+	if fe.Status != http.StatusNotFound || !strings.Contains(fe.Message, "Failed retrieving resource from http://127.0.0.1:1/x.bin:") {
+		t.Fatalf("retrieval form = (%d, %q), want the redacted URL in the 404 body", fe.Status, fe.Message)
+	}
+	if strings.Contains(fe.Message, "hunter2") || strings.Contains(fe.Message, "ci:") {
+		t.Fatalf("retrieval form leaked URL credentials: %q", fe.Message)
+	}
+
+	// Stale face: past both the offline window the fault opened and the
+	// content TTL, the expired copy serves STALE and its X-Binflow-Upstream-
+	// Error summary quotes the transport error — redacted here too.
+	e.clk.Advance(7201 * time.Second)
+	res2 := mustFetch(t, e, "y.bin")
+	if res2.CacheState != CacheStale {
+		t.Fatalf("expired-copy fault state = %q, want STALE", res2.CacheState)
+	}
+	if !strings.Contains(res2.UpstreamError, "http://127.0.0.1:1/y.bin") {
+		t.Fatalf("stale summary must still name the upstream: %q", res2.UpstreamError)
+	}
+	if strings.Contains(res2.UpstreamError, "hunter2") || strings.Contains(res2.UpstreamError, "ci:") {
+		t.Fatalf("stale summary leaked URL credentials: %q", res2.UpstreamError)
+	}
+}
+
 func TestFetchTransportRefusalOpensOfflineWindow(t *testing.T) {
 	// A closed port (not a 5xx): the transport-fault arm of the same matrix.
 	e := newFetchEnv(t, nil)
