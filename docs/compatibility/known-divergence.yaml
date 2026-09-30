@@ -2484,6 +2484,41 @@ entries:
   authority: { type: differential, ref: "reports/agents/T-596.md（local 对照腿双轮）" }
   review_gate: R14 探腿先行（maven/pypi local DELETE-miss A 腿，BIN-94/T-612）→ 裁定 → 跨 adapter 修复票
   evidence: reports/agents/T-596.md
+  resolved: { date: '2026-09-30', evidence: 'BIN-94/T-612 修复（repo/service.go deleteMissError 单源：local 文件/文件夹 miss 两臂 + remote miss 臂〔T-596 先例重构〕三处合一，StatusError 404 引擎文案 verbatim，ErrNodeNotFound 链保持；pypi 新增 DELETE 通道三拼写逐字进引擎；generic/maven 注释面收口）：前置探腿 A 双轮 17 腿 maven/pypi/generic local DELETE-miss 全腿同族坐实；修复后四跑矩阵 A r1==r2 / B r1==r2（独立双实例）drift 0、[GATE] PASS 16/16 ×4（A==B 逐字 status+ct+message）；波及面 15 包全树测试零回归（cargo/conan 等各自 A 腿未逐一探，clean-room 不外推归后续差分批）；virtual 面未定案维持（三态遗留拆至 storage/virtual-delete-miss-three-state）；证据 reports/agents/T-612.md' }
+- id: pypi/repo-root-delete-status
+  surface: 'pypi 仓根 DELETE——A=204（admin、空仓腿；repo-semantics §4「删除仓库根需 project-admin」旁证
+    其=整仓内容清空语义）vs B=405 根门（T-612 观察腿，未 gate）'
+  classification: UNKNOWN
+  rationale: >-
+    R15 收编立案（2026-09-30）：T-612 探腿附带观测——A 对 pypi 仓根 DELETE（admin、空仓）回 204，
+    B 的 pypi handleDelete 维持仓根 405 根门。裁定对齐需先探 A 非空仓行为（破坏性语义：整仓内容
+    清空）与权限位（project-admin vs admin）——不猜不外推。B 侧仓根 405 在 T-612 测试钉住（形态不漂）。
+  authority: { type: differential, ref: "reports/agents/T-612.md（观察腿 + /tmp/t612/raw probe 留档）" }
+  review_gate: R16 探腿票（A 非空仓 + 权限位双轮）→ 裁定 → 修复/维持票
+  evidence: reports/agents/T-612.md
+- id: maven/folder-delete-layout-family
+  surface: 'maven 文件夹拼写 DELETE——A=404 引擎文案族（Item …does not exist）vs B=400 maven layout
+    语法拒绝（file name "" must start with "acme-<version>"）（T-612 观察腿，未 gate）'
+  classification: UNKNOWN
+  rationale: >-
+    R15 收编立案（2026-09-30）：T-612 探腿附带观测——maven 文件夹拼写 DELETE 双端不同族：A 走删除
+    引擎 miss 形，B 被 maven Layout 文件夹拼写校验先行拒绝（400 语法族）。独立于 DELETE-miss 文案面
+    （该面已 resolved）——本条为 layout 校验与删除动词的交叉面，B 的 layout 守卫有自身 NFR 依据，
+    方向未定。
+  authority: { type: differential, ref: "reports/agents/T-612.md（观察腿）" }
+  review_gate: R16 探腿+裁定票（folder 拼写族 × DELETE 动词矩阵）→ 修复/维持票
+  evidence: reports/agents/T-612.md
+- id: storage/virtual-delete-miss-three-state
+  surface: 'virtual DELETE-miss 三态遗留——B：generic/maven=Could-not-locate 404、pypi=405 方法门
+    （T-531 钉形）；A 面 NOT_RUN 未探（T-612 票面未定案如实保持）'
+  classification: UNKNOWN
+  rationale: >-
+    R15 收编立案（2026-09-30）：T-612 修复 local/remote DELETE-miss 族时 virtual 面按票面未定案不动——
+    B 内部三态不一致本身是遗留（generic/maven 404 vs pypi 405），A 的 virtual DELETE-miss 腿未探
+    （clean-room 不外推）。收口需 A 探腿先行（三协议 virtual 面矩阵）。
+  authority: { type: conductor_ruling, ref: "R15 T-612 收编裁定——virtual 面未定案维持，拆独立条目" }
+  review_gate: R16 A 探腿票（generic/maven/pypi virtual DELETE-miss）→ 裁定 → 收口票
+  evidence: reports/agents/T-612.md
 - id: generic/metadata-checksum-route-family
   surface: 'generic 面同族三腿（gen-put-sidecar / gen-get-sidecar / gen-put-xml）——A=200-no-op+按需
     计算值 vs B=拦截 409+注册 echo（T-595 残留三腿，gate-*.json 双面形已钉）'
