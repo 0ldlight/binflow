@@ -410,13 +410,17 @@ func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	// server-generated-checksums: the client's disagreeing claims are
-	// accepted silently and the measured values are authoritative
-	// (repo-semantics section 5) — dropping them here means storage
-	// computes and accepts, and the response echoes the measured set.
-	if cfg.ChecksumPolicy == ChecksumPolicyServerGenerated {
-		declared = storage.BlobRef{}
-	}
+	// server-generated-checksums (repo-semantics section 5) decouples
+	// RECORDING from VERIFYING: the commit expects nothing under the policy
+	// (disagreeing or all-zero placeholder claims never refuse) and the
+	// measured values stay authoritative on every serving face. Since
+	// T-599 / BIN-81 (L041 Arm 6, ledger maven/srvgen-declared-header-drop)
+	// the declared set is no longer DROPPED either: registration is
+	// unconditional — "computed values serve, declared values archive" —
+	// the landing tail below archives it into originalChecksums, so the
+	// placeholder zeros survive verbatim on the A wire while checksums/GET
+	// keep echoing the computed triple.
+	srvgen := cfg.ChecksumPolicy == ChecksumPolicyServerGenerated
 
 	// Client metadata re-PUTs are routine (every mvn deploy refreshes the
 	// artifact-level document), and a metadata re-send with IDENTICAL
@@ -448,11 +452,21 @@ func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Re
 	//
 	// Deploy matrix properties (T-286) ride the same options either way:
 	// the ";k=v" set ServeHTTP boxed off the path lands with the node.
+	//
+	// The srvgen arm's expect carries nothing to the commit — the declared
+	// set archives through the landing tail instead; the metadata
+	// self-declared sha256 above included (SkipOverwriteCheck already lifts
+	// that family's overwrite demand, so the idempotent shortcut it fed is
+	// moot there).
+	expect := declared
+	if srvgen {
+		expect = storage.BlobRef{}
+	}
 	opts := repo.PutOptions{Properties: deployPropsOf(ctx)}
 	if l.Kind == KindMetadata {
 		opts.SkipOverwriteCheck = true
 	}
-	node, err := h.svc.PutWithOptions(ctx, p, repoKey, relPath, body, declared, mime, opts)
+	node, err := h.svc.PutWithOptions(ctx, p, repoKey, relPath, body, expect, mime, opts)
 	if err != nil {
 		h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
 		return
@@ -470,11 +484,21 @@ func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Re
 		h.calc.afterMetadataDeploy(ctx, p, node.RepoKey, l)
 	}
 
+	// The srvgen landing tail (T-599): the artifact already committed, the
+	// declared set archives onto it before the outcome renders — a
+	// registration failure is an honest 500 over a landed node (the
+	// putSidecar seam-failure posture), never a pretend 201 with the
+	// declared claims silently lost.
+	node, ok := h.archiveSrvgenDeclared(ctx, w, p, node, declared, srvgen, repoKey, relPath)
+	if !ok {
+		return
+	}
+
 	// The envelope's originalChecksums is the single-source A keyset off
-	// the LANDED node (repo.OriginalChecksums, BIN-71 / T-589): the
-	// srvgen zeroing above leaves the node unregistered, so the body
-	// renders oc={sha256: computed} there (the declared-header disposal
-	// under srvgen is the N4 ruling's plane, not this render's).
+	// the LANDED node (repo.OriginalChecksums, BIN-71 / T-589) — under
+	// srvgen the tail's re-read row carries the archived declared values,
+	// so the body renders oc={declared md5/sha1, computed sha256} there
+	// (the L041 Arm 6 A wire) while the checksums triple stays measured.
 	h.writeCreated(w, r, repoKey, relPath, node, false)
 }
 
@@ -642,6 +666,15 @@ const maxSidecarBytes = 1024
 // gate, no unique-snapshot rewrite and no calculator trigger apply (no GAV
 // to key any of them on). Class refusals stay the service's own, exactly
 // like any ordinary deploy (remote 405 / unrouted virtual 405).
+//
+// Since T-599 / BIN-81 (ledger maven/srvgen-declared-header-drop, L041 Arm
+// 6 s6-put-nongav-sha512-decl-zero) the declared-header refuse gate follows
+// the checksum-policy domain (the ADR-0052 family language): under
+// server-generated-checksums a placeholder/wrong declared set no longer
+// 409s out of the commit verification — the file LANDS (201) and the
+// declared set archives into originalChecksums like every srvgen deploy;
+// the client-checksums default keeps the commit's own mismatch 409
+// (the storage refusal, unchanged).
 func (h *Handler) putSha512ChecksumFile(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	p *repo.Principal, repoKey, relPath string) {
 	// No .sha512 table entry: the extension falls through to octet-stream,
@@ -652,13 +685,93 @@ func (h *Handler) putSha512ChecksumFile(ctx context.Context, w http.ResponseWrit
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	node, err := h.svc.PutWithOptions(ctx, p, repoKey, relPath, r.Body, declared, mime,
+	srvgen := h.writePlaneSrvgen(ctx, repoKey)
+	expect := declared
+	if srvgen {
+		expect = storage.BlobRef{}
+	}
+	node, err := h.svc.PutWithOptions(ctx, p, repoKey, relPath, r.Body, expect, mime,
 		repo.PutOptions{Properties: deployPropsOf(ctx)})
 	if err != nil {
 		h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
 		return
 	}
+	node, ok := h.archiveSrvgenDeclared(ctx, w, p, node, declared, srvgen, repoKey, relPath)
+	if !ok {
+		return
+	}
 	h.writeCreated(w, r, repoKey, relPath, node, false)
+}
+
+// writePlaneSrvgen reports whether the WRITE plane the addressed key lands
+// in spells the server-generated-checksums policy: the addressed row
+// itself, or — under a routed virtual key — the deployment member the
+// service resolves the write onto (handlePut's facts convention). A
+// best-effort routing probe over the class seam: any miss (no row, no
+// route, unparseable config) reads as the client-checksums default and the
+// write chain then renders its own refusal or landing, never this probe —
+// the generic plane's checksumPolicySrvgen tolerance convention.
+func (h *Handler) writePlaneSrvgen(ctx context.Context, repoKey string) bool {
+	row, err := h.class.Get(ctx, repoKey)
+	if err != nil {
+		return false
+	}
+	if row.Type == repo.TypeVirtual {
+		member := routeTargetOf(row.Config)
+		if member == "" {
+			return false
+		}
+		mrow, merr := h.class.Get(ctx, member)
+		if merr != nil {
+			return false
+		}
+		row = mrow
+	}
+	return ParseRepoConfig(row.Config).ChecksumPolicy == ChecksumPolicyServerGenerated
+}
+
+// archiveSrvgenDeclared is the srvgen landing tail putFile and
+// putSha512ChecksumFile share (T-599 / BIN-81): the bytes are committed,
+// the declared set now REGISTERS onto the landed node — unconditionally,
+// all-zero placeholders included ("computed values serve, declared values
+// archive", L041 Arm 6) — through the client-checksum persistence seam
+// (ADR-0052 decision 1, the same SET the terminal-checksum family rides).
+// The non-srvgen planes and an empty declared set are a pure pass-through
+// (the ordinary chain's own registration already wrote the columns).
+//
+// It returns the row the envelope renders — re-READ after a registration,
+// so originalChecksums stays the single-source render off the REGISTERED
+// state (BIN-71 / T-589: never the request's declared set read a second
+// time) — and false once it has rendered the failure itself (seam absent:
+// the putSidecar 500 posture; SET or re-read failure: the honest
+// writeServiceError over an already-landed node, the quota-refusal residue
+// posture).
+func (h *Handler) archiveSrvgenDeclared(ctx context.Context, w http.ResponseWriter,
+	p *repo.Principal, node *metadata.Node, declared storage.BlobRef, srvgen bool,
+	repoKey, relPath string) (*metadata.Node, bool) {
+	if !srvgen || declared == (storage.BlobRef{}) {
+		return node, true
+	}
+	seam := h.clientChecksumSeam()
+	if seam == nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(
+			"client-checksum persistence is not available on this assembly (%s/%s)", node.RepoKey, relPath))
+		return nil, false
+	}
+	// node.RepoKey is where the service LANDED the write (the member under
+	// a routed virtual key) — the registration addresses the same row the
+	// envelope and every later read face will name.
+	if err := seam.SetClientChecksums(ctx, p, node.RepoKey, relPath, declared); err != nil {
+		h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
+		return nil, false
+	}
+	rc, fresh, err := h.svc.Get(ctx, p, node.RepoKey, relPath)
+	if err != nil {
+		h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
+		return nil, false
+	}
+	_ = rc.Close() //nolint:errcheck // read-only probe; only the fresh row is needed
+	return fresh, true
 }
 
 // clientChecksumPutSuffixes is the client-checksum PUT interception family
