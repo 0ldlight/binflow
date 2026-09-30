@@ -810,10 +810,12 @@ func TestMPUSeamWiringS3ChainAndDisk501(t *testing.T) {
 }
 
 // httpDo issues a JSON-body request with the default admin credential and
-// returns (status, body).
+// returns (status, body). The Content-Type is application/json: the repo
+// config write plane answers a bare 415 to any other spelling (T-607/BIN-89),
+// so the JSON plane helper must send the one spelling that clears the gate.
 func httpDo(t *testing.T, ts *httptest.Server, method, path, body string) (int, string) {
 	t.Helper()
-	resp, err := doRawRequest(ts, method, path, []byte(body))
+	resp, err := doRawRequest(ts, method, path, []byte(body), "application/json")
 	if err != nil {
 		t.Fatalf("%s %s: %v", method, path, err)
 	}
@@ -868,8 +870,11 @@ func doBearerRequest(ts *httptest.Server, method, path, token string, body []byt
 	}{resp.StatusCode, string(raw)}, nil
 }
 
-// doRawRequest performs the round trip with Basic admin credentials.
-func doRawRequest(ts *httptest.Server, method, path string, body []byte) (*struct {
+// doRawRequest performs the round trip with Basic admin credentials. An
+// optional contentType sets the request's Content-Type (the JSON REST plane
+// needs application/json to clear the repo config write gate; the raw data
+// plane callers send none).
+func doRawRequest(ts *httptest.Server, method, path string, body []byte, contentType ...string) (*struct {
 	StatusCode int
 	Body       string
 }, error) {
@@ -880,6 +885,9 @@ func doRawRequest(ts *httptest.Server, method, path string, body []byte) (*struc
 	req, err := http.NewRequest(method, ts.URL+path, rdr)
 	if err != nil {
 		return nil, err
+	}
+	if len(contentType) > 0 {
+		req.Header.Set("Content-Type", contentType[0])
 	}
 	req.SetBasicAuth("admin", "password")
 	resp, err := http.DefaultClient.Do(req)
