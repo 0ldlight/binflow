@@ -2495,6 +2495,7 @@ entries:
   authority: { type: differential, ref: "reports/agents/T-595.md（generic 残留三腿 + gate-*.json）" }
   review_gate: R14 generic 面差分票（以 maven 已对齐模型为参照，BIN-95/T-613）→ 双轮 PASS → resolved/裁定
   evidence: reports/agents/T-595.md
+  resolved: { date: '2026-09-30', evidence: 'BIN-95/T-613 修复（generic 面 metadataFileName 键控路由 + putMetadataChecksumFile 200-no-op + serveMetadataChecksumComputed 按需 GET，对齐 maven T-595 as-built）：前置探腿 A 双轮×2 组（47+22 腿）drift=0 零 maven 形外推；三腿+全族 A-vs-B 双轮 PASS（B 干净叠加构建）；maven T-595 白名单 84 腿×2 零回归；真实 curl roundtrip shasum 逐字节吻合；证据 reports/agents/T-613.md' }
 - id: remote/offline-window-open-threshold
   surface: 'offline 窗开窗阈值——A=第 2 次 transport 故障后开窗（r3/r4 冷断路器双轮确定性：腿 1、2
     retrieval 形、腿 3+ offline 形）vs B=第 1 次故障即开窗（既有语义，T-597 ruling 沿用）（T-597 b）'
@@ -2630,6 +2631,7 @@ entries:
   authority: { type: conductor_ruling, ref: "R15 台账批 conductor 裁定（2026-09-30，BIN-109/T-625 收编族三）——BUG 对齐 A（真实 CLI 可见缺口）" }
   review_gate: R15 修复票（BIN-111/T-627：never-populated GET index.yaml 合成 200 空形态；remote/virtual 范围先定）→ 双轮 PASS + helm CLI 验收 → resolved
   evidence: reports/agents/T-615.md + reports/agents/T-625.md（族三 + /tmp/t625/raw f3-* 含 helmcli 腿）
+  resolved: { date: '2026-09-30', evidence: 'BIN-111/T-627 修复（never-populated local 仓 index 物化 A 形空文档 + aFaceStamp 3 组截断 + 删空两态一形）：差分双轮 FORM 漂移 0 条（A 44/B 34 全 stamp 类）+ empty/postdel 腿 A-vs-B status+body(norm) EQUAL；真实 helm v4.2.4 CLI repo add/update/search 双侧×双轮 rc=0（修复前 B rc=1）；remote/virtual 空 index 面 NOT_RUN 留台账候选；证据 reports/agents/T-627.md' }
 - id: helm/populated-index-body-form
   surface: 'helm populated index.yaml 体形族——A=urls `local://demo-0.1.0.tgz` + 未引号纳秒 ts + 2/4
     空格缩进 + CT text/plain vs B=urls 相对文件名 + 引号秒级 ts + 4/6 缩进 + CT text/yaml（T-625 族三
