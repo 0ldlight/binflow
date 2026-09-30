@@ -66,6 +66,14 @@
 #   module 级写路径同步物化翻 VERIFIED（l035-r7-t566-r{1,2} 双轮 PASS + 计数面 module+1 deep list
 #   live 实测同形；残余如实：DELETE 回收 async 窗口维持、m5 旁车臂 B 侧仍跳过——均注记在案）。
 #   台账三处随翻 resolved（fix_ref=fd2d0606）；金样四组补 B 腿升双端对账形。
+# T-611（R14 / BIN-93，2026-09-30）契约行更新微票三行之前两行：⑬ maven/sidecar-get-client-checksum-
+#   matrix——T-587「GET 覆盖=注册优先」对 sha256 退役（收窄为 sha1/md5-only 机制；sha256 主摘要恒胜
+#   双域活证=T-593 generic l-/v-sha256-registered + T-595 maven e-get-sha256-after/e-virt-* 三腿；
+#   walk 覆盖臂 as-built 已收窄 walk.go:267，⑩ walk 条目断言面不受牵连）；⑭ maven/checksum-deploy-
+#   addressing-envelope——寻址-only ref（sha256 声明即寻址 / sha1-only 时 sha1 寻址 / md5 恒不寻址不
+#   注册）+ ocComputed cd 面信封（originalChecksums=计算三元组，错 md5 声明既不注册也不显形——T-595
+#   cd-wrong-md5 腿）。第三行（offline 窗开窗阈值裁定）另域单立 contracts/remote-fetch.yaml。台账
+#   本票不动（conductor 唯一写入者）。
 domain: maven
 scope: 'version 级 maven-metadata.xml 的 <snapshotVersions> M3 能力谓词（virtual 合并面 + local 成员服务面）、
   mvn.metadata.version3.enabled 系统开关生效序、.pom 部署坐标↔路径一致性门（suppressPomConsistencyChecks）。
@@ -803,3 +811,169 @@ contracts:
   confidence: high
   status: VERIFIED
   divergence_ref: known-divergence.yaml#maven/plain-snapshot-path-resolve-404   # 历史指针（virtual 面 walk 红半边已收口 resolved 2026-09-29——impl-r{1,2}+final-r1；fix fd2d0606）
+# ── sidecar GET client-checksum 覆盖矩阵（T-611 / BIN-93——T-587「GET 覆盖=注册优先」对 sha256 退役；
+#    T-594 按需矩阵 + T-595 主摘要恒胜延伸，R14 契约行微票收编；ADR-0052 Erratum 三同模型互证）──────
+- id: maven/sidecar-get-client-checksum-matrix
+  feature: 'maven 仓制品 sidecar GET（{artifact}.{sha1,.md5,.sha256}）的 client checksum 覆盖矩阵：
+    **sha256=主摘要恒胜**（注册值——含 409 校验失败写穿落列的错值——不遮蔽计算值，仅渲染翻转、注册行
+    保留）；sha1/md5=注册值逐字回显（含写穿错值）、未设=404 checksum 家族指源；源缺席=per-face miss
+    文案。T-587 原模型「GET 覆盖=注册优先」就此**对 sha256 退役**（覆盖臂收窄为 sha1/md5-only 机制）'
+  surface: 'GET/HEAD /{repoKey}/{orgPath}/{module}/{ver}/{file}{.sha1,.md5,.sha256}——repoKey 为 local
+    （直读）或 virtual（读面解析成员节点）的 **overlay 武装面**（client checksum 策略仓）；边界三处不属
+    本条断言面：srvgen 策略面 GET 恒计算值、walk 解析腿旁车=resolve 后实体计算摘要（overlayClient=
+    false，条目 ⑩ 不受牵连）、metadata 文档目标归 C5 专用路由面（T-595 面二）'
+  request:
+    method: GET|HEAD
+    path: '/{repoKey}/{orgPath}/{module}/{ver}/{file}{.sha1,.md5,.sha256}'
+    headers: { Authorization: 'Basic <valid>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    semantics: '行为句式（A 面 7.161.26 live，T-594 矩阵 20 adjudicated 腿 ×A/B×双轮 + T-595 追加翻转
+      腿）：当客户端 GET 制品 sidecar 时——①算法=sha256：服务端**恒回计算主摘要**（node 主摘要；即便
+      注册过错误 sha256——含经 409 写穿落列的错值——GET 仍回计算值；注册行保留错值，仅渲染翻转，存储
+      零改写）；②算法=sha1/md5 且注册值在：逐字回显（含写穿错值）；③算法=sha1/md5 且未注册：404
+      checksum 家族指源（A 不对 md5/sha1 按需计算）；④源缺席：per-face miss 文案（两族均指源、绝不指
+      终缀拼写）。与 ADR-0052 Erratum 三矩阵模型一致互证；generic 域同模型（T-593 双域活证）。'
+    arms:
+    - when: 'GET {file}.sha256（任意注册态——未注册 / 注册对值 / 注册错值含 409 写穿后）'
+      status: 200
+      body: { format: text, note: '计算主摘要（T-595 e-get-sha256-after=00f7da2b…=sha256(JAR)〔local 面〕
+        + e-virt-get-sha256-after〔virtual 面〕：计算值压注册错值；generic 域 T-593 l-/v-sha256-registered
+        同模型——主摘要恒胜双域活证）' }
+    - when: 'GET {file}.sha1|.md5（注册值在——含 409 写穿错值）'
+      status: 200
+      body: { format: text, note: '注册值逐字回显（T-594 m1-get-sha1-set=13cf8669…；wl5 md5 写穿
+        000…0 回显——白名单 #5 维持；T-587 mv2-get-md5/sha1 穿 virtual 读面回显）' }
+    - when: 'GET {file}.sha1|.md5（未注册）'
+      status: 404
+      body: { format: json, note: '`Checksum not found for <源路径>`（无 repo 前缀、指源不指终缀——
+        T-594 m1-get-md5-unset / mv-get-sha1-unset 逐字双端一致）' }
+    - when: 'GET {file}.{algo}（源缺席）'
+      status: 404
+      body: { format: json, note: 'per-face：local=`File not found.; Path: …` / virtual=
+        `Could not find resource; Path: …`（T-594 m1-miss-sha1 / mv-miss-sha1 双端逐字）' }
+    - when: 'HEAD 同路径（任一臂）'
+      status: '同 GET 状态（空体）'
+      note: 'T-594 单测钉 HEAD=GET 同面渲染；A 面 HEAD-unset 腿未单探（unobserved）'
+    boundary_notes:
+    - 'srvgen 策略面：GET .md5/.sha1 恒计算值（L039 Arm 6 + T-594 TestSidecarGetSrvgenKeepsComputed
+      钉住）——策略门与覆盖矩阵正交'
+    - 'walk 解析腿（plain-SNAPSHOT unique 家园）：旁车=resolve 后实体计算摘要，调用方传
+      overlayClient=false（as-built walk.go:163/267）——条目 ⑩ 断言面不受本条覆盖臂收窄牵连；walk 面
+      wrong-sha256-registered 的 A 腿未探（unobserved，不立断言）'
+    - 'PUT 写面（sidecar PUT 的校验/写穿/405 路由门/200 no-op 族）不属本条——T-587 写面 + T-595 面一
+      各自在案'
+  side_effects:
+  - 'sha256 读取臂零副作用：渲染恒计算值，注册行（含错值）原样保留——存储面无任何写动作（纯渲染翻转）'
+  error_behavior:
+  - { when: 'sha1/md5 未注册', status: 404, body_literal: 'Checksum not found for <源路径>' }
+  - { when: '源缺席（local 面）', status: 404, body_literal: 'File not found.; Path: …（指源）' }
+  - { when: '源缺席（virtual 面）', status: 404, body_literal: 'Could not find resource; Path: …（指源）' }
+  unobserved_reference_arms:
+  - 'walk 面（plain-SNAPSHOT resolve 腿）wrong-sha256-registered 的 A 形——T-595 收窄按 T-593 模型
+    延伸落码，A 侧该腿 NOT_RUN（clean-room 不猜；probe 候选）'
+  - 'HEAD-unset sha1/md5 的 A 腿（活体只证 GET 腿；单测钉 HEAD=GET 同面是自然外推）'
+  - 'virtual 成员为 srvgen 仓时的 sha1/md5 未设腿（活体/单测均 client 策略成员——矩阵外推，probe 候选）'
+  - 'generic 域同族面：T-593 已差分收口（台账 generic/checksum-get-virtual-ondemand resolved），generic
+    域契约条目未立——留 generic 域契约票（勿以本条跨域代立）'
+  binflow_state:
+    verdict: 'VERIFIED（T-594 GATE：20 adjudicated 腿 ×A/B×双轮 drift 0/0（A r1≡r2、B r1≡r2）；
+      T-595 追加 registered-wrong-sha256 翻转族=local e-get-sha256-after 计算值 + virtual
+      e-virt-put-sha256-wrong 409 Checksum-error 原文 + e-virt-get-sha256-after 计算值 + wl5 md5
+      echo 双面保持——A×2+B×2 drift 0）'
+    detail: 'as-built（只读取证）：internal/adapter/maven/walk.go serveSidecarOfPath——client 覆盖臂
+      收窄为 `overlayClient && (algo=="sha1" || algo=="md5")`（行 267，T-595 落地，注释引
+      e-get-sha256-after 活腿与 T-593 模型延伸），sha256 恒落 writeSidecarDigest 计算臂；miss 指源
+      per-face（T-594，rowType 判面）。T-587 原「注册优先 overlay」读法对 sha256 就此退役（T-593
+      主摘要恒胜模型延伸至 maven）。单测锚：TestSidecarGetOndemandMatrix /
+      TestSidecarGetSha256PrimaryDigestWins / TestChecksumPutClientOverlayFallback（翻新后钉矩阵）。
+      台账承载=known-divergence#maven/sidecar-get-ondemand-matrix resolved note（T-594+T-595 合并句，
+      conductor 已落 2026-09-30）。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'R13 payload 工作树双实例（T-594 /tmp/t594 @127.0.0.1:1818{2,3}、T-595 /tmp/t595 @127.0.0.1:1819{0,1}；随 PR #189 merge 3fc1309a 合入 develop）' }
+  evidence:
+  - { kind: difftest, report: reports/agents/T-594.md, anchor: 'Outputs/Compatibility（26 腿/轮 ×A/B×双轮：m1-get-sha256-unset 200 计算值 f68ec48f…、m1-get-md5-unset/mv-get-sha1-unset 404 Checksum-not-found 指源、miss per-face 双文案、m1-get-sha1-set 逐字回显、wl5 写穿回显；GATE drift 0/0）', date: '2026-09-30' }
+  - { kind: difftest, report: reports/agents/T-595.md, anchor: 'Changes 导火线翻转段 + Outputs 翻转行（e-get-sha256-after=00f7da2b…=sha256(JAR) 计算值压注册错值；e-virt-put-sha256-wrong 穿 virtual=409+Checksum-error 原文；e-virt-get-sha256-after=计算值；wl5 md5 echo 双面保持；A×2+B×2 drift 0）', date: '2026-09-30' }
+  - { kind: difftest, report: reports/agents/T-593.md, anchor: 'Outputs（generic 域 l-/v-sha256-registered：A=200 主摘要 dd9afae…——首版注册优先两腿 GATE 红后翻转，主摘要恒胜模型定形；双域同模型互证）', date: '2026-09-30' }
+  confidence: high
+  status: VERIFIED
+# ── checksum-deploy 寻址-only ref + ocComputed cd 面信封（T-611 / BIN-93——T-595 加挂腿 3 契约行收编）──
+- id: maven/checksum-deploy-addressing-envelope
+  feature: 'X-Checksum-Deploy 零传输部署（maven 面）：寻址摘要 **仅 sha256 / sha1-only 两形**骑 ref
+    （sha256 声明即寻址；无 sha256 时 sha1 寻址；md5 恒不寻址恒不注册——声明仅做 malformed 404 校验）
+    + 201 信封 originalChecksums=**计算三元组**（ocComputed 渲染臂，cd 面专属）；普通字节 PUT 面
+    originalChecksums 维持 BIN-71/T-589 单源键集（repo.OriginalChecksums）——两平面两 oc 源，勿混'
+  surface: 'PUT /{repoKey}/{orgPath}/{module}/{ver}/{file}——X-Checksum-Deploy: true + X-Checksum-
+    {Sha256,Sha1,Md5} 头组合（artifacts-only：sidecar/metadata 路径维持既有 400 拒绝）'
+  request:
+    method: PUT
+    path: '/{repoKey}/{orgPath}/{module}/{ver}/{file}'
+    headers: { Authorization: 'Basic <valid>', 'X-Checksum-Deploy': 'true',
+      'X-Checksum-Sha256': '<64-hex（可选——声明即寻址）>', 'X-Checksum-Sha1': '<40-hex（可选——sha1-only 腿寻址）>',
+      'X-Checksum-Md5': '<32-hex（可选——恒不寻址不注册，仍做 malformed 校验）>' }
+    body: '零字节（零传输语义）'
+  authentication: { type: basic, role: user }
+  expect:
+    addressing: '行为句式（A 面 7.161.26 live，T-595 cd 腿族）：当客户端 checksum-deploy 时，仅**寻址
+      摘要**骑 ref 解析 blob——①X-Checksum-Sha256 合法声明 → sha256 寻址；②无 sha256、
+      X-Checksum-Sha1 合法声明 → sha1 寻址（ledger sha1 索引）；③X-Checksum-Md5 **恒不寻址**——但
+      值 malformed（非 32-hex）仍回 404（malformed 校验门独立于寻址资格）。随行的非寻址声明
+      （ancillary claim，如 sha256 寻址腿携带的错 md5）**既不注册也不显形**。'
+    envelope: '201 created 信封（Location / X-Checksum-Sha256 响应头 / FileInfo 形 body）：
+      checksums 与 originalChecksums **均=落库 blob 的计算三元组**（ocComputed 渲染臂）——T-595
+      cd-wrong-md5：sha256 寻址 + 错 X-Checksum-Md5 → 201，checksums=originalChecksums=计算三元组
+      （17225d67…/72a0adf0…/00f7da2b…）。普通 PUT 面（无 X-Checksum-Deploy）的 originalChecksums
+      维持 BIN-71/T-589 键集（registered ∪ {sha256}，错 md5 声明在 PUT 面仍写穿注册——wl5，与本条
+      cd 面丢弃形成分面对照）。'
+    arms:
+    - when: 'X-Checksum-Sha256 合法 + blob 在库'
+      status: 201
+      body: { format: json, note: 'created 信封；checksums=originalChecksums=计算三元组' }
+    - when: '仅 X-Checksum-Sha1（无 sha256）合法 + blob 在库'
+      status: 201
+      body: { format: json, note: '同上（sha1-only 寻址回归腿——T-595
+        TestChecksumDeployEnvelopeDropsAncillaryClaims sha1-only 臂）' }
+    - when: 'X-Checksum-Sha256 合法 + X-Checksum-Md5 错值（well-formed）+ blob 在库'
+      status: 201
+      body: { format: json, note: '信封三键全=计算值（错 md5 不注册不显形——cd-wrong-md5 活体腿）' }
+    - when: '无任何 sha256/sha1 头'
+      status: 400
+      body: { format: json, note: 'no checksum header 拒绝（M1 C15 族文案）' }
+    - when: 'sha256/sha1/md5 任一 malformed'
+      status: 404
+      body: { format: json, note: 'malformed 值拒绝（md5 malformed 亦拒——校验门独立于寻址资格）' }
+    - when: '寻址摘要库中无 blob（miss）'
+      status: 404
+      body: { format: json, note: 'no content found 族' }
+    - when: '非 artifacts 路径（sidecar/metadata 文档）'
+      status: 400
+      body: { format: json, note: 'X-Checksum-Deploy supports artifact paths only（maven 面）' }
+  side_effects:
+  - '命中：零字节传输落节点（blob 引用共享）+ FR-17 元数据计算器触发（与字节部署同喂）；ancillary
+    声明零注册——cd 面注册事实只含寻址摘要'
+  error_behavior:
+  - { when: '无 sha256/sha1 头', status: 400, body_literal: 'Checksum deploy failed. no checksum header ''X-Checksum-Sha1/X-Checksum-Sha256'' was found.' }
+  - { when: 'malformed 值（三算法任一）', status: 404, body_literal: 'Checksum deploy failed: malformed <algo> value "<值>".' }
+  - { when: '寻址摘要 miss', status: 404, body_literal: 'Checksum deploy failed: no content found for the given checksum.' }
+  unobserved_reference_arms:
+  - 'sha1 作为 ancillary（sha256 寻址腿随行错 sha1 声明）的 A 形——md5 腿模型外推，未单探不立断言
+    （probe 候选：cd-wrong-sha1）'
+  - 'sha256+sha1 双合法声明组合的优先序 A 腿（活体只证 sha256+wrong-md5 与 sha1-only 两形；实现按
+    sha256 接管）'
+  - 'cd 命中后 FileInfo 后续 GET 的 originalChecksums 形（201 信封 ocComputed 已钉；落库后读面 oc 未
+    单探）'
+  - '经 virtual（defaultDeploymentRepo 路由）的 cd 腿信封 repoKey 渲染面（未单探）'
+  binflow_state:
+    verdict: 'VERIFIED（T-595 GATE：cd-wrong-md5 腿 A=B=201、checksums=originalChecksums=计算三元组
+      （17225d67…/72a0adf0…/00f7da2b…）+ sha1-only 寻址回归；A×2+B×2 双轮 drift 0）'
+    detail: 'as-built（只读取证）：internal/adapter/maven/put.go putChecksumDeploy——ref 构造只携寻址
+      摘要（`ref := storage.BlobRef{Sha256: sha256}; if sha256 == "" { ref.Sha1 = sha1v }`，md5 恒
+      不骑）+ 三值 malformed 404 门在前（含 md5）；writeCreated(..., ocComputed=true) → itemInfo cd
+      选择臂（OriginalChecksums=Checksums 计算三元组；普通面 false 走 repo.OriginalChecksums——
+      BIN-71/T-589）。单测锚：TestChecksumDeployEnvelopeDropsAncillaryClaims（错 md5+sha256 寻址
+      201 计算三元组 + sha1-only 寻址回归）。无独立台账条目（随 T-595 GATE 收编），契约行即本条。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'R13 payload 工作树双实例（T-595 /tmp/t595 @127.0.0.1:1819{0,1}；随 PR #189 merge 3fc1309a 合入 develop）' }
+  evidence:
+  - { kind: difftest, report: reports/agents/T-595.md, anchor: 'Changes checksum-deploy 段 + Outputs cd 行（cd-wrong-md5 201，checksums=originalChecksums=计算三元组 17225d67…/72a0adf0…/00f7da2b…；A×2+B×2 drift 0）+ Tests TestChecksumDeployEnvelopeDropsAncillaryClaims', date: '2026-09-30' }
+  confidence: high
+  status: VERIFIED

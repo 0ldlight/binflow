@@ -117,7 +117,11 @@ func (st *t362SeamStack) do(method, path, body string) (int, string) {
 	if body != "" {
 		payload = []byte(body)
 	}
-	resp := st.harness.do(method, path, adminUser, adminPass, payload, nil)
+	var hdr map[string]string
+	if body != "" && repoConfigWritePath(path) {
+		hdr = repoConfigCT() // T-607: repo config writes carry the real client CT
+	}
+	resp := st.harness.do(method, path, adminUser, adminPass, payload, hdr)
 	defer func() { _ = resp.Body.Close() }()
 	b, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, string(b)

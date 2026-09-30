@@ -47,6 +47,9 @@ func (st *t345Stack) do(method, path, user, pass, body string) (int, string, str
 	if user != "" {
 		req.SetBasicAuth(user, pass)
 	}
+	if body != "" && repoConfigWritePath(path) {
+		req.Header.Set("Content-Type", "application/json") // T-607: repo config writes carry the real client CT
+	}
 	resp, err := st.ts.Client().Do(req)
 	if err != nil {
 		panic(err) // unreachable: the live listener serves the test's lifetime

@@ -63,9 +63,9 @@ agents:
   dev-go-core:
     depends_on: [architect, tech-lead]
     can_parallel_with: [dev-go-storage, dev-frontend, dev-registry-adapter, devops-engineer]
-    owns: [internal/repo/, internal/metadata/, internal/auth/, internal/httpapi/, internal/replication/]
+    owns: [internal/repo/, internal/metadata/, internal/auth/, internal/httpapi/, internal/replication/, internal/build/]   # internal/build 2026-09-30 回填（ADR-0054 Risks 图形缺口；BIN-104 area 授权依据）
     reads: [docs/reverse/, docs/compatibility/contracts/]
-    writes: ["internal/{repo,metadata,auth,httpapi,replication}/"]
+    writes: ["internal/{repo,metadata,auth,httpapi,replication,build}/"]
 
   dev-go-storage:
     depends_on: [architect, tech-lead]
