@@ -2510,6 +2510,7 @@ entries:
     fetcher.go:1102 首障 markOffline）。
   authority: { type: conductor_ruling, ref: "R14 台账批 conductor 裁定（2026-09-30，BIN-91/T-609 + BIN-93/T-611 收编）——BUG 对齐 threshold-2" }
   review_gate: R15 修复票（BIN-101/T-619 fetcher.go 冷断路器阈值对齐 A=第 2 次 transport 故障）→ 双轮 PASS → resolved
+  resolved: { date: '2026-09-30', evidence: 'BIN-101/T-619 修复（fetcher.go 阈值 1→2：连续故障计数 + 窗过期冷重启清计数 + Forget 释放断路器态；5xx 默认臂/browse 面零触碰）：T-597 r3/r4 冷断路器腿集直复用双端双轮 18/18 PASS drift=0、A-vs-B 配对 drift=0、第 2 接触判别腿双端 retrieval 形、curl 真客户端锚；solo -race 435.5s 全绿；3 个域外 adapter posture 测试随 conductor rider 翻新（cargo/maven/generic，第 2 接触=retrieval + 第 3 接触钉 offline）；证据 reports/agents/T-619.md' }
   evidence: reports/agents/T-597.md（Compatibility b 段 r3/r4 双轮）+ reports/agents/T-609.md（Erratum-3）+ docs/compatibility/contracts/remote-fetch.yaml
 
 - id: generic/sidecar-head-validator-set
@@ -2592,6 +2593,7 @@ entries:
     conductor 采信 BUG 对齐。
   authority: { type: conductor_ruling, ref: "R15 台账批 conductor 裁定（2026-09-30，BIN-109/T-625 收编族二）——BUG 对齐 A" }
   review_gate: R15 修复票（BIN-110/T-626：writeSidecarBody HEAD 臂补 repo.SetDownloadDisposition 单 seam，GET 臂零触碰）→ 双轮 PASS → resolved
+  resolved: { date: '2026-09-30', evidence: 'BIN-110/T-626 修复（writeSidecarBody 增 src 参、HEAD 臂于 digestTriple 后 evalConditional 前调 repo.SetDownloadDisposition 单 seam，与 generic writeChecksumEcho 同位同族；GET 臂零触碰）：差分双轮 11 腿×4 轮 A/B 各 drift 0，sc-head-{sha1,md5,sha256} 三腿 EQUAL——CD 源 basename 双参形 + X-Artifactory-Filename 逐字节对齐，ETag/三键/CT/CL/AR 同值；GET 臂两侧均无 CD/XAF（零触碰验证）；证据 reports/agents/T-626.md' }
   evidence: reports/agents/T-608.md + reports/agents/T-598.md + reports/agents/T-625.md（族二 + /tmp/t625/raw f2-*）
 - id: helm/error-404-media-type
   surface: 'helm adapter 局部 404 面（内容路径与 API alias 双拼写同形）——A=JSON errors[] 信封
@@ -2700,4 +2702,5 @@ entries:
     微票收口（R15，create/update 两面同查）。
   authority: { type: conductor_ruling, ref: "R14 台账批 conductor 裁定（2026-09-30，BIN-89/T-607 收编 side-finding）——put_exact_ctrl 腿 A/B 四轮逐字比对" }
   review_gate: R15 微票（成功文案补尾空格，create/update 两面同查；差分双轮）→ resolved
+  resolved: { date: '2026-09-30', evidence: 'BIN-106/T-622 修复（create 面补尾空格；update 面 A 侧新取证 2 腿×2 轮确定性=句点后直接 \n 无尾空格、B 已逐字一致故零改动）：差分四腿（A×2 + B×2 干净叠加树 git archive HEAD+仅本票 4 文件）drift 0、各侧 r1≡r2；两面精确字节断言钉住（repo_success_message_test.go）；证据 reports/agents/T-622.md' }
   evidence: reports/agents/T-607.md（Compatibility side-finding 段）+ /tmp/t607 四轮 JSON
