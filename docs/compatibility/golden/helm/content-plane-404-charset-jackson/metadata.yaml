@@ -1,0 +1,20 @@
+# 金样元数据——helm 内容路径 404 错误渲染（charset+Jackson pretty；与 /api/helm alias 裸 CT 对照腿互证「CT 随面变」）
+schema: golden/1
+id: helm/content-plane-404-charset-jackson
+contract_ref: （契约缺失面——T-615 h2-tgz 对照腿定形；helm.md §33 只钉 404 状态未钉 body 媒体形）
+matrix_ref: （T-620/BIN-102 入金；ledger generic/error-face-ct-charset-head-cl 族 charset 子面 helm 侧锚）
+capture:
+  mode: live-captured
+  captured_at: '2026-09-29（T-615 r3 补充腿，单轮——双挂载拼写同形佐证）→ 2026-09-30（T-620 复跑确认）'
+  capture_instance: 'A: Artifactory 7.161.26 Enterprise+ @ 192.168.120.38:8082'
+  capture_commands: 'curl GET /artifactory/<helm-local>/missing-chart-9.9.9.tgz（admin 凭据 env 注入零落盘）'
+  raw_response_archive: /tmp/t615/raw/ar1-h2-tgz-get.{hdr,body}（T-620 复跑 /tmp/t620/raw/ar1-h2-tgz-get.* 同形）
+  history: T-615 h2 对照腿（同消息文本在 /api/helm alias 面裸 CT——CT 随面不随消息族变的直接证据）→ T-620 入金
+instance_versions:
+  artifactory_ref: Artifactory 7.161.26 Enterprise+（http://192.168.120.38:8082）
+  binflow_tested: origin/develop@8bd7bb82（B 侧 helm 局部 text/plain 404 面 = BIN-103/T-621 他票域，本金样为 A 侧行为锚）
+confidence: high
+known_gaps:
+- 'B 侧该面现为 text/plain（internal/adapter/helm 局部渲染，BIN-103/T-621 在途）——本金样先行钉定 A 目标形'
+- 'h2-* 腿 T-615 为单轮无独立 drift 门（alias/内容双拼写同形佐证），T-620 已补双轮'
+review: T-620 入金（2026-09-30）——A 腿 verbatim 自 /tmp/t615/raw

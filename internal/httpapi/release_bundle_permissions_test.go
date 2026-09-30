@@ -76,7 +76,7 @@ func TestAnyDistributionNonRestEntity(t *testing.T) {
 	admin := adminP()
 
 	code, body, _ := st.do(t, http.MethodGet, "security/permissions/Any%20Distribution", "", admin)
-	if code != http.StatusNotFound || !strings.Contains(body, `"message": "Not Found"`) {
+	if code != http.StatusNotFound || !strings.Contains(body, `"message" : "Not Found"`) {
 		t.Fatalf("Any Distribution single query = %d %s, want the 404 (p62)", code, body)
 	}
 	// The channel itself still authorizes reads (the constant works inside

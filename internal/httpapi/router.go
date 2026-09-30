@@ -286,7 +286,9 @@ func (s *Server) writeV2AuthFailure(w http.ResponseWriter, r *http.Request, reas
 		h.RenderAuthFailure(w, r)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
+	// The 401 arm is cross-plane on the reference (T-615: d-ping-anon
+	// byte form) — charset media type on the registry plane too.
+	w.Header().Set("Content-Type", ctJSONCharset)
 	w.Header().Set("Docker-Distribution-Api-Version", "registry/2.0")
 	w.Header().Set("WWW-Authenticate",
 		`Bearer realm="`+requestScheme(r)+"://"+r.Host+`/v2/token",service="binflow"`)
@@ -2260,6 +2262,12 @@ func (s *Server) npmCouchLoginExempt(r *http.Request) bool {
 //     105.3; the adapters' own refusal arm stays as their bare-mount
 //     defense, unreachable through this router).
 func (s *Server) dispatchContent(w http.ResponseWriter, r *http.Request, _ string) {
+	// The content-plane face mark (T-615/T-620, BIN-102): every error the
+	// repo-path plane renders through the shared envelope answers with the
+	// reference's charset media type. Marked here — the single funnel for
+	// archive tails, cache projections and the repo-dispatch chain alike —
+	// so the decision stays at the envelope seam, never per call site.
+	w = markContentPlane(w)
 	if tail, ok := archiveMemberTail(r); ok {
 		s.handleArchiveMember(w, r, tail)
 		return

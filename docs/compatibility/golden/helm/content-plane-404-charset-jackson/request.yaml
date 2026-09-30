@@ -1,0 +1,10 @@
+# 金样请求——helm 内容路径 404 错误渲染
+# schema: golden-request/1
+feature: 'repo-path 内容面（helm）错误渲染：与 maven/generic 内容面同形（charset+Jackson pretty）'
+client: curl 差分腿（admin 凭据 env 注入零落盘）
+repo_setup: 'local helm 仓（空仓即可）'
+steps:
+- { seq: 1, leg: h2-tgz-get, method: GET, path: '/<helm-local>/missing-chart-9.9.9.tgz', note: 'repo-path 内容面 404 主锚' }
+- { seq: 2, leg: h2-tgz-head, method: HEAD, path: 同上, note: '同面 HEAD（空体）' }
+- { seq: 3, leg: h-tgz-get, method: GET, path: '/api/helm/<helm-local>/missing-chart-9.9.9.tgz', note: 'API alias 对照腿——裸 CT（CT 随面变证据，不入本金的 charset 断言）' }
+expected_client_outcome: '内容面腿：404 + CT charset 形 + Jackson pretty body；alias 腿：404 + 裸 CT（同消息文本）'

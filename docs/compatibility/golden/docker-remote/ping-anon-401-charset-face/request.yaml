@@ -1,0 +1,8 @@
+# 金样请求——/v2 匿名 ping 401 臂
+# schema: golden-request/1
+feature: 'registry spec 面 401 臂：charset CT + compact errors body + Bearer 挑战（跨面 401 臂的 spec 面成员）'
+client: curl 匿名腿（无凭据）
+repo_setup: '无需仓（根级 /v2/ ping；docker adapter 挂载即可）'
+steps:
+- { seq: 1, leg: d-ping-anon, method: GET, path: '/v2/', note: '匿名 ping——401 臂主锚' }
+expected_client_outcome: '401；CT=application/json;charset=ISO-8859-1；Www-Authenticate Bearer 挑战；body compact 单行（见 response.yaml）'
