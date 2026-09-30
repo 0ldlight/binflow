@@ -32,9 +32,12 @@ func t215Setup(t *testing.T, h *harness) {
 }
 
 // t215Admin issues an admin-authenticated request and demands the status.
+// T-607: bodied requests carry application/json — the repo config write
+// plane gates the Content-Type now (the reference's exact-CT contract), so
+// the JSON-bodied calls route as real clients do.
 func t215Admin(t *testing.T, h *harness, method, path, body string, want int) string {
 	t.Helper()
-	resp := h.do(method, "/binflow/"+path, adminUser, adminPass, []byte(body), nil)
+	resp := t215As(t, h, method, path, adminUser, adminPass, body)
 	defer func() { _ = resp.Body.Close() }()
 	got, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -49,7 +52,11 @@ func t215Admin(t *testing.T, h *harness, method, path, body string, want int) st
 // t215As issues a request as one fixture principal.
 func t215As(t *testing.T, h *harness, method, path, user, pass, body string) *http.Response {
 	t.Helper()
-	resp := h.do(method, "/binflow/"+path, user, pass, []byte(body), nil)
+	hdr := map[string]string(nil)
+	if body != "" {
+		hdr = map[string]string{"Content-Type": "application/json"}
+	}
+	resp := h.do(method, "/binflow/"+path, user, pass, []byte(body), hdr)
 	return resp
 }
 

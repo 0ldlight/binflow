@@ -447,6 +447,12 @@ func (h *Handler) serveNode(w http.ResponseWriter, r *http.Request,
 	// Render-time ownership (BIN-53 / T-571): the extension table answers
 	// for the served path; the stored mime column takes no part.
 	hdr.Set("Content-Type", mimeForPath(relPath))
+	// The disposition pair (T-608 / BIN-90, T-601 §二's A model): sent on
+	// every artifact-body face — 200/206 with the body descriptors, kept on
+	// the 304 (net/http strips only CT/CL/TE there), removed by the 416's
+	// strip list. Single source in repo.SetDownloadDisposition, shared with
+	// the generic adapter's own assembly.
+	repo.SetDownloadDisposition(hdr, relPath)
 
 	if evalConditional(r, sums.sha1, lastMod) {
 		w.WriteHeader(http.StatusNotModified)
@@ -456,9 +462,10 @@ func (h *Handler) serveNode(w http.ResponseWriter, r *http.Request,
 	rng, malformed, ignore := parser.parseRange(r.Header.Get("Range"))
 	switch {
 	case malformed:
-		hdr.Set("Content-Range", "bytes */"+strconv.FormatInt(node.Size, 10))
-		hdr.Del("Content-Length")
-		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+		// The bare set (T-608 / BIN-90, T-601 §二's mv-range legs): the 416
+		// strips the body-descriptive family and answers Content-Range +
+		// Content-Length: 0 only.
+		repo.WriteRangeNotSatisfiable(w, node.Size)
 		return
 	case !ignore && rng.length() > 0:
 		if _, err := rc.Seek(rng.start, io.SeekStart); err != nil {

@@ -221,8 +221,12 @@ func NewGuard(opts GuardOptions) *Guard {
 
 // reject emits the single WARN audit line for a denial and returns the
 // corresponding error. Structured attrs only — no stack trace (NFR-S13
-// point 7, the M42 forensic surface).
+// point 7, the M42 forensic surface). T-617: both faces the target rides
+// (the log attr and the error text) pass the full-removal userinfo
+// redactor first — a caller may hand CheckURL a URL that legally embeds
+// credentials, and host-only targets pass through unchanged.
 func (g *Guard) reject(ctx context.Context, target, ip, category, phase string) error {
+	target = redactUserinfo(target)
 	attrs := []any{
 		slog.String("repo", g.repoKey),
 		slog.String("target", target),
@@ -253,7 +257,9 @@ func (g *Guard) reject(ctx context.Context, target, ip, category, phase string) 
 func (g *Guard) CheckURL(ctx context.Context, rawURL string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return fmt.Errorf("ssrf-guard: parse url %q: %w", rawURL, err)
+		// T-617: url.Parse's own error text quotes the full URL — both the
+		// rawURL echo and the wrapped cause must pass the redactor.
+		return errors.New("ssrf-guard: parse url: " + redactUserinfo(err.Error()))
 	}
 	if scheme := strings.ToLower(u.Scheme); scheme != "http" && scheme != "https" {
 		return g.reject(ctx, u.String(), "", CategoryScheme, "check")

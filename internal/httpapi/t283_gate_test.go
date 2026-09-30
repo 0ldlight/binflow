@@ -238,6 +238,10 @@ func (st *t283Stack) do(t *testing.T, method, path, user, pass, body string) (in
 	if user != "" {
 		req.SetBasicAuth(user, pass)
 	}
+	if body != "" && repoConfigWritePath(path) {
+		req.Header.Set("Content-Type", "application/json") // T-607: repo config writes carry the real client CT
+	}
+
 	resp, err := st.ts.Client().Do(req)
 	if err != nil {
 		t.Fatalf("do %s %s: %v", method, path, err)

@@ -135,7 +135,7 @@ func TestRepositoryUpstream(ctx context.Context, md metadata.Store, repoKey stri
 	base, err := url.Parse(targetURL)
 	if err != nil || (base.Scheme != "http" && base.Scheme != "https") || base.Host == "" {
 		return TestResult{Message: fmt.Sprintf(
-			"Remote repository url %q must be an absolute http/https URL with a host", targetURL)}, nil
+			"Remote repository url %q must be an absolute http/https URL with a host", redactUserinfo(targetURL))}, nil
 	}
 
 	// The one-shot egress client: the repository's own posture (base URL,
@@ -164,7 +164,7 @@ func TestRepositoryUpstream(ctx context.Context, md metadata.Store, repoKey stri
 	switch {
 	case res.StatusCode >= 200 && res.StatusCode < 400, res.StatusCode == http.StatusNotFound:
 		return TestResult{OK: true, StatusCode: res.StatusCode, Message: fmt.Sprintf(
-			"Remote repository '%s' url '%s' tested successfully", repoKey, base.String())}, nil
+			"Remote repository '%s' url '%s' tested successfully", repoKey, redactUserinfo(base.String()))}, nil
 	default:
 		return TestResult{StatusCode: res.StatusCode, Message: fmt.Sprintf(
 			"Connection failed: Remote repository URL returned error %d: %s",
@@ -236,8 +236,9 @@ func probeSnippet(body []byte) string {
 // probeTransportMessage maps a transport fault onto the §9.2-C-8 shape
 // with the repository word: DNS failures name the host; an SSRF-guard
 // refusal carries its own operator-facing message; everything else names
-// the redacted URL (credentials never appear — the URL never carried them
-// and the Authorization header is not part of any transport text).
+// the redacted URL. T-617: the configured URL may legally carry userinfo,
+// so the full-removal redactor applies (u.Redacted keeps the username);
+// the Authorization header is not part of any transport text.
 func probeTransportMessage(repoKey string, u *url.URL, err error) string {
 	var dnsErr *net.DNSError
 	if errors.As(err, &dnsErr) {
@@ -247,5 +248,5 @@ func probeTransportMessage(repoKey string, u *url.URL, err error) string {
 		return fmt.Sprintf("Error testing remote repository '%s': %s", repoKey, err.Error())
 	}
 	return fmt.Sprintf("Error testing remote repository '%s': %s %s: connection failed",
-		repoKey, http.MethodGet, u.Redacted())
+		repoKey, http.MethodGet, redactUserinfo(u.String()))
 }

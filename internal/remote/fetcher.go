@@ -1195,11 +1195,11 @@ func retrievalFaultMessage(repoKey, path, upURL string, cause error) string {
 var reUserInfoInURL = regexp.MustCompile(`//[^/@?#\s]*@`)
 
 // redactUserinfo strips embedded credentials before upstream references are
-// rendered into anonymous-readable faces (R13 dual-review B1): a remote repo
-// URL may legally carry userinfo (config validation accepts it), and the Go
-// client's error text quotes it back — password masked as *** but the
-// username intact. Works on bare URLs and free text alike; text without the
-// userinfo form passes through unchanged.
+// rendered into anonymous-readable faces (R13 dual-review B1) or server log
+// streams (T-617): a remote repo URL may legally carry userinfo (config
+// validation accepts it), and the Go client's error text quotes it back —
+// password masked as *** but the username intact. Works on bare URLs and
+// free text alike; text without the userinfo form passes through unchanged.
 func redactUserinfo(s string) string {
 	return reUserInfoInURL.ReplaceAllString(s, "//")
 }
@@ -1483,8 +1483,10 @@ func upstreamPropsURL(base, path string) (string, bool) {
 func (e *Engine) syncUpstreamProperties(ctx context.Context, cfg *metadata.RemoteConfig, pol repoPolicy, repoKey, path string) {
 	raw, ok := upstreamPropsURL(cfg.URL, path)
 	if !ok {
+		// T-617: the WARN is a log face — the configured URL may legally
+		// embed userinfo, which must never reach the log stream.
 		e.log.Warn("remote: content synchronisation: upstream url carries no repository segment; properties not queried",
-			"repo", repoKey, "path", path, "url", cfg.URL)
+			"repo", repoKey, "path", path, "url", redactUserinfo(cfg.URL))
 		return
 	}
 	client, err := e.clientFor(repoKey, cfg, pol)

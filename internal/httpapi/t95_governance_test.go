@@ -19,7 +19,7 @@ import (
 // t95CreateRepo PUTs one repository configuration through /api/repositories.
 func t95CreateRepo(t *testing.T, h *harness, key, body string) *http.Response {
 	t.Helper()
-	resp := h.do(http.MethodPut, "/binflow/api/repositories/"+key, adminUser, adminPass, []byte(body), nil)
+	resp := h.do(http.MethodPut, "/binflow/api/repositories/"+key, adminUser, adminPass, []byte(body), repoConfigCT())
 	if resp.StatusCode != http.StatusOK {
 		defer func() { _ = resp.Body.Close() }()
 		t.Fatalf("create repo %s: status %d (%s)", key, resp.StatusCode, mustGet(t, resp))
@@ -204,7 +204,7 @@ func TestT95QuotaW26W26bW27(t *testing.T) {
 
 	// Config validation: a negative quotaBytes is a 400 at config time.
 	resp = h.do(http.MethodPut, "/binflow/api/repositories/neg", adminUser, adminPass,
-		[]byte(`{"rclass":"local","packageType":"generic","quotaBytes":-1}`), nil)
+		[]byte(`{"rclass":"local","packageType":"generic","quotaBytes":-1}`), repoConfigCT())
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("negative quotaBytes: status %d, want 400", resp.StatusCode)
 	}

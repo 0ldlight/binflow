@@ -203,10 +203,14 @@ func (e *Engine) BrowseRemote(ctx context.Context, permit BrowsePermit, repoKey,
 		if fault.offline {
 			e.markOffline(repoKey, e.now().Add(time.Duration(offlineSecs(pol))*time.Second))
 		}
+		// The fault text may quote the transport error, which embeds the
+		// upstream URL's userinfo (T-617) — redact once for both faces the
+		// text rides: the WARN line and the caller-facing degraded note.
+		msg := redactUserinfo(fault.msg)
 		e.log.WarnContext(ctx, "remote: browse enumeration degraded",
 			slog.String("repo", repoKey), slog.String("folder", folder),
-			slog.String("reason", fault.msg))
-		return &BrowseResult{Degraded: "remote enumeration unavailable: " + fault.msg}, nil
+			slog.String("reason", msg))
+		return &BrowseResult{Degraded: "remote enumeration unavailable: " + msg}, nil
 	}
 	if len(paths) > browseMaxPaths {
 		e.log.WarnContext(ctx, "remote: browse tree exceeded the path bound",

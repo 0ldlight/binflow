@@ -535,7 +535,7 @@ func TestUploadsCreateGuards(t *testing.T) {
 
 	// A remote repository is a cache, not a deploy target: the same 403.
 	resp = h.do(http.MethodPut, "/binflow/api/repositories/gen-remote", adminUser, adminPass,
-		[]byte(`{"rclass":"remote","packageType":"generic","url":"https://upstream.invalid"}`), nil)
+		[]byte(`{"rclass":"remote","packageType":"generic","url":"https://upstream.invalid"}`), repoConfigCT())
 	func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusOK {
 		if code, _ := mpuCreate(t, h, adminUser, adminPass, "gen-remote", "a.bin", 0); code != http.StatusForbidden {
@@ -581,19 +581,19 @@ func TestUploadsVirtualDefault(t *testing.T) {
 
 	// members: gen-local (default deployment target) + gen-other.
 	resp := h.do(http.MethodPut, "/binflow/api/repositories/gen-local", adminUser, adminPass,
-		[]byte(`{"rclass":"local","packageType":"generic"}`), nil)
+		[]byte(`{"rclass":"local","packageType":"generic"}`), repoConfigCT())
 	func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("create gen-local = %d", resp.StatusCode)
 	}
 	resp = h.do(http.MethodPut, "/binflow/api/repositories/gen-other", adminUser, adminPass,
-		[]byte(`{"rclass":"local","packageType":"generic"}`), nil)
+		[]byte(`{"rclass":"local","packageType":"generic"}`), repoConfigCT())
 	func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("create gen-other = %d", resp.StatusCode)
 	}
 	resp = h.do(http.MethodPut, "/binflow/api/repositories/gen-virtual", adminUser, adminPass,
-		[]byte(`{"rclass":"virtual","packageType":"generic","repositories":["gen-local","gen-other"],"defaultDeploymentRepo":"gen-local"}`), nil)
+		[]byte(`{"rclass":"virtual","packageType":"generic","repositories":["gen-local","gen-other"],"defaultDeploymentRepo":"gen-local"}`), repoConfigCT())
 	func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

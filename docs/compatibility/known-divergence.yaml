@@ -876,6 +876,10 @@ entries:
     internal/httpapi/router.go:170-174 单点、A=同构中间层 realm 恒 Artifactory Realm）。四个差分点：
     ①message（本账待裁面）②realm 串（品牌域——normalize R7 占位化）③CT charset 后缀 ④信封缩进
     （②③④归归一/品牌域不裁）。两案呈批=R-22a。
+    T-615 面级扩证（2026-09-30，R14 BIN-97 收编）：c-auth401（内容面）/x-api-anon401（API 面）双端
+    措辞同族分叉再证（A Bad Credentials / Authentication is required vs B invalid credentials /
+    authentication required），双轮 drift 0——措辞面继续待 R-22a 批裁；本腿 401 的 CT charset 差已随
+    generic/error-face-ct-charset-head-cl 面级模型裁入 BIN-102 修复面（与措辞面分立）。
 - id: rest/anonymous-read-default-policy
   surface: 全域匿名读默认策略（content GET/HEAD——ADR-0009 默认放行 vs 参照实例全域 deny）
   classification: UNKNOWN
@@ -1045,6 +1049,9 @@ entries:
   authority: { type: pending, ref: "产品/用户裁（maven 布局校验：对齐 A 自由 vs 维持 400 强制 INTENTIONAL）——pending-rulings v2.6 R-24b" }
   review_gate: LOOP 025 限期升级（R-24b 批复：裁对齐开收窄票〔400→201〕；裁维持转 INTENTIONAL+契约 400 姿态冻结）
   evidence: reports/compatibility/L024-search-aql-diff.md §7.1-L10 + reports/compatibility/l024d-wire/（f9/mz 探针臂）
+  note: >-
+    T-615 扩证（2026-09-30，R14 BIN-97 收编）：w-put1/w-put2 腿（PUT 废 GAV 路径）A=201 vs B=400
+    布局校验双轮稳定，修正 GAV 后双端 201/201 同形——A 7.161.26 新证据并入本族（R-24b 仍未裁）。
 - id: d02/repolayouts-header-family
   surface: GET /api/admin/repolayouts[/{name}] 响应头族（G6——l01 列表/l02 单读/w06b configurations 读邻面三单元）
   classification: UNKNOWN
@@ -2287,7 +2294,7 @@ entries:
     text-plain / application/xml / application/vnd.api+json → 415 `Unsupported Media Type`（建仓+
     改仓同面）；charset 参数 → 非 415，POST update 落 404 `No repository <key> was found.`（无引号
     变体，A 内部路径行为面记录不猜成因）；B=零 CT 检查全接受（T-585 Risks② + L041 Arm 4）'
-  classification: UNKNOWN
+  classification: BUG
   rationale: >-
     T-585 实施期域外发现（2026-09-30 首跑现场 /tmp/t585/probe-a-r1.json 留存）：A 对无 Content-Type
     的请求体 415，B 接受——REST 写面 CT 严格度家族首例。真实客户端（curl 默认 CT / SDK）恒带 CT，
@@ -2304,6 +2311,7 @@ entries:
     种群（Spring RestTemplate 等默认 charset=UTF-8）——成败级分歧（B 建出 A 拒建的仓），非仅文案。
   authority: { type: conductor_ruling, ref: "R13 台账批 conductor 裁定（2026-09-30，BIN-82/T-600 收编）——ref T-600 §1 建议稿 BUG 全臂对齐 + L041 Arm 4 + T-600 p2-* 补证四轮" }
   review_gate: R13 联合裁定落账（T-600 建议=BUG 全臂对齐：415 门+PUT charset 400 型拒（复用 distribution 写手族）+POST charset 404 双变体；A 模型=CT 协商族写面臂，影响面 rationale 修订〔charset 臂有真实 Java 客户端种群、成败级分歧〕；PUT 非_JSON CT 拼写票内探腿先行）→ R14 工程票 WP1（dev-go-core）→ 双轮 PASS → resolved
+  resolved: { date: '2026-09-30', evidence: 'BIN-89/T-607 WP1 修复+活体四轮 PASS：PUT/POST 双面 415 门（缺 CT/text-plain/xml/vnd.api+json 全 415，先于 body decode；PUT×{text-plain,xml,vnd.api+json} 三未探拼写本票探腿先行兑现）+ PUT charset 臂并入 distribution 写手族（body rclass+原始 CT 内插，先于 key-exists）+ POST charset→缺失 key 带引号 404/已存在 key 无引号 404 双变体；30 腿 ×4 轮（A r1≡r2 drift 0 / B r1≡r2 drift 0 / A-vs-B 三族配对 drift 0）+ httpapi/repo 双包 ×2 轮 + adapter 七包回归全绿 + 端口释放残留 0；证据 reports/agents/T-607.md + /tmp/t607 四轮 JSON' }
   evidence: reports/agents/T-585.md（Risks② + /tmp/t585 现场腿）+ reports/compatibility/L041-policy-ct-header-faces.md Arm 4
 - id: rest/repo-update-missing-key-404-wording
   surface: 'repo config REST 缺失 key 404 文案**方法族三形态**——POST-missing：A=`No repository
@@ -2324,6 +2332,7 @@ entries:
     facet 并入 CT 严格度条目同票。
   authority: { type: conductor_ruling, ref: "R13 台账批 conductor 裁定（2026-09-30，BIN-82/T-600 收编）——ref T-600 §2 建议稿 BUG 两臂对齐 + L041 Arm 3（r3-* 双轮）" }
   review_gate: R13 联合裁定落账（T-600 建议=BUG 两臂对齐：POST-missing 带引号 + DELETE-missing statusMsg 包复用 repoBatchDeleteReport；GET-missing/PUT-missing 双端一致零动作收注）→ R14 工程票 WP1（与 CT 条目并票同文件）→ 双轮 PASS → resolved
+  resolved: { date: '2026-09-30', evidence: 'BIN-89/T-607 WP1 修复+活体四轮 PASS：POST-missing 带引号 404（repo config 面局部改写不动通用 helper）+ DELETE-missing statusMsg 报告体（复用 repoBatchDeleteReport 零新类型，四键体无 errors 键）+ GET-missing 400 复锚 + PUT-missing 建仓一致收注；30 腿 ×4 轮三族 drift 0/0/0；双包双轮+adapter 七包回归绿；证据 reports/agents/T-607.md + /tmp/t607 四轮 JSON' }
   evidence: reports/agents/T-585.md（Risks③）+ reports/compatibility/L041-policy-ct-header-faces.md Arm 3
 - id: rest/remote-domain-policy-enum-gate
   surface: 'remote rclass 域字段 remoteRepoChecksumPolicyType 枚举门——A=badenum `none` 400 `No
@@ -2344,6 +2353,7 @@ entries:
     默认值（配置正确性面，同 T-585 local 门族先例）。
   authority: { type: conductor_ruling, ref: "R13 台账批 conductor 裁定（2026-09-30，BIN-82/T-600 收编）——ref T-600 §3 建议稿 BUG 三件套 + L041 Arm 2（r2-create-remote-rrcp-badenum 双轮）" }
   review_gate: R13 联合裁定落账（T-600 建议=BUG 三件套对齐：字段 seat+四值闭域门（变体文案无 "type"）+回显免费；goodenum 收口=§7.5 枚举集实证一致、字段名勘误已上报 reverse-engineer；四值运行时语义显式 out-of-scope）→ R14 工程票 WP2（dev-go-core）→ 双轮 PASS → resolved
+  resolved: { date: '2026-09-30', evidence: 'BIN-89/T-607 WP2 修复+活体四轮 PASS：repoConfig 传输 seat + configJSON remote 臂 setStr + canonical omitempty（存量 blob 字节稳定）/输入指针 seat merge-on-omit + 四值闭域枚举表与变体文案门（`No checksum policy type found for: %s`，*StatusError→400 逐字）+ 回显免费（v1 remote seat blob-first，四合法值 verbatim 回显+空串渲染默认〔补证腿 A 200〕+update 翻转持久化+omit 保值）；派单 409 偏差按 A 活体四轮=400 落地（T-600 §3 一致）；badenum {strict,none,FAIL,pass-through} 400 零副作用；30 腿 ×4 轮 drift 0/0/0；证据 reports/agents/T-607.md + /tmp/t607 四轮 JSON' }
   evidence: reports/compatibility/L041-policy-ct-header-faces.md Arm 2
 - id: maven/sidecar-get-ondemand-matrix
   surface: 'maven 面 sidecar GET 未设算法按需计算矩阵 + miss 指向——A=sha256-only 按需（local/virtual
@@ -2385,6 +2395,7 @@ entries:
     archiveBrowsingEnabled 开关门控 follow-up，A 开关面未探）。
   authority: { type: conductor_ruling, ref: "R13 台账批 conductor 裁定（2026-09-30，BIN-83/T-601 收编）——采纳 T-601 §四 F1/F2/F5 BUG + F6 一致面收口 + §五修复面分解" }
   review_gate: R14 修复票（BIN-90/T-608 generic+maven 工件下载头集对齐：CD 双形态+X-Artifactory-Filename+416 裸集/304 撤头模型；helper 单源 internal/repo）→ 双轮 PASS → resolved
+  resolved: { date: '2026-09-30', evidence: 'BIN-90/T-608 修复+四证据轮全 PASS：internal/repo/downloadheaders.go 单源 helper（SetDownloadDisposition CD 双形态+X-Artifactory-Filename / WriteRangeNotSatisfiable 416 裸集：撤 9 键设 Content-Range+CL:0，F4 X-BinFlow-* 刻意存活）接入 generic handleGet 组装区+416 分支与 maven serveNode 同构两处；writeChecksumEcho/serveNode 重写动词条件模型（GET=CT/CL/LM infra 集；HEAD=+Accept-Ranges/ETag=源 sha1/源三键/CD 取源 basename）；304 撤 CT/CL 零代码（net/http suppressedHeaders304，live 证实）；virtual 继承=同一渲染出口；未碰 writeSidecarBody（BIN-80 域）；期望门 23 腿/轮 × {A,B} × 双轮 fails=0 + drift 0/0 + curl GET/HEAD/416/304 roundtrip 冒烟 + B 18200-18202 端口释放 ×3 + A residual 0；F3/F4 两 INTENTIONAL 分立条目 R13 已注册维持零动作；证据 reports/agents/T-608.md + /tmp/t608/probe-{a,b}-r{1,2}.json（B 证据二进制含同波 config 面 WIP 已声明，R15 干净基线复验轮候选=B-NB1 同款）' }
   evidence: reports/compatibility/L041-policy-ct-header-faces.md Arm 5（N3 行）+ reports/agents/T-601.md（§四分面表 + §五修复面 + raw /tmp/t601 留存）
 - id: storage/artifact-get-infra-headers
   surface: '工件 GET infra 头族 X-Artifactory-{Id,NodeId,Origin-Remote-Path} + X-Jfrog-Version——A=恒发
@@ -2487,15 +2498,19 @@ entries:
 - id: remote/offline-window-open-threshold
   surface: 'offline 窗开窗阈值——A=第 2 次 transport 故障后开窗（r3/r4 冷断路器双轮确定性：腿 1、2
     retrieval 形、腿 3+ offline 形）vs B=第 1 次故障即开窗（既有语义，T-597 ruling 沿用）（T-597 b）'
-  classification: UNKNOWN
+  classification: BUG
   rationale: >-
     R13 收编立案（2026-09-30）：T-597 上游故障外化双形对齐时发现的阈值分歧——边界腿（第 2 次接触）
     A=retrieval 形 / B=offline 形；repo-semantics.md:152 单故障开窗读法对 A 不精确（reverse 勘误候选
     BIN-91/T-609 随票）。首障 cause 文本差异（A=JVM 栈 Connect timed out vs B=dial tcp RST 串）为
     族内已命名分歧非 drift（外层三段式逐字同构）。
-  authority: { type: differential, ref: "reports/agents/T-597.md（Compatibility b 段 r3/r4 双轮）" }
-  review_gate: R14 compatibility 裁定 B 是否对齐阈值 2（BIN-93/T-611 契约行随票）→ 修复票
-  evidence: reports/agents/T-597.md
+    R14 裁定翻面（2026-09-30）：T-609 Erratum-3 规格精化（repo-semantics.md L152 改 A=第 2 次 transport
+    故障后开窗，T-597 r3/r4 冷断路器确定性双轮为源证据）+ T-611 契约行 remote-fetch.yaml
+    offline-window-open-threshold 登记 DIVERGENT/high——conductor 裁 BUG 方向=对齐阈值 2（B as-built
+    fetcher.go:1102 首障 markOffline）。
+  authority: { type: conductor_ruling, ref: "R14 台账批 conductor 裁定（2026-09-30，BIN-91/T-609 + BIN-93/T-611 收编）——BUG 对齐 threshold-2" }
+  review_gate: R15 修复票（BIN-101/T-619 fetcher.go 冷断路器阈值对齐 A=第 2 次 transport 故障）→ 双轮 PASS → resolved
+  evidence: reports/agents/T-597.md（Compatibility b 段 r3/r4 双轮）+ reports/agents/T-609.md（Erratum-3）+ docs/compatibility/contracts/remote-fetch.yaml
 
 - id: generic/sidecar-head-validator-set
   surface: 'generic 仓 sidecar HEAD（{src}.{algo}）响应头——A=全 validator 集（Etag+X-Checksum-{Md5,Sha1,Sha256}+
@@ -2509,6 +2524,7 @@ entries:
     writeChecksumEcho HEAD 臂（若裁定对齐），与 BIN-90/R14 下载头集票同族但 area 在 generic 需另派。
   authority: { type: differential, ref: "reports/agents/T-598.md（Compatibility ①+ /tmp/t598/raw g1-head-sha1-set A 头集留档）" }
   review_gate: R14 探腿裁定（generic 面 HEAD validator 集差分票或并入下载头集族裁定）→ 修复票 → 双轮 PASS → resolved
+  resolved: { date: '2026-09-30', evidence: 'BIN-90/T-608 吸收修复（writeChecksumEcho HEAD 臂动词条件模型）：gl-sidecar-head 200 = Accept-Ranges/ETag=源 sha1/X-Checksum 三键/CD+X-Artifactory-Filename 取源 basename（非 .sha1 名）——对齐 T-598 g1-head-sha1-set A 形（live A 双轮）；A-vs-B 期望门四轮 fails=0 + drift 0；证据 reports/agents/T-608.md + /tmp/t608/raw（gl-sidecar-head 腿）' }
   evidence: reports/agents/T-598.md
 - id: generic/sidecar-get-last-modified
   surface: 'generic 仓 sidecar GET 响应头——A=含 Last-Modified vs B=无（L041 双轮同形，预先存在
@@ -2520,19 +2536,32 @@ entries:
     缓存新鲜度协商。低影响头面候选，可并入 generic/sidecar-head-validator-set 探票一次取证。
   authority: { type: differential, ref: "reports/agents/T-598.md（Compatibility ②）" }
   review_gate: R14 探腿裁定（与 generic/sidecar-head-validator-set 并票取证）→ 修复票 → resolved
+  resolved: { date: '2026-09-30', evidence: 'BIN-90/T-608 吸收修复（writeChecksumEcho GET 臂动词条件模型）：gl-sidecar-get 200 = CT+CL+Last-Modified infra 集（B 无 sidecar node，LM=源 node 时间，与 A 的 sidecar 自身 mtime 差 1s 为已声明残留、按 presence 断言）；A-vs-B 期望门四轮 fails=0 + drift 0；证据 reports/agents/T-608.md + /tmp/t608/raw（gl-sidecar-get 腿）' }
   evidence: reports/agents/T-598.md
 - id: generic/error-face-ct-charset-head-cl
-  surface: '错误响应渲染面（404 族）——A=CT application/json;charset=ISO-8859-1 + HEAD-404 无
-    Content-Length vs B=application/json + HEAD-404 带 CL（T-598 observe 腿③，跨 adapter 全局面候选）'
-  classification: UNKNOWN
+  surface: '错误响应渲染面（跨 adapter 系统族，T-615 升格：32 腿×A/B×双轮 drift 0）——A=面级多渲染器
+    （(a) repo-path 内容面：charset+GET chunked/HEAD 裸；(b) 401 臂：charset+恒 CL；(c) 协议/API 面
+    （/api/pypi、/api/npm、/api/helm alias、/api/storage、/api/repositories）：裸 CT+chunked；(d) registry
+    spec 面（/v2）：裸 CT+compact）vs B=一个全局信封渲染器（envelope.go:33 裸 CT+恒 CL+Go pretty），例外
+    仅 docker /v2（刻意 A-parity 逐字节）与 helm 局部 text 面（分立条目）。CT 随「面」不随「消息族」变
+    ——h-tgz vs h2-tgz 同消息文本不同面 CT 异构为直接证据'
+  classification: BUG
   rationale: >-
-    R13 收编立案（2026-09-30）：T-598 sidecar 腿 404 面取证——A 错误渲染 CT 带 charset 参数、
-    HEAD-404 不带 CL；B 双双相反。疑为 A 全局错误渲染中间件面（跨 adapter 家族），仅 maven/generic
-    sidecar 腿观察（clean-room 不外推）；与 errors-envelope 序列化风格（A Jackson pretty vs B
-    compact，R13 watch 项）同族不同面。影响面=严格客户端的 CT 解析与 HEAD 语义。
-  authority: { type: differential, ref: "reports/agents/T-598.md（Compatibility ③）" }
-  review_gate: R14 探腿先行（多 adapter 404/409/400 错误面 CT/CL 系统取样）→ 裁定 → 全局错误渲染票
-  evidence: reports/agents/T-598.md
+    R14 T-615 定谳（2026-09-30，BIN-97/T-615 探针批收编，A=7.161.26 rev 86126900 双轮 / B=origin/
+    develop@093193ae 干净 archive 构建跨独立实例双轮，drift 全 0）：R13 疑「全局错误渲染中间件」证实为
+    **面级全局**（≥3 渲染面，比单中间件更细）。conductor 分面裁定：① charset 族 12 腿（m-jar×2/m-sha1/
+    g×2/h2-tgz×2/x-norepo×2/b-dotseg/c-auth401/x-api-anon401：A=application/json;charset=ISO-8859-1 无空格
+    形 vs B 裸）+ ② Jackson-pretty 微风格（A「" : "」vs B Go「": "」冒号前无空格，全部 errors[] 面）
+    → BUG 对齐（BIN-102/T-620：B 单一信封渲染器 internal/httpapi/envelope.go:33 一处面条件 seam——内容
+    面+401 臂渲染 charset 无空格形+Jackson pretty；协议/API/registry 面维持裸；金样取 /tmp/t615/raw）；
+    ③ framing 族（A GET chunked 无 CL/HEAD 无 CL 无 TE vs B 恒 CL）→ INTENTIONAL-tolerate（双端 wire-legal，
+    B 去 CL 需人为破坏 Go 缓冲惯例，客户端影响近零——F3 先例）；④ 消息文本差与 201 CT「;charset」vs
+    「; charset」空格微差为域外记录（前者消息族他裁；后者低于 npm.yaml:580 头面阈值维持先例——本票
+    多族证据不推翻：error-face 族为面系统性 12 腿，success-face 空格为孤立微差）。d-ping-anon /v2 401
+    双端逐字节同（B 刻意 parity 面，无动作）。
+  authority: { type: conductor_ruling, ref: "R14 台账批 conductor 裁定（2026-09-30，BIN-97/T-615 收编）——采纳 32 腿矩阵面级模型：charset+风格面 BUG（BIN-102）/ framing INTENTIONAL / 消息文本域外" }
+  review_gate: R15 修复票（BIN-102/T-620 envelope.go:33 面条件渲染矩阵）→ 双轮 PASS → resolved
+  evidence: reports/agents/T-615.md（32 腿取样矩阵 + verbatim 证据 + /tmp/t615/raw 64+ 捕获对）
 - id: maven/client-policy-declared-409-wording
   surface: 'client-checksums 策略部署面错声明 409 文案族——A=`Checksum policy ''LocalRepoChecksumPolicy:
     CLIENT'' rejected the artifact ''<repo>:<path>''. Checksums info: ChecksumsInfo{checksums={SHA-1=
@@ -2547,3 +2576,75 @@ entries:
   authority: { type: differential, ref: "reports/agents/T-599.md（Compatibility 新候选段，cli 对照腿双轮）" }
   review_gate: R14 跨包裁定票（四包文案族统一探腿+裁定，可并 T-579 同族语言）→ 修复票 → resolved
   evidence: reports/agents/T-599.md
+- id: maven/sidecar-head-cd-filename
+  surface: 'maven 仓 sidecar HEAD（writeSidecarBody HEAD 臂）CD/X-Artifactory-Filename——A m1-head-* 腿
+    实带 CD（源 basename）vs B=缺（T-608 收编时上报观察项①，/tmp/t598/raw m1-head 留档）'
+  classification: UNKNOWN
+  rationale: >-
+    R14 收编立案（2026-09-30）：T-608 下载头集票按路由分支划界未触碰 writeSidecarBody（BIN-80/T-598
+    域）——该面 HEAD 臂现无 CD/X-Artifactory-Filename 而 A 的 m1-head-* 控制腿带（与 generic
+    sidecar HEAD 已对齐形对照）。疑 T-598 模型缺口（动词条件模型的 CD 子臂未覆盖 maven sidecar 面），
+    非 clean-room 外推可裁——需 R15 探票对 maven sidecar HEAD 双端取证后裁定。
+  authority: { type: differential, ref: "reports/agents/T-608.md（Next ② 上报观察项 + Risks）+ /tmp/t598/raw m1-head-* 腿" }
+  review_gate: R15 探腿先行（maven sidecar HEAD CD/Filename 双端差分）→ 裁定 → 修复票（BIN-80 域后继）
+  evidence: reports/agents/T-608.md + reports/agents/T-598.md
+- id: helm/error-404-media-type
+  surface: 'helm adapter 局部 404 面（内容路径与 API alias 双拼写同形）——A=JSON errors[] 信封
+    「File not found.; Path:…」vs B=text/plain; charset=utf-8 纯文本「''repo/path'' not found」
+    （internal/adapter/helm/handler.go:628 writeText）（T-615 ⑤）'
+  classification: BUG
+  rationale: >-
+    R14 裁定（2026-09-30，BIN-97/T-615 收编）：h-tgz×2/h2-tgz×2 四腿取证——内容路径与 alias 两拼写
+    同形（=adapter 局部渲染非挂载伪像）；helm.md:33 只钉 404 状态未钉 body 媒体形（规格沉默，但 B 与
+    自身全局信封渲染器自相矛盾=内部不一致证据）；A 侧同消息文本在内容面带 charset（见
+    generic/error-face-ct-charset-head-cl 面级模型）。裁 BUG 对齐 JSON 信封（BIN-103/T-621：走共享
+    渲染路径，helm 不得 import internal/httpapi〔成环〕亦不得本地拷贝信封——须消费 BIN-102 face 矩阵
+    产出后统一）。
+  authority: { type: conductor_ruling, ref: "R14 台账批 conductor 裁定（2026-09-30，BIN-97/T-615 收编）——BUG 对齐 JSON 信封，共享渲染约束" }
+  review_gate: R15 修复票（BIN-103/T-621，前置=BIN-102 face 矩阵落地）→ 双轮 PASS → resolved
+  evidence: reports/agents/T-615.md（⑤ 段 + h-tgz/h2-tgz 四腿 verbatim）
+- id: helm/empty-index-status
+  surface: 'helm 空仓 index.yaml——A=200 text/plain 空索引（69B）vs B=404 text/plain（T-615 ⑥，
+    内容路径与 alias 双拼写同形）'
+  classification: UNKNOWN
+  rationale: >-
+    R14 收编立案（2026-09-30，BIN-97/T-615 收编）：域外附带发现（与 404 媒体形分离记账）——状态差
+    （200 空索引 vs 404），牵动 helm 客户端空仓行为（helm repo add/update 对空索引的解析）。A 语义
+    =「索引恒存在可为空」；B=「无索引即 404」。需 R15 探腿（真实 helm CLI 对两形的客户端行为差）
+    后裁定。
+  authority: { type: differential, ref: "reports/agents/T-615.md（⑥ 段 + h-index/h2-index 腿）" }
+  review_gate: R15 探腿先行（helm CLI 空索引行为差）→ 裁定
+  evidence: reports/agents/T-615.md
+- id: api/docker-direct-face
+  surface: '/api/docker/<repo>/v2/ 直连面——A=200（{} 空 JSON）vs B=404 缺面（T-615 d-ping-api 腿，
+    B 无此拼写）'
+  classification: UNSUPPORTED_FEATURE
+  rationale: >-
+    R14 裁定（2026-09-30，BIN-97/T-615 收编）：B 按 ADR-0010 no-double-mount 不建 /api/docker/<repo>
+    重复挂载面（registry spec 面只在 /v2/<repo> 单一出口）；A 的该拼写为 legacy 兼容残留。真实
+    docker CLI 不触此拼写（registry 客户端走 /v2）。裁 UNSUPPORTED-by-design，不立修复票。
+  authority: { type: conductor_ruling, ref: "R14 台账批 conductor 裁定（2026-09-30，BIN-97/T-615 收编）——ADR-0010 依据 UNSUPPORTED" }
+  review_gate: resolved（UNSUPPORTED 注册即收口；若后续真实客户端证据显示依赖再翻案）
+  evidence: reports/agents/T-615.md（d-ping-api 腿 + ADR-0010）
+- id: generic/dot-segment-guard-404-vs-400
+  surface: 'dot-segment 路径（/../ 等）——A=404（归一化后路径不存在族）vs B=400 dot-segment 守卫
+    （NFR-S11）（T-615 b-dotseg 腿）'
+  classification: INTENTIONAL_DIFFERENCE
+  rationale: >-
+    R14 裁定（2026-09-30，BIN-97/T-615 收编）：B 的 NFR-S11 路径穿越守卫（dot-segment 拒绝 400）为
+    刻意安全姿态，先于存在性判定；A 归一化后按不存在答 404。安全守卫优先=INTENTIONAL（守卫语义
+    保留），状态码差可容忍。B 撤守卫对齐 A 反而收窄安全面——不取。
+  authority: { type: conductor_ruling, ref: "R14 台账批 conductor 裁定（2026-09-30，BIN-97/T-615 收编）——NFR-S11 依据 INTENTIONAL" }
+  review_gate: resolved（INTENTIONAL 注册即收口）
+  evidence: reports/agents/T-615.md（b-dotseg 腿）
+- id: rest/repo-create-success-message-trailing-space
+  surface: 'repo create/update REST 成功文案尾空格——A=`Successfully created repository ''<key>'' `（闭引号后一空格再换行）vs B=闭引号直接换行（四轮确定性）（T-607 side-finding，put_exact_ctrl 腿）'
+  classification: BUG
+  rationale: >-
+    T-607 活体四轮（2026-09-30，B 127.0.0.1:18190/18191 双轮 ×2）唯一残余 drift：A 成功文案闭引号后
+    带一空格再 \n，B 无空格。先在面（非 T-607 三族票面，agent 未擅改、如实上报）。R14 裁定（2026-09-30，
+    BIN-89/T-607 收编）：BUG 立案——四轮确定性可观测微差、修复成本一个空格、无语义负载；按文案族
+    微票收口（R15，create/update 两面同查）。
+  authority: { type: conductor_ruling, ref: "R14 台账批 conductor 裁定（2026-09-30，BIN-89/T-607 收编 side-finding）——put_exact_ctrl 腿 A/B 四轮逐字比对" }
+  review_gate: R15 微票（成功文案补尾空格，create/update 两面同查；差分双轮）→ resolved
+  evidence: reports/agents/T-607.md（Compatibility side-finding 段）+ /tmp/t607 四轮 JSON

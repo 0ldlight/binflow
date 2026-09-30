@@ -107,6 +107,9 @@ func (st *t513Stack) do(t *testing.T, method, rest, body string, p *auth.Princip
 		rdr = strings.NewReader(body)
 	}
 	req := httptest.NewRequest(method, "/binflow/api/"+rest, rdr)
+	if key, ok := strings.CutPrefix(rest, "repositories/"); ok && body != "" && !strings.Contains(key, "/") {
+		req.Header.Set("Content-Type", "application/json") // T-607: repo config writes carry the real client CT
+	}
 	if p != nil {
 		req = req.WithContext(withPrincipal(req.Context(), p))
 	}
