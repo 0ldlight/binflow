@@ -232,6 +232,22 @@ func (h *harness) do(method, path, user, pass string, body []byte, hdr map[strin
 	return resp
 }
 
+// repoConfigCT is the header map a test sends when writing repository
+// configuration (T-607: the write plane accepts exactly application/json —
+// real clients always carry it, so the fixture requests do too).
+func repoConfigCT() map[string]string {
+	return map[string]string{"Content-Type": "application/json"}
+}
+
+// repoConfigWritePath reports whether path addresses the single-key
+// repository configuration face (/api/repositories/{key}) — the one plane
+// whose requests need repoConfigCT. Mixed-plane test helpers discriminate
+// on it so content-plane bodies keep their CT-free posture.
+func repoConfigWritePath(path string) bool {
+	rest, ok := strings.CutPrefix(path, "/binflow/api/repositories/")
+	return ok && rest != "" && !strings.Contains(rest, "/")
+}
+
 // mutatedConfig aliases the config type for mutate callbacks in tests.
 type mutatedConfig = config.Config
 

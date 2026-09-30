@@ -26,7 +26,7 @@ type cptErrBody struct {
 // cptPutCreate runs one admin create PUT and returns status + body bytes.
 func cptPutCreate(t *testing.T, h *harness, key, body string) (int, []byte) {
 	t.Helper()
-	resp := h.do(http.MethodPut, "/binflow/api/repositories/"+key, adminUser, adminPass, []byte(body), nil)
+	resp := h.do(http.MethodPut, "/binflow/api/repositories/"+key, adminUser, adminPass, []byte(body), repoConfigCT())
 	defer resp.Body.Close() //nolint:errcheck // drained below
 	return cptDrain(t, resp)
 }
@@ -34,7 +34,7 @@ func cptPutCreate(t *testing.T, h *harness, key, body string) (int, []byte) {
 // cptPostUpdate runs one admin update POST and returns status + body bytes.
 func cptPostUpdate(t *testing.T, h *harness, key, body string) (int, []byte) {
 	t.Helper()
-	resp := h.do(http.MethodPost, "/binflow/api/repositories/"+key, adminUser, adminPass, []byte(body), nil)
+	resp := h.do(http.MethodPost, "/binflow/api/repositories/"+key, adminUser, adminPass, []byte(body), repoConfigCT())
 	defer resp.Body.Close() //nolint:errcheck // drained below
 	return cptDrain(t, resp)
 }

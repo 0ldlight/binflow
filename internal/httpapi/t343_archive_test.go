@@ -133,7 +133,11 @@ func (st *t343Stack) doBytes(method, path, user, pass string, body []byte, hdr m
 }
 
 func (st *t343Stack) do(method, path, user, pass string, body string) (int, string) {
-	code, got, _ := st.doBytes(method, path, user, pass, []byte(body), nil)
+	var hdr map[string]string
+	if body != "" && repoConfigWritePath(path) {
+		hdr = repoConfigCT() // T-607: repo config writes carry the real client CT
+	}
+	code, got, _ := st.doBytes(method, path, user, pass, []byte(body), hdr)
 	return code, string(got)
 }
 

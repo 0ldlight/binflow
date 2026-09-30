@@ -112,6 +112,14 @@ type repoConfig struct {
 	AssumedOfflinePeriodSecs       *int64          `json:"assumedOfflinePeriodSecs,omitempty"`
 	HardFail                       *bool           `json:"hardFail,omitempty"`
 	AllowPrivateUpstream           *bool           `json:"allowPrivateUpstream,omitempty"`
+	// RemoteRepoChecksumPolicyType is the remote rclass's checksum policy
+	// seat (T-607 / BIN-89, rest/remote-domain-policy-enum-gate): repo-semantics
+	// section 7.5's four-value domain — NOT the maven local family's
+	// checksumPolicyType above (that one is local-arm only; on the remote
+	// face both products silently drop it). repo.Service's parseRemoteConfig
+	// owns the closed-domain gate; the echo is the render seat's blob-first
+	// rule (repo_config_render.go), so the seat just needs to reach the blob.
+	RemoteRepoChecksumPolicyType string `json:"remoteRepoChecksumPolicyType,omitempty"`
 
 	// ---- T-495 (FR-158): the metadata TTL wire knob ----
 	//
@@ -337,6 +345,7 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 		setRawJSON(m, "enableTokenAuthentication", c.EnableTokenAuthentication)
 		setRawJSON(m, "contentSynchronisation", c.ContentSynchronisation)
 		setStr(m, "chartsBaseUrl", c.ChartsBaseURL)
+		setStr(m, "remoteRepoChecksumPolicyType", c.RemoteRepoChecksumPolicyType)
 		setBool(m, "hardFail", c.HardFail)
 		setBool(m, "allowPrivateUpstream", c.AllowPrivateUpstream)
 		setBool(m, "priorityResolution", c.PriorityResolution)
@@ -671,6 +680,30 @@ func (s *Server) canManage(ctx context.Context, p *auth.Principal, capability au
 	})
 }
 
+// repoConfigCTAccepted reports whether one request's Content-Type clears
+// the repo config write plane's media gate (T-607 / BIN-89,
+// rest/repo-config-put-ct-strictness): the reference accepts EXACTLY
+// application/json — no header, or any other media type (text/plain,
+// application/xml, application/vnd.api+json), answers the bare 415
+// "Unsupported Media Type". A parameterized application/json
+// (charset=UTF-8, the default of Spring RestTemplate and other Java
+// clients) is NOT this gate's: it clears here and takes the negotiation
+// arms inside the handlers (PUT: the type/media refusal, POST: the
+// no-quote 404) — live-pinned A 7.161.26, probe /tmp/t607 legs
+// put_noct/put_textplain/put_xml/put_vndapi vs put_charset.
+func repoConfigCTAccepted(ct string) bool {
+	return requestMediaType(ct) == "application/json"
+}
+
+// repoConfigCTParameterized reports whether a Content-Type that cleared
+// repoConfigCTAccepted carries parameters (`;`-suffixed). The exact arm
+// (bare application/json) is the only spelling that performs the write;
+// parameterized spellings route into the reference's Content-Type
+// negotiation family instead.
+func repoConfigCTParameterized(ct string) bool {
+	return strings.Contains(ct, ";")
+}
+
 // handleRepoPut serves PUT /api/repositories/{key} (E-06/E-07): CREATE only
 // since ADR-0050 — the reference's update spelling is POST, and a PUT onto
 // an EXISTING key answers the create-only 400 (the reference's literal
@@ -691,6 +724,15 @@ func (s *Server) canManage(ctx context.Context, p *auth.Principal, capability au
 // NOT delegated to manage holders (FR-65: a repo admin cannot create or
 // delete repositories).
 func (s *Server) handleRepoPut(w http.ResponseWriter, r *http.Request, key string) {
+	// T-607 (BIN-89): the write plane's Content-Type gate rides ahead of
+	// the body decode — a 415 must not depend on body validity (live A:
+	// every non-application/json spelling, absent header included, answers
+	// the bare 415 before any key or type question).
+	ct := r.Header.Get("Content-Type")
+	if !repoConfigCTAccepted(ct) {
+		writeError(w, http.StatusUnsupportedMediaType, http.StatusText(http.StatusUnsupportedMediaType))
+		return
+	}
 	var body repoConfig
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err := dec.Decode(&body); err != nil {
@@ -710,9 +752,18 @@ func (s *Server) handleRepoPut(w http.ResponseWriter, r *http.Request, key strin
 	// rclass exists for the授权回退链, never for REST provisioning). The
 	// check rides ahead of the key-exists question; every other unknown
 	// rclass keeps the repo layer's own family wording.
-	if body.RClass == "distribution" {
-		writeError(w, http.StatusBadRequest,
-			"Unsupported repository type 'distribution' or media type 'application/json'")
+	//
+	// T-607 (BIN-89) folds the charset arm into the same writer: a
+	// parameterized Content-Type on the create face is the family's third
+	// refusal form — the message interpolates the BODY's rclass and the
+	// request's raw Content-Type string (live A: 'local'/'remote' with
+	// 'application/json;charset=UTF-8'). The exact-CT distribution case
+	// renders the historical literal bit-for-bit (ct IS "application/json").
+	// A rclass-less body under a parameterized CT keeps the A16 order —
+	// the type refusal inside the create path fires first.
+	if body.RClass == "distribution" || (body.RClass != "" && repoConfigCTParameterized(ct)) {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf(
+			"Unsupported repository type '%s' or media type '%s'", body.RClass, ct))
 		return
 	}
 
@@ -776,6 +827,14 @@ func (s *Server) handleRepoPut(w http.ResponseWriter, r *http.Request, key strin
 // description seat MERGES like every other field: an omitted key keeps the
 // stored value, an explicit null/""/value overwrites (null decodes as "").
 func (s *Server) handleRepoPost(w http.ResponseWriter, r *http.Request, key string) {
+	// T-607 (BIN-89): the same write-plane Content-Type gate as the PUT
+	// face — ahead of the body decode (live A: bare 415 for absent and
+	// every non-application/json spelling).
+	ct := r.Header.Get("Content-Type")
+	if !repoConfigCTAccepted(ct) {
+		writeError(w, http.StatusUnsupportedMediaType, http.StatusText(http.StatusUnsupportedMediaType))
+		return
+	}
 	rawBody, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "request body is not valid repository configuration JSON: "+err.Error())
@@ -789,7 +848,26 @@ func (s *Server) handleRepoPost(w http.ResponseWriter, r *http.Request, key stri
 	p := principalFrom(r.Context())
 	current, err := s.deps.ReposSvc.GetRepo(r.Context(), p, key)
 	if err != nil {
+		// T-607 (BIN-89, rest/repo-update-missing-key-404-wording): the
+		// repo config face's OWN missing-key wording — the quoted literal,
+		// replacing the generic helper's "Repository does not exist" for
+		// THIS plane only (other faces keep their families). CT-independent
+		// (live A: quoted under exact and parameterized Content-Types
+		// alike).
+		if errors.Is(err, repo.ErrRepoNotFound) {
+			writeError(w, http.StatusNotFound, fmt.Sprintf("No repository '%s' was found.", key))
+			return
+		}
 		s.writeRepoSvcError(w, err)
+		return
+	}
+	// T-607 charset arm: an EXISTING key under a parameterized
+	// Content-Type falls into the reference's vendor-negotiation path and
+	// answers the no-quote 404 — the update does not happen (live A,
+	// probe /tmp/t607 post_charset_existing; the quoted variant is the
+	// missing-key exclusive).
+	if repoConfigCTParameterized(ct) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("No repository %s was found.", key))
 		return
 	}
 	// ADR-0050 decision 5: description merges — the raw body's key presence
@@ -839,6 +917,21 @@ func (s *Server) handleRepoDelete(w http.ResponseWriter, r *http.Request, key st
 	// read also renders the 404 arm for a missing key.
 	row, err := s.deps.ReposSvc.GetRepo(r.Context(), p, key)
 	if err != nil {
+		// T-607 (BIN-89, rest/repo-update-missing-key-404-wording): the
+		// missing-key 404 is the reference's statusMsg REPORT body, not the
+		// errors envelope — the success path's repoBatchDeleteReport reused
+		// with the refusal wording and zeroed counts (live A, probe
+		// /tmp/t607 delete_missing; zero side effects, nothing existed).
+		if errors.Is(err, repo.ErrRepoNotFound) {
+			writeJSONBody(w, http.StatusNotFound, repoBatchDeleteReport{
+				RepoKey: key,
+				StatusMsg: fmt.Sprintf(
+					"Cannot delete repository: '%s', repository config does not exist", key),
+				DeletedArtifactsCount: 0,
+				Success:               true,
+			})
+			return
+		}
 		s.writeRepoSvcError(w, err)
 		return
 	}

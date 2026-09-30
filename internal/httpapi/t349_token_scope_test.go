@@ -57,7 +57,7 @@ func TestT349ChecksumDeployTokenNarrowMatrix(t *testing.T) {
 	h, _ := newUploadsHarness(t)
 	// A second repo to prove cross-repo refusal.
 	resp := h.do(http.MethodPut, "/binflow/api/repositories/other-local", adminUser, adminPass,
-		[]byte(`{"rclass":"local","packageType":"generic"}`), nil)
+		[]byte(`{"rclass":"local","packageType":"generic"}`), repoConfigCT())
 	func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("create other-local = %d", resp.StatusCode)
@@ -126,7 +126,7 @@ func TestT349ChecksumDeployTokenVirtualDualSpelling(t *testing.T) {
 		{"gen-other", `{"rclass":"local","packageType":"generic"}`},
 		{"gen-virtual", `{"rclass":"virtual","packageType":"generic","repositories":["gen-local","gen-other"],"defaultDeploymentRepo":"gen-local"}`},
 	} {
-		resp := h.do(http.MethodPut, "/binflow/api/repositories/"+leg.repo, adminUser, adminPass, []byte(leg.body), nil)
+		resp := h.do(http.MethodPut, "/binflow/api/repositories/"+leg.repo, adminUser, adminPass, []byte(leg.body), repoConfigCT())
 		func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("create %s = %d", leg.repo, resp.StatusCode)

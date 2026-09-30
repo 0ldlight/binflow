@@ -71,7 +71,11 @@ func t253Setup(t *testing.T, h *harness) {
 // t253Admin issues an admin request demanding the status, returning the body.
 func t253Admin(t *testing.T, h *harness, method, path, body string, want int) string {
 	t.Helper()
-	resp := h.do(method, "/binflow/"+path, adminUser, adminPass, []byte(body), nil)
+	var hdr map[string]string
+	if body != "" && repoConfigWritePath("/binflow/"+path) {
+		hdr = repoConfigCT() // T-607: repo config writes carry the real client CT
+	}
+	resp := h.do(method, "/binflow/"+path, adminUser, adminPass, []byte(body), hdr)
 	defer func() { _ = resp.Body.Close() }()
 	got, err := io.ReadAll(resp.Body)
 	if err != nil {

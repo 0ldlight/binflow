@@ -152,6 +152,18 @@ type remoteConfig struct {
 	BlackedOut             bool   `json:"blackedOut"`
 	MaxUniqueSnapshots     int    `json:"maxUniqueSnapshots"`
 	ArchiveBrowsingEnabled bool   `json:"archiveBrowsingEnabled"`
+	// RemoteRepoChecksumPolicyType is the remote rclass's checksum policy
+	// (T-607 / BIN-89, rest/remote-domain-policy-enum-gate — repo-semantics
+	// section 7.5's field, live-pinned on A 7.161.26): a closed four-value
+	// domain, persisted VERBATIM and echoed verbatim on both create and
+	// update faces. omitempty keeps the pre-T-607 stored blobs byte-stable:
+	// an unset policy renders the reference's measured default
+	// (generate-if-absent) through httpapi's v1 remote seat — the seat's
+	// blob-first rule needs only the stored value to exist. The four
+	// values' RUNTIME cache semantics (the refuse matrix of section 7.5)
+	// are explicitly out of T-607's scope: this is the configuration face
+	// (gate + echo) only, the strategy engine is a separate domain.
+	RemoteRepoChecksumPolicyType string `json:"remoteRepoChecksumPolicyType,omitempty"`
 }
 
 // ContentSynchronisation is the smart remote content-sync policy (T-317,
@@ -250,6 +262,10 @@ type remoteConfigInput struct {
 	BlackedOut             *bool   `json:"blackedOut"`
 	MaxUniqueSnapshots     *int    `json:"maxUniqueSnapshots"`
 	ArchiveBrowsingEnabled *bool   `json:"archiveBrowsingEnabled"`
+	// RemoteRepoChecksumPolicyType (T-607 / BIN-89): pointer so the update
+	// face's merge keeps the stored value when the body omits the key
+	// (ADR-0050's merge-on-omit posture).
+	RemoteRepoChecksumPolicyType *string `json:"remoteRepoChecksumPolicyType"`
 }
 
 // validateRemoteConfigShape is the strict single-JSON-value gate of the
@@ -595,6 +611,23 @@ func parseRemoteConfig(config, packageType string, baseline *remoteConfig) (remo
 	if in.ArchiveBrowsingEnabled != nil {
 		out.ArchiveBrowsingEnabled = *in.ArchiveBrowsingEnabled
 	}
+	// T-607 (BIN-89): the remote checksum policy — absent/empty keeps the
+	// unset posture (the render plane answers the measured default, the
+	// same no-policy-stored split as the local family); the four legal
+	// spellings store verbatim (create and update faces alike — the merge
+	// baseline above already carried the stored value); anything else
+	// refuses with the reference's literal wording, a *StatusError so
+	// Error() is the exact client message and the sentinel cause keeps the
+	// errors.Is(ErrInvalidRepoConfig) → 400 mapping in httpapi working.
+	if in.RemoteRepoChecksumPolicyType != nil && *in.RemoteRepoChecksumPolicyType != "" &&
+		!remoteChecksumPolicyTypes[*in.RemoteRepoChecksumPolicyType] {
+		return remoteConfig{}, "", false, NewStatusError(http.StatusBadRequest,
+			fmt.Sprintf("No checksum policy type found for: %s", *in.RemoteRepoChecksumPolicyType),
+			nil, ErrInvalidRepoConfig)
+	}
+	if in.RemoteRepoChecksumPolicyType != nil {
+		out.RemoteRepoChecksumPolicyType = *in.RemoteRepoChecksumPolicyType
+	}
 	return out, in.Password, passwordGiven, nil
 }
 
@@ -762,6 +795,25 @@ var byHashPolicies = map[string]bool{
 var checksumPolicyTypes = map[string]bool{
 	"client-checksums":           true,
 	"server-generated-checksums": true,
+}
+
+// remoteChecksumPolicyTypes is the closed value domain of the REMOTE rclass's
+// checksum policy field (T-607 / BIN-89, rest/remote-domain-policy-enum-gate
+// — repo-semantics section 7.5, goodenum leg live-pinned on A 7.161.26:
+// exactly four spellings accepted, persisted and echoed verbatim; anything
+// else — strict, none, case variants — refuses with the reference's literal
+// wording below, carried by the *StatusError so the wire never sees a
+// BinFlow-composed prefix). The wording is the LOCAL gate's VARIANT: "found
+// for:" here vs "found for type:" in validateLocalConfig — two families, two
+// literals, deliberately not shared (the reference's own two spellings).
+// Like the local gate, the WRITE-plane effect (the per-value cache refusal
+// matrix of section 7.5) is out of T-607's scope: this is the
+// configure-time input check only.
+var remoteChecksumPolicyTypes = map[string]bool{
+	"generate-if-absent":  true,
+	"fail":                true,
+	"ignore-and-generate": true,
+	"pass-thru":           true,
 }
 
 // validateLocalConfig type-checks the cross-cutting fields of a LOCAL
