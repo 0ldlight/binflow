@@ -106,7 +106,31 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 	}
 
 	if l.Kind == KindSidecar {
-		h.putSidecar(ctx, w, r, p, repoKey, factsKey, relPath, l, cfg, row.Type == repo.TypeLocal)
+		// T-587 / BIN-69 (ledger maven/checksum-put-unrouted-virtual-plane,
+		// L040 Arm 1a mv-unrouted-*): the sidecar intercept is a WRITE and
+		// passes the deploy routing gate BEFORE its svc.Get read probe — a
+		// virtual row still standing after the facts resolution above (no
+		// defaultDeploymentRepo, or a route the resolution declined) answers
+		// the routing refusal's A form, exactly like the plain PUT face: the
+		// terminal checksum suffix buys no exemption (A: every write on the
+		// unrouted virtual 405s, sidecar included, zero side effects), and
+		// the existence probe must never run against a key with no deploy
+		// target. A remote row here is the bare-mount defense (the mounted
+		// chain answers maven remote PUTs in httpapi's upload engine; a
+		// drifted virtual route lands here too): it keeps the plain PUT
+		// face's own RE-05 shape and never turns the probe into a remote
+		// pull-through on a write verb.
+		if row.Type != repo.TypeLocal {
+			w.Header().Set("Allow", http.MethodGet)
+			if row.Type == repo.TypeVirtual {
+				writeError(w, http.StatusMethodNotAllowed, unroutedVirtualWriteMessage(row.RepoKey))
+				return
+			}
+			writeError(w, http.StatusMethodNotAllowed, fmt.Sprintf(
+				"Remote repository '%s' is a read-only proxy cache; deployments to remote repositories are not accepted.", row.RepoKey))
+			return
+		}
+		h.putSidecar(ctx, w, r, p, repoKey, factsKey, relPath, l, cfg)
 		return
 	}
 	// The A-form acceptance of the calculator-owned SNAPSHOT version
@@ -370,13 +394,18 @@ func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Re
 // and maven-metadata.xml only; BinFlow's phantom .sha1/.md5 nodes were the
 // E2 divergence). The 201 carries Location = the TARGET artifact and no
 // body. Since the ADR-0052 seam (T-578 / BIN-60) the registration is the
-// client-checksum WRITE itself on a locally-addressed artifact target
-// under the client policy — SET first, 201/409 rendered after, and the
-// 409 arm writes through too (L037 Arm 1); GET of the sidecar path then
-// echoes the stored client value before the computed one (overlay in
-// serveSidecarOfPath).
+// client-checksum WRITE itself on an artifact target — SET first, 201/409
+// rendered after, and the 409 arm writes through too (L037 Arm 1); GET of
+// the sidecar path then echoes the stored client value before the
+// computed one (overlay in serveSidecarOfPath).
+//
+// factsKey is the DEPLOY PLANE the whole family executes on (T-587 /
+// BIN-69, L040 Arm 1b mv2-*): the addressed local repository verbatim, or
+// a routed virtual's deployment-target member — the existence probe, the
+// SET and every rendered reference (the miss 404's repo segment, the 201
+// Location) name that member, A's intercept-penetrates-virtual model.
 func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http.Request,
-	p *repo.Principal, repoKey, factsKey, relPath string, l Layout, cfg RepoConfig, origLocal bool) {
+	p *repo.Principal, repoKey, factsKey, relPath string, l Layout, cfg RepoConfig) {
 	// Suspicious-size guard first: a checksum file is a digest plus
 	// whitespace; Content-Length beyond the ceiling answers without
 	// reading the body, an oversized chunked body at the read.
@@ -419,9 +448,13 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 			// repo:target, domain-agnostic (L037 Arm 1 pinned it on the
 			// generic and maven legs alike). The sidecar plane only
 			// carries that family since BIN-66 / T-584 (.sha512 is an
-			// ordinary file face routed before the layout parse).
+			// ordinary file face routed before the layout parse). Since
+			// T-587 the repo segment names the DEPLOY PLANE (factsKey):
+			// a routed virtual's miss cites the member key — the
+			// intercept penetrates the virtual (L040 Arm 1b mv2-sidecar-
+			// miss, A verbatim).
 			writeError(w, http.StatusNotFound,
-				fmt.Sprintf("Target file to set checksum on doesn't exist: %s:%s", repoKey, l.Target))
+				fmt.Sprintf("Target file to set checksum on doesn't exist: %s:%s", factsKey, l.Target))
 			return
 		}
 		h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
@@ -438,8 +471,8 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 	mismatch := measuredOK && measured != declared
 	refuse := mismatch && cfg.ChecksumPolicy == ChecksumPolicyClient && l.TargetKind != KindMetadata
 
-	// Registration FIRST (ADR-0052 decisions 3.3/6.1, T-578 / BIN-60): on a
-	// locally-addressed repo the ARTIFACT sidecar registers through the
+	// Registration FIRST (ADR-0052 decisions 3.3/6.1, T-578 / BIN-60): on
+	// the deploy plane the ARTIFACT sidecar registers through the
 	// persistence seam before any outcome renders — the correct value and
 	// the refused one write through alike (L037 Arm 1's 409 leg:
 	// originalChecksums keeps the client's value, wrong or not), a re-PUT
@@ -451,9 +484,10 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 	// originalChecksums under server-generated-checksums too (the client
 	// column), while only the COMPARISON above stays the policy gate (its
 	// srvgen leg skips the 409 and renders 201). Metadata targets keep the
-	// tolerance no-op (their sidecar family is the C5 open face) and the
-	// non-local planes remain unprobed write faces (NOT_RUN, not guessed).
-	if origLocal && l.TargetKind == KindArtifact {
+	// tolerance no-op (their sidecar family is the C5 open face); the
+	// non-local planes never reach here since T-587 (the deploy routing
+	// gate in handlePut refuses them before the read probe, L040 Arm 1).
+	if l.TargetKind == KindArtifact {
 		var ref storage.BlobRef
 		switch l.Algo {
 		case "sha256":
@@ -492,8 +526,11 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 	// Registration only (L014-2 BUG 2): the 201 carries the TARGET's
 	// Location and no body (rest-api.md section 1.1's dedicated column for
 	// the checksum-file PUT). L034-R6 Arm 8's cksum leg pins the A face
-	// rendering the Location THROUGH the contextPath.
-	w.Header().Set("Location", requestBase(r)+productPrefix+"/"+repoKey+"/"+escapePath(l.Target))
+	// rendering the Location THROUGH the contextPath. Since T-587 the
+	// Location names the DEPLOY PLANE (factsKey) — a routed virtual's 201
+	// addresses the member's source artifact, A's Location-to-member face
+	// (L040 Arm 1b mv2-sidecar-ok; the generic plane's C1 model, T-583).
+	w.Header().Set("Location", requestBase(r)+productPrefix+"/"+factsKey+"/"+escapePath(l.Target))
 	w.WriteHeader(http.StatusCreated)
 }
 
@@ -741,7 +778,14 @@ const productPrefix = "/binflow"
 // writeCreated renders the 201 of an artifact/metadata deploy: Location,
 // X-Checksum-Sha256 and the FileInfo ItemCreated body (rest-api.md 1.2).
 // Both the Location header and the body's uri/downloadUri carry the
-// /binflow prefix, Location byte-equal to the uri (L034-R6 Arm 8).
+// /binflow prefix, Location byte-equal to the uri (L034-R6 Arm 8). The
+// addressed key renders (the L014-2 ruling: the service routes a virtual
+// write onto its member, the audit and the Location keep the client's
+// spelling) — the A wire names the member instead (L040 Arm 1b
+// mv2-seed-plain); that plain-deploy envelope face is a standing
+// divergence outside the intercept arm's scope (T-587 keeps it and flags
+// it), unlike the SIDECAR 201's Location, which the same A wire pins to
+// the member (putSidecar below).
 func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, relPath string,
 	node *metadata.Node, declared map[string]bool) {
 	sums := h.digestTriple(r.Context(), node)
