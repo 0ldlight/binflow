@@ -2573,7 +2573,16 @@ entries:
     多族证据不推翻：error-face 族为面系统性 12 腿，success-face 空格为孤立微差）。d-ping-anon /v2 401
     双端逐字节同（B 刻意 parity 面，无动作）。
   authority: { type: conductor_ruling, ref: "R14 台账批 conductor 裁定（2026-09-30，BIN-97/T-615 收编）——采纳 32 腿矩阵面级模型：charset+风格面 BUG（BIN-102）/ framing INTENTIONAL / 消息文本域外" }
-  review_gate: R15 修复票（BIN-102/T-620 envelope.go:33 面条件渲染矩阵）→ 双轮 PASS → resolved
+  review_gate: >-
+    R15 修复票（BIN-102/T-620 envelope.go:33 面条件渲染矩阵）→ 双轮 PASS → resolved。R15 实况
+    （2026-09-30 T-620 收编）：票面「单 seam」前提失实——errors[] 渲染器实为 5 份逐字节等价拷贝
+    （httpapi/envelope.go + maven/response.go:50 + generic/iteminfo.go:104 + pypi/handler.go:289 +
+    npm/errors.go:32），T-620 在 httpapi 可写面内闭合 6 腿（x-norepo×2/c-auth401/x-api-anon401/
+    x-storage/x-repoapi 差分双轮 PASS，x-repoapi 与 d-ping-anon 逐字节同）+ 金样三件入册；adapter
+    拷贝腿（m-jar×2+m-sha1+b-dotseg CT、g×2、p-simple×2/n-meta×2 布局）与 helm 面（BIN-103）转
+    adapter 拷贝收敛票。剩余腿全闭后 resolved（条目维持 open）。附带规格漂移：docs/reverse/
+    rest-api.md §0 L12 裸 CT 钉述与活体 charset 矛盾→勘误票；contracts/docker-remote.yaml:60
+    charset 外推边界 T-615 已证伪（历史钉待 compatibility 契约翻新时同步修正）。
   evidence: reports/agents/T-615.md（32 腿取样矩阵 + verbatim 证据 + /tmp/t615/raw 64+ 捕获对）
 - id: maven/client-policy-declared-409-wording
   surface: 'client-checksums 策略部署面错声明 409 文案族——A=`Checksum policy ''LocalRepoChecksumPolicy:
