@@ -133,6 +133,16 @@ func TestRemoteSidecarUpstreamFaultExternalization(t *testing.T) {
 		t.Fatalf("first-fault message cites the sidecar spelling: %s", first)
 	}
 
+	// Second contact: still the retrieval form — T-619/BIN-101 opens the
+	// offline window on the second consecutive transport fault.
+	resp = hs.serve(http.MethodGet, "/maven-remote-dead/"+src+".sha1", nil, nil, true)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("second-fault sidecar GET = %d, want 404", resp.StatusCode)
+	}
+	if second := string(drain(t, resp)); !strings.Contains(second, "Failed retrieving resource from") {
+		t.Fatalf("second-fault message is not the retrieval form: %s", second)
+	}
+
 	// Inside the assumed-offline window: the offline form (probe
 	// m-side-sha1-inwin).
 	resp = hs.serve(http.MethodGet, "/maven-remote-dead/"+src+".sha1", nil, nil, true)
