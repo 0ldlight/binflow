@@ -101,6 +101,15 @@ PUT 一个 `-SNAPSHOT` 文件名时按 repo 配置改写落盘路径（`UploadSe
 | GET checksum（**remote** repo） | **绝不回源**：remote 链路对 checksum 后缀请求直接 404 `"Checksums are not downloadable."`，checksum 只能来自缓存或服务端计算。**此条为 Artifactory 对 [MVN-MD] 场景的私有补充** | 高 |
 | `maven-metadata.xml.sha512` | metadata 删除时的伴随清理包含 sha512；提示 metadata checksum 至少有 sha1/sha512 两种伴随 | 中 |
 
+> **Erratum（2026-09-30，R12 裁定后）**——勘误对象：上表行「GET checksum（**remote** repo）」的「**绝不回源**：remote 链路对 checksum 后缀请求直接 404 `"Checksums are not downloadable."`」（原文保留，以本块为准）。
+>
+> 该行与活体差分直接矛盾（A=7.161.26 双轮；R12 conductor 裁定 C7 面 d）。修正后行为：
+>
+> - 当客户端经 **maven** remote 仓 GET `{artifact}.sha1`（本地缓存未命中）→ 服务端对该 checksum 终缀请求执行**与普通文件 GET 相同的回源代理链**，回源拉取该 checksum 文件本身；上游失败时返回 404，文案**包对 `.sha1` 的上游拉取错误**（如 `Failed retrieving resource from <url>: Connect timed out`），连续失败进入 assumed-offline 静默期后形态切 `is assumed offline`（时序语义见 repo-semantics.md §7.4/§7.6）。【高：锚=台账 `generic/remote-deploy-refusal-form` d 臂（known-divergence.yaml）+ reports/agents/T-592.md C7 面 d + reports/compatibility/L040-maven-sidecar-planes.md §1c mr-get 腿/N2/N7】
+> - 当客户端经 maven remote 仓 GET checksum 终缀 → 不再返回固定文案 404 `"Checksums are not downloadable."`（该文案系原规格的错误假设，maven 面撤销）。【高：同上】
+> - 当上游**可达**时 → 200 成功缓存形态活体未直证（A 实验网上游不可达，以错误外显形态判别同一回源机械）——【低，待可达上游观察腿验证】。
+> - 边界：写动词不受影响（remote PUT 普通/终缀同形拒绝且拒绝先于终缀解释，L040 §1c）；`.md5` 等其余终缀、HEAD 形态、generic/rpm 面 remote sidecar GET 活体均未探，本块不外推（L040 NOT_RUN 清单）。§1.7 汇总第 4 条「remote 仓不代理 checksum 文件」同被本块覆盖（原文保留，以本块为准）。
+
 ### 1.6 virtual 仓库中的 maven-metadata.xml 合并（见 repo-semantics.md §8.3 摘要）
 
 按成员仓解析顺序逐仓取同名 metadata，合并 `<versions>`（去重后按 Maven 版本序重排）、重算 `<latest>/<release>`、`<snapshot>` 取 buildNumber 更大者；v3 开关下再并 `<snapshotVersions>`（绕开 Maven 官方 merge 不含 snapshotVersions 的缺陷 MNG-5180）。合并结果**不缓存、每次请求现算**；任一仓被 block 则整体透传 block。高。
