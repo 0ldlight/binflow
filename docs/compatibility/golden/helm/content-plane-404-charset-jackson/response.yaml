@@ -1,0 +1,16 @@
+# 金样期望响应——内容面 404（A 腿 verbatim，/tmp/t615/raw）
+# schema: golden-response/1
+# 帧面（CL/chunked）为 INTENTIONAL 漂移不入断言；断言面 = status + CT 全串 + body 逐字节
+legs:
+- leg: h2-tgz-get（GET 缺失 chart，helm repo-path 内容面）
+  observed:
+    status: 404
+    content_type: application/json;charset=ISO-8859-1
+    body: |-
+      {
+        "errors" : [ {
+          "status" : 404,
+          "message" : "File not found.; Path: 'difftest-t615-helm:missing-chart-9.9.9.tgz'"
+        } ]
+      }
+    note: '与 ar1-m-jar-get 同排版同 CT（面级渲染器证据）；仓键 token 参数化；alias 对照腿 h-tgz-get=裸 CT 同消息文本（见 metadata）'

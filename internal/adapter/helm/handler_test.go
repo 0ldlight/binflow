@@ -24,9 +24,10 @@ func TestUploadBuildsIndex(t *testing.T) {
 	s := newStack(t)
 	s.seedRepo(t, "helm-local", repo.TypeLocal, "{}")
 
-	// Empty repository: no index yet (the client's 404).
-	if status, _, _ := s.get("/binflow/helm-local/index.yaml"); status != http.StatusNotFound {
-		t.Fatalf("empty repo index status = %d, want 404", status)
+	// Empty repository: the never-populated index materializes (BIN-111)
+	// — 200 with the A-form empty document, not the lifecycle-gap 404.
+	if status, body, _ := s.get("/binflow/helm-local/index.yaml"); status != http.StatusOK || !emptyIndexForm.MatchString(body) {
+		t.Fatalf("empty repo index = (%d, %q), want 200 A-form empty", status, body)
 	}
 
 	chart := fixtureChart(t, "mychart", defaultChartYAML("mychart", "0.1.0"), nil)
@@ -153,8 +154,10 @@ func TestUnparsableTgzStoresWithoutIndexing(t *testing.T) {
 	if status, body, _ := s.put("/binflow/helm-local/c-1.0.0.tgz", nameless, nil); status != http.StatusCreated {
 		t.Fatalf("nameless PUT = (%d, %s), want 201 (stored, skipped)", status, body)
 	}
-	if status, _, _ := s.get("/binflow/helm-local/index.yaml"); status != http.StatusNotFound {
-		t.Fatalf("index after only skipped charts = %d, want 404 (nothing indexed)", status)
+	// Nothing indexed: the index still exists — empty (BIN-111: index
+	// presence is not tied to chart presence).
+	if status, body, _ := s.get("/binflow/helm-local/index.yaml"); status != http.StatusOK || !emptyIndexForm.MatchString(body) {
+		t.Fatalf("index after only skipped charts = (%d, %q), want 200 A-form empty", status, body)
 	}
 }
 

@@ -75,6 +75,16 @@ func TestRemoteSidecarFaultArms(t *testing.T) {
 		t.Fatalf("first-fault message cites the sidecar face instead of the source: %s", first)
 	}
 
+	// Second contact: still the retrieval form — T-619/BIN-101 opens the
+	// offline window on the second consecutive transport fault.
+	res = h(t, http.MethodGet, "/binflow/gen-dead/"+src+".sha1")
+	if res.Code != http.StatusNotFound {
+		t.Fatalf("second-fault sidecar GET = %d, want 404", res.Code)
+	}
+	if second := res.Body.String(); !strings.Contains(second, "Failed retrieving resource from") {
+		t.Fatalf("second-fault message is not the retrieval form: %s", second)
+	}
+
 	// Inside the assumed-offline window: the offline form (probe
 	// g-side-md5-inwin — a DIFFERENT terminal spelling stays on the same
 	// read plane).

@@ -1,0 +1,16 @@
+# 金样期望响应——内容面 404（A 腿 verbatim，/tmp/t615/raw）
+# schema: golden-response/1
+# 帧面（CL/chunked）为 INTENTIONAL 漂移不入断言；断言面 = status + CT 全串 + body 逐字节
+legs:
+- leg: m-jar-get（GET 缺失 jar，maven 内容面）
+  observed:
+    status: 404
+    content_type: application/json;charset=ISO-8859-1
+    body: |-
+      {
+        "errors" : [ {
+          "status" : 404,
+          "message" : "File not found.; Path: 'difftest-t615-mav:com/example/missing/1.0.0/missing-1.0.0.jar'"
+        } ]
+      }
+    note: '151 字节、无尾换行（YAML |- strip 形保真）；仓键 token 参数化（difftest-*）；同面 HEAD 腿空体同 CT'

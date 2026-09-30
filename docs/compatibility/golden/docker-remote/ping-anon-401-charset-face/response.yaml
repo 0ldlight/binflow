@@ -1,0 +1,12 @@
+# 金样期望响应——/v2 匿名 401（A 腿 verbatim，/tmp/t615/raw/ar1-d-ping-anon；B 侧逐字节同）
+# schema: golden-response/1
+legs:
+- leg: d-ping-anon（GET /v2/ 匿名）
+  observed:
+    status: 401
+    content_type: application/json;charset=ISO-8859-1
+    www_authenticate: 'Bearer realm="http://<host>/v2/token",service="<host>"（Host 参数化）'
+    docker_distribution_api_version: registry/2.0
+    body: |
+      {"errors":[{"code":"UNAUTHORIZED","message":"authentication required","detail":null}]}
+    note: '87 字节含尾换行；compact 形（registry spec 面 body schema：code/message/detail）——与 errors[] status 形分属两渲染面'

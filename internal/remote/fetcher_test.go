@@ -520,6 +520,11 @@ func TestRetrievalFaultRedactsUserinfo(t *testing.T) {
 
 func TestFetchTransportRefusalOpensOfflineWindow(t *testing.T) {
 	// A closed port (not a 5xx): the transport-fault arm of the same matrix.
+	// T-619 / BIN-101: the breaker counts CONSECUTIVE transport faults and
+	// opens the window at the second (contract remote/offline-window-open-
+	// threshold — live A 7.161.26 answers the first TWO faulting contacts
+	// with the retrieval form and silences the third onward; the as-built
+	// first-fault window was ruled the BUG).
 	e := newFetchEnv(t, nil)
 	ctx := context.Background()
 	deadURL := "http://127.0.0.1:1"
@@ -540,18 +545,25 @@ func TestFetchTransportRefusalOpensOfflineWindow(t *testing.T) {
 		t.Fatalf("update config: %v", err)
 	}
 
+	// First fault: the retrieval form (live A first-contact family, path +
+	// upstream URL verbatim), and the window is NOT open yet.
 	res, err := e.eng.Fetch(ctx, "generic-remote", "x.bin")
 	fe := fetchErr(t, res, err)
-	// T-597: the request that OPENS the window externalizes the retrieval
-	// error itself (live A first-contact family, path + upstream URL
-	// verbatim); the window's silence answers the NEXT request.
 	if fe.Status != http.StatusNotFound || !strings.Contains(fe.Message, "Error in getting information for 'x.bin'") ||
 		!strings.Contains(fe.Message, "Failed retrieving resource from http://127.0.0.1:1/x.bin:") {
-		t.Fatalf("refused connection = (%d, %q)", fe.Status, fe.Message)
+		t.Fatalf("first refused connection = (%d, %q)", fe.Status, fe.Message)
 	}
-	res2, err2 := e.eng.Fetch(ctx, "generic-remote", "other.bin")
+	// Second fault: STILL the retrieval form — the boundary leg that opens
+	// the window externalizes the retrieval error itself (T-597 live A
+	// g-side-md5-inwin; the window's silence answers only the NEXT contact).
+	res2nd, err2nd := e.eng.Fetch(ctx, "generic-remote", "other.bin")
+	fe2nd := fetchErr(t, res2nd, err2nd)
+	if fe2nd.Status != http.StatusNotFound || !strings.Contains(fe2nd.Message, "Failed retrieving resource from http://127.0.0.1:1/other.bin:") {
+		t.Fatalf("window-opening second fault = (%d, %q), want the retrieval form", fe2nd.Status, fe2nd.Message)
+	}
+	res2, err2 := e.eng.Fetch(ctx, "generic-remote", "third.bin")
 	fe2 := fetchErr(t, res2, err2)
-	if fe2.Status != http.StatusNotFound || !strings.Contains(fe2.Message, "is assumed offline, 'generic-remote:other.bin' is not found at 'other.bin'") {
+	if fe2.Status != http.StatusNotFound || !strings.Contains(fe2.Message, "is assumed offline, 'generic-remote:third.bin' is not found at 'third.bin'") {
 		t.Fatalf("inside the window = (%d, %q)", fe2.Status, fe2.Message)
 	}
 }

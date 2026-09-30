@@ -84,7 +84,7 @@ func TestAQLRunErrorMapping(t *testing.T) {
 			name:        "busy gate: 429, Retry-After 1, official body",
 			run:         &stubAQL{err: search.ErrResourceBusy},
 			wantStatus:  http.StatusTooManyRequests,
-			wantBody:    `"message": "too many requests"`,
+			wantBody:    `"message" : "too many requests"`,
 			wantHeader:  "Retry-After",
 			headerValue: "1",
 		},

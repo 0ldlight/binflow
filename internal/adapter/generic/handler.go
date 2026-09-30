@@ -111,6 +111,29 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 	// identically: PUT x.json stores application/json either way.
 	mime := mimeByPath(relPath)
 
+	// The filename-keyed metadata checksum route (T-613 / BIN-95, ledger
+	// generic/metadata-checksum-route-family — the maven plane's T-595 C5
+	// model extended here): a PUT whose terminal base name is the maven
+	// standard metadata document plus one client-checksum suffix answers
+	// 200 with an EMPTY body — no Content-Type, no Location, no value
+	// validation, no registration and no storage effect at all — even on a
+	// generic repository (live A 7.161.26 legs gen-put-sidecar* / gen-root /
+	// gen-miss / gen-case-*: wrong AND correct values, seeded and unseeded
+	// hierarchies, root level and .SHA1/.Sha1 spellings all 200 no-op; the
+	// /api/storage listing after the whole family shows zero sidecar nodes).
+	// The route outranks the checksum-deploy arm (live gen-cd-put:
+	// X-Checksum-Deploy on the family path still 200s the no-op) exactly as
+	// on the maven plane, and fires on the same write plane the interception
+	// family resolves (clientChecksumPutPlane): LOCAL and a ROUTED VIRTUAL
+	// (live gen-virt-put) no-op; an un-routed virtual keeps the C5 405 and a
+	// remote the engine's refusal by falling through to the ordinary chain.
+	if _, _, ok := metadataChecksumRouteKey(relPath); ok {
+		if _, pok := h.clientChecksumPutPlane(r.Context(), repoKey); pok {
+			h.putMetadataChecksumFile(w, r, p)
+			return
+		}
+	}
+
 	// X-Checksum-Deploy: zero-transfer deploy against an existing blob.
 	if deploy, ok := headerBool(r.Header, hdrChecksumDeploy); ok && deploy {
 		h.handleChecksumDeploy(ctx, w, r, p, repoKey, relPath, mime)
@@ -194,6 +217,93 @@ func checksumPutSource(relPath string) (src, algo string, ok bool) {
 		}
 	}
 	return "", "", false
+}
+
+// metadataFileName is the maven standard metadata document's terminal base
+// name — the key of the filename-keyed metadata checksum family (T-613 /
+// BIN-95): on the generic plane the reference treats this ONE spelling the
+// way the maven plane's dedicated route does, package type notwithstanding.
+const metadataFileName = "maven-metadata.xml"
+
+// metadataChecksumRouteKey reports the metadata SOURCE path and algorithm
+// when relPath's terminal file name is the maven standard metadata document
+// plus exactly one client-checksum suffix (T-613 / BIN-95, ledger
+// generic/metadata-checksum-route-family; live A 7.161.26 legs gen-*): the
+// key is the BASE NAME ONLY — maven-metadata.xml.{sha1,md5,sha256},
+// hierarchy-agnostic (the repository root included) and source-existence-
+// agnostic. The suffix match folds case (live gen-case-*: PUT .SHA1/.Sha1
+// and GET .SHA1/.Md5 route into the family identically); the whole file
+// name folds for the base comparison, the maven helper's convention. The
+// plugin-group variant (metadata-maven-metadata.xml, live gen-plugin-put:
+// the interception family's 404) and non-.xml spellings (maven-metadata.md5,
+// live gen-nonxml-put: same 404 family) stay OUTSIDE, and .sha512 was never
+// a client-checksum suffix (live gen-sha512-put: the ordinary-file arm's
+// 201). The returned source keeps the client's ORIGINAL spelling.
+func metadataChecksumRouteKey(relPath string) (src, algo string, ok bool) {
+	file := relPath[strings.LastIndexByte(relPath, '/')+1:]
+	lower := strings.ToLower(file)
+	for _, sfx := range terminalChecksumSuffixes {
+		if strings.HasSuffix(lower, sfx) && len(lower) > len(sfx) &&
+			lower[:len(lower)-len(sfx)] == metadataFileName {
+			return relPath[:len(relPath)-len(sfx)], strings.TrimPrefix(sfx, "."), true
+		}
+	}
+	return "", "", false
+}
+
+// putMetadataChecksumFile renders the metadata checksum family's PUT
+// no-op: drain and 200 with an empty body. The 401 mirrors the store
+// chain's own rendering (writeServiceError's ErrUnauthorized arm, the
+// maven face's convention) — the no-op must not become an authorization
+// bypass on a path that lands nothing; the anonymous form is unprobed on
+// A, implemented store-chain-shaped like T-595 did.
+func (h *Handler) putMetadataChecksumFile(w http.ResponseWriter, r *http.Request, p *repo.Principal) {
+	if p == nil {
+		w.Header().Set("WWW-Authenticate", `Basic realm="BinFlow Realm"`)
+		writeError(w, http.StatusUnauthorized, "Authentication is required to deploy artifacts.")
+		return
+	}
+	_, _ = io.Copy(io.Discard, r.Body)
+	w.WriteHeader(http.StatusOK)
+}
+
+// serveMetadataChecksumComputed serves the metadata checksum family's GET
+// face on a LOCAL plane (T-613 / BIN-95): the COMPUTED digest of the stored
+// source document for whichever algorithm was asked — every algorithm, on
+// demand, never the registered client value (live gen-get-sidecar* legs:
+// after the family's no-op PUTs of wrong AND correct values the GETs answer
+// the computed digests; HEAD renders the same face, live gen-head-sidecar).
+// A missing source answers the download-side colon-form miss addressing the
+// SOURCE (live gen-miss-get-*: File-not-found, never the suffix spelling).
+// A ledger gap degrades to the bare family miss — the honest 404 beats a
+// fabricated value (the srvgen arm's posture).
+func (h *Handler) serveMetadataChecksumComputed(ctx context.Context, w http.ResponseWriter,
+	r *http.Request, p *repo.Principal, repoKey, src, algo string) {
+	rc, node, err := h.svc.Get(ctx, p, repoKey, src)
+	if err != nil {
+		if errors.Is(err, repo.ErrNodeNotFound) || errors.Is(err, repo.ErrIsFolder) {
+			writeError(w, http.StatusNotFound, fmt.Sprintf("File not found.; Path: '%s:%s'", repoKey, src))
+			return
+		}
+		h.writeServiceError(w, err, r.Method, repoKey, src)
+		return
+	}
+	defer rc.Close() //nolint:errcheck // read-only fd; the digest comes from the ledger
+	sums := h.digestsOf(ctx, node)
+	var measured string
+	switch algo {
+	case "sha256":
+		measured = sums.sha256
+	case "sha1":
+		measured = sums.sha1
+	case "md5":
+		measured = sums.md5
+	}
+	if measured != "" {
+		h.writeChecksumEcho(ctx, w, r, node, src, measured)
+		return
+	}
+	writeError(w, http.StatusNotFound, "Checksum not found for "+src)
 }
 
 // clientChecksumPutPlane resolves the repository the terminal-checksum PUT
@@ -770,6 +880,22 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 	// copy's computed digest (T-597 / BIN-79 — the live reference's remote
 	// sidecar GET resolves the suffix-stripped source, never the terminal
 	// spelling).
+	//
+	// The metadata checksum family's GET face (T-613 / BIN-95) fires on the
+	// LOCAL plane ahead of this stored-value routing: every algorithm
+	// answers the COMPUTED digest of the stored source, miss cites the
+	// source. The VIRTUAL and REMOTE planes deliberately keep the ordinary
+	// faces below — the reference's virtual plane answers this family off a
+	// SYNTHESIZED metadata document (live pre-probe v-* legs, this ticket),
+	// a separate unimplemented face recorded as a named residual, and the
+	// remote backsource already computes the landed copy's digest, the same
+	// value this face would render.
+	if src, algo, ok := metadataChecksumRouteKey(relPath); ok {
+		if row, rerr := h.class.Get(r.Context(), repoKey); rerr == nil && row.Type == repo.TypeLocal {
+			h.serveMetadataChecksumComputed(ctx, w, r, p, repoKey, src, algo)
+			return
+		}
+	}
 	if src, algo, ok := checksumPutSource(relPath); ok {
 		if row, rerr := h.class.Get(r.Context(), repoKey); rerr == nil {
 			switch row.Type {
@@ -926,15 +1052,19 @@ func notFoundMessage(repoKey, relPath string) string {
 // the errors[] envelope. Checksum mismatches carry the spec's received/
 // actual wording (repo-semantics section 5, client-checksums policy). The
 // not-found wording is verb-specific (T-13 review M1): GET/HEAD use the
-// download-side message of rest-api.md section 1.4, DELETE keeps the
-// undeploy wording of repo-semantics section 4.
+// download-side message of rest-api.md section 1.4; the DELETE-miss faces
+// (local and remote alike) arrive as *repo.StatusError from the service
+// layer's deleteMissError and render verbatim above (BIN-94/T-612 — the
+// ErrNodeNotFound arm below no longer speaks for them), so that arm is the
+// VIRTUAL own-storage miss and any plain-sentinel fallback.
 //
 // A *repo.StatusError renders VERBATIM first (T-66): repository-class
 // semantics — the remote engine's RE-04 fault matrix, RE-05's read-only
-// 405 — stay entirely in the service layer while their exact client
-// rendering still reaches the wire. The case is class-agnostic: any service
-// arm may speak it (T-71's virtual 405 will reuse it), so this handler
-// never learns what a "remote" repository is (architecture section 5.4).
+// 405, the deletion engine's miss family (T-596/T-612) — stay entirely in
+// the service layer while their exact client rendering still reaches the
+// wire. The case is class-agnostic: any service arm may speak it (T-71's
+// virtual 405 will reuse it), so this handler never learns what a "remote"
+// repository is (architecture section 5.4).
 func (h *Handler) writeServiceError(w http.ResponseWriter, err error, method, repoKey, relPath string) {
 	var se *repo.StatusError
 	if errors.As(err, &se) {
@@ -954,6 +1084,10 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error, method, re
 			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
 			return
 		}
+		// BIN-94/T-612: the local and remote DELETE-miss faces render the
+		// deletion engine's StatusError verbatim in the branch above; this
+		// arm remains the VIRTUAL own-storage miss (D-2, face undecided —
+		// no A probe) and the plain-sentinel fallback.
 		writeError(w, http.StatusNotFound, fmt.Sprintf("Could not locate artifact. Path: '%s/%s'.", repoKey, relPath))
 	case errors.Is(err, repo.ErrRepoNotFound):
 		writeError(w, http.StatusNotFound, fmt.Sprintf("Failed to find the repository '%s' specified in the request.", repoKey))

@@ -94,7 +94,7 @@ func TestCurlCompatBuildFamily(t *testing.T) {
 		out, code := curlRun(t, base+"/api/build/append/pub-app/77",
 			"-u", admin, "-X", "POST", "-H", "Content-Type: application/json",
 			"-d", `[]`)
-		if code != 0 || !strings.Contains(out, `"status": 404`) ||
+		if code != 0 || !strings.Contains(out, `"status" : 404`) ||
 			!strings.Contains(out, "The build pub-app:77 is not found") {
 			t.Fatalf("missing-parent append = %q (exit %d), want the verbatim 404", out, code)
 		}

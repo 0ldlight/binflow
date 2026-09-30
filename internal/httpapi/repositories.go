@@ -819,7 +819,13 @@ func (s *Server) handleRepoPut(w http.ResponseWriter, r *http.Request, key strin
 		s.writeRepoSvcError(w, err)
 		return
 	}
-	writeText(w, http.StatusOK, fmt.Sprintf("Successfully created repository '%s'\n", created.RepoKey))
+	// T-622 (BIN-106): the reference's create confirmation carries ONE
+	// space between the closing quote and the newline (live A 7.161.26,
+	// 2026-09-30, two deterministic rounds: "Successfully created
+	// repository '<key>' \n"); the update face below has none after its
+	// period. The batch face (repo_batch_write.go) already renders the
+	// space.
+	writeText(w, http.StatusOK, fmt.Sprintf("Successfully created repository '%s' \n", created.RepoKey))
 }
 
 // handleRepoPost serves POST /api/repositories/{key} (update spelling,

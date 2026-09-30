@@ -87,7 +87,7 @@ func TestBundleTransactionStatusAdminGate(t *testing.T) {
 	if code != http.StatusForbidden {
 		t.Fatalf("non-admin status = %d, want 403", code)
 	}
-	if !strings.Contains(body, `"message": "Forbidden"`) || strings.Contains(body, "administrator") {
+	if !strings.Contains(body, `"message" : "Forbidden"`) || strings.Contains(body, "administrator") {
 		t.Fatalf("non-admin status body = %s, want the bare Forbidden envelope", body)
 	}
 }

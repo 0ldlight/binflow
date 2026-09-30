@@ -266,7 +266,7 @@ func (h *Handler) serveSidecarOfPath(ctx context.Context, w http.ResponseWriter,
 	// L041 Arm 1) — A computes no md5/sha1 on demand.
 	if overlayClient && (algo == "sha1" || algo == "md5") {
 		if value := clientChecksumValueOf(node, algo); value != "" {
-			h.writeSidecarBody(w, r, value, node)
+			h.writeSidecarBody(w, r, value, node, path)
 			return
 		}
 		writeError(w, http.StatusNotFound, fmt.Sprintf("Checksum not found for %s", path))

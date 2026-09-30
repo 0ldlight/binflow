@@ -22,7 +22,8 @@ package httpapi
 // body, 405-class wrong type, 5xx unseal). The probe itself is ZERO side
 // effects by construction (remote.TestRepositoryUpstream): one read-only
 // upstream GET, no state written anywhere, credentials never in any log
-// (the audit row carries the verdict word and the target URL only).
+// (the audit row carries the verdict word and the target URL only — its
+// userinfo redacted since T-624).
 
 import (
 	"encoding/json"
@@ -34,6 +35,7 @@ import (
 
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/redact"
 	"github.com/lzwzzy/binflow/internal/remote"
 )
 
@@ -110,6 +112,12 @@ func (s *Server) handleRepositoryTest(w http.ResponseWriter, r *http.Request, ke
 			target = rc.URL
 		}
 	}
+	// T-624 (BIN-108, T-617 residual site 19): the audit row's "url" target
+	// renders the draft override or the STORED upstream URL, either of which
+	// may legally carry userinfo (a live authentication source — redact only,
+	// never reject or strip, per the T-617 ruling (c)). One guard covers both
+	// arms; URLs without userinfo pass through byte-identical.
+	target = redact.Userinfo(target)
 	s.audit.Record(r.Context(), audit.Event{
 		Actor:  p.Name,
 		Action: auditActionRepositoryRemoteTest,

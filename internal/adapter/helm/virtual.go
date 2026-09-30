@@ -117,7 +117,7 @@ func memberChartsBase(ctx context.Context, repos repo.ClassReader, member string
 func (h *Handler) serveVirtualIndex(ctx context.Context, w http.ResponseWriter, r *http.Request, repoKey string) {
 	order, err := h.svc.VirtualMemberOrder(ctx, repoKey)
 	if err != nil {
-		h.writeError(w, err, repoKey, indexPath)
+		h.writeError(w, r, err, repoKey, indexPath)
 		return
 	}
 	if r.Method == http.MethodHead {
@@ -147,7 +147,7 @@ func (h *Handler) serveVirtualIndex(ctx context.Context, w http.ResponseWriter, 
 					slog.String("virtual", repoKey), slog.String("member", m.Key), slog.String("error", se.Message))
 				continue
 			}
-			h.writeError(w, merr, repoKey, indexPath)
+			h.writeError(w, r, merr, repoKey, indexPath)
 			return
 		}
 		if !ok {
@@ -163,10 +163,10 @@ func (h *Handler) serveVirtualIndex(ctx context.Context, w http.ResponseWriter, 
 	}
 	if contributed == 0 {
 		if failure != nil {
-			h.writeError(w, failure, repoKey, indexPath)
+			h.writeError(w, r, failure, repoKey, indexPath)
 			return
 		}
-		h.writeError(w, fmt.Errorf("node %s/%s: %w", repoKey, indexPath, repo.ErrNodeNotFound), repoKey, indexPath)
+		h.writeError(w, r, fmt.Errorf("node %s/%s: %w", repoKey, indexPath, repo.ErrNodeNotFound), repoKey, indexPath)
 		return
 	}
 
@@ -246,7 +246,7 @@ func (h *Handler) serveVirtualExternal(ctx context.Context, w http.ResponseWrite
 	}
 	order, err := h.svc.VirtualMemberOrder(ctx, repoKey)
 	if err != nil {
-		h.writeError(w, err, repoKey, rel)
+		h.writeError(w, r, err, repoKey, rel)
 		return
 	}
 	plane, _ := h.svc.(repo.RemoteExternalPlane) // nil on a bare double: the pass-through below
@@ -268,7 +268,7 @@ func (h *Handler) serveVirtualExternal(ctx context.Context, w http.ResponseWrite
 				return
 			}
 			if !errors.Is(ferr, repo.ErrNodeNotFound) {
-				h.writeExternalError(w, ferr, repoKey, target)
+				h.writeExternalError(w, r, ferr, repoKey, target)
 				return // the classified refusal is the answer (the same target would refuse on every member)
 			}
 			// An unfound member walks on to the next.
@@ -300,7 +300,7 @@ func (h *Handler) serveVirtualTransitive(ctx context.Context, w http.ResponseWri
 	fetchPath := transitiveFetchPath(rel)
 	order, err := h.svc.VirtualMemberOrder(ctx, repoKey)
 	if err != nil {
-		h.writeError(w, err, repoKey, rel)
+		h.writeError(w, r, err, repoKey, rel)
 		return
 	}
 	for _, m := range order {
@@ -313,7 +313,7 @@ func (h *Handler) serveVirtualTransitive(ctx context.Context, w http.ResponseWri
 			if errors.As(merr, &se) && se.Code != http.StatusNotFound {
 				// A member's classified fault is its own answer (the SSRF
 				// 400 family); an ordinary miss walks on.
-				h.writeError(w, se, repoKey, rel)
+				h.writeError(w, r, se, repoKey, rel)
 				return
 			}
 			continue
@@ -321,5 +321,5 @@ func (h *Handler) serveVirtualTransitive(ctx context.Context, w http.ResponseWri
 		h.serveNode(ctx, w, r, node, rc, nodeCType(node))
 		return
 	}
-	h.writeError(w, fmt.Errorf("node %s/%s: %w", repoKey, rel, repo.ErrNodeNotFound), repoKey, rel)
+	h.writeError(w, r, fmt.Errorf("node %s/%s: %w", repoKey, rel, repo.ErrNodeNotFound), repoKey, rel)
 }

@@ -1,0 +1,20 @@
+# 金样元数据——内容面 404 错误渲染（charset+Jackson pretty，错误渲染面族②④子面）
+schema: golden/1
+id: maven/content-plane-404-charset-jackson
+contract_ref: （契约缺失面——T-615 取证定形，本金样即行为锚；rest-api.md §0 第 12 行的裸 CT 表述待规格翻新）
+matrix_ref: （T-620/BIN-102 入金；ledger generic/error-face-ct-charset-head-cl 族 charset 子面）
+capture:
+  mode: live-captured
+  captured_at: '2026-09-29（T-615 r1 定形，双轮 drift=0）→ 2026-09-30（T-620 复跑确认面稳定，仅仓键 token 差）'
+  capture_instance: 'A: Artifactory 7.161.26 Enterprise+ @ 192.168.120.38:8082'
+  capture_commands: 'curl GET /artifactory/<maven-local>/com/example/missing/1.0.0/missing-1.0.0.jar（admin 凭据 env 注入零落盘）'
+  raw_response_archive: /tmp/t615/raw/ar1-m-jar-get.{hdr,body}（T-620 复跑 /tmp/t620/raw/ar1-m-jar-get.* 同形）
+  history: T-615 取证（BIN-97）→ conductor 裁定 BUG 对齐 → T-620（BIN-102）httpapi 信封面修复后入金
+instance_versions:
+  artifactory_ref: Artifactory 7.161.26 Enterprise+（http://192.168.120.38:8082）
+  binflow_tested: origin/develop@8bd7bb82 + T-620 envelope 面改动（/tmp/t620/src 叠加构建）
+confidence: high
+known_gaps:
+- 'BinFlow maven 内容面 404 由 adapter 本地渲染器输出（internal/adapter/maven/response.go writeError 拷贝），T-620 仅修 httpapi 单 seam——本面 B 侧对齐待 adapter 拷贝收敛票'
+- 'framing（A chunked 无 CL / B 恒 CL）= INTENTIONAL 不在金样断言面'
+review: T-620 入金（2026-09-30）——A 腿 verbatim 自 /tmp/t615/raw，双轮+跨票复跑同形

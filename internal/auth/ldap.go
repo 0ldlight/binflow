@@ -28,6 +28,8 @@ import (
 	"time"
 
 	ldap "github.com/go-ldap/ldap/v3"
+
+	"github.com/lzwzzy/binflow/internal/redact"
 )
 
 // LDAPConfig carries the configuration for an LDAP identity provider. All
@@ -234,15 +236,22 @@ type LDAPDialer func(ctx context.Context, urlStr string, opts ...ldap.DialOpt) (
 // else wraps ErrProviderUnreachable — the login path folds them into
 // provider_error / tls_handshake audit reasons while the caller still sees
 // the uniform 401.
+//
+// The URL in the error text is scrubbed with redact.Userinfo (T-617 site 20,
+// T-623): the dial target itself still receives the raw URL unchanged — the
+// scrub applies only to the rendered copy. A userinfo-bearing URL is dead
+// weight on the wire anyway: go-ldap's DialURL consumes only scheme and host
+// (v3.4.14 conn.go DialContext.dial), every bind below is an explicit
+// DN+password, so this is a pure render-side change.
 func defaultDialer(_ context.Context, urlStr string, opts ...ldap.DialOpt) (LDAPConn, error) {
 	conn, err := ldap.DialURL(urlStr, opts...)
 	if err != nil {
 		// Two %w verbs: the sentinel carries the classification, the
 		// original error stays reachable for errors.As/Is.
 		if isTLSFailure(err) {
-			return nil, fmt.Errorf("auth: ldap dial %s: %w: %w", urlStr, ErrTLSHandshake, err)
+			return nil, fmt.Errorf("auth: ldap dial %s: %w: %w", redact.Userinfo(urlStr), ErrTLSHandshake, err)
 		}
-		return nil, fmt.Errorf("auth: ldap dial %s: %w: %w", urlStr, ErrProviderUnreachable, err)
+		return nil, fmt.Errorf("auth: ldap dial %s: %w: %w", redact.Userinfo(urlStr), ErrProviderUnreachable, err)
 	}
 	return &LDAPConnWrapper{conn: conn}, nil
 }
@@ -393,11 +402,11 @@ func NewLDAPProvider(cfg *LDAPConfig, resolver LDAPUserResolver, dialer LDAPDial
 	// stays plaintext unless StartTLS upgrades it.
 	u, err := url.Parse(cfg.URL)
 	if err != nil || u.Host == "" {
-		return nil, fmt.Errorf("auth: ldap url %q: must be an ldap(s) URL like ldap://host:389", cfg.URL)
+		return nil, fmt.Errorf("auth: ldap url %q: must be an ldap(s) URL like ldap://host:389", redact.Userinfo(cfg.URL))
 	}
 	scheme := strings.ToLower(u.Scheme)
 	if scheme != "ldap" && scheme != "ldaps" {
-		return nil, fmt.Errorf("auth: ldap url %q: scheme must be ldap or ldaps, got %q", cfg.URL, u.Scheme)
+		return nil, fmt.Errorf("auth: ldap url %q: scheme must be ldap or ldaps, got %q", redact.Userinfo(cfg.URL), u.Scheme)
 	}
 
 	if dialer == nil {
@@ -429,7 +438,7 @@ func NewLDAPProvider(cfg *LDAPConfig, resolver LDAPUserResolver, dialer LDAPDial
 	if cfg.SkipTLSVerify && !tlsConf.InsecureSkipVerify {
 		tlsConf.InsecureSkipVerify = true
 		slog.Warn("auth: ldap skip_tls_verify=true disables TLS certificate verification — evaluation only, never use in production",
-			slog.String("url", cfg.URL))
+			slog.String("url", redact.Userinfo(cfg.URL)))
 	}
 
 	switch {
@@ -441,7 +450,7 @@ func NewLDAPProvider(cfg *LDAPConfig, resolver LDAPUserResolver, dialer LDAPDial
 		// with a WARN instead of producing a broken double upgrade.
 		if cfg.StartTLS {
 			slog.Warn("auth: ldap start_tls is ignored for ldaps:// URLs — the connection already uses implicit TLS; remove start_tls from auth.ldap",
-				slog.String("url", cfg.URL))
+				slog.String("url", redact.Userinfo(cfg.URL)))
 		}
 	case cfg.StartTLS:
 		// Explicit upgrade on the plaintext port (T-174 D5): the upgrade
@@ -459,8 +468,10 @@ func NewLDAPProvider(cfg *LDAPConfig, resolver LDAPUserResolver, dialer LDAPDial
 				_ = conn.Close()
 				// ErrTLSHandshake carries the O-2 classification: the audit
 				// trail records tls_handshake, not bad_credentials. The
-				// double %w keeps the underlying cause reachable too.
-				return nil, fmt.Errorf("auth: ldap starttls upgrade %s: %w: %w", urlStr, ErrTLSHandshake, err)
+				// double %w keeps the underlying cause reachable too. The
+				// rendered URL is scrubbed (T-623); the dial above received
+				// the raw target.
+				return nil, fmt.Errorf("auth: ldap starttls upgrade %s: %w: %w", redact.Userinfo(urlStr), ErrTLSHandshake, err)
 			}
 			return conn, nil
 		}
