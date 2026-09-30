@@ -106,7 +106,7 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 	}
 
 	if l.Kind == KindSidecar {
-		h.putSidecar(ctx, w, r, p, repoKey, factsKey, relPath, l, cfg)
+		h.putSidecar(ctx, w, r, p, repoKey, factsKey, relPath, l, cfg, row.Type == repo.TypeLocal)
 		return
 	}
 	// The A-form acceptance of the calculator-owned SNAPSHOT version
@@ -369,10 +369,14 @@ func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Re
 // item materializes (the reference's post-deploy listing shows pom, jar
 // and maven-metadata.xml only; BinFlow's phantom .sha1/.md5 nodes were the
 // E2 divergence). The 201 carries Location = the TARGET artifact and no
-// body; GET of the sidecar path answers the server-computed digest, as it
-// always did.
+// body. Since the ADR-0052 seam (T-578 / BIN-60) the registration is the
+// client-checksum WRITE itself on a locally-addressed artifact target
+// under the client policy — SET first, 201/409 rendered after, and the
+// 409 arm writes through too (L037 Arm 1); GET of the sidecar path then
+// echoes the stored client value before the computed one (overlay in
+// serveSidecarOfPath).
 func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http.Request,
-	p *repo.Principal, repoKey, factsKey, relPath string, l Layout, cfg RepoConfig) {
+	p *repo.Principal, repoKey, factsKey, relPath string, l Layout, cfg RepoConfig, origLocal bool) {
 	// Suspicious-size guard first: a checksum file is a digest plus
 	// whitespace; Content-Length beyond the ceiling answers without
 	// reading the body, an oversized chunked body at the read.
@@ -413,17 +417,11 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 			// {.sha1,.md5,.sha256} family answers the checksum family's
 			// own miss wording — 7.161.26 verbatim, colon-separated
 			// repo:target, domain-agnostic (L037 Arm 1 pinned it on the
-			// generic and maven legs alike). .sha512 sits OUTSIDE the
-			// family (the reference deploys it as an ordinary file); its
-			// miss keeps this plane's pre-T-574 shape — its A form is
-			// unprobed, so it is not guessed.
-			if l.Algo != "sha512" {
-				writeError(w, http.StatusNotFound,
-					fmt.Sprintf("Target file to set checksum on doesn't exist: %s:%s", repoKey, l.Target))
-				return
-			}
+			// generic and maven legs alike). The sidecar plane only
+			// carries that family since BIN-66 / T-584 (.sha512 is an
+			// ordinary file face routed before the layout parse).
 			writeError(w, http.StatusNotFound,
-				fmt.Sprintf("Could not locate artifact. Path: '%s/%s'.", repoKey, l.Target))
+				fmt.Sprintf("Target file to set checksum on doesn't exist: %s:%s", repoKey, l.Target))
 			return
 		}
 		h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
@@ -436,20 +434,59 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 	// keeps its tolerance — its target is server-authoritative and
 	// regenerated at any deploy (FR-17), so a client value checksummed
 	// against pre-recalculation bytes may legitimately disagree already.
-	if measured, ok := h.digestOf(ctx, node, l.Algo); ok && measured != declared {
-		if cfg.ChecksumPolicy == ChecksumPolicyClient && l.TargetKind != KindMetadata {
-			// T-574 / BIN-56 (maven/checksum-put-404-wording, the 409
-			// half): the reference's path quotes the PUT TARGET (suffix
-			// included) WITHOUT the repository prefix — L037 Arm 1's live
-			// wording. The rejected value's write-through into
-			// originalChecksums is the blocked persistence seam (ledger
-			// maven/checksum-put-409-write-through), so this refusal still
-			// lands nothing.
-			writeError(w, http.StatusConflict, fmt.Sprintf(
-				"Checksum error for '%s': received '%s' but actual is '%s'",
-				relPath, declared, measured))
-			return
+	measured, measuredOK := h.digestOf(ctx, node, l.Algo)
+	mismatch := measuredOK && measured != declared
+	refuse := mismatch && cfg.ChecksumPolicy == ChecksumPolicyClient && l.TargetKind != KindMetadata
+
+	// Registration FIRST (ADR-0052 decisions 3.3/6.1, T-578 / BIN-60): on a
+	// locally-addressed repo the ARTIFACT sidecar registers through the
+	// persistence seam before any outcome renders — the correct value and
+	// the refused one write through alike (L037 Arm 1's 409 leg:
+	// originalChecksums keeps the client's value, wrong or not), a re-PUT
+	// overwrites per algorithm, and a seam failure is an honest 500 rather
+	// than a pretend 201/409 over an unregistered value. Since BIN-66 /
+	// T-584 (L039 Arm 6, ledger maven/checksum-oc-write-under-srvgen-policy)
+	// the registration is POLICY-INDEPENDENT: the reference decouples
+	// recording from verification — the declared value lands in
+	// originalChecksums under server-generated-checksums too (the client
+	// column), while only the COMPARISON above stays the policy gate (its
+	// srvgen leg skips the 409 and renders 201). Metadata targets keep the
+	// tolerance no-op (their sidecar family is the C5 open face) and the
+	// non-local planes remain unprobed write faces (NOT_RUN, not guessed).
+	if origLocal && l.TargetKind == KindArtifact {
+		var ref storage.BlobRef
+		switch l.Algo {
+		case "sha256":
+			ref.Sha256 = declared
+		case "sha1":
+			ref.Sha1 = declared
+		case "md5":
+			ref.Md5 = declared
 		}
+		if ref != (storage.BlobRef{}) {
+			seam := h.clientChecksumSeam()
+			if seam == nil {
+				writeError(w, http.StatusInternalServerError, fmt.Sprintf(
+					"client-checksum persistence is not available on this assembly (%s/%s)", factsKey, l.Target))
+				return
+			}
+			if err := seam.SetClientChecksums(ctx, p, factsKey, l.Target, ref); err != nil {
+				h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
+				return
+			}
+		}
+	}
+
+	if refuse {
+		// T-574 / BIN-56 (maven/checksum-put-404-wording, the 409 half):
+		// the reference's path quotes the PUT TARGET (suffix included)
+		// WITHOUT the repository prefix — L037 Arm 1's live wording. The
+		// value itself already wrote through above (ledger
+		// maven/checksum-put-409-write-through, closed by T-578).
+		writeError(w, http.StatusConflict, fmt.Sprintf(
+			"Checksum error for '%s': received '%s' but actual is '%s'",
+			relPath, declared, measured))
+		return
 	}
 
 	// Registration only (L014-2 BUG 2): the 201 carries the TARGET's
@@ -463,12 +500,71 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 // maxSidecarBytes is the checksum-file size ceiling (rest-api.md 1.5).
 const maxSidecarBytes = 1024
 
+// putSha512ChecksumFile deploys a terminal-.sha512 PUT on an un-GAV-able
+// path as an ORDINARY file (BIN-66 / T-584, L039 Arm 4 + whitelist #8, the
+// C4 ledger model): the reference keeps .sha512 outside the client-checksum
+// family AND outside the layout gate — GAV and non-GAV spellings deploy as
+// plain storage items (201 ItemCreated envelope, octet-stream mime, GET
+// serving the bytes verbatim). The GAV spelling reaches putFile through the
+// ordinary KindArtifact parse (its pom gate never fires — not a .pom — and
+// the metadata calculator treats it like any file in a version directory);
+// this arm carries the spelling the parser refuses, so no pom-consistency
+// gate, no unique-snapshot rewrite and no calculator trigger apply (no GAV
+// to key any of them on). Class refusals stay the service's own, exactly
+// like any ordinary deploy (remote 405 / unrouted virtual 405).
+func (h *Handler) putSha512ChecksumFile(ctx context.Context, w http.ResponseWriter, r *http.Request,
+	p *repo.Principal, repoKey, relPath string) {
+	// No .sha512 table entry: the extension falls through to octet-stream,
+	// the reference envelope's own mime (L039 Arm 4).
+	mime := mimeForPath(relPath)
+	declared, err := declaredDigests(r.Header)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	node, err := h.svc.PutWithOptions(ctx, p, repoKey, relPath, r.Body, declared, mime,
+		repo.PutOptions{Properties: deployPropsOf(ctx)})
+	if err != nil {
+		h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
+		return
+	}
+	h.writeCreated(w, r, repoKey, relPath, node, declaredSetOf(declared))
+}
+
 // clientChecksumPutSuffixes is the client-checksum PUT interception family
 // (T-574 / BIN-56, L037 Arm 1): a terminal .sha1/.md5/.sha256 routes the
 // PUT as a client-checksum write on the stripped source. .sha512 is NOT
-// family — the reference deploys it as an ordinary file — so it keeps
-// this plane's legacy sidecar handling.
+// family (BIN-66 / T-584, L039 Arm 4): it deploys as an ORDINARY file —
+// the GAV spelling parses as a plain artifact, the un-GAV-able spelling
+// rides the dedicated arm in ServeHTTP.
 var clientChecksumPutSuffixes = []string{".sha1", ".md5", ".sha256"}
+
+// clientChecksumSeam resolves the service's client-checksum persistence
+// capability (ADR-0052 decision 1); nil when the assembled service predates
+// the seam (a bare test double — every real assembly wires the concrete
+// service).
+func (h *Handler) clientChecksumSeam() repo.ClientChecksumWriter {
+	seam, _ := h.svc.(repo.ClientChecksumWriter)
+	return seam
+}
+
+// clientChecksumValueOf projects one algorithm's stored client declaration
+// off a node row — the overlay half of repo.OriginalChecksums with the
+// computed triple left empty (the fallback posture is the CALLER's: the
+// direct sidecar face falls through to the computed digest when this
+// returns "", per ADR-0052 decision 4's protocol-owned fallbacks).
+func clientChecksumValueOf(node *metadata.Node, algo string) string {
+	o256, o1, o5 := repo.OriginalChecksums(node, "", "", "")
+	switch algo {
+	case "sha256":
+		return o256
+	case "sha1":
+		return o1
+	case "md5":
+		return o5
+	}
+	return ""
+}
 
 // checksumPutTarget strips the family suffix off a PUT path, reporting
 // the source artifact path the client-checksum write addresses.
@@ -478,6 +574,19 @@ func checksumPutTarget(relPath string) (src string, ok bool) {
 		if strings.HasSuffix(file, sfx) && len(file) > len(sfx) {
 			return strings.TrimSuffix(relPath, sfx), true
 		}
+	}
+	return "", false
+}
+
+// terminalSha512File reports the final path segment when relPath TERMINATES
+// in the .sha512 suffix (lowercase-exact, the interception family's
+// convention; BIN-66 / T-584): such a path is an ORDINARY file the maven
+// families never claim — outside the client-checksum interception family,
+// outside the sidecar plane and outside the layout gate.
+func terminalSha512File(relPath string) (string, bool) {
+	file := relPath[strings.LastIndexByte(relPath, '/')+1:]
+	if strings.HasSuffix(file, ".sha512") && len(file) > len(".sha512") {
+		return file, true
 	}
 	return "", false
 }

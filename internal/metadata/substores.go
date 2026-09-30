@@ -279,6 +279,34 @@ func (s *nodeStore) Stats(ctx context.Context, repoKey, path string) (*NodeStats
 	return st, nil
 }
 
+// SetClientChecksums implements NodeStore.SetClientChecksums (ADR-0052
+// decision 3.1: atomicity = ONE statement, per-column CASE guards — never a
+// read-modify-write pair, which would race a concurrent registration or
+// deploy). Each non-empty value SETS its column; an empty value keeps the
+// stored one. Folder marker rows are excluded at the SQL edge like
+// CountDownload/MergeStats (a folder is never a client-checksum target), so
+// a missing-or-folder row reports the same ErrNodeNotFound.
+func (s *nodeStore) SetClientChecksums(ctx context.Context, repoKey, path, md5, sha1, sha256 string) error {
+	const stmt = `UPDATE nodes SET
+		client_md5 = CASE WHEN ? <> '' THEN ? ELSE client_md5 END,
+		client_sha1 = CASE WHEN ? <> '' THEN ? ELSE client_sha1 END,
+		client_sha256 = CASE WHEN ? <> '' THEN ? ELSE client_sha256 END
+		WHERE repo_key = ? AND path = ? AND sha256 <> ?`
+	res, err := s.db.ExecContext(ctx, stmt,
+		md5, md5, sha1, sha1, sha256, sha256, repoKey, path, FolderMarkerSHA)
+	if err != nil {
+		return wrapExec("nodes set-client-checksums", repoKey, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return wrapExec("nodes set-client-checksums rows", repoKey, err)
+	}
+	if n == 0 {
+		return fmt.Errorf("nodes set-client-checksums %s/%s: %w", repoKey, path, ErrNodeNotFound)
+	}
+	return nil
+}
+
 // ---- BlobStore ----
 
 type blobStore struct{ db *sql.DB }

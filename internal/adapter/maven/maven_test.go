@@ -337,8 +337,12 @@ func TestSidecarStates(t *testing.T) {
 	if nodes, lerr := hs.md.Nodes().ListByPrefix(context.Background(), "maven-local", "com/acme/demo-app/1.1.0"); lerr != nil {
 		t.Fatalf("list: %v", lerr)
 	} else {
+		// .sha512 is exempt since BIN-66 / T-584: it deploys as an ordinary
+		// file, so a node at that path is legitimate (the block below pins
+		// it); only the client-checksum family's .sha1/.md5 sidecars must
+		// never materialize.
 		for _, n := range nodes {
-			if strings.HasSuffix(n.Path, ".sha1") || strings.HasSuffix(n.Path, ".md5") || strings.HasSuffix(n.Path, ".sha512") {
+			if strings.HasSuffix(n.Path, ".sha1") || strings.HasSuffix(n.Path, ".md5") {
 				t.Errorf("sidecar materialized as storage item: %s", n.Path)
 			}
 		}
@@ -381,13 +385,17 @@ func TestSidecarStates(t *testing.T) {
 		t.Fatalf("sidecar of missing target = %d, want 404", resp.StatusCode)
 	}
 
-	// sha512: layout-recognized, PUT accepted unverified, GET 404
+	// sha512: an ORDINARY file face since BIN-66 / T-584 (L039 Arm 4) — the
+	// PUT lands a real storage item (octet-stream mime) and the GET serves
+	// the deployed bytes verbatim; the source jar exists here, so this is
+	// also the source-present arm.
 	p512 := "/maven-local/com/acme/demo-app/1.1.0/demo-app-1.1.0.jar.sha512"
-	if resp := hs.serve(http.MethodPut, p512, []byte(strings.Repeat("f", 128)), nil, true); resp.StatusCode != http.StatusCreated {
-		t.Fatalf("sha512 sidecar PUT = %d", resp.StatusCode)
+	h512 := []byte(strings.Repeat("f", 128))
+	if resp := hs.serve(http.MethodPut, p512, h512, nil, true); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("sha512 file PUT = %d", resp.StatusCode)
 	}
-	if resp := hs.serve(http.MethodGet, p512, nil, nil, true); resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("sha512 sidecar GET = %d, want 404", resp.StatusCode)
+	if got := drain(t, hs.serve(http.MethodGet, p512, nil, nil, true)); string(got) != string(h512) {
+		t.Fatalf("sha512 file GET = %q, want the deployed bytes", got)
 	}
 }
 

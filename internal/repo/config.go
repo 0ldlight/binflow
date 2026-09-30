@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -749,6 +750,20 @@ var byHashPolicies = map[string]bool{
 	"ALL": true, "SHA256": true, "NONE": true,
 }
 
+// checksumPolicyTypes is the closed value domain of checksumPolicyType (L039
+// Arm 6 / C6, live-pinned on the reference 7.161.26: the REST config plane
+// accepts exactly the two spellings — client-checksums, the undeclared
+// default, and server-generated-checksums; every other value refuses with the
+// reference's literal wording, carried verbatim by the *StatusError below so
+// the wire never sees a BinFlow-composed prefix). The gate rides the LOCAL
+// arm like every validateLocalConfig rule; the policy's WRITE-plane effect
+// stays the adapters' (ADR-0052: the strategy gate is consumption-side, this
+// is the configure-time input check only).
+var checksumPolicyTypes = map[string]bool{
+	"client-checksums":           true,
+	"server-generated-checksums": true,
+}
+
 // validateLocalConfig type-checks the cross-cutting fields of a LOCAL
 // repository config (M1's passthrough contract keeps the blob caller-owned;
 // only the fields this package's own consumers read are validated).
@@ -797,6 +812,11 @@ func validateLocalConfig(config string) error {
 		// resolveRemoteAlias posture every other dual spelling gets.
 		Environments []string `json:"environments"`
 		Stages       []string `json:"stages"`
+		// checksumPolicyType (L039 Arm 6 / C6): the maven policy family's
+		// enum seat. A string when present — typing rides the decode like
+		// every other probe field; the value domain check below owns the
+		// enum.
+		ChecksumPolicyType *string `json:"checksumPolicyType"`
 	}
 	if err := json.Unmarshal([]byte(config), &probe); err != nil {
 		return fmt.Errorf("%w: local repository config: %w", ErrInvalidRepoConfig, err)
@@ -808,6 +828,19 @@ func validateLocalConfig(config string) error {
 	if probe.ByHash != nil && *probe.ByHash != "" && !byHashPolicies[*probe.ByHash] {
 		return fmt.Errorf("%w: byHash %q is not a legal by-hash policy: must be one of ALL, SHA256, NONE (debian.md section 5)",
 			ErrInvalidRepoConfig, *probe.ByHash)
+	}
+	// checksumPolicyType (L039 Arm 6 / C6): absent/empty keeps the
+	// no-policy-stored posture (the read plane renders the product default
+	// client-checksums); the two legal spellings pass; anything else refuses
+	// with the reference's LITERAL wording — a *StatusError so Error() is the
+	// exact client message (no "invalid repository config:" prefix; the
+	// sentinel cause keeps the errors.Is(ErrInvalidRepoConfig) → 400 mapping
+	// in httpapi working unchanged).
+	if probe.ChecksumPolicyType != nil && *probe.ChecksumPolicyType != "" &&
+		!checksumPolicyTypes[*probe.ChecksumPolicyType] {
+		return NewStatusError(http.StatusBadRequest,
+			fmt.Sprintf("No checksum policy type found for type: %s", *probe.ChecksumPolicyType),
+			nil, ErrInvalidRepoConfig)
 	}
 	if err := validateStageNames(probe.Environments, probe.Stages); err != nil {
 		return err

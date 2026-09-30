@@ -19,14 +19,11 @@ import (
 func TestContentTypeMapping(t *testing.T) {
 	e := newEnv(t)
 
-	// T-574/BIN-56: a terminal .sha1/.md5/.sha256 PUT is the checksum-write
-	// routing family — the table legs below must see a LIVE source, else
-	// the routing's own 404 answers before any file (and its mimeType)
-	// lands. The source itself is a plain no-extension file.
-	if resp := e.do(t, http.MethodPut, "/binflow/generic-local/mime/data",
-		strings.NewReader("x"), nil); resp.StatusCode != http.StatusCreated {
-		t.Fatalf("source seed = %d: %s", resp.StatusCode, body(t, resp))
-	}
+	// T-578/BIN-60: the terminal .sha1/.md5/.sha256 suffixes left the
+	// file-deploy family on LOCAL repositories (they are the
+	// client-checksum faces now — pinned in checksum_put_test.go), so the
+	// v17 table's checksum rows carry no PUT legs here; the GET echo face
+	// pins its own application/x-checksum Content-Type.
 
 	// The full v17 table over the wire (no Content-Type declared).
 	deterministic := []struct{ ext, want string }{
@@ -66,7 +63,6 @@ func TestContentTypeMapping(t *testing.T) {
 		{".json", "application/json"},
 		{".log", "text/plain"},
 		{".md", "text/plain"},
-		{".md5", "application/x-checksum"},
 		{".mf", "text/plain"},
 		{".mod", "text/plain+mod"},
 		{".nupkg", "application/x-nupkg"},
@@ -81,8 +77,6 @@ func TestContentTypeMapping(t *testing.T) {
 		{".sar", "application/java-archive"},
 		{".scala", "text/x-scala-source"},
 		{".sh", "text/x-script.sh"},
-		{".sha1", "application/x-checksum"},
-		{".sha256", "application/x-checksum"},
 		{".swift", "text/x-swift "}, // trailing space: factory spelling, verbatim
 		{".tar", "application/x-tar"},
 		{".tf", "text/plain"},
@@ -289,7 +283,6 @@ func TestMimeByExtension(t *testing.T) {
 	for ext, want := range map[string]string{
 		".yml":    "text/plain",
 		".md":     "text/plain",
-		".sha1":   "application/x-checksum",
 		".tgz":    "application/x-gzip",
 		".pom":    "application/x-maven-pom+xml",
 		".noext":  "application/octet-stream", // unknown -> floor
@@ -308,12 +301,6 @@ func TestMimeByExtension(t *testing.T) {
 func mimeOfPath(t *testing.T, ext string) string {
 	t.Helper()
 	e := newEnv(t)
-	// T-574/BIN-56: terminal-checksum PUTs need a live source to fall
-	// through to the ordinary deploy this roundtrip measures.
-	if resp := e.do(t, http.MethodPut, "/binflow/generic-local/probe/f",
-		strings.NewReader("x"), nil); resp.StatusCode != http.StatusCreated {
-		t.Fatalf("source seed = %d: %s", resp.StatusCode, body(t, resp))
-	}
 	resp := e.do(t, http.MethodPut, "/binflow/generic-local/probe/f"+ext, strings.NewReader("x"), nil)
 	var fi fileInfoJSON
 	if err := json.Unmarshal([]byte(body(t, resp)), &fi); err != nil {

@@ -159,7 +159,7 @@ func (h *Handler) servePlainWalk(ctx context.Context, w http.ResponseWriter, r *
 		return false
 	}
 	if l.Kind == KindSidecar {
-		h.serveSidecarOfPath(ctx, w, r, p, repoKey, cand.path, l.Algo, relPath)
+		h.serveSidecarOfPath(ctx, w, r, p, repoKey, cand.path, l.Algo, relPath, false)
 		return true
 	}
 	h.serveFile(ctx, w, r, p, repoKey, cand.path)
@@ -225,12 +225,17 @@ func (h *Handler) serveVirtualWalk(ctx context.Context, w http.ResponseWriter, r
 	return true
 }
 
-// serveSidecarOfPath answers the sidecar face with the computed digest of
-// the artifact at path — the walk's sidecar leg (t5/t6: the digest of the
-// RESOLVED entity). msgPath carries the REQUESTED spelling for error
-// renderings, the ordinary plane's habit.
+// serveSidecarOfPath answers the sidecar face with the digest of the
+// artifact at path — the walk's sidecar leg (t5/t6: the digest of the
+// RESOLVED entity) and the direct face's exit. msgPath carries the
+// REQUESTED spelling for error renderings, the ordinary plane's habit.
+// overlayClient (the direct face only) echoes the STORED client
+// declaration first when one exists (ADR-0052 decision 4: the overlay
+// mechanism is repo.OriginalChecksums, the computed digest is maven's
+// fallback posture); the walk legs pass false — their contracts pin the
+// resolved entity's computed digest.
 func (h *Handler) serveSidecarOfPath(ctx context.Context, w http.ResponseWriter, r *http.Request,
-	p *repo.Principal, repoKey, path, algo, msgPath string) {
+	p *repo.Principal, repoKey, path, algo, msgPath string, overlayClient bool) {
 	rc, node, err := h.svc.Get(ctx, p, repoKey, path)
 	if err != nil {
 		h.writeServiceError(w, err, r.Method, repoKey, msgPath)
@@ -238,5 +243,11 @@ func (h *Handler) serveSidecarOfPath(ctx context.Context, w http.ResponseWriter,
 	}
 	applyReaderHints(w, rc)
 	_ = rc.Close() //nolint:errcheck // read-only fd; the digest comes from the ledger
+	if overlayClient && algo != "sha512" {
+		if value := clientChecksumValueOf(node, algo); value != "" {
+			h.writeSidecarBody(w, r, value, node)
+			return
+		}
+	}
 	h.writeSidecarDigest(ctx, w, r, node, algo, repoKey, path)
 }

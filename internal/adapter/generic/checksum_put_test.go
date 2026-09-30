@@ -1,9 +1,10 @@
-// T-574 / BIN-56 — generic 存储面裸 checksum PUT（终缀 .sha1/.md5/.sha256）
-// 拦截族的可落地半面：源缺 404 文案逐字 + 无文件节点 + 阴性对照
-// （.sha512/.asc/非终缀普通部署不变）。值对 201 空体/值错 409 写穿/GET
-// 回显依赖 client-checksum 持久化缝（repo.Service 缺口，票内登记移交），
-// 源在场臂在此钉住过渡态（普通部署链），缝落地后由后续票翻正。
-// 权威口径：reports/compatibility/L037-probe-arms.md Arm 1（A 7.161.26 双轮）。
+// T-574 / BIN-56 landed the routing halves; T-578 / BIN-60 completes the
+// model on the ADR-0052 client-checksum persistence seam: 终缀
+// .sha1/.md5/.sha256 的 PUT 是源制品的 client-checksum 注册（源缺 404
+// 逐字 + 无文件节点 + 阴性对照；源在场 201 CL=0/Location=源 + 值错 409
+// 仍写穿 + GET 回显存值），GET 面回显已存 client 值、未存则族内 404。
+// 权威口径：reports/compatibility/L037-probe-arms.md Arm 1（A 7.161.26 双轮）
+// + DECISIONS.md ADR-0052。
 package generic_test
 
 import (
@@ -68,9 +69,15 @@ func TestChecksumPutSourceMissing(t *testing.T) {
 		}
 	}
 	// And the GET of the sidecar path stays the honest miss (A: no
-	// on-demand generation for an unset checksum).
-	if resp := e.do(t, http.MethodGet, "/binflow/generic-local/t574/lone.txt.sha1", nil, nil); resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("GET unset sidecar = %d, want 404", resp.StatusCode)
+	// on-demand generation for an unset checksum) — with the family's own
+	// wording, addressing the SOURCE artifact colon-separated.
+	get := e.do(t, http.MethodGet, "/binflow/generic-local/t574/lone.txt.sha1", nil, nil)
+	if get.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET unset sidecar = %d, want 404", get.StatusCode)
+	}
+	wantGet := "File not found.; Path: 'generic-local:t574/lone.txt'"
+	if got := body(t, get); !strings.Contains(got, `"`+wantGet+`"`) {
+		t.Errorf("GET unset 404 body = %s\nwant message = %q", got, wantGet)
 	}
 }
 
@@ -102,31 +109,200 @@ func TestChecksumPutFamilyNegatives(t *testing.T) {
 	}
 }
 
-// TestChecksumPutSourcePresentInterim pins the explicitly INTERIM state
-// of the source-present arms until the client-checksum persistence seam
-// lands (repo.Service gap, T-574 handoff): the ordinary deploy chain
-// still runs, so the sidecar lands as a plain file node with the full
-// envelope. The A model (201 CL=0 + Location=source + originalChecksums
-// write-through, wrong value 409-with-write-through, GET echo of the
-// stored client value) flips these arms once the seam exists.
-func TestChecksumPutSourcePresentInterim(t *testing.T) {
+// TestChecksumPutSourcePresent pins the source-present arms of the
+// client-checksum registration (L037 Arm 1's A model, complete since the
+// ADR-0052 seam): a correct value registers and answers 201 with an EMPTY
+// body and Location addressing the SOURCE artifact (never the .sha1 path),
+// no sidecar file node materializes (a registration is a metadata write);
+// a wrong value answers 409 with the received/actual wording AND still
+// writes through (the GET face echoes the wrong stored value); a re-PUT
+// overwrites; the .md5/.sha256 arms behave identically per algorithm.
+func TestChecksumPutSourcePresent(t *testing.T) {
 	e := newEnv(t)
 	src := "t574i/src.bin"
 	if resp := e.do(t, http.MethodPut, "/binflow/generic-local/"+src,
 		strings.NewReader("source-bytes"), nil); resp.StatusCode != http.StatusCreated {
 		t.Fatalf("source seed = %d (%s)", resp.StatusCode, body(t, resp))
 	}
+	_, sha1S, md5S := digestsOf("source-bytes")
+	sha256S := sha256Of(t, e, src)
+
+	// --- correct value: 201, CL=0, Location = the SOURCE artifact ---
+	loc := e.srv.URL + "/binflow/generic-local/" + src
 	resp := e.do(t, http.MethodPut, "/binflow/generic-local/"+src+".sha1",
-		strings.NewReader(strings.Repeat("00", 20)), nil)
+		strings.NewReader(sha1S), nil)
 	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("interim sidecar PUT = %d, want 201 ordinary deploy (body=%s)",
-			resp.StatusCode, body(t, resp))
+		t.Fatalf("correct-value PUT = %d (body=%s)", resp.StatusCode, body(t, resp))
 	}
-	node, err := e.md.Nodes().Get(context.Background(), "generic-local", src+".sha1")
+	if got := resp.Header.Get("Location"); got != loc {
+		t.Errorf("Location = %q, want the source artifact %q", got, loc)
+	}
+	if cl := resp.Header.Get("Content-Length"); cl != "0" {
+		t.Errorf("Content-Length = %q, want 0 (empty body)", cl)
+	}
+	if got := body(t, resp); got != "" {
+		t.Errorf("201 body = %q, want empty", got)
+	}
+	// No sidecar node materialized: the namespace holds the source alone.
+	nodes, err := e.svc.List(context.Background(), admin(), "generic-local", "t574i")
 	if err != nil {
-		t.Fatalf("interim sidecar node: %v (expected the pre-seam file-node landing)", err)
+		t.Fatalf("List: %v", err)
 	}
-	if node.Size == 0 {
-		t.Error("interim sidecar node size = 0")
+	// No sidecar node materialized: the namespace holds only the auto
+	// folder marker and the source (del3's convergence — the count A shows).
+	for _, n := range nodes {
+		if strings.HasSuffix(n.Path, ".sha1") || strings.HasSuffix(n.Path, ".md5") || strings.HasSuffix(n.Path, ".sha256") {
+			t.Errorf("unexpected sidecar node: %s", n.Path)
+		}
+	}
+	if len(nodes) != 2 { // "t574i/" marker + src
+		var paths []string
+		for _, n := range nodes {
+			paths = append(paths, n.Path)
+		}
+		t.Fatalf("nodes under t574i = %v, want exactly [t574i/ %s]", paths, src)
+	}
+	// GET echo: the stored client value, not a generated digest file.
+	get := e.do(t, http.MethodGet, "/binflow/generic-local/"+src+".sha1", nil, nil)
+	if get.StatusCode != http.StatusOK {
+		t.Fatalf("GET echo = %d (body=%s)", get.StatusCode, body(t, get))
+	}
+	if ct := get.Header.Get("Content-Type"); ct != "application/x-checksum" {
+		t.Errorf("GET echo Content-Type = %q, want application/x-checksum", ct)
+	}
+	if got := body(t, get); got != sha1S {
+		t.Errorf("GET echo body = %q, want the stored client sha1 %q", got, sha1S)
+	}
+	// HEAD answers the same headers minus the body.
+	head := e.do(t, http.MethodHead, "/binflow/generic-local/"+src+".sha1", nil, nil)
+	if head.StatusCode != http.StatusOK || head.Header.Get("Content-Type") != "application/x-checksum" {
+		t.Errorf("HEAD echo = %d CT=%q, want 200 application/x-checksum", head.StatusCode, head.Header.Get("Content-Type"))
+	}
+
+	// --- wrong value: 409 AND the value still written through ---
+	wrong := strings.Repeat("00", 20)
+	resp = e.do(t, http.MethodPut, "/binflow/generic-local/"+src+".sha1",
+		strings.NewReader(wrong), nil)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("wrong-value PUT = %d, want 409 (body=%s)", resp.StatusCode, body(t, resp))
+	}
+	want := fmt.Sprintf("Checksum error for '%s': received '%s' but actual is '%s'", src+".sha1", wrong, sha1S)
+	if got := body(t, resp); !strings.Contains(got, `"`+want+`"`) {
+		t.Errorf("409 body = %s\nwant message = %q", got, want)
+	}
+	// Write-through: the client column and the GET echo carry the WRONG value.
+	node, err := e.md.Nodes().Get(context.Background(), "generic-local", src)
+	if err != nil {
+		t.Fatalf("node after 409: %v", err)
+	}
+	if node.ClientSha1 != wrong {
+		t.Errorf("node.ClientSha1 after 409 = %q, want the written-through %q", node.ClientSha1, wrong)
+	}
+	get = e.do(t, http.MethodGet, "/binflow/generic-local/"+src+".sha1", nil, nil)
+	if got := body(t, get); got != wrong {
+		t.Errorf("GET echo after 409 = %q, want the written-through %q", got, wrong)
+	}
+
+	// --- re-PUT overwrites: back to the correct value, 201 again ---
+	resp = e.do(t, http.MethodPut, "/binflow/generic-local/"+src+".sha1",
+		strings.NewReader(sha1S), nil)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("re-PUT = %d (body=%s)", resp.StatusCode, body(t, resp))
+	}
+	get = e.do(t, http.MethodGet, "/binflow/generic-local/"+src+".sha1", nil, nil)
+	if got := body(t, get); got != sha1S {
+		t.Errorf("GET echo after re-PUT = %q, want %q", got, sha1S)
+	}
+
+	// --- per-algorithm independence: md5 and sha256 arms on their columns ---
+	for _, tc := range []struct{ algo, value string }{
+		{"md5", md5S},
+		{"sha256", sha256S},
+	} {
+		resp = e.do(t, http.MethodPut, "/binflow/generic-local/"+src+"."+tc.algo,
+			strings.NewReader(tc.value), nil)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("%s PUT = %d (body=%s)", tc.algo, resp.StatusCode, body(t, resp))
+		}
+		if got := resp.Header.Get("Location"); got != loc {
+			t.Errorf("%s Location = %q, want %q", tc.algo, got, loc)
+		}
+		get = e.do(t, http.MethodGet, "/binflow/generic-local/"+src+"."+tc.algo, nil, nil)
+		if got := body(t, get); got != tc.value {
+			t.Errorf("%s GET echo = %q, want %q", tc.algo, got, tc.value)
+		}
+	}
+	// The sha1 column survived the sibling registrations (per-algo overwrite).
+	node, err = e.md.Nodes().Get(context.Background(), "generic-local", src)
+	if err != nil {
+		t.Fatalf("node after sibling arms: %v", err)
+	}
+	if node.ClientSha1 != sha1S || node.ClientMd5 != md5S || node.ClientSha256 != sha256S {
+		t.Errorf("client columns = (%q,%q,%q), want all three correct",
+			node.ClientSha1, node.ClientMd5, node.ClientSha256)
+	}
+}
+
+// sha256Of reads the stored node sha256 of a seeded artifact (the harness's
+// digestsOf covers sha1/md5; the sha256 here is the node's own column).
+func sha256Of(t *testing.T, e *env, path string) string {
+	t.Helper()
+	node, err := e.md.Nodes().Get(context.Background(), "generic-local", path)
+	if err != nil {
+		t.Fatalf("node %s: %v", path, err)
+	}
+	if node.Sha256 == "" {
+		t.Fatalf("node %s has no sha256 column", path)
+	}
+	return node.Sha256
+}
+
+// TestChecksumGetUnsetTwoWordings pins the GET face's two-state miss
+// (T-583 / BIN-65, L039 Arm 8's P8 refinement): a MISSING source keeps the
+// colon-separated "File not found." family form, while a PRESENT source
+// with no registered value answers the bare `Checksum not found for <src>`
+// — no repo prefix, no Path structure — on GET and HEAD alike.
+func TestChecksumGetUnsetTwoWordings(t *testing.T) {
+	e := newEnv(t)
+	// Source present, value never registered: the second wording.
+	if resp := e.do(t, http.MethodPut, "/binflow/generic-local/t583p/other.txt",
+		strings.NewReader("present-but-unset"), nil); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("seed = %d (%s)", resp.StatusCode, body(t, resp))
+	}
+	get := e.do(t, http.MethodGet, "/binflow/generic-local/t583p/other.txt.sha1", nil, nil)
+	if get.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET unset (source present) = %d, want 404", get.StatusCode)
+	}
+	want := "Checksum not found for t583p/other.txt"
+	if got := body(t, get); !strings.Contains(got, `"`+want+`"`) {
+		t.Errorf("GET unset body = %s\nwant message = %q", got, want)
+	}
+	// HEAD renders the same face (status; the body is asserted via GET).
+	head := e.do(t, http.MethodHead, "/binflow/generic-local/t583p/other.txt.sha1", nil, nil)
+	body(t, head)
+	if head.StatusCode != http.StatusNotFound {
+		t.Errorf("HEAD unset (source present) = %d, want 404", head.StatusCode)
+	}
+
+	// Source absent: the first wording stays verbatim (regression pin).
+	get = e.do(t, http.MethodGet, "/binflow/generic-local/t583p/never-seeded.txt.sha1", nil, nil)
+	if get.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET unset (source absent) = %d, want 404", get.StatusCode)
+	}
+	wantAbsent := "File not found.; Path: 'generic-local:t583p/never-seeded.txt'"
+	if got := body(t, get); !strings.Contains(got, `"`+wantAbsent+`"`) {
+		t.Errorf("GET absent body = %s\nwant message = %q", got, wantAbsent)
+	}
+
+	// Once registered, the same path answers the stored value (the miss
+	// was the unset state, not the face).
+	_, sha1S, _ := digestsOf("present-but-unset")
+	if resp := e.do(t, http.MethodPut, "/binflow/generic-local/t583p/other.txt.sha1",
+		strings.NewReader(sha1S), nil); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("register = %d (%s)", resp.StatusCode, body(t, resp))
+	}
+	get = e.do(t, http.MethodGet, "/binflow/generic-local/t583p/other.txt.sha1", nil, nil)
+	if got := body(t, get); get.StatusCode != http.StatusOK || got != sha1S {
+		t.Errorf("GET after register = %d %q, want 200 %q", get.StatusCode, got, sha1S)
 	}
 }

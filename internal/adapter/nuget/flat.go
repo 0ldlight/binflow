@@ -361,8 +361,13 @@ func (h *Handler) servePush(ctx context.Context, w http.ResponseWriter, r *http.
 	// No Location and no X-Checksum-Sha256 on the 201 (T-567 plus L037
 	// Arm 2): the A face's v2/v3 push 201 carries neither — the checksum
 	// header is the bare-content plane's own (serveBareContent), never
-	// the push faces'.
-	w.WriteHeader(http.StatusCreated)
+	// the push faces'. The 201 BODY is the publish family's text (T-579 /
+	// L038 candidate ①): "Successfully published NuPkg to:
+	// flatcontainer/<id>/<version>/<file>" — the same renderer and wording
+	// the v2 face (serveV2Publish) carries, with the flatcontainer/ plane
+	// segment spelled because the v3 push addresses the artifact through
+	// it.
+	writeText(w, http.StatusCreated, "Successfully published NuPkg to: "+segFlat+"/"+target.nupkg())
 }
 
 // msgPushDuplicate is the duplicate push refusal's exact wording — the
@@ -495,9 +500,11 @@ func (h *Handler) serveDelete(ctx context.Context, w http.ResponseWriter, _ *htt
 
 // serveBareContent is the raw storage face (no plane segment): GET/HEAD
 // stream the node, PUT lands bytes verbatim (its 201 renders the absolute,
-// context-prefixed Location, T-567, and the always-on X-Checksum-Sha256 of
-// the artifact's effective sha256, L037 Arm 2 / T-575), DELETE removes —
-// the curl and debug reachability the other adapters' content planes give.
+// context-prefixed Location, T-567, the always-on X-Checksum-Sha256 of
+// the artifact's effective sha256, L037 Arm 2 / T-575, and the ItemCreated
+// CT+envelope body, T-579 / BIN-61 — created.go owns that render), DELETE
+// removes — the curl and debug reachability the other adapters' content
+// planes give.
 func (h *Handler) serveBareContent(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, rel string) {
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
@@ -517,8 +524,22 @@ func (h *Handler) serveBareContent(ctx context.Context, w http.ResponseWriter, r
 			writePlain(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		node, err := h.svc.Put(ctx, p, repoKey, rel, r.Body, expect, "application/octet-stream")
+		// The body streams through a hashing tee so a declared-digest
+		// disagreement can render the A face's ChecksumsInfo dump from
+		// adapter-local facts alone (T-579): the mismatch compare fires at
+		// commit — after the last byte — so the measured triple is complete
+		// whenever the 409 can fire.
+		body := newMeasuredBody(r.Body)
+		node, err := h.svc.Put(ctx, p, repoKey, rel, body, expect, "application/octet-stream")
 		if err != nil {
+			if errors.Is(err, storage.ErrChecksumMismatch) {
+				// The A face's CLIENT-policy rejection (T-579): the
+				// errors[] JSON envelope with the ChecksumsInfo dump —
+				// never the storage error chain, whose session ids are
+				// internal detail this face must not disclose.
+				writeChecksumPolicy409(w, repoKey, rel, expect, body.sums())
+				return
+			}
 			h.writeError(w, err, repoKey, rel)
 			return
 		}
@@ -528,12 +549,13 @@ func (h *Handler) serveBareContent(ctx context.Context, w http.ResponseWriter, r
 		// server's measurement fills in. Both paths read node.Sha256 — a
 		// declared disagreement dies at storage's 409 below and never
 		// reaches this 201, so the node's value is the effective one on
-		// every leg that gets here.
-		if node != nil && node.Sha256 != "" {
-			w.Header().Set(hdrChecksumSha256, node.Sha256)
-		}
-		w.Header().Set("Location", requestBase(r)+productPrefix+"/"+repoKey+"/"+escapePath(rel))
-		w.WriteHeader(http.StatusCreated)
+		// every leg that gets here. The BODY is the ItemCreated envelope
+		// (T-579, L038 A4/candidate ⑤'s nuget half): CT ItemCreated+json
+		// and the Jackson-pretty-printed field set the A face renders
+		// (created.go); the checksums ride the ledger triple the download
+		// faces already use — never the tee's partial sums, which an
+		// idempotent-retransmit short-circuit may leave undrained.
+		writeBareCreated(w, r, repoKey, rel, node, h.digestsOf(ctx, node), expect)
 	case http.MethodDelete:
 		if err := h.svc.Delete(ctx, p, repoKey, rel); err != nil {
 			h.writeError(w, err, repoKey, rel)
