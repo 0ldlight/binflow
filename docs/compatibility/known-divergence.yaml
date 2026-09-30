@@ -2666,6 +2666,7 @@ entries:
   authority: { type: conductor_ruling, ref: "R14 台账批 conductor 裁定（2026-09-30，BIN-97/T-615 收编）——BUG 对齐 JSON 信封，共享渲染约束" }
   review_gate: R15 修复票（BIN-103/T-621，前置=BIN-102 face 矩阵落地）→ 双轮 PASS → resolved
   evidence: reports/agents/T-615.md（⑤ 段 + h-tgz/h2-tgz 四腿 verbatim）
+  resolved: { date: '2026-09-30', evidence: 'BIN-103/T-621 修复（internal/errface 叶子包单源渲染〔conductor seam 裁定，循 internal/redact 先例〕，httpapi envelope.go 委托零漂移〔T-620 钉字节测试原样全绿〕，helm ErrNodeNotFound 臂 GET/HEAD 走共享信封〔内容面 charset 形 / API alias 裸形，RequestURI 前缀判定〕，写动词 miss 维持 text/plain 反 ride-along 钉）：差分双轮 h-tgz×2/h2-tgz×2 四腿三闭合 + GET body 逐字节同（sha 相等 132B Jackson）；index-200 与 x-norepo 对照腿零回归；helm v4.2.4 CLI repo add/update/search rc=0；票面腿 ID 与 T-615 raw 标签出入按三源一致语义核正（内容=charset/alias=裸）；证据 reports/agents/T-621.md' }
 - id: helm/empty-index-status
   surface: 'helm local 仓 index.yaml 生命周期——A=空仓/删空两态均 200 text/plain 空索引（69B，未引号
     RFC3339Nano generated）vs B=三态：never-populated 404 + populated 200 text/yaml + 删空后 200 空
