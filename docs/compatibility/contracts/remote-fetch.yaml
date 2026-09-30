@@ -1,0 +1,96 @@
+# BinFlow 兼容契约——remote fetch 引擎面（offline 窗开窗阈值裁定）
+# schema: compat-contract/1 —— 域单条目新文件（沿 repositories.yaml 单条目先例）；条目键面全集同
+#   maven-virtual.yaml 头注（id/feature/surface/request/authentication/expect/side_effects/
+#   error_behavior/unobserved_reference_arms/binflow_state/version/evidence/confidence/status，
+#   divergence_ref 于 DIVERGENT/INTENTIONAL 时必填）。
+# 转写源：docs/reverse/repo-semantics.md §7.2 Erratum-3（T-609/BIN-91 勘误，commit 76f6f268——
+#   「单故障即开窗」读法精化为 A=第 2 次 transport 故障后开窗）+ reports/agents/T-597.md r3/r4
+#   冷断路器双轮证据（maven/generic 双面 A 形逐腿表）。上游差分原始 A 证据另见
+#   reports/compatibility/L040-maven-sidecar-planes.md §1c。
+# T-611（R14 / BIN-93，2026-09-30）裁定：B 对齐阈值 2（BUG 方向）——本条即裁定结论的契约承载；
+#   修复票另立（票面硬性要求，本票零产品码，修复票草案要素见 reports/agents/T-611.md）；
+#   台账 remote/offline-window-open-threshold 的 UNKNOWN→BUG 翻面与 review_gate 收口归 conductor
+#   （台账唯一写入者）。首障 cause 文本差异（A=JVM Connect timed out vs B=dial tcp RST 串）为族内
+#   已命名分歧非阈值面，不在本条断言面。
+domain: remote-fetch
+scope: 'remote 仓上游 transport 故障的 assumed-offline 窗开窗阈值（同仓连续故障计数）。不含：窗长
+  （assumedOfflinePeriodSecs 默认 300s——原文献值未勘）、窗内行为、5xx 默认臂（live 未探维持
+  offline 族）、hardFail/external hop/401-403/4xx/负缓存臂（T-597 维持面）、retrieval/offline 两形
+  的 verbatim 文案本体（Erratum-2 / T-597 已收编，本条只引形名）'
+reference_instance: 'Artifactory 7.161.26 Enterprise+（192.168.120.38:8082，T-597 四轮探腿——r3/r4
+  冷断路器对为权威轮，330s 轮间隔 > 300s 窗）'
+client_anchor: 'python3 urllib 探针（/tmp/t597/probe.py，curl 级等价）——remote 读面协议腿，无专用
+  原生客户端腿（L037-L040 同型先例）'
+contracts:
+- id: remote/offline-window-open-threshold
+  feature: 'remote 仓 assumed-offline 窗的开窗阈值：同一仓自冷态连续上游 transport 故障计数达 **2**
+    后开窗——第 1、2 次故障触发的请求返回 retrieval 形 404（三段式引源路径+源的上游 URL），第 3 次
+    起返回 offline 形 404；无后缀对照请求同窗同形。窗长与窗内行为维持既有口径（期内绕过上游）'
+  surface: 'GET/HEAD /{remoteRepoKey}/{path}（含 sidecar 终缀——按 Erratum-2 源解析族）对不可达上游；
+    观测面=冷断路器起始的连续故障接触错误形序列'
+  request:
+    method: GET|HEAD
+    path: '/{remoteRepoKey}/{path}[.sha1|.md5|.sha256]'
+    headers: { Authorization: 'Basic <valid>' }
+    query: {}
+  authentication: { type: basic, role: user }
+  expect:
+    semantics: '行为句式（A 面 7.161.26 冷断路器 r3/r4 双轮确定性复现）：当同一 remote 仓自冷态连续
+      发生上游 transport 故障时——第 1 次与第 2 次故障触发的请求均返回 retrieval 形 404；**第 2 次
+      故障后** offline 窗才开启，第 3 次起（及窗内一切后续接触，含无后缀对照请求）返回 offline 形
+      404。两形 verbatim 模板见 repo-semantics.md Erratum-2（retrieval 形全程引源路径与源的上游 URL，
+      绝不引终缀拼写；offline 形 `is assumed offline…`）。'
+    arms:
+    - when: '冷断路器第 1 次 transport 故障接触'
+      status: 404
+      body: { format: json, note: 'retrieval 形（T-597 g-side-sha1-first / m-side-* 首障腿；
+        首障 cause 文本为栈环境差异族内分歧，外层三段式逐字同构）' }
+    - when: '第 2 次 transport 故障接触（边界腿——窗尚未开）'
+      status: 404
+      body: { format: json, note: '**仍 retrieval 形**（T-597 g-side-md5-inwin：A 第 2 故障=retrieval
+        形——本条阈值断言面的判别腿）' }
+    - when: '第 3 次起接触（窗内）'
+      status: 404
+      body: { format: json, note: 'offline 形（T-597 g-side-sha256-inwin / g-ctrl-inwin / m-side-*
+        窗内腿；无后缀对照同窗同形）' }
+    - when: 'HEAD 同路径（任一臂）'
+      status: '同 GET 状态（空体）'
+      note: 'T-597 g-side-head-sha1-inwin'
+  side_effects: []
+  error_behavior:
+  - { when: '第 1、2 次 transport 故障接触（窗前）', status: 404, body_literal: 'retrieval 形（引源路径+源的上游 URL）' }
+  - { when: '第 3 次起接触（窗内）', status: 404, body_literal: 'offline 形（is assumed offline, …）' }
+  unobserved_reference_arms:
+  - '开窗前故障计数的聚合窗（fault1 与 fault2 间隔的容忍界）——GATE 腿为背靠背接触；远隔两障是否仍
+    计满 2 未探，修复实现按「连续 transport 故障计数」最小语义，不发明衰减窗'
+  - '窗过期后的计数器复位语义（窗关后清零重数 vs 保留——r3/r4 330s 间隔只证窗过期后重新从 retrieval
+    形开始，未单钉复位形）'
+  - '5xx 默认臂的 retrieval 形（live 未探——保守维持 offline 族，T-597 Risks 3，修复票不得顺手发明）'
+  - '阈值判别只证于连接不可达子族；DNS 解析失败/拨超时/重定向过量等其它 transport 子族是否同计数未分探'
+  binflow_state:
+    verdict: 'DIVERGENT（B as-built=第 1 次 transport 故障即开窗：internal/remote/fetcher.go
+      mapTransportFault default 臂首个 transport 故障即 e.markOffline〔行 1101-1102，只读取证〕；
+      边界腿第 2 次接触 B=offline 形 vs A=retrieval 形——客户端可见分歧）'
+    detail: 'T-611（BIN-93）裁定：**对齐阈值 2**（BUG 方向）。依据四点：①A 面阈值=2 双轮确定性活证
+      （T-597 r3/r4 冷断路器：腿 1、2 retrieval 形、腿 3+ offline 形，330s 间隔排除窗过期混入）且
+      reverse 规格已随 T-609 Erratum-3 定形（repo-semantics.md L165-169，commit 76f6f268）；②T-597
+      当时「B 沿用第 1 次开窗」系 A 阈值未确认期的临时沿用，**无 INTENTIONAL authority**（无用户
+      裁决/ADR/规格票三源任一）；③边界腿分歧客户端可见且语义不同（offline 形=窗内绕过上游的姿态
+      陈述 vs retrieval 形=真回源失败的错误外化——影响客户端重试与告警语义）；④断路器目的（免敲打
+      死上游）在阈值 2+300s 窗下不受损（A 自身设计）。修复票另立（票面硬性要求——本票零代码），
+      草案要素：area=internal/remote（引擎 transport 故障计数 seam——mapTransportFault 开窗时机）
+      + 测试翻新两处（fetcher_test.go TestFetchTransportRefusalOpensOfflineWindow 边界臂、
+      adapter/cargo/remote_test.go TestRemoteSearchDeadUpstreamPostures 第 2 接触腿翻 retrieval 形
+      +第 3 接触钉 offline 形，注释中 FR-20/R-3 deviation 措辞随改）；腿集=冷断路器接触 1/2/3/4
+      序列（1、2=retrieval；3、4=offline）+ HEAD 同状态 + 无后缀对照同窗 + maven/generic 双面
+      （/tmp/t597 probe.py/compare.py 可复用）；验收门=单测双轮绿 + 活体差分 A×2/B×2（冷断路器对，
+      轮间隔 > 300s 或每轮新仓）drift 0/0 + 边界腿 PASS + go test -race solo internal/remote；
+      5xx 默认臂维持 offline 族不动（NOT_RUN 不发明）。台账翻面（UNKNOWN→BUG + review_gate 收口）
+      与行级 changelog 归 conductor。'
+  version: { artifactory_ref: 7.161.26, binflow_tested: 'as-built 当前树（T-597 后态：fetcher.go:1101-1102 单故障开窗——DIVERGENT 锚；修复票落地后随双轮差分翻 VERIFIED）' }
+  evidence:
+  - { kind: difftest, report: reports/agents/T-597.md, anchor: 'Compatibility b) 段 + generic 面 A 形逐腿 verbatim 证据表（g-side-sha1-first / g-side-md5-inwin 第 2 故障=retrieval 形 / g-side-sha256-inwin / g-ctrl-inwin / g-side-head-sha1-inwin；m-side-* 四腿同族；r3/r4 冷断路器双轮 drift=0——GATE 权威轮）', date: '2026-09-30' }
+  - { kind: probe, report: docs/reverse/repo-semantics.md, anchor: '§7.2 Erratum-3（L165-169：offline 窗在第 2 次 transport 故障后才开启——第 1、2 次 retrieval 形、第 3 次起 offline 形；高置信；T-609/BIN-91 落地 commit 76f6f268）', date: '2026-09-30' }
+  confidence: high
+  status: DIVERGENT
+  divergence_ref: known-divergence.yaml#remote/offline-window-open-threshold   # 现 UNKNOWN（R13 立案）——按本裁定建议 conductor 翻 BUG + 修复票 review_gate（R14 修复票 → 双轮 PASS → resolved）
