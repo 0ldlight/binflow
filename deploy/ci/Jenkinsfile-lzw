@@ -1,20 +1,22 @@
 // binflow-dev-k8s — intake-27 (2026-10-26), v3: fully git-independent.
 // github.com sustained transfers AND dl-cdn/apk downloads are unreliable from
-// this network (small requests pass, bodies stall or arrive mangled), so every
-// byte moves through the reference Artifactory (round-trip integrity verified)
-// and Jobs fetch their own materials in-cluster:
-//   1. build Job: initContainer unpacks the source tarball (generic-local/
-//      mirror/binflow-src-latest.tar.gz, VERSION file carries the sha) into an
-//      emptyDir; kaniko builds with a dir context and pushes to the in-cluster
-//      registry (D6). No git anywhere.
-//   2. deploy Job: initContainer fetches helm binary + source tarball; main
-//      container helm-upgrades binflow-dev in ns lzw (binflow-ci SA, admin
-//      password from Secret binflow-lzw-admin).
+// this network, so every byte moves through the reference Artifactory
+// (round-trip integrity verified) and Jobs fetch their own materials
+// in-cluster. Job specs are static templates in the relay (placeholders
+// __SHORT__/__COMMIT__/__BRANCH__); this script only does
+// wget-template -> sed -> POST against the k8s API — no heredocs (dash +
+// toolchain rewriting made inline heredocs untrustworthy).
+//   1. build Job (k8s/kaniko-job.yaml): initContainer unpacks the source
+//      tarball (mirror/binflow-src-latest.tar.gz) into an emptyDir; kaniko
+//      builds from a dir context and pushes to the in-cluster registry (D6).
+//   2. deploy Job (k8s/helm-deploy-job.yaml): fetches the helm binary +
+//      source tarball, helm-upgrades binflow-dev in ns lzw (binflow-ci SA,
+//      admin password from Secret binflow-lzw-admin).
 //   3. smoke: healthz on NodePort 32083.
 // The controller only talks to the k8s API (curl + mounted devops:default
-// token, RBAC Role binflow-ci-deployer) — no source, no binaries.
-// NOTE for conductor: repo copy IS the source of truth; sync the inline job
-// script when this file changes (job config.xml CpsFlowDefinition).
+// token, RBAC Role binflow-ci-deployer). Conductor refresh protocol: commit
+// -> /tmp/bf_relay.sh (tarball + templates + helm via Artifactory) ->
+// /tmp/bf_jenkins_refresh.sh (sync inline job script + trigger with SRC_SHA).
 pipeline {
   agent any
 
@@ -24,7 +26,7 @@ pipeline {
   }
 
   parameters {
-    string(name: 'SRC_BASE', defaultValue: 'http://artifactory.devops.svc.cluster.local:8082/artifactory/generic-local/mirror', description: 'Artifactory relay base for tarballs/binaries')
+    string(name: 'SRC_BASE', defaultValue: 'http://artifactory.devops.svc.cluster.local:8082/artifactory/generic-local/mirror', description: 'Artifactory relay base for tarballs/binaries/templates')
     string(name: 'SRC_SHA', defaultValue: '', description: 'git short sha packaged in binflow-src-latest.tar.gz (set by conductor refresh protocol)')
   }
 
@@ -56,8 +58,10 @@ echo "building source $SHA"
 
     stage('Build & push image (kaniko Job)') {
       steps {
+        withCredentials([string(credentialsId: 'ref-download-b64', variable: 'SRC_AUTH_B64')]) {
         sh '''
 set -eux
+SRC_AUTH="Basic "
 JOB="binflow-img-$SRC_SHA"
 TOKEN=$(cat $SA_DIR/token)
 CA="--cacert $SA_DIR/ca.crt"
@@ -65,56 +69,11 @@ AUTH="Authorization: Bearer $TOKEN"
 BASE="$K8S_BASE"
 API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
 
-curl -sS $CA -H "$AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
-cat <<EOF | curl -sS $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @-
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: $JOB
-  namespace: $NAMESPACE
-spec:
-  backoffLimit: 0
-  activeDeadlineSeconds: 2400
-  template:
-    spec:
-      restartPolicy: Never
-      containers:
-        - name: kaniko
-          image: m.daocloud.io/gcr.io/kaniko-project/executor:v1.23.2
-          args:
-            - "--dockerfile=deploy/release/Dockerfile.alpine"
-            - "--context=dir:///workspace"
-            - "--destination=$REGISTRY/binflow:dev-$SRC_SHA"
-            - "--insecure"
-            - "--registry-mirror=m.daocloud.io"
-            - "--snapshot-mode=redo"
-          volumeMounts:
-            - name: src
-              mountPath: /workspace
-      initContainers:
-        - name: fetch
-          image: m.daocloud.io/docker.io/library/alpine:3.20
-          env:
-            - name: ART_USER
-              valueFrom: { secretKeyRef: { name: ref-download, key: user } }
-            - name: ART_PASS
-              valueFrom: { secretKeyRef: { name: ref-download, key: password } }
-          command: ["sh", "-c"]
-          args:
-            - |
-              set -ex
-              AB64=$(printf '%s:%s' "$ART_USER" "$ART_PASS" | base64)
-              wget --header "Authorization: Basic $AB64" \\
-                "$SRC_BASE/binflow-src-latest.tar.gz" -O /workspace/src.tar.gz
-              tar -xzf /workspace/src.tar.gz -C /workspace
-              rm /workspace/src.tar.gz
-          volumeMounts:
-            - name: src
-              mountPath: /workspace
-      volumes:
-        - name: src
-          emptyDir: {}
-EOF
+curl -sS $CA -H "$AUTH" -H "$SRC_AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
+curl -sS -m 60 -H "$SRC_AUTH" "$SRC_BASE/kaniko-job.yaml" -o job-kaniko.yaml
+sed -i "s/__SHORT__/$SRC_SHA/g; s/__COMMIT__/$GIT_COMMIT/g" job-kaniko.yaml
+curl -sS $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-kaniko.yaml
+
 i=0
 while [ $i -lt 250 ]; do
   COND=$(curl -sS $CA -H "$AUTH" "$API/$JOB" | grep -o '"type":"[A-Za-z]*","status":"True"' || true)
@@ -122,7 +81,7 @@ while [ $i -lt 250 ]; do
     *Complete*) echo "kaniko Job complete"; break ;;
     *Failed*)
       echo "kaniko Job FAILED:"
-      POD=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "\"name\":\"$JOB[^\"]*\"" | head -1 | cut -d'"' -f4)
+      POD=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "binflow-img-$SRC_SHA-[a-z0-9]*" | head -1)
       curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120" || true
       exit 1 ;;
   esac
@@ -134,13 +93,16 @@ case "$COND" in
   *) echo "kaniko Job timed out"; exit 1 ;;
 esac
 '''
+        }
       }
     }
 
     stage('Deploy to lzw (helm Job)') {
       steps {
+        withCredentials([string(credentialsId: 'ref-download-b64', variable: 'SRC_AUTH_B64')]) {
         sh '''
 set -eux
+SRC_AUTH="Basic "
 JOB="binflow-deploy-$SRC_SHA"
 TOKEN=$(cat $SA_DIR/token)
 CA="--cacert $SA_DIR/ca.crt"
@@ -149,50 +111,10 @@ BASE="$K8S_BASE"
 API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
 
 curl -sS $CA -H "$AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
-cat <<EOF | curl -sS $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @-
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: $JOB
-  namespace: $NAMESPACE
-spec:
-  backoffLimit: 0
-  activeDeadlineSeconds: 1800
-  template:
-    spec:
-      serviceAccountName: binflow-ci
-      restartPolicy: Never
-      containers:
-        - name: helm
-          image: m.daocloud.io/docker.io/library/alpine:3.20
-          env:
-            - name: ADMIN_PASSWORD
-              valueFrom: { secretKeyRef: { name: binflow-lzw-admin, key: password } }
-            - name: ART_USER
-              valueFrom: { secretKeyRef: { name: ref-download, key: user } }
-            - name: ART_PASS
-              valueFrom: { secretKeyRef: { name: ref-download, key: password } }
-          command: ["sh", "-c"]
-          args:
-            - |
-              set -ex
-              AB64=$(printf '%s:%s' "$ART_USER" "$ART_PASS" | base64)
-              wget --header "Authorization: Basic $AB64" \\
-                "$SRC_BASE/helm-linux-amd64" -O /usr/local/bin/helm
-              chmod +x /usr/local/bin/helm
-              wget --header "Authorization: Basic $AB64" \\
-                "$SRC_BASE/binflow-src-latest.tar.gz" -O /src.tar.gz
-              mkdir -p /src && tar -xzf /src.tar.gz -C /src && rm /src.tar.gz
-              cd /src
-              helm upgrade --install binflow-dev charts/binflow \\
-                -n lzw \\
-                -f deploy/k8s/lzw-values.yaml \\
-                --set image.repository=192.168.120.36:32100 \\
-                --set image.tag=dev-$SRC_SHA \\
-                --set admin.password="$ADMIN_PASSWORD" \\
-                --wait --timeout 8m
-              helm list -n lzw
-EOF
+curl -sS -m 60 -H "$SRC_AUTH" "$SRC_BASE/helm-deploy-job.yaml" -o job-deploy.yaml
+sed -i "s/__SHORT__/$SRC_SHA/g" job-deploy.yaml
+curl -sS $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-deploy.yaml
+
 i=0
 while [ $i -lt 200 ]; do
   COND=$(curl -sS $CA -H "$AUTH" "$API/$JOB" | grep -o '"type":"[A-Za-z]*","status":"True"' || true)
@@ -200,7 +122,7 @@ while [ $i -lt 200 ]; do
     *Complete*) echo "deploy Job complete"; break ;;
     *Failed*)
       echo "deploy Job FAILED:"
-      POD=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "\"name\":\"$JOB[^\"]*\"" | head -1 | cut -d'"' -f4)
+      POD=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "binflow-deploy-$SRC_SHA-[a-z0-9]*" | head -1)
       curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120" || true
       exit 1 ;;
   esac
@@ -212,6 +134,7 @@ case "$COND" in
   *) echo "deploy Job timed out"; exit 1 ;;
 esac
 '''
+        }
       }
     }
 
