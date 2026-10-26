@@ -51,7 +51,7 @@ SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | b
 SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
 SRC_AUTH="Basic $SRC_AUTH"
 SHA=
-curl -sS --noproxy '*' -m 15 -H "" "http://ash-check.lzw.svc.cluster.local:8080/capture" -o /dev/null || true$(curl -sS --noproxy '*' -m 15 -H "$SRC_AUTH" "$SRC_BASE/VERSION" | tr -d "[:space:]")
+SHA=$(curl -sS --noproxy '*' -m 15 -H "$SRC_AUTH" "$SRC_BASE/VERSION" | tr -d "[:space:]")
 case "$SHA" in
   [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
   *) echo "VERSION did not contain a sha: $SHA"; exit 1 ;;
