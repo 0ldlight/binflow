@@ -1,0 +1,68 @@
+# 集群内镜像仓库（D6 裁定，2026-10-26）——Jenkins 构建推送目标 + 节点拉取源
+# 仓库内地址：registry.devops.svc.cluster.local:5000（集群内）/ 192.168.120.36:32100（节点/kubelet）
+# 实测（2026-10-26）：kubelet 以 HTTPS 探此 http 仓库被拒（ErrImagePull）——节点必须先配 insecure registry。
+# RKE2 节点配法（每台节点 /etc/rancher/rke2/registries.yaml 追加后重启 rke2-server/rke2-agent）：
+#   mirrors:
+#     "192.168.120.36:32100":
+#       endpoint:
+#         - "http://192.168.120.36:32100"
+# pod 出网注意：docker.io 直连被墙（registry-1.docker.io i/o timeout 实测）——外网镜像一律走 m.daocloud.io 前缀镜像源。
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-data
+  namespace: devops
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: devops
+  labels: { app: registry }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: registry }
+  template:
+    metadata:
+      labels: { app: registry }
+    spec:
+      containers:
+        - name: registry
+          image: docker.io/library/registry:2
+          ports:
+            - containerPort: 5000
+          env:
+            - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
+              value: /var/lib/registry
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: "1", memory: 1Gi }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/registry
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: registry-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry
+  namespace: devops
+spec:
+  type: NodePort
+  selector:
+    app: registry
+  ports:
+    - name: http
+      port: 5000
+      targetPort: 5000
+      nodePort: 32100

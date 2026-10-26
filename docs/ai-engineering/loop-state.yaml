@@ -30,9 +30,8 @@ intake_027:
   decisions:
     - id: D6
       what: "Jenkins 镜像链的推送目标 registry（Jenkins API 403 匿名——链改造需凭据）"
-      options: "①ghcr.io/lzwzzy/binflow 公开包（Chart 默认仓库，Jenkins 需 write:packages PAT）②集群内 registry（registry:2，零外部依赖）③用户现有内部仓库"
-      default: "候批期间不部署镜像链——lzw 实例 BLOCKED on D6+Jenkins 凭据"
-      review_by: 2026-11-26
+      resolved: "2026-10-26 用户裁定：集群内 registry——已部署 devops/registry（registry:2，Longhorn 50Gi，ClusterIP 5000 + NodePort 32100，manifest=deploy/k8s/registry.yaml；skopeo 经 m.daocloud 灌 alpine 验证 push 面通）"
+      residual: "节点侧 containerd insecure-registry 未配（kubelet HTTPS 探 http 仓被拒实测 ErrImagePull）——需在 4 节点配 registries.yaml（片段在 registry.yaml 头注），候用户执行或给节点 SSH；Jenkins API Token 候用户下发"
   defaults: { deploy: "deploy/k8s/lzw-values.yaml 已备（NodePort 32083/Longhorn 20Gi）；B 侧凭据 gitignored .env.lzw；镜像链就绪后 helm upgrade --install binflow-dev -n lzw 即换装" }
   review_by: 2026-11-26
 current_iteration: 028
