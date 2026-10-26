@@ -94,6 +94,12 @@ for i in $(seq 1 240); do
   esac
   sleep 10
 done
+# loop exhausted without a terminal condition (stuck Pending / node lost):
+# fail loudly instead of falling through to deploy (re-review B-1, PR #210)
+case "$($KUBECTL -n $NAMESPACE get job $JOB -o jsonpath='{.status.conditions[*].type}')" in
+  *Complete*) ;;
+  *) echo "kaniko Job timed out"; $KUBECTL -n $NAMESPACE logs job/$JOB --tail=50 || true; exit 1 ;;
+esac
 $KUBECTL -n $NAMESPACE logs job/$JOB --tail=50 || true
 '''
       }
