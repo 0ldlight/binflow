@@ -1,1 +1,145 @@
-@deploy/ci/Jenkinsfile-lzw
+// binflow-dev-k8s — intake-27 (2026-10-26), v2 mechanics.
+// The controller orchestrates the k8s API with plain curl + its mounted SA
+// token (devops:default, RBAC Role binflow-ci-deployer in ns lzw) — no
+// kubectl/helm binaries needed on the controller (pod-egress-throttled
+// downloads proved impractical). Heavy lifting runs as Jobs:
+//   1. kaniko Job (template deploy/ci/k8s/kaniko-job.yaml) builds the image
+//      from the git context and pushes to the in-cluster registry (D6,
+//      NodePort 32100; base images via m.daocloud mirror — docker.io egress
+//      is blocked from pods).
+//   2. helm-deploy Job (deploy/ci/k8s/helm-deploy-job.yaml, dtzar/helm-kubectl
+//      image, binflow-ci SA) clones the repo and helm-upgrades binflow-dev in
+//      ns lzw; admin password comes from Secret binflow-lzw-admin, never
+//      through the pipeline.
+//   3. smoke: healthz on the NodePort B-side.
+// Nodes must have insecure-registry config for 192.168.120.36:32100 before
+// kubelet can pull (see deploy/k8s/registry.yaml header) — deploy Job fails
+// at ImagePullBackOff until then.
+pipeline {
+  agent any
+
+  options {
+    disableConcurrentBuilds()
+    buildDiscarder(logRotator(numToKeepStr: '10'))
+    timestamps()
+  }
+
+  parameters {
+    string(name: 'BRANCH', defaultValue: 'develop', description: 'git branch/refs to build and deploy')
+  }
+
+  environment {
+    REPO_URL = 'https://github.com/lzwzzy/binflow.git'
+    REGISTRY = '192.168.120.36:32100'
+    NAMESPACE = 'lzw'
+    B_SIDE_URL = 'http://192.168.120.36:32083'
+    SA_DIR = '/var/run/secrets/kubernetes.io/serviceaccount'
+    K8S_BASE = "https://${env.KUBERNETES_SERVICE_HOST}:${env.KUBERNETES_SERVICE_PORT}"
+    no_proxy = 'localhost,127.0.0.1,.svc,.cluster.local,192.168.120.36,10.96.0.1'
+    NO_PROXY = 'localhost,127.0.0.1,.svc,.cluster.local,192.168.120.36,10.96.0.1'
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        git branch: env.BRANCH, url: env.REPO_URL
+        script { env.GIT_SHORT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim() }
+        echo "building ${env.GIT_SHORT} from ${env.BRANCH}"
+      }
+    }
+
+    stage('Build & push image (kaniko Job)') {
+      steps {
+        sh '''
+set -eux
+TAG="dev-$GIT_SHORT"
+JOB="binflow-img-$GIT_SHORT"
+TOKEN=$(cat $SA_DIR/token)
+CA="--cacert $SA_DIR/ca.crt"
+AUTH="Authorization: Bearer $TOKEN"
+BASE="$K8S_BASE"
+API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
+
+curl -sS $CA -H "$AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
+sed -e "s/__SHORT__/$GIT_SHORT/g" -e "s/__COMMIT__/$GIT_COMMIT/g" deploy/ci/k8s/kaniko-job.yaml \
+  | curl -sS $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @-
+
+# poll both terminal conditions; fail loudly on failure OR timeout
+i=0
+while [ $i -lt 250 ]; do
+  COND=$(curl -sS $CA -H "$AUTH" "$API/$JOB" | grep -o '"type":"[A-Za-z]*","status":"True"' || true)
+  case "$COND" in
+    *Complete*) echo "kaniko Job complete"; break ;;
+    *Failed*)
+      echo "kaniko Job FAILED:"
+      POD=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "\"name\":\"$JOB[^\"]*\"" | head -1 | cut -d'"' -f4)
+      curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=100" || true
+      exit 1 ;;
+  esac
+  sleep 10
+  i=$((i+1))
+done
+case "$COND" in
+  *Complete*) ;;
+  *) echo "kaniko Job timed out"; exit 1 ;;
+esac
+'''
+      }
+    }
+
+    stage('Deploy to lzw (helm Job)') {
+      steps {
+        sh '''
+set -eux
+JOB="binflow-deploy-$GIT_SHORT"
+TOKEN=$(cat $SA_DIR/token)
+CA="--cacert $SA_DIR/ca.crt"
+AUTH="Authorization: Bearer $TOKEN"
+BASE="$K8S_BASE"
+API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
+
+curl -sS $CA -H "$AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
+sed -e "s/__SHORT__/$GIT_SHORT/g" -e "s/__BRANCH__/$BRANCH/g" deploy/ci/k8s/helm-deploy-job.yaml \
+  | curl -sS $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @-
+
+i=0
+while [ $i -lt 200 ]; do
+  COND=$(curl -sS $CA -H "$AUTH" "$API/$JOB" | grep -o '"type":"[A-Za-z]*","status":"True"' || true)
+  case "$COND" in
+    *Complete*) echo "deploy Job complete"; break ;;
+    *Failed*)
+      echo "deploy Job FAILED:"
+      POD=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "\"name\":\"$JOB[^\"]*\"" | head -1 | cut -d'"' -f4)
+      curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=100" || true
+      exit 1 ;;
+  esac
+  sleep 10
+  i=$((i+1))
+done
+case "$COND" in
+  *Complete*) ;;
+  *) echo "deploy Job timed out"; exit 1 ;;
+esac
+'''
+      }
+    }
+
+    stage('Smoke') {
+      steps {
+        sh '''
+set -eux
+code=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' $B_SIDE_URL/healthz)
+[ "$code" = "200" ] || { echo "healthz=$code"; exit 1; }
+curl -sS -m 10 $B_SIDE_URL/healthz
+echo "smoke OK on $B_SIDE_URL"
+'''
+      }
+    }
+  }
+
+  post {
+    failure {
+      echo 'chain failed — see stage logs; rollback is a helm retry on the previous tag'
+    }
+  }
+}

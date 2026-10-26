@@ -1,0 +1,42 @@
+# helm deploy Job template — placeholders substituted by Jenkinsfile-lzw:
+#   __SHORT__  git short sha (image tag deployed)
+#   __BRANCH__ branch to clone (chart source)
+# Runs as binflow-ci SA (RoleBinding binflow-ci-deployer-sa in ns lzw);
+# admin password comes from Secret binflow-lzw-admin (created out-of-band
+# from gitignored .env.lzw — never through the pipeline).
+# dtzar/helm-kubectl via m.daocloud prefix: pod egress to docker.io is blocked.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: binflow-deploy-__SHORT__
+  namespace: lzw
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 1800
+  template:
+    spec:
+      serviceAccountName: binflow-ci
+      restartPolicy: Never
+      containers:
+        - name: helm
+          image: m.daocloud.io/docker.io/dtzar/helm-kubectl:3.16.4
+          env:
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: binflow-lzw-admin
+                  key: password
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eux
+              git clone --depth 1 --branch __BRANCH__ https://github.com/lzwzzy/binflow.git /src
+              cd /src
+              helm upgrade --install binflow-dev charts/binflow \
+                -n lzw \
+                -f deploy/k8s/lzw-values.yaml \
+                --set image.repository=192.168.120.36:32100 \
+                --set image.tag=dev-__SHORT__ \
+                --set admin.password="$ADMIN_PASSWORD" \
+                --wait --timeout 8m
+              helm list -n lzw
