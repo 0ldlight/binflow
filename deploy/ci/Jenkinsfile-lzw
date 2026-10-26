@@ -25,6 +25,7 @@ pipeline {
 
   parameters {
     string(name: 'SRC_BASE', defaultValue: 'http://artifactory.devops.svc.cluster.local:8082/artifactory/generic-local/mirror', description: 'Artifactory relay base for tarballs/binaries')
+    string(name: 'SRC_SHA', defaultValue: '', description: 'git short sha packaged in binflow-src-latest.tar.gz (set by conductor refresh protocol)')
   }
 
   environment {
@@ -42,15 +43,14 @@ pipeline {
       steps {
         sh '''
 set -eux
-SHA=$(curl -sS -m 15 "$SRC_BASE/VERSION" | tr -d "[:space:]")
+SHA=$(echo "$SRC_SHA" | tr -d "[:space:]")
 case "$SHA" in
   [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
-  *) echo "VERSION did not contain a sha: $SHA"; exit 1 ;;
+  *) echo "SRC_SHA parameter missing/invalid: $SHA"; exit 1 ;;
 esac
-echo "$SHA" > "$WORKSPACE/SRC_SHA"
 echo "building source $SHA"
 '''
-        script { env.SRC_SHA = sh(returnStdout: true, script: 'cat "$WORKSPACE/SRC_SHA"').trim() }
+        script { env.SRC_SHA = sh(returnStdout: true, script: 'echo "$SRC_SHA" | tr -d "[:space:]"').trim() }
       }
     }
 
