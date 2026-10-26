@@ -53,7 +53,15 @@ SRC_AUTH="Basic $SRC_AUTH"
 SHA=$(curl -sS --noproxy '*' -m 15 -H "$SRC_AUTH" "$SRC_BASE/VERSION" | tr -d "[:space:]")
 case "$SHA" in
   [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
-  *) echo "VERSION did not contain a sha: $SHA"; exit 1 ;;
+  *)
+    echo "DEBUG proxy env (values redacted):"
+    env | grep -iE "proxy" | sed 's/=.*/=<set>/'
+    echo "DEBUG verbose fetch:"
+    curl -v --noproxy '*' -m 15 -H "$SRC_AUTH" "$SRC_BASE/VERSION" 2>&1 |
+      grep -E "Trying|Connected to|proxy|> GET|> Host|> Authorization|< HTTP" |
+      sed 's/Authorization: Basic .*/Authorization: Basic-REDACTED/'
+    echo "DEBUG END"
+    exit 1 ;;
 esac
 echo "building source $SHA"
 '''
