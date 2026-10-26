@@ -46,18 +46,17 @@ CA="--cacert $SA_DIR/ca.crt"
 AUTH="Authorization: Bearer $TOKEN"
 BASE="$K8S_BASE"
 SEC_JSON=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
-SEC_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
-SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
-SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
-SRC_AUTH="Basic $SRC_AUTH"
-SHA=$(curl -sS --noproxy '*' -m 15 -H "$SRC_AUTH" "$SRC_BASE/VERSION" | tr -d "[:space:]")
+RELAY_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+RELAY_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+RELAY_AUTH="--user $RELAY_USER:$RELAY_PASS"
+SHA=$(curl -sS --noproxy '*' -m 15 $RELAY_AUTH "$SRC_BASE/VERSION" | tr -d "[:space:]")
 case "$SHA" in
   [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
   *)
     echo "DEBUG proxy env (values redacted):"
     env | grep -iE "proxy" | sed 's/=.*/=<set>/'
     echo "DEBUG verbose fetch:"
-    curl -v --noproxy '*' -m 15 -H "$SRC_AUTH" "$SRC_BASE/VERSION" 2>&1 |
+    curl -v --noproxy '*' -m 15 $RELAY_AUTH "$SRC_BASE/VERSION" 2>&1 |
       grep -E "Trying|Connected to|proxy|> GET|> Host|> Authorization|< HTTP" |
       sed 's/Authorization: Basic .*/Authorization: Basic-REDACTED/'
     echo "DEBUG END"
@@ -65,7 +64,11 @@ case "$SHA" in
 esac
 echo "building source $SHA"
 '''
-        script { env.SRC_SHA = sh(returnStdout: true, script: 'echo "$SRC_SHA"').trim() }
+        script {
+            env.SRC_SHA = sh(returnStdout: true, script: 'echo "$SRC_SHA"').trim()
+            env.RELAY_USER = sh(returnStdout: true, script: 'echo "$RELAY_USER"').trim()
+            env.RELAY_PASS = sh(returnStdout: true, script: 'echo "$RELAY_PASS"').trim()
+        }
       }
     }
 
@@ -73,6 +76,7 @@ echo "building source $SHA"
       steps {
         sh '''
 set -eux
+RELAY_AUTH="--user $RELAY_USER:$RELAY_PASS"
 JOB="binflow-img-$SRC_SHA"
 TOKEN=$(cat $SA_DIR/token)
 CA="--cacert $SA_DIR/ca.crt"
@@ -87,7 +91,7 @@ SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
 SRC_AUTH="Basic $SRC_AUTH"
 
 curl -sS --noproxy '*' $CA -H "$AUTH" -H "$SRC_AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
-curl -sS --noproxy '*' -m 60 -H "$SRC_AUTH" "$SRC_BASE/kaniko-job.yaml" -o job-kaniko.yaml
+curl -sS --noproxy '*' -m 60 $RELAY_AUTH "$SRC_BASE/kaniko-job.yaml" -o job-kaniko.yaml
 sed -i "s/__SHORT__/$SRC_SHA/g; s/__COMMIT__/$GIT_COMMIT/g" job-kaniko.yaml
 curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-kaniko.yaml
 
@@ -117,6 +121,7 @@ esac
       steps {
         sh '''
 set -eux
+RELAY_AUTH="--user $RELAY_USER:$RELAY_PASS"
 JOB="binflow-deploy-$SRC_SHA"
 TOKEN=$(cat $SA_DIR/token)
 CA="--cacert $SA_DIR/ca.crt"
@@ -131,7 +136,7 @@ SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
 SRC_AUTH="Basic $SRC_AUTH"
 
 curl -sS --noproxy '*' $CA -H "$AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
-curl -sS --noproxy '*' -m 60 -H "$SRC_AUTH" "$SRC_BASE/helm-deploy-job.yaml" -o job-deploy.yaml
+curl -sS --noproxy '*' -m 60 $RELAY_AUTH "$SRC_BASE/helm-deploy-job.yaml" -o job-deploy.yaml
 sed -i "s/__SHORT__/$SRC_SHA/g" job-deploy.yaml
 curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-deploy.yaml
 
