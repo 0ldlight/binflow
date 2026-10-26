@@ -71,6 +71,7 @@ SEC_JSON=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/r
 SEC_USER=$(echo "$SEC_JSON" | grep -o '"user":"[^"]*"' | cut -d'"' -f4 | base64 -d)
 SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password":"[^"]*"' | cut -d'"' -f4 | base64 -d)
 SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
+SRC_AUTH="Basic $SRC_AUTH"
 
 curl -sS $CA -H "$AUTH" -H "$SRC_AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
 curl -sS -m 60 -H "$SRC_AUTH" "$SRC_BASE/kaniko-job.yaml" -o job-kaniko.yaml
@@ -114,6 +115,7 @@ SEC_JSON=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/r
 SEC_USER=$(echo "$SEC_JSON" | grep -o '"user":"[^"]*"' | cut -d'"' -f4 | base64 -d)
 SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password":"[^"]*"' | cut -d'"' -f4 | base64 -d)
 SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
+SRC_AUTH="Basic $SRC_AUTH"
 
 curl -sS $CA -H "$AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
 curl -sS -m 60 -H "$SRC_AUTH" "$SRC_BASE/helm-deploy-job.yaml" -o job-deploy.yaml
