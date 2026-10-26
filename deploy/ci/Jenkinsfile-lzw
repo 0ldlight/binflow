@@ -1,18 +1,20 @@
-// binflow-dev-k8s — intake-27 (2026-10-26): test-env chain onto k8s ns lzw.
-// Chain: checkout (github public) -> kaniko Job builds+pushes image into the
-// in-cluster registry (devops/registry, NodePort 32100) -> helm upgrade
-// binflow-dev in ns lzw (NodePort 32083) -> smoke probe.
-// Prereqs (set up 2026-10-26):
-//   - RBAC Role/RoleBinding binflow-ci-deployer in ns lzw bound to devops:default
-//     (the SA token mounted in the Jenkins controller pod)
-//   - kubectl + helm binaries at /var/jenkins_home/bin (persistent PVC)
-//   - registry.devops.svc.cluster.local:5000 / 192.168.120.36:32100 (D6)
-//   - nodes need insecure-registry config for 192.168.120.36:32100 before
-//     kubelet can pull (see deploy/k8s/registry.yaml header)
-//   - pod egress: docker.io blocked -> base images via --registry-mirror=
-//     m.daocloud.io; github.com reachable
-// Credentials: binflow-lzw-admin-password (secret text) = B-side admin password
-// (source of truth: gitignored .env.lzw on the conductor workstation).
+// binflow-dev-k8s — intake-27 (2026-10-26), v2 mechanics.
+// The controller orchestrates the k8s API with plain curl + its mounted SA
+// token (devops:default, RBAC Role binflow-ci-deployer in ns lzw) — no
+// kubectl/helm binaries needed on the controller (pod-egress-throttled
+// downloads proved impractical). Heavy lifting runs as Jobs:
+//   1. kaniko Job (template deploy/ci/k8s/kaniko-job.yaml) builds the image
+//      from the git context and pushes to the in-cluster registry (D6,
+//      NodePort 32100; base images via m.daocloud mirror — docker.io egress
+//      is blocked from pods).
+//   2. helm-deploy Job (deploy/ci/k8s/helm-deploy-job.yaml, dtzar/helm-kubectl
+//      image, binflow-ci SA) clones the repo and helm-upgrades binflow-dev in
+//      ns lzw; admin password comes from Secret binflow-lzw-admin, never
+//      through the pipeline.
+//   3. smoke: healthz on the NodePort B-side.
+// Nodes must have insecure-registry config for 192.168.120.36:32100 before
+// kubelet can pull (see deploy/k8s/registry.yaml header) — deploy Job fails
+// at ImagePullBackOff until then.
 pipeline {
   agent any
 
@@ -23,21 +25,16 @@ pipeline {
   }
 
   parameters {
-    string(name: 'BRANCH', defaultValue: 'develop', description: 'git branch/refs to build')
+    string(name: 'BRANCH', defaultValue: 'develop', description: 'git branch/refs to build and deploy')
   }
 
   environment {
-    REPO_URL = 'https://github.com/lzwzzy/binflow.git'
-    // https form: GitHub disabled unauthenticated git:// (port 9418); kaniko's
-    // go-git handles anonymous public https (review B-2, PR #210)
-    KANIKO_CONTEXT = 'https://github.com/lzwzzy/binflow'
+    REPO_URL = 'git://git-mirror.lzw.svc.cluster.local:9418/binflow'
     REGISTRY = '192.168.120.36:32100'
-    REGISTRY_IN_CLUSTER = 'registry.devops.svc.cluster.local:5000'
     NAMESPACE = 'lzw'
-    RELEASE = 'binflow-dev'
     B_SIDE_URL = 'http://192.168.120.36:32083'
-    KUBECTL = '/var/jenkins_home/bin/kubectl'
-    HELM = '/var/jenkins_home/bin/helm'
+    SA_DIR = '/var/run/secrets/kubernetes.io/serviceaccount'
+    K8S_BASE = "https://${env.KUBERNETES_SERVICE_HOST}:${env.KUBERNETES_SERVICE_PORT}"
     no_proxy = 'localhost,127.0.0.1,.svc,.cluster.local,192.168.120.36,10.96.0.1'
     NO_PROXY = 'localhost,127.0.0.1,.svc,.cluster.local,192.168.120.36,10.96.0.1'
   }
@@ -57,72 +54,72 @@ pipeline {
 set -eux
 TAG="dev-$GIT_SHORT"
 JOB="binflow-img-$GIT_SHORT"
-$KUBECTL -n $NAMESPACE delete job $JOB --ignore-not-found
-cat <<EOF | $KUBECTL apply -f -
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: $JOB
-  namespace: $NAMESPACE
-spec:
-  backoffLimit: 0
-  activeDeadlineSeconds: 2400
-  template:
-    spec:
-      restartPolicy: Never
-      containers:
-        - name: kaniko
-          image: m.daocloud.io/gcr.io/kaniko-project/executor:v1.23.2
-          args:
-            - "--dockerfile=deploy/release/Dockerfile.alpine"
-            - "--context=$KANIKO_CONTEXT#$GIT_COMMIT"
-            - "--destination=$REGISTRY/binflow:$TAG"
-            - "--insecure"
-            - "--registry-mirror=m.daocloud.io"
-            - "--snapshot-mode=redo"
-EOF
-# poll both terminal conditions — plain `wait --for=complete` would hang the
-# full 40m on a failed Job (backoffLimit 0 never reaches Complete)
-for i in $(seq 1 240); do
-  c=$($KUBECTL -n $NAMESPACE get job $JOB -o jsonpath='{.status.conditions[*].type}' 2>/dev/null || true)
-  case "$c" in
+TOKEN=$(cat $SA_DIR/token)
+CA="--cacert $SA_DIR/ca.crt"
+AUTH="Authorization: Bearer $TOKEN"
+BASE="$K8S_BASE"
+API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
+
+curl -sS $CA -H "$AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
+sed -e "s/__SHORT__/$GIT_SHORT/g" -e "s/__COMMIT__/$GIT_COMMIT/g" deploy/ci/k8s/kaniko-job.yaml \
+  | curl -sS $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @-
+
+# poll both terminal conditions; fail loudly on failure OR timeout
+i=0
+while [ $i -lt 250 ]; do
+  COND=$(curl -sS $CA -H "$AUTH" "$API/$JOB" | grep -o '"type":"[A-Za-z]*","status":"True"' || true)
+  case "$COND" in
     *Complete*) echo "kaniko Job complete"; break ;;
     *Failed*)
       echo "kaniko Job FAILED:"
-      $KUBECTL -n $NAMESPACE logs job/$JOB --tail=100 || true
+      POD=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "\"name\":\"$JOB[^\"]*\"" | head -1 | cut -d'"' -f4)
+      curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=100" || true
       exit 1 ;;
   esac
   sleep 10
+  i=$((i+1))
 done
-# loop exhausted without a terminal condition (stuck Pending / node lost):
-# fail loudly instead of falling through to deploy (re-review B-1, PR #210)
-case "$($KUBECTL -n $NAMESPACE get job $JOB -o jsonpath='{.status.conditions[*].type}')" in
+case "$COND" in
   *Complete*) ;;
-  *) echo "kaniko Job timed out"; $KUBECTL -n $NAMESPACE logs job/$JOB --tail=50 || true; exit 1 ;;
+  *) echo "kaniko Job timed out"; exit 1 ;;
 esac
-$KUBECTL -n $NAMESPACE logs job/$JOB --tail=50 || true
 '''
       }
     }
 
-    stage('Deploy to lzw (helm)') {
-      environment {
-        // hex charset only (openssl rand hex) — no helm --set metachars
-        // (commas/backslashes); if the credential ever changes charset,
-        // escape commas before --set (review B-3, PR #210)
-        ADMIN_PASSWORD = credentials('binflow-lzw-admin-password')
-      }
+    stage('Deploy to lzw (helm Job)') {
       steps {
         sh '''
 set -eux
-$HELM upgrade --install $RELEASE charts/binflow \
-  -n $NAMESPACE \
-  -f deploy/k8s/lzw-values.yaml \
-  --set image.repository=$REGISTRY \
-  --set image.tag=dev-$GIT_SHORT \
-  --set admin.password="$ADMIN_PASSWORD" \
-  --wait --timeout 5m
-$KUBECTL -n $NAMESPACE rollout status deployment/$RELEASE --timeout=5m
+JOB="binflow-deploy-$GIT_SHORT"
+TOKEN=$(cat $SA_DIR/token)
+CA="--cacert $SA_DIR/ca.crt"
+AUTH="Authorization: Bearer $TOKEN"
+BASE="$K8S_BASE"
+API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
+
+curl -sS $CA -H "$AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
+sed -e "s/__SHORT__/$GIT_SHORT/g" -e "s/__BRANCH__/$BRANCH/g" deploy/ci/k8s/helm-deploy-job.yaml \
+  | curl -sS $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @-
+
+i=0
+while [ $i -lt 200 ]; do
+  COND=$(curl -sS $CA -H "$AUTH" "$API/$JOB" | grep -o '"type":"[A-Za-z]*","status":"True"' || true)
+  case "$COND" in
+    *Complete*) echo "deploy Job complete"; break ;;
+    *Failed*)
+      echo "deploy Job FAILED:"
+      POD=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "\"name\":\"$JOB[^\"]*\"" | head -1 | cut -d'"' -f4)
+      curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=100" || true
+      exit 1 ;;
+  esac
+  sleep 10
+  i=$((i+1))
+done
+case "$COND" in
+  *Complete*) ;;
+  *) echo "deploy Job timed out"; exit 1 ;;
+esac
 '''
       }
     }

@@ -1,0 +1,24 @@
+# kaniko build Job template — placeholders substituted by Jenkinsfile-lzw:
+#   __SHORT__  git short sha (also the image tag suffix)
+#   __COMMIT__ full commit sha for the kaniko git context
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: binflow-img-__SHORT__
+  namespace: lzw
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 2400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: kaniko
+          image: m.daocloud.io/gcr.io/kaniko-project/executor:v1.23.2
+          args:
+            - "--dockerfile=deploy/release/Dockerfile.alpine"
+            - "--context=git://git-mirror.lzw.svc.cluster.local:9418/binflow#__COMMIT__"
+            - "--destination=192.168.120.36:32100/binflow:dev-__SHORT__"
+            - "--insecure"
+            - "--registry-mirror=m.daocloud.io"
+            - "--snapshot-mode=redo"

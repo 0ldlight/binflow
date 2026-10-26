@@ -1,0 +1,75 @@
+# Cluster-local git mirror (2026-10-26) — github.com large transfers from this
+# network stall (small requests pass, sustained transfers hang), so the CI
+# chain clones from here instead. Source of truth stays github.com; the bundle
+# is refreshed by the conductor (git bundle -> Artifactory generic-local/mirror
+# -> this pod re-fetches on restart) until direct git sync is reliable.
+#   refresh:  bash protocol in deploy/ci/k8s/README (bundle -> upload -> pod delete)
+# Secret ref-download (artifactory read credentials) is created out-of-band
+# from gitignored .env.ref — same discipline as binflow-lzw-admin.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: git-mirror
+  namespace: lzw
+  labels: { app: git-mirror }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: git-mirror }
+  template:
+    metadata:
+      labels: { app: git-mirror }
+    spec:
+      containers:
+        - name: serve
+          image: m.daocloud.io/docker.io/library/alpine:3.20
+          env:
+            - name: ART_USER
+              valueFrom: { secretKeyRef: { name: ref-download, key: user } }
+            - name: ART_PASS
+              valueFrom: { secretKeyRef: { name: ref-download, key: password } }
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -ex
+              apk add --no-cache git curl
+              i=0
+              while [ $i -lt 30 ]; do
+                rm -f /tmp/bf.bundle
+                if curl -sf -u "$ART_USER:$ART_PASS" -o /tmp/bf.bundle \
+                    http://artifactory.devops.svc.cluster.local:8082/artifactory/generic-local/mirror/bf.bundle; then
+                  break
+                fi
+                sleep 20; i=$((i+1))
+              done
+              [ -s /tmp/bf.bundle ]
+              rm -rf /srv/repos
+              mkdir -p /srv/repos
+              git clone --mirror /tmp/bf.bundle /srv/repos/binflow
+              exec git daemon --base-path=/srv/repos --export-all --reuseaddr --port=9418 --verbose
+          ports:
+            - containerPort: 9418
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: "1", memory: 1Gi }
+          volumeMounts:
+            - name: cache
+              mountPath: /root/.cache
+      volumes:
+        - name: cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: git-mirror
+  namespace: lzw
+spec:
+  type: ClusterIP
+  selector:
+    app: git-mirror
+  ports:
+    - name: git
+      port: 9418
+      targetPort: 9418
