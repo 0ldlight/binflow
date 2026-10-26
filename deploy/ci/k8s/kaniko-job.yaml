@@ -1,6 +1,9 @@
-# kaniko build Job template — placeholders substituted by Jenkinsfile-lzw:
+# kaniko build Job template — placeholder substituted by Jenkinsfile-lzw (sed):
 #   __SHORT__  git short sha (also the image tag suffix)
-#   __COMMIT__ full commit sha for the kaniko git context
+# v3: no git — the initContainer unpacks the source tarball relayed via
+# Artifactory into an emptyDir; kaniko builds from the dir context. Base
+# images come through the m.daocloud mirror (docker.io egress blocked from
+# pods); push goes to the in-cluster registry (http, --insecure).
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -17,8 +20,40 @@ spec:
           image: m.daocloud.io/gcr.io/kaniko-project/executor:v1.23.2
           args:
             - "--dockerfile=deploy/release/Dockerfile.alpine"
-            - "--context=git://git-mirror.lzw.svc.cluster.local:9418/binflow#__COMMIT__"
+            - "--context=dir:///workspace"
             - "--destination=192.168.120.36:32100/binflow:dev-__SHORT__"
             - "--insecure"
             - "--registry-mirror=m.daocloud.io"
             - "--snapshot-mode=redo"
+          volumeMounts:
+            - name: src
+              mountPath: /workspace
+      initContainers:
+        - name: fetch
+          image: m.daocloud.io/docker.io/library/alpine:3.20
+          env:
+            - name: ART_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ref-download
+                  key: user
+            - name: ART_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: ref-download
+                  key: password
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -ex
+              AB64=$(printf '%s:%s' "$ART_USER" "$ART_PASS" | base64)
+              wget --header "Authorization: Basic $AB64" \
+                "http://artifactory.devops.svc.cluster.local:8082/artifactory/generic-local/mirror/binflow-src-latest.tar.gz" -O /workspace/src.tar.gz
+              tar -xzf /workspace/src.tar.gz -C /workspace
+              rm /workspace/src.tar.gz
+          volumeMounts:
+            - name: src
+              mountPath: /workspace
+      volumes:
+        - name: src
+          emptyDir: {}

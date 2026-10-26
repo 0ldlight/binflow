@@ -97,7 +97,7 @@ SRC_AUTH="Basic $SRC_AUTH"
 
 curl -sS --noproxy '*' $CA -H "$AUTH" -H "$SRC_AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
 curl -sS --noproxy '*' -m 60 $RELAY_AUTH "$SRC_BASE/kaniko-job.yaml" -o job-kaniko.yaml
-sed -i "s/__SHORT__/$SRC_SHA/g; s/__COMMIT__/$GIT_COMMIT/g" job-kaniko.yaml
+sed -i "s/__SHORT__/$SRC_SHA/g" job-kaniko.yaml
 curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-kaniko.yaml
 
 i=0
