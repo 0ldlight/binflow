@@ -32,8 +32,8 @@ pipeline {
     SA_DIR = '/var/run/secrets/kubernetes.io/serviceaccount'
     K8S_BASE = "https://${env.KUBERNETES_SERVICE_HOST}:${env.KUBERNETES_SERVICE_PORT}"
     SRC_BASE = 'http://artifactory.devops.svc.cluster.local:8082/artifactory/generic-local/mirror'
-    no_proxy = 'localhost,127.0.0.1,.svc,.cluster.local,192.168.120.36,10.96.0.1'
-    NO_PROXY = 'localhost,127.0.0.1,.svc,.cluster.local,192.168.120.36,10.96.0.1'
+    no_proxy = 'localhost,127.0.0.1,.svc,.cluster.local,.svc.cluster.local,artifactory.devops.svc.cluster.local,192.168.120.36,10.96.0.1'
+    NO_PROXY = 'localhost,127.0.0.1,.svc,.cluster.local,.svc.cluster.local,artifactory.devops.svc.cluster.local,192.168.120.36,10.96.0.1'
   }
 
   stages {
