@@ -46,8 +46,8 @@ CA="--cacert $SA_DIR/ca.crt"
 AUTH="Authorization: Bearer $TOKEN"
 BASE="$K8S_BASE"
 SEC_JSON=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
-SEC_USER=$(echo "$SEC_JSON" | grep -o '"user":"[^"]*"' | cut -d'"' -f4 | base64 -d)
-SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password":"[^"]*"' | cut -d'"' -f4 | base64 -d)
+SEC_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
 SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
 SRC_AUTH="Basic $SRC_AUTH"
 SHA=$(curl -sS -m 15 -H "$SRC_AUTH" "$SRC_BASE/VERSION" | tr -d "[:space:]")
@@ -73,8 +73,8 @@ BASE="$K8S_BASE"
 API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
 
 SEC_JSON=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
-SEC_USER=$(echo "$SEC_JSON" | grep -o '"user":"[^"]*"' | cut -d'"' -f4 | base64 -d)
-SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password":"[^"]*"' | cut -d'"' -f4 | base64 -d)
+SEC_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
 SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
 SRC_AUTH="Basic $SRC_AUTH"
 
