@@ -30,6 +30,10 @@ spec:
           args:
             - |
               set -eux
+              # helm/git live in alpine community repo — enable it (dl-cdn
+              # reachable from pods; apk add verified 2026-10-26)
+              sed -i 's|^#\(https://dl-cdn.alpinelinux.org/alpine/v3.20/community\)|\1|' /etc/apk/repositories
+              apk add --no-cache helm git
               git clone --depth 1 --branch __BRANCH__ https://github.com/lzwzzy/binflow.git /src
               cd /src
               helm upgrade --install binflow-dev charts/binflow \
