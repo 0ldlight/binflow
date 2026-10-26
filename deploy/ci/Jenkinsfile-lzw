@@ -58,16 +58,19 @@ echo "building source $SHA"
 
     stage('Build & push image (kaniko Job)') {
       steps {
-        withCredentials([string(credentialsId: 'ref-download-b64', variable: 'SRC_AUTH_B64')]) {
         sh '''
 set -eux
-SRC_AUTH="Basic "
 JOB="binflow-img-$SRC_SHA"
 TOKEN=$(cat $SA_DIR/token)
 CA="--cacert $SA_DIR/ca.crt"
 AUTH="Authorization: Bearer $TOKEN"
 BASE="$K8S_BASE"
 API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
+
+SEC_JSON=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
+SEC_USER=$(echo "$SEC_JSON" | grep -o '"user":"[^"]*"' | cut -d'"' -f4 | base64 -d)
+SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password":"[^"]*"' | cut -d'"' -f4 | base64 -d)
+SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
 
 curl -sS $CA -H "$AUTH" -H "$SRC_AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
 curl -sS -m 60 -H "$SRC_AUTH" "$SRC_BASE/kaniko-job.yaml" -o job-kaniko.yaml
@@ -93,22 +96,24 @@ case "$COND" in
   *) echo "kaniko Job timed out"; exit 1 ;;
 esac
 '''
-        }
       }
     }
 
     stage('Deploy to lzw (helm Job)') {
       steps {
-        withCredentials([string(credentialsId: 'ref-download-b64', variable: 'SRC_AUTH_B64')]) {
         sh '''
 set -eux
-SRC_AUTH="Basic "
 JOB="binflow-deploy-$SRC_SHA"
 TOKEN=$(cat $SA_DIR/token)
 CA="--cacert $SA_DIR/ca.crt"
 AUTH="Authorization: Bearer $TOKEN"
 BASE="$K8S_BASE"
 API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
+
+SEC_JSON=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
+SEC_USER=$(echo "$SEC_JSON" | grep -o '"user":"[^"]*"' | cut -d'"' -f4 | base64 -d)
+SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password":"[^"]*"' | cut -d'"' -f4 | base64 -d)
+SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
 
 curl -sS $CA -H "$AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
 curl -sS -m 60 -H "$SRC_AUTH" "$SRC_BASE/helm-deploy-job.yaml" -o job-deploy.yaml
@@ -134,7 +139,6 @@ case "$COND" in
   *) echo "deploy Job timed out"; exit 1 ;;
 esac
 '''
-        }
       }
     }
 
