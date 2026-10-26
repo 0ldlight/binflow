@@ -24,7 +24,6 @@ spec:
             - "--destination=192.168.120.36:32100/binflow:dev-__SHORT__"
             - "--insecure"
             - "--registry-mirror=docker.m.daocloud.io"
-            - "--snapshot-mode=redo"
           volumeMounts:
             - name: src
               mountPath: /workspace
