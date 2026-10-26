@@ -3,9 +3,9 @@ schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
 reference_environment: { switched: 2026-10-26, http: "http://192.168.120.36:32082", api_base: "/artifactory 前缀（裸 /api/* 404）", version: "7.161.26（revision 86126900——2026-10-26 system/version 200 活体复验，91 仓库预置非空实例；E+ 档以 addons 面〔federated/release-bundle/xray 等〕佐证）", auth: "admin（凭据 gitignored .env.ref env 注入 ARTIFACTORY_REF_PASSWORD——值禁落 tracked 文件；D3 凭据通道事实消解）", ssh: "lzw@172.16.58.130 key-auth（dev/docker 运维主机，与参照实例无关）", note: "2026-10-26 参照实例迁移 .38:8082→.36:32082（intake ㉖，同版本 7.161.26——既有 7.161.26 结论按版本标注纪律仍有效，实例级配置差异随 preflight 与下轮差分首查暴露）；旧 .38:8082 退役备用；版本复验从 pending 转 verified" }
 environment_topology: {
-  corrected: "2026-09-15 用户术语纠正：UAT=uat.binflow.org；本地/dev=172.16.58.130:8083（自 Mac 迁来）",
-  uat: "https://uat.binflow.org（52.79.109.153——真 UAT，HTTPS 308 跳转，version uat.72ae611）",
-  dev: "http://172.16.58.130:8083（容器 binflow-dev〔原 binflow-uat 更名〕，卷 binflow-uat-data；**必须 --network binflow-net——主机默认 docker0 网桥 2026-09-16 起降级**（TCP 握手通数据丢/容器不可达网关），参照栈因自带用户网络不受影响）",
+  corrected: "2026-10-26 intake ㉗：UAT=演示环境（main 合并部署）；测试环境=k8s ns lzw（B=http://192.168.120.36:32083）",
+  uat: "https://uat.binflow.org（52.79.109.153——**2026-10-26 起仅演示环境**，main 合并经 CircleCI 链部署；不再承载差分/测试）",
+  dev: "k8s ns lzw（部署参数 deploy/k8s/lzw-values.yaml——NodePort 32083/Longhorn 20Gi；**镜像链 Jenkins 改造在途，D6 registry 候裁**，就绪前 lzw 实例 BLOCKED；.130 docker 宿主与 binflow-dev 空壳 ns 退役）",
   reference: "http://192.168.120.36:32082（Artifactory 7.161.26 目标基准——2026-10-26 迁移自 .38:8082，版本活体复验 verified；API 基路径 /artifactory 前缀）；旧 .38:8082（7.161.26）与 .130:8082（7.161.15 pro）退役备用",
   mac: "本地 docker 全退役（2026-09-15 用户指令：penpot 不再使用——Docker Desktop 已停，**不允许擅自启动**；penpot 栈容器随停，卷/镜像保留在盘待用户定夺删除）",
   discipline: "docker 一律远程执行（ssh lzw@172.16.58.130）——本地 docker 禁用；构建走本机交叉编译+远程换二进制（零拉取）；差分/probe 指 reference+dev；UAT 环境结论以 uat.binflow.org 为准"
@@ -23,6 +23,17 @@ intake_026:
   what: "参照实例迁移 .38:8082 → .36:32082（admin 凭据口头提供即 env 注入 .env.ref，不落 tracked 文件）；继续推进"
   decisions: []
   defaults: { reverify: "同版本迁移（7.161.26=7.161.26）——既有结论按版本标注纪律有效，实例级差异由 preflight+下轮差分首查暴露；baseline-reverify 队列照常推进" }
+  review_by: 2026-11-26
+intake_027:
+  at: 2026-10-26
+  what: "环境拓扑改组：UAT（uat.binflow.org）降级为演示环境——仅 main 合并经 CircleCI 链部署，不再承载差分/测试；其余测试环境统迁 k8s ns lzw（kubeconfig=repo 集群 c-m-5cflrx7b @192.168.48.57:8443，Rancher 代理；4 节点 Kylin+containerd，Longhorn 默认 SC；参照 Artifactory 7.161.26 与 Jenkins 同在此集群 devops ns）。.130 docker 宿主不再承担测试职责"
+  decisions:
+    - id: D6
+      what: "Jenkins 镜像链的推送目标 registry（Jenkins API 403 匿名——链改造需凭据）"
+      options: "①ghcr.io/lzwzzy/binflow 公开包（Chart 默认仓库，Jenkins 需 write:packages PAT）②集群内 registry（registry:2，零外部依赖）③用户现有内部仓库"
+      default: "候批期间不部署镜像链——lzw 实例 BLOCKED on D6+Jenkins 凭据"
+      review_by: 2026-11-26
+  defaults: { deploy: "deploy/k8s/lzw-values.yaml 已备（NodePort 32083/Longhorn 20Gi）；B 侧凭据 gitignored .env.lzw；镜像链就绪后 helm upgrade --install binflow-dev -n lzw 即换装" }
   review_by: 2026-11-26
 current_iteration: 028
 current_goal: "LOOP 028（进行中）：2026-09-24 接管总令——基准切至 7.161.26@192.168.120.38:8082（E+），Phase A 基准&流程修复先行（凭据出库/T3 UAT 审批门/T5 配置格式规格/T9 key-cache 投影规格/T6 PostgreSQL 启用/T7 HA 证据包/T10 差分框架 v2）；D1–D5 未裁定子项按已公布默认推进；原 LOOP 028 观察项由 Phase A 吸收"
