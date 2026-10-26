@@ -45,12 +45,12 @@ TOKEN=$(cat $SA_DIR/token)
 CA="--cacert $SA_DIR/ca.crt"
 AUTH="Authorization: Bearer $TOKEN"
 BASE="$K8S_BASE"
-SEC_JSON=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
+SEC_JSON=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
 SEC_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
 SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
 SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
 SRC_AUTH="Basic $SRC_AUTH"
-SHA=$(curl -sS -m 15 -H "$SRC_AUTH" "$SRC_BASE/VERSION" | tr -d "[:space:]")
+SHA=$(curl -sS --noproxy '*' -m 15 -H "$SRC_AUTH" "$SRC_BASE/VERSION" | tr -d "[:space:]")
 case "$SHA" in
   [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
   *) echo "VERSION did not contain a sha: $SHA"; exit 1 ;;
@@ -72,26 +72,26 @@ AUTH="Authorization: Bearer $TOKEN"
 BASE="$K8S_BASE"
 API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
 
-SEC_JSON=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
+SEC_JSON=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
 SEC_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
 SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
 SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
 SRC_AUTH="Basic $SRC_AUTH"
 
-curl -sS $CA -H "$AUTH" -H "$SRC_AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
-curl -sS -m 60 -H "$SRC_AUTH" "$SRC_BASE/kaniko-job.yaml" -o job-kaniko.yaml
+curl -sS --noproxy '*' $CA -H "$AUTH" -H "$SRC_AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
+curl -sS --noproxy '*' -m 60 -H "$SRC_AUTH" "$SRC_BASE/kaniko-job.yaml" -o job-kaniko.yaml
 sed -i "s/__SHORT__/$SRC_SHA/g; s/__COMMIT__/$GIT_COMMIT/g" job-kaniko.yaml
-curl -sS $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-kaniko.yaml
+curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-kaniko.yaml
 
 i=0
 while [ $i -lt 250 ]; do
-  COND=$(curl -sS $CA -H "$AUTH" "$API/$JOB" | grep -o '"type":"[A-Za-z]*","status":"True"' || true)
+  COND=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$API/$JOB" | grep -o '"type":"[A-Za-z]*","status":"True"' || true)
   case "$COND" in
     *Complete*) echo "kaniko Job complete"; break ;;
     *Failed*)
       echo "kaniko Job FAILED:"
-      POD=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "binflow-img-$SRC_SHA-[a-z0-9]*" | head -1)
-      curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120" || true
+      POD=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "binflow-img-$SRC_SHA-[a-z0-9]*" | head -1)
+      curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120" || true
       exit 1 ;;
   esac
   sleep 10
@@ -116,26 +116,26 @@ AUTH="Authorization: Bearer $TOKEN"
 BASE="$K8S_BASE"
 API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
 
-SEC_JSON=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
+SEC_JSON=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
 SEC_USER=$(echo "$SEC_JSON" | grep -o '"user":"[^"]*"' | cut -d'"' -f4 | base64 -d)
 SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password":"[^"]*"' | cut -d'"' -f4 | base64 -d)
 SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
 SRC_AUTH="Basic $SRC_AUTH"
 
-curl -sS $CA -H "$AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
-curl -sS -m 60 -H "$SRC_AUTH" "$SRC_BASE/helm-deploy-job.yaml" -o job-deploy.yaml
+curl -sS --noproxy '*' $CA -H "$AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
+curl -sS --noproxy '*' -m 60 -H "$SRC_AUTH" "$SRC_BASE/helm-deploy-job.yaml" -o job-deploy.yaml
 sed -i "s/__SHORT__/$SRC_SHA/g" job-deploy.yaml
-curl -sS $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-deploy.yaml
+curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-deploy.yaml
 
 i=0
 while [ $i -lt 200 ]; do
-  COND=$(curl -sS $CA -H "$AUTH" "$API/$JOB" | grep -o '"type":"[A-Za-z]*","status":"True"' || true)
+  COND=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$API/$JOB" | grep -o '"type":"[A-Za-z]*","status":"True"' || true)
   case "$COND" in
     *Complete*) echo "deploy Job complete"; break ;;
     *Failed*)
       echo "deploy Job FAILED:"
-      POD=$(curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "binflow-deploy-$SRC_SHA-[a-z0-9]*" | head -1)
-      curl -sS $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120" || true
+      POD=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "binflow-deploy-$SRC_SHA-[a-z0-9]*" | head -1)
+      curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120" || true
       exit 1 ;;
   esac
   sleep 10
