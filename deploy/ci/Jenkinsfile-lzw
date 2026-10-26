@@ -62,9 +62,10 @@ case "$SHA" in
     echo "DEBUG END"
     exit 1 ;;
 esac
+printf '%s' "$SHA" > "$WORKSPACE/SRC_SHA"
 echo "building source $SHA"
 '''
-        script { env.SRC_SHA = sh(returnStdout: true, script: 'echo "$SRC_SHA"').trim() }
+        script { env.SRC_SHA = readFile("$WORKSPACE/SRC_SHA").trim() }
       }
     }
 
