@@ -73,7 +73,6 @@ echo "building source $SHA"
       steps {
         sh '''
 set -eux
-RELAY_AUTH="--user $RELAY_USER:$RELAY_PASS"
 TOKEN=$(cat $SA_DIR/token)
 CA="--cacert $SA_DIR/ca.crt"
 AUTH="Authorization: Bearer $TOKEN"
@@ -81,6 +80,7 @@ BASE="$K8S_BASE"
 SEC_JSON=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
 RELAY_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
 RELAY_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+RELAY_AUTH="--user $RELAY_USER:$RELAY_PASS"
 RELAY_AUTH="--user $RELAY_USER:$RELAY_PASS"
 JOB="binflow-img-$SRC_SHA"
 TOKEN=$(cat $SA_DIR/token)
@@ -126,7 +126,6 @@ esac
       steps {
         sh '''
 set -eux
-RELAY_AUTH="--user $RELAY_USER:$RELAY_PASS"
 TOKEN=$(cat $SA_DIR/token)
 CA="--cacert $SA_DIR/ca.crt"
 AUTH="Authorization: Bearer $TOKEN"
@@ -134,6 +133,7 @@ BASE="$K8S_BASE"
 SEC_JSON=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
 RELAY_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
 RELAY_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+RELAY_AUTH="--user $RELAY_USER:$RELAY_PASS"
 RELAY_AUTH="--user $RELAY_USER:$RELAY_PASS"
 JOB="binflow-deploy-$SRC_SHA"
 TOKEN=$(cat $SA_DIR/token)
