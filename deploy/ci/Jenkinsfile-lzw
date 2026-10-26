@@ -28,7 +28,9 @@ pipeline {
 
   environment {
     REPO_URL = 'https://github.com/lzwzzy/binflow.git'
-    KANIKO_CONTEXT = 'git://github.com/lzwzzy/binflow'
+    // https form: GitHub disabled unauthenticated git:// (port 9418); kaniko's
+    // go-git handles anonymous public https (review B-2, PR #210)
+    KANIKO_CONTEXT = 'https://github.com/lzwzzy/binflow'
     REGISTRY = '192.168.120.36:32100'
     REGISTRY_IN_CLUSTER = 'registry.devops.svc.cluster.local:5000'
     NAMESPACE = 'lzw'
@@ -36,6 +38,8 @@ pipeline {
     B_SIDE_URL = 'http://192.168.120.36:32083'
     KUBECTL = '/var/jenkins_home/bin/kubectl'
     HELM = '/var/jenkins_home/bin/helm'
+    no_proxy = 'localhost,127.0.0.1,.svc,.cluster.local,192.168.120.36,10.96.0.1'
+    NO_PROXY = 'localhost,127.0.0.1,.svc,.cluster.local,192.168.120.36,10.96.0.1'
   }
 
   stages {
@@ -77,7 +81,19 @@ spec:
             - "--registry-mirror=m.daocloud.io"
             - "--snapshot-mode=redo"
 EOF
-$KUBECTL -n $NAMESPACE wait --for=condition=complete --timeout=40m job/$JOB
+# poll both terminal conditions — plain `wait --for=complete` would hang the
+# full 40m on a failed Job (backoffLimit 0 never reaches Complete)
+for i in $(seq 1 240); do
+  c=$($KUBECTL -n $NAMESPACE get job $JOB -o jsonpath='{.status.conditions[*].type}' 2>/dev/null || true)
+  case "$c" in
+    *Complete*) echo "kaniko Job complete"; break ;;
+    *Failed*)
+      echo "kaniko Job FAILED:"
+      $KUBECTL -n $NAMESPACE logs job/$JOB --tail=100 || true
+      exit 1 ;;
+  esac
+  sleep 10
+done
 $KUBECTL -n $NAMESPACE logs job/$JOB --tail=50 || true
 '''
       }
@@ -85,6 +101,9 @@ $KUBECTL -n $NAMESPACE logs job/$JOB --tail=50 || true
 
     stage('Deploy to lzw (helm)') {
       environment {
+        // hex charset only (openssl rand hex) — no helm --set metachars
+        // (commas/backslashes); if the credential ever changes charset,
+        // escape commas before --set (review B-3, PR #210)
         ADMIN_PASSWORD = credentials('binflow-lzw-admin-password')
       }
       steps {
