@@ -212,10 +212,13 @@ demoted_snapshot: docs/reverse/rest-compat-matrix.md（历史冻结快照，不�
 reference:
   baseline:
     version: 7.161.26 Enterprise+
-    instance: http://192.168.120.38:8082
-    switched: '2026-09-24'
-    verification: pending（UI 200 实测；system/version API 401 未认证——凭据通道裁定后活体复验）
-  retired: { instance: 'http://172.16.58.130:8082', version: 7.161.15 pro, retired: '2026-09-24', role: 备用 }
+    instance: http://192.168.120.36:32082
+    api_base: /artifactory（平台式前缀——裸 /api/* 404）
+    switched: '2026-10-26'
+    verification: verified（2026-10-26 system/version=200 活体复验：7.161.26 / revision 86126900 / 91 仓库预置；E+ 档以 addons 面〔federated/release-bundle/xray 等〕佐证；凭据 env 注入 ARTIFACTORY_REF_PASSWORD——gitignored .env.ref，值不落 tracked 文件）
+  retired:
+    - { instance: 'http://192.168.120.38:8082', version: 7.161.26 Enterprise+, retired: '2026-10-26', role: 备用（同版本实例迁移至 .36:32082——既有 7.161.26 结论按版本标注纪律仍有效） }
+    - { instance: 'http://172.16.58.130:8082', version: 7.161.15 pro, retired: '2026-09-24', role: 备用 }
   row_certification_note: 既有行（含 ✅/◐/超集）全部按 7.161.15 参照认证——翻绿与新结论须按 7.161.26 复验；未复验行按其标注源版本口径理解，不自动失效亦不自动继承
 frozen_rowset_v1:
   total: 195
