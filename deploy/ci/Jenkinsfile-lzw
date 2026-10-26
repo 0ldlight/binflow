@@ -1,0 +1,123 @@
+// binflow-dev-k8s — intake-27 (2026-10-26): test-env chain onto k8s ns lzw.
+// Chain: checkout (github public) -> kaniko Job builds+pushes image into the
+// in-cluster registry (devops/registry, NodePort 32100) -> helm upgrade
+// binflow-dev in ns lzw (NodePort 32083) -> smoke probe.
+// Prereqs (set up 2026-10-26):
+//   - RBAC Role/RoleBinding binflow-ci-deployer in ns lzw bound to devops:default
+//     (the SA token mounted in the Jenkins controller pod)
+//   - kubectl + helm binaries at /var/jenkins_home/bin (persistent PVC)
+//   - registry.devops.svc.cluster.local:5000 / 192.168.120.36:32100 (D6)
+//   - nodes need insecure-registry config for 192.168.120.36:32100 before
+//     kubelet can pull (see deploy/k8s/registry.yaml header)
+//   - pod egress: docker.io blocked -> base images via --registry-mirror=
+//     m.daocloud.io; github.com reachable
+// Credentials: binflow-lzw-admin-password (secret text) = B-side admin password
+// (source of truth: gitignored .env.lzw on the conductor workstation).
+pipeline {
+  agent any
+
+  options {
+    disableConcurrentBuilds()
+    buildDiscarder(logRotator(numToKeepStr: '10'))
+    timestamps()
+  }
+
+  parameters {
+    string(name: 'BRANCH', defaultValue: 'develop', description: 'git branch/refs to build')
+  }
+
+  environment {
+    REPO_URL = 'https://github.com/lzwzzy/binflow.git'
+    KANIKO_CONTEXT = 'git://github.com/lzwzzy/binflow'
+    REGISTRY = '192.168.120.36:32100'
+    REGISTRY_IN_CLUSTER = 'registry.devops.svc.cluster.local:5000'
+    NAMESPACE = 'lzw'
+    RELEASE = 'binflow-dev'
+    B_SIDE_URL = 'http://192.168.120.36:32083'
+    KUBECTL = '/var/jenkins_home/bin/kubectl'
+    HELM = '/var/jenkins_home/bin/helm'
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        git branch: env.BRANCH, url: env.REPO_URL
+        script { env.GIT_SHORT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim() }
+        echo "building ${env.GIT_SHORT} from ${env.BRANCH}"
+      }
+    }
+
+    stage('Build & push image (kaniko Job)') {
+      steps {
+        sh '''
+set -eux
+TAG="dev-$GIT_SHORT"
+JOB="binflow-img-$GIT_SHORT"
+$KUBECTL -n $NAMESPACE delete job $JOB --ignore-not-found
+cat <<EOF | $KUBECTL apply -f -
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: $JOB
+  namespace: $NAMESPACE
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 2400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: kaniko
+          image: m.daocloud.io/gcr.io/kaniko-project/executor:v1.23.2
+          args:
+            - "--dockerfile=deploy/release/Dockerfile.alpine"
+            - "--context=$KANIKO_CONTEXT#$GIT_COMMIT"
+            - "--destination=$REGISTRY/binflow:$TAG"
+            - "--insecure"
+            - "--registry-mirror=m.daocloud.io"
+            - "--snapshot-mode=redo"
+EOF
+$KUBECTL -n $NAMESPACE wait --for=condition=complete --timeout=40m job/$JOB
+$KUBECTL -n $NAMESPACE logs job/$JOB --tail=50 || true
+'''
+      }
+    }
+
+    stage('Deploy to lzw (helm)') {
+      environment {
+        ADMIN_PASSWORD = credentials('binflow-lzw-admin-password')
+      }
+      steps {
+        sh '''
+set -eux
+$HELM upgrade --install $RELEASE charts/binflow \
+  -n $NAMESPACE \
+  -f deploy/k8s/lzw-values.yaml \
+  --set image.repository=$REGISTRY \
+  --set image.tag=dev-$GIT_SHORT \
+  --set admin.password="$ADMIN_PASSWORD" \
+  --wait --timeout 5m
+$KUBECTL -n $NAMESPACE rollout status deployment/$RELEASE --timeout=5m
+'''
+      }
+    }
+
+    stage('Smoke') {
+      steps {
+        sh '''
+set -eux
+code=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' $B_SIDE_URL/healthz)
+[ "$code" = "200" ] || { echo "healthz=$code"; exit 1; }
+curl -sS -m 10 $B_SIDE_URL/healthz
+echo "smoke OK on $B_SIDE_URL"
+'''
+      }
+    }
+  }
+
+  post {
+    failure {
+      echo 'chain failed — see stage logs; rollback is a helm retry on the previous tag'
+    }
+  }
+}
