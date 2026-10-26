@@ -10,7 +10,14 @@ environment_topology: {
   mac: "本地 docker 全退役（2026-09-15 用户指令：penpot 不再使用——Docker Desktop 已停，**不允许擅自启动**；penpot 栈容器随停，卷/镜像保留在盘待用户定夺删除）",
   discipline: "docker 一律远程执行（ssh lzw@172.16.58.130）——本地 docker 禁用；构建走本机交叉编译+远程换二进制（零拉取）；差分/probe 指 reference+dev；UAT 环境结论以 uat.binflow.org 为准"
 }
-updated: 2026-09-24T00:00:00Z
+updated: 2026-10-26T00:00:00Z
+ledger_audit_2026_10_26:
+  trigger: "用户令：拉取远端+盘点研发流程/工具/插件/skill 缺失（会话级基建审计）"
+  series_verdict: "战报双系列定性——reports/iteration-NNNN.md（根目录）=自动 sprint 系列（2026-08 起连续递增，R12 起为闭卷战报载体；main 至 1553=R14；develop 427b7945 载 1554=R15 收口，随下次保鲜上 main）；reports/iterations/000-027=LOOP 系列（conductor 手写，09-17 后休眠）。001-027 同名相撞，内容分属两系列；检索『最新』取数字最大者。LOOP 编号退役不复用（见 reports/README.md）"
+  process_truth: "v3 流程持续在跑非真空——R13/R14/R15 战报齐全，Linear 池有卫生操作（BIN 票号流转），双审/保鲜 PR/Watch items 齐备；loop-state 本体（LOOP 系列）自 09-24 休眠，状态账以战报系列为准"
+  r15_seal_facts: "R15 出口 Z=156=93 resolved+63 open（BUG 7o/UNKNOWN 44o/INTENTIONAL 10o/UNSUPPORTED 2o）；14 票 Done（BIN-94/95/101..103/106..114）；双审 0+0；payload PR #199 squash→develop 83d63cfb；保鲜 PR #200→main 1901da8e；R16 首查=main run 36726495030 test(light) failure 归因+Linear 池卫生+Z=156 延续（见 iteration-1554 §六 Watch items）"
+  infra_fixes_applied: "mysql MCP 移除（明文密码违规+库与本项目无关）；linear-server MCP 配置（https://mcp.linear.app/mcp，OAuth 待用户）；~/.agents/skills 17 个 skill 软链上架 ~/.claude/skills/（含 apple-design——intake ㉔ 审查门解冻）；superpowers 重装（obra marketplace）+gopls-lsp 安装（官方市场）；settings.json 清 claude-flow 死配置与三个死插件条目；新增 /design-review 命令（apple-design 审查门可执行化）"
+  pending_user: ["D1-D5 五决策（09-24 起）", "nightly race_full CircleCI 面板核验（09-18 起）", "jfrog-fly 本地代理（127.0.0.1:33555）来源/重启方式", "Penpot MCP 重连凭据（实例 URL+API token）", "linear-server OAuth 首连", "pending-rulings 呈批面（Z=156 中 44 UNKNOWN+10 INTENTIONAL 开放）"]
 current_iteration: 028
 current_goal: "LOOP 028（进行中）：2026-09-24 接管总令——基准切至 7.161.26@192.168.120.38:8082（E+），Phase A 基准&流程修复先行（凭据出库/T3 UAT 审批门/T5 配置格式规格/T9 key-cache 投影规格/T6 PostgreSQL 启用/T7 HA 证据包/T10 差分框架 v2）；D1–D5 未裁定子项按已公布默认推进；原 LOOP 028 观察项由 Phase A 吸收"
 iteration_027_seal: "闭卷（2026-09-17）：D08 六行翻绿（差分 55 case r7/r8 SAME 52——四 B BUG 随轮修复验证；88/63→94/57，Coverage 56.9%→60.3%〔+3.4pp〕；契约 7 条目 VERIFIED；known-divergence +3 候 v2.8）+ deb 条件键实现（v1 62/v2 21 键面）+ L025-7 FE 双臂退役 done-part（断点接管收编——闭包 tsc+断言闸+dist 证据；运行时腿欠账候 Mac 复跑）+ api-reference 英文化二波 + L026-2 三腿复检旗销旗；**环境事件×2：前会话 16:28 中断（L027-4 接管零损失）+宿主 172.16.58.130 整机 19:0x 失联（恢复复核为 LOOP 028 前置）**；nightly 首跑未到期（09-18 03:17 UTC）；commits 4efcb561..2ea971b7（10）"
