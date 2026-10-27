@@ -57,10 +57,12 @@ rules:
     resources: ["secrets", "configmaps"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
-    resources: ["serviceaccounts"]
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
+    resources: ["serviceaccounts", "services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # PVC intentionally has no delete: helm uninstall must not take the data
+  # volume with it; dropping a release's PVC is a manual, audited act.
   - apiGroups: [""]
-    resources: ["services", "persistentvolumeclaims"]
+    resources: ["persistentvolumeclaims"]
     verbs: ["get", "list", "watch", "create", "update", "patch"]
   - apiGroups: [""]
     resources: ["pods"]

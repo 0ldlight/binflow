@@ -88,6 +88,7 @@ spec:
               wget -q --header "Authorization: Basic $AB64" "$MIRROR/binflow-src-latest.tar.gz" -O /workspace/binflow-src-latest.tar.gz
               # verify and refetch BOTH manifest and artifact on mismatch —
               # a corrupt manifest poisons every retry that reuses it
+              grep -q ' binflow-src-latest.tar.gz$' /tmp/checksums.txt || { echo "manifest missing tarball entry"; exit 1; }
               n=0
               until ( cd /workspace && grep ' binflow-src-latest.tar.gz$' /tmp/checksums.txt | sha256sum -c - ); do
                 n=$((n+1))

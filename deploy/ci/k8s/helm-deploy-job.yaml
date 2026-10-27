@@ -2,7 +2,7 @@
 #   __SHORT__  git short sha (image tag deployed)
 # v3: no git — fetches helm binary + source tarball from the Artifactory relay
 # (auth via Basic header; busybox wget --user/--password is not portable).
-# Runs as binflow-ci SA (RoleBinding binflow-ci-deployer-sa in ns lzw); admin
+# Runs as binflow-ci SA (RoleBinding binflow-helm-sa in ns lzw); admin
 # password from Secret binflow-lzw-admin — never through the pipeline.
 apiVersion: batch/v1
 kind: Job
@@ -47,6 +47,7 @@ spec:
               wget -q --header "Authorization: Basic $AB64" "$MIRROR/helm-linux-amd64" -O /tmp/helm-linux-amd64
               # verify and refetch BOTH manifest and artifact on mismatch —
               # a corrupt manifest poisons every retry that reuses it (#41/#42)
+              grep -q ' helm-linux-amd64$' /tmp/checksums.txt || { echo "manifest missing helm entry"; exit 1; }
               n=0
               # sha256sum -c resolves the filename against the CWD — the
               # artifact lives in /tmp, so verify from there (the earlier
@@ -66,6 +67,7 @@ spec:
               install -m 0755 /tmp/helm-linux-amd64 /usr/local/bin/helm
               mkdir -p /src
               wget -q --header "Authorization: Basic $AB64" "$MIRROR/binflow-src-latest.tar.gz" -O /src/binflow-src-latest.tar.gz
+              grep -q ' binflow-src-latest.tar.gz$' /tmp/checksums.txt || { echo "manifest missing tarball entry"; exit 1; }
               n=0
               until ( cd /src && grep ' binflow-src-latest.tar.gz$' /tmp/checksums.txt | sha256sum -c - ); do
                 n=$((n+1))
@@ -82,18 +84,18 @@ spec:
               tar -xzf /src/binflow-src-latest.tar.gz -C /src && rm /src/binflow-src-latest.tar.gz
               echo "materials unpacked and checksum-verified"
               cd /src
-              { set +x; } 2>/dev/null
               umask 077
               printf 'admin:\n  password: %s\n' "$ADMIN_PASSWORD" > /tmp/admin-values.yaml
+              # the fail path must remove the password file itself: under
+              # set -e a bare rc=$? after helm is dead code and a failed
+              # upgrade would leave the 0600 file on the dead pod forever
               helm upgrade --install binflow-dev charts/binflow \
                 -n lzw \
                 -f deploy/k8s/lzw-values.yaml \
                 -f /tmp/admin-values.yaml \
                 --set image.repository=192.168.120.36:32100/binflow \
                 --set image.tag=dev-__SHORT__ \
-                --wait --timeout 8m
-              rc=$?
+                --wait --timeout 8m \
+                || { rc=$?; rm -f /tmp/admin-values.yaml; echo "helm upgrade failed (rc=$rc)"; exit "$rc"; }
               rm -f /tmp/admin-values.yaml
-              set -x
-              [ "$rc" = 0 ] || exit "$rc"
               helm list -n lzw

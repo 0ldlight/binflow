@@ -19,7 +19,12 @@ script = open('deploy/ci/Jenkinsfile-lzw').read()
 escaped = html.escape(script, quote=False)
 escaped = ''.join(c if ord(c) < 128 else '&#x%04X;' % ord(c) for c in escaped)
 cfg = open('/tmp/bf-config.xml').read()
-cfg = re.sub(r'<script>.*</script>', lambda m: '<script>' + escaped + '</script>', cfg, flags=re.S)
+# greedy .* would collapse everything between the first and last script tag
+# if a second block ever appeared — refuse to run instead
+blocks = re.findall(r'<script>.*</script>', cfg, flags=re.S)
+if len(blocks) != 1:
+    raise SystemExit(f'expected exactly one <script> block, found {len(blocks)}')
+cfg = re.sub(r'<script>.*</script>', lambda m: '<script>' + escaped + '</script>', cfg, count=1, flags=re.S)
 cfg.encode('ascii')
 open('/tmp/bf-config.xml', 'w').write(cfg)
 print('inline script replaced')
