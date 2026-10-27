@@ -18,8 +18,9 @@
 //   3. smoke: healthz on NodePort 32083.
 // The controller only talks to the k8s API (curl + mounted devops:default
 // token, RBAC Role binflow-ci-deployer). Conductor refresh protocol: commit
-// -> /tmp/bf_relay.sh (tarball + templates + helm via Artifactory) ->
-// /tmp/bf_jenkins_refresh.sh (sync inline job script + trigger with SRC_SHA).
+// -> deploy/ci/relay-sync.sh (tarball + templates + checksums manifest via
+// Artifactory) -> deploy/ci/jenkins-refresh.sh (sync inline job script +
+// trigger).
 pipeline {
   agent any
 

@@ -34,7 +34,13 @@ spec:
             - |
               # set -e only: xtrace would print the relay credentials
               set -e
-              apk add --no-cache git curl >/dev/null
+              # dl-cdn TLS is broken from pod egress on some nodes; aliyun
+              # serves the same trees (same posture as Dockerfile.alpine)
+              sed -i 's|https://dl-cdn.alpinelinux.org|https://mirrors.aliyun.com|g' /etc/apk/repositories
+              # git-daemon is a separate apk package — plain git lacks the
+              # subcommand and the pod crashlooped on exec for 19h
+              apk add --no-cache git git-daemon curl >/dev/null
+              echo "git $(git --version | cut -d' ' -f3) + daemon installed"
               i=0
               while [ $i -lt 30 ]; do
                 rm -f /tmp/bf.bundle
