@@ -2,9 +2,11 @@
 #   __SHORT__  git short sha (also the image tag suffix)
 # Replaces kaniko-job.yaml (kaniko v1.23.2 hangs unpacking rootfs on Kylin
 # 4.19.90 — 40min+ zero progress on two nodes). buildah + vfs storage driver
-# needs no kernel overlay module; the pod runs privileged. Base-image mirror
-# (docker.io egress blocked from pods) and the insecure in-cluster registry
-# are declared via registries.conf written at runtime — the repo Dockerfile
+# needs no kernel overlay module; the pod runs privileged. Base images come
+# from the in-cluster registry's mirror/ path (relayed from the workstation
+# with skopeo — docker.io egress is blocked from pods and m.daocloud hangs
+# mid-download); the insecure registry for both pulls and push is declared
+# via registries.conf written at runtime — the repo Dockerfile
 # (deploy/release/Dockerfile.alpine) stays untouched.
 apiVersion: batch/v1
 kind: Job
@@ -39,7 +41,8 @@ spec:
               printf '%s\n' \
                 '[[registry]]' \
                 'prefix = "docker.io"' \
-                'location = "docker.m.daocloud.io"' \
+                'location = "192.168.120.36:32100/mirror"' \
+                'insecure = true' \
                 '' \
                 '[[registry]]' \
                 'location = "192.168.120.36:32100"' \
