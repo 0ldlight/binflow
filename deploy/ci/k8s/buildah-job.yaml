@@ -79,17 +79,23 @@ spec:
           command: ["sh", "-c"]
           args:
             - |
-              set -ex
+              # set -e only: xtrace would print the Basic auth header
+              set -e
               AB64=$(printf '%s:%s' "$ART_USER" "$ART_PASS" | base64)
-              wget --header "Authorization: Basic $AB64" \
+              echo "fetching source tarball from relay"
+              wget -q --header "Authorization: Basic $AB64" \
                 "http://artifactory.devops.svc.cluster.local:8082/artifactory/generic-local/mirror/binflow-src-latest.tar.gz" -O /workspace/src.tar.gz
               tar -xzf /workspace/src.tar.gz -C /workspace
               rm /workspace/src.tar.gz
+              echo "source unpacked"
           volumeMounts:
             - name: src
               mountPath: /workspace
       volumes:
+        # sizeLimits keep a runaway vfs build from filling the cp1 disk
         - name: src
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: 5Gi
         - name: storage
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: 30Gi
