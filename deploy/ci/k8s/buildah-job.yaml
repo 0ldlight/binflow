@@ -1,0 +1,92 @@
+# buildah build Job template — placeholder substituted by Jenkinsfile-lzw (sed):
+#   __SHORT__  git short sha (also the image tag suffix)
+# Replaces kaniko-job.yaml (kaniko v1.23.2 hangs unpacking rootfs on Kylin
+# 4.19.90 — 40min+ zero progress on two nodes). buildah + vfs storage driver
+# needs no kernel overlay module; the pod runs privileged. Base-image mirror
+# (docker.io egress blocked from pods) and the insecure in-cluster registry
+# are declared via registries.conf written at runtime — the repo Dockerfile
+# (deploy/release/Dockerfile.alpine) stays untouched.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: binflow-img-__SHORT__
+  namespace: lzw
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      # Pinned to cp1: the buildah image exists only in cp1's containerd
+      # (imagePullPolicy Never). To widen, scp+ctr-import the image on the
+      # other nodes and drop this selector.
+      nodeSelector:
+        kubernetes.io/hostname: k8s-cp1
+      containers:
+        - name: buildah
+          # quay.io blobs (cdn01.quay.io/Akamai) time out from pod egress; the
+          # m.daocloud prefixed domain 403s this repo. The image is therefore
+          # pre-imported into cp1's containerd (skopeo on the workstation ->
+          # scp -> ctr -n k8s.io images import) and never pulled.
+          image: quay.io/buildah/stable
+          imagePullPolicy: Never
+          securityContext:
+            privileged: true
+          command: ["bash", "-c"]
+          args:
+            - |
+              set -ex
+              printf '%s\n' \
+                '[[registry]]' \
+                'prefix = "docker.io"' \
+                'location = "docker.m.daocloud.io"' \
+                '' \
+                '[[registry]]' \
+                'location = "192.168.120.36:32100"' \
+                'insecure = true' \
+                > /etc/containers/registries.conf
+              cd /workspace
+              buildah --storage-driver vfs bud \
+                --build-arg BINFLOW_VER=dev-__SHORT__ \
+                --build-arg BINFLOW_REVISION=__SHORT__ \
+                -f deploy/release/Dockerfile.alpine \
+                -t 192.168.120.36:32100/binflow:dev-__SHORT__ \
+                .
+              buildah --storage-driver vfs push --tls-verify=false \
+                192.168.120.36:32100/binflow:dev-__SHORT__
+          volumeMounts:
+            - name: src
+              mountPath: /workspace
+            - name: storage
+              mountPath: /var/lib/containers
+      initContainers:
+        - name: fetch
+          image: m.daocloud.io/docker.io/library/alpine:3.20
+          env:
+            - name: ART_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ref-download
+                  key: user
+            - name: ART_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: ref-download
+                  key: password
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -ex
+              AB64=$(printf '%s:%s' "$ART_USER" "$ART_PASS" | base64)
+              wget --header "Authorization: Basic $AB64" \
+                "http://artifactory.devops.svc.cluster.local:8082/artifactory/generic-local/mirror/binflow-src-latest.tar.gz" -O /workspace/src.tar.gz
+              tar -xzf /workspace/src.tar.gz -C /workspace
+              rm /workspace/src.tar.gz
+          volumeMounts:
+            - name: src
+              mountPath: /workspace
+      volumes:
+        - name: src
+          emptyDir: {}
+        - name: storage
+          emptyDir: {}

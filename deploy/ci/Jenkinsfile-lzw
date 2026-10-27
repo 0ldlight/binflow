@@ -6,9 +6,12 @@
 // __SHORT__/__COMMIT__/__BRANCH__); this script only does
 // wget-template -> sed -> POST against the k8s API — no heredocs (dash +
 // toolchain rewriting made inline heredocs untrustworthy).
-//   1. build Job (k8s/kaniko-job.yaml): initContainer unpacks the source
-//      tarball (mirror/binflow-src-latest.tar.gz) into an emptyDir; kaniko
-//      builds from a dir context and pushes to the in-cluster registry (D6).
+//   1. build Job (k8s/buildah-job.yaml): initContainer unpacks the source
+//      tarball (mirror/binflow-src-latest.tar.gz) into an emptyDir; buildah
+//      (vfs driver, privileged pod pinned to k8s-cp1) builds from a dir
+//      context and pushes to the in-cluster registry (D6). Replaced kaniko
+//      2026-10-27: kaniko v1.23.2 hangs unpacking rootfs on the Kylin
+//      4.19.90 kernel (40min+ zero progress on two nodes).
 //   2. deploy Job (k8s/helm-deploy-job.yaml): fetches the helm binary +
 //      source tarball, helm-upgrades binflow-dev in ns lzw (binflow-ci SA,
 //      admin password from Secret binflow-lzw-admin).
@@ -69,7 +72,7 @@ echo "building source $SHA"
       }
     }
 
-    stage('Build & push image (kaniko Job)') {
+    stage('Build & push image (buildah Job)') {
       steps {
         sh '''
 set -eux
@@ -96,17 +99,17 @@ SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
 SRC_AUTH="Basic $SRC_AUTH"
 
 curl -sS --noproxy '*' $CA -H "$AUTH" -H "$SRC_AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
-curl -sS --noproxy '*' -m 60 $RELAY_AUTH "$SRC_BASE/kaniko-job.yaml" -o job-kaniko.yaml
-sed -i "s/__SHORT__/$SRC_SHA/g" job-kaniko.yaml
-curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-kaniko.yaml
+curl -sS --noproxy '*' -m 60 $RELAY_AUTH "$SRC_BASE/buildah-job.yaml" -o job-buildah.yaml
+sed -i "s/__SHORT__/$SRC_SHA/g" job-buildah.yaml
+curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-buildah.yaml
 
 i=0
-while [ $i -lt 250 ]; do
+while [ $i -lt 360 ]; do
   COND=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$API/$JOB" | grep -o '"type":"[A-Za-z]*","status":"True"' || true)
   case "$COND" in
-    *Complete*) echo "kaniko Job complete"; break ;;
+    *Complete*) echo "buildah Job complete"; break ;;
     *Failed*)
-      echo "kaniko Job FAILED:"
+      echo "buildah Job FAILED:"
       POD=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "binflow-img-$SRC_SHA-[a-z0-9]*" | head -1)
       curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120" || true
       exit 1 ;;
@@ -116,7 +119,7 @@ while [ $i -lt 250 ]; do
 done
 case "$COND" in
   *Complete*) ;;
-  *) echo "kaniko Job timed out"; exit 1 ;;
+  *) echo "buildah Job timed out"; exit 1 ;;
 esac
 '''
       }
