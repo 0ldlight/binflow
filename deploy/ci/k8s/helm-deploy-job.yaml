@@ -47,6 +47,7 @@ spec:
                 "http://artifactory.devops.svc.cluster.local:8082/artifactory/generic-local/mirror/binflow-src-latest.tar.gz" -O /src.tar.gz
               mkdir -p /src && tar -xzf /src.tar.gz -C /src && rm /src.tar.gz
               cd /src
+              { set +x; } 2>/dev/null
               helm upgrade --install binflow-dev charts/binflow \
                 -n lzw \
                 -f deploy/k8s/lzw-values.yaml \
@@ -54,4 +55,5 @@ spec:
                 --set image.tag=dev-__SHORT__ \
                 --set admin.password="$ADMIN_PASSWORD" \
                 --wait --timeout 8m
+              set -x
               helm list -n lzw
