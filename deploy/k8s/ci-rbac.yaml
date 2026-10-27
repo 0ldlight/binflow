@@ -1,0 +1,46 @@
+# CI orchestration RBAC (2026-10-26) — the Jenkins controller pod (SA
+# devops:jenkins, token mounted at /var/run/secrets/...) creates and watches
+# the build/deploy Jobs in ns lzw; the in-ns binflow-ci SA (used by the deploy
+# Job) gets the same role. Bindings for both subjects — the jenkins one was
+# missing at first and produced 403s from the pipeline (see intake-27 chain).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: binflow-ci-deployer
+  namespace: lzw
+rules:
+  - apiGroups: ["", "apps", "batch"]
+    resources:
+      ["pods", "pods/log", "pods/status", "services", "configmaps", "secrets", "serviceaccounts", "persistentvolumeclaims", "deployments", "jobs", "replicasets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: binflow-ci-deployer
+  namespace: lzw
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: devops
+  - kind: ServiceAccount
+    name: jenkins
+    namespace: devops
+roleRef:
+  kind: Role
+  name: binflow-ci-deployer
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: binflow-ci-deployer-sa
+  namespace: lzw
+subjects:
+  - kind: ServiceAccount
+    name: binflow-ci
+    namespace: lzw
+roleRef:
+  kind: Role
+  name: binflow-ci-deployer
+  apiGroup: rbac.authorization.k8s.io

@@ -24,6 +24,11 @@ persistence:
   size: 20Gi
   storageClass: longhorn
 
+# longhorn volumes mount root:root; the runtime user is 10001 (binflow) —
+# fsGroup lets kubelet hand the volume to that group.
+podSecurityContext:
+  fsGroup: 10001
+
 resources:
   requests:
     cpu: 100m

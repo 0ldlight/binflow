@@ -35,7 +35,7 @@ spec:
     spec:
       containers:
         - name: registry
-          image: docker.io/library/registry:2
+          image: m.daocloud.io/docker.io/library/registry:2
           ports:
             - containerPort: 5000
           env:
