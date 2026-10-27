@@ -51,7 +51,7 @@ spec:
               helm upgrade --install binflow-dev charts/binflow \
                 -n lzw \
                 -f deploy/k8s/lzw-values.yaml \
-                --set image.repository=192.168.120.36:32100 \
+                --set image.repository=192.168.120.36:32100/binflow \
                 --set image.tag=dev-__SHORT__ \
                 --set admin.password="$ADMIN_PASSWORD" \
                 --wait --timeout 8m
