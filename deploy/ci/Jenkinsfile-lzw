@@ -43,7 +43,9 @@ pipeline {
     stage('Resolve source') {
       steps {
         sh '''
-set -eux
+set -eu
+# untraced on purpose: xtrace printed the SA token and relay credentials
+# into the console (reviewer-a blocker) — progress is echoed explicitly.
 TOKEN=$(cat $SA_DIR/token)
 CA="--cacert $SA_DIR/ca.crt"
 AUTH="Authorization: Bearer $TOKEN"
@@ -51,18 +53,12 @@ BASE="$K8S_BASE"
 SEC_JSON=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
 RELAY_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
 RELAY_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
-RELAY_AUTH="--user $RELAY_USER:$RELAY_PASS"
-SHA=$(curl -sS --noproxy '*' -m 15 $RELAY_AUTH "$SRC_BASE/VERSION" | tr -d "[:space:]")
+SHA=$(curl -sS --noproxy '*' -m 15 --user "$RELAY_USER:$RELAY_PASS" "$SRC_BASE/VERSION" | tr -d "[:space:]")
 case "$SHA" in
   [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
   *)
-    echo "DEBUG proxy env (values redacted):"
+    echo "VERSION fetch failed; proxy env (values redacted):"
     env | grep -iE "proxy" | sed 's/=.*/=<set>/'
-    echo "DEBUG verbose fetch:"
-    curl -v --noproxy '*' -m 15 $RELAY_AUTH "$SRC_BASE/VERSION" 2>&1 |
-      grep -E "Trying|Connected to|proxy|> GET|> Host|> Authorization|< HTTP" |
-      sed 's/Authorization: Basic .*/Authorization: Basic-REDACTED/'
-    echo "DEBUG END"
     exit 1 ;;
 esac
 printf '%s' "$SHA" > "$WORKSPACE/SRC_SHA"
@@ -75,36 +71,28 @@ echo "building source $SHA"
     stage('Build & push image (buildah Job)') {
       steps {
         sh '''
-set -eux
-TOKEN=$(cat $SA_DIR/token)
-CA="--cacert $SA_DIR/ca.crt"
-AUTH="Authorization: Bearer $TOKEN"
-BASE="$K8S_BASE"
-SEC_JSON=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
-RELAY_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
-RELAY_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
-RELAY_AUTH="--user $RELAY_USER:$RELAY_PASS"
-RELAY_AUTH="--user $RELAY_USER:$RELAY_PASS"
-JOB="binflow-img-$SRC_SHA"
+set -eu
+# untraced: Bearer token and relay credentials must not leak via xtrace
 TOKEN=$(cat $SA_DIR/token)
 CA="--cacert $SA_DIR/ca.crt"
 AUTH="Authorization: Bearer $TOKEN"
 BASE="$K8S_BASE"
 API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
-
 SEC_JSON=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
-SEC_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
-SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
-SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
-SRC_AUTH="Basic $SRC_AUTH"
+RELAY_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+RELAY_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+JOB="binflow-img-$SRC_SHA"
 
-curl -sS --noproxy '*' $CA -H "$AUTH" -H "$SRC_AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
-curl -sS --noproxy '*' -m 60 $RELAY_AUTH "$SRC_BASE/buildah-job.yaml" -o job-buildah.yaml
+CODE=$(curl -sS --noproxy '*' $CA -H "$AUTH" -X DELETE "$API/$JOB?propagationPolicy=Background" -o /dev/null -w '%{http_code}' || true)
+echo "DELETE old job -> ${CODE:-ERR}"
+curl -sS --noproxy '*' -m 60 --user "$RELAY_USER:$RELAY_PASS" "$SRC_BASE/buildah-job.yaml" -o job-buildah.yaml
 sed -i "s/__SHORT__/$SRC_SHA/g" job-buildah.yaml
-curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-buildah.yaml
+CODE=$(curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-buildah.yaml -o /dev/null -w '%{http_code}' || echo ERR)
+if [ "$CODE" != "201" ]; then echo "POST $JOB -> $CODE"; exit 1; fi
+echo "POST $JOB -> $CODE"
 
 i=0
-while [ $i -lt 360 ]; do
+while [ "$i" -lt 360 ]; do
   # the apiserver pretty-prints for plain curl: "type"/"status" land on
   # separate lines, so the condition names are matched line-locally
   COND=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$API/$JOB" | grep -oE '"type": *"Complete"|"type": *"Failed"' || true)
@@ -113,9 +101,11 @@ while [ $i -lt 360 ]; do
     *Failed*)
       echo "buildah Job FAILED:"
       POD=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "binflow-img-$SRC_SHA-[a-z0-9]*" | head -1)
+      curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120&container=fetch" || true
       curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120" || true
       exit 1 ;;
   esac
+  if [ $((i % 6)) -eq 0 ]; then echo "poll $i/360: ${COND:-pending}"; fi
   sleep 10
   i=$((i+1))
 done
@@ -130,36 +120,28 @@ esac
     stage('Deploy to lzw (helm Job)') {
       steps {
         sh '''
-set -eux
-TOKEN=$(cat $SA_DIR/token)
-CA="--cacert $SA_DIR/ca.crt"
-AUTH="Authorization: Bearer $TOKEN"
-BASE="$K8S_BASE"
-SEC_JSON=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
-RELAY_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
-RELAY_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
-RELAY_AUTH="--user $RELAY_USER:$RELAY_PASS"
-RELAY_AUTH="--user $RELAY_USER:$RELAY_PASS"
-JOB="binflow-deploy-$SRC_SHA"
+set -eu
+# untraced: Bearer token and relay credentials must not leak via xtrace
 TOKEN=$(cat $SA_DIR/token)
 CA="--cacert $SA_DIR/ca.crt"
 AUTH="Authorization: Bearer $TOKEN"
 BASE="$K8S_BASE"
 API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
-
 SEC_JSON=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
-SEC_USER=$(echo "$SEC_JSON" | grep -o '"user":"[^"]*"' | cut -d'"' -f4 | base64 -d)
-SEC_PASS=$(echo "$SEC_JSON" | grep -o '"password":"[^"]*"' | cut -d'"' -f4 | base64 -d)
-SRC_AUTH=$(printf '%s:%s' "$SEC_USER" "$SEC_PASS" | base64)
-SRC_AUTH="Basic $SRC_AUTH"
+RELAY_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+RELAY_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+JOB="binflow-deploy-$SRC_SHA"
 
-curl -sS --noproxy '*' $CA -H "$AUTH" -X DELETE "$API/$JOB" -o /dev/null || true
-curl -sS --noproxy '*' -m 60 $RELAY_AUTH "$SRC_BASE/helm-deploy-job.yaml" -o job-deploy.yaml
+CODE=$(curl -sS --noproxy '*' $CA -H "$AUTH" -X DELETE "$API/$JOB?propagationPolicy=Background" -o /dev/null -w '%{http_code}' || true)
+echo "DELETE old job -> ${CODE:-ERR}"
+curl -sS --noproxy '*' -m 60 --user "$RELAY_USER:$RELAY_PASS" "$SRC_BASE/helm-deploy-job.yaml" -o job-deploy.yaml
 sed -i "s/__SHORT__/$SRC_SHA/g" job-deploy.yaml
-curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-deploy.yaml
+CODE=$(curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-deploy.yaml -o /dev/null -w '%{http_code}' || echo ERR)
+if [ "$CODE" != "201" ]; then echo "POST $JOB -> $CODE"; exit 1; fi
+echo "POST $JOB -> $CODE"
 
 i=0
-while [ $i -lt 200 ]; do
+while [ "$i" -lt 200 ]; do
   # same line-local condition match as the build stage (pretty-printed API)
   COND=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$API/$JOB" | grep -oE '"type": *"Complete"|"type": *"Failed"' || true)
   case "$COND" in
@@ -167,9 +149,11 @@ while [ $i -lt 200 ]; do
     *Failed*)
       echo "deploy Job FAILED:"
       POD=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "binflow-deploy-$SRC_SHA-[a-z0-9]*" | head -1)
+      curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120&container=fetch" || true
       curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120" || true
       exit 1 ;;
   esac
+  if [ $((i % 6)) -eq 0 ]; then echo "poll $i/200: ${COND:-pending}"; fi
   sleep 10
   i=$((i+1))
 done

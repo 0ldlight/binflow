@@ -32,8 +32,9 @@ spec:
           command: ["sh", "-c"]
           args:
             - |
-              set -ex
-              apk add --no-cache git curl
+              # set -e only: xtrace would print the relay credentials
+              set -e
+              apk add --no-cache git curl >/dev/null
               i=0
               while [ $i -lt 30 ]; do
                 rm -f /tmp/bf.bundle
@@ -41,6 +42,7 @@ spec:
                     http://artifactory.devops.svc.cluster.local:8082/artifactory/generic-local/mirror/bf.bundle; then
                   break
                 fi
+                echo "bundle fetch retry $i"
                 sleep 20; i=$((i+1))
               done
               [ -s /tmp/bf.bundle ]

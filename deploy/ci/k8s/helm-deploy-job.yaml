@@ -38,22 +38,30 @@ spec:
           command: ["sh", "-c"]
           args:
             - |
-              set -ex
+              # set -e only: xtrace would print the Basic auth header
+              set -e
               AB64=$(printf '%s:%s' "$ART_USER" "$ART_PASS" | base64)
-              wget --header "Authorization: Basic $AB64" \
+              echo "fetching helm binary + source tarball from relay"
+              wget -q --header "Authorization: Basic $AB64" \
                 "http://artifactory.devops.svc.cluster.local:8082/artifactory/generic-local/mirror/helm-linux-amd64" -O /usr/local/bin/helm
               chmod +x /usr/local/bin/helm
-              wget --header "Authorization: Basic $AB64" \
+              wget -q --header "Authorization: Basic $AB64" \
                 "http://artifactory.devops.svc.cluster.local:8082/artifactory/generic-local/mirror/binflow-src-latest.tar.gz" -O /src.tar.gz
               mkdir -p /src && tar -xzf /src.tar.gz -C /src && rm /src.tar.gz
+              echo "materials unpacked"
               cd /src
               { set +x; } 2>/dev/null
+              umask 077
+              printf 'admin:\n  password: %s\n' "$ADMIN_PASSWORD" > /tmp/admin-values.yaml
               helm upgrade --install binflow-dev charts/binflow \
                 -n lzw \
                 -f deploy/k8s/lzw-values.yaml \
+                -f /tmp/admin-values.yaml \
                 --set image.repository=192.168.120.36:32100/binflow \
                 --set image.tag=dev-__SHORT__ \
-                --set admin.password="$ADMIN_PASSWORD" \
                 --wait --timeout 8m
+              rc=$?
+              rm -f /tmp/admin-values.yaml
               set -x
+              [ "$rc" = 0 ] || exit "$rc"
               helm list -n lzw
