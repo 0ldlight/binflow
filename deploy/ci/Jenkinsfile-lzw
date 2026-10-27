@@ -105,7 +105,9 @@ curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POS
 
 i=0
 while [ $i -lt 360 ]; do
-  COND=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$API/$JOB" | grep -o '"type":"[A-Za-z]*","status":"True"' || true)
+  # the apiserver pretty-prints for plain curl: "type"/"status" land on
+  # separate lines, so the condition names are matched line-locally
+  COND=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$API/$JOB" | grep -o '"type": *"Complete"\|"type": *"Failed"' || true)
   case "$COND" in
     *Complete*) echo "buildah Job complete"; break ;;
     *Failed*)
@@ -158,7 +160,8 @@ curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POS
 
 i=0
 while [ $i -lt 200 ]; do
-  COND=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$API/$JOB" | grep -o '"type":"[A-Za-z]*","status":"True"' || true)
+  # same line-local condition match as the build stage (pretty-printed API)
+  COND=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$API/$JOB" | grep -o '"type": *"Complete"\|"type": *"Failed"' || true)
   case "$COND" in
     *Complete*) echo "deploy Job complete"; break ;;
     *Failed*)
