@@ -38,8 +38,7 @@ const (
 	// recurrentFailureThreshold is the number of consecutive rejected
 	// Basic credentials after which the username's NEXT attempt is
 	// blocked. The observed reference episode armed no later than the
-	// 3rd consecutive failure; 5 is the conservative choice — a user
-	// L043-wave2 precise count (9/9 reproducible, 2026-10-27): the
+	// 3rd consecutive failure; 	// L043-wave2 precise count (9/9 reproducible, 2026-10-27): the
 	// reference arms on the 3rd consecutive bad attempt, i.e. 2 counted
 	// failures — threshold converged from the conservative 5 to the
 	// measured 2 (window semantics unchanged).
