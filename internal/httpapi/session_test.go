@@ -342,6 +342,13 @@ func TestSessionLogin(t *testing.T) {
 	})
 
 	t.Run("login.success lands in the audit trail", func(t *testing.T) {
+		// T-634: the two wrong-password subtests above are exactly the
+		// breaker's measured threshold (2 counted failures, T-632) — they
+		// arm the block, and THIS success login would meet the 403
+		// countdown instead of recording login.success. Judge it on a
+		// fresh ledger; breaker accumulation is pinned by the dedicated
+		// recurrent tests.
+		auth.ResetRecurrentLedgerForTest(h.authSvc)
 		_ = mustLogin(t, h)
 		events, err := h.md.Audits().Query(context.Background(), metadata.AuditQuery{
 			Actor: adminUser, Action: "login.success",
@@ -379,6 +386,10 @@ func TestSessionLogin(t *testing.T) {
 	})
 
 	t.Run("session value never appears in logs (NFR-S19)", func(t *testing.T) {
+		// T-634: same fresh-ledger need as the login.success subtest —
+		// the armed block from the wrong-password subtests would 403
+		// this success login before it ever mints a session.
+		auth.ResetRecurrentLedgerForTest(h.authSvc)
 		h.resetLogs()
 		c := mustLogin(t, h)
 		resp := h.do(http.MethodGet, "/binflow/api/v1/session", "", "", nil, c.cookieHdr())
@@ -824,8 +835,16 @@ func TestLoginEndpointResistsStaleCookies(t *testing.T) {
 		wrongPw, _ := login(t, h, `{"username":"admin","password":"wrong"}`, "application/json")
 		// The uniform-wording comparison needs the same header shape minus
 		// the cookie: re-issue without it.
+		//
+		// T-634: two back-to-back bad credentials ARE the breaker's
+		// measured threshold — without a reset the third identical login
+		// below would meet the 403 countdown and the cookie-independence
+		// assertion would never run. Each attempt is judged on a fresh
+		// ledger; accumulation is the recurrent tests' subject.
+		auth.ResetRecurrentLedgerForTest(h.authSvc)
 		noCookie, _ := login(t, h, `{"username":"admin","password":"wrong"}`, "application/json")
 		_ = wrongPw
+		auth.ResetRecurrentLedgerForTest(h.authSvc)
 		withCookie := h.do(http.MethodPost, "/binflow/api/v1/session", "", "",
 			[]byte(`{"username":"admin","password":"wrong"}`), stale)
 		b1, b2 := mustGet(t, withCookie), mustGet(t, noCookie)
