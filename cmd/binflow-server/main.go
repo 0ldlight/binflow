@@ -1950,12 +1950,11 @@ func (s *stack) close(logger *slog.Logger) {
 // never rotated it. The check is a real authentication, never a hash
 // comparison — the plaintext is not recoverable and must not be.
 func warnDefaultAdminPassword(ctx context.Context, s *stack, logger *slog.Logger) {
-	req, err := http.NewRequest(http.MethodGet, "/", nil)
-	if err != nil {
-		return // unreachable: a constant URL cannot fail to build
-	}
-	req.SetBasicAuth("admin", defaultAdminPassword)
-	if p, err := s.authSvc.Authenticate(ctx, req); err == nil && p != nil && p.Name == "admin" && p.Admin {
+	// CheckLocalPassword bypasses the recurrent-failure ledger on purpose:
+	// this boot self-check must not seed the breaker with a counted
+	// failure for admin (T-634 — the seeded count made the first real
+	// bad-credential attempt trip the block one attempt early).
+	if p, err := s.authSvc.CheckLocalPassword(ctx, "admin", defaultAdminPassword); err == nil && p != nil && p.Name == "admin" && p.Admin {
 		logger.Warn("admin account is using the default password",
 			"message", "admin is using the documented default password \"password\" (evaluation only); set BINFLOW_ADMIN_PASSWORD and restart, or change the password via PUT /binflow/api/security/password",
 		)

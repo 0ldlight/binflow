@@ -83,3 +83,47 @@
 - 定谳产物：`tools/difftest/v2/run/wave1/results.json` + `run/wave1/evidence/<case>/checks.json`（逐检查项、无凭据）；迭代史 `run/wave1-*/`。
 - 清理：双端 `diff-docker-remote` DELETE 200×2、复验仓库列表零 `diff-` 残留。上游 `difftest-docker/smoke` t1/t2/t3 残留（405）待手动 GC。
 - 框架改动与报告本地提交于 `claude/lzw-followups`（未推远端——github 大传输不稳）。
+
+---
+
+## rerun-2026-10-28（wave-1 重放收尾：A 侧 fixture 灌装 + 8 例 dcr 重放）
+
+- **执行域**：worktree `wave-docker-remote`（主检出与 t633-wire 并行会话零接触，未动 git）；B 侧实例已换版 `dev-bb65bb75`（wave-1 时 `dev-9e7ea000`）。凭据全程 gitignored env 文件行首锚定注入，零落盘零打印。
+- **13b 根因定性修正（证据在案，裁定归 conductor/compatibility-engineer）**：13b 8 例 FAIL 的初判「A 侧缺 `difftest-docker` local 仓」与本批复核不符——
+  - 13b 证据逐条回看（`run/wave1-rerun13b/`）：8 例 FAIL 检查项**全部在 B 侧**（`b/token-issued: token status 401`、`b/tags status-200: got 401` 等），A 侧同轮全 200 且 manifest sha `9530196490…` 正确；
+  - case 文件寻址的 repo 是 **`diff-docker-remote`**（`_dockerlib.py` `REPO` 常量；路径形态 `/v2/diff-docker-remote/difftest-docker/smoke/manifests/t2`），**不引用 `difftest-docker` local 仓**；「`difftest-docker%2Fsmoke`」是上游中继 :32100 上的镜像路径（`IMG=difftest-docker/smoke`），非 A 侧 repo+image；
+  - wave-1 波末双端 DELETE 清理后，rerun 未重跑 setup 的建仓段 → B 侧 `diff-docker-remote` 缺失，B token（scope 校验）与 manifest 全线 401。**真实根因 = setup 脚本建仓段未随重放执行（IaC 缺口在重建段），非 A 侧 fixture 仓缺失**。本会话活体：A repo 列表含 `diff-docker-remote`+`difftest-docker`（conductor 补建），B repo 列表 `diff-docker-remote`（本会话重建），双端 wave1 形态 HEAD manifest 200。
+- **灌装（任务 1，A 侧 `difftest-docker` local 仓，admin Basic）**：脚本 `tools/difftest/v2/docker_a_fixture_push.sh`，字节与推送序列严格取自 `docker_wave_setup.sh` 上游段：
+  - 本地复算 digest 与 wave-1 夹具逐位一致（脚本内断言）：layer `sha256:d53eda7a637c…`、config `sha256:481acf9f92ec…`、manifest `sha256:95301964901114259e985357c982f41e97657f38b36e0b5c65de8b3c6be4b558`；
+  - 推送：POST `/v2/difftest-docker%2Fsmoke/blobs/uploads/` → **202**（%2F 形态 A 直接接受）；blob PUT ×2 → **201**；manifest t1/t2 PUT → **201**；
+  - 推后断言：HEAD manifest t1 → **200**、t2 → **200**，`Docker-Content-Digest: sha256:9530196490…` 精确一致；HEAD by digest → **200**；
+  - 残留处置：`difftest-docker/smoke`（t1/t2 + 2 blobs）为声明测试残留，留存不删（OCI DELETE 可能 405）。
+- **重放（任务 2，8 例，`run/wave1-rerun13c/`）**：runner v2 双发，env 六变量注入（A/B docker face = 裸主机根 `:32082`/`:32083`）；case 文件未改一字——docker/remote-* 契约重放对象仍是 **remote 面**（`diff-docker-remote` 拓扑），A 侧 local 仓灌装不改变本批断言对象，仅兑现 conductor 补建仓的可用性。
+
+| case | wave-1 run4 | 13b | **13c rerun** | 检查项 |
+|---|---|---|---|---|
+| dcr-blob-conditional | PASS | FAIL(env) | **PASS** | 46（a23/b23） |
+| dcr-blob-get | PASS | FAIL(env) | **PASS** | 56（a28/b28） |
+| dcr-manifest-conditional | PASS | FAIL(env) | **PASS** | 17（a8/b8/ab1） |
+| dcr-manifest-get | PASS | FAIL(env) | **PASS** | 34（a16/b16/ab2） |
+| dcr-manifest-unknown-404 | PASS | FAIL(env) | **PASS** | 18（a9/b9） |
+| dcr-pull-sequence | PASS | FAIL(env) | **PASS** | 21（a10/b10/ab1） |
+| dcr-push-reject | PASS | FAIL(env) | **PASS** | 38（a19/b19） |
+| dcr-tags-catalog | PASS | FAIL(env) | **PASS** | 36（a17/b17/ab2） |
+
+- **复跑门**：连续两轮（`run/wave1-rerun13c/`、`run/wave1-rerun13c-2/`）score 均为 `{"pass":8,"fail":0,"blocked":0,"not_run":33,"total":41,"coverage":1.0}`，结论稳定零 flake。
+- **console-root-path**：本批未重跑；PASS 活体证据 = conductor 本会话已验（随 `dev-bb65bb75` 上线），票面口径归 T-630。
+- **T-632 熔断臂口径**：**未覆盖**——B 侧已含熔断实现但 httpapi 接线票在途（行为未达 face），本批 8 例亦不含坏凭据臂；A 侧熔断工装纪律按 wave-1 沿用（假凭据按轮唯一）。熔断差分臂待接线票落地后另批。
+- **已知分歧补充探针（非 case verdict，每端 2 curl）**：`dev-bb65bb75` 上 C01b/C03 均维持——token-issue A `{token, expires_in:9000, JWT}` vs B `{token, access_token, issued_at, scope, expires_in:2592000, hex64}`（DIVERGENT 维持）；匿名 token A 401 `Authentication is required` vs B 200 签发（DIVERGENT 维持）。token 两 case 不在本批 8 例范围，判定仍归 known-divergence 台账。
+- **工件**：可复跑脚本 `tools/difftest/v2/{docker_a_fixture_push.sh,wave1_rerun13c_probe.sh,wave1_rerun13c_replay.sh}` + 产物 `run/wave1-rerun13c{,-2}/`（results.json + evidence/ 逐检查项，无凭据）。
+- **遗留清单**：① B 侧无 `difftest-docker` local 仓——现 case 集不需要；若未来 local-face 重放需双侧灌装，应入 setup 脚本 IaC；② 上游中继 `difftest-docker/smoke` t1/t2/t3 残留待手动 GC（wave-1 清单结转）；③ A 侧 `difftest-docker/smoke` 残留（本批灌装，声明留存）。
+
+---
+
+## setup2-verify-2026-10-28（IaC 缺口修复验证：建仓路径 404 修复 + A 侧 difftest-docker 固化）
+
+- **一行修正（根因链补全，裁定归 conductor/compatibility-engineer）**：13b/13c 根因定位补第二层——setup 建仓段用 `$BASE/api/repositories/<key>`（根别名路径），在参照 JFrog 7.161.26 上该路径 **404**（平台只认 `/artifactory/api/*`；活体实证：A `/api/repositories`→404、`/artifactory/api/repositories`→200；B `/api/repositories`→404、`/binflow/api/repositories`→200）。**修复已落地**：`tools/difftest/v2/docker_wave_setup.sh` 重写为自适应 API 前缀探测（候选 ``、`/artifactory`、`/binflow` 按 `GET <cand>/api/repositories` 首个 200 胜出，无硬编码端口）+ 全段幂等（仓存在跳过建仓、blob HEAD 命中跳传、manifest PUT 200/201 可重复）+ **A 侧 `difftest-docker` local 仓固化**（缺则建、镜像以 admin Basic 直推 `/v2/difftest-docker%2Fsmoke` face、推后 HEAD t1/t2/by-digest 全 200 且 `Docker-Content-Digest: sha256:9530196490…` 精确一致）。
+- **setup 实跑（两轮全绿，`set -eu` 保持、六变量纪律不变）**：run1 裸主机根 BASE（强制走 404→回退路径：A 探测 `…/api`→404→`…/artifactory/api`→200；B 探测 `…/api`→404→`…/artifactory/api`→404→`…/binflow/api`→200）；run2 前缀 BASE（`/artifactory`、`/binflow` 直连探测一轮命中）。两轮每步断言码：repo GET 200 skip→verify 200；upstream blob HEAD 200 SKIP、manifest t1/t2 PUT 201、HEAD 200+dcd 一致；A-local 同构全绿。
+- **8 例重放（`run/setup2-verify/`、复跑 `run/setup2-verify-2/`）**：**7/8 PASS，dcr-tags-catalog FAIL（两轮同态，确定性非 flake）**——失败项 `ab/tag-order-intercompare`：A `['t1','t2','t3']` vs B `['nc1a181cca3cd','nc1a181cea8bb','t1','t2','t3']`。取证：nc\* tag 由 wave2 批 `dcr-negative-cache-ttl` 于 17:17:14/17:19:26 按设计推入上游 relay（run 唯一名，声明残留，上游 DELETE 405 不可清）；13c（15:32）当时上游无 nc tag 故 PASS 成立；本批为污染后首跑。**新暴露分歧候选（登 UNKNOWN 待裁，不在本票权限）**：A 侧 remote 仓 `tags/list` 为非活体视图（上游 17:19 起 5 tag，A 至 18:13 跨多次请求仍答 3，滞后 ≥54min），B 侧活体聚合——上游静态时双端一致（wave-1/13c 全绿），上游一变即暴露。伴随观察：tags/list 带 manifest media-type Accept 时 A 406、B 200（协商宽严差，一并待裁）。修复选项（归 compatibility-engineer）：intercompare 放宽为集合包含 / A 视图刷新机制探明 / wave2 残留清理策略。**case 文件未改一字**（放宽断言=掩盖差异，需裁定后执行）。
+- **回归对照**：其余 7 例两轮 score 均 `{"pass":7,"fail":1,"blocked":0,"not_run":39,"total":47,"coverage":0.875}`，与 13c 基线一致项无回退；新增差异 1（tags-catalog intercompare，环境触发型，见上）。
+- **工件**：`tools/difftest/v2/docker_wave_setup.sh`（重写，旧版见 git 历史）+ `run/setup2-verify{,-2}/`（results.json + evidence/）；工作日志 `reports/agents/T-L042-setup2.md`。
