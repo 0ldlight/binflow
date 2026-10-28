@@ -1,0 +1,43 @@
+# BinFlow 测试实例（k8s namespace lzw）— Helm values
+# intake ㉗（2026-10-26）：UAT 降级为演示环境（仅 main 合并部署）；测试环境统迁 k8s ns lzw。
+# 部署：helm upgrade --install binflow-dev charts/binflow -n lzw -f deploy/k8s/lzw-values.yaml \
+#         --set admin.password="$BINFLOW_LZW_ADMIN_PASSWORD"   # 凭据见 gitignored .env.lzw，禁落本文件
+#
+# 镜像链（devops 票在途）：Jenkins 构建推 registry 后，改 image.tag 即换装。
+# 差分 B 侧入口 = http://192.168.120.36:32083（NodePort，入口走 CP 节点 IP，与 .36:32082 参照同款约定）。
+
+fullnameOverride: binflow-dev
+
+image:
+  repository: ghcr.io/lzwzzy/binflow
+  tag: ""            # 空=Chart appVersion-distroless；镜像链就绪后由 Jenkins 侧指定 dev tag
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 8080
+  nodePort: 32083
+
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 20Gi
+  storageClass: longhorn
+
+# longhorn volumes mount root:root; the runtime user is 10001 (binflow) —
+# fsGroup lets kubelet hand the volume to that group.
+podSecurityContext:
+  fsGroup: 10001
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+config:
+  baseUrl: ""        # NodePort http 直连，无外层反代
+  dataDir: /var/lib/binflow
+  logLevel: info

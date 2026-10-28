@@ -35,6 +35,7 @@ internal/docs/dist/*
 .env
 .env.*
 !.env.example
+.boost/
 *.pem
 *.key
 # bf license keygen 的默认私钥输出（T-281）：*.pem 已覆盖，这里显式留名——

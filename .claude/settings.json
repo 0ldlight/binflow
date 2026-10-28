@@ -1,17 +1,12 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_FLOW_V3_ENABLED": "true",
-    "CLAUDE_FLOW_HOOKS_ENABLED": "true"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "permissions": {
     "allow": [
       "Bash(chunk:*)",
-      "Bash(npx @claude-flow*)",
-      "Bash(npx claude-flow*)",
-      "Bash(node .claude/*)",
-      "mcp__claude-flow__*"
+      "Bash(node .claude/*)"
     ]
   },
   "hooks": {
@@ -31,11 +26,8 @@
     "Stop": []
   },
   "enabledPlugins": {
-    "ponytail@ponytail": true,
-    "agent-skills@addy-agent-skills": true,
     "superpowers@superpowers-marketplace": true,
-    "obsidian@obsidian-skills": true,
     "gopls-lsp@claude-plugins-official": true
   },
-  "_comment": "chunk init 生成后于 2026-09-08 重组期修正：npm ci 腿原本指仓库根（无 package.json，恒错）；make test 腿与用户停测试指令冲突且重复 CI 门；保留 git commit 时的 make lint 快闸（60s）。chunk validate 侧的 install/test 由 .chunk/config.json 承载（已钉 --prefix web）。"
+  "_comment": "chunk init 生成后于 2026-09-08 重组期修正：npm ci 腿原本指仓库根（无 package.json，恒错）；make test 腿与用户停测试指令冲突且重复 CI 门；保留 git commit 时的 make lint 快闸（60s）。chunk validate 侧的 install/test 由 .chunk/config.json 承载（已钉 --prefix web）。2026-10-26 基建审计清理：移除 claude-flow 死配置（二进制/MCP 均不存在）与 ponytail/agent-skills/obsidian 三个 marketplace 不存在的死插件条目；superpowers 重装自 obra/superpowers-marketplace，gopls-lsp 装自官方市场。"
 }

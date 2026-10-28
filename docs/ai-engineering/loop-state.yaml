@@ -1,18 +1,42 @@
 # LOOP ENGINEER 状态账（宪章 §29）——每轮开始读、结束写；唯一写入者=conductor
 schema: 1
 program: ARTIFACTORY FULL REIMPLEMENTATION PROGRAM
-reference_environment: { switched: 2026-09-24, http: "http://192.168.120.38:8082", version: "7.161.26 Enterprise+（UI 200 实测；system/version API 401 未认证——凭据通道 D3 裁定后活体复验）", auth: "admin（凭据 env 注入 ARTIFACTORY_REF_PASSWORD——禁落盘）", ssh: "lzw@172.16.58.130 key-auth（dev/docker 运维主机，与参照实例无关）", note: "2026-09-24 接管总令基准切换 B=7.161.26；matrix 既有行全部按 7.161.15 认证——翻绿/新结论须按 7.161.26 复验；旧参照 .130:8082（7.161.15 pro）退役备用；结论标注源版本纪律不变" }
+reference_environment: { switched: 2026-10-26, http: "http://192.168.120.36:32082", api_base: "/artifactory 前缀（裸 /api/* 404）", version: "7.161.26（revision 86126900——2026-10-26 system/version 200 活体复验，91 仓库预置非空实例；E+ 档以 addons 面〔federated/release-bundle/xray 等〕佐证）", auth: "admin（凭据 gitignored .env.ref env 注入 ARTIFACTORY_REF_PASSWORD——值禁落 tracked 文件；D3 凭据通道事实消解）", ssh: "lzw@172.16.58.130 key-auth（dev/docker 运维主机，与参照实例无关）", note: "2026-10-26 参照实例迁移 .38:8082→.36:32082（intake ㉖，同版本 7.161.26——既有 7.161.26 结论按版本标注纪律仍有效，实例级配置差异随 preflight 与下轮差分首查暴露）；旧 .38:8082 退役备用；版本复验从 pending 转 verified" }
 environment_topology: {
-  corrected: "2026-09-15 用户术语纠正：UAT=uat.binflow.org；本地/dev=172.16.58.130:8083（自 Mac 迁来）",
-  uat: "https://uat.binflow.org（52.79.109.153——真 UAT，HTTPS 308 跳转，version uat.72ae611）",
-  dev: "http://172.16.58.130:8083（容器 binflow-dev〔原 binflow-uat 更名〕，卷 binflow-uat-data；**必须 --network binflow-net——主机默认 docker0 网桥 2026-09-16 起降级**（TCP 握手通数据丢/容器不可达网关），参照栈因自带用户网络不受影响）",
-  reference: "http://192.168.120.38:8082（Artifactory 7.161.26 Enterprise+ 目标基准——2026-09-24 切换，版本活体复验 pending D3）；旧 .130:8082（7.161.15 pro）退役备用",
+  corrected: "2026-10-26 intake ㉗：UAT=演示环境（main 合并部署）；测试环境=k8s ns lzw（B=http://192.168.120.36:32083）",
+  uat: "https://uat.binflow.org（52.79.109.153——**2026-10-26 起仅演示环境**，main 合并经 CircleCI 链部署；不再承载差分/测试）",
+  dev: "k8s ns lzw（部署参数 deploy/k8s/lzw-values.yaml——NodePort 32083/Longhorn 20Gi；**镜像链 Jenkins 改造在途，D6 registry 候裁**，就绪前 lzw 实例 BLOCKED；.130 docker 宿主与 binflow-dev 空壳 ns 退役）",
+  reference: "http://192.168.120.36:32082（Artifactory 7.161.26 目标基准——2026-10-26 迁移自 .38:8082，版本活体复验 verified；API 基路径 /artifactory 前缀）；旧 .38:8082（7.161.26）与 .130:8082（7.161.15 pro）退役备用",
   mac: "本地 docker 全退役（2026-09-15 用户指令：penpot 不再使用——Docker Desktop 已停，**不允许擅自启动**；penpot 栈容器随停，卷/镜像保留在盘待用户定夺删除）",
   discipline: "docker 一律远程执行（ssh lzw@172.16.58.130）——本地 docker 禁用；构建走本机交叉编译+远程换二进制（零拉取）；差分/probe 指 reference+dev；UAT 环境结论以 uat.binflow.org 为准"
 }
-updated: 2026-09-24T00:00:00Z
+updated: 2026-10-26T00:00:00Z
+ledger_audit_2026_10_26:
+  trigger: "用户令：拉取远端+盘点研发流程/工具/插件/skill 缺失（会话级基建审计）"
+  series_verdict: "战报双系列定性——reports/iteration-NNNN.md（根目录）=自动 sprint 系列（2026-08 起连续递增，R12 起为闭卷战报载体；main 至 1553=R14；develop 427b7945 载 1554=R15 收口，随下次保鲜上 main）；reports/iterations/000-027=LOOP 系列（conductor 手写，09-17 后休眠）。001-027 同名相撞，内容分属两系列；检索『最新』取数字最大者。LOOP 编号退役不复用（见 reports/README.md）"
+  process_truth: "v3 流程持续在跑非真空——R13/R14/R15 战报齐全，Linear 池有卫生操作（BIN 票号流转），双审/保鲜 PR/Watch items 齐备；loop-state 本体（LOOP 系列）自 09-24 休眠，状态账以战报系列为准"
+  r15_seal_facts: "R15 出口 Z=156=93 resolved+63 open（BUG 7o/UNKNOWN 44o/INTENTIONAL 10o/UNSUPPORTED 2o）；14 票 Done（BIN-94/95/101..103/106..114）；双审 0+0；payload PR #199 squash→develop 83d63cfb；保鲜 PR #200→main 1901da8e；R16 首查=main run 36726495030 test(light) failure 归因+Linear 池卫生+Z=156 延续（见 iteration-1554 §六 Watch items）"
+  infra_fixes_applied: "mysql MCP 移除（明文密码违规+库与本项目无关）；linear-server MCP 配置（https://mcp.linear.app/mcp，OAuth 待用户）；~/.agents/skills 17 个 skill 软链上架 ~/.claude/skills/（含 apple-design——intake ㉔ 审查门解冻）；superpowers 重装（obra marketplace）+gopls-lsp 安装（官方市场）；settings.json 清 claude-flow 死配置与三个死插件条目；新增 /design-review 命令（apple-design 审查门可执行化）"
+  pending_user: ["D1-D5 五决策（09-24 起；呈批材料=reports/ruling-pack-2026-10.md）", "nightly race_full CircleCI 面板核验（09-18 起）", "jfrog-fly 本地代理（127.0.0.1:33555）来源/重启方式", "Penpot MCP 重连凭据（实例 URL+API token）", "linear-server OAuth 首连", "pending-rulings 呈批面（Z=156 中 44 UNKNOWN+10 INTENTIONAL 开放）"]
+intake_026:
+  at: 2026-10-26
+  what: "参照实例迁移 .38:8082 → .36:32082（admin 凭据口头提供即 env 注入 .env.ref，不落 tracked 文件）；继续推进"
+  decisions: []
+  defaults: { reverify: "同版本迁移（7.161.26=7.161.26）——既有结论按版本标注纪律有效，实例级差异由 preflight+下轮差分首查暴露；baseline-reverify 队列照常推进" }
+  review_by: 2026-11-26
+intake_027:
+  at: 2026-10-26
+  what: "环境拓扑改组：UAT（uat.binflow.org）降级为演示环境——仅 main 合并经 CircleCI 链部署，不再承载差分/测试；其余测试环境统迁 k8s ns lzw（kubeconfig=repo 集群 c-m-5cflrx7b @192.168.48.57:8443，Rancher 代理；4 节点 Kylin+containerd，Longhorn 默认 SC；参照 Artifactory 7.161.26 与 Jenkins 同在此集群 devops ns）。.130 docker 宿主不再承担测试职责"
+  decisions:
+    - id: D6
+      what: "Jenkins 镜像链的推送目标 registry（Jenkins API 403 匿名——链改造需凭据）"
+      resolved: "2026-10-26 用户裁定：集群内 registry——已部署 devops/registry（registry:2，Longhorn 50Gi，ClusterIP 5000 + NodePort 32100，manifest=deploy/k8s/registry.yaml；skopeo 经 m.daocloud 灌 alpine 验证 push 面通）"
+      residual: "节点侧 containerd insecure-registry 未配（kubelet HTTPS 探 http 仓被拒实测 ErrImagePull）——需在 4 节点配 registries.yaml（片段在 registry.yaml 头注），候用户执行或给节点 SSH；Jenkins API Token 候用户下发"
+  defaults: { deploy: "deploy/k8s/lzw-values.yaml 已备（NodePort 32083/Longhorn 20Gi）；B 侧凭据 gitignored .env.lzw；镜像链就绪后 helm upgrade --install binflow-dev -n lzw 即换装" }
+  result: "2026-10-27 全链 SUCCESS（Jenkins binflow-dev-k8s #45）：buildah+vfs 构建 3m47s → 集群内 registry 推送 → kubelet 拉取（节点 registries.yaml 已由用户配置）→ helm 部署 → smoke 200；B=http://192.168.120.36:32083 live。引擎更替与九项链路修复经 PR #211 独立评审合并；节点 insecure-registry 配置由用户完成。后续跟进票（凭据日志卫生等）见 PR #211 描述" 
+  review_by: 2026-11-26
 current_iteration: 028
-current_goal: "LOOP 028（进行中）：2026-09-24 接管总令——基准切至 7.161.26@192.168.120.38:8082（E+），Phase A 基准&流程修复先行（凭据出库/T3 UAT 审批门/T5 配置格式规格/T9 key-cache 投影规格/T6 PostgreSQL 启用/T7 HA 证据包/T10 差分框架 v2）；D1–D5 未裁定子项按已公布默认推进；原 LOOP 028 观察项由 Phase A 吸收"
+current_goal: "LOOP 028（进行中）：2026-09-24 接管总令——基准切至 7.161.26（2026-10-26 实例迁移至 192.168.120.36:32082，活体复验 verified；见 intake ㉖），Phase A 基准&流程修复先行（凭据出库/T3 UAT 审批门/T5 配置格式规格/T9 key-cache 投影规格/T6 PostgreSQL 启用/T7 HA 证据包/T10 差分框架 v2）；D1–D5 未裁定子项按已公布默认推进；原 LOOP 028 观察项由 Phase A 吸收"
 iteration_027_seal: "闭卷（2026-09-17）：D08 六行翻绿（差分 55 case r7/r8 SAME 52——四 B BUG 随轮修复验证；88/63→94/57，Coverage 56.9%→60.3%〔+3.4pp〕；契约 7 条目 VERIFIED；known-divergence +3 候 v2.8）+ deb 条件键实现（v1 62/v2 21 键面）+ L025-7 FE 双臂退役 done-part（断点接管收编——闭包 tsc+断言闸+dist 证据；运行时腿欠账候 Mac 复跑）+ api-reference 英文化二波 + L026-2 三腿复检旗销旗；**环境事件×2：前会话 16:28 中断（L027-4 接管零损失）+宿主 172.16.58.130 整机 19:0x 失联（恢复复核为 LOOP 028 前置）**；nightly 首跑未到期（09-18 03:17 UTC）；commits 4efcb561..2ea971b7（10）"
 iteration_026_seal: "闭卷（2026-09-17）：批次 4 D08 实现面全落地（规格 64 探针→六行实现 R01-R06——差分被 dev community 档 license 门挡，**六行 absent 不虚翻，差分+落账归 027**）+ m-holder 读位投影（八处断言翻正，t215 账本 92→90——L025-7 后端根治）+ fe-rewrite 55 腿（2a 僵尸击落→2b 断点续作：18 spec+8 根因修，40 done/3 旗/10 未动）+ fern 英文化 979 处（docs.binflow.org 实证上线+产品语态长期规则）+ CI 三战（e2e 门控/metadata 预算腿/三连红→35185482672 全绿）；**工作流裁定：develop→main 一律 merge commit**（squash 历史分叉根治，PR #128=4c20553a 历史重聚）；UAT=uat.4c20553/dev=dev-3c0c3a87（真控制台）；matrix 88/63 不动（诚实口径）；commits f6058b1e..4c20553a（14+）"
 iteration_025_seal: "闭卷（2026-09-17）：批次 3 D02 配置族全行翻绿（八面归五行——compatible 83→88/absent 68→63）+ e2e 债族根因收口（pro 租约共享 helper 根修/五 spec 重钉/nightly 双向门）+ docs-site 全退役；G1 六面键表渲染器+四层键集面键名差=0；候批 31 席 v2.7；commits 6814c3d7..eaf5ab27（15+）"

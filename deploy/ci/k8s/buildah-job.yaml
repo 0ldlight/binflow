@@ -1,0 +1,118 @@
+# buildah build Job template — placeholder substituted by Jenkinsfile-lzw (sed):
+#   __SHORT__  git short sha (also the image tag suffix)
+# Replaces kaniko-job.yaml (kaniko v1.23.2 hangs unpacking rootfs on Kylin
+# 4.19.90 — 40min+ zero progress on two nodes). buildah + vfs storage driver
+# needs no kernel overlay module; the pod runs privileged. Base images come
+# from the in-cluster registry's mirror/ path (relayed from the workstation
+# with skopeo — docker.io egress is blocked from pods and m.daocloud hangs
+# mid-download); the insecure registry for both pulls and push is declared
+# via registries.conf written at runtime — the repo Dockerfile
+# (deploy/release/Dockerfile.alpine) stays untouched.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: binflow-img-__SHORT__
+  namespace: lzw
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      # Pinned to cp1: the buildah image exists only in cp1's containerd
+      # (imagePullPolicy Never). To widen, scp+ctr-import the image on the
+      # other nodes and drop this selector.
+      nodeSelector:
+        kubernetes.io/hostname: k8s-cp1
+      containers:
+        - name: buildah
+          # quay.io blobs (cdn01.quay.io/Akamai) time out from pod egress; the
+          # m.daocloud prefixed domain 403s this repo. The image is therefore
+          # pre-imported into cp1's containerd (skopeo on the workstation ->
+          # scp -> ctr -n k8s.io images import) and never pulled.
+          image: quay.io/buildah/stable
+          imagePullPolicy: Never
+          securityContext:
+            privileged: true
+          command: ["bash", "-c"]
+          args:
+            - |
+              set -ex
+              printf '%s\n' \
+                '[[registry]]' \
+                'prefix = "docker.io"' \
+                'location = "192.168.120.36:32100/mirror"' \
+                'insecure = true' \
+                '' \
+                '[[registry]]' \
+                'location = "192.168.120.36:32100"' \
+                'insecure = true' \
+                > /etc/containers/registries.conf
+              cd /workspace
+              buildah --storage-driver vfs bud \
+                --build-arg BINFLOW_VER=dev-__SHORT__ \
+                --build-arg BINFLOW_REVISION=__SHORT__ \
+                -f deploy/release/Dockerfile.alpine \
+                -t 192.168.120.36:32100/binflow:dev-__SHORT__ \
+                .
+              buildah --storage-driver vfs push --tls-verify=false \
+                192.168.120.36:32100/binflow:dev-__SHORT__
+          volumeMounts:
+            - name: src
+              mountPath: /workspace
+            - name: storage
+              mountPath: /var/lib/containers
+      initContainers:
+        - name: fetch
+          image: m.daocloud.io/docker.io/library/alpine:3.20
+          env:
+            - name: ART_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ref-download
+                  key: user
+            - name: ART_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: ref-download
+                  key: password
+          command: ["sh", "-c"]
+          args:
+            - |
+              # set -e only: xtrace would print the Basic auth header
+              set -e
+              AB64=$(printf '%s:%s' "$ART_USER" "$ART_PASS" | base64)
+              MIRROR=http://artifactory.devops.svc.cluster.local:8082/artifactory/generic-local/mirror
+              echo "fetching source tarball from relay"
+              wget -q --header "Authorization: Basic $AB64" "$MIRROR/mirror-checksums.txt" -O /tmp/checksums.txt
+              wget -q --header "Authorization: Basic $AB64" "$MIRROR/binflow-src-latest.tar.gz" -O /workspace/binflow-src-latest.tar.gz
+              # verify and refetch BOTH manifest and artifact on mismatch —
+              # a corrupt manifest poisons every retry that reuses it
+              grep -q ' binflow-src-latest.tar.gz$' /tmp/checksums.txt || { echo "manifest missing tarball entry"; exit 1; }
+              n=0
+              until ( cd /workspace && grep ' binflow-src-latest.tar.gz$' /tmp/checksums.txt | sha256sum -c - ); do
+                n=$((n+1))
+                if [ "$n" -ge 3 ]; then
+                  echo "tarball checksum failed after 3 fetches"
+                  echo "manifest line: $(grep ' binflow-src-latest.tar.gz$' /tmp/checksums.txt)"
+                  echo "actual: $(sha256sum /workspace/binflow-src-latest.tar.gz | cut -d' ' -f1) size=$(wc -c < /workspace/binflow-src-latest.tar.gz)"
+                  exit 1
+                fi
+                echo "tarball checksum mismatch, refetch manifest+tarball ($n)"
+                wget -q --header "Authorization: Basic $AB64" "$MIRROR/mirror-checksums.txt" -O /tmp/checksums.txt
+                wget -q --header "Authorization: Basic $AB64" "$MIRROR/binflow-src-latest.tar.gz" -O /workspace/binflow-src-latest.tar.gz
+              done
+              tar -xzf /workspace/binflow-src-latest.tar.gz -C /workspace
+              rm /workspace/binflow-src-latest.tar.gz
+              echo "source unpacked and checksum-verified"
+          volumeMounts:
+            - name: src
+              mountPath: /workspace
+      volumes:
+        # sizeLimits keep a runaway vfs build from filling the cp1 disk
+        - name: src
+          emptyDir:
+            sizeLimit: 5Gi
+        - name: storage
+          emptyDir:
+            sizeLimit: 30Gi

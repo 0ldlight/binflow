@@ -1,0 +1,190 @@
+// binflow-dev-k8s — intake-27 (2026-10-26), v3: fully git-independent.
+// github.com sustained transfers AND dl-cdn/apk downloads are unreliable from
+// this network, so every byte moves through the reference Artifactory
+// (round-trip integrity verified) and Jobs fetch their own materials
+// in-cluster. Job specs are static templates in the relay (placeholders
+// __SHORT__/__COMMIT__/__BRANCH__); this script only does
+// wget-template -> sed -> POST against the k8s API — no heredocs (dash +
+// toolchain rewriting made inline heredocs untrustworthy).
+//   1. build Job (k8s/buildah-job.yaml): initContainer unpacks the source
+//      tarball (mirror/binflow-src-latest.tar.gz) into an emptyDir; buildah
+//      (vfs driver, privileged pod pinned to k8s-cp1) builds from a dir
+//      context and pushes to the in-cluster registry (D6). Replaced kaniko
+//      2026-10-27: kaniko v1.23.2 hangs unpacking rootfs on the Kylin
+//      4.19.90 kernel (40min+ zero progress on two nodes).
+//   2. deploy Job (k8s/helm-deploy-job.yaml): fetches the helm binary +
+//      source tarball, helm-upgrades binflow-dev in ns lzw (binflow-ci SA,
+//      admin password from Secret binflow-lzw-admin).
+//   3. smoke: healthz on NodePort 32083.
+// The controller only talks to the k8s API (curl + mounted devops:default
+// token, RBAC Role binflow-ci-deployer). Conductor refresh protocol: commit
+// -> deploy/ci/relay-sync.sh (tarball + templates + checksums manifest via
+// Artifactory) -> deploy/ci/jenkins-refresh.sh (sync inline job script +
+// trigger).
+pipeline {
+  agent any
+
+  options {
+    disableConcurrentBuilds()
+    buildDiscarder(logRotator(numToKeepStr: '10'))
+  }
+
+  environment {
+    REGISTRY = '192.168.120.36:32100'
+    NAMESPACE = 'lzw'
+    B_SIDE_URL = 'http://192.168.120.36:32083'
+    SA_DIR = '/var/run/secrets/kubernetes.io/serviceaccount'
+    K8S_BASE = "https://${env.KUBERNETES_SERVICE_HOST}:${env.KUBERNETES_SERVICE_PORT}"
+    SRC_BASE = 'http://artifactory.devops.svc.cluster.local:8082/artifactory/generic-local/mirror'
+    no_proxy = 'localhost,127.0.0.1,.svc,.cluster.local,.svc.cluster.local,artifactory.devops.svc.cluster.local,192.168.120.36,10.96.0.1'
+    NO_PROXY = 'localhost,127.0.0.1,.svc,.cluster.local,.svc.cluster.local,artifactory.devops.svc.cluster.local,192.168.120.36,10.96.0.1'
+  }
+
+  stages {
+    stage('Resolve source') {
+      steps {
+        sh '''
+{ set +x; } 2>/dev/null
+set -eu
+# untraced on purpose: xtrace printed the SA token and relay credentials
+# into the console (reviewer-a blocker) — progress is echoed explicitly.
+TOKEN=$(cat $SA_DIR/token)
+CA="--cacert $SA_DIR/ca.crt"
+AUTH="Authorization: Bearer $TOKEN"
+BASE="$K8S_BASE"
+SEC_JSON=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
+RELAY_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+RELAY_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+SHA=$(curl -sS --noproxy '*' -m 15 --user "$RELAY_USER:$RELAY_PASS" "$SRC_BASE/VERSION" | tr -d "[:space:]")
+case "$SHA" in
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
+  *)
+    echo "VERSION fetch failed; proxy env (values redacted):"
+    env | grep -iE "proxy" | sed 's/=.*/=<set>/'
+    exit 1 ;;
+esac
+printf '%s' "$SHA" > "$WORKSPACE/SRC_SHA"
+echo "building source $SHA"
+'''
+        script { env.SRC_SHA = readFile("$WORKSPACE/SRC_SHA").trim() }
+      }
+    }
+
+    stage('Build & push image (buildah Job)') {
+      steps {
+        sh '''
+{ set +x; } 2>/dev/null
+set -eu
+# untraced: Bearer token and relay credentials must not leak via xtrace
+TOKEN=$(cat $SA_DIR/token)
+CA="--cacert $SA_DIR/ca.crt"
+AUTH="Authorization: Bearer $TOKEN"
+BASE="$K8S_BASE"
+API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
+SEC_JSON=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
+RELAY_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+RELAY_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+JOB="binflow-img-$SRC_SHA"
+
+CODE=$(curl -sS --noproxy '*' $CA -H "$AUTH" -X DELETE "$API/$JOB?propagationPolicy=Background" -o /dev/null -w '%{http_code}' || true)
+echo "DELETE old job -> ${CODE:-ERR}"
+curl -sS --noproxy '*' -m 60 --user "$RELAY_USER:$RELAY_PASS" "$SRC_BASE/buildah-job.yaml" -o job-buildah.yaml
+sed -i "s/__SHORT__/$SRC_SHA/g" job-buildah.yaml
+CODE=$(curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-buildah.yaml -o /dev/null -w '%{http_code}' || echo ERR)
+if [ "$CODE" != "201" ]; then echo "POST $JOB -> $CODE"; exit 1; fi
+echo "POST $JOB -> $CODE"
+
+i=0
+while [ "$i" -lt 360 ]; do
+  # the apiserver pretty-prints for plain curl: "type"/"status" land on
+  # separate lines, so the condition names are matched line-locally
+  COND=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$API/$JOB" | grep -oE '"type": *"Complete"|"type": *"Failed"' || true)
+  case "$COND" in
+    *Complete*) echo "buildah Job complete"; break ;;
+    *Failed*)
+      echo "buildah Job FAILED:"
+      POD=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "binflow-img-$SRC_SHA-[a-z0-9]*" | head -1)
+      curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120&container=fetch" || true
+      curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120" || true
+      exit 1 ;;
+  esac
+  if [ $((i % 6)) -eq 0 ]; then echo "poll $i/360: ${COND:-pending}"; fi
+  sleep 10
+  i=$((i+1))
+done
+case "$COND" in
+  *Complete*) ;;
+  *) echo "buildah Job timed out"; exit 1 ;;
+esac
+'''
+      }
+    }
+
+    stage('Deploy to lzw (helm Job)') {
+      steps {
+        sh '''
+{ set +x; } 2>/dev/null
+set -eu
+# untraced: Bearer token and relay credentials must not leak via xtrace
+TOKEN=$(cat $SA_DIR/token)
+CA="--cacert $SA_DIR/ca.crt"
+AUTH="Authorization: Bearer $TOKEN"
+BASE="$K8S_BASE"
+API="$BASE/apis/batch/v1/namespaces/$NAMESPACE/jobs"
+SEC_JSON=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/secrets/ref-download")
+RELAY_USER=$(echo "$SEC_JSON" | grep -o '"user": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+RELAY_PASS=$(echo "$SEC_JSON" | grep -o '"password": *"[^"]*"' | cut -d'"' -f4 | base64 -d)
+JOB="binflow-deploy-$SRC_SHA"
+
+CODE=$(curl -sS --noproxy '*' $CA -H "$AUTH" -X DELETE "$API/$JOB?propagationPolicy=Background" -o /dev/null -w '%{http_code}' || true)
+echo "DELETE old job -> ${CODE:-ERR}"
+curl -sS --noproxy '*' -m 60 --user "$RELAY_USER:$RELAY_PASS" "$SRC_BASE/helm-deploy-job.yaml" -o job-deploy.yaml
+sed -i "s/__SHORT__/$SRC_SHA/g" job-deploy.yaml
+CODE=$(curl -sS --noproxy '*' $CA -H "$AUTH" -H "Content-Type: application/yaml" -X POST "$API" --data-binary @job-deploy.yaml -o /dev/null -w '%{http_code}' || echo ERR)
+if [ "$CODE" != "201" ]; then echo "POST $JOB -> $CODE"; exit 1; fi
+echo "POST $JOB -> $CODE"
+
+i=0
+while [ "$i" -lt 200 ]; do
+  # same line-local condition match as the build stage (pretty-printed API)
+  COND=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$API/$JOB" | grep -oE '"type": *"Complete"|"type": *"Failed"' || true)
+  case "$COND" in
+    *Complete*) echo "deploy Job complete"; break ;;
+    *Failed*)
+      echo "deploy Job FAILED:"
+      POD=$(curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods?labelSelector=job-name%3D$JOB" | grep -o "binflow-deploy-$SRC_SHA-[a-z0-9]*" | head -1)
+      curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120&container=fetch" || true
+      curl -sS --noproxy '*' $CA -H "$AUTH" "$BASE/api/v1/namespaces/$NAMESPACE/pods/$POD/log?tailLines=120" || true
+      exit 1 ;;
+  esac
+  if [ $((i % 6)) -eq 0 ]; then echo "poll $i/200: ${COND:-pending}"; fi
+  sleep 10
+  i=$((i+1))
+done
+case "$COND" in
+  *Complete*) ;;
+  *) echo "deploy Job timed out"; exit 1 ;;
+esac
+'''
+      }
+    }
+
+    stage('Smoke') {
+      steps {
+        sh '''
+set -eux
+code=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' $B_SIDE_URL/healthz)
+[ "$code" = "200" ] || { echo "healthz=$code"; exit 1; }
+curl -sS -m 10 $B_SIDE_URL/healthz
+echo "smoke OK on $B_SIDE_URL"
+'''
+      }
+    }
+  }
+
+  post {
+    failure {
+      echo 'chain failed — see stage logs; rollback is a helm retry on the previous tag'
+    }
+  }
+}

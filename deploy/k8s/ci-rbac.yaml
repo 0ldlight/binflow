@@ -1,0 +1,89 @@
+# CI orchestration RBAC (2026-10-26; split into two least-privilege roles
+# 2026-10-27 after PR #211 review). The Jenkins controller pods (SA
+# devops:default today, devops:jenkins intended) only orchestrate Jobs in ns
+# lzw; the in-ns binflow-ci SA only drives the helm release. secrets for the
+# controller are name-pinned to ref-download — it must not read
+# binflow-lzw-admin.
+# NOTE: a RoleBinding's roleRef is immutable — binflow-ci is bound to
+# binflow-helm through the NEW binding name binflow-helm-sa; the former
+# binflow-ci-deployer-sa binding (roleRef pinned to the old role) must be
+# deleted once, not edited.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: binflow-ci-deployer
+  namespace: lzw
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["ref-download"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: binflow-ci-deployer
+  namespace: lzw
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: devops
+  - kind: ServiceAccount
+    name: jenkins
+    namespace: devops
+roleRef:
+  kind: Role
+  name: binflow-ci-deployer
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: binflow-helm
+  namespace: lzw
+rules:
+  # helm release storage lives in secrets; the chart also renders a secret,
+  # a configmap and a serviceaccount
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts", "services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # PVC intentionally has no delete: helm uninstall must not take the data
+  # volume with it; dropping a release's PVC is a manual, audited act.
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: binflow-helm-sa
+  namespace: lzw
+subjects:
+  - kind: ServiceAccount
+    name: binflow-ci
+    namespace: lzw
+roleRef:
+  kind: Role
+  name: binflow-helm
+  apiGroup: rbac.authorization.k8s.io

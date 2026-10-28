@@ -43,6 +43,9 @@ COPY web/src ./src
 # wire-brand-assets.mjs fail-fasts when it is empty — without this COPY
 # `npm run build` dies inside the image (DEFECT-L000-1).
 COPY web/public ./public
+# e2e/ feeds the brand-copy gate in `npm run build` (assert-brand-copy.mjs
+# walks src/, e2e/, scripts/) — without it the build dies with ENOENT /web/e2e.
+COPY web/e2e ./e2e
 RUN npm run build
 
 # ---- stage 2: builder -------------------------------------------------------
@@ -91,7 +94,11 @@ FROM alpine:3.24
 
 # ca-certificates for outbound TLS (M3 remote repos), tzdata for honest
 # timestamps. Non-root user 10001, data dir at /var/lib/binflow.
-RUN apk add --no-cache ca-certificates tzdata \
+# apk mirror: dl-cdn TLS is broken from the k8s pod egress (lzw CI,
+# 2026-10-27); aliyun serves the same trees and is reachable — same network
+# posture as goproxy.cn in the builder stage.
+RUN sed -i 's|https://dl-cdn.alpinelinux.org|https://mirrors.aliyun.com|g' /etc/apk/repositories \
+    && apk add --no-cache ca-certificates tzdata \
     && addgroup -S -g 10001 binflow \
     && adduser -S -D -H -u 10001 -G binflow binflow \
     && mkdir -p /var/lib/binflow /etc/binflow \
