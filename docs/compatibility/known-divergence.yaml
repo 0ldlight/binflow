@@ -50,11 +50,22 @@ entries:
       同构仓逐字一致；证据 reports/compatibility/L002-contract-replay.md D21 段）。枚举子项零残余，条目结案；伴生登记：
       httpapi router.go:291 no-adapter 兜底挑战 service 仍硬编码（生产装配不可达，不影响对拍面）。
 - id: docker/ssrf-private-upstream-stricter
-  surface: 上游私网限制（allowPrivateUpstream）
+  surface: 上游私网限制（remote 仓 allowPrivateUpstream——BinFlow 扩展字段，全包型 remote 上游共面；docker remote 活体发现面）   # T-631 surface 刷新（原「上游私网限制（allowPrivateUpstream）」）
   classification: UNKNOWN
-  rationale: BinFlow SSRF 防护严于 Artifactory（Artifactory 允许私网上游）——安全立场候选 INTENTIONAL，需 authority 定谳
-  authority: { type: pending, ref: "用户/ADR 裁定（安全加固 vs 行为兼容）" }
-  review_gate: LOOP 003 限期升级
+  rationale: >-   # T-631 证据刷新（2026-10-28）：三证在案，UNKNOWN→INTENTIONAL 待 authority 定谳（裁定素材 rulings/T-631）
+    BinFlow SSRF 防护严于参照且非逆向规格产物：参照 7.161.26 remote 配置面无 allowPrivateUpstream 概念（T-631 活体三仓三臂探针——
+    全字段集 117 键无私网概念键；带字段 PUT 建仓/POST 更新均 200 静默丢弃，与假字段对照臂行为一致=未知字段静默忽略策略；
+    私网 RFC1918 上游默认放行、建仓即拉穿 200）+ 官方 Configuration JSON schema 无此字段 + 公网检索零命中；
+    BinFlow 侧为 PRD NFR-S13 明文「BinFlow 扩展」默认 false + admin 显式豁免 + WARN 审计（ADR-0012/勘误二，docs/reverse/ 零记载互证）。
+    拉穿正路径（公网上游）本就同构，分歧收窄为私网上游豁免姿态一维；裁定素材 rulings/T-631-allow-private-upstream.md 两案并陈，
+    推荐案②（INTENTIONAL 保留守卫），authority 落锚后翻态。
+  authority: { type: pending, ref: "用户/ADR 裁定（安全加固 vs 行为兼容；输入=rulings/T-631-allow-private-upstream.md）" }
+  review_gate: T-631 裁定票（LOOP 003 限期升级项，经 L042 wave-1 F-1 活体发现升级触发）
+  evidence: >-
+    reports/compatibility/L042-wave1-docker-remote-replay.md F-1（7.161.26 基准活体首发现）+
+    reports/compatibility/L000-docker-remote-diff.md D19（首次观察）+
+    docs/compatibility/probes/rest/t631-allow-private-upstream.sh（2026-10-28 三仓三臂复跑：字段建仓/更新双路径静默丢弃 +
+    默认放行拉穿 200 + 三仓清理零残留）
 - id: docker/remote-token-response-shape
   surface: docker remote /v2/token 签发响应字段集与 TTL（C01b）
   classification: UNKNOWN

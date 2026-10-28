@@ -14,6 +14,13 @@
 //     unreachable directory is distinguishable from a wrong password in the
 //     audit log, while both stay the same 401 to the caller).
 //
+// The one deliberate exception to the uniform-401 posture is the
+// recurrent-failure block (T-632, recurrent.go): after repeated bad Basic
+// credentials the username's next attempts answer the reference-aligned
+// 403 countdown text. Its BlockedError still chains ErrInvalidCredentials,
+// so planes that have not learned the blocked verdict keep the exact
+// historical 401.
+//
 // Vocabulary (PRD FR-56, snake_case; extensions marked):
 //
 //	method:  local | oidc | ldap — the authentication arm that rejected,

@@ -141,10 +141,13 @@ func TestProbes(t *testing.T) {
 // TestConsoleRootRedirect: /binflow and /binflow/ redirect to the console's
 // ui segment (CE-01, PRD FR-23-AC1). The M1 placeholder JSON semantics are
 // terminated by T-89's embedded console (the inversion table: "GET /binflow/
-// 返回占位 JSON" -> 301); since T-91 the same handler also serves the ui and
-// assets segments from this router (see TestConsoleSegmentMount). The probe
-// still refuses to follow redirects so the assertion stays about the 301
-// itself.
+// 返回占位 JSON" -> redirect); T-630 reshapes the answer to the reference's
+// wire form — 302 with an ABSOLUTE Location derived from the request host
+// (wave-1 differential: 7.161.26 answers its context root with an absolute
+// URL, not a 301-relative). Since T-91 the same handler also serves the ui
+// and assets segments from this router (see TestConsoleSegmentMount). The
+// probe still refuses to follow redirects so the assertion stays about the
+// redirect itself.
 func TestConsoleRootRedirect(t *testing.T) {
 	h := newHarness(t)
 	noFollow := &http.Client{
@@ -156,11 +159,11 @@ func TestConsoleRootRedirect(t *testing.T) {
 			t.Fatalf("GET %s: %v", path, err)
 		}
 		defer func() { _ = resp.Body.Close() }()
-		if resp.StatusCode != http.StatusMovedPermanently {
-			t.Fatalf("%s status = %d, want 301", path, resp.StatusCode)
+		if resp.StatusCode != http.StatusFound {
+			t.Fatalf("%s status = %d, want 302", path, resp.StatusCode)
 		}
-		if loc := resp.Header.Get("Location"); loc != "/binflow/ui/" {
-			t.Fatalf("%s Location = %q, want /binflow/ui/", path, loc)
+		if loc := resp.Header.Get("Location"); loc != h.srv.URL+"/binflow/ui/" {
+			t.Fatalf("%s Location = %q, want %s/binflow/ui/", path, loc, h.srv.URL)
 		}
 	}
 }

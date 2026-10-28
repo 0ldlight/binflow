@@ -158,9 +158,12 @@ def http_request(side, method, path, body, headers, timeout_s):
     url = side["base"] + path
     data = body.encode() if isinstance(body, str) else body
     req = urllib.request.Request(url, data=data, method=method.upper())
+    case_headers = {k.lower() for k in (headers or {})}
     for k, v in (headers or {}).items():
         req.add_header(k, v)
-    if side["user"] and side["password"]:
+    # Basic is the default; a case-supplied Authorization (e.g. Bearer legs in
+    # the docker-remote contract) must win, so only fill the gap.
+    if side["user"] and side["password"] and "authorization" not in case_headers:
         token = base64.b64encode(
             ("%s:%s" % (side["user"], side["password"])).encode()).decode()
         req.add_header("Authorization", "Basic " + token)
