@@ -133,11 +133,12 @@ type Deps struct {
 	// DataDir is storage.data_dir — the health probe writes there and the
 	// stats endpoint sizes blobs/ under it.
 	DataDir string
-	// Console serves the console's three shapes: /binflow and /binflow/
-	// (301 to the ui segment), /binflow/ui/** (SPA shell, history
-	// fallback) and /binflow/assets/<hash> (immutable fingerprinted
+	// Console serves the console's faces: /binflow and /binflow/ (302 to
+	// the ABSOLUTE /binflow/ui/ URL, T-630), /binflow/ui/** (SPA shell,
+	// history fallback) and /binflow/assets/<hash> (immutable fingerprinted
 	// output). T-89 delivers the handler; the router binds it to every
-	// console segment (T-91).
+	// console segment (T-91) and re-addresses the bare root at the ui
+	// segment for the homepage face (T-630).
 	Console http.Handler
 	// Docs serves the embedded help site on /binflow/docs/** (T-129,
 	// ADR-0011/FR-41). Unlike the console seam (cmd wires it), a nil Docs
