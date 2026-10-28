@@ -499,6 +499,12 @@ func TestAuthConfigHotLDAPDirectorySwitch(t *testing.T) {
 		t.Fatalf("the PUT itself took %s — the ≤1s bar is structural", elapsed)
 	}
 
+	// The two cross-directory failures arm the recurrent breaker
+	// (threshold 2, T-632). This test's subject is the directory
+	// switch, not the breaker — clear the ledger so the post-switch
+	// legs exercise the switch itself.
+	auth.ResetRecurrentLedgerForTest(svc)
+
 	// The very next authentication walks B (AC3's double assertion).
 	if _, err := svc.AuthenticateCredentials(ctx, "alice", "alice-A"); !errors.Is(err, auth.ErrInvalidCredentials) {
 		t.Fatalf("auth(A creds on B) = %v, want ErrInvalidCredentials (old config stopped working)", err)

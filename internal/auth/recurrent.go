@@ -39,10 +39,11 @@ const (
 	// Basic credentials after which the username's NEXT attempt is
 	// blocked. The observed reference episode armed no later than the
 	// 3rd consecutive failure; 5 is the conservative choice — a user
-	// who mistypes twice is not punished at the reference's arming
-	// point — accepting a wider gap to the reference until the
-	// parameter is confirmed.
-	recurrentFailureThreshold = 5
+	// L043-wave2 precise count (9/9 reproducible, 2026-10-27): the
+	// reference arms on the 3rd consecutive bad attempt, i.e. 2 counted
+	// failures — threshold converged from the conservative 5 to the
+	// measured 2 (window semantics unchanged).
+	recurrentFailureThreshold = 2
 
 	// recurrentFailureWindow is how long a block stays armed. 4s makes
 	// a freshly armed block answer the observed wire text byte-for-byte
