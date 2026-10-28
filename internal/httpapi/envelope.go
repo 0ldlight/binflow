@@ -104,3 +104,23 @@ func notFoundPrefixHint(w http.ResponseWriter, path string) {
 	writeError(w, http.StatusNotFound,
 		"no root mirror: BinFlow serves every endpoint under the /binflow prefix (requested path "+path+"); the legacy repository context prefix is not emulated")
 }
+
+// writeBlockedVerbatim renders the recurrent-failure block's 403 arm
+// (T-633): the errors[] envelope carrying the verdict's verbatim countdown
+// sentence — the reference-aligned wire body, not a paraphrase — in the
+// auth family's charset media type. Same face the uniform 401 answers
+// (every 401 arm takes the charset spelling per the T-615 plane matrix),
+// only the status and the message differ; the reference's own blocked 403
+// is captured byte-form in reports/compatibility/l0203-wire/
+// A-c3-v1auth-badpw (403 + application/json;charset=ISO-8859-1 + the
+// envelope). The manual charset form is deliberate: the plane matrix pins
+// ordinary /api 403s to the bare media type, so writeError(403, ...) would
+// drift the family — the block rides the AUTH family's face, not the
+// status-code rule. Callers decide the WWW-Authenticate challenge: the
+// dispatch arm keeps its 401 twin's Basic challenge, the login face
+// answers without one (its 401 twin has none).
+func writeBlockedVerbatim(w http.ResponseWriter, text string) {
+	w.Header().Set("Content-Type", ctJSONCharset)
+	w.WriteHeader(http.StatusForbidden)
+	_, _ = w.Write([]byte(errface.Render(http.StatusForbidden, text)))
+}

@@ -166,6 +166,21 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 		} else if isMPUCapabilityRoute(r.Method, path) {
 			s.log.DebugContext(r.Context(), "httpapi: rejected credential deferred to the MPU capability lane",
 				"path", path, "reason", reason)
+		} else if text, blocked := blockedVerdictFrom(r.Context()); blocked {
+			// T-633: the recurrent-failure breaker's countdown block — 403
+			// with the verdict's verbatim text, the same wire family as the
+			// hard-401 below (charset media type plus the Basic challenge),
+			// only the status and the message differ (the reference's own
+			// blocked 403 carries both: reports/compatibility/l0203-wire/
+			// A-c3-v1auth-badpw). Sits INSIDE the else so the login entry
+			// points and the MPU capability lane above keep their
+			// handler-owns-the-verdict deferral: a blocked BASIC header
+			// must not hard-block a different user's body-credential login
+			// — that route's own authenticateCredentials verdict delivers
+			// the 403 there.
+			w.Header().Set("WWW-Authenticate", basicChallenge)
+			writeBlockedVerbatim(w, text)
+			return
 		} else {
 			// /binflow plane (and everything else): the historical hard-401
 			// behavior, rendered here instead of inside the authenticator.
