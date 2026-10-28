@@ -33,6 +33,7 @@ intake_027:
       resolved: "2026-10-26 用户裁定：集群内 registry——已部署 devops/registry（registry:2，Longhorn 50Gi，ClusterIP 5000 + NodePort 32100，manifest=deploy/k8s/registry.yaml；skopeo 经 m.daocloud 灌 alpine 验证 push 面通）"
       residual: "节点侧 containerd insecure-registry 未配（kubelet HTTPS 探 http 仓被拒实测 ErrImagePull）——需在 4 节点配 registries.yaml（片段在 registry.yaml 头注），候用户执行或给节点 SSH；Jenkins API Token 候用户下发"
   defaults: { deploy: "deploy/k8s/lzw-values.yaml 已备（NodePort 32083/Longhorn 20Gi）；B 侧凭据 gitignored .env.lzw；镜像链就绪后 helm upgrade --install binflow-dev -n lzw 即换装" }
+  result: "2026-10-27 全链 SUCCESS（Jenkins binflow-dev-k8s #45）：buildah+vfs 构建 3m47s → 集群内 registry 推送 → kubelet 拉取（节点 registries.yaml 已由用户配置）→ helm 部署 → smoke 200；B=http://192.168.120.36:32083 live。引擎更替与九项链路修复经 PR #211 独立评审合并；节点 insecure-registry 配置由用户完成。后续跟进票（凭据日志卫生等）见 PR #211 描述" 
   review_by: 2026-11-26
 current_iteration: 028
 current_goal: "LOOP 028（进行中）：2026-09-24 接管总令——基准切至 7.161.26（2026-10-26 实例迁移至 192.168.120.36:32082，活体复验 verified；见 intake ㉖），Phase A 基准&流程修复先行（凭据出库/T3 UAT 审批门/T5 配置格式规格/T9 key-cache 投影规格/T6 PostgreSQL 启用/T7 HA 证据包/T10 差分框架 v2）；D1–D5 未裁定子项按已公布默认推进；原 LOOP 028 观察项由 Phase A 吸收"
