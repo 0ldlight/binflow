@@ -175,9 +175,20 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if path == "/" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+		// T-630 (wave-1 differential vs Artifactory 7.161.26): the bare root
+		// IS the console homepage — 200 text/html, the same shell bytes
+		// /binflow/ui/ serves, no redirect leg. This retires E-26①'s "no
+		// root mirror" posture for the root itself; every other prefix-less
+		// path (and every non-GET/HEAD verb on it) keeps the hint 404 below.
+		s.serveRootShell(w, r)
+		return
+	}
+
 	if !strings.HasPrefix(path, prefix) {
-		// E-26①: no root mirror. Everything outside /binflow is a 404; the
-		// message carries the /binflow prefix hint so migrants from legacy
+		// E-26① (as narrowed by T-630): outside /binflow only the bare root
+		// is mirrored (above); everything else stays a 404; the message
+		// carries the /binflow prefix hint so migrants from legacy
 		// deployments see the fix in the error body.
 		notFoundPrefixHint(w, path)
 		return
@@ -186,9 +197,12 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(path, prefix)
 	switch {
 	case rest == "" || rest == "/":
-		// /binflow and /binflow/ -> 301 /binflow/ui/ (CE-01, T-89's
-		// console handler; the M1 placeholder JSON is terminated).
-		s.deps.Console.ServeHTTP(w, r)
+		// /binflow and /binflow/ -> 302 to the ABSOLUTE /binflow/ui/ URL
+		// (T-630, wave-1 differential: the reference answers its context
+		// root with a 302 whose Location is scheme+host-absolute, derived
+		// from the request — not the 301-relative form this seam answered
+		// before; CE-01's target segment is unchanged).
+		http.Redirect(w, r, requestScheme(r)+"://"+r.Host+prefix+"/ui/", http.StatusFound) //nolint:gosec // G710 taint false positive: the Location PATH is the constant /binflow/ui/ and the host is the request's own origin — there is no attacker-chosen destination to redirect to (the reference's absolute-Location form is host-derived by design)
 	case rest == "/ui" || rest == "/ui/" || strings.HasPrefix(rest, "/ui/"),
 		rest == "/assets" || rest == "/assets/" || strings.HasPrefix(rest, "/assets/"):
 		// Console segments (T-91, PRD FR-23/CE-01/CE-02): the SPA's ui
@@ -230,6 +244,19 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	default:
 		s.dispatchContent(w, r, rest)
 	}
+}
+
+// serveRootShell answers the bare root with the console shell — byte for
+// byte the response /binflow/ui/ serves (T-630: the reference homepage is
+// its /ui/ HTML rendered straight from the root, no redirect leg). The
+// console seam is an opaque http.Handler addressed by path, so the
+// delegation re-addresses the request at the ui segment; method, query and
+// headers ride along untouched, and the access log keeps the original "/"
+// spelling (the copy replaces only the URL).
+func (s *Server) serveRootShell(w http.ResponseWriter, r *http.Request) {
+	addr := *r
+	addr.URL = &url.URL{Path: prefix + "/ui/", RawQuery: r.URL.RawQuery}
+	s.deps.Console.ServeHTTP(w, &addr)
 }
 
 // isLoginEntryPoint reports whether (method, path) is one of the anonymous
