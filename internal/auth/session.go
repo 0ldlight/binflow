@@ -201,6 +201,14 @@ func (s *Service) AuthenticateCredentials(ctx context.Context, username, passwor
 		s.fillGroups(ctx, p)
 		return p, nil
 	}
+	// T-632: a recurrent-failure block is a FINAL verdict for this login —
+	// the LDAP fallback must not offer the blocked username a second arm
+	// (the block exists because credentials keep failing; falling through
+	// would let the directory answer what the breaker just refused, and a
+	// blocked probe would keep costing a directory round-trip).
+	if errors.Is(err, ErrRecurrentFailureBlocked) {
+		return nil, err
+	}
 
 	// LDAP fallback: only when the provider is wired and the basic auth failed
 	// (which includes LDAP users with empty password_hash). The provider
