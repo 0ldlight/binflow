@@ -1,0 +1,72 @@
+# BinFlow 兼容契约——console 根路径面（root-face；T-630 闭环收账，L042 Z 口径批，2026-10-28）
+# schema: compat-contract/1 —— 源模式 docs/ai-engineering/compatibility-engineering.md §2（单契约文件）。
+# 背景：L042 wave-1 case #0（console-root-path）双端活体分歧（当时 B 裸根 404 no-root-mirror JSON、
+#   /binflow/ 301 相对跳转）→ T-630 对齐实现（f3bf1b78：internal/httpapi/router.go serveRootShell 裸根
+#   直出 200 + 挂载根 302 绝对 Location）→ 部署活体验证 + 差分用例 B 侧断言按对齐后语义重放 PASS
+#   （wave rerun FAIL→PASS）。本文件为闭环后的 root-face 契约（wave-1 报告 Z 建议 2 提案
+#   console/root-path-homepage 的落账形态）。
+# 分歧处理口径：T-630 已对齐（deploy + 活体验证）→ **已对齐无分歧，不立 known-divergence 条目**；
+#   本面以契约承载（VERIFIED）。匿名可达性属实例匿名姿态（instance config），归台账既有条目
+#   rest/anonymous-read-default-policy，本契约不另立账。
+# 行为规格源（诚实标注）：docs/reverse/ 无本面行为规格（console-ui.md 未记根路径面）——断言源=
+#   双端活体：L042 wave-1 报告分歧明细①（7.161.26 参照观察）+ reports/agents/T-630.md（真实实例
+#   :18099 三点取证、body sha256 同源）+ probes/console/root-face.sh（dev-cfa5da05 实例三臂复跑，
+#   2026-10-28）。规格缺口已转 reverse-engineer（A 侧 GET / 的 Cache-Control/CT charset 细节待补规格）。
+domain: console
+scope: 控制台根路径面——裸根 / 与上下文根 /binflow[/] 的首页可达与跳转形态、/binflow/ui/ 直接访问、
+  鉴权门序（被拒凭据先于根分支）。不含 /binflow/api/*（rest 域契约）、不含 /v2/* docker 根级例外
+  （ADR-0010 clause 1，docker 域）、不含控制台前端资产面细节。
+normalize: raw（本面断言均为状态码/头形态/字节同源比较，无归一项；wave-1 case #0 判定亦未用归一）
+reference_instance: 'Artifactory 7.161.26 (revision 86126900, package_handler 5.675.60) Enterprise+ @ http://192.168.120.36:32082（L042 wave-1 活体）'
+binflow_tested_instance: 'BinFlow dev-cfa5da05 @ http://192.168.120.36:32083（k8s ns lzw 测试实例；f3bf1b78 T-630 实现在内，2026-10-28 活体复验）'
+contracts:
+- id: console/root-path-homepage
+  feature: 裸根首页直出 + 上下文根绝对跳转（参照「裸端口访问即达首页」形态，wave-1 case #0 三 delta 收编）
+  surface: 'GET / · GET /binflow · GET /binflow/ · GET /binflow/ui/'
+  request: { method: GET, path: '按臂：/ 或 /binflow[/] 或 /binflow/ui/', headers: {}, query: {} }
+  authentication: { type: 'none|basic', role: 'anonymous_or_user', note: '被拒凭据臂用坏 Basic；匿名臂行为属实例姿态（见 unobserved_reference_arms）' }
+  expect:
+    arms:
+    - when: 'GET /（凭据有效）——200-shell 臂'
+      status: 200
+      headers:
+        pattern: { Content-Type: '^text/html' }
+      body:
+        same_bytes_as: 'GET /binflow/ui/ 响应体（shell 同源，逐字节相等——探针 sha256 实证）'
+    - when: 'GET /binflow/ 或 GET /binflow——302-绝对臂'
+      status: 302
+      headers:
+        pattern:
+          Location: '^https?://<host>/binflow/ui/$'
+      body_note: '参照侧上下文根拼写 /artifactory[/] → Location 绝对 …/ui/（wave-1 活体）；绝对 URL，scheme 尊重 X-Forwarded-Proto（B 侧 requestScheme 约定，测试钉死）'
+    - when: 'GET / + 坏 Basic 凭据——401-门序臂'
+      status: 401
+      headers:
+        pattern: { WWW-Authenticate: '^Basic realm=' }
+      body_note: '鉴权门先于根分支（拒绝凭证永不见 shell；B 侧活体验证 + root_homepage_test 钉死）'
+    - when: 'GET /binflow/ui/——UI 直接访问锚臂'
+      status: 200
+      headers:
+        pattern: { Content-Type: '^text/html' }
+  side_effects: []
+  error_behavior:
+    - { when: '非 GET/HEAD 打裸根（如 POST /）', status: 404, body_literal: 'notFoundPrefixHint JSON（方法门保位——B 侧测试钉死；参照侧该方法臂未观察）' }
+    - { when: '裸根下其余无前缀路径（如 /favicon.ico）', status: 404, body_literal: 'notFoundPrefixHint JSON（E-26① 经 T-630 收窄后保位——仅裸根本身直出）' }
+  binflow_state:
+    verdict: SAME
+    detail: >-
+      wave-1 三 delta（裸根可达性/302 vs 301/绝对 vs 相对）全部对齐：GET / → 200 text/html; charset=utf-8
+      + Cache-Control: no-cache（B 侧形态；参照侧该两头细节未单拍——转 reverse-engineer 补规格）+ body 与
+      /binflow/ui/ 逐字节相等；GET /binflow[/] → 302 Found + 绝对 Location http://<host>/binflow/ui/；
+      坏凭据 → 401 Basic challenge 先于根分支。匿名 GET / → 200（B 默认匿名开，ADR-0009；与参照
+      :32082 实例 wave-1 匿名腿 200 同形——姿态差异面归 rest/anonymous-read-default-policy 台账）。
+    witness: 'L042 wave-1 case #0 console-root-path FAIL → T-630 修复 → wave rerun PASS + 探针三臂活体复跑（下 evidence）'
+  version: { artifactory_ref: '7.161.26', binflow_tested: 'uat.cfa5da05（dev-cfa5da05 @ :32083）' }
+  evidence:
+    - { kind: difftest, report: reports/compatibility/L042-wave1-docker-remote-replay.md, anchor: '分歧明细①（wave-1 分歧期双端观察，case #0 三 delta）', date: '2026-10-28' }
+    - { kind: probe, report: reports/agents/T-630.md, anchor: 'Tests/Outputs（真实实例 :18099 三点取证：200/302 绝对/sha256 同源 b4b0bc6f5f1db756）', date: '2026-10-28' }
+    - { kind: probe, report: docs/compatibility/probes/console/root-face.sh, anchor: 'P0-P5（dev-cfa5da05 活体：200 字节同源 cba474f12117c23b / 302 绝对 Location / 401 门序；匿名 200 姿态记录）', date: '2026-10-28' }
+    - { kind: difftest, report: 'tools/difftest/v2/cases/console_root_path.py（B 侧断言按对齐后语义重放——wave rerun FAIL→PASS，运行产物归 differential-qa 域 run/wave1*/）', date: '2026-10-28' }
+  unobserved_reference_arms: '参照侧 GET / 的 Cache-Control/CT charset 逐值（wave-1 未单拍）；参照侧坏凭据打裸根的 401 形态（本面未单拍——全域 401 家族旁证 L020 V4）；https 直连形态（X-Forwarded-Proto 为 B 侧约定外推）'
+  confidence: high
+  status: VERIFIED

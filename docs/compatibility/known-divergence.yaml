@@ -61,6 +61,10 @@ entries:
     推荐案②（INTENTIONAL 保留守卫），authority 落锚后翻态。
   authority: { type: pending, ref: "用户/ADR 裁定（安全加固 vs 行为兼容；输入=rulings/T-631-allow-private-upstream.md）" }
   review_gate: T-631 裁定票（LOOP 003 限期升级项，经 L042 wave-1 F-1 活体发现升级触发）
+  note: >-
+    L042 F-1 同源采认（2026-10-28，Z 口径收账批）：L042 wave-1 报告「Z 口径更新建议 2」提案的
+    remote/allow-private-upstream-default 与本条目为**同一分歧**，防双账不另立新条目，
+    以本条目（T-631 刷新版）为唯一在账记录。
   evidence: >-
     reports/compatibility/L042-wave1-docker-remote-replay.md F-1（7.161.26 基准活体首发现）+
     reports/compatibility/L000-docker-remote-diff.md D19（首次观察）+
@@ -72,7 +76,12 @@ entries:
   rationale: "参照 {token(JWT), expires_in:9000}，无 issued_at；BinFlow {token(不透明 hex), access_token, expires_in:2592000, issued_at, scope}——docker CLI 实测登录/拉取均兼容（超集字段不破坏客户端）；是否对齐 9000/JWT 形态待 authority 裁定"
   authority: { type: pending, ref: "用户/产品裁决（token TTL 与形态策略）" }
   review_gate: LOOP 002 限期升级（契约条目 docker/remote-token-issue）
-  evidence: reports/compatibility/L000-docker-remote-diff.md C01b
+  note: >-
+    基准复验注记（L042 wave-1，2026-10-28，Z 口径收账批）：7.161.26 新基准活体复验**逐项一致**（分歧明细②——
+    A {token, expires_in:9000, JWT(eyJ…)} vs B {token, access_token, expires_in:2592000, issued_at, scope,
+    不透明 hex64}，与旧基准观察同形）→ 本条目基准标注更新为 7.161.26；旧基准（7.161.15/20 期 L000 观察）
+    结论不自动失效，加注不替换；分歧维持 UNKNOWN 待裁（对齐方向 9000/JWT 形态）。
+  evidence: reports/compatibility/L000-docker-remote-diff.md C01b + reports/compatibility/L042-wave1-docker-remote-replay.md 分歧明细②（7.161.26 复验一致）
 - id: docker/remote-credentials-error-shape
   surface: docker remote 坏凭据错误形态（C02：ping 与 token 双端点）
   classification: BUG
@@ -87,7 +96,24 @@ entries:
   rationale: 参照匿名访问关（无凭据 401 "Authentication is required"）；BinFlow 匿名开（200 签发匿名 token）——实例策略默认值差异，需产品裁定 BinFlow remote 面默认匿名姿态；wire bug 修复后匿名 pull 端到端可对照补证
   authority: { type: pending, ref: "产品/用户裁决（remote 面匿名默认姿态）" }
   review_gate: LOOP 002 限期升级（契约条目 docker/remote-token-anonymous）
-  evidence: reports/compatibility/L000-docker-remote-diff.md C03
+  note: >-
+    基准复验注记（L042 wave-1，2026-10-28，Z 口径收账批）：7.161.26 新基准活体复验**一致**（分歧明细③——
+    A 无凭据 401 "Authentication is required" vs B 200 签发匿名 token，同形维持）→ 本条目基准标注更新为
+    7.161.26；旧基准（7.161.15/20 期 L000 观察）结论不自动失效，加注不替换；分歧维持 UNKNOWN 待裁
+    （实例匿名姿态默认值）。
+  evidence: reports/compatibility/L000-docker-remote-diff.md C03 + reports/compatibility/L042-wave1-docker-remote-replay.md 分歧明细③（7.161.26 复验一致）
+- id: docker/remote-ping-body-trailing-newline
+  surface: docker remote /v2/ ping 401 挑战 body 尾换行字节方言（A 87B 带尾 \n vs B 字面 86B 无）
+  classification: INTENTIONAL_DIFFERENCE
+  rationale: >-
+    note 级字节方言存证（L042 wave-1 微差 N-1，不立票从轻）：A ping 401 body 带尾部换行（87B vs 字面
+    86B；B 无尾换行）——JSON 语义等价（compact UNAUTHORIZED envelope 逐字段同构），case 级判定不受影响
+    （L042 定谳 dcr-ping-anonymous PASS；run1 用例侧尾换行严格比较 tripped 属差分工装 bug 非产品发现）。
+    按 accepted 指纹注记处理（pretty 方言先例同款），不动 verdict、不进 normalize（docker-remote 域维持
+    raw——L042 Z 建议 3：本波全部判定未用归一即达成，尾换行以本条目承载）。
+  authority: { type: conductor_ruling, ref: "reports/compatibility/L042-wave1-docker-remote-replay.md 微差 N-1 + Z 口径收账批派票（2026-10-28）——resolved 存证口径（2026-09-11 LOOP 001 conductor 裁定先例）：本条记录『无语义差异』本身，不占用四分类裁定语义" }
+  review_gate: resolved（note 级字节方言存证——严格字节断言的差分/金样须感知该方言，语义级判定无视）
+  evidence: reports/compatibility/L042-wave1-docker-remote-replay.md 微差 N-1（+ 批次轨迹 run1→run4 三宗用例侧 bug ②）+ tools/difftest/v2/cases/docker_ping_anonymous.py（定谳 PASS 用例）
 - id: docker/remote-manifest-404-negative-cache
   surface: docker remote manifest 404 负缓存（C14）
   classification: BUG
@@ -913,7 +939,14 @@ entries:
     对齐形态=安全能力自有形态实现（A 语义对齐非逐字，与 R-4 HA「进目标但自有形态」同款）。
   authority: { type: pending, ref: "产品/conductor 裁（security 票：补 recurrent-failure block 自有形态 vs 维持缺位登记）" }
   review_gate: 已入 pending-rulings v2.4（R-22c 席位）——security 立票评估
-  evidence: reports/compatibility/L020-auth401-maven-faces.md V5（c3 第二轮 403 瞬态+冷却复核——限流行为本身即证据）
+  note: >-
+    实现进展注记（L042 Z 口径收账批，2026-10-28）：BinFlow **已实现熔断**——T-632（internal/auth/recurrent.go：
+    per-username 计数，阈值 5=保守值 vs 参照观测约 2；窗口 4s 使封锁文案与活体逐字同形）+ T-633 接线
+    （httpapi 403 wire，BlockedError 先于 ErrInvalidCredentials 分支答 403 倒计时逐字文案）——403 wire
+    活体验证在案、per-username 作用域已验（reports/agents/T-632.md + reports/agents/T-633.md）。
+    **阈值精确计数差分在途（wave-2）**：阈值差（5 vs 观测约 2）为候选收敛项——第二参照窗取证阈值/窗口后
+    校正 recurrentFailureThreshold 一常量即可收；本条目维持 UNKNOWN，待差分绿后由 conductor 翻账。
+  evidence: reports/compatibility/L020-auth401-maven-faces.md V5（c3 第二轮 403 瞬态+冷却复核——限流行为本身即证据）+ reports/agents/T-632.md（实现票）+ reports/agents/T-633.md（403 wire 接线票）
 - id: conan/v2-ping-superset
   surface: conan v2/ping 超集姿态（B 200+能力头 vs A 400）
   classification: INTENTIONAL_DIFFERENCE
