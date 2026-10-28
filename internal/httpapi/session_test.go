@@ -119,15 +119,18 @@ func TestConsoleSegmentMount(t *testing.T) {
 	createRepoHTTP(t, h, "generic-local")
 	createRepoHTTP(t, h, "ui-local") // embedded spelling: NOT reserved
 
-	// CE-01: the root redirect (followed this time — the target now serves).
+	// CE-01: the root redirect (followed this time — the target now
+	// serves). T-630: the answer is 302 with an ABSOLUTE Location derived
+	// from the request host, the reference's form.
 	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := noFollow.Get(h.srv.URL + "/binflow/")
 	if err != nil {
 		t.Fatalf("GET /binflow/: %v", err)
 	}
 	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusMovedPermanently || resp.Header.Get("Location") != "/binflow/ui/" {
-		t.Fatalf("/binflow/ = %d %q, want 301 /binflow/ui/", resp.StatusCode, resp.Header.Get("Location"))
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != h.srv.URL+"/binflow/ui/" {
+		t.Fatalf("/binflow/ = %d %q, want 302 %s/binflow/ui/",
+			resp.StatusCode, resp.Header.Get("Location"), h.srv.URL)
 	}
 
 	// CE-02/W01: the shell and the deep-link history fallback.

@@ -513,10 +513,13 @@ func authenticate(a auth.Authenticator) Middleware {
 			if err != nil {
 				// Log the refusal for operators (the reason never reaches
 				// the client), then hand the plane a decision to make.
+				// T-633: the verdict error itself rides the context, not
+				// just its text — the routing plane needs the sentinel to
+				// tell the recurrent-failure block's 403 arm apart.
 				slog.WarnContext(r.Context(), "httpapi: credential rejected",
 					slog.String("path", r.URL.EscapedPath()),
 					slog.String("reason", err.Error()))
-				next.ServeHTTP(w, r.WithContext(withAuthRejected(r.Context(), err.Error())))
+				next.ServeHTTP(w, r.WithContext(withAuthRejected(r.Context(), err)))
 				return
 			}
 			// Thread the resolved name outward to the access log (contexts

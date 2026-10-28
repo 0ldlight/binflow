@@ -82,6 +82,13 @@ type Service struct {
 	// (T-491, FR-156.2; see wildcard.go). nil = bucket semantics inert —
 	// every Can evaluation is exact-key matching, the pre-T-491 behavior.
 	repoClass repoClassSource
+	// recurrent is the in-process recurrent-failure breaker ledger
+	// (T-632; see recurrent.go): consecutive rejected Basic credentials
+	// for one username arm a countdown block whose next attempt is
+	// refused before any verification. Built by New and shared by every
+	// With* clone (struct pointer copy, like stepUpGrants); nil = the
+	// whole arm inert (hand-built services keep the pre-T-632 posture).
+	recurrent *recurrentLimiter
 }
 
 // ConfigHotSource is the ConfigManager facet the arms consume per
@@ -262,6 +269,7 @@ func New(users userSource, tokens tokenSource, perms permissionSource, anonymous
 		permissions:   perms,
 		anonymousRead: anonymousRead,
 		stepUpGrants:  newStepUpLedger(),
+		recurrent:     newRecurrentLimiter(),
 	}
 	s.verifier = &TokenVerifier{tokens: tokens, users: users}
 	s.hashGate = newHashGate(defaultHashConcurrency())
@@ -398,11 +406,39 @@ func (s *Service) authenticate(ctx context.Context, r *http.Request) (*Principal
 	return nil, nil // anonymous
 }
 
-// authenticateBasic implements the Basic duality (auth-model.md section 3.6,
-// high confidence): the password field is first tried as a real password;
-// when that fails and the value verifies as an API token, the Basic username
-// must equal the token subject case-insensitively ("Token principal
-// mismatch" otherwise).
+// authenticateBasic is the recurrent-failure breaker's single choke
+// point (T-632): every Basic credential — the per-request Basic arm AND
+// the login endpoint's AuthenticateCredentials — passes through here,
+// so one ledger governs both surfaces. Order matters: the block check
+// runs BEFORE any lookup or derivation (a blocked username costs no
+// store read and no argon2 slot — that cheap refusal is the breaker's
+// anti-brute-force value), then the credential is adjudicated, and the
+// verdict updates the ledger. Counted verdicts are exactly the
+// ErrInvalidCredentials rejections: transport-level abandonments (the
+// hash gate's context cancellation) and store failures do not satisfy
+// the sentinel and are deliberately not counted — they are not
+// credential verdicts (the T-192 posture). A successful authentication
+// through this arm clears the username's count (defensive posture; the
+// reference arm was not observed for that case).
+func (s *Service) authenticateBasic(ctx context.Context, username, password string) (*Principal, error) {
+	if wait := s.recurrent.blockedRemaining(username); wait > 0 {
+		return nil, &BlockedError{Username: username, RetryIn: wait, message: blockedMessage(wait)}
+	}
+	p, err := s.authenticateBasicCredential(ctx, username, password)
+	switch {
+	case err == nil:
+		s.recurrent.success(username)
+	case errors.Is(err, ErrInvalidCredentials):
+		s.recurrent.failure(username)
+	}
+	return p, err
+}
+
+// authenticateBasicCredential implements the Basic duality
+// (auth-model.md section 3.6, high confidence): the password field is
+// first tried as a real password; when that fails and the value
+// verifies as an API token, the Basic username must equal the token
+// subject case-insensitively ("Token principal mismatch" otherwise).
 //
 // M6 update (ADR-0020): users with an empty password_hash (OIDC/LDAP users)
 // cannot authenticate via the Basic arm. The password check is skipped for
@@ -419,7 +455,7 @@ func (s *Service) authenticate(ctx context.Context, r *http.Request) (*Principal
 // The gate error is returned verbatim: it is a transport-level
 // abandonment, not a credential verdict (and not a login failure for the
 // audit plane).
-func (s *Service) authenticateBasic(ctx context.Context, username, password string) (*Principal, error) {
+func (s *Service) authenticateBasicCredential(ctx context.Context, username, password string) (*Principal, error) {
 	u, err := s.users.Get(ctx, username)
 	if err != nil && !errors.Is(err, ErrUserNotFound) {
 		return nil, fmt.Errorf("auth: looking up user: %w", err)

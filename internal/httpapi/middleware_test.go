@@ -60,9 +60,10 @@ func TestMiddlewareOrder(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.srv.Config.Handler.ServeHTTP(rec, req) //nolint:errcheck // probing the assembled handler directly
 	// The console seam is T-89's embedded console: /binflow/ answers the
-	// CE-01 301 to /binflow/ui/ (the M1 placeholder 200 is terminated).
-	if rec.Code != http.StatusMovedPermanently {
-		t.Fatalf("console redirect status = %d, want 301", rec.Code)
+	// T-630 302 to the absolute /binflow/ui/ URL (CE-01's target segment,
+	// the reference's absolute-Location form).
+	if rec.Code != http.StatusFound {
+		t.Fatalf("console redirect status = %d, want 302", rec.Code)
 	}
 	if got := rec.Header().Get("X-Request-Id"); got == "" {
 		t.Fatal("X-Request-Id header missing on the response")
@@ -140,10 +141,13 @@ func TestAccessLogFields(t *testing.T) {
 }
 
 // TestRecoverPanicTo500: a panicking handler answers the envelope 500,
-// logs the panic, and still produces its access log line.
+// logs the panic, and still produces its access log line. The probe rides
+// the /binflow/ui/ segment — since T-630 the mount root answers a routing
+// 302 before the console seam runs, so the panicking seam needs a segment
+// that still delegates.
 func TestRecoverPanicTo500(t *testing.T) {
 	s := newPanicConsoleServer(t)
-	req := httptest.NewRequest(http.MethodGet, "/binflow/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/binflow/ui/", nil)
 	rec := httptest.NewRecorder()
 	s.handler.ServeHTTP(rec, req)
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 
 	"github.com/lzwzzy/binflow/internal/auth"
 )
@@ -87,11 +88,22 @@ func userName(p *auth.Principal) string {
 // errors[] envelope plus the Basic challenge), so the signal travels
 // downstream in the context and the routing plane shapes it. The reason
 // string is operator-facing log wording, never client-visible.
-type authRejected struct{ reason string }
+//
+// T-633: the verdict error itself rides along next to the rendered
+// reason, so the routing plane can tell the recurrent-failure block
+// apart from an ordinary credential rejection — the block's 403 arm must
+// carry the error's own Error() text verbatim (the reference-aligned
+// countdown sentence), which a detached string cannot vouch for. The
+// blocked sentinel is read through blockedVerdictFrom only; every other
+// consumer keeps the plain reason.
+type authRejected struct {
+	err    error
+	reason string
+}
 
 // withAuthRejected stores the rejection signal.
-func withAuthRejected(ctx context.Context, reason string) context.Context {
-	return context.WithValue(ctx, ctxKeyAuthRejected, authRejected{reason: reason})
+func withAuthRejected(ctx context.Context, err error) context.Context {
+	return context.WithValue(ctx, ctxKeyAuthRejected, authRejected{err: err, reason: err.Error()})
 }
 
 // authRejectedFrom returns the stored rejection ("", false when the
@@ -102,4 +114,21 @@ func authRejectedFrom(ctx context.Context) (string, bool) {
 		return "", false
 	}
 	return r.reason, true
+}
+
+// blockedVerdictFrom reports whether a stored rejection is the
+// recurrent-failure breaker's verdict (T-633): ok is true only when the
+// carried error satisfies auth.ErrRecurrentFailureBlocked, and text is
+// its verbatim wire message — the countdown sentence the 403 arm writes
+// byte-for-byte. An ordinary credential rejection (the uniform-401
+// family) reads ("", false).
+func blockedVerdictFrom(ctx context.Context) (text string, ok bool) {
+	r, ok := ctx.Value(ctxKeyAuthRejected).(authRejected)
+	if !ok {
+		return "", false
+	}
+	if !errors.Is(r.err, auth.ErrRecurrentFailureBlocked) {
+		return "", false
+	}
+	return r.err.Error(), true
 }

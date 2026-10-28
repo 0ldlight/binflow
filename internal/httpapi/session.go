@@ -177,6 +177,16 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 			Actor: body.Username, Action: audit.ActionAuthFail, RemoteAddr: r.RemoteAddr,
 			Detail: audit.AuthEventDetail(method, reason),
 		})
+		// T-633: the recurrent-failure block outranks the uniform 401 — the
+		// blocked username is answered 403 with the verdict's verbatim
+		// countdown text, in the same envelope family this handler's 401
+		// renders (charset media type, no challenge — the login face's own
+		// posture). The audit event above is untouched: a blocked attempt
+		// IS a failed login, recorded exactly as before the wire diverged.
+		if errors.Is(err, auth.ErrRecurrentFailureBlocked) {
+			writeBlockedVerbatim(w, err.Error())
+			return
+		}
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
