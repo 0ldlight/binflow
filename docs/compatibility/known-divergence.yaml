@@ -61,6 +61,10 @@ entries:
     推荐案②（INTENTIONAL 保留守卫），authority 落锚后翻态。
   authority: { type: pending, ref: "用户/ADR 裁定（安全加固 vs 行为兼容；输入=rulings/T-631-allow-private-upstream.md）" }
   review_gate: T-631 裁定票（LOOP 003 限期升级项，经 L042 wave-1 F-1 活体发现升级触发）
+  note: >-
+    L042 F-1 同源采认（2026-10-28，Z 口径收账批）：L042 wave-1 报告「Z 口径更新建议 2」提案的
+    remote/allow-private-upstream-default 与本条目为**同一分歧**，防双账不另立新条目，
+    以本条目（T-631 刷新版）为唯一在账记录。
   evidence: >-
     reports/compatibility/L042-wave1-docker-remote-replay.md F-1（7.161.26 基准活体首发现）+
     reports/compatibility/L000-docker-remote-diff.md D19（首次观察）+
@@ -72,7 +76,12 @@ entries:
   rationale: "参照 {token(JWT), expires_in:9000}，无 issued_at；BinFlow {token(不透明 hex), access_token, expires_in:2592000, issued_at, scope}——docker CLI 实测登录/拉取均兼容（超集字段不破坏客户端）；是否对齐 9000/JWT 形态待 authority 裁定"
   authority: { type: pending, ref: "用户/产品裁决（token TTL 与形态策略）" }
   review_gate: LOOP 002 限期升级（契约条目 docker/remote-token-issue）
-  evidence: reports/compatibility/L000-docker-remote-diff.md C01b
+  note: >-
+    基准复验注记（L042 wave-1，2026-10-28，Z 口径收账批）：7.161.26 新基准活体复验**逐项一致**（分歧明细②——
+    A {token, expires_in:9000, JWT(eyJ…)} vs B {token, access_token, expires_in:2592000, issued_at, scope,
+    不透明 hex64}，与旧基准观察同形）→ 本条目基准标注更新为 7.161.26；旧基准（7.161.15/20 期 L000 观察）
+    结论不自动失效，加注不替换；分歧维持 UNKNOWN 待裁（对齐方向 9000/JWT 形态）。
+  evidence: reports/compatibility/L000-docker-remote-diff.md C01b + reports/compatibility/L042-wave1-docker-remote-replay.md 分歧明细②（7.161.26 复验一致）
 - id: docker/remote-credentials-error-shape
   surface: docker remote 坏凭据错误形态（C02：ping 与 token 双端点）
   classification: BUG
@@ -87,7 +96,24 @@ entries:
   rationale: 参照匿名访问关（无凭据 401 "Authentication is required"）；BinFlow 匿名开（200 签发匿名 token）——实例策略默认值差异，需产品裁定 BinFlow remote 面默认匿名姿态；wire bug 修复后匿名 pull 端到端可对照补证
   authority: { type: pending, ref: "产品/用户裁决（remote 面匿名默认姿态）" }
   review_gate: LOOP 002 限期升级（契约条目 docker/remote-token-anonymous）
-  evidence: reports/compatibility/L000-docker-remote-diff.md C03
+  note: >-
+    基准复验注记（L042 wave-1，2026-10-28，Z 口径收账批）：7.161.26 新基准活体复验**一致**（分歧明细③——
+    A 无凭据 401 "Authentication is required" vs B 200 签发匿名 token，同形维持）→ 本条目基准标注更新为
+    7.161.26；旧基准（7.161.15/20 期 L000 观察）结论不自动失效，加注不替换；分歧维持 UNKNOWN 待裁
+    （实例匿名姿态默认值）。
+  evidence: reports/compatibility/L000-docker-remote-diff.md C03 + reports/compatibility/L042-wave1-docker-remote-replay.md 分歧明细③（7.161.26 复验一致）
+- id: docker/remote-ping-body-trailing-newline
+  surface: docker remote /v2/ ping 401 挑战 body 尾换行字节方言（A 87B 带尾 \n vs B 字面 86B 无）
+  classification: INTENTIONAL_DIFFERENCE
+  rationale: >-
+    note 级字节方言存证（L042 wave-1 微差 N-1，不立票从轻）：A ping 401 body 带尾部换行（87B vs 字面
+    86B；B 无尾换行）——JSON 语义等价（compact UNAUTHORIZED envelope 逐字段同构），case 级判定不受影响
+    （L042 定谳 dcr-ping-anonymous PASS；run1 用例侧尾换行严格比较 tripped 属差分工装 bug 非产品发现）。
+    按 accepted 指纹注记处理（pretty 方言先例同款），不动 verdict、不进 normalize（docker-remote 域维持
+    raw——L042 Z 建议 3：本波全部判定未用归一即达成，尾换行以本条目承载）。
+  authority: { type: conductor_ruling, ref: "reports/compatibility/L042-wave1-docker-remote-replay.md 微差 N-1 + Z 口径收账批派票（2026-10-28）——resolved 存证口径（2026-09-11 LOOP 001 conductor 裁定先例）：本条记录『无语义差异』本身，不占用四分类裁定语义" }
+  review_gate: resolved（note 级字节方言存证——严格字节断言的差分/金样须感知该方言，语义级判定无视）
+  evidence: reports/compatibility/L042-wave1-docker-remote-replay.md 微差 N-1（+ 批次轨迹 run1→run4 三宗用例侧 bug ②）+ tools/difftest/v2/cases/docker_ping_anonymous.py（定谳 PASS 用例）
 - id: docker/remote-manifest-404-negative-cache
   surface: docker remote manifest 404 负缓存（C14）
   classification: BUG
@@ -912,8 +938,34 @@ entries:
     裸 401 无封锁。安全面差（brute-force 防护缺位）——非「有意差异」而是机制缺位，INTENTIONAL 立不住；
     对齐形态=安全能力自有形态实现（A 语义对齐非逐字，与 R-4 HA「进目标但自有形态」同款）。
   authority: { type: pending, ref: "产品/conductor 裁（security 票：补 recurrent-failure block 自有形态 vs 维持缺位登记）" }
-  review_gate: 已入 pending-rulings v2.4（R-22c 席位）——security 立票评估
-  evidence: reports/compatibility/L020-auth401-maven-faces.md V5（c3 第二轮 403 瞬态+冷却复核——限流行为本身即证据）
+  review_gate: 已入 pending-rulings v2.4（R-22c 席位）——security 立票评估；余下两维（封锁内正确凭据 / 粘滞+升级）裁定材料已齐（本条 note wave-2 段），待 conductor 定谳
+  note: >-
+    实现进展注记（L042 Z 口径收账批，2026-10-28）：BinFlow **已实现熔断**——T-632（internal/auth/recurrent.go：
+    per-username 计数，阈值 5=保守值 vs 参照观测约 2；窗口 4s 使封锁文案与活体逐字同形）+ T-633 接线
+    （httpapi 403 wire，BlockedError 先于 ErrInvalidCredentials 分支答 403 倒计时逐字文案）——403 wire
+    活体验证在案、per-username 作用域已验（reports/agents/T-632.md + reports/agents/T-633.md）。
+    **阈值精确计数差分在途（wave-2）**：阈值差（5 vs 观测约 2）为候选收敛项——第二参照窗取证阈值/窗口后
+    校正 recurrentFailureThreshold 一常量即可收；本条目维持 UNKNOWN，待差分绿后由 conductor 翻账。
+    wave-2 精测与收敛注记（L043-wave2 裁定材料批，2026-10-28）：A 侧 9/9 独立触发定谳**线口径第 3 发拒绝**
+    （401,401,403；一次性用户名 + admin + 5 静默剖面 + 2 语义腿，run/wave2/threshold_experiment{,2}.json）——
+    即 bind-next 计数=2；窗口 4s 定谳（静默剖面 D=1→cd2/D=2→cd1/D=3→401，夹 (3.15,4.15) 取 4s；倒计时随时钟
+    衰减 2s 步进、封锁内续打不续期）；B 侧已按测得值收敛：feat/t-632 提交 5f7ebec9 阈值 5→2（bind-next 不变），
+    **活体已验**（本票探针打 dev-5f7ebec9 :32083 REST ping：401,401,403 + 窗口届满自愈 401——阈值维**已对齐**，
+    待差分用例转绿后由 conductor 翻账）。余下两维分歧维持 UNKNOWN，两案并陈：
+    【维 2·封锁内正确凭据】A=放行 200（admin 自身被封锁期正确凭据 ~0.3s 内 200；封锁只在认证失败的回答上显形
+    =失败率限流器形态）；B=403 pre-auth 闸门（封锁先于凭据验证）。案①对齐 A（放行）：兼容参照，但真实用户在
+    封锁窗内可被攻方以其用户名持续打坏凭据「陪锁」——A 形态本身即此弱点；案②维持 B（拒绝）：防爆破锁死真实
+    用户的会话/脚本，安全增益，但与参照活体相悖且对盲从重试的合法客户端引入封锁窗不可用期。**推荐案②维持**
+    （安全语义从紧；分歧登记为 INTENTIONAL 候选待 authority），若产品裁兼容优先则案①改法=封锁检查挪到认证
+    失败路径之后。【维 3·粘滞计数+窗口升级】A=计数跨封锁存活（届满后第 1 发坏凭据仍 401、第 2 发即再武装）+
+    快速再犯窗口升级 4→9-10→15-16（leg2/leg3 三次独立观测，6k-3 公式为假设）；B=fresh 计数+固定 4s
+    （recurrent.go 无粘滞/升级逻辑；B 侧为码面陈述+活体固定窗观测）。案①对齐 A（粘滞+升级）：抗慢速爆破
+    （再犯成本递增），需引入跨封锁计数存活与升级公式（公式待更多样本定谳）；案②维持 B（fresh+固定窗）：实现
+    简、无升级误伤面，但快速再犯者恒以 4s 窗试探。**推荐案①对齐**（A 形态是参照行为本体、无安全负向；升级
+    公式按 3 样本先登记观察值，另开精测）。跨面共享（REST 触发 docker 面同倒计时 403）双端已同（wave2 X 臂）。
+    附注：B REST 面 401 文案 "invalid credentials" vs A "Bad Credentials" 系既有 auth 中间层措辞族
+    （conan/auth401-wording 在账），不入本条目。
+  evidence: reports/compatibility/L020-auth401-maven-faces.md V5（c3 第二轮 403 瞬态+冷却复核——限流行为本身即证据）+ reports/agents/T-632.md（实现票）+ reports/agents/T-633.md（403 wire 接线票）+ reports/compatibility/L043-wave2-report.md 任务一（9/9 精测+静默剖面+粘滞升级）+ run/wave2/threshold_experiment{,2}.json + threshold_experiment_bside{,_admin}.json + docs/compatibility/probes/docker/l043-wave2-divergence-candidates.sh（B 侧 dev-5f7ebec9 阈值收敛活体验证 401,401,403+自愈）
 - id: conan/v2-ping-superset
   surface: conan v2/ping 超集姿态（B 200+能力头 vs A 400）
   classification: INTENTIONAL_DIFFERENCE
@@ -2773,3 +2825,112 @@ entries:
   review_gate: R15 微票（成功文案补尾空格，create/update 两面同查；差分双轮）→ resolved
   resolved: { date: '2026-09-30', evidence: 'BIN-106/T-622 修复（create 面补尾空格；update 面 A 侧新取证 2 腿×2 轮确定性=句点后直接 \n 无尾空格、B 已逐字一致故零改动）：差分四腿（A×2 + B×2 干净叠加树 git archive HEAD+仅本票 4 文件）drift 0、各侧 r1≡r2；两面精确字节断言钉住（repo_success_message_test.go）；证据 reports/agents/T-622.md' }
   evidence: reports/agents/T-607.md（Compatibility side-finding 段）+ /tmp/t607 四轮 JSON
+# ── L043-wave2 分歧候选裁定材料批（2026-10-28，compatibility-engineer；全部 UNKNOWN 守 authority 纪律——
+#    报告 reports/compatibility/L043-wave2-report.md 任务二候选 ①-④ + 任务一三维（并入 rest/login-failure-rate-limit
+#    注记）+ setup2-verify 新发现（tags/list 新鲜度+406）；A=7.161.26 :32082、B=dev-cfa5da05→dev-5f7ebec9 :32083、
+#    上游中继 :32100；本票复证探针 docs/compatibility/probes/docker/l043-wave2-divergence-candidates.sh（全 GET 只读）──
+- id: docker/registry-catalog-bare-root
+  surface: 'registry 级 GET /v2/_catalog（无 repo 限定 catalog 根面；wave-1/L003 均只测过 repo 限定 /v2/{repo}/_catalog）'
+  classification: UNKNOWN
+  rationale: >-
+    wave2 首测（dcr-catalog-empty-degrade arm2）+ 本票探针 C 臂复证（两轮独立同形）：A=200 **空 body 零
+    Content-Type**；B=200 application/json {"repositories":["diff-docker-remote/difftest-docker/smoke"]}
+    （remote 仓上游镜像以 repo/image 形入目录）。两案并陈——案①对齐 B 语义不动（B 聚合 remote 成员是
+    distribution spec 惯例形态，A 空根面疑为订阅/权限过滤后的空集或根面不列 remote 的参照特有姿态，需
+    参照侧行为语义再取证：多 local 仓拓扑下 A 根面是否恒空）；案②对齐 A（B 根面回空 body 零 CT）：破坏
+    distribution 客户端 catalog 枚举惯例（docker registry API 消费方普遍 GET /v2/_catalog），**倾向不取**。
+    倾向：先补 A 侧多拓扑取证（local 仓在场时根面是否仍空）再裁；若 A 恒空而 B 列举，形态分歧维持登记。
+  authority: { type: pending, ref: "用户/产品裁决（registry 根面 catalog 聚合姿态：B 维持 distribution 惯例 vs 对齐 A 空根面）" }
+  review_gate: 'conductor 裁定票（两程内；先 A 侧多拓扑补证——local 仓在场/匿名姿态两臂）'
+  evidence: reports/compatibility/L043-wave2-report.md 任务二表（arm2 facts：a body_head="" content_type=null）+ run/wave2/evidence/dcr-catalog-empty-degrade/checks.json + docs/compatibility/probes/docker/l043-wave2-divergence-candidates.sh C 臂（复证同形）
+  note: >-
+    防双账：docker/remote-tags-catalog-pagination（resolved，L003-2）的「裸 GET 活体聚合一致」系**仓限定
+    路径** /v2/{repo}/_catalog（用例源码 '/v2/%s/_catalog' % REPO 实证），registry 级根面双端首测于本波
+    ——该 resolved 结论不覆盖本面，无冲突；Link 头指向 /v2/_catalog 的 quirk 照抄仍属分页面。
+- id: docker/remote-unknown-image-tags-list
+  surface: 'remote 仓未知镜像 tags/list（GET /v2/{remote-repo}/{never-pushed-image}/tags/list）'
+  classification: UNKNOWN
+  rationale: >-
+    wave2 arm3 定谳 + 本票探针 T 臂复证（唯一 nonce 镜像名）：A=404 errors NAME_UNKNOWN
+    「Repository name not known to registry.」（带 detail.name，errors 数组形）vs B=200 {"name","tags":null}
+    （pretty 方言）。对照面：**本地仓**同臂双端同 404（wave2 arm1 已证）——仅 remote 面分歧。语义差：A 视
+    remote 仓未知镜像为「仓不存在」（上游未有过该镜像→NAME_UNKNOWN），B 渲染「仓存在但空 tags」退化形。
+    两案并陈——案①对齐 A（404 NAME_UNKNOWN）：与本地仓面自洽（B 本地未知镜像亦 404）、distribution 客户端
+    对 404 的处理路径成熟；案②维持 B（200 tags:null）：spec 对未知镜像 tags/list 未强制（200 空集是合法
+    渲染），但对 remote 仓「上游确定无此镜像」时仍答 200 依赖上游代问语义。**倾向案①对齐**（双端自洽+
+    客户端兼容；404 体形本地面已有逐字参照可循）。
+  authority: { type: pending, ref: "用户/产品裁决（remote 未知镜像 tags/list：404 NAME_UNKNOWN vs 200 tags:null）" }
+  review_gate: 'conductor 裁定票（两程内；可与 docker/registry-catalog-bare-root 同批裁）'
+  evidence: reports/compatibility/L043-wave2-report.md 任务二表（arm3 facts）+ run/wave2/evidence/dcr-catalog-empty-degrade/checks.json + docs/compatibility/probes/docker/l043-wave2-divergence-candidates.sh T 臂（nonce 镜像名复证 404 vs 200 同形）
+  note: >-
+    防双账：与 docker/remote-manifest-404-negative-cache（manifest 面负缓存，resolved）分面（本条=tags/list
+    面、无负缓存维度牵涉）；与 arm1 空 local 仓面（双端同 404）分面。
+- id: docker/remote-schema1-conversion
+  surface: 'remote manifest GET 的 Accept 媒体协商（schema1-only 臂为主；混合 Accept 双端同 schema2 不在账）'
+  classification: UNKNOWN
+  rationale: >-
+    wave2 定谳（17:17，B=dev-cfa5da05）与本票复测（18:52，B=dev-5f7ebec9）**结论不同构，暴露缓存相位维
+    度**：(1) wave2：schema1-only Accept 双端 200，A CT=prettyjws（在线降转换，media_type/config_digest
+    摘空）vs B CT=schema2 原样（「B 不转换」）；(2) 本票：同请求 B 亦回 prettyjws。B 实际语义=**缓存相位
+    依赖**：热缓存行无视 Accept 原样服务（t2 schema2 缓存行对 schema1 请求回 schema2=wave2 相位复现）；
+    冷/过期行使 Accept 参与上游取回（上游 zot 自身转换 prettyjws）并缓存回包（t1 由 17:17 schema2 相位
+    翻转为 18:52 prettyjws 相位，此后 schema2 Accept 亦得 prettyjws=缓存行被覆写）。A 语义=逐请求确定性
+    协商四向实证（schema1→prettyjws / schema2→schema2 / 无 Accept→prettyjws 默认 / 缓存透明不翻面）。
+    客户端可见后果：schema1-only legacy 客户端在 B **非确定性**（热 schema2 相位解析破损、重取相位可用）；
+    同一请求跨相位媒体类型漂移。两案并陈——案①对齐 A（serve 时按 Accept 协商/转换，与缓存行解耦）：
+    legacy 客户端确定性可用，转换器成本自担；案②维持 B（缓存相位语义）：零实现成本，但协商结果不可预期
+    且与参照「确定性降转换」相悖。**倾向案①对齐**（协商语义是接口契约面，非确定性行为难称兼容）。
+  authority: { type: pending, ref: "用户/产品裁决（remote manifest 协商：serve 时按 Accept 确定转换 vs 缓存相位原样）" }
+  review_gate: 'conductor 裁定票（两程内；真实 legacy docker 客户端（≤1.9 或 --platform 旧式）影响腿补证后裁）'
+  evidence: run/wave2/evidence/dcr-schema1-pull-block/checks.json（s1-only facts：A prettyjws vs B schema2）+ docs/compatibility/probes/docker/l043-wave2-divergence-candidates.sh S 臂（B prettyjws 翻面）+ 本票四向补证（schema2 Accept t1→prettyjws 缓存覆写 / schema1 t2→schema2 热缓存 / 无 Accept t3 冷填→prettyjws / A 四向确定性——工作日志 T-L043-wave2-adjudication.md）
+  note: >-
+    防双账：internal/adapter/docker/manifest.go 的 schema1 拒收（push/parse 面，M2 不支持 schema1）为另一
+    面（更早裁定域），本条只裁 remote GET 面协商语义；混合 Accept（schema1+schema2）双端同 schema2
+    （wave2 s1-mixed SAME）不在账。
+- id: docker/bearer-failure-shape
+  surface: 'docker /v2/ 面 bearer 失败形态族（manifest face：篡改尾/截半/alg:none 伪 JWT/空 bearer 四臂；scope 不校验臂双端同 200 不在账）'
+  classification: UNKNOWN
+  rationale: >-
+    wave2 五臂定谳 + 本票探针 Br 臂复证（garbage bearer + alg:none 两臂同形）：**状态层双端同 401**（四臂
+    全同、t5 push-scope token 拉 manifest 双端 200=scope 不校验同姿）；**形态层系统性分歧**：A=errors[0]
+    {status:401,message:分类文案}（"Token failed verification: signature"/"Props Authentication Token not
+    found"/"Authentication is required" 三分型）+ WWW-Authenticate: Basic realm="Artifactory Realm"；
+    B={code,detail,message:"authentication required"}（无 status 键，四臂泛化同文案）+ WWW-Authenticate:
+    Bearer realm="http://…/v2/token",service=…。挑战机制分歧（A 重挑战 Basic= invite 重走 Basic；B 重挑战
+    Bearer=invite 重走 token 舞步）。注记：B 自身跨面不一——/v2/ ping 面答 Props 分类文案+Basic 挑战
+    （wave-1 P2 PASS、L004-1 分型清偿），manifest 面答泛化文案+Bearer 挑战。两案并陈——案①对齐 A（manifest
+    面拒绝时按凭据类分型文案+Basic 挑战）：与参照及 B 自身 ping 面一致化；案②维持 B（泛化+Bearer 挑战）：
+    Bearer 挑战是 distribution spec 惯例（客户端兼容面更标准），泛化文案少泄内部形态（安全面微增益）。
+    **倾向案①对齐**（参照指纹+消除 B 自身跨面不一；安全顾虑以文案分型不泄密材为界评估）。
+  authority: { type: pending, ref: "用户/产品裁决（manifest 面 bearer 拒绝形态：分型文案+Basic 挑战 vs 泛化+Bearer 挑战）" }
+  review_gate: 'conductor 裁定票（两程内；真过期/吊销臂维持环境性不可达不阻塞本裁定）'
+  evidence: run/wave2/evidence/dcr-bearer-tamper-arms/checks.json（t1-t4 shape/WWW facts + t5 同姿）+ docs/compatibility/probes/docker/l043-wave2-divergence-candidates.sh Br 臂（garbage/alg-none 复证：A Props 文案+Basic 挑战 vs B UNAUTHORIZED 泛化+Bearer 挑战）
+  note: >-
+    防双账：docker/remote-ping-credential-class-message-granularity（resolved）=**ping 面**消息分型（P1-P3
+    已清偿）；docker/remote-v2-ping-revoked-arm-unreachable=ping 面 revoked 第四臂（模型级）——两 preceding
+    条目均不覆盖 manifest 面；本条=manifest 面失败形态族（面不同、层不同：状态层双端同，挑战机制+文案
+    粒度异）。B 跨面不一（ping Props vs manifest 泛化）作为案①论据在案。
+- id: docker/remote-tags-list-freshness-and-406
+  surface: 'remote 仓 tags/list 视图两面——①新鲜度（上游新推 tag 的可见性时延）②带 manifest Accept 的协商拒绝（GET /v2/{remote-repo}/{image}/tags/list + Accept: manifest v2）'
+  classification: UNKNOWN
+  rationale: >-
+    面①（setup2-verify 首证 + 本票探针 F 臂定时界）：A tags/list=**非活体缓存视图**——上游 17:0x 推入
+    nc-* 两 tag 后，18:07/18:13（setup2-verify 两轮）A 视图仍缺（粘滞 ≥55min），18:52 本票探针已追平
+    （届满后由后续请求触发刷新；精确 TTL 未证，分钟~小时级）；B=活体聚合（上游 push 后当轮可见，18:07
+    即含 nc-*）。客户端可见后果：push-后立查型工作流（CI push→立刻 list 断言）在 A 上窗口内失败——但 A
+    是参照本体，此即参照行为；分歧是 B 更「新鲜」（超集姿态）。面②（本票探针 N 臂首证，wave 期 run 产物
+    无既存证据）：tags/list 带 Accept: application/vnd.docker.distribution.manifest.v2+json → A=406
+    {"errors":[{"status":406,"message":"Not Acceptable"}]}（CT application/json）vs B=200 正常 tags 体。
+    两案并陈——面①案①对齐 A（B 引入 tags 视图缓存/TTL）：牺牲新鲜度换参照同形，**倾向不取**（为仿效
+    参照缺陷而主动加陈旧性，客户端可见面负向）；案②维持 B 活体：登记为 client-blind 超集（conan/v2-ping-
+    superset 同款论证式）。面②案①对齐 A（tags/list 对 manifest Accept 答 406 errors 形）：参照指纹
+    （协商面按媒体类型严拒）；案②维持 B（200 无视 Accept）：宽松协商无客户端破面证据（真实客户端对
+    tags/list 通常不带 manifest Accept）。**倾向：面①维持 B（超集登记）、面②对齐 A（406 形）——两小项
+    可拆票分别裁**。
+  authority: { type: pending, ref: "用户/产品裁决（面① 新鲜度超集姿态登记 vs 对齐参照陈旧性；面② 406 协商拒绝对齐 vs 宽松维持）" }
+  review_gate: 'conductor 裁定票（两程内；面① 需先定超集论证口径，面② 可并入 docker/remote-schema1-conversion 同批裁——同属协商语义族）'
+  evidence: run/setup2-verify{,-2}/evidence/dcr-tags-catalog/checks.json（A 缺 nc-*/B 含，两轮 18:07/18:13）+ docs/compatibility/probes/docker/l043-wave2-divergence-candidates.sh F 臂（18:52 A 已追平——粘滞时间界）+ N 臂（406 vs 200 首证+复证）
+  note: >-
+    防双账：docker/remote-tags-catalog-pagination（resolved）=分页参数面（n/last/Link）与**当时点内容
+    parity**——不覆盖新鲜度时延维与 Accept 协商拒绝面；面② 若 conductor 认为应并入协商族条目
+    （docker/remote-schema1-conversion）可拆转，拆转时以本条 note 记指针防双账。
