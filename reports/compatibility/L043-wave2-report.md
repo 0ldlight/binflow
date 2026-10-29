@@ -102,3 +102,142 @@
 
 - 复跑：`run/wave2` 与 `run/wave2-2` 结论同构（6 id 状态逐一相等，首失败原因逐字一致）。
 - results.json 解析：`python3 -I -c "import json; json.load(open('run/wave2/results.json'))"` 通过；case id ↔ 用例文件对账见上表。
+
+---
+
+# L043 五候选活体探针 rerun（wave-5，2026-10-29）
+
+- 模式 **dual**（A/B 双发；两个长窗采样器为受控双端平行单边记录）；批跑入口 `wave5_run.sh` → `run/l043-probe`（首轮：catalog case 用例 bug BLOCKED）/ `run/l043-probe-2`（修后定谳轮）/ `run/l043-probe-3`（复跑门轮）。
+- **A 面**：JFrog Artifactory **7.161.26** @ `http://192.168.120.36:32082`（凭据 gitignored `.env.ref` 行首锚定注入，零落盘零打印）。
+- **B 面**：BinFlow @ `http://192.168.120.36:32083`。**版本活体事实**：`/binflow/api/system/version` 报 **dev-aceee772**（与简报「dev-cfa5da05+阈值2」字符串不一致），但 **阈值-2 行为活体在装**：一次性不存在用户名 3 发坏 Basic → `401, 401, 403`（`run/l043-probe/bside_threshold_context.json`；wave2 方法论，发间 ≥1.15s）——即熔断线口径已收敛为与 A 相同的第 3 发拒绝；版本端点字符串与行为面不一致一事按活体行为口径理解，报 Risks。
+- 夹具活体：preflight 双端 REST ping 200、remote manifest t2 200、上游中继 :32100 200（`wave3_preflight.sh` 复用）。
+- score（定谳轮）：`{"pass":0,"fail":6,"blocked":0,"not_run":51,"total":57,"coverage":0.0}`——本波 6 例全为分歧记录型深挖，FAIL=分歧成立并完成取证，与 wave-3 口径一致。
+- **复跑门：PASS**（`wave5_rerun_gate.py run/l043-probe-2 run/l043-probe-3`：6 id 状态逐一相等、首失败原因 nonce 归一后逐字一致、检查账本逐项同构；归一覆盖 w5* nonce 家族与 `count=N` 上游残留数字）。首轮 5 个共同 case 与定谳轮状态逐一相同（catalog 首轮 BLOCKED 系用例 bug：blob Location 处理引用未定义变量，修复后两轮 FAIL 稳定；崩溃遗留的临时仓 `diff-cat5-1a187f8ca10` 双端 DELETE 200 清净并复验）。
+
+## 探针 1 — registry 级 `/v2/_catalog` 成员拓扑矩阵（case `dcr-catalog-membership-matrix`）→ FAIL（分歧收敛 + A 不变量再加固）
+
+拓扑背景（REST 活体）：A 93 仓（Docker LOCAL×2 `difftest-docker`/`docker-local`、REMOTE×2 `diff-docker-remote`/`docker-remote`、VIRTUAL×1 `docker`——local/remote/virtual 三拓扑齐备）；B 1 仓（fixture remote）。
+
+| 相位 | A（7.161.26） | B（活体） | 判定 |
+|---|---|---|---|
+| P0 基线（authed） | 200 **空 body 零 CT** | 200 JSON `{"repositories":["diff-docker-remote/difftest-docker/smoke"]}` | body-kind DIVERGENT（候选 ③ 持续） |
+| T 匿名 | 401 `UNAUTHORIZED` JSON（CT `application/json;charset=ISO-8859-1`） | 200 同 JSON | **DIVERGENT（C-a 在 catalog 面复现）** |
+| T 坏 Basic（一次性用户） | 401 Jackson pretty `"Bad Credentials"` | 401 泛化 `authentication required` | 状态 SAME，形态 DIVERGENT（候选 ① 族已知面） |
+| T 有效 Basic | 200 空 body 零 CT | 200 JSON | 同 P0 |
+| M 临时 local 仓**灌入镜像**（blob×2 + manifest PUT + HEAD 复验 200 双端） | 200 **仍空 body 零 CT**（93 仓在册，含已灌镜像的 local；批 2 轮因孤儿未清为 94——两轮目录恒空不变） | 200 JSON 新增 `diff-cat5-<n>/difftest-docker/smoke` 条目 | **body-kind DIVERGENT + 成员规则分叉坐实：B 按「仓/镜像」路径聚合（populated local 入目录），A 成员解耦不变面在 populated-local 拓扑下依旧成立**（wave-3 empty-local 观测升级） |
+| C 清理后（DELETE 200×2） | 200 空 body 零 CT | 200 JSON，条目消失（count 2→1） | body-kind DIVERGENT；**B 成员增删随仓生命周期精确可逆（双向取证）** |
+
+**定谳**：A bare-root catalog 的「成员解耦不变面」从三拓扑（wave-3：remote 在位/空 local/清理后）扩展到 **populated-local 第四拓扑**，且对 93→94 仓的在册规模不敏感——A 侧不变量证据闭环；B 是真实聚合面且成员规则钉死为「镜像路径粒度、随推送/删除实时进出」。匿名策略分叉维持 C-a（record-only 域）。
+
+## 探针 2 — schema1 缓存相位四向边界（case `dcr-schema1-phase-boundary`）→ FAIL（语义定谳复现 + 污染持久性 + 对照方向 + 短窗未愈）
+
+新推 3 个轮次唯一上游 tag（F1 `w5w*` 暖缓存环 / F2 `w5c1*` 冷取环 / F3 `w5n*` 对照环）。
+
+| 相位 × Accept | A | B | 判定 |
+|---|---|---|---|
+| w1 冷+negotiate（F1） | 200 schema2 | 200 schema2 | SAME |
+| w2 热+s1-only（F1） | 200 **prettyjws**（服务时转换） | 200 **schema2 原样** | **DIVERGENT（候选 ② 复现，dev-aceee772 活体再证）** |
+| w3 热+s1-mixed（F1） | 200 schema2 | 200 schema2 | SAME |
+| w4 热+negotiate（F1） | 200 schema2 | 200 schema2 | SAME |
+| c1 冷+s1-only（F2） | 200 prettyjws | 200 prettyjws | SAME |
+| c2 冷后跟+s2（F2） | 200 **schema2**（缓存保持规范） | 200 **prettyjws**（污染） | **DIVERGENT（C-b 复现）** |
+| **c3 再跟+s2（F2，新）** | 200 schema2 | 200 **prettyjws** | **DIVERGENT（污染持久：第 3 读仍污染）** |
+| **c4 跟+negotiate（F2，新）** | 200 schema2 | 200 **prettyjws** | **DIVERGENT（污染宽度：negotiate 读也被污染）** |
+| **n1 冷+s2-only（F3，新对照）** | 200 schema2 | 200 schema2 | SAME |
+| **n2 热+s1-only（F3，新对照）** | 200 **prettyjws** | 200 **schema2** | **DIVERGENT（与 w2 同构——B 的热读无视 Accept 与冷取 Accept 无关，缓存键不含 Accept 双向钉死）** |
+| rec90（+90s，record-only） | 200 schema2 | 200 **prettyjws** | 短窗未愈（+90s 仍污染；不立 TTL 断言） |
+
+**定谳**（wave-3 语义定谳在 dev-aceee772 + 阈值-2 B 上原样复现并补齐边界）：A = 服务时按 Accept 转换、缓存永保持规范 schema2；B = 缓存键不含 Accept，冷取协商回包原样入库、此后一切 Accept 热读都吃缓存（c3/c4 持久性 + n1/n2 对照方向双向钉死）。**C-b 污染在 60s 读节奏下 ≥30min 不自愈**（独立采样器 `wave5_schema1_recovery_probe.py`，见下）。
+
+## 探针 3 — bearer 篡改族全面矩阵（case `dcr-bearer-face-full-matrix`）→ FAIL（2 面×4 形 → 6 面×4 形，24 格全取证）
+
+| face \ shape | anon | basic-bad | bearer-garbage | bearer-empty |
+|---|---|---|---|---|
+| **ping** `/v2/` | 双端同 401 Bearer+泛化 | 双端同 401 Basic+Bad Credentials | 双端同 401 Basic+Props Token not found | **A 403/none/Forbidden vs B 401/Basic/Bad Credentials（C-c 复现）** |
+| **manifest** | **A 401 Bearer vs B 200 匿名放行（C-a）** | A Basic+BadCred vs B Bearer+泛化 | A Basic+Props vs B Bearer+泛化 | A Basic+AuthReq vs B Bearer+泛化 |
+| **blob** | **A 401 vs B 200（真 blob 字节）** | 同 manifest 行形态 | 同 | 同 |
+| **tags** | **A 401 vs B 200** | 同 | 同 | 同 |
+| **catalog** | **A 401 vs B 200** | 同 | 同 | **A 403/none/Forbidden vs B 401**（A 侧 403 格=ping+catalog 双面） |
+| **token** | **A 401 Basic+AuthReq vs B 200 匿名发票** | A Basic 挑战 vs **B Bearer 挑战**（body 同文 BadCred） | 消息双端同 Props，挑战 A Basic vs B Bearer | 消息 A AuthReq vs B BadCred，挑战同左 |
+
+**定谳**（wave-3 结论完成面级推广）：
+- **A 侧片内规则**（6 面聚类）：basic-bad 与 bearer-garbage 两形在**全部 6 面**形态逐字一致（Basic 挑战 + 分类文案）——A 的 401 形态是面无关的统一机制；分叉只在 bearer-empty（403 格 = ping+catalog 两个无路径面；manifest/blob/tags/token = 401+AuthReq）与 anon（token 面 Basic 挑战 vs 5 个 v2 面 Bearer 挑战）。
+- **B 侧跨面不一精确定位**：ping 面 4 格中 3 格与 A 逐字同（仅 bearer-empty 异）；**内容面（manifest/blob/tags/catalog）在 basic-bad/bearer-garbage/bearer-empty 三形全部退化为「Bearer 挑战 + 泛化 authentication required」单一形态**；token 面介中——消息与 A 逐字同（BadCred/Props）但挑战家族恒 Bearer。
+- **新格（匿名面）**：B 的内容面 + token 面全部匿名放行（blob 真回字节、token 真发票），仅 ping 面有闸门——**C-a 从「manifest/catalog 两面」推广为「B 内容面全域开放、ping 面唯一闸门」**；A 六面全闸（token 面 401 Basic+AuthReq——匿名 docker 流在 A 的 token 端点即被拒，record-only 记录不外推客户端后果）。
+- 账本安全：48 发全矩阵 `recurrent_wording=False` 零触发；basic-bad 每格一次性不存在用户名（12 个，各 1 发，低于任一侧阈值）；admin 永不触碰。
+
+## 探针 4 — tags/list 非活体视图（case `dcr-tags-list-liveness` + 独立采样器）→ FAIL（t0 分歧复现 + **54min 窗口不成立** + manifest 拉取刷新假设得证）
+
+受控节奏：warm（双端 tags/list 200，A=B=21 同构）→ 上游推新 tag（201）→ t0/+60/+120/+180 四采样，每采样双端 tags/list + 新 tag manifest GET。
+
+| 采样 | A tags（含新 tag? / count） | A manifest 新 tag | B tags | B manifest 新 tag |
+|---|---|---|---|---|
+| t0 | **否 / 21**（陈旧） | **200**（活体拉穿） | 是 / 22 | 200 |
+| t60 | **是 / 22**（已刷新） | 200 | 是 / 22 | 200 |
+| t120 / t180 | 是 / 22 | 200 | 是 / 22 | 200 |
+
+- **t0 分歧复现**：warm 后立即推 tag，A t0 仍答旧集（陈旧视图坐实）、B t0 即含新 tag（活体聚合坐实）——候选 ④ 的差分核心在受控条件下成立（复跑门两轮同构）。
+- **但 wave1-rerun13b 的「≥54min 不刷新」本轮不成立**：A 在 ≤60s 即刷新。与 rerun13b 的关键工况差异：**本轮 t0 对新 tag 的 manifest GET 成功（200 拉穿）**，rerun13b 全程只有 tags/list 读取、从无 manifest 拉取。由此预注册假设 **(c) manifest 拉取触发该仓 tags 视图刷新**（与 L000 C10 marker 门控语义同族）。
+- **假设 (c) 独立甄别**（`wave5_tags_ttl_window_probe.py`：warm 后推轮次唯一 tag，纯 tags/list 60s 节奏采样 30 次 ≈30min、零 manifest 拉取）：**A 全程 30/30 采样陈旧（~1800s 未刷新），B 恒活体**（`run/l043-probe/tags_ttl_window.json`）。双工况对照成立：
+  - 工况 α（本采样器 + rerun13b）：只读 tags/list → A ≥30min 不刷新（rerun13b 曾观测 ≥54min）；
+  - 工况 β（批跑 case）：t0 新 tag manifest GET 拉穿 200 → A ≤60s 刷新。
+  **「manifest 拉取触发该仓 tags 视图刷新」假设由双工况对照强支持**；窗口非常数、系工况依赖——候选 ④ 的「~54min」改判为「非活体缓存视图（刷新受 manifest 拉取支配）」，定数归专项。
+
+## 探针 5 — tags/list Accept 协商宽严差（case `dcr-tags-list-accept-strictness`）→ FAIL（A 406 规则钉死 / B 恒 200）
+
+9 种 Accept 变体（authed，双端）：
+
+| Accept | A | B |
+|---|---|---|
+| 无 / `*/*` / `application/json` / `schema2+*/*` 混合 | 200 JSON | 200 JSON |
+| schema2 only / list only / OCI index only / schema1 only / negotiate 三件套 | **406** | 200 |
+
+**定谳**：A 的 406 规则 = **Accept 非空且全部成员均为 manifest 族 media type**（含 OCI/ FAT/schema1/negotiate——不必含 schema2 才拒）；掺入 `*/*` 或 `application/json` 或无 Accept 即 200。B 恒 200 无视 Accept。与 wave1-rerun13b 的「manifest media-type Accept → A 406」单点观测收敛为完整规则（且推翻「仅 schema2 拒」的窄化猜想）。**客户端后果面**：任何把 manifest Accept 复用到 tags/list 请求的客户端（如部分 skopeo/crane 旧路径）在 A 上 406、在 B 上 200——宽严差坐实为真实互操作差异，不定性。
+
+## 探针 2 附加 — 上游同 tag 变异 vs 缓存（case `dcr-schema1-tag-mutation-heal`）→ FAIL（**双端对已缓存 tag 的上游变异均盲**）
+
+上游 v1 →（A/B 各冷拉 schema1 一次：A 转换入库、B 污染入库）→ 上游同 tag 变异为 v2（201）→ 三种 Accept 热读：
+
+| 读 | A | B |
+|---|---|---|
+| mut-hot-s2 | 200 schema2 **config=v1** | 200 prettyjws（v1 污染） |
+| mut-hot-negotiate | 200 schema2 **config=v1** | 200 prettyjws |
+| mut-hot-s1 | 200 prettyjws | 200 prettyjws |
+
+`mutation_observed` 双端全 false：**秒级窗口内双端都不感知同 tag 上游变异**。批后 ~10min 复查（curl 活体）：上游=v2、A 仍 v1 schema2、B 仍 prettyjws——**分钟级仍盲**。与探针 4 联读成重要对照：**A 对「新 tag 路径」首触即活（t0 manifest 200），对「已缓存条目的上游变异」长时间盲**——B 同构（盲）。C-b 的恢复路径由此收窄：同 tag 变异不触发失效；唯一观测到的刷新触发器是探针 4 的「新 tag manifest 拉穿 → tags 视图刷新」（对 manifest 内容缓存本身的刷新未测，归 Risks）。
+
+## 独立采样器（C-b 恢复窗 × schema1 污染）
+
+`wave5_schema1_recovery_probe.py`（冷 schema1 污染 B 后，schema2-Accept 读每 60s 采样，30 采样 ≈30min 窗）：**B 全程 30/30 采样仍返回污染 prettyjws 表示**（`run/l043-probe/schema1_recovery.json`，A 侧同窗恒规范 schema2）——**C-b 污染在 60s 读节奏下 ≥30min 不自愈**；结合读续期可能性未排除（Risks），绝对 TTL 下限改判为 ≥30min（原 wave-3 c2 单点证据的边界大幅外扩）。
+
+## 新分歧候选与既有候选 evidence 补充（提案——归 compatibility-engineer 裁定收编，本票不改 known-divergence.yaml）
+
+1. **候选 ③（registry catalog）**：evidence 补充 = 本节探针 1（populated-local 第四拓扑 + 94 仓规模不敏感 + B 成员双向可逆）。建议条目 `docker/registry-catalog-bare-root` 的 rationale 增补「A=成员解耦不变面（四拓扑闭环）；B=镜像路径粒度实时聚合」。
+2. **候选 ②（schema1 转换）**：evidence 补充 = 探针 2 表（w2/c3/c4/n1/n2 五向）+ 恢复采样器。建议 `docker/remote-schema1-conversion` expect 钉为「A 服务时转换相位无关；B 缓存键不含 Accept、冷取回包原样入库」。
+3. **C-b（B 缓存表示污染）**：evidence 补充 = c2/c3/c4 + rec90 + 恢复采样器（60s 节奏下 ≥30min 不自愈，30/30 采样全污染）+ 变异 case（同 tag 上游变异不触发失效）。
+4. **候选 ①（bearer 失败形态）**：evidence 补充 = 24 格矩阵（探针 3 表）。B 侧跨面不一的精确定位从「manifest 面」改钉为「内容面四格退化 + token 面挑战家族漂移 + ping 面同构」。
+5. **C-a（B 内容面匿名放行）**：evidence 补充 = 矩阵 anon 行（内容面 4 面 + token 面 200，blob 回真字节、token 真发票；ping 面唯一闸门）。安全语义反向，维持报 conductor + 安全侧。
+6. **C-c（空 bearer ping 面 403）**：evidence 补充 = 矩阵 bearer-empty 列：A 的 403 格 = ping+catalog 双面（wave-3 单面观测扩展），B 对应格恒 401 BadCred。
+7. **候选 ④（tags/list 非活体）**：**重大更新——「~54min 窗口」不可作为定数登记**。t0 差分核心成立（A 陈旧/B 活体），但窗口受「是否发生 manifest 拉取」支配（工况 β 本轮 ≤60s 刷新 vs 工况 α 采样器纯 tags 读取 ≥30min 未刷新、rerun13b ≥54min）；建议条目改钉「A tags/list 为非活体缓存视图（触发条件依赖 manifest 拉取，窗口可变）」并附两工况证据，窗口定数待专项。
+8. **新候选提案 `docker/tags-list-accept-strictness`（探针 5）**：A =「Accept 全为 manifest 族 media type 即 406」规则 vs B 恒 200——建议独立条目（与候选 ④ 解耦：一个是视图活性、一个是协商宽严）。
+9. **新候选提案 `docker/manifest-cache-mutation-blindness`（变异 case）**：已缓存 tag 的上游同 tag 变异，A/B 双端分钟级盲（A canonical v1 schema2、B 污染 prettyjws）——远程缓存缺失上游变异失效机制，牵 L9 缓存语义域。
+10. **熔断阈值线口径闭环**：B 阈值-2 活体在装（401,401,403）——L043 任务一建议 1（常数 5→2）**已落地并可结**；「正确凭据封锁内放行」「粘滞+升级」两建议维持待裁（本票未复测）。
+
+## 四问口径（本波探针）
+
+- **surface**：catalog 成员拓扑 6 相位 ×3 认证态 ×双端；schema1×缓存相位 11 读 ×双端（3 个轮次唯一冷 tag）+ 变异链 5 读 + 恢复采样；bearer 矩阵 24 格 ×双端（48 发）；tags 活性 4 采样×4 读 + 独立双采样器；Accept 严格度 9 变体 ×双端。
+- **matched**：A bare-root catalog 不变量四拓扑闭环（A 侧自洽）；schema1 w1/w3/w4/c1/n1 五相位双端同；bearer 矩阵 ping 面 3/4 格 + basic-bad/bearer-garbage 全面 A 片内统一且 B ping 同构；tags t60+ 双端同集；Accept 基线四变体双端同 200；B 阈值-2 行为与 A 线口径对齐（第 3 发拒绝）。
+- **divergence**：6/6 case FAIL 展开——候选 ③ 四拓扑定谳、候选 ② 五向复现 + C-b 持久性/宽度、候选 ① 24 格完成 + C-a 全域化、C-c 双面扩展、候选 ④ 窗口改判、探针 5 新规则、变异盲新候选。
+- **unknown（未覆盖，不立断言）**：A tags 视图刷新的精确触发机制（manifest 拉穿假设已获双工况对照支持，机制未解剖）；manifest 内容缓存（非 tags 视图）是否同样受拉穿刷新；B 污染的绝对 TTL（60s 读节奏下 ≥20min 未愈——读续期可能性未排除）；A 匿名 token 401 对真实客户端匿名拉取流的端到端后果；真实 docker daemon 端到端拉穿时序（wave-1 结转）。
+
+## 工件与清理
+
+- 用例：`cases/` 新增 6 文件（`docker_catalog_membership_matrix.py`、`docker_schema1_phase_boundary.py`、`docker_bearer_face_full_matrix.py`、`docker_tags_list_liveness.py`、`docker_tags_list_accept_strictness.py`、`docker_schema1_tag_mutation_heal.py`）；独立探针 `wave5_tags_ttl_window_probe.py`、`wave5_schema1_recovery_probe.py`、`wave5_bside_threshold_context.py`；批跑 `wave5_run.sh`；复跑门 `wave5_rerun_gate.py`；摘要 `wave5_summarize.py`。
+- 证据：`run/l043-probe/`（首轮：5 case + catalog BLOCKED + 阈值上下文 JSON）、`run/l043-probe-2/`、`run/l043-probe-3/`（定谳 + 复跑门）、采样器 JSON 同目录；全部 payload 无凭据。
+- 清理：批 1 崩溃遗留 `diff-cat5-1a187f8ca10` 双端 DELETE 200 + GET 400 复验清净；批 2/3 临时仓 `diff-cat5-*` 由用例内 DELETE 200 双向清净（c_membership 复验零残留）；一次性用户名（w5b* ×12/轮、w5c*、w5thr*）均不存在于双端，零持久化；上游残留 tag 结转手动 GC 清单（上游 DELETE 405 沿 L043 口径）：`w5w*`/`w5c1*`/`w5n*` ×3/轮 ×3 轮、`w5t*` ×3、`w5rec*` ×1、`w5win*` ×1、`w5m2*` ×3 + 变异 config blob ×2（共享 layer 无新增）。
+
+## 复跑门与机器可读门
+
+- 复跑：`wave5_rerun_gate.py run/l043-probe-2 run/l043-probe-3` → `RERUN GATE: PASS`（6 id 状态逐一相等、首失败原因 nonce/count 归一后逐字一致、检查账本逐项同构）；首轮与定谳轮 5 共同 case 状态同构，catalog 首轮 BLOCKED 为已释明用例 bug。
+- results.json 解析：`python3 -I -c "import json; json.load(open('run/l043-probe-2/results.json'))"` 通过（三轮均验）；case id ↔ 用例文件对账见各探针小节标题。
+- 采样器复跑：恢复采样器单次长窗运行（C-b 恢复窗为状态依赖量，双轮重跑成本 2×N 分钟，收益有限——以批跑 c2/c3/c4 三点同构 + 采样器单窗长观察替代，Risks 已注）。
