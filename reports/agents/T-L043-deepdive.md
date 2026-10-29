@@ -1,0 +1,15 @@
+Ticket:       T-L043-deepdive — L043 五候选活体深挖（wave-2 分歧候选定向取证）+ P 级未标（差分取证票）
+Role:         dev-go-core（area 实例：差分探针编写兼 Go 核心工程师；本票零 Go 代码改动）
+Area:         探针脚本 tools/difftest/v2/l043d_*.py + 报告 reports/compatibility/（conductor 派发明示；非图 writes 常规域，票据级授权）
+Input:        L043-wave2-report.md（wave-docker-remote worktree）任务二 7 候选清单 + docs/compatibility/known-divergence.yaml 五 UNKNOWN 条目（权威副本在主仓 2832-2936 行；本分支副本无该五条）+ 任务书五项深挖要求
+Changes:      1) 五个定向探针 + 共享库 + 残留检查（tools/difftest/v2/l043d_{lib,refixture,catalog_topology,schema1_phase,bearer_matrix,tags_freshness_ttl,tags_accept_406,residue_check}.py）；2) 夹具重建（wave-2 夹具 diff-docker-remote 双端已被拆，p0 幂等重建）；3) 逐项判定报告（L043-candidates-deep-dive.md）；4) known-divergence evidence 补充以「待并回」形式落在报告 §7（本分支 yaml 无五条目正文，不整段搬运防双处漂移）
+Files:        新增：tools/difftest/v2/{l043d_lib,l043d_refixture,l043d_catalog_topology,l043d_schema1_phase,l043d_bearer_matrix,l043d_tags_freshness_ttl,l043d_tags_accept_406,l043d_residue_check}.py、reports/compatibility/L043-candidates-deep-dive.md、reports/agents/T-L043-deepdive.md、run/l043d/*.json（8 份证据）。修改：无存量文件。
+Tests:        非代码票——验证=探针自身的双端对照断言（p1 八臂/p2 十二步/p3 四十八格/p5 九臂/p4 逐轮），证据逐臂落盘 run/l043d/
+Commands:     python3 tools/difftest/v2/l043d_refixture.py; python3 tools/difftest/v2/l043d_tags_accept_406.py; python3 tools/difftest/v2/l043d_catalog_topology.py; python3 tools/difftest/v2/l043d_bearer_matrix.py; python3 tools/difftest/v2/l043d_schema1_phase.py --tag1 d1l043d1a1875f69e1 --tag2 d2l043d1a1875f69e1; python3 tools/difftest/v2/l043d_tags_freshness_ttl.py --interval 180 --deadline-min 150（后台）; python3 tools/difftest/v2/l043d_residue_check.py
+Outputs:      p5：A 406 规则钉死（Accept 含 json//*/外任一单值→406，text/html 同；B 九臂全 200）。p1：A 根面 93 仓在场恒空（?n=1000 同形）、B 根面=仅 remote 成员、空 local 双端均不入、仓限定面双端逐字同 6 成员、匿名根面 A 401 vs B 200。p3：A 四面统一 Basic realm="Artifactory Realm"+分类文案；B F1 同指纹/F2 F3 Bearer 挑战+匿名同款信封/F4 realm="BinFlow Realm"；B 匿名 repo 面 200；A REST ping 匿名 200；A bearer 四连发第 4 发 403（n=1）。p2：A 逐请求协商 12 臂无例外（s1/无 Accept→prettyjws 服务时转换、缓存透明）；B 冷取协商一次入库、C-b=TRUE（D2 schema2 客户端得 prettyjws）。p4：TTL 窗口测量（结果见证据 ttl_bound_seconds，报告 §4）
+Compatibility: 五候选全部出定性材料——②⑤达「事实齐备待裁」、③补证完成（A 恒空定谳+案①论证修正）、①扩展 tags 分歧行+realm 字符串新子项、④TTL 实测（窗口数字见 §4）。环境事实：wave-2 夹具被拆+重建（p0）；B=dev-cfa5da05 口径（T-633 合入点）。五条目 yaml 正文未动（权威副本不在本分支，evidence 补充文本在报告 §7 待 compatibility-engineer 并回）
+Security:     凭据零落盘零打印（env 文件行首锚定、仅入 Authorization 头）；token 仅 len+sha256 前 16 hex；A 侧只写测试仓（p1 建/删 run-unique local 仓，cleanup DELETE 200）；上游只推 nonce tag（GC 清单结转）。新安全侧发现：B 匿名根面枚举泄漏（vs 自身仓面 404）、B 匿名 repo 面 200——已写入报告供安全侧评估
+Performance:  探针间 sleep 节流（面间 4.5s、轮询 180s）；无产品性能主张——"无"
+Risks:        1) p4 TTL 窗口锚点修正依赖 pre-window 流量时间戳（19:10:05/19:10:34/T0=19:17:12），若 T0 为 cache hit 则实测窗口偏短，报告中双锚点注明；2) A bearer 熔断 n=1（单窗口观测，不立阈值断言）；3) B 匿名开放 repo 面可能系部署 allowAnonymous 配置（环境面记录，不作代码断言）；4) 本分支 yaml 与主仓权威副本分叉——evidence 补充需人工并回（报告 §7 已给逐条文本）
+Blockers:     无（等待 p4 后台收口后补 §4 数字与第二提交）
+Next:         1) p4 收口→报告 §4/yaml evidence 面①补数字；2) residue_check 复跑贴输出；3) compatibility-engineer 并回 §7 证据文本并裁五条目；4) 建议微条目 docker/rest-realm-string 拆分裁决
