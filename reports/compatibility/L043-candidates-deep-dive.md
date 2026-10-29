@@ -109,9 +109,20 @@ review_gate 要求的「A 侧多拓扑补证」三臂全部落定：
 
 ## §4 候选面① remote tags/list 新鲜度：缓存 TTL 窗口（docker/remote-tags-list-freshness-and-406 面①）
 
-探针 `l043d_tags_freshness_ttl.py`（p4，长跑后台）；证据 `run/l043d/p4_tags_freshness_ttl.json`（逐轮落盘）。协议：T0 prime A 视图（刷新时刻锚定，此时视图不含新 tag）→ T0+30s 上游推 nonce tag（201）→ T0+35s B 活体复核 → 每 180s 轮询 A 至 tag 现身或 150min 死限。
+探针 `l043d_tags_freshness_ttl.py`（p4，长跑后台）；证据 `run/l043d/p4_tags_freshness_ttl.json`（逐轮落盘，50 轮）。协议：T0 prime A 视图（19:17:12，视图 15 tags 不含新 tag）→ T0+30s 上游推 nonce tag `tf1a18760d2db`（201）→ T0+35s B 活体复核（即时可见）→ 每 180s 轮询 A 至 tag 现身。
 
-（**本节数字待探针 4 收口后补录——窗口锚点修正参考：夹具 warm 刷新 19:10:05、p5 收尾 19:10:34、T0=19:17:12**。）
+**实测（单样本全窗）**：
+
+| 事实 | 数值 |
+|---|---|
+| 窗口内轮询 | 49 轮（+216s～+8873s）全部 `a_n=15`（陈旧视图），**窗口内持续探测不提前刷新**（惰性刷新语义活体复证） |
+| tag 现身 | **+9053s（21:48:06）**，`a_n=16`；上轮 +8873s 仍缺 → 刷新发生于 (21:44:46, 21:48:06] 且由届满后首个请求触发 |
+| **TTL（T0 锚）** | **∈ [8873, 9053]s ≈ 147.9–150.9 min（≈2.5h）** |
+| TTL（pre-window 锚修正） | T0 前最近成功 tags/list 刷新：19:10:05（p0 warm）/ 19:10:34（p5 收尾）；若 T0 为 cache hit（TTL>398s 时必然），锚=19:10:34 → TTL ∈ [9271, 9451]s ≈ **154.5–157.5 min** |
+| B 对照 | 50 轮全程 `b=True`（活体聚合，上游 push 后当轮可见） |
+| 现身持续性 | 现身后立即复验 has_tag=True（刷新闩锁） |
+
+**语义定性（对 wave-2 口径的更新）**：wave-2 的「粘滞 ≥55min、18:52 追平（分钟~小时级）」由本波收敛为**实测窗口 ≈2.5h**（T0 锚 147.9–150.9min；命中修正锚 154.5–157.5min；单样本，跨日相位未采样）。刷新语义=惰性（届满后首个请求触发，窗口内任意请求不续期不刷新——与 wave-2 熔断窗口的「不续期」形态同族）。CI push→立查工作流在参照上的不可见窗口为 ~2.5h 量级；B 活体为 client-blind 超集（面①案②维持 B 的论证材料：参照的陈旧性是缺陷形态，主动仿效为客户端可见面负向）。注意 ~2.5h 与 Artifactory 常见 remote 缓存缺省 7200s（2h）不吻合——参照实例该参数可能为自定义值或锚定机制不同（黑盒内不可再分，单样本不外推）。
 
 ---
 
@@ -133,7 +144,7 @@ review_gate 要求的「A 侧多拓扑补证」三臂全部落定：
 ## §6 残留与清理
 
 - A/B 侧：p1 建仓 `diff-l043d-1a1875b1faf` 双端 DELETE 200（residue 复核脚本 `l043d_residue_check.py` 收尾复跑）；p0 重建的 `diff-docker-remote` 为 wave-2 声明的标准夹具（声明留存，非残留）。
-- 上游中继（DELETE 405，手动 GC 清单结转）：本波新增 `d1l043d1a1875f69e1`、`d2l043d1a1875f69e1`（p2）、`tf<l043d-nonce>`（p4）＋历波 nc-\*/w3-\* 存量。
+- 上游中继（DELETE 405，手动 GC 清单结转）：本波新增 `d1l043d1a1875f69e1`、`d2l043d1a1875f69e1`（p2）、`tf1a18760d2db`（p4）；residue 复核（`l043d_residue_check.py`，收口时点）：A 93 仓/B 1 仓均无测试残留键，上游 16 tags 中 13 项在册（含历波 nc-\*/w3-\* 存量）。
 - 凭据纪律：全程 env 文件行首锚定读取、仅入 Authorization 头；证据体仅 status/CT/WWW-Authenticate/body 头部；token 仅 len+sha256 前缀。
 
 ## §7 known-divergence.yaml 候选条目 evidence 补充（待 compatibility-engineer 并回权威副本）
@@ -144,10 +155,10 @@ review_gate 要求的「A 侧多拓扑补证」三臂全部落定：
 2. `docker/remote-unknown-image-tags-list` evidence 追加：`+ 本波无新证据（夹具重建后未复测该臂；wave2 arm3 维持最近证据）`（注：p0 重建后未复打该臂，如需复证可在裁定票内以 wave-2 evidence 为准）
 3. `docker/remote-schema1-conversion` evidence 追加：`+ run/l043d/p2_schema1_phase.json（B=dev-cfa5da05 活体四向定谳：A 逐请求协商 12 臂无例外、缓存透明；B 冷取协商一次入库且 C-b=TRUE——冷 s1 拉取覆写缓存行，后续 schema2/无 Accept 客户端全得 prettyjws（D2/D3），反向 E2 热 s1 得 schema2；A 无 Accept 默认=prettyjws 新钉）`
 4. `docker/bearer-failure-shape` evidence 追加：`+ run/l043d/p3_bearer_matrix.json（4 面×6 臂×双端：A 四面统一 Basic realm="Artifactory Realm"+分类文案；B F1 同指纹/F2 F3 Bearer 挑战+匿名同款泛化信封/F4 Basic realm="BinFlow Realm"（realm 字符串分歧行新）；B 匿名 repo 面 200、A REST ping 匿名 200、A bearer 四连发第 4 发 403（熔断 n=1）三个新侧写）`
-5. `docker/remote-tags-list-freshness-and-406` evidence 追加：面② `+ run/l043d/p5_tags_accept_matrix.json（规则级钉死：A 406 ⇔ Accept 存在且不含 application/json 与 */*——与 docker 媒体类型无关（text/html 同 406）；B 九臂全 200）`；面① `+ run/l043d/p4_tags_freshness_ttl.json（T0 锚定上游推 tag→逐 180s 轮询，TTL 实测窗口见文件 ttl_bound_seconds；B 活体即时可见复核）`
+5. `docker/remote-tags-list-freshness-and-406` evidence 追加：面② `+ run/l043d/p5_tags_accept_matrix.json（规则级钉死：A 406 ⇔ Accept 存在且不含 application/json 与 */*——与 docker 媒体类型无关（text/html 同 406）；B 九臂全 200）`；面① `+ run/l043d/p4_tags_freshness_ttl.json（50 轮全窗实测：TTL ∈ [8873,9053]s≈147.9–150.9min 自 T0 锚（pre-window 命中修正锚 19:10:34 → 154.5–157.5min）——wave-2「≥55min 粘滞」收敛为 ≈2.5h 精确窗口；窗口内 49 轮持续探测不刷新（惰性刷新活体复证）；B 50 轮全程活体）`
 
 ## §8 Z 口径建议（归 compatibility-engineer）
 
-1. 候选②（schema1）与候选面②（406）证据已达「事实齐备、两案并陈待裁」态；候选③ 补证完成（A 恒空定谳）；候选① 扩展了 tags 面分歧行 + realm 字符串新分歧子项（可并入本条或拆 `docker/rest-realm-string` 微条目，裁时定）。
+1. 候选②（schema1）与候选面②（406）证据已达「事实齐备、两案并陈待裁」态；候选③ 补证完成（A 恒空定谳）；候选面① TTL 已实测（≈2.5h 精确窗口）；候选① 扩展了 tags 面分歧行 + realm 字符串新分歧子项（可并入本条或拆 `docker/rest-realm-string` 微条目，裁时定）。
 2. B 部署版本注记：本波 B=dev-cfa5da05（T-633 合入点）；schema1 活体定谳与 wave-2 adjudication 的 dev-5f7ebec9 复测同构（四向一致），证据跨两个 B 版本成立。
 3. 新侧写（匿名姿态 3 项、realm 字符串、bearer 熔断 n=1、A REST ping 匿名 200）建议入 known-divergence 待裁清单或并入既有条目，防散逸。
