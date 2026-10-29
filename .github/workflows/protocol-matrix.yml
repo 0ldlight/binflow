@@ -93,7 +93,7 @@ jobs:
           echo "removed system dotnet; remaining:"; command -v dotnet || echo "(none in PATH yet)"
       - name: Install dotnet 8 (the docs anchor)
         if: matrix.leg == 'nuget'
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
 
