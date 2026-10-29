@@ -434,6 +434,34 @@ func (s *Service) authenticateBasic(ctx context.Context, username, password stri
 	return p, err
 }
 
+// CheckLocalPassword adjudicates one local credential by the SAME rules
+// as the Basic arm (argon2id password first, API-token duality fallback
+// included) WITHOUT touching the recurrent-failure breaker: no block
+// check, no failure count, no success clear. It exists for
+// server-INTERNAL self-checks, never for request planes (T-634).
+//
+// Why the bypass is load-bearing: the boot-time default-password WARN
+// (cmd/binflow-server) used to run its check through Authenticate, which
+// is a counted, wire-shaped credential verdict. On every instance whose
+// admin password is NOT the documented default — every secured
+// deployment, the k8s secret posture included — that one internal check
+// seeded "admin" with failures=1 before the first request arrived, so
+// the reference-precise wire shape 401,401,403 (2 counted failures, the
+// block binds the next attempt) degraded to 401,403: the first REAL bad
+// attempt was failure #2 and armed the block. An internal self-check is
+// by construction not a brute-force signal, so the breaker must never
+// see it.
+//
+// Verdict semantics are otherwise identical to the Basic arm: a rejected
+// credential chains ErrInvalidCredentials (a disabled account and a
+// provider-owned row reject the same way), so callers can classify it
+// like any login failure. An armed block is neither observed (no
+// BlockedError verdict — the self-check must stay answerable) nor lifted
+// (no implicit success clear) — the ledger is simply not consulted.
+func (s *Service) CheckLocalPassword(ctx context.Context, username, password string) (*Principal, error) {
+	return s.authenticateBasicCredential(ctx, username, password)
+}
+
 // authenticateBasicCredential implements the Basic duality
 // (auth-model.md section 3.6, high confidence): the password field is
 // first tried as a real password; when that fails and the value
