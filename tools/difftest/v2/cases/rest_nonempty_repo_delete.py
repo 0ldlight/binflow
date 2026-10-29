@@ -189,6 +189,7 @@ EXPECTED = {
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     per_side = {}
     keys = [NESTED, FLAG, EMPTY, VIRT, VMEM]
     try:

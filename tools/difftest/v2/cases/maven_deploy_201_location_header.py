@@ -82,7 +82,7 @@ def _deploy_leg(ctx, side, tag, repo, rel, body, extra=None, pin_bytes=True):
     raw["status"], raw["location"], raw["body_full"] = (
         r["status"], loc, r["body"].decode("utf-8", "replace"))
     asserts["%s_status" % tag] = "%d" % r["status"]
-    want = "%s/%s/%s" % (ctx.sides[side]["base"], repo, rel)
+    want = "%s/%s/%s" % (mavenlib.content_base(ctx, side), repo, rel)
     raw["want"] = want
     asserts["%s_loc_form" % tag] = ("base+prefix+path" if loc == want
                                     else "other:%s" % loc)
@@ -93,7 +93,7 @@ def _deploy_leg(ctx, side, tag, repo, rel, body, extra=None, pin_bytes=True):
             uri = ""
         asserts["%s_loc_eq_uri" % tag] = "equal" if loc and loc == uri else "other"
         asserts["%s_loc_get" % tag] = _loc_get(
-            ctx, side, loc, ctx.sides[side]["base"],
+            ctx, side, loc, mavenlib.content_base(ctx, side),
             body if pin_bytes else None)
     return asserts, raw
 
@@ -110,14 +110,14 @@ def _checksumfile_leg(ctx, side, algo, pom_rel, pom_body):
     raw["status"], raw["location"], raw["body_len"] = (
         r["status"], loc, len(r["body"]))
     asserts["cf_%s_status" % algo] = "%d" % r["status"]
-    want = "%s/%s/%s" % (ctx.sides[side]["base"], REPO, pom_rel)
+    want = "%s/%s/%s" % (mavenlib.content_base(ctx, side), REPO, pom_rel)
     raw["want"] = want
     asserts["cf_%s_loc_form" % algo] = ("base+prefix+target" if loc == want
                                         else "other:%s" % loc)
     asserts["cf_%s_body" % algo] = "empty" if not r["body"] else "nonempty"
     if loc == want:
         asserts["cf_%s_target_get" % algo] = _loc_get(
-            ctx, side, loc, ctx.sides[side]["base"], pom_body)
+            ctx, side, loc, mavenlib.content_base(ctx, side), pom_body)
     return asserts, raw
 
 
@@ -172,6 +172,7 @@ EXPECTED = {
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     per_side = {}
     try:
         for side in ("a", "b"):

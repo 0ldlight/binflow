@@ -59,6 +59,7 @@ def _seat_echo(ctx, side):
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     echoes = {}
     try:
         for side in ("a", "b"):

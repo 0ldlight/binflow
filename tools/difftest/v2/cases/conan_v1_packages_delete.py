@@ -99,6 +99,7 @@ def _leg(ctx, side):
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     per_side, live = {}, {}
     try:
         for side in ("a", "b"):

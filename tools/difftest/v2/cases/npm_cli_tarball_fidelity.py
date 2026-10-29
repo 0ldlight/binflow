@@ -66,15 +66,9 @@ def _leg(ctx, side):
     virt = keys["virt"]
     asserts, raw = {}, {}
     scratch = npmlib.scratch_dir()
-    proxy = None
     try:
         npmlib.cleanup_layout(ctx, side, TAG)
-        if side == "b":
-            src_reg = (npmlib.a_direct_base(ctx.sides["a"]["base"])
-                       + "/api/npm/" + keys["src"])
-            proxy = npmlib.start_layout_proxy(
-                src_reg, ctx.sides["a"]["user"], ctx.sides["a"]["password"])
-        npmlib.build_layout(ctx, side, scratch, FX, TAG, proxy)
+        npmlib.build_layout(ctx, side, scratch, FX, TAG)
 
         cache = os.path.join(scratch, "npm-cache-%s" % side)
         os.makedirs(cache, exist_ok=True)
@@ -149,15 +143,13 @@ def _leg(ctx, side):
                                                               ) else "sha_mismatch")
     finally:
         npmlib.cleanup_layout(ctx, side, TAG)
-        if proxy:
-            proxy[0].shutdown()
-            proxy[0].server_close()
         npmlib.rm_scratch(scratch)
     ctx.write_evidence("%s-leg.json" % side, {"asserts": asserts, "raw": raw})
     return asserts
 
 
 def run(ctx):
+    npmlib.patch_ctx(ctx)
     per_side = {}
     scratch = npmlib.scratch_dir()
     try:

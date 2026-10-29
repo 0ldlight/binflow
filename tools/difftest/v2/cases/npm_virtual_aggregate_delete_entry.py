@@ -110,7 +110,7 @@ def _a_leg(ctx):
             raise mavenlib.SetupError("seed lonly: %s" % r["out"][-160:])
         npmlib.repo_put(ctx, "a", rem, {
             "rclass": "remote", "packageType": "npm",
-            "url": npmlib.a_direct_base(ctx.sides["a"]["base"]) + "/api/npm/" + src,
+            "url": npmlib.a_src_url(ctx, src),
             "username": ctx.sides["a"]["user"],
             "password": ctx.sides["a"]["password"]})
         npmlib.repo_put(ctx, "a", NVIRT, {
@@ -215,6 +215,7 @@ def _b_leg(ctx):
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     per_side = {}
     try:
         per_side["a"] = _a_leg(ctx)
