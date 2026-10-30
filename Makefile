@@ -14,7 +14,7 @@ GO          ?= go
 # GO so the shell expansion sees the toolchain variable.
 PKG         := $(shell $(GO) list ./... | grep -v '/binflow/web/')
 GOPROXY     ?= https://goproxy.cn,direct
-GOTOOLCHAIN ?= local
+GOTOOLCHAIN ?= auto
 # Version-pinned lint toolchain (CI installs the same one, see ci.yml).
 GOLANGCI_VERSION := v2.12.2
 # Prefer a golangci-lint on PATH, else the one `make lint` installs into GOPATH/bin.

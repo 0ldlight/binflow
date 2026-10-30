@@ -189,11 +189,35 @@ type upstreamAnswer struct {
 // standing 401/403 onto the unfound family with the upstream summary).
 var errUpstreamAuth = errors.New("upstream refused the negotiated credential")
 
+// canonicalRemoteManifestAccept is the fixed Accept set every pull-through
+// manifest conversation offers the upstream (T-L043-C-b): the four
+// canonical types this plane stores verbatim, schema1 never offered. The
+// cache is digest-addressed and representation-single — a client-negotiated
+// answer would land the negotiated representation (prettyjws, for an
+// upstream that converts schema2 down) into the shared cache node and every
+// later client would read it regardless of its own Accept (the L043-wave3
+// live verdict). The client's Accept still gates what SERVES (the landing
+// and serve faces' acceptAllows verdicts); it just never chooses what the
+// upstream is asked to store.
+var canonicalRemoteManifestAccept = []string{
+	mediaTypeDockerManifest,
+	mediaTypeDockerList,
+	mediaTypeOCIManifest,
+	mediaTypeOCIIndex,
+}
+
 // fetchManifest performs the manifest conversation: one attempt with the
 // cached token (or the repository credential), and when the upstream
 // answers 401 with a Bearer challenge, the token exchange and exactly one
-// retry. accept is the CLIENT's Accept set, forwarded verbatim (upstream
-// content negotiation is the registry's business; BinFlow never converts).
+// retry. The offered Accept set is the FIXED canonical one
+// (canonicalRemoteManifestAccept), never the client's: the pull-through
+// cache is digest-addressed and representation-single, so the upstream
+// negotiates among the canonical types only and the landed copy is the
+// same representation for every client phase (T-L043-C-b — a verbatim
+// client Accept once landed prettyjws into the shared node; the schema2
+// client that asked next read it verbatim off the cache). The CLIENT's
+// Accept still gates what SERVES (the landing and serve faces'
+// acceptAllows verdicts); it never chooses what the cache stores.
 // ifNoneMatch is the REVALIDATION arm's upstream validator (remote-cache-v2
 // §5.3): non-empty only on the expired tag path, it rides the hop as
 // If-None-Match — the digest-etag spelling `sha256:<hex>` is what
@@ -202,11 +226,11 @@ var errUpstreamAuth = errors.New("upstream refused the negotiated credential")
 // instead of re-transferring the body.
 // The manifest body is the buffered class — the local plane's 4MB ceiling
 // applies to proxied ones too.
-func (e *remoteSessionEntry) fetchManifest(ctx context.Context, image, ref string, accept []string, ifNoneMatch string) (*upstreamAnswer, error) {
+func (e *remoteSessionEntry) fetchManifest(ctx context.Context, image, ref string, ifNoneMatch string) (*upstreamAnswer, error) {
 	wire := v2WireManifestPath(image, ref)
 	scope := "repository:" + image + ":pull"
 	hdr := http.Header{}
-	for _, v := range accept {
+	for _, v := range canonicalRemoteManifestAccept {
 		hdr.Add("Accept", v)
 	}
 	if ifNoneMatch != "" {
@@ -1025,7 +1049,7 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 		h.writeRemoteServeError(w, r, serr, ref)
 		return
 	}
-	fetched, ferr := entry.fetchManifest(ctx, ref.image, reference, r.Header.Values("Accept"),
+	fetched, ferr := entry.fetchManifest(ctx, ref.image, reference,
 		revalidationValidator(standing, isDigestRef))
 	if ferr != nil {
 		var serveStale func(string)
