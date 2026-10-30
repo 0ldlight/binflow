@@ -138,6 +138,7 @@ def _leg(ctx, side):
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     per_side, raw_side = {}, {}
     fwd = None
     try:
@@ -160,14 +161,14 @@ def run(ctx):
             for side in ("a", "b"):
                 if side == "a":
                     fwd, fport = mavenlib.start_forward_proxy(
-                        ctx.sides["a"]["base"],
+                        mavenlib.content_base(ctx, "a"),
                         ctx.sides["a"]["user"], ctx.sides["a"]["password"])
-                    # forwarder targets upstream=<base incl. /artifactory>
-                    # and relays the path verbatim — no context suffix here
-                    # (the L034 r1 lesson)
+                    # forwarder targets upstream=<base incl. the probed
+                    # context prefix> and relays the path verbatim — no
+                    # context suffix here (the L034 r1 lesson)
                     repo_url = "http://127.0.0.1:%d/%s" % (fport, REPO)
                 else:
-                    repo_url = "%s/%s" % (ctx.sides["b"]["base"], REPO)
+                    repo_url = "%s/%s" % (mavenlib.content_base(ctx, "b"), REPO)
                 out = mavenlib.mvn_deploy_file(
                     ctx, side, repo_url, wd, group, art, ver, jar, pom)
                 raw_side[side]["c3_mvn"] = {"exit": out["exit"],

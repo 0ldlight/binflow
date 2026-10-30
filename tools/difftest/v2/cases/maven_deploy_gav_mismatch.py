@@ -106,7 +106,7 @@ def _leg(ctx, side):
             fh.write(JAR)
         with open(pom_p, "wb") as fh:
             fh.write(POM_MISMATCH)
-        url = "%s/%s" % (ctx.sides[side]["base"], VIRT)
+        url = "%s/%s" % (mavenlib.content_base(ctx, side), VIRT)
         out = mavenlib.mvn_deploy_file(
             ctx, side, url, work, GROUP, BAD_ART, VER, jar_p, pom_p)
         raw["mvn_mismatch"] = out
@@ -122,6 +122,7 @@ def _leg(ctx, side):
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     per_side = {}
     try:
         for side in ("a", "b"):

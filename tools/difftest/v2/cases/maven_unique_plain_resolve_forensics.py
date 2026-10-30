@@ -174,6 +174,7 @@ DUAL_KEYS = (
 
 def run(ctx):
     global CANDIDATES
+    mavenlib.patch_ctx(ctx)
     CANDIDATES = {
         mavenlib.sha256_hex(v): k for k, v in {
             "plain1": mavenlib.pom_fixture(GROUP, ART, SNAP).replace(

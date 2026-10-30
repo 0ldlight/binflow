@@ -191,6 +191,7 @@ DUAL_KEYS = (
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     import hashlib
     global CAND
     CAND = {

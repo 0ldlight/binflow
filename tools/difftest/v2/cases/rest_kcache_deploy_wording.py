@@ -106,6 +106,7 @@ def _leg(ctx, side):
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     per_side = {}
     keys = [VIRT, LOCAL, REMOTE]
     try:

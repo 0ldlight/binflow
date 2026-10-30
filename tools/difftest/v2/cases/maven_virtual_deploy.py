@@ -74,7 +74,7 @@ def _leg(ctx, side):
                 fh.write(data)
             return p
 
-        base = ctx.sides[side]["base"]
+        base = mavenlib.content_base(ctx, side)
         url = "%s/%s" % (base, VIRT)
         rel = mavenlib.mvn_deploy_file(
             ctx, side, url, work, GROUP, ART, REL,
@@ -184,6 +184,7 @@ def _leg(ctx, side):
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     per_side = {}
     try:
         for side in ("a", "b"):

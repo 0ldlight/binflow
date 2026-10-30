@@ -130,7 +130,7 @@ def _leg(ctx, side):
     ])
     work = mavenlib.scratch_dir()
     try:
-        base = ctx.sides[side]["base"]
+        base = mavenlib.content_base(ctx, side)
 
         def _deploy(tag):
             return mavenlib.mvn_deploy_file(
@@ -212,6 +212,7 @@ def _leg(ctx, side):
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     per_side = {}
     try:
         for side in ("a", "b"):
