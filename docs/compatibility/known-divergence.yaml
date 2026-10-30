@@ -965,7 +965,26 @@ entries:
     公式按 3 样本先登记观察值，另开精测）。跨面共享（REST 触发 docker 面同倒计时 403）双端已同（wave2 X 臂）。
     附注：B REST 面 401 文案 "invalid credentials" vs A "Bad Credentials" 系既有 auth 中间层措辞族
     （conan/auth401-wording 在账），不入本条目。
-  evidence: reports/compatibility/L020-auth401-maven-faces.md V5（c3 第二轮 403 瞬态+冷却复核——限流行为本身即证据）+ reports/agents/T-632.md（实现票）+ reports/agents/T-633.md（403 wire 接线票）+ reports/compatibility/L043-wave2-report.md 任务一（9/9 精测+静默剖面+粘滞升级）+ run/wave2/threshold_experiment{,2}.json + threshold_experiment_bside{,_admin}.json + docs/compatibility/probes/docker/l043-wave2-divergence-candidates.sh（B 侧 dev-5f7ebec9 阈值收敛活体验证 401,401,403+自愈）
+    部署活体验证注记（部署验证收账批，2026-10-29）：T-632/T-633/T-634 已部署并活体验证，四项事实收账——
+    ① **T-633 403 wire 面**：B 侧活体 403 Forbidden + Content-Type `application/json;charset=ISO-8859-1` +
+    WWW-Authenticate Basic challenge + Jackson 信封（errors[0]{status:403, message:倒计时文} 逐字、无尾换行）
+    与参照抓包 A-c3-v1auth-badpw 同形（fresh 窗倒计时数字 4 vs 抓包 9 属窗口参数差非形态差；401 pre-block
+    面逐字节维持历史形态）。
+    ② **T-632 熔断器**：阈值 2（L043-wave2 9/9 精确计数收敛后 5f7ebec9 5→2）、窗口 4s（静默剖面夹
+    (3.15,4.15) 定谳）、per-username 作用域——部署实例活体 REST ping 401,401,403 + 窗口届满自愈 401 复现。
+    ③ **T-634 启动预置根因修复**：部署期活体 401,403 病理根因定谳=启动 warnDefaultAdminPassword 自检经真实
+    Authenticate 对 admin 记 1 次 failure 预置全新账本（活体第 1 发即第 2 计数、第 2 发提前封锁）；修复=
+    CheckLocalPassword（与 Basic 臂同裁决、完全旁路账本——不查封锁/不记 failure/不清账）+ cmd 自检换用
+    （99fa736f + 682fb6d8）——预置消除，全新账本 wire 恢复 401,401,403（TestRecurrentBlockExactShape 对
+    双计/预置敏感钉死形态）。
+    ④ **L042-reverify**：实例迁移认证链零回退——B 侧换版（dev-9e7ea000→dev-bb65bb75）后 wave-1 matched
+    10 PASS 口径维持（rerun-2026-10-28 段 13c 重放 8 例双轮 score pass:8/fail:0 零 flake；token/challenge/
+    manifest/blob 认证链全 200）。
+    本注记 evidence 来源=wave-1 重放（L042 报告 rerun-2026-10-28 段 + run/wave1-rerun13c{,-2}）+ L043-wave2
+    报告 + 活体验证记录（reports/agents/T-632.md / T-633.md / T-634.md）。仅登记部署活体事实——classification
+    维持 UNKNOWN：阈值/窗口/wire 三维已对齐待差分用例转绿由 conductor 翻账，余下两维（封锁内正确凭据/
+    粘滞+升级）维持 R-22c 待裁。
+  evidence: reports/compatibility/L020-auth401-maven-faces.md V5（c3 第二轮 403 瞬态+冷却复核——限流行为本身即证据）+ reports/agents/T-632.md（实现票）+ reports/agents/T-633.md（403 wire 接线票）+ reports/compatibility/L043-wave2-report.md 任务一（9/9 精测+静默剖面+粘滞升级）+ run/wave2/threshold_experiment{,2}.json + threshold_experiment_bside{,_admin}.json + docs/compatibility/probes/docker/l043-wave2-divergence-candidates.sh（B 侧 dev-5f7ebec9 阈值收敛活体验证 401,401,403+自愈）+ reports/agents/T-634.md（启动预置根因修复票：CheckLocalPassword 旁路账本+cmd 换用）+ reports/compatibility/L042-wave1-docker-remote-replay.md（rerun-2026-10-28 段——实例迁移 13c 重放 8 例双轮 PASS 认证链零回退）+ reports/compatibility/l0203-wire/A-c3-v1auth-badpw.{hdr,body}（参照 403 抓包锚）
 - id: conan/v2-ping-superset
   surface: conan v2/ping 超集姿态（B 200+能力头 vs A 400）
   classification: INTENTIONAL_DIFFERENCE

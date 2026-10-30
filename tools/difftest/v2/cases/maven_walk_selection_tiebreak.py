@@ -146,6 +146,7 @@ DUAL_KEYS = (
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     cand = {}
     for art, marker in [
             ("w2s1", "s1-newts"), ("w2s1", "s1-oldts"),

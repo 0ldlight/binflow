@@ -278,6 +278,7 @@ def _leg(ctx, side):
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     per_side = {}
     keys = [V, HR, HS, CTL]
     try:

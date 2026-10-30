@@ -114,7 +114,8 @@ def _curl_put(base, path, body_file, ct, netrc, timeout_s):
 
 
 def _leg(ctx, side):
-    base = ctx.sides[side]["base"]
+    base = mavenlib.content_base(ctx, side)  # content face: curl PUTs ride
+    # the probed context prefix (root alias is 404 on 7.161.26 / BinFlow)
     work = tempfile.mkdtemp(prefix="r7mime-")
     netrc = os.path.join(work, ".netrc")
     with open(netrc, "w", encoding="utf-8") as fh:
@@ -174,6 +175,7 @@ def _leg(ctx, side):
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     per_side = {}
     try:
         mavenlib.ensure_repos(ctx, "a", [mavenlib.maven_local(

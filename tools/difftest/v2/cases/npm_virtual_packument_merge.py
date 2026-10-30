@@ -85,15 +85,9 @@ def _leg(ctx, side):
     virt = keys["virt"]
     asserts, raw = {}, {}
     scratch = npmlib.scratch_dir()
-    proxy = None
     try:
         npmlib.cleanup_layout(ctx, side, TAG)
-        if side == "b":
-            src_reg = (npmlib.a_direct_base(ctx.sides["a"]["base"])
-                       + "/api/npm/" + keys["src"])
-            proxy = npmlib.start_layout_proxy(
-                src_reg, ctx.sides["a"]["user"], ctx.sides["a"]["password"])
-        npmlib.build_layout(ctx, side, scratch, FX, TAG, proxy)
+        npmlib.build_layout(ctx, side, scratch, FX, TAG)
 
         # --- upstream-only package: union + dist-tags recompute shape
         resp = npmlib.get_packument(ctx, side, virt, RMT)
@@ -160,15 +154,13 @@ def _leg(ctx, side):
                 raw[label] = {"error": repr(e)}
     finally:
         npmlib.cleanup_layout(ctx, side, TAG)
-        if proxy:
-            proxy[0].shutdown()
-            proxy[0].server_close()
         npmlib.rm_scratch(scratch)
     ctx.write_evidence("%s-leg.json" % side, {"asserts": asserts, "raw": raw})
     return asserts
 
 
 def run(ctx):
+    npmlib.patch_ctx(ctx)
     per_side = {}
     scratch = npmlib.scratch_dir()
     try:

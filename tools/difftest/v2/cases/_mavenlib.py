@@ -51,6 +51,112 @@ class SetupError(Exception):
     """Precondition (repo provisioning, fixture prep) unavailable -> BLOCKED."""
 
 
+# ---------------------------------------------------------------- ctx face
+# Context-prefix dual compatibility (2026-10-29, reference-migration wave):
+# JFrog 7.161.26 platform routing answers 404 on BOTH root aliases — /api/*
+# and /<repo>/* — and serves everything under /artifactory; BinFlow serves
+# /binflow. BASE may already carry the context prefix. The working prefix is
+# probed ONCE per process+side (module-level cache) against
+# GET <cand>/api/repositories with the side's Basic auth: first 200 wins,
+# 404 tries the next candidate, anything else aborts loudly (SetupError).
+# Mirrors resolve_api() in docker_wave_setup.sh. Live probes 2026-10-29:
+#   A :32082  /api/repositories -> 404   /artifactory/api/repositories -> 200
+#   B :32083  /api/repositories -> 404   /binflow/api/repositories  -> 200
+# and the SAME prefix carries the repo content face (A /artifactory/<repo>/
+# -> 200, B /binflow/<repo>/ -> 400 listing-refused; both root aliases 404).
+# The A router-face npm self-reference also works under the prefix (remote
+# pull-through packument+tarball 200) — see _npmlib.a_src_url.
+
+_CTX_CANDIDATES = ("", "/artifactory", "/binflow")
+_CTX_PREFIX_CACHE = {}   # (base, user) -> "" | "/artifactory" | "/binflow"
+_CTX_PROBING = False     # reentrancy guard (the probe rides the same ctx.http)
+
+
+def ctx_prefix(ctx, side: str) -> str:
+    """Working instance context prefix for side; probed once per process.
+
+    The probe rides the RAW transport (ctx._ctx_http_orig, saved by
+    patch_ctx) rather than the possibly-wrapped ctx.http: a wrapped call
+    would silently prefix the candidate path, making every candidate look
+    200 and caching a bogus "" (the multi mavenlib-instance footgun the
+    aggregate case hit, 2026-10-29)."""
+    global _CTX_PROBING
+    s = ctx.sides[side]
+    key = (s["base"], s["user"])
+    hit = _CTX_PREFIX_CACHE.get(key)
+    if hit is not None:
+        return hit
+    base = s["base"].rstrip("/")
+    trail = []
+    probe_http = getattr(ctx, "_ctx_http_orig", None) or ctx.http
+    for cand in _CTX_CANDIDATES:
+        if cand and base.endswith(cand):
+            continue                 # BASE already carries this context
+        _CTX_PROBING = True
+        try:
+            resp = probe_http(side, "GET", cand + "/api/repositories")
+        finally:
+            _CTX_PROBING = False
+        code = resp["status"]
+        if code == 200:
+            _CTX_PREFIX_CACHE[key] = cand
+            return cand
+        if code != 404:
+            raise SetupError(
+                "ctx-prefix probe %s%s/api/repositories -> %s "
+                "(not 404; auth/server trouble)" % (base, cand or "<root>", code))
+        trail.append("%s:%d" % (cand or "<root>", code))
+    raise SetupError(
+        "no working context prefix under %s (tried '', /artifactory, "
+        "/binflow; trail %s)" % (base, " ".join(trail) or "empty"))
+
+
+def ctx_path(ctx, side: str, path: str) -> str:
+    """Rewrite an instance-absolute path onto the probed context prefix.
+
+    Passes through untouched while a probe is in flight and for paths that
+    already carry the prefix (idempotent under the patch_ctx wrapper).
+    """
+    if _CTX_PROBING:
+        return path
+    pfx = ctx_prefix(ctx, side)
+    if not pfx or path == pfx or path.startswith(pfx + "/"):
+        return path
+    return pfx + path
+
+
+def content_base(ctx, side: str) -> str:
+    """Side base WITH the context prefix — the repo content-face root.
+
+    Use for mvn -Durl hosts, curl PUT bases and expected server-emitted
+    Location/envelope-uri strings (they render through the context root).
+    """
+    return ctx.sides[side]["base"].rstrip("/") + ctx_prefix(ctx, side)
+
+
+def patch_ctx(ctx):
+    """Route every ctx.http path through the probed context prefix.
+
+    One call at the top of run(ctx) fixes API-face (/api/...) AND
+    content-face (/<repo>/...) paths for the case and for every
+    mavenlib/npmlib helper it uses (repo_put/repo_delete/put_pom/
+    poll_until/get_sha_verdict/get_packument/tarball_verdict all ride
+    ctx.http). Idempotent per ctx; the runner stays a dumb transport —
+    docker-domain cases (root /v2 face) never opt in.
+    """
+    if getattr(ctx, "_ctx_prefix_patched", False):
+        return ctx
+    orig = ctx.http
+    ctx._ctx_http_orig = orig
+
+    def http(side, method, path, *args, **kwargs):
+        return orig(side, method, ctx_path(ctx, side, path), *args, **kwargs)
+
+    ctx.http = http
+    ctx._ctx_prefix_patched = True
+    return ctx
+
+
 # ------------------------------------------------------------------ digests
 
 def sha256_hex(data: bytes) -> str:

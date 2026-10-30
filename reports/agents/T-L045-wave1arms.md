@@ -1,0 +1,15 @@
+Ticket:       L045 — L042 unknown 六臂补齐批（wave1-arms 重放 + 匿名 catalog 补腿 + 负缓存 +6min 判别探针）
+Role:         differential-qa-engineer
+Area:         tools/difftest/v2/ + reports/compatibility/（产物 run/wave1-arms{,-2}/）
+Input:        L042 报告 unknown 清单 6 臂（负缓存窗口 / catalog 空降级 / star INM / /binflow/v2/ 前缀面 / schema1 阻断 / expired bearer）；模式 dual（A=192.168.120.36:32082 参照可用）；6 臂用例已在库（wave-2 c0b7edf4），本批零改动重放 + 新增匿名补腿
+Changes:      新增 cases/docker_catalog_anonymous.py（派发臂②「对匿名」腿，库内 6 臂用例未覆盖的子态）；新增 wave1_arms_run.sh（可复跑批跑入口）与 wave1_arms_ttl6m_probe.py（+6min 判别探针：--plant 植行 / --push-upstream 判别前提 / --wait-s 间隔；含 0 等待 dryrun 控制流自检）
+Files:        tools/difftest/v2/cases/docker_catalog_anonymous.py、tools/difftest/v2/wave1_arms_run.sh、tools/difftest/v2/wave1_arms_ttl6m_probe.py、reports/compatibility/L045-wave1-arms-replay.md、reports/agents/T-L045-wave1arms.md
+Tests:        批跑 7/7 执行 ×2 轮：PASS 3（negative-cache-ttl / star-inm / binflow-v2-prefix-face）/ FAIL 4（catalog-empty-degrade / catalog-anonymous / schema1-pull-block / bearer-tamper-arms）/ BLOCKED 0；两轮逐 case 逐检查同构零 flake（复跑门过）；探针 probe-1（plant+6.7min）判别性成立 SPLIT、probe-2 与 +19.8min 迟采样被并行会话夹具清理污染（repo 缺失型 404，废弃不进判定，污染证据留存）+ dryrun 1 枚（控制流自检）
+Commands:     bash tools/difftest/v2/wave1_arms_run.sh（→ run/wave1-arms/）；bash tools/difftest/v2/wave1_arms_run.sh run/wave1-arms-2；bash tools/difftest/v2/score.sh run/wave1-arms/results.json；python3 -I wave1_arms_ttl6m_probe.py（--tag nc1a1872c04b0 --wait-s 360；--plant --push-upstream --wait-s 360；dryrun --wait-s 0）；python3 -m py_compile <新 py>；runner 内置凭据审计（results.json env 段 set/MISSING、evidence 零 Authorization）
+Outputs:      报告 reports/compatibility/L045-wave1-arms-replay.md；results.json run/wave1-arms{,-2}/；新分歧候选 ⑤（匿名 catalog/tags 面开放性，安全相关）与 ⑥（负缓存 TTL 窗口分裂：A 行 <6.7min 失效 vs B ≥6.7min 持有，证据边界已钉）+ 附带观察 ⑥b（HEAD Etag 头面）；提金候选无新增（沿 L043 两条，负缓存条目因 ⑥ 未决暂缓）
+Compatibility: 候选建议 2 新 + 1 附带观察，维持 L043 候选 ①②③④（失败检查名逐字同构复现）；INTENTIONAL 裁定 0（无 authority，全数 UNKNOWN 待裁）；回归（vs wave2-2）：fixed 0 / 仍在 3 / 新增 2
+Security:     候选 ⑤ 具安全语义：B 匿名暴露 registry 目录与 remote 仓 tag 命名空间（A 同面 401+挑战）；bearer 篡改族五臂状态层双端同 401/同 200，形态层分歧维持候选 ①；凭据全程 env 注入零落盘零打印，token 值仅进请求头，探针/用例 evidence 均脱敏
+Performance:  批轮 ~40s/轮（7 用例，含建删仓）；探针每枚 6min+（设计内长间隔）；无超时 case（runner 30s 默认未触顶）
+Risks:        候选 ⑥ 证据边界已钉：A 行未存活至 plant+6.7min（时间线排除 repo 生命周期混淆——并行会话 18:26:18 起跑且 setup 为 skip-create，其 cleanup 在 probe-2 窗口内才发生）vs B ≥6.7min 持有（MANIFEST_UNKNOWN 负缓存形，行冲刷应答 200 反证）；等值性未证、与 L043 无工件观察不一致，机制归因（行过期 vs 内部缓存逐出）与精确 TTL 需实例日志面 + 静默窗口重测；**跨会话实例干扰事件**：并行 l042_reverify 会话于 18:33–18:40 删除共享夹具仓 diff-docker-remote，污染本批 probe-2/迟采样（已废弃，证据留存）——上报 conductor 建议长间隔任务互斥调度或清理前协调；B tags/list 活体聚合存在亚分钟级滞后迹象（run-1 匿名列表未含 1 分钟前上游新 tag）；上游 DELETE 405 致探针/用例 tag 残留累积（台账在报告）；双端夹具仓已被并行会话清理，后续批次须先重跑 docker_wave_setup.sh
+Blockers:     无（参照可用；真过期/吊销 bearer 臂维持环境性不可达——需参照侧 token 状态操控，沿 L043 记录）
+Next:         compatibility-engineer 裁定候选 ⑤⑥⑥b（⑤ 建议立契约 docker/anonymous-catalog-face 并同步安全侧评估；⑥ 需静默窗口重测 + 实例日志面归因，A 有效窗口与 missedTTL≈1800s 假设不符待查证）；conductor 处置跨会话实例干扰协同（见 Risks）；conductor 计量四问见报告口径（surface 7 case+3 探针 / matched 3 / divergence 4 / unknown=候选数）

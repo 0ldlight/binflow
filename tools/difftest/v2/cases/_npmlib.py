@@ -18,20 +18,26 @@ Spec anchors for the assertions (docs/reverse/):
     variant on Accept: application/vnd.npm.install-v1+json).
 
 Harness topology (controlled fake npm source, difftest- namespace only):
-  - The fake upstream is a local npm repository hosted ON the A instance
-    (key difftest-<tag>-src), seeded with deterministic prebuilt tarballs via
-    the real npm client. Both sides' remotes consume the exact same physical
-    upstream bytes.
+  - The fake upstream lives in TWO forms (both seeded from the same
+    deterministic fixture set, sha-anchored): an npm-face source ON A
+    (key difftest-<tag>-src, seeded via the real npm client) consumed by
+    A's remote, and a GENERIC twin ON B (key difftest-<tag>-gsrc, literal
+    <name>/packument.json + <name>/-/<tgz> layout) consumed by B's remote.
   - A cannot reach the difftest host (probe 2026-09-28: VPN utun4 has no
     inbound route), so the source cannot live on the runner machine.
-  - A's remote must fetch the source through A's DIRECT port (8081): the
-    router port (8082) self-reference fails to fetch (404, probe 2026-09-28).
-  - BinFlow's npm remote requests the packument at <name>/packument.json
-    (storage-layout identity mapping, known wire drift, T-538 drift A) while
-    Artifactory serves /<name> only: a layout-translating proxy bridges the
-    B leg (translate packument.json -> /<name>, everything else passthrough).
-    The proxy injects A-side basic auth from env-injected values at runtime;
-    no credential ever lands in a file, argv or evidence payload.
+  - A's remote fetches the source through A's own router face with the
+    probed platform context prefix (self-reference pull-through verified
+    2026-10-29 on 7.161.26; the old :8081 direct-port workaround is dead —
+    no listener). a_src_url() builds the URL.
+  - The former layout-translating proxy (B leg, packument.json -> /<name>)
+    is RETIRED (2026-10-29). Root cause chain: B on .36 cannot reach the
+    runner's loopback; B's remote fetches are ANONYMOUS (T-66 password
+    drop, config echo password:'') while A 401s every anonymous read; and
+    B's virtual still reads members at <name>/packument.json (T-538 drift
+    A). B's own content face answers anonymous reads (200), so the generic
+    twin ON B bridges all three facts at once (b_generic_url).
+  - No credential lands in a file, argv or evidence payload; remote
+    credentials enter from env-injected ctx values at runtime.
 
 Determinism: fixture tarballs are built as tar (mtime=0) + gzip(mtime=0);
 plain tarfile mode "w:gz" embeds a wall-clock gzip header and is NOT
@@ -68,17 +74,73 @@ repo_delete = mavenlib.repo_delete
 cleanup_repos = mavenlib.cleanup_repos
 scratch_dir = mavenlib.scratch_dir
 rm_scratch = mavenlib.rm_scratch
+patch_ctx = mavenlib.patch_ctx
+ctx_prefix = mavenlib.ctx_prefix
+ctx_path = mavenlib.ctx_path
+content_base = mavenlib.content_base
 
-# Harness adaptation, not a product divergence: Artifactory's router port
-# refuses to proxy a remote URL that references itself; the direct Artifactory
-# port serves the same instance and works (probe 2026-09-28).
-A_ROUTER_PORT = "8082"
-A_DIRECT_PORT = "8081"
+# Harness adaptation, not a product divergence (updated 2026-10-29 for the
+# .36 reference migration): the old direct-port workaround (:8082 router ->
+# :8081 direct) is DEAD in the new environment (no listener on 32081) and is
+# replaced by the probed platform context prefix (_mavenlib.ctx_prefix).
+# Router-face self-reference WORKS on JFrog 7.161.26 once the prefix is
+# applied (live probe 2026-10-29: A remote config PUT 200; pull-through
+# packument 200 + tarball 200 through http://<A>/artifactory/api/npm/<src>).
+
+def a_src_url(ctx, src_key: str) -> str:
+    """Registry-face URL of the fake upstream repo on A — for A-side remote
+    configs (no trailing slash: remote configs append /<name> themselves)."""
+    return mavenlib.content_base(ctx, "a") + "/api/npm/" + src_key
 
 
-def a_direct_base(a_base: str) -> str:
-    out = a_base.replace(":" + A_ROUTER_PORT, ":" + A_DIRECT_PORT, 1)
-    return out if out != a_base else a_base + "___direct-port-not-derived"
+def b_generic_url(ctx, key: str) -> str:
+    """Content-face URL of a generic repo ON B — the B-leg upstream form.
+
+    Reference-migration root cause chain (2026-10-29, B's own tree + live
+    probes): B's virtual reads remote members at the DRIFTED spelling
+    <upstream>/<name>/packument.json (virtual_packument.go packumentPath;
+    T-538 drift A persists), AND B's remote fetches run ANONYMOUS — the
+    accepted password is dropped at config time (T-66 no-master-key WARN
+    path; live probe: config echo carries password:''), while A answers
+    401 to every anonymous read. A's faces are therefore unreachable for
+    B's remotes regardless of spelling, and the runner-host layout proxy
+    is unreachable too (B on .36 cannot reach the runner loopback).
+
+    B itself allows ANONYMOUS READ on repo CONTENT (live probe: anonymous
+    GET /binflow/<repo>/<path> -> 200; API management face still 401).
+    The B leg therefore consumes a GENERIC twin hosted ON B whose literal
+    layout answers the drifted spellings:
+      <key>/<name>/packument.json   (hand-built packument)
+      <key>/<name>/-/<tarball>      (raw fixture bytes)
+    Fixtures are byte-deterministic (mtime=0), so sha anchors are identical
+    across the A npm-face source and this twin.
+    """
+    return mavenlib.content_base(ctx, "b") + "/" + key
+
+
+def build_packument(pkg_name: str, versions, dist_tags, tarball_base: str) -> bytes:
+    """Hand-built npm packument for the generic-face twin (npm-protocol
+    minimal shape: versions{ver:{name,version,description,dist{shasum,
+    tarball}}}, dist-tags, description). tarball_base is the generic twin's
+    content-face URL."""
+    doc = {
+        "_id": pkg_name,
+        "name": pkg_name,
+        "description": versions[0]["description"],
+        "dist-tags": dict(dist_tags),
+        "versions": {},
+    }
+    for v in versions:
+        doc["versions"][v["version"]] = {
+            "_id": "%s@%s" % (pkg_name, v["version"]),
+            "name": pkg_name,
+            "version": v["version"],
+            "description": v["description"],
+            "dist": {"shasum": v["sha1"],
+                     "tarball": "%s/%s/-/%s" % (tarball_base, pkg_name,
+                                                v["filename"])},
+        }
+    return json.dumps(doc, sort_keys=True).encode()
 
 
 # ------------------------------------------------------------------ fixtures
@@ -189,7 +251,8 @@ def _registry_auth_key(registry: str) -> str:
 
 
 def registry_url(ctx, side: str, repo: str) -> str:
-    return "%s/api/npm/%s/" % (ctx.sides[side]["base"], repo)
+    """(defined above with a_src_url; keeps the npm-client contract)"""
+    return "%s/api/npm/%s/" % (mavenlib.content_base(ctx, side), repo)
 
 
 def run_npm(ctx, side: str, args, registry: str, cache_dir: str,
@@ -287,8 +350,9 @@ def npm_virtual(key: str, members) -> tuple:
 
 def layout_keys(tag: str):
     return {
-        "src": "difftest-%s-src" % tag,
-        "loc": "difftest-%s-loc" % tag,
+        "src": "difftest-%s-src" % tag,        # npm-face source (A leg)
+        "gsrc": "difftest-%s-gsrc" % tag,      # generic twin (B leg, drifted
+        "loc": "difftest-%s-loc" % tag,        #   packument.json spellings)
         "rem": "difftest-%s-rem" % tag,
         "virt": "difftest-%s-virt" % tag,
     }
@@ -299,6 +363,8 @@ def cleanup_layout(ctx, side: str, tag: str, extra=(), include_src=False):
     order = [keys["virt"], keys["rem"], keys["loc"]]
     if side == "a" and include_src:
         order.append(keys["src"])
+    if side == "b":
+        order.append(keys["gsrc"])
     order += list(extra)
     # the derived cache repos go too (best effort; absent keys are fine)
     order += [keys["virt"] + "-cache", keys["rem"] + "-cache"]
@@ -306,9 +372,11 @@ def cleanup_layout(ctx, side: str, tag: str, extra=(), include_src=False):
 
 
 def ensure_source_on_a(ctx, scratch: str, fx: dict, tag: str):
-    """(Re)create the shared fake upstream on A. The source's lifecycle spans
-    BOTH legs of a case run: it is seeded once before leg a and deleted only
-    after leg b finishes (round-1 lesson: per-leg cleanup starved the b leg)."""
+    """(Re)create the shared fake upstream on A (npm-face source; the B-leg
+    generic twin lives ON B — see build_layout). The source's lifecycle
+    spans BOTH legs of a case run: seeded once before leg a, deleted only
+    after leg b finishes (round-1 lesson: per-leg cleanup starved the b
+    leg)."""
     key = layout_keys(tag)["src"]
     cleanup_repos(ctx, "a", [key])
     seed_source_on_a(ctx, scratch, fx, tag)
@@ -317,6 +385,41 @@ def ensure_source_on_a(ctx, scratch: str, fx: dict, tag: str):
 
 def drop_source_on_a(ctx, tag: str):
     cleanup_repos(ctx, "a", [layout_keys(tag)["src"]])
+
+
+def seed_generic_source_on_b(ctx, fx: dict, tag: str):
+    """Generic twin of the fixture source, hosted ON B (b_generic_url for
+    the why): literal <name>/packument.json + <name>/-/<tarball> layout so
+    BinFlow's drifted remote fetcher (<name>/packument.json, T-538 drift A)
+    is answered over an anonymous content read. dist-tags mirror the
+    npm-client seed (publish 1.0.0->1.0.1->2.0.0 then rewind latest->1.0.0,
+    stable->2.0.0). Tarball URLs are absolute into this twin."""
+    keys = layout_keys(tag)
+    gkey = keys["gsrc"]
+    repo_put(ctx, "b", gkey, {"rclass": "local", "packageType": "generic"})
+    base = b_generic_url(ctx, gkey)
+    pkgs = (
+        (fx["rmt"]["name"], fx["rmt"]["versions"],
+         {"latest": "1.0.0", "stable": "2.0.0"}),
+        (fx["shadow_up"]["name"], [fx["shadow_up"]], {"latest": "1.0.0"}),
+        (fx["lonly"]["name"], [fx["lonly"]], {"latest": "1.0.0"}),
+    )
+    for name, versions, tags in pkgs:
+        doc = build_packument(name, versions, tags, base)
+        resp = ctx.http("b", "PUT", "/%s/%s/packument.json" % (gkey, name),
+                        body=doc, headers={"Content-Type": "application/json"})
+        if resp["status"] not in (200, 201):
+            raise SetupError("seed gsrc packument %s -> %s"
+                             % (name, resp["status"]))
+        for v in versions:
+            resp = ctx.http("b", "PUT", "/%s/%s/-/%s" % (gkey, name,
+                                                        v["filename"]),
+                            body=v["tgz"],
+                            headers={"Content-Type":
+                                     "application/octet-stream"})
+            if resp["status"] not in (200, 201):
+                raise SetupError("seed gsrc tarball %s -> %s"
+                                 % (v["filename"], resp["status"]))
 
 
 def seed_source_on_a(ctx, scratch: str, fx: dict, tag: str):
@@ -360,24 +463,30 @@ def seed_local_member(ctx, side: str, scratch: str, fx: dict, tag: str):
                              % (fkey, res["exit"], res["out"][-200:]))
 
 
-def build_layout(ctx, side: str, scratch: str, fx: dict, tag: str, proxy):
+def build_layout(ctx, side: str, scratch: str, fx: dict, tag: str, proxy=None):
     """Provision loc + rem + virt for one side (the shared fake upstream on A
-    is managed by ensure_source_on_a/drop_source_on_a at run scope). `proxy`
-    is the running layout proxy tuple (server, port) for side b; None for
-    side a. Virtual member declaration order: remote FIRST (locals still
-    resolve first per spec §1 — the declaration-order stress from the T-538
-    case material)."""
+    is managed by ensure_source_on_a/drop_source_on_a at run scope).
+
+    Upstream forms (2026-10-29): side a's remote consumes the npm-face
+    source on A (a_src_url, router-face self-reference). side b's remote
+    consumes the generic twin hosted ON B (seed_generic_source_on_b +
+    b_generic_url) — B's remote fetches are anonymous and read B's own
+    content face; the runner-host layout proxy is RETIRED (B on .36 cannot
+    reach the runner's loopback; the `proxy` parameter is accepted for
+    signature compatibility and ignored).
+    Virtual member declaration order: remote FIRST (locals still resolve
+    first per spec §1 — the declaration-order stress from the T-538 case
+    material)."""
     keys = layout_keys(tag)
     if side == "a":
-        src_url = a_direct_base(ctx.sides["a"]["base"]) + "/api/npm/" + keys["src"]
         remote_payload = {"rclass": "remote", "packageType": "npm",
-                          "url": src_url,
+                          "url": a_src_url(ctx, keys["src"]),
                           "username": ctx.sides["a"]["user"],
                           "password": ctx.sides["a"]["password"]}
     else:
-        _, port = proxy
+        seed_generic_source_on_b(ctx, fx, tag)
         remote_payload = {"rclass": "remote", "packageType": "npm",
-                          "url": "http://127.0.0.1:%d" % port,
+                          "url": b_generic_url(ctx, keys["gsrc"]),
                           "allowPrivateUpstream": True}
     seed_local_member(ctx, side, scratch, fx, tag)
     repo_put(ctx, side, keys["rem"], remote_payload)
@@ -422,10 +531,17 @@ def tarball_verdict(ctx, side, repo, name, filename, want_sha256: str) -> str:
 
 
 def npm_out_json(res: dict):
-    """Parse the JSON payload of a successful npm --json command."""
+    """Parse the JSON payload of a successful npm --json command.
+
+    npm 12 wraps some `view --json` projections in a single-element array
+    (client shape drift, harness adaptation 2026-10-29) — unwrap it so the
+    case-level assertions keep seeing the document."""
     if res["exit"] != "0":
         return None
     try:
-        return json.loads(res["out"])
+        out = json.loads(res["out"])
     except Exception:  # noqa: BLE001
         return None
+    if isinstance(out, list) and len(out) == 1:
+        out = out[0]
+    return out

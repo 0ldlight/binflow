@@ -74,16 +74,17 @@ def _envelope_leg(ctx, side, tag, put_rel, body, extra_headers=None):
         doc = json.loads(raw["body_full"])
     except ValueError:
         doc = {}
-    want = "%s/%s/%s" % (ctx.sides[side]["base"], REPO, put_rel)
+    want = "%s/%s/%s" % (mavenlib.content_base(ctx, side), REPO, put_rel)
     raw["want_uri"] = want
     asserts["%s_uri_form" % tag] = "base+prefix+path" if doc.get("uri") == want \
         else "other:%s" % doc.get("uri")
     asserts["%s_dluri_form" % tag] = "base+prefix+path" if doc.get("downloadUri") == want \
         else "other:%s" % doc.get("downloadUri")
     # resolvability: GET the envelope uri verbatim (ctx.http prepends the
-    # side base, so hand it the uri's path beyond the base)
+    # side base + probed context prefix, so hand it the uri's path beyond
+    # the prefixed base)
     uri = doc.get("uri") or ""
-    base = ctx.sides[side]["base"]
+    base = mavenlib.content_base(ctx, side)
     rel = uri[len(base):] if uri.startswith(base) else "/__unroutable__"
     g = ctx.http(side, "GET", rel)
     raw["uri_get_status"] = g["status"]
@@ -133,12 +134,12 @@ def _leg(ctx, side):
             doc = json.loads(rawall["cksum"]["body_full"])
         except ValueError:
             doc = {}
-        want = "%s/%s/%s" % (ctx.sides[side]["base"], REPO2, POM_REL)
+        want = "%s/%s/%s" % (mavenlib.content_base(ctx, side), REPO2, POM_REL)
         rawall["cksum"]["want_uri"] = want
         out["cksum_uri_form"] = ("base+prefix+path" if doc.get("uri") == want
                                  else "other:%s" % doc.get("uri"))
         uri = doc.get("uri") or ""
-        base = ctx.sides[side]["base"]
+        base = mavenlib.content_base(ctx, side)
         rel = uri[len(base):] if uri.startswith(base) else "/__unroutable__"
         g = ctx.http(side, "GET", rel)
         rawall["cksum"]["uri_get_status"] = g["status"]
@@ -164,6 +165,7 @@ EXPECTED = {
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     per_side = {}
     try:
         for side in ("a", "b"):

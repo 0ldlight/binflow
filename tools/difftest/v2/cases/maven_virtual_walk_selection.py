@@ -103,6 +103,7 @@ DUAL_KEYS = ("v1_decl_old_new_upload_old_new", "v2_decl_new_old_upload_new_old",
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     per_side = {}
     try:
         for side in ("a", "b"):

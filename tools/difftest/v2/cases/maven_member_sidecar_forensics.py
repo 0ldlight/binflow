@@ -114,10 +114,10 @@ def _leg(ctx, side):
         # the mvn deploy goes through the local transparent forwarder. The
         # bytes on the wire are identical (verbatim relay + preemptive
         # Basic); all forensic GETs below stay DIRECT against each side.
-        deploy_base = ctx.sides[side]["base"]
+        deploy_base = mavenlib.content_base(ctx, side)
         if side == "a":
             proxy, port = mavenlib.start_forward_proxy(
-                ctx.sides["a"]["base"], ctx.sides["a"]["user"],
+                mavenlib.content_base(ctx, "a"), ctx.sides["a"]["user"],
                 ctx.sides["a"]["password"])
             deploy_base = "http://127.0.0.1:%d" % port
         out = mavenlib.mvn_deploy_file(
@@ -254,6 +254,7 @@ def _leg(ctx, side):
 
 
 def run(ctx):
+    mavenlib.patch_ctx(ctx)
     per_side = {}
     try:
         for side in ("a", "b"):
