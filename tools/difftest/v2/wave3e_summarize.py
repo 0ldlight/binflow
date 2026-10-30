@@ -185,9 +185,13 @@ def summarize_ttl(f):
     rows.append("state=%s tag=%s" % (state, f.get("tag")))
     rows.append("B live immediate=%s upstream push=%s" % (
         f.get("b_live_immediate"), f.get("upstream_push_status")))
-    flip = f.get("flip_step")
+    flip = None
+    for st in f.get("steps", []):
+        if st.get("a", {}).get("has_tag"):
+            flip = st
+            break
     if flip:
-        rows.append("IN-WINDOW FLIP at +%ds by %s (pull=%s) -> workload_dependent_refresh=%s" % (
+        rows.append("FIRST FLIP at +%ds by %s (pull=%s) -> workload_dependent_refresh=%s" % (
             flip["elapsed_s"], flip["kind"], flip.get("pull"),
             f.get("workload_dependent_refresh")))
     else:
