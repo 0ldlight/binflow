@@ -971,7 +971,12 @@ entries:
     与参照抓包 A-c3-v1auth-badpw 同形（fresh 窗倒计时数字 4 vs 抓包 9 属窗口参数差非形态差；401 pre-block
     面逐字节维持历史形态）。
     ② **T-632 熔断器**：阈值 2（L043-wave2 9/9 精确计数收敛后 5f7ebec9 5→2）、窗口 4s（静默剖面夹
-    (3.15,4.15) 定谳）、per-username 作用域——部署实例活体 REST ping 401,401,403 + 窗口届满自愈 401 复现。
+    (3.15,4.15) 定谳）、per-username 作用域——部署实例活体 REST ping 401,401,403 + 窗口届满自愈 401 复现
+    （自愈量化：B 侧收敛探针 4.5s 后单发 401、A 侧 4.6s 同构——~5s 量级双端一致）；旁路用户名坏凭据 401
+    不受牵连（B 侧 TestRecurrentBreakerScopedToPrincipalNotRoute 钉死 + A 侧活体同构 L043-wave2 范围事实：
+    U1 封锁期另一无名用户 401）；封锁内正确凭据 → 403（pre-auth 闸门、封锁先于凭据验证——R-22c 自有形态
+    对齐 ruling 的在役语义：T-632 钉死测试 + wave2_bside_admin_block_probe 活体 dev-cfa5da05；参照 A 同臂
+    200 放行=维 2 维持两案并陈，本注记只登记 B 在役事实不翻态）。
     ③ **T-634 启动预置根因修复**：部署期活体 401,403 病理根因定谳=启动 warnDefaultAdminPassword 自检经真实
     Authenticate 对 admin 记 1 次 failure 预置全新账本（活体第 1 发即第 2 计数、第 2 发提前封锁）；修复=
     CheckLocalPassword（与 Basic 臂同裁决、完全旁路账本——不查封锁/不记 failure/不清账）+ cmd 自检换用
@@ -980,11 +985,17 @@ entries:
     ④ **L042-reverify**：实例迁移认证链零回退——B 侧换版（dev-9e7ea000→dev-bb65bb75）后 wave-1 matched
     10 PASS 口径维持（rerun-2026-10-28 段 13c 重放 8 例双轮 score pass:8/fail:0 零 flake；token/challenge/
     manifest/blob 认证链全 200）。
+    ⑤ **部署形态分歧收口 + 现行实例复验（T-635/T-636 + L044-wave3）**：活体 401,403,403 病理定谳=探测方法学
+    （熔断账本按 principal 跨路由共享系设计使然——轮替共账非双计非按路由分账）：本地真实二进制顺序探测
+    401,401,403 复现、轮替读法与活体逐字节一致（T-635/T-636）；参照 A 同构活体 2/2 复现（L044-wave3 任务一：
+    轮替合计第 3 发 403、封锁倒计时 ping/repositories/docker 根三面共享、4.6s 自愈）；现行部署实例
+    dev-aceee772 阈值-2 行为活体在装（wave5_bside_threshold_context 401,401,403 + day-2 跨日复验零 flake——
+    L043-wave2 报告 rerun 章节）。
     本注记 evidence 来源=wave-1 重放（L042 报告 rerun-2026-10-28 段 + run/wave1-rerun13c{,-2}）+ L043-wave2
     报告 + 活体验证记录（reports/agents/T-632.md / T-633.md / T-634.md）。仅登记部署活体事实——classification
     维持 UNKNOWN：阈值/窗口/wire 三维已对齐待差分用例转绿由 conductor 翻账，余下两维（封锁内正确凭据/
     粘滞+升级）维持 R-22c 待裁。
-  evidence: reports/compatibility/L020-auth401-maven-faces.md V5（c3 第二轮 403 瞬态+冷却复核——限流行为本身即证据）+ reports/agents/T-632.md（实现票）+ reports/agents/T-633.md（403 wire 接线票）+ reports/compatibility/L043-wave2-report.md 任务一（9/9 精测+静默剖面+粘滞升级）+ run/wave2/threshold_experiment{,2}.json + threshold_experiment_bside{,_admin}.json + docs/compatibility/probes/docker/l043-wave2-divergence-candidates.sh（B 侧 dev-5f7ebec9 阈值收敛活体验证 401,401,403+自愈）+ reports/agents/T-634.md（启动预置根因修复票：CheckLocalPassword 旁路账本+cmd 换用）+ reports/compatibility/L042-wave1-docker-remote-replay.md（rerun-2026-10-28 段——实例迁移 13c 重放 8 例双轮 PASS 认证链零回退）+ reports/compatibility/l0203-wire/A-c3-v1auth-badpw.{hdr,body}（参照 403 抓包锚）
+  evidence: reports/compatibility/L020-auth401-maven-faces.md V5（c3 第二轮 403 瞬态+冷却复核——限流行为本身即证据）+ reports/agents/T-632.md（实现票）+ reports/agents/T-633.md（403 wire 接线票）+ reports/compatibility/L043-wave2-report.md 任务一（9/9 精测+静默剖面+粘滞升级）+ run/wave2/threshold_experiment{,2}.json + threshold_experiment_bside{,_admin}.json + docs/compatibility/probes/docker/l043-wave2-divergence-candidates.sh（B 侧 dev-5f7ebec9 阈值收敛活体验证 401,401,403+自愈）+ reports/agents/T-634.md（启动预置根因修复票：CheckLocalPassword 旁路账本+cmd 换用）+ reports/compatibility/L042-wave1-docker-remote-replay.md（rerun-2026-10-28 段——实例迁移 13c 重放 8 例双轮 PASS 认证链零回退）+ reports/compatibility/l0203-wire/A-c3-v1auth-badpw.{hdr,body}（参照 403 抓包锚）+ reports/agents/T-635.md（部署形态分歧调查：账本 per-principal 跨路由共享钉死测试 recurrent_scope_test 旁路隔离）+ reports/agents/T-636.md（双计证伪：两端点各自 401,401,403 + 跨端点续计 wire 钉死）+ reports/compatibility/L044-wave3-report.md 任务一（A 侧作用域语义 2/2 独立复现：轮替合计第 3 发 403 + 三面共享倒计时 + 4.6s 自愈 401）+ reports/compatibility/L043-wave2-report.md rerun 章节（现行部署实例 dev-aceee772 阈值-2 活体在装 401,401,403 + day-2 跨日复验零 flake）+ reports/agents/T-L043-wave2-adjudication.md（B 侧收敛探针 4.5s 后自愈 401）
 - id: conan/v2-ping-superset
   surface: conan v2/ping 超集姿态（B 200+能力头 vs A 400）
   classification: INTENTIONAL_DIFFERENCE
