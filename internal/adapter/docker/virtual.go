@@ -227,7 +227,7 @@ func (h *Handler) serveVirtualRemoteManifest(w http.ResponseWriter, r *http.Requ
 		return virtualMemberFault, serr.Error()
 	}
 	origin := originRemoteOf(facts, v2WireManifestPath(ref.image, reference))
-	fetched, ferr := entry.fetchManifest(ctx, ref.image, reference, r.Header.Values("Accept"),
+	fetched, ferr := entry.fetchManifest(ctx, ref.image, reference,
 		revalidationValidator(standing, isDigestRef))
 	if ferr != nil {
 		var serveStale func(string)
