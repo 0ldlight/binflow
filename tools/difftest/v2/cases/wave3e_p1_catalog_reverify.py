@@ -26,7 +26,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _spec = importlib.util.spec_from_file_location(
-    "wave3e_lib", os.path.join(HERE, "wave3e_lib.py"))
+    "wave3e_lib", os.path.join(HERE, "..", "wave3e_lib.py"))
 lib = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(lib)
 
