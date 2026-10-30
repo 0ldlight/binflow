@@ -57,3 +57,17 @@ BinFlow：用 Go 重写的云原生制品仓库（对标 JFrog Artifactory，行
   旧基准（7.161.15，.130:8082）认证的结论按其标注版本理解，不自动失效。
 - **测试四态**：PASS / FAIL / BLOCKED / NOT_RUN（skip≠PASS；无证据=NOT_RUN）；不得自动放宽超时/容差。
 - **UAT 审批门（2026-09-24 起）**：CircleCI `deploy_uat` 前置 `uat_approval` 人工批准；UAT 换装需确认后执行。
+
+## Agent skills
+
+### Issue tracker
+
+任务权威源是 Linear（workspace `binfloow`，团队 BIN1，三层 Project → 业务闭环 Issue → 工程 Sub-issue）；BOARD.md 已冻结为只读快照。See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+沿用五个规范角色默认标签名（needs-triage / needs-info / ready-for-agent / ready-for-human / wontfix）。See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+单上下文布局：根目录 `GLOSSARY.md` + ADR 家为既有 `DECISIONS.md`（只追加 + Errata）。See `docs/agents/domain.md`.

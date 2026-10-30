@@ -241,3 +241,14 @@
 - 复跑：`wave5_rerun_gate.py run/l043-probe-2 run/l043-probe-3` → `RERUN GATE: PASS`（6 id 状态逐一相等、首失败原因 nonce/count 归一后逐字一致、检查账本逐项同构）；首轮与定谳轮 5 共同 case 状态同构，catalog 首轮 BLOCKED 为已释明用例 bug。
 - results.json 解析：`python3 -I -c "import json; json.load(open('run/l043-probe-2/results.json'))"` 通过（三轮均验）；case id ↔ 用例文件对账见各探针小节标题。
 - 采样器复跑：恢复采样器单次长窗运行（C-b 恢复窗为状态依赖量，双轮重跑成本 2×N 分钟，收益有限——以批跑 c2/c3/c4 三点同构 + 采样器单窗长观察替代，Risks 已注）。
+
+---
+
+# Rerun 跨日复验（day-2，2026-10-30）——wave-5 五候选探针复跑门扩展
+
+- **性质**：本节为上节定谳（wave-5，2026-10-29，commit `c4c14603`）的跨日复验，非新一轮定谳；同票重复派发按验证口径执行。**五探针定谳全部维持，无需改动正文结论。**
+- **环境不变性**（`l044_probe_rerun_preflight.sh`，产物内联）：preflight A/B REST ping + fixture manifest + 上游中继 5×200；活体抽查复现两项定谳签名——A `/v2/_catalog` 200 空 body 零 CT vs B 200 JSON 单条目；tags/list schema2-only Accept **A 406 vs B 200**。B `version` 端点仍报 `dev-aceee772`——与定谳轮同一 B 构建，无版本漂移。
+- **批跑**：`l044_probe_day2_run.sh`（wave3_preflight → wave5_run 全 6 case）→ `run/l043-probe-4`；score `{"pass":0,"fail":6,"blocked":0,"not_run":51,"total":57,"coverage":0.0}` 与定谳轮同构。
+- **复跑门：PASS 双向**——`wave5_rerun_gate.py run/l043-probe-2 run/l043-probe-4` = PASS、`run/l043-probe-3 run/l043-probe-4` = PASS（6 id 状态逐一相等、首失败原因 nonce 归一后逐字一致、检查账本逐项同构、零 ok_mismatch）——**零 flake 跨日成立**（day-1 两轮 + day-2 一轮三轮同构）。六 case 首失败签名逐例复现：catalog `a json=False(len 0) b json=True`、schema1 `w2-hot-s1-only a=prettyjws b=schema2`、变异 `mut-hot-s2 config digest 不一致`、bearer `ping-bearer-empty a=403 b=401`、tags `t0 a 陈旧 b 活体`、Accept `a=406 b=200`。
+- **清理复验**（`l044_probe_day2_cleanup.sh`）：批后 B catalog 仅 fixture 条目（零 `diff-cat5-*` 残留）；A 93 仓、零临时仓残留（wave-2 曾现的 94 崩溃孤儿确认清净）。上游 GC 结转清单更新：`w5*` 残留 tag 现 22 枚（定谳 3 轮 + 本日复验轮 + 采样器；本日新增 `1a18ab0689x` 家族 ×5：`w5w/w5c1/w5n/w5m2` 各 1 + `w5t1a18ab0689a`；上游 DELETE 405 沿用结转口径，`l044_probe_upstream_gc_ledger.py` 全量枚举在案）。
+- **账目状态**：上节 10 项 known-divergence.yaml evidence 补充/提案**仍未收编**（本日 grep 复核零命中，归 compatibility-engineer 的 Next 项维持开放）。
