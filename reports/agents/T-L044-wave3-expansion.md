@@ -19,3 +19,25 @@ Next:         待 compatibility-engineer 裁定——D-1 分类（BUG vs INTENTI
 ```
 
 断点快照：无中断——批跑两轮 + TTL 长跑 + 信封专捕 + 复跑门 + 汇总全部收口，difftest 命名空间已清零（residue 双轮 CLEAN 在案），上游 GC 清单结转 6 新 tag（DELETE 405 所限）。
+
+## 追加轮（2026-10-30 第二次派发，同票续）
+
+```
+Ticket:       T-L044-wave3-expansion（第二次派发：五候选活体探针——与首轮同任务）
+Role:         differential-qa-engineer
+Area:         tools/difftest/v2/ + reports/compatibility/L044-wave3-expansion-report.md 追加章节
+Input:        同首轮契约面与实例；B 简报仍标 dev-aceee772
+Changes:      新增 wave3e_run3_gate.py（run3 对账门，复用 rerun_gate 结论抽取；p2/p4 排除理由内注）；报告追加「追加轮」章节
+Files:        tools/difftest/v2/wave3e_run3_gate.py、reports/compatibility/L044-wave3-expansion-report.md（追加轮章节）、本日志追加块、run/wave3-expansion/{p1_catalog_topology,p3_bearer_matrix,p5_tags_accept_matrix,residue_check}-run3.json + rerun_gate_run3.json（gitignored）
+Tests:        preflight PASS（B 活体仍 dev-fdeabbf2=判定锚定维持）；run3 批 = p1 11 格 + p3 48 格 + p5 9 格，vs run1 68/68 MATCH（RUN-3 GATE PASS）；p2 跳过（上游残渣纪律——冷相位臂每轮 +2 永久 tag，run1/run2 已 gated）；p4 单窗实验不重复；residue run3：双端 repo 命名空间 CLEAN、上游台账维持 8 tag 零新增。四态：PASS=68 格追认；BLOCKED=0；NOT_RUN=p2/p4（免跑，非阻塞，理由在案）；FAIL=0
+Commands:     python3 -I tools/difftest/v2/wave3e_preflight.py；W3E_EVIDENCE_SUFFIX=-run3 python3 -I tools/difftest/v2/cases/wave3e_p{1_catalog_reverify,3_bearer_matrix,5_tags_accept_reverify,residue_check}.py（逐个退出码 0，p1 exit=1 系 cleanup-verify-404 断言口径、400/400 联合漂移同首轮报告）；python3 -I tools/difftest/v2/wave3e_run3_gate.py（→ PASS）
+Outputs:      报告追加章节「追加轮」；run3 证据四件 + rerun_gate_run3.json
+Compatibility: 追认零翻转——五候选定谳三轮稳定（首轮 run1/run2 门 + run3 同日 +2.5h）；known-divergence.yaml 吸收状态核对：compatibility-engineer 并行会话已吸收四条目证据（未提交工作区，YAML VALID），D-1 拆条已宣告、条目本体在其流未落盘；本会话对台账净写入为零（曾加 3 行头注因重复且归属失真已原样回退，git diff 零残留）
+Security:     凭据纪律同首轮（env 行首锚定、token len+sha256 前缀）；48 发 bearer 矩阵零 recurrent 熔断污染；匿名三格复验同首轮形态
+Performance:  run3 全程 ~3 分钟；无超时
+Risks:        与并行会话同文件写竞争（known-divergence.yaml 两次「modified on disk」告警）——处置：竞争域零写入+回退自注，续写权归工程侧
+Blockers:     无
+Next:         D-1 条目落盘 + 四条目翻态归 compatibility-engineer（其并行流）；本票无余项
+```
+
+追加轮断点快照：无中断；difftest 命名空间 CLEAN（run3 残渣检查在案）；上游台账 8 tag 无新增。

@@ -155,3 +155,37 @@ CI「push→立查」工作流在参照上的可见性因此**取决于查询前
 - **matched**：候选③ 六项不变量双轮全绿；候选① 七项派生 check 双轮全绿（A 四面统一 Basic、B 跨面分裂维持）；候选面② 规则级钉死双轮复现；A schema1 12/12 臂跨版本复现；任务二 A 侧 24 格补全完成；复跑门 PASS（92 格零 flake）。
 - **divergence**：候选② B 冷相位 3 臂 CHANGED（D-1 新分歧 + C-b 消失）；catalog 根面/匿名面、bearer 跨面分裂、Accept 406、TTL 工况依赖等分歧项全部带双轮证据固化。
 - **unknown**：D-1 分类（BUG vs INTENTIONAL 取舍）待裁；A/B DELETE-后-GET 400 联合漂移（相对 L043 的 404）一句记录、不立案。
+
+---
+
+## 追加轮（2026-10-30 第二次派发）：run-3 同日追认 + 活体版本复验 + 台账吸收状态核对
+
+第二次派发同名任务（五候选活体探针）。处置顺序：先核对既有交付（全部在 HEAD：探针 181de5eb/a496fd3a、报告+日志+信封专捕 1ccd7c1a），再对可复验项做增量追认，不重跑全批。
+
+### 追认 1：活体版本复验（结论锚定维持有效）
+
+`wave3e_preflight.py` PASS——B 活体仍为 **dev-fdeabbf2**（`/binflow/api/system/version` 实测），与本报告全部判定锚定版本一致；简报标注 dev-aceee772 再次确认系陈旧标签（aceee772 与 fdeabbf2 为同对分支的反向 merge，内容有别，但部署未切换）。A 健康同过；夹具 t1 双端 200（schema2）、上游 t2 200；tags 基线双端 n=44（本波窗后自然增长，非异常）。
+
+### 追认 2：run-3 三轮稳定性（免写探针，68 格全 MATCH）
+
+本轮只跑 **p1/p3/p5**（对上游零写入）：p2 冷相位臂每轮需向上游中继推 2 个轮次唯一 tag（DELETE 405，台账永久结转），其 run1/run2 已 gated，为守上游残渣纪律不重跑；p4 为单窗长跑实验不重复。
+
+| 探针 | run3 格数 | vs run1 | 结论 |
+|---|---|---|---|
+| p1 catalog topology | 11 | MATCH | 根面 body-kind 分歧/T2 成员同一/T4 匿名 401 vs 200/T5 401 vs 404 全维持；cleanup verify 400/400 联合漂移同前（exit=1 系该断言口径） |
+| p3 bearer matrix | 48 | MATCH | A 四面统一 Basic（derived 全 basic）；B F1 basic / F2,F3 bearer+泛化信封 / F4 basic(invalid-credentials-rest)；A F1 empty-bearer 403 C-c 形态 1 处；零 recurrent 熔断污染 |
+| p5 Accept 406 | 9 | MATCH | 406 ⇔ Accept 非空且不含 application/json 与 */*：A holds=True misses=[]；B 九臂全 200 |
+
+**RUN-3 GATE: PASS**（`run/wave3-expansion/rerun_gate_run3.json`，工具 `wave3e_run3_gate.py` 复用 rerun_gate 结论抽取）。五候选定谳自本日起为**三轮稳定**（run1/run2 复跑门 + run3 同日 +2.5h 追认）。残渣：双端 repo 命名空间 CLEAN（A 93 仓无 diff 键、B 1 仓）；上游台账维持 8 tag 无新增（`residue_check-run3.json`）。
+
+### 追认 3：known-divergence.yaml 台账吸收状态（并行会话核对）
+
+compatibility-engineer 并行会话已在台账吸收本报告证据（未提交工作区改动，YAML 有效）：四条目（registry-catalog-bare-root / remote-schema1-conversion / bearer-failure-shape / remote-tags-list-freshness-and-406）evidence 与收账注记均已引用本报告 §1.1/§1.2/§1.3/任务三 + wave3e run JSON；D-1 拆条 `docker/remote-schema1-cold-s1-rejection` 已在 schema1 条 evidence/note 中宣告（**条目本体在其流中尚未落盘**）。本会话对台账**净写入为零**：曾加注的 3 行头注因其与并行吸收重复且归属失真已原样回退（回退后 git diff 中零残留）。D-1 条目落盘与四问翻态归 compatibility-engineer。
+
+### 追加轮四问增量
+
+- **surface**：run3 = p1 11 + p3 48 + p5 9 = 68 格 ×双端。
+- **matched**：68/68 与 run1 逐格相等（RUN-3 GATE PASS）；活体版本复验 B=dev-fdeabbf2 锚定维持。
+- **divergence**：全部既有分歧行维持，无新增无消退。
+- **unknown**：D-1 条目落盘在其流（工程侧）；本会话无新 UNKNOWN。
+
